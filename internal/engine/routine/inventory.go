@@ -14,6 +14,13 @@ import (
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
+	// Selected REL_18_6 measurements; radius remains with CircleRoutineProvider.
+	{catalog.RoutineIdentity{975, ids.PGCatalogNamespaceOID, "area", "603"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
+	{catalog.RoutineIdentity{979, ids.PGCatalogNamespaceOID, "area", "602"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
+	{catalog.RoutineIdentity{1468, ids.PGCatalogNamespaceOID, "area", "718"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
+	{catalog.RoutineIdentity{1469, ids.PGCatalogNamespaceOID, "diameter", "718"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
+	{catalog.RoutineIdentity{1542, ids.PGCatalogNamespaceOID, "center", "603"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
+	{catalog.RoutineIdentity{1543, ids.PGCatalogNamespaceOID, "center", "718"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
 	// Selected REL_18_6 geometric constructors/conversions only.
 	{catalog.RoutineIdentity{1421, ids.PGCatalogNamespaceOID, "box", "600,600"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
 	{catalog.RoutineIdentity{1446, ids.PGCatalogNamespaceOID, "box", "604"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},

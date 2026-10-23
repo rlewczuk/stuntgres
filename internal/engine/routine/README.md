@@ -257,6 +257,15 @@ adjacent constructor or operator becomes executable.
 make check RUN='^TestGeometryConversionDeclarations$'
 ```
 
+The six selected REL_18_6 area/center/diameter declarations use
+`GeometryMeasureRoutineProvider`: OIDs975/979/1468/1469/1542/1543, exact BOX/PATH/
+CIRCLE formals and FLOAT8/POINT results, strict immutable parallel-safe scalar
+functions. Radius1470 retains `CircleRoutineProvider`; it is not re-registered
+or migrated. Public `TestReferenceGeometryMeasureRoutines` checks the seven
+released identities and actual namespace-selected behavior; Consumers/Controls
+exercise stored execution and replay. No adjacent lookup-only geometry routine
+is made executable by this inventory.
+
 Selected cast DDL/runtime coverage:
 `make check RUN='^TestReferenceCastDefinition(Grammar|Notices|Signatures|SignatureAdapters|Authority|Dependencies|FunctionAndContexts|UtilityPolicies)$'`
 and the same selector with `REFERENCE=1`.

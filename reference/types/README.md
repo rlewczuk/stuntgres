@@ -6,6 +6,43 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Geometric measurement oracle contract
+
+`TestReferenceGeometryMeasure{Values,BindingsMetadata,Diagnostics,Routines,
+Consumers,Controls}` specifies exactly `area(box/path/circle)`,
+`center(box/circle)`, `diameter(circle)` and the existing `radius(circle)`.
+Expectations are independently specified before backend comparison: closed
+triangle area6 versus open-path NULL, BOX4, CIRCLE12.566370614359172,
+strict typed NULL and POINT/FLOAT8 metadata, checked arithmetic and full input
+diagnostics, same-held binding recovery, stored generated/default/CHECK/view
+and SQL-function consumers, failure atomicity and public native controls.
+The control scenario reuses existing geometry metadata and failing-I/O helpers;
+it executes new inserts after same/fresh native Restore and actual dump SQL
+replay on PostgreSQL. It does not add adjacent path helpers or polygon area.
+
+The shared scenario runs every available backend. Native host-control phases
+are explicitly native-only; ordinary SQL expectations remain shared with the
+pinned PostgreSQL fixture.
+
+Selected proof, each with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceGeometryMeasure(Values|BindingsMetadata|Diagnostics|Routines|Consumers|Controls)$' REFERENCE=1
+make check RUN='^TestReferenceGeometryMeasure(Values|BindingsMetadata|Diagnostics|Routines|Consumers|Controls)$'
+make check RUN='^TestReferenceGeometryMeasure(BindingsMetadata|Consumers|Controls)$' RACE=1
+```
+
+Public routine evidence uses supported `pg_proc` columns and exact selected
+regprocedure/result identities, not unsupported catalog helper expansion or
+private declaration mirrors. A separate root-owned temporary public consumer
+is the feature smoke; no permanent duplicate FeatureSmoke definition is added.
+After implementation its session source is `local://geom-measure-smoke.go`;
+root materializes `.geom-measure-smoke/main.go`, runs
+`timeout --signal=KILL 900s go run ./.geom-measure-smoke`, then removes the
+temporary directory. Expected observations are generated results/open NULL,
+same-held malformed-input recovery, overflow without prefix publication,
+public Dump/Reset/Restore and successful new post-Restore inserts.
+
 ### Domain default and nullability alterations
 
 The shared `TestReferenceDomainAlterDefault{Lifecycle,Prepared,Diagnostics,
@@ -360,8 +397,9 @@ typed parameter signatures; full diagnostics; fixed routine facts;
 constructor consumers/default/CHECK/view and
 native replay through existing carriers. Ordinary negative CIRCLE text/binary
 input remains invalid while `circle(point,float8)` accepts negative radii.
-The tests use existing `::circle` input syntax and circle-only containment,
-not unsupported CIRCLE introducers or cross-type spatial operators.
+The conversion tests use `::circle` input syntax and circle-only containment,
+not cross-type spatial operators. Ordinary and qualified CIRCLE typed literals
+are covered by the geometric measurement tests.
 
 ```sh
 make check RUN='^TestReferenceGeometryConversion(Values|BindingsMetadata|Diagnostics|Routines|Controls|CarrierShape|Resolution|StoredRecipes|FeatureSmoke)$' REFERENCE=1

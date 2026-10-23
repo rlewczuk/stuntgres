@@ -137,6 +137,24 @@ make check RUN='^TestGeometryConversion(ProviderLifecycle|ReplayShapes)$'
 Public SQL, full diagnostics and native control proof live in
 [`reference/types`](../../../reference/types/README.md#geometric-constructor-conversion-contract).
 
+## Geometric measurement provider
+
+`GeometryMeasure` binds the six selected `area`, `center` and `diameter`
+signatures through pure exact/best-implicit probes and one winning coercion.
+It retains selected routine/formal/result authority, evaluates its child once,
+and uses typed literal transport for overloaded stored replay. Radius remains
+with the existing Circle provider. No typename-cast shortcut, parser-specific
+dispatch, new closure helper or area(polygon) signature is admitted.
+
+### Testing
+
+`make check RUN='^TestGeometryMeasureGroupIdentity$'` guards grouping of
+equal-result but distinct selected calls, including center versus conversion.
+Public routine identity, direct/prepared behavior, metadata, stored consumers
+and actual native/PG replay are exercised by the six measurement definitions in
+[`reference/types`](../../../reference/types/README.md#geometric-measurement-oracle-contract),
+not private declaration mirrors or render-text assertions.
+
 ## Callable competition with SQL overloads
 
 The engine's shared selector keeps existing builtin and installed providers in

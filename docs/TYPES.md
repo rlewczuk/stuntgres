@@ -111,9 +111,34 @@ area, including inequality. `~=` compares center/radius; directional,
 containment, overlap and distance signatures operate only on circles.
 `radius(circle)` returns FLOAT8; every operation is strict.
 Scalar predicates do not confer default equality/order/hash/group/index
-capabilities. Circle arrays, cross-type spatial operators, center and transformations
-remain unavailable. The nine selected constructors/conversions below are separate
+capabilities. Circle arrays, cross-type spatial operators and transformations
+remain unavailable. Selected measurements and the constructors/conversions below are separate
 from these operators. See [circle reference proof](../reference/types/README.md#circle-scalar-contract).
+
+## Geometric measurements
+
+Exactly seven strict scalar signatures execute: `area(box)`, `area(path)`,
+`area(circle)`, `center(box)`, `center(circle)`, `diameter(circle)` and
+`radius(circle)`. Centers return POINT600; other measurements return FLOAT8/701.
+Open PATH area is NULL before coordinate arithmetic. Closed paths retain vertex
+order and cyclic successors, accumulating checked `x[i]*y[j]` then subtracting
+checked `y[i]*x[j]`, before absolute value and division by2. Reversed triangles
+have the same area; self-intersection is not rejected or geometrically repaired.
+
+BOX area consumes stored corners without renormalization; BOX center computes
+checked `(high+low)/2` per coordinate, X before Y. It can overflow even when an
+ideal midpoint would fit. CIRCLE area computes checked `(r*r)*pi`, diameter
+checked `r*2`, and radius returns stored r. Center copies coordinates exactly,
+without radius validation; negative constructor radii remain valid typed values.
+Checked underflow/overflow reports22003 with the released English diagnostic;
+explicit NaN/Infinity propagate according to the arithmetic.
+
+Defaults, CHECKs, generated outputs, SQL wrappers and views preserve exact
+selected overloads through native logical Dump/Reset/Restore; typed literal
+and NULL formals remain explicit on replay. This is logical host replacement,
+not physical PostgreSQL storage or WAL. No `area(polygon)`, `@@`, path closure
+helper, length/count helper or additional box/line measurement is introduced.
+See [measurement proof](../reference/types/README.md#geometric-measurement-oracle-contract).
 
 ## Geometric constructors and conversions
 

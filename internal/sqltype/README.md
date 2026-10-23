@@ -133,6 +133,15 @@ POINT copies coordinates/circle centers inline; BOX/LSEG means use checked sums
 then division. Both polygon center and circle use the full shared circle kernel,
 including checked radius arithmetic and cancellation, not a mean-only shortcut.
 
+`GeometryMeasurePlan` owns six unary area/center/diameter operations, leaving
+radius in `CirclePlan`. It validates the same catalog's input/result authority
+before strict NULL, reuses BOX/CIRCLE area kernels and the BOX/LSEG midpoint,
+and never reparses text or copies path vertices. Open-path area bypasses
+coordinate arithmetic; closed paths use sequential checked products/add/subtract
+then absolute half, checking cancellation per vertex. Inline circle-center
+copies retain IEEE bits. Checked operation order is a contract, not an
+optimization opportunity.
+
 
 `Citext` is a catalog-generation-owned scalar using Value's immutable string,
 with shared encoding validation and collatable Usage. It does not fold case.
@@ -341,6 +350,16 @@ constructor literal units:
 ```sh
 make check RUN='^(TestGeometryConversion(Kernel|LineErrors)|TestCircleConstructorReplay)$'
 ```
+
+Focused measurement invariants guard unsafe midpoint/cross-product rewrites,
+foreign catalog NULL retagging, traversal-only cancellation and center bit loss:
+
+```sh
+make check RUN='^TestGeometryMeasure(ArithmeticOrder|Authority|Cancellation|CenterBits)$'
+```
+
+Public values/diagnostics/metadata and logical replay use the six shared
+definitions in [`reference/types`](../../reference/types/README.md#geometric-measurement-oracle-contract).
 
 Binary datum and raw32 supplemental units exercise actual word/byte/coordinate
 results, all scalar family pairs, temporal epoch/infinity translation, descriptor

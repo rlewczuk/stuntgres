@@ -165,17 +165,9 @@ func (p GeometryConversionPlan) Evaluate(ctx context.Context, values [2]Value) (
 		if a.geometry == nil {
 			return Value{}, fmt.Errorf("missing geometry payload")
 		}
-		c = a.geometry.coordinates
-		var center [2]float64
-		for i := range 2 {
-			n, err := checkedFloatingBinary(ArithmeticAdd, Float8, c[i], c[i+2])
-			if err != nil {
-				return Value{}, err
-			}
-			center[i], err = checkedFloatingBinary(ArithmeticDivide, Float8, n, 2)
-			if err != nil {
-				return Value{}, err
-			}
+		center, err := geometryMidpoint(a.geometry.coordinates)
+		if err != nil {
+			return Value{}, err
 		}
 		return pointValue(p.result, center[0], center[1]), nil
 	case BoxPoint, BoxPoints, LinePoints, LsegPoints:

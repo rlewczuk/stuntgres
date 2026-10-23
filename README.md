@@ -27,6 +27,18 @@ the documented Dump rejection. See the [execution contract](docs/QUERIES.md#user
 [compatibility boundary](docs/DIALECT.md#user-defined-ordinary-aggregates) and
 [selected proof](reference/aggregates/README.md#create-aggregate-contract).
 
+## Geometric measurements — change note
+
+Selected strict measurements now include `area(box/path/circle)`,
+`center(box/circle)`, `diameter(circle)` and the existing `radius(circle)`.
+Open-path area is NULL; closed paths use sequential checked float8 arithmetic,
+not polygon validation or a geometric centroid. Centers return POINT and other
+measurements FLOAT8, including typed NULL. Stored consumers and native logical
+replay retain the selected overloads. Adjacent path/box-line helpers and
+`area(polygon)` are not added.
+See [type semantics](docs/TYPES.md#geometric-measurements) and
+[selected proof](reference/types/README.md#geometric-measurement-oracle-contract).
+
 ## Geometric constructors and conversions — change note
 
 Seventeen selected BOX/CIRCLE/LINE/LSEG/PATH/POINT signatures execute through typed

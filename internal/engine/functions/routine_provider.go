@@ -38,4 +38,5 @@ const (
 	IndexSupportRoutineProvider
 	FTSRoutineProvider
 	GeometryConversionRoutineProvider
+	GeometryMeasureRoutineProvider
 )

@@ -257,9 +257,11 @@ equality/ordering capabilities: ORDER BY, DISTINCT/GROUP BY and default
 B-tree/hash operator classes remain unavailable. NaN area predicates are all
 false, including `<>`. The
 [seventeen selected constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
-are admitted separately, including `point(circle)` center copies. Other
-adjacent-geometry constructors/conversions, transformations, area/diameter
-functions, circle arrays and spatial indexes remain unavailable.
+and [seven geometric measurements](TYPES.md#geometric-measurements) are admitted
+separately, including POINT-valued circle centers and area/diameter.
+Other adjacent-geometry constructors/conversions, transformations, circle arrays
+and spatial indexes remain unavailable. Path closure/length/count and additional
+box/line measurements remain outside the selected measurement family.
 Text and 24-byte binary codecs, metadata and native logical controls share the
 [type-owned circle contract](TYPES.md#circle).
 
