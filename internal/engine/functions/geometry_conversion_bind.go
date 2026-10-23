@@ -45,7 +45,7 @@ func bindGeometryConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error
 	}
 	var selected sqltype.GeometryConversion
 	matches, best := 0, -1
-	for op := sqltype.BoxCircle; op <= sqltype.PointPolygon; op++ {
+	for op := sqltype.BoxCircle; op <= sqltype.PolygonPath; op++ {
 		if op.Name() != name || op.Arity() != len(operands) {
 			continue
 		}
@@ -75,7 +75,7 @@ func bindGeometryConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error
 	}
 	// Function resolution step 3 applies after exact signatures, before best
 	// implicit matching. An unresolved external parameter is not a Const.
-	if len(operands) == 1 && (name == "box" || name == "circle" || name == "lseg" || name == "path" || name == "point") && best < 1 {
+	if len(operands) == 1 && (name == "box" || name == "circle" || name == "lseg" || name == "path" || name == "point" || name == "polygon") && best < 1 {
 		arg := operands[0]
 		var id sqltype.ID
 		switch name {
@@ -89,6 +89,8 @@ func bindGeometryConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error
 			id = sqltype.Path
 		case "point":
 			id = sqltype.Point
+		case "polygon":
+			id = sqltype.Polygon
 		}
 		target := b.Type(id).Usage()
 		cast := arg.Kind == DeferredStringArgument || arg.Kind == DeferredNullArgument

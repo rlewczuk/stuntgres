@@ -113,8 +113,10 @@ Representation identity compares all three IEEE bit patterns independently of
 fuzzy SQL geometry. Area and edge arithmetic reuse checked float operations;
 center distance follows the released scaled hypot order.
 
-`GeometryConversionPlan` owns exactly seventeen BOX/CIRCLE/LINE/LSEG/PATH/POINT
+`GeometryConversionPlan` owns exactly twenty-one BOX/CIRCLE/LINE/LSEG/PATH/POINT/POLYGON
 constructors, with fixed typed operands and the same catalog's float8 authority.
+The explicit polygon count additionally requires the result POLYGON's canonical
+INT4 association; foreign same-OID operands fail before strict NULL handling.
 It reads immutable geometry directly, preserves raw inverted BOX corners and checks cancellation
 in polygon loops. `circle(point,float8)` creates legitimate negative-radius
 datums without relaxing text22P02 or binary22P03 input checks. Existing circle
@@ -123,15 +125,23 @@ qualified constructor with exact coordinate/radius spelling. Composite replay
 uses typed members; negative-containing existing array carriers use recursive
 typed SQL constructors and bounded INSERT targets to preserve rank and bounds,
 not invalid circle text or a native-only NULL placeholder.
-Known TEXT-to-CIRCLE typename input uses the existing viaIO representation only
-in Explicit context, including normal domain recursion and generation Rebind.
-It calls ordinary circleInput, retaining negative text rejection; no implicit,
-assignment, reverse or cross-geometry route is admitted by that correction.
+Known TEXT-to-CIRCLE/POLYGON typename input uses the existing viaIO representation
+only in Explicit context, including normal domain recursion and generation Rebind.
+It calls the ordinary input codec, retaining negative circle text rejection;
+no implicit, assignment, reverse or cross-geometry route is admitted.
 LSEG retains ordered/coincident endpoints and shares immutable raw BOX diagonals.
 PATH owns one closed vertex slice copied from POLYGON, preserving all vertices.
 POINT copies coordinates/circle centers inline; BOX/LSEG means use checked sums
 then division. Both polygon center and circle use the full shared circle kernel,
 including checked radius arithmetic and cancellation, not a mean-only shortcut.
+POLYGON copies BOX corners low-low/low-high/high-high/high-low or every closed
+PATH vertex without normalization/deduplication/closing append. Open PATH fails22023.
+Circle sampling defaults12 or accepts explicit INT4 n>=2, starting leftmost for
+positive radii and retaining checked unsnapped trig arithmetic. Validation order:
+inclusive abs(radius)<=1e-6 (0A000), n<2 (22023), released signed-int storage
+guard16*n+40<=INT_MAX (54000), then coordinate arithmetic (22003 on overflow).
+NaN/Infinity and negative constructor radii outside fuzzy zero are not blanket
+rejected. Unary SQL-wrapper kernel diagnostics retain their function Context.
 
 `GeometryMeasurePlan` owns six unary area/center/diameter operations, leaving
 radius in `CirclePlan`. It validates the same catalog's input/result authority

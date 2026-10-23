@@ -38,7 +38,7 @@ Closed body formals still use input-only names and slots. Stored capture sees
 written occurrences only, while generic traversal also sees hidden defaults.
 See [parameter proof](../../../reference/operators/README.md#routine-parameter-binding).
 
-Ordinary unary `box`/`circle`/`lseg`/`path`/`point` typename calls with visible SQL competitors share
+Ordinary unary `box`/`circle`/`lseg`/`path`/`point`/`polygon` typename calls with visible SQL competitors share
 the existing explicit relabel/I/O shortcut after exact declaration lookup and
 before implicit/unknown best matching. The private selection retains resolved
 target Usage and the already analyzed operand, then finishes through ordinary
@@ -52,6 +52,15 @@ the frame-local stored syntax becomes an ordinary qualified explicit cast to the
 selected target. Literal capture therefore follows the real bound shape, and
 later overloads cannot reinterpret that stored typename call during replay.
 Nonstored source syntax and the strict capture mismatch checks remain unchanged.
+Successful geometric typename selection also records only its target Usage at
+the actual call offset in the existing `Prepared.Types` group. While that
+analysis remains valid, held execution checks current lexical namespace
+authority then rebuilds the ordinary explicit cast from the original operand;
+a newly created overload alone cannot replace the selected typename conversion.
+Existing environment/definition invalidation retires and atomically recaptures
+these occurrences with domain casts; no expression/coercion cache or new
+invalidation trigger is introduced.
+
 
 Simple CASE binds its saved test through a lexical `plan.CaseTestExpr` for each
 equality, retaining the actual winning conversion tree in `CaseBranch.Test`.
@@ -146,7 +155,8 @@ Private seam proof: `make check RUN='^TestSQLJSONDefaultShape$'`.
   rendering captures keyed by `ViewLiteralPath`, with view columns,
   namespaces and composite occurrences), `PreparedCaptures` (temporal,
   type-occurrence, sequence and regtype captures a prepared statement re-resolves).
-  `Types`/`PreparedTypeKey` share composite captures with domain-cast identities;
+  `Types`/`PreparedTypeKey` share composite captures with domain and finite
+  geometric typename-cast identities;
   `DomainCastAnnotation` reconstructs the live spelling of the retained ID before
   normal lookup/authority/coercion, only while its analysis environment is valid.
   Domain casts include immediate domain-element companion arrays. Reconstruction

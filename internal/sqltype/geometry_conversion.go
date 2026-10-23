@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-// GeometryConversion identifies only the seventeen released constructor signatures.
+// GeometryConversion identifies only the twenty-one released constructor signatures.
 // It does not add casts, arrays or default comparison capabilities.
 type GeometryConversion uint8
 
@@ -28,6 +28,10 @@ const (
 	PointCircle
 	PointLseg
 	PointPolygon
+	PolygonBox
+	PolygonCircle
+	PolygonCirclePoints
+	PolygonPath
 )
 
 var geometryConversions = [...]struct {
@@ -53,6 +57,10 @@ var geometryConversions = [...]struct {
 	{"point", [2]ID{Circle}, Point, 1},
 	{"point", [2]ID{Lseg}, Point, 1},
 	{"point", [2]ID{Polygon}, Point, 1},
+	{"polygon", [2]ID{Box}, Polygon, 1},
+	{"polygon", [2]ID{Circle}, Polygon, 1},
+	{"polygon", [2]ID{Int4, Circle}, Polygon, 2},
+	{"polygon", [2]ID{Path}, Polygon, 1},
 }
 
 func (op GeometryConversion) Name() string {
@@ -70,8 +78,8 @@ func (op GeometryConversion) Arity() int {
 func (op GeometryConversion) Formal(i int) ID { return geometryConversions[op].formals[i] }
 func (op GeometryConversion) ResultID() ID    { return geometryConversions[op].result }
 
-// All participating descriptors carry their catalog's float8 authority through
-// existing geometry links. Equal OIDs from a different Builtins set do not bind.
+// Participating geometry/float descriptors carry their catalog's float8 authority.
+// INT4 is authorized separately by the result polygon's canonical association.
 func geometryConversionOwner(d *Descriptor) *Descriptor {
 	if d == nil {
 		return nil
@@ -112,7 +120,11 @@ func BindGeometryConversion(op GeometryConversion, result Usage, inputs [2]Usage
 	p := GeometryConversionPlan{operation: op, result: result.Type}
 	for i := range op.Arity() {
 		u := inputs[i]
-		if u.Type == nil || u.Type.id != op.Formal(i) || u != u.Type.Usage() || geometryConversionOwner(u.Type) != owner {
+		authorized := geometryConversionOwner(u.Type) == owner
+		if op.Formal(i) == Int4 {
+			authorized = result.Type.polygonInt != nil && u.Type == result.Type.polygonInt
+		}
+		if u.Type == nil || u.Type.id != op.Formal(i) || u != u.Type.Usage() || !authorized {
 			return GeometryConversionPlan{}, fmt.Errorf("invalid geometry conversion operand")
 		}
 		p.inputs[i] = u.Type
@@ -140,6 +152,8 @@ func (p GeometryConversionPlan) Evaluate(ctx context.Context, values [2]Value) (
 	var c [4]float64
 	a := values[0]
 	switch p.operation {
+	case PolygonBox, PolygonPath, PolygonCircle, PolygonCirclePoints:
+		return p.polygonConversion(ctx, values)
 	case LsegBox:
 		if a.geometry == nil {
 			return Value{}, fmt.Errorf("missing BOX payload")

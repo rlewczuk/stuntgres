@@ -30,6 +30,10 @@ func conversionProviderUnit(t *testing.T, op sqltype.GeometryConversion) (Geomet
 			text = "[(2,4),(8,10)]"
 		case sqltype.Float8:
 			text = "-1"
+		case sqltype.Int4:
+			text = "4"
+		case sqltype.Path:
+			text = "((0,0),(1,1),(2,0))"
 		case sqltype.Point:
 			if i == 1 {
 				text = "(1,1)"
@@ -49,7 +53,7 @@ func conversionProviderUnit(t *testing.T, op sqltype.GeometryConversion) (Geomet
 }
 
 func TestGeometryConversionProviderLifecycle(t *testing.T) {
-	for op := sqltype.BoxCircle; op <= sqltype.PointPolygon; op++ {
+	for op := sqltype.BoxCircle; op <= sqltype.PolygonPath; op++ {
 		n, c, order := conversionProviderUnit(t, op)
 		fresh, _, _ := conversionProviderUnit(t, op)
 		if n.ValidateStoredProvider() != nil || n.IntrinsicVolatility() != expr.Immutable || !n.LooksLikeFunction() {
@@ -89,6 +93,20 @@ func TestGeometryConversionProviderLifecycle(t *testing.T) {
 		same := func(a, b expr.Expr) bool { return a.ResultUsage() == b.ResultUsage() }
 		if !n.SameGroup(n, same, false) || n.SameGroup(fresh, same, false) {
 			t.Fatal("group identity")
+		}
+		otherNamespace := n
+		otherNamespace.Namespace = "public"
+		if n.SameGroup(otherNamespace, same, false) {
+			t.Fatal("namespace lost from group identity")
+		}
+		foreign, err := n.Substitute(n.Info, fresh.Children())
+		if err != nil || foreign.(GeometryConversion).ValidateStoredProvider() == nil {
+			t.Fatal("substituted foreign operands passed stored validation", err)
+		}
+		for _, arg := range spec.Args {
+			if arg.Transport != expr.TransportLiteral {
+				t.Fatal("selected formal literal transport lost")
+			}
 		}
 		if _, err := n.Substitute(n.Info, n.Children()); err != nil {
 			t.Fatal(err)

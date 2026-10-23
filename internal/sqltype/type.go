@@ -142,6 +142,7 @@ type Descriptor struct {
 	circleBoolean, circleFloat      *Descriptor
 	pointBoolean, pointFloat        *Descriptor
 	polygonBoolean, polygonPoint    *Descriptor
+	polygonInt                      *Descriptor
 	ftsBoolean, ftsDistance         *Descriptor
 	lookupOnly                      bool
 	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
@@ -317,7 +318,7 @@ func Builtins() []*Descriptor {
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
 		{id: Unknown, name: "unknown"},
 	}
-	var networkCIDR, networkMasklen, networkBoolean, geometryPoint, circleFloat *Descriptor
+	var networkCIDR, integer, networkBoolean, geometryPoint, circleFloat *Descriptor
 	for _, d := range types {
 		switch d.id {
 		case Point:
@@ -325,7 +326,7 @@ func Builtins() []*Descriptor {
 		case Cidr:
 			networkCIDR = d
 		case Int4:
-			networkMasklen = d
+			integer = d
 		case Bool:
 			networkBoolean = d
 		case Float8:
@@ -337,7 +338,7 @@ func Builtins() []*Descriptor {
 			d.geometryPoint = geometryPoint
 		}
 		if IsNetwork(d.id) {
-			d.networkCIDR, d.networkMasklen = networkCIDR, networkMasklen
+			d.networkCIDR, d.networkMasklen = networkCIDR, integer
 			d.networkBoolean = networkBoolean
 		}
 		if d.id == Circle {
@@ -348,9 +349,10 @@ func Builtins() []*Descriptor {
 		}
 		if d.id == Polygon {
 			d.polygonBoolean, d.polygonPoint = networkBoolean, geometryPoint
+			d.polygonInt = integer
 		}
 		if d.id == TSQuery {
-			d.ftsBoolean, d.ftsDistance = networkBoolean, networkMasklen
+			d.ftsBoolean, d.ftsDistance = networkBoolean, integer
 		}
 	}
 	for _, family := range []struct {
@@ -1764,10 +1766,10 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	if source.Type.IsCitext() || target.Type.IsCitext() {
 		return p.planCitext()
 	}
-	// Selected circle typename calls with known TEXT use the ordinary input
-	// codec. Keep this directional and explicit: no reverse, assignment or
-	// cross-geometry admission follows from constructor availability.
-	if context == Explicit && source.Type.id == Text && target.Type.id == Circle {
+	// Selected circle/polygon typename calls with known TEXT use the ordinary
+	// input codec. Keep this directional and explicit: no reverse, assignment
+	// or cross-geometry admission follows from constructor availability.
+	if context == Explicit && source.Type.id == Text && (target.Type.id == Circle || target.Type.id == Polygon) {
 		p.method = viaIO
 		return p, nil
 	}

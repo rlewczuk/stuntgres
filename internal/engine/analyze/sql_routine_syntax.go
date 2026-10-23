@@ -1,7 +1,10 @@
 package analyze
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -64,6 +67,74 @@ func (b *Binder) sqlFunctionCastTarget(raw parser.TypeName, operand ComparisonOp
 	}
 	plan, err := sqltype.PlanCoercion(operand.Node.ResultUsage(), target, sqltype.Explicit)
 	return target, plan, err == nil && plan.FunctionCastShortcut()
+}
+
+func geometricTypeNameID(name string) (sqltype.ID, bool) {
+	switch name {
+	case "box":
+		return sqltype.Box, true
+	case "circle":
+		return sqltype.Circle, true
+	case "lseg":
+		return sqltype.Lseg, true
+	case "path":
+		return sqltype.Path, true
+	case "point":
+		return sqltype.Point, true
+	case "polygon":
+		return sqltype.Polygon, true
+	}
+	return 0, false
+}
+
+// Retain only the selected type identity, never an executable expression or a
+// coercion plan. Existing analysis invalidation retires this occurrence group.
+func (b *Binder) retainedGeometricTypeNameCast(raw parser.FunctionExpr) (expr.Expr, bool, error) {
+	if !b.Expected.Held {
+		return nil, false, nil
+	}
+	key := PreparedTypeKey{Offset: raw.Pos.Offset, Kind: TypeNameCast}
+	captured, found := b.Expected.Types[key]
+	if !found {
+		return nil, false, nil
+	}
+	view := b.BindingCatalog()
+	if b.Expected.CatalogOwner != view.Owner() || b.Expected.CatalogEpoch != view.Epoch() {
+		return nil, false, nil
+	}
+	if len(raw.Name.Parts) == 0 || len(raw.Args) != 1 || len(raw.ArgNames) != 0 || raw.Star || raw.Variadic {
+		return nil, true, fmt.Errorf("stuntgres: incompatible retained typename occurrence")
+	}
+	id, geometric := geometricTypeNameID(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	if !geometric || captured.Kind != TypeNameCast || captured.Base != b.Type(id).Usage() {
+		return nil, true, fmt.Errorf("stuntgres: incompatible retained typename authority")
+	}
+	// Still resolve the current lexical namespace under ordinary authorization;
+	// only the selected semantic target survives a preexisting overload shadow.
+	auth, err := b.BindingAuthorization()
+	if err != nil {
+		return nil, true, err
+	}
+	if _, err := b.Host.LookupNamespaces(auth, raw.Name, FunctionLookup); err != nil {
+		return nil, true, err
+	}
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
+		return nil, true, err
+	}
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, true, err
+	}
+	target := captured.Base.Type
+	cast := parser.CastExpr{
+		Child:    raw.Args[0],
+		TypeName: parser.TypeName{Name: target.Name(), Schema: &parser.Identifier{Text: target.NamespaceName()}, Pos: raw.Pos},
+		Syntax:   parser.StandardCast, Pos: raw.Pos,
+	}
+	node, err := b.Cast(cast, ExpressionPolicy{Context: ProjectionContext})
+	if err == nil {
+		b.Prepared.CaptureComposite(key, captured.Base, nil)
+	}
+	return node, true, err
 }
 
 func legacyFunctionCastPredicate(raw parser.Expr) bool {

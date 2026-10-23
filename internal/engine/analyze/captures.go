@@ -103,6 +103,7 @@ const (
 	CompositeSourceExpansion
 	CompositeRecordArgument
 	DomainCast
+	TypeNameCast
 )
 
 type TypeOccurrence struct {

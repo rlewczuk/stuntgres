@@ -391,15 +391,16 @@ not a claim that this implementation round has already passed them.
 
 ### Geometric constructor/conversion contract
 
-Nine A and six B shared definitions cover exactly seventeen signatures,
-independently expected values and BOX/CIRCLE/LINE/LSEG/PATH/POINT metadata; all
+Nine A, six B and six C shared definitions cover exactly twenty-one signatures,
+independently expected values and BOX/CIRCLE/LINE/LSEG/PATH/POINT/POLYGON metadata; all
 typed parameter signatures; full diagnostics; fixed routine facts;
 constructor consumers/default/CHECK/view and
 native replay through existing carriers. Ordinary negative CIRCLE text/binary
 input remains invalid while `circle(point,float8)` accepts negative radii.
-The conversion tests use `::circle` input syntax and circle-only containment,
-not cross-type spatial operators. Ordinary and qualified CIRCLE typed literals
-are covered by the geometric measurement tests.
+The conversion tests use `::circle` and CIRCLE typed literals through the ordinary
+input codec, including negative text rejection, and circle-only containment;
+no cross-type spatial operators are added. Ordinary and qualified CIRCLE typed
+literals are also covered by the geometric measurement tests.
 
 ```sh
 make check RUN='^TestReferenceGeometryConversion(Values|BindingsMetadata|Diagnostics|Routines|Controls|CarrierShape|Resolution|StoredRecipes|FeatureSmoke)$' REFERENCE=1
@@ -466,6 +467,60 @@ make check RUN='^(TestGeometryConversion(Kernel|BEdges|ProviderLifecycle|Declara
 The B feature smoke checks all eight exact values/types direct and prepared,
 held coordinate valid/NULL/invalid/recovery, closed PATH duplicate/singleton/NULL
 and polygon hidden-radius overflow followed by same-handle valid recovery.
+
+The C definitions cover `polygon(box)`, `polygon(path)`, `polygon(circle)` and
+`polygon(integer,circle)`. BOX copies four low-low/low-high/high-high/high-low
+corners, including degeneracy/inverted raw slots. Closed PATH copies every
+vertex; open PATH fails22023 even with equal endpoints. Default circle count12
+and explicit counts2/3/4/5/12 retain leftmost/upper-half traversal and nonzero
+trig residuals. Negative constructor radii outside inclusive fuzzy zero remain
+valid. Validation precedence is abs(radius)<=1e-6 (0A000), n<2 (22023),
+signed-int polygon size guard (54000), checked arithmetic (22003). Malformed
+geometry codec errors precede the kernel. Unary zero-radius diagnostics retain
+exact Context `SQL function "polygon" statement 1`; explicit-count errors do not.
+
+PostgreSQL18.6 libc coordinates and independently source-derived Go-math
+coordinates have explicitly recorded backend-specific last-bit spellings.
+Complete rows still compare exactly, without normalizing returned values.
+The C-local raw validator additionally checks ordered coordinates with relative
+1e-14 tolerance, exact zero/nonzero sign and nonfinite categories; no tolerance
+applies to BOX/PATH. Public raw/Rows metadata checks retain POLYGON604 through
+populated/NULL/empty results, direct/fresh/held calls, and owned input bytes.
+Private units separately prove exact copied IEEE bits, epsilon neighbors,
+canonical INT4 authority before NULL, malformed payloads and loop cancellation.
+
+Consumers store all four conversions in a view and defaults, accept/reject a
+conversion CHECK and preserve six typed NULL masks. Same/fresh native Restore
+and actual portable SQL replay on PostgreSQL re-execute future writes.
+Imported default-table row1 preserves exact source-origin polygon coordinates:
+Dump emits stored non-generated cells as literals, not default reevaluation.
+New row2 executes the restored defaults on the destination backend, while both
+view rows recompute there. The verifier keeps these representation origins
+separate without altering actual returned rows, raw metadata or coordinate invariants.
+Captured BOX literals retain an explicit BOX annotation on view replay, not
+bare text that could reselect POLYGON input. Held typename casts retain their
+selected type identity through existing prepared occurrence lifetimes, without
+reselecting a later SQL TEXT overload; fresh calls still select that exact overload.
+The FeatureSmoke definition is the distinct held count/PATH error-NULL-recovery
+witness, not a substitute for a standalone public Go consumer smoke.
+
+```sh
+make check RUN='^TestReferenceGeometryConversionC(Values|BindingsMetadata|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceGeometryConversionC(Values|BindingsMetadata|Diagnostics)$'
+make check RUN='^TestReferenceGeometryConversionC(RoutinesResolution|Consumers|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceGeometryConversionC(RoutinesResolution|Consumers|FeatureSmoke)$'
+make check RUN='^TestGeometryConversion(Kernel|CEdges|CAuthority|CLiteralSyntax|CBoxLiteralTransport|CTypeNameCapture|ProviderLifecycle|Declarations|ReplayShapes)$'
+make check RUN='^TestDomainIdentity(PreparedCapture|CaptureRetirement|ArrayCapture)$'
+```
+
+Use external900-second deadlines. The separate throwaway public Go smoke should
+open a fresh Driver, execute all four conversions, inspect POLYGON metadata and
+count/order, then reuse a held explicit-count call across22023, NULL and recovery,
+and a held PATH call across open-path22023 and closed-path recovery. It must also
+observe fuzzy-radius0A000 taking precedence over invalid count. Source and
+actual argv/output belong in session/verification evidence, not a permanent
+duplicate SQL matrix or a claimed passing test alias.
+
 
 
 ### Circle scalar contract

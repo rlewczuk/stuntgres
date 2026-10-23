@@ -47,7 +47,7 @@ type Definition struct {
 // overlap any family that is still dispatched by the engine's name chain.
 var definitions = [...]Definition{
 	{Names: []string{"tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained"}, ExactSpelling: true, SharedGates: true, Bind: bindFTS},
-	{Names: []string{"box", "bound_box", "circle", "line", "lseg", "path", "point"}, ExactSpelling: true, SharedGates: true, Bind: bindGeometryConversion},
+	{Names: []string{"box", "bound_box", "circle", "line", "lseg", "path", "point", "polygon"}, ExactSpelling: true, SharedGates: true, Bind: bindGeometryConversion},
 	{Names: []string{"area", "center", "diameter"}, ExactSpelling: true, SharedGates: true, Bind: bindGeometryMeasure},
 	{Names: []string{"line_eq"}, ExactSpelling: true, SharedGates: true, Bind: bindLineEquality},
 	{Names: []string{"macaddr8_eq", "macaddr8_ne", "macaddr8_lt", "macaddr8_le", "macaddr8_gt", "macaddr8_ge"}, ExactSpelling: true, SharedGates: true, Bind: bindMACADDR8Comparison},

@@ -142,13 +142,14 @@ See [measurement proof](../reference/types/README.md#geometric-measurement-oracl
 
 ## Geometric constructors and conversions
 
-Exactly seventeen strict signatures execute: `box(circle)`, `box(point)`,
+Exactly twenty-one strict signatures execute: `box(circle)`, `box(point)`,
 `box(point,point)`, `box(polygon)`, `bound_box(box,box)`, `circle(box)`,
 `circle(point,float8)`, `circle(polygon)`, `line(point,point)`, `lseg(box)`,
 `lseg(point,point)`, `path(polygon)`, `point(float8,float8)`, `point(box)`,
-`point(circle)`, `point(lseg)` and `point(polygon)`.
-Results retain BOX603, CIRCLE718, LINE628, LSEG601, PATH602 or POINT600 metadata
-through direct, prepared, stored and native logical replay paths.
+`point(circle)`, `point(lseg)`, `point(polygon)`, `polygon(box)`,
+`polygon(circle)`, `polygon(integer,circle)` and `polygon(path)`.
+Results retain BOX603, CIRCLE718, LINE628, LSEG601, PATH602, POINT600 or POLYGON604
+metadata through direct, prepared, stored and native logical replay paths.
 Typed NULL at any formal returns typed NULL.
 
 `box(circle)` is inscribed (radius/sqrt(2) on each axis); `circle(box)` encloses
@@ -169,6 +170,29 @@ overflow-avoiding midpoints. Polygon POINT counts every vertex in its sequential
 mean and computes the complete polygon-to-circle radius before discarding it:
 radius overflow can fail even with a finite center. No area centroid is used.
 
+BOX-to-POLYGON copies exactly `(low.x,low.y)`, `(low.x,high.y)`,
+`(high.x,high.y)`, `(high.x,low.y)`, including four equal vertices for a point
+box and unnormalized raw slots for an inverted constructor box. Closed
+PATH-to-POLYGON copies the original vertex count/order, including singleton,
+two-point, duplicate and repeated closing vertices. Open paths fail22023
+`open path cannot be converted to polygon`, even with equal first/last vertices.
+Circle-to-POLYGON defaults to twelve points; the explicit count is INT4.
+Positive radii start leftmost and traverse the upper half-plane (four points:
+left/top/right/bottom); negative constructor radii reverse that starting side.
+Coordinates use checked float8 arithmetic and unsnapped Go-math trig residuals,
+which can differ in last bits from PostgreSQL's libc without changing geometry.
+Validation first rejects inclusive `abs(radius)<=1e-6` with0A000
+`cannot convert circle with radius zero to polygon`, then counts below two
+with22023 `must request at least 2 points`, then released signed-int polygon
+size overflow with54000 `too many points requested`. Finite coordinate overflow
+is22003; NaN/Infinity propagate normally. The unary released SQL-wrapper boundary
+adds Context `SQL function "polygon" statement 1` to its kernel SQL errors;
+explicit-count calls and operand codecs do not acquire that context.
+Typed NULL short-circuits these kernel checks after descriptor validation.
+Stored calls retain typed BOX/PATH/CIRCLE/INT4 literals and NULLs so replay
+cannot reinterpret a selected conversion as POLYGON text input.
+
+
 `circle(point,float8)` copies the radius, including negative finite values,
 -Infinity, NaN and signed zero. Existing circle consumers accept these typed
 datums; ordinary text/binary input still rejects negative radii. Negative circles
@@ -186,8 +210,11 @@ them; ordinary PostgreSQL BOX text input normalizes corners. Stored conversion
 views recompute the original conversion rather than reparsing its display.
 
 Unary typename calls preserve existing identity/string/NULL-constant conversion
-precedence; unresolved external parameters can remain ambiguous. CIRCLE input
-examples use existing `'<(0,0),2>'::circle` syntax, not new introducer grammar.
+precedence; unresolved external parameters can remain ambiguous. Known TEXT and
+domain-over-TEXT polygon input use the ordinary codec through the explicit-only
+typename route. CIRCLE literals accept `circle '<(0,0),2>'` and its `pg_catalog`
+qualification through the existing typed-literal grammar, alongside `::circle`;
+nonbuiltin schemas retain domain-only literal authority.
 No companion arrays, adjacent constructors/casts or default comparison classes
 are added. See [selected proof](../reference/types/README.md#geometric-constructor-conversion-contract).
 
@@ -233,10 +260,10 @@ crossing algorithm, and propagates checked float arithmetic errors.
 PostgreSQL has no polygon `= <> != < <= > >=` overloads or `area(polygon)`.
 No default sorting/grouping/hash/index capability is invented. Polygon encloses
 area conceptually unlike path, but closed PostgreSQL paths can also test interior
-containment; this implementation adds no path execution. Other documented
-polygon spatial signatures, conversions/constructors other than `box(polygon)`
-and `circle(polygon)`, subscripting, polygon arrays and binary codecs remain
-unimplemented. I/O receive/send catalog
+containment; no new path containment execution is added here. Other documented
+polygon spatial signatures and conversions outside the
+[twenty-one-signature family](#geometric-constructors-and-conversions),
+subscripting, polygon arrays and binary codecs remain unimplemented. I/O receive/send catalog
 identities are metadata, not binary transport authority.
 See [polygon reference proof](../reference/types/README.md#polygon-scalar-contract).
 

@@ -6,6 +6,19 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Geometric conversion literal syntax
+
+`TestGeometryConversionCLiteralSyntax` checks CIRCLE typed-literal AST text,
+positions and quoted/builtin-schema admission without bypassing nonbuiltin
+domain-only authority. It uses the existing IDENT STRING and qualified literal
+productions. Public conversion/codec/overload outcomes remain in
+[`reference/types`](../../reference/types/README.md#geometric-constructor-conversion-contract).
+Edit `grammar.y`; root generation owns `grammar_gen.go`.
+
+```sh
+make check RUN='^TestGeometryConversionCLiteralSyntax$'
+```
+
 ### Access-method utility syntax
 
 `TestAccessMethodGrammar` covers positioned global names, INDEX/TABLE handler

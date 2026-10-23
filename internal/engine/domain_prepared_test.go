@@ -45,7 +45,7 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	if err != nil || annotation.Name != "d" {
 		t.Fatal("foreign catalog reused old ID", annotation, err)
 	}
-	expected.retireDomainCasts()
+	expected.retireAnalysisTypeCasts()
 	if !expected.analysis.needsReanalysis {
 		t.Fatal("failed reanalysis could revive captures when path restored")
 	}
@@ -58,19 +58,30 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 func TestDomainIdentityCaptureRetirement(t *testing.T) {
 	domain := analyze.PreparedTypeKey{Offset: 4, Kind: analyze.DomainCast}
 	composite := analyze.PreparedTypeKey{Offset: 8, Kind: analyze.CompositeExpansion}
-	shared := map[analyze.PreparedTypeKey]analyze.TypeOccurrence{domain: {Kind: analyze.DomainCast}, composite: {Kind: analyze.CompositeExpansion}}
+	typeName := analyze.PreparedTypeKey{Offset: 12, Kind: analyze.TypeNameCast}
+	shared := map[analyze.PreparedTypeKey]analyze.TypeOccurrence{domain: {Kind: analyze.DomainCast}, composite: {Kind: analyze.CompositeExpansion}, typeName: {Kind: analyze.TypeNameCast}}
 	left := StatementDescription{types: shared, analysis: &preparedAnalysis{}}
 	right := StatementDescription{types: shared}
-	left.retireDomainCasts()
+	left.retireAnalysisTypeCasts()
 	if _, ok := left.types[domain]; ok {
 		t.Fatal("domain capture retained after replan")
 	}
-	if _, ok := left.types[composite]; !ok || len(right.types) != 2 || !left.analysis.needsReanalysis {
+	if _, ok := left.types[typeName]; ok {
+		t.Fatal("typename capture retained after replan")
+	}
+	if _, ok := left.types[composite]; !ok || len(right.types) != 3 || !left.analysis.needsReanalysis {
 		t.Fatal("composite/shared captures changed or invalidation not sticky")
 	}
-	left.publishDomainCasts(map[analyze.PreparedTypeKey]analyze.TypeOccurrence{domain: {Kind: analyze.DomainCast}})
-	if len(left.types) != 2 || len(right.types) != 2 {
+	left.publishAnalysisTypeCasts(map[analyze.PreparedTypeKey]analyze.TypeOccurrence{domain: {Kind: analyze.DomainCast}, typeName: {Kind: analyze.TypeNameCast}})
+	if len(left.types) != 3 || len(right.types) != 3 {
 		t.Fatal("successful reanalysis lost unrelated occurrence")
+	}
+	// Successful candidates replace this cast group without mutating a sibling's
+	// captured map. A later failed candidate cannot revive the retired group.
+	left.retireAnalysisTypeCasts()
+	left.publishAnalysisTypeCasts(map[analyze.PreparedTypeKey]analyze.TypeOccurrence{typeName: {Kind: analyze.TypeNameCast}})
+	if _, ok := left.types[domain]; ok || len(left.types) != 2 || len(right.types) != 3 {
+		t.Fatal("cast recapture revived a retired occurrence or mutated sibling")
 	}
 }
 
@@ -176,7 +187,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			if err != nil || annotation.Name != raw.TypeName.Name {
 				t.Fatal("foreign owner reused array occurrence", annotation, err)
 			}
-			expected.retireDomainCasts()
+			expected.retireAnalysisTypeCasts()
 			next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 				t.Fatal("retired array occurrence rescued old spelling")

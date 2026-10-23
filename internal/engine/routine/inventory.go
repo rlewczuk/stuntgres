@@ -39,6 +39,10 @@ var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{1416, ids.PGCatalogNamespaceOID, "point", "718"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
 	{catalog.RoutineIdentity{1532, ids.PGCatalogNamespaceOID, "point", "601"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
 	{catalog.RoutineIdentity{1540, ids.PGCatalogNamespaceOID, "point", "604"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1448, ids.PGCatalogNamespaceOID, "polygon", "603"}, catalog.FunctionRoutine, 604, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1449, ids.PGCatalogNamespaceOID, "polygon", "602"}, catalog.FunctionRoutine, 604, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1475, ids.PGCatalogNamespaceOID, "polygon", "23,718"}, catalog.FunctionRoutine, 604, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1544, ids.PGCatalogNamespaceOID, "polygon", "718"}, catalog.FunctionRoutine, 604, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
 	// Selected REL_18_6 text-search routines; adjacent FTS remains lookup-only.
 	{catalog.RoutineIdentity{3625, ids.PGCatalogNamespaceOID, "tsvector_concat", "3614,3614"}, catalog.FunctionRoutine, 3614, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{3669, ids.PGCatalogNamespaceOID, "tsquery_and", "3615,3615"}, catalog.FunctionRoutine, 3615, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

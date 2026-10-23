@@ -236,7 +236,7 @@ provide ordinary equality `=` or `< <= > >=`, default ordering/grouping/hash
 authority or an index class. Unsupported calls fail rather than comparing
 serialized text. Geometric tolerance is not exact datum identity.
 
-The [seventeen selected geometric constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
+The [twenty-one selected geometric constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
 are explicit exceptions to the remaining constructor/cross-geometry limits.
 Other arithmetic/distance and cross-geometry operations, companion SQL arrays,
 binary receive/send, physical geometric indexes/storage, WAL and a native
@@ -256,9 +256,10 @@ The six ordinary predicates compare fuzzy areas and do not provide default
 equality/ordering capabilities: ORDER BY, DISTINCT/GROUP BY and default
 B-tree/hash operator classes remain unavailable. NaN area predicates are all
 false, including `<>`. The
-[seventeen selected constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
+[twenty-one selected constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
 and [seven geometric measurements](TYPES.md#geometric-measurements) are admitted
-separately, including POINT-valued circle centers and area/diameter.
+separately, including POINT-valued circle centers, area/diameter and default
+twelve-point or explicit-count circle-to-polygon sampling.
 Other adjacent-geometry constructors/conversions, transformations, circle arrays
 and spatial indexes remain unavailable. Path closure/length/count and additional
 box/line measurements remain outside the selected measurement family.
@@ -278,8 +279,12 @@ behavior or new path execution is asserted here.
 PostgreSQL itself has no ordinary polygon `= <> != < <= > >=` overloads and no
 `area(polygon)`. Such calls fail rather than comparing serialized strings;
 ORDER BY, DISTINCT/GROUP BY and default equality/order/hash/index classes are
-unavailable. `box(polygon)`, `circle(polygon)`, `path(polygon)` and `point(polygon)`
-are selected exceptions in the [seventeen-signature family](TYPES.md#geometric-constructors-and-conversions).
+unavailable. `box(polygon)`, `circle(polygon)`, `path(polygon)`, `point(polygon)`,
+`polygon(box)`, `polygon(circle)`, `polygon(integer,circle)` and `polygon(path)`
+are selected exceptions in the [twenty-one-signature family](TYPES.md#geometric-constructors-and-conversions).
+BOX corners and closed PATH vertices retain their order/count; open PATH fails,
+and circle sampling preserves unsnapped residuals with inclusive fuzzy-zero
+radius rejection before count/size/arithmetic errors.
 Other polygon spatial operators/functions and conversions exist in PostgreSQL
 but remain unimplemented. Polygon arrays, subscripting and binary codecs remain
 outside this bounded provider.

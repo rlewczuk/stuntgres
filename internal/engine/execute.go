@@ -264,7 +264,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if expected != nil {
 		if replan {
-			expected.retireDomainCasts()
+			expected.retireAnalysisTypeCasts()
 		}
 		valid, err = e.sequenceAnalysisValidLocked(auth, expected.sequences)
 		if err != nil {
@@ -462,7 +462,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			if replan {
 				scope.Expected.temporals = b.Prepared.Temporals
-				scope.Expected.publishDomainCasts(b.Prepared.Types)
+				scope.Expected.publishAnalysisTypeCasts(b.Prepared.Types)
 				if preparableBody(stmt) {
 					scope.Expected.analysis = prepared
 				}

@@ -27,7 +27,7 @@ func geometryConversionScenario(t *testing.T, body func(*testing.T, *fixture.Pai
 func geometryConversionSelect(b fixture.Backend, q string, names, types []string, rows [][]any, args ...any) fixture.Step {
 	s := fixture.Select(q, names, types, rows, args...)
 	isGeometry := func(name string) bool {
-		return name == "BOX" || name == "CIRCLE" || name == "LINE" || name == "LSEG" || name == "PATH" || name == "POINT"
+		return name == "BOX" || name == "CIRCLE" || name == "LINE" || name == "LSEG" || name == "PATH" || name == "POINT" || name == "POLYGON"
 	}
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
 		if !isGeometry(types[column]) {

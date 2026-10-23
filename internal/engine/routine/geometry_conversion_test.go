@@ -32,6 +32,10 @@ func TestGeometryConversionDeclarations(t *testing.T) {
 		{1416, "point", "718", 600},
 		{1532, "point", "601", 600},
 		{1540, "point", "604", 600},
+		{1448, "polygon", "603", 604},
+		{1449, "polygon", "602", 604},
+		{1475, "polygon", "23,718", 604},
+		{1544, "polygon", "718", 604},
 	} {
 		got := BuiltinRoutine(tc.oid)
 		identity := catalog.RoutineIdentity{ID: tc.oid, Namespace: ids.PGCatalogNamespaceOID, Name: tc.name, Signature: catalog.ProcedureSignature(tc.signature)}

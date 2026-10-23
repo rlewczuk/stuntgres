@@ -104,20 +104,20 @@ dual-mode smoke belong to
 
 ## Geometric constructor/conversion provider
 
-`GeometryConversion` owns the seventeen selected `box`, `bound_box`, `circle`,
-`line`, `lseg`, `path` and `point` signatures with fixed operands and captured routine authority. Binding
+`GeometryConversion` owns the twenty-one selected `box`, `bound_box`, `circle`,
+`line`, `lseg`, `path`, `point` and `polygon` signatures with fixed operands and captured routine authority. Binding
 analyzes operands once, probes coercions without evaluating, selects a bounded
 formal signature, then coerces only the winner. Unary typename calls retain
 identity/string/unknown-Const precedence, including domain-to-base relabels,
 through the existing explicit plan's `FunctionCastShortcut()` policy rather
 than type-ID approximations. Unresolved parameters are not Const.
 `TypeNameCastArgument` shares the existing explicit coercion assembly and
-provenance, without parser introducer syntax or cross-geometry cast edges. Its
+provenance, independently of typed-literal grammar and without cross-geometry cast edges. Its
 call position and original operand also synchronize stored typename recipes to
 the selected qualified explicit cast after successful finalization/coercion,
 including folded unknown string/NULL literals. Known
-TEXT-to-CIRCLE uses only the explicit directional input route and ordinary
-circle codec, not implicit/assignment or reverse conversion admission. With visible SQL
+TEXT-to-CIRCLE/POLYGON uses only the explicit directional input route and ordinary
+input codec, not implicit/assignment or reverse conversion admission. With visible SQL
 overloads, the analyzer applies the same policy after exact declarations and
 before implicit/unknown ranking, retaining the already analyzed operand.
 Stored reconstruction, render, capture and group identity retain the selected
@@ -127,6 +127,14 @@ cannot reinterpret a selected conversion as a typename input cast or choose
 another overload. Capture and original argument recipes remain unchanged.
 Circle replay admission accepts only the emitted qualified two-literal codec
 shape, not arbitrary executable calls.
+POLYGON results reuse the same provider for BOX, closed PATH, default12 CIRCLE
+and explicit INT4/CIRCLE conversions. Both typename owners preserve exact
+function -> typename shortcut -> implicit candidate precedence. Retained typed
+literals include the count as INT4; no new rendering/capture authority is added.
+Held typename calls retain only the successful target Usage in existing
+prepared type occurrences; normal explicit coercion reconstructs execution.
+This preserves selection when a SQL overload appears without retaining a
+provider/executable plan or introducing invalidation triggers.
 
 ### Testing
 

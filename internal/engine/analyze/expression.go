@@ -1748,6 +1748,12 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 		if err != nil {
 			return nil, err
 		}
+		if request.Intent == functions.TypeNameCastArgument {
+			target := request.Target.Type
+			if id, geometric := geometricTypeNameID(target.Name()); geometric && target.ID() == id {
+				b.Prepared.CaptureComposite(PreparedTypeKey{Offset: request.TypeNameCallPosition.Offset, Kind: TypeNameCast}, request.Target, nil)
+			}
+		}
 		if request.Intent == functions.TypeNameCastArgument && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 			// Resolution selected a cast, not an executable routine. Synchronize
 			// the frozen recipe with that selection while retaining the written

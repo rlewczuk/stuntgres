@@ -41,11 +41,15 @@ See [type semantics](docs/TYPES.md#geometric-measurements) and
 
 ## Geometric constructors and conversions — change note
 
-Seventeen selected BOX/CIRCLE/LINE/LSEG/PATH/POINT signatures execute through typed
+Twenty-one selected BOX/CIRCLE/LINE/LSEG/PATH/POINT/POLYGON signatures execute through typed
 providers, including ordered/coincident segments, raw box diagonals, closed polygon
 paths, coordinate copies and checked centers (polygon centers compute the full
-circle conversion, including radius failures). The family also includes inscribed
-circle-to-box, enclosing box-to-circle and two-point infinite-line construction.
+circle conversion, including radius failures). Polygon conversions copy all four
+BOX corners or the closed PATH's original vertices, and sample circles in order
+with twelve points by default or an explicit integer count of at least two.
+Circle radii within inclusive +/-1e-6 fail before point-count validation.
+The family also includes inscribed circle-to-box, enclosing box-to-circle and
+two-point infinite-line construction.
 Negative constructor radii are valid typed CIRCLE values; ordinary negative text/binary input stays invalid.
 Native logical replay uses a closed constructor recipe for those values.
 See [type semantics](docs/TYPES.md#geometric-constructors-and-conversions) and

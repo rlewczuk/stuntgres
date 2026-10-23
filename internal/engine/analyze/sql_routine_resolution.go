@@ -44,6 +44,9 @@ func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, erro
 	if raw.Syntax != parser.OrdinaryFunctionSyntax || raw.StringSyntax != parser.OrdinaryStringSyntax {
 		return nil, false, nil
 	}
+	if node, handled, err := b.retainedGeometricTypeNameCast(raw); handled || err != nil {
+		return node, handled, err
+	}
 	selected, handled, err := b.selectSQLCallable(raw, nil)
 	if err != nil || !handled {
 		return nil, handled, err
@@ -174,7 +177,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 				selection.args = []expr.Expr{operands[0].Node}
 				return selection, true, nil
 			}
-		} else if len(operands) == 1 && (name == "box" || name == "circle" || name == "lseg" || name == "path" || name == "point") && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
+		} else if len(operands) == 1 && (name == "box" || name == "circle" || name == "lseg" || name == "path" || name == "point" || name == "polygon") && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
 			annotation := parser.TypeName{Name: name, Pos: raw.Pos}
 			if len(raw.Name.Parts) == 2 {
 				annotation.Schema = &raw.Name.Parts[0]

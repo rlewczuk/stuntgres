@@ -76,6 +76,8 @@ feature. Only the upper features, `stored` and the engine import it; never
   still require their own bounded INSERT target; nesting cannot borrow one.
   `TypeDeclaration(At)`, `ColumnDeclaration`, `Literal`,
   `LiteralWithACL(At)`, `ConstantLiteral`.
+  Captured BOX literals retain explicit BOX annotations, like CIRCLE/PATH;
+  a quoted display alone could reselect a typename input shortcut on replay.
 - **Search-path visibility of named objects** (`namespace_visibility.go`,
   `visibility_inquiry.go`): `NamedObjectVisible`, `CollationCandidate`,
   `SelectCollation`, `VisibleCollation`, and `VisibilityInquiry`, which
@@ -176,6 +178,7 @@ their lower-case names.
 ```sh
 make check RUN='^TestVisibilityInquiryCollationSelection$'
 make check RUN='^(TestCapturedInputsRetargetOnlyTheirSinks|TestRoutineInputParameterAndLiteralCopies|TestTypeInputNoticesFollowTheCurrentHost|TestAddressLookupNamespaceAndNoticeCuts)$'
+make check RUN='^TestGeometryConversionCBoxLiteralTransport$'
 make check RUN='^TestReference(Reg|ACLItem|ObjectAddress|FormatRegclass|SequenceRegclass|ArrayRegclass|RLSPolicyRegtype|SQLCursorRegtype|UpdateReturningCapturedRegclass|PGDependRegclass|PartitionConstraintsRegclass)'
 make check RUN='DumpRoundTrip|NativeControls'
 make check RUN='^TestReferenceCastDefinitionNestedConstructorReplay$'
