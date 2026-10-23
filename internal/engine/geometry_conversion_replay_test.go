@@ -51,7 +51,7 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	usage := relation.Columns[0].Usage
-	value, provenance, err := restoreDomainReplayNode(&c, e, op, auth, usage, &array)
+	value, provenance, err := typedef.RestoreDomainReplayNode(e.domainReplayEnv(&c, op, auth), usage, &array)
 	if err != nil || provenance != 0 {
 		t.Fatal("constructor reconstruction", provenance, err)
 	}

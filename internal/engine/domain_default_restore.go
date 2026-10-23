@@ -22,163 +22,45 @@ import (
 type domainReplayCapture struct {
 	statement *parser.Insert
 	relation  *catalog.Relation
-	cells     map[int]plan.LiteralExpr // actual explicit VALUES slot, not raw SQL offsets
+	cells     map[int]typedef.DomainReplayLiteral // actual explicit VALUES slot, not raw SQL offsets
 }
 
-// Provenance is accumulated only after destination-owned reconstruction.
-// Only an authentic domain NULL admits private cell replay; constructor-only
-// circles use portable SQL and cannot independently authorize a sidecar.
-type domainReplayProvenance uint8
-
-const domainReplayDomainNull domainReplayProvenance = 1
-
-func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, auth AuthorizationView, u sqltype.Usage, n *typedef.DomainReplayNode) (sqltype.Value, domainReplayProvenance, error) {
-	bad := func() (sqltype.Value, domainReplayProvenance, error) {
-		return sqltype.Value{}, 0, fmt.Errorf("stuntgres: invalid native domain replay value")
-	}
-	if n == nil || !u.Valid() {
-		return bad()
-	}
-	if err := c.Context.Err(); err != nil {
-		return sqltype.Value{}, 0, err
-	}
-	if n.Shape("domain_null") || n.Shape("domain") {
-		identity, err := typedef.DomainReplayIdentity(auth.Catalog, u.Type)
+// domainReplayEnv reconstructs captured cells for auth under the evaluation
+// context c. Its scalar leaf binds the captured expression as a column default
+// under Engine.mu, then evaluates it in a local copy of c with the leaf's own
+// routine manifest, so nothing leaks into c.
+func (e *Engine) domainReplayEnv(c *exec.Context, op *session.Operation, auth AuthorizationView) *typedef.DomainReplayEnv {
+	scalar := func(raw parser.Expr, u sqltype.Usage) (sqltype.Value, error) {
+		if err := view.MaterializedSnapshotScalar(raw); err != nil {
+			return sqltype.Value{}, err
+		}
+		e.mu.Lock()
+		binder := newExpressionBinder(c.Context, e, c.Input, op, nil)
+		binder.Query.Auth = &auth
+		binder.Query.Namespace = &analyze.QueryNamespace{}
+		binder.Params.NoParameters = true
+		node, err := binder.BindDefault(raw, catalog.Column{Name: "native captured cell", Usage: u})
+		if err == nil {
+			err = binder.CaptureRetainedWriteInput([]expr.Expr{node}, nil, nil)
+		}
+		e.mu.Unlock()
 		if err != nil {
-			return bad()
+			return sqltype.Value{}, err
 		}
-		if len(*n.Type) != 2 || (*n.Type)[0] != identity[0] || (*n.Type)[1] != identity[1] {
-			return bad()
-		}
-		if n.Kind == "domain_null" {
-			// CHECK recipes may be replayed after data (including NOT VALID).
-			// The authentic declared domain identity, not today's partial
-			// constraint set, owns this already-domain NULL provenance.
-			return sqltype.Null(u.Type), domainReplayDomainNull, nil
-		}
-		base, count, err := restoreDomainReplayNode(c, e, op, auth, u.BaseUsage(), n.Base)
+		local := *c
+		local.Input = binder.Input
+		local.Input.DomainChecks = &local
+		local.RoutineRecipe = true
+		local.RoutineChecks = binder.Dependencies
+		local.RoutineReferences = nil
+		local.RoutineConsumer = nil
+		node, _, err = exec.PreflightCoercionsWithPolicy(&local, node, false)
 		if err != nil {
-			return sqltype.Value{}, 0, err
+			return sqltype.Value{}, err
 		}
-		if base.IsNull() {
-			return bad()
-		}
-		plan, err := sqltype.PlanCoercion(u.BaseUsage(), u, sqltype.Assignment)
-		if err != nil {
-			return sqltype.Value{}, 0, err
-		}
-		value, err := plan.Apply(c.Context, base, c.Input, c.Output)
-		return value, count, err
+		return node.Eval(&local)
 	}
-	if n.Shape("null") {
-		value := sqltype.Null(u.Type)
-		if err := u.Type.CheckDomainInput(c.Context, value, c.Input); err != nil {
-			return sqltype.Value{}, 0, err
-		}
-		return value, 0, nil
-	}
-	if u.Type.IsDomain() {
-		return bad()
-	}
-	if n.Shape("array") {
-		if !u.Type.IsArray() {
-			return bad()
-		}
-		element := u
-		element.Type = u.Type.Element()
-		elements := make([]sqltype.Value, len(*n.Elements))
-		count := domainReplayProvenance(0)
-		for i := range elements {
-			value, found, err := restoreDomainReplayNode(c, e, op, auth, element, &(*n.Elements)[i])
-			if err != nil {
-				return sqltype.Value{}, 0, err
-			}
-			elements[i] = value
-			count |= found
-		}
-		dims := make([]sqltype.ArrayDimension, len(*n.Dimensions))
-		for i, dimension := range *n.Dimensions {
-			dims[i] = sqltype.ArrayDimension{Lower: dimension.Lower, Length: dimension.Length}
-		}
-		if len(dims) == 1 && dims[0] == (sqltype.ArrayDimension{Lower: 1, Length: 0}) && u.Type.ID() == sqltype.ACLItemArray && len(elements) == 0 {
-			value, err := sqltype.EmptyACLArrayValue(u.Type)
-			return value, count, err
-		}
-		value, err := sqltype.OwnedArrayValue(u.Type, dims, elements)
-		return value, count, err
-	}
-	if n.Shape("composite") {
-		if !u.Type.IsComposite() || len(*n.Members) != u.Type.CompositeLen() {
-			return bad()
-		}
-		members := make([]sqltype.Value, len(*n.Members))
-		count := domainReplayProvenance(0)
-		for i := range members {
-			member := u.Type.CompositeMember(i)
-			captured := (*n.Members)[i]
-			if captured.Name != member.Name {
-				return bad()
-			}
-			value, found, err := restoreDomainReplayNode(c, e, op, auth, member.Usage, captured.Value)
-			if err != nil {
-				return sqltype.Value{}, 0, err
-			}
-			members[i] = value
-			count |= found
-		}
-		value, err := sqltype.OwnedCompositeValue(u.Type, members)
-		return value, count, err
-	}
-	if !n.Shape("scalar") || u.Type.IsArray() || u.Type.IsComposite() || *n.Scalar == "" {
-		return bad()
-	}
-	statements, err := parser.ParseWithOptions("SELECT "+*n.Scalar, parser.Options{Context: c.Context, StandardConformingStrings: true})
-	if err != nil {
-		return sqltype.Value{}, 0, err
-	}
-	if len(statements) != 1 {
-		return bad()
-	}
-	selectStmt, ok := statements[0].(*parser.Select)
-	if !ok || len(selectStmt.Targets) != 1 || selectStmt.From != nil || selectStmt.Where != nil || selectStmt.Set != nil || len(selectStmt.With) != 0 || selectStmt.Into != nil || selectStmt.Order != nil || selectStmt.Bounds != nil || selectStmt.GroupBy != nil || selectStmt.Having != nil || len(selectStmt.Windows) != 0 || len(selectStmt.Locking) != 0 || selectStmt.Distinct != nil {
-		return bad()
-	}
-	raw := selectStmt.Targets[0]
-	if err = view.MaterializedSnapshotScalar(raw); err != nil {
-		return sqltype.Value{}, 0, err
-	}
-	e.mu.Lock()
-	binder := newExpressionBinder(c.Context, e, c.Input, op, nil)
-	binder.Query.Auth = &auth
-	binder.Query.Namespace = &analyze.QueryNamespace{}
-	binder.Params.NoParameters = true
-	node, err := binder.BindDefault(raw, catalog.Column{Name: "native captured cell", Usage: u})
-	if err == nil {
-		err = binder.CaptureRetainedWriteInput([]expr.Expr{node}, nil, nil)
-	}
-	e.mu.Unlock()
-	if err != nil {
-		return sqltype.Value{}, 0, err
-	}
-	local := *c
-	local.Input = binder.Input
-	local.Input.DomainChecks = &local
-	local.RoutineRecipe = true
-	local.RoutineChecks = binder.Dependencies
-	local.RoutineReferences = nil
-	local.RoutineConsumer = nil
-	node, _, err = exec.PreflightCoercionsWithPolicy(&local, node, false)
-	if err != nil {
-		return sqltype.Value{}, 0, err
-	}
-	value, err := node.Eval(&local)
-	if err != nil {
-		return sqltype.Value{}, 0, err
-	}
-	if value.IsNull() || value.Type() != u.Type {
-		return bad()
-	}
-	return value, 0, nil
+	return &typedef.DomainReplayEnv{Context: c.Context, Catalog: auth.Catalog, Input: c.Input, Output: c.Output, Scalar: scalar}
 }
 
 func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, record typedef.DomainReplayRecord, auth AuthorizationView, relation *catalog.Relation) (*domainReplayCapture, error) {
@@ -198,7 +80,6 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 	if _, ok := e.importTargets[relation.Owner]; !ok {
 		return nil, fmt.Errorf("stuntgres: uncaptured native domain replay owner")
 	}
-	capture := &domainReplayCapture{statement: s, relation: relation, cells: make(map[int]plan.LiteralExpr, len(record.Cells))}
 	slots := make([]int, len(s.Rows[0]))
 	if len(s.Targets) == 0 {
 		if len(slots) != len(relation.Columns) {
@@ -219,47 +100,11 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	scope.routineAuth = auth
-	for _, cell := range record.Cells {
-		slot, ok := relation.Index[cell.Column]
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: unknown native replay column")
-		}
-		position := -1
-		for i, mapped := range slots {
-			if mapped == slot {
-				if position != -1 {
-					return nil, fmt.Errorf("stuntgres: duplicate native replay target")
-				}
-				position = i
-			}
-		}
-		if position < 0 {
-			return nil, fmt.Errorf("stuntgres: missing native replay column target")
-		}
-		if len(s.Targets) != 0 && len(s.Targets[position].Steps) != 0 {
-			return nil, fmt.Errorf("stuntgres: native replay does not accept partial captured targets")
-		}
-		if _, duplicate := capture.cells[position]; duplicate {
-			return nil, fmt.Errorf("stuntgres: duplicate native replay cell")
-		}
-		if _, generated := relation.ColumnMeta.Generations[relation.Attributes[slot]]; generated {
-			return nil, fmt.Errorf("stuntgres: generated native replay cell")
-		}
-		raw, ok := s.Rows[0][position].(parser.LiteralExpr)
-		if !ok || raw.Value.Kind != parser.NullValue {
-			return nil, fmt.Errorf("stuntgres: native replay requires an exact NULL placeholder")
-		}
-		usage := relation.Columns[slot].Usage
-		value, count, err := restoreDomainReplayNode(&c, e, scope.op, auth, usage, cell.Value)
-		if err != nil {
-			return nil, err
-		}
-		if count&domainReplayDomainNull == 0 || value.Type() != usage.Type {
-			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted domain NULL")
-		}
-		capture.cells[position] = plan.LiteralExpr{Info: expr.Info{Usage: usage, Pos: raw.SourcePosition()}, Value: value}
+	cells, err := typedef.DomainReplayCells(e.domainReplayEnv(&c, scope.op, auth), s, record.Cells, relation, slots)
+	if err != nil {
+		return nil, err
 	}
-	return capture, nil
+	return &domainReplayCapture{statement: s, relation: relation, cells: cells}, nil
 }
 
 func (e *Engine) executeDomainReplayInsert(op *session.Operation, s *parser.Insert, record typedef.DomainReplayRecord) (result Result, err error) {
@@ -320,5 +165,5 @@ func capturedDomainReplayCell(b *analyze.Binding, op *session.Operation, s *pars
 	if row != 0 || capture.relation != b.Relation || column >= len(b.Targets) || literal.ResultUsage() != b.Relation.Columns[b.Targets[column]].Usage {
 		return nil, true, fmt.Errorf("stuntgres: native domain replay destination changed")
 	}
-	return literal, true, nil
+	return plan.LiteralExpr{Info: literal.Info, Value: literal.Value}, true, nil
 }

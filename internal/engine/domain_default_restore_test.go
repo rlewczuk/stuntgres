@@ -151,7 +151,7 @@ func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
 	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
-	value, count, err := restoreDomainReplayNode(&c, e, op, auth, typ.Usage(), &typedef.DomainReplayNode{Kind: "scalar", Scalar: &text})
+	value, count, err := typedef.RestoreDomainReplayNode(e.domainReplayEnv(&c, op, auth), typ.Usage(), &typedef.DomainReplayNode{Kind: "scalar", Scalar: &text})
 	if err != nil || count != 0 {
 		t.Fatal("closed endpoint expression lost its original binding manifest", count, err)
 	}
