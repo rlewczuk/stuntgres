@@ -115,14 +115,12 @@ make check RUN='^TestReferenceFeatureBehavior$' REFERENCE=1
 make check RUN='^TestReferenceFeatureBehavior$'
 # Whole-project verification after edits, before review/integration.
 make quickcheck
-# Same Docker-free suite with race detection.
-make racecheck
-# After integration: startup benchmark, socket-free native race suite, dependencies.
+# After integration: startup benchmark, dependencies.
 make finalcheck
 ```
 
 `finalcheck` uses `noservertests` to exclude server checks that open real TCP
-sockets. Those checks remain enabled in `quickcheck`, `racecheck` and selected
+sockets. Those checks remain enabled in `quickcheck` and selected
 `make check RUN='...'` runs.
 
 `check` requires `RUN` selecting individual tests or small sets; add `RACE=1` for
