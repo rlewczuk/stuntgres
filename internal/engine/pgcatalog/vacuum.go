@@ -1,8 +1,10 @@
 package pgcatalog
 
 import (
+	"context"
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -35,6 +37,42 @@ type VacuumProgressFact struct {
 	Phase                          string
 	IndexesTotal, IndexesProcessed int64
 	Visible                        bool
+}
+
+// VacuumProgressViewer decides which pg_stat_progress_vacuum rows the current
+// user reads in full: a superuser reads every row, and a member of the worker's
+// authenticated role or of pg_read_all_stats reads that worker's row.
+type VacuumProgressViewer struct {
+	superuser  bool
+	principals []authorization.PrincipalRef
+	reader     authorization.PrincipalRef
+	hasReader  bool
+}
+
+// NewVacuumProgressViewer captures current's role closure in roles.
+func NewVacuumProgressViewer(ctx context.Context, roles authorization.Read, current authorization.PrincipalRef) (VacuumProgressViewer, error) {
+	principals, err := roles.RoleClosure(ctx, current, true)
+	if err != nil {
+		return VacuumProgressViewer{}, err
+	}
+	v := VacuumProgressViewer{principals: principals}
+	reader, hasReader := roles.Lookup("pg_read_all_stats")
+	v.reader, v.hasReader = reader.Ref, hasReader
+	actor, hasActor := roles.Find(current)
+	v.superuser = hasActor && actor.Superuser
+	return v, nil
+}
+
+// Visible reports whether the viewer reads the row of a worker authenticated
+// as owner.
+func (v VacuumProgressViewer) Visible(owner authorization.PrincipalRef) bool {
+	visible := v.superuser
+	for _, principal := range v.principals {
+		if principal == owner || v.hasReader && principal == v.reader {
+			visible = true
+		}
+	}
+	return visible
 }
 
 var tableStatisticsColumns = []ColumnSpec{

@@ -6,8 +6,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
-	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/visibility"
 )
 
 type vacuumProgress struct {
@@ -15,57 +13,10 @@ type vacuumProgress struct {
 	owner authorization.PrincipalRef
 }
 
-func (e *Engine) vacuumCutoffLocked() (uint64, error) {
-	cutoff, err := visibility.NextFullXID(e.visibility.LastAssignedXID())
-	if err != nil {
-		return 0, err
-	}
-	for _, entry := range e.visibility.Entries {
-		if entry.FullXID != 0 && (entry.Ticket == nil || !entry.Ticket.OwnershipEnded()) && entry.FullXID < cutoff {
-			cutoff = entry.FullXID
-		}
-	}
-	return cutoff, nil
-}
-func (e *Engine) vacuumRetirementAllowedLocked(self ids.TxRef) bool {
-	for ref, entry := range e.visibility.Entries {
-		if ref == self || ref.Epoch() != self.Epoch() {
-			continue
-		}
-		if entry.Snapshot || entry.SafeBuilder || entry.XID != 0 || entry.Ticket != nil && !entry.Ticket.OwnershipEnded() {
-			return false
-		}
-	}
-	return true
-}
-func (e *Engine) initializeMaintenanceLocked(store *storage.Relation) {
-	if store == nil || store.Maintenance.FrozenXID != 0 {
-		return
-	}
-	// A transaction can assign its canonical XID before this relation exists,
-	// then publish into it later under READ COMMITTED. Empty relations must
-	// therefore start no later than the oldest still-active assigned publisher.
-	next, err := e.vacuumCutoffLocked()
-	if err != nil {
-		return
-	}
-	for _, row := range store.Versions {
-		if row.Frozen {
-			continue
-		}
-		if row.InsertFullXID == 0 {
-			return
-		}
-		if row.InsertFullXID < next {
-			next = row.InsertFullXID
-		}
-	}
-	store.Maintenance.FrozenXID = next
-}
 func (e *Engine) updateDatabaseMaintenanceLocked() {
 	// A still-active publisher can create or first write a relation after this
 	// calculation; installed relation bounds alone cannot justify the seed.
-	next, err := e.vacuumCutoffLocked()
+	next, err := e.visibility.VacuumCutoffLocked()
 	if err != nil {
 		return
 	}
@@ -123,20 +74,13 @@ func (r engineCatalogRuntime) VisitVacuumProgress(ctx context.Context, visit fun
 	if len(r.engine.vacuumProgress) == 0 {
 		return nil
 	}
-	principals, err := r.auth.Roles.RoleClosure(ctx, r.auth.State.CurrentUser, true)
+	viewer, err := pgcatalog.NewVacuumProgressViewer(ctx, r.auth.Roles, r.auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
-	reader, hasReader := r.auth.Roles.Lookup("pg_read_all_stats")
-	actor, hasActor := r.auth.Roles.Find(r.auth.State.CurrentUser)
 	for _, p := range r.engine.vacuumProgress {
 		fact := p.fact
-		fact.Visible = hasActor && actor.Superuser
-		for _, principal := range principals {
-			if principal == p.owner || hasReader && principal == reader.Ref {
-				fact.Visible = true
-			}
-		}
+		fact.Visible = viewer.Visible(p.owner)
 		if err := visit(fact); err != nil {
 			return err
 		}

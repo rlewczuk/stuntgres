@@ -516,7 +516,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 			p.Store.Versions = p.Next
 			p.Store.Generation++
-			e.initializeMaintenanceLocked(p.Store)
+			e.visibility.InitializeMaintenanceLocked(p.Store)
 		}
 		if c != nil {
 			for address, shape := range c.Storage {
@@ -541,7 +541,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					shape.Replacement.Maintenance.Modifications += n
 					shape.Replacement.Maintenance.Live = n
 				}
-				e.initializeMaintenanceLocked(shape.Replacement)
+				e.visibility.InitializeMaintenanceLocked(shape.Replacement)
 			}
 			e.storage.ReplaceSequencesLocked(nextSequences)
 			e.storage.ReplaceRelationsLocked(nextStorage)

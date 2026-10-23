@@ -919,7 +919,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 						initial.Versions[i].Frozen, initial.Versions[i].ImportFrozen = false, false
 					}
 					initial.Generation = 1
-					e.initializeMaintenanceLocked(initial)
+					e.visibility.InitializeMaintenanceLocked(initial)
 					initial.Maintenance.Inserts += int64(len(initial.Versions))
 					initial.Maintenance.InsertsSince += int64(len(initial.Versions))
 					initial.Maintenance.Modifications += int64(len(initial.Versions))
@@ -946,7 +946,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 						replacement.Predecessor.MaterializedLineage = lineage
 						replacement.Storage.MaterializedLineage = lineage
 					}
-					e.initializeMaintenanceLocked(replacement.Storage)
+					e.visibility.InitializeMaintenanceLocked(replacement.Storage)
 					replacement.Storage.Maintenance.Inserts += int64(len(replacement.Storage.Versions))
 					replacement.Storage.Maintenance.InsertsSince += int64(len(replacement.Storage.Versions))
 					replacement.Storage.Maintenance.Modifications += int64(len(replacement.Storage.Versions))
@@ -955,7 +955,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				e.visibility.AdvanceCommitSeqLocked()
 			}
 			for address := range s.Descriptors() {
-				e.initializeMaintenanceLocked(relations[address])
+				e.visibility.InitializeMaintenanceLocked(relations[address])
 			}
 			if s.initialTx != (ids.TxRef{}) {
 				e.visibility.SerializableCommittedLocked(s.initialTx, e.visibility.CommitSeq())
@@ -1283,7 +1283,7 @@ func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids
 	e.databaseFrozenXID = 0
 	e.vacuumProgress = nil
 	for _, store := range relations {
-		e.initializeMaintenanceLocked(store)
+		e.visibility.InitializeMaintenanceLocked(store)
 	}
 	e.updateDatabaseMaintenanceLocked()
 	e.exclusions.ResetLocked()

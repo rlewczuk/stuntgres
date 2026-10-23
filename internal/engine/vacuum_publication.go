@@ -47,11 +47,11 @@ func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget)
 	if !allowed {
 		return c, false, nil
 	}
-	cutoff, err := e.vacuumCutoffLocked()
+	cutoff, err := e.visibility.VacuumCutoffLocked()
 	if err != nil {
 		return c, false, err
 	}
-	c = vacuumCapture{rows: target.store.Versions, ends: target.store.Ends, generation: target.store.Generation, frontier: e.visibility.CommitSeq(), cutoff: cutoff, retire: e.vacuumRetirementAllowedLocked(s.txRef), catalog: e.catalog.state, relation: d}
+	c = vacuumCapture{rows: target.store.Versions, ends: target.store.Ends, generation: target.store.Generation, frontier: e.visibility.CommitSeq(), cutoff: cutoff, retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), catalog: e.catalog.state, relation: d}
 	return c, true, nil
 }
 
@@ -123,7 +123,7 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected vacuumTarget, o vacu
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	cutoff, err := e.vacuumCutoffLocked()
+	cutoff, err := e.visibility.VacuumCutoffLocked()
 	if err != nil {
 		e.mu.Unlock()
 		return err
@@ -131,7 +131,7 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected vacuumTarget, o vacu
 	// Bind current storage/shape only now. Detached work still uses the same
 	// strict epoch, store, shape, root, index, rights and final-publication fences.
 	target := vacuumHeapTarget{selected.ref, d, store}
-	first := vacuumCapture{rows: store.Versions, ends: store.Ends, generation: store.Generation, frontier: e.visibility.CommitSeq(), cutoff: cutoff, retire: e.vacuumRetirementAllowedLocked(s.txRef), catalog: e.catalog.state, relation: d}
+	first := vacuumCapture{rows: store.Versions, ends: store.Ends, generation: store.Generation, frontier: e.visibility.CommitSeq(), cutoff: cutoff, retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), catalog: e.catalog.state, relation: d}
 	e.captureVacuumIndexesLocked(&first, true)
 	if s.op.Session.SessionToken.ID() > math.MaxInt32 {
 		e.mu.Unlock()
@@ -249,14 +249,7 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected vacuumTarget, o vacu
 		if nextCatalog != nil {
 			e.catalog.state = nextCatalog
 		}
-		m := &target.store.Maintenance
-		m.Scanned, m.Live, m.Dead, m.LastVacuum = true, candidate.Live, candidate.Dead, completed
-		m.Tuples = candidate.Live
-		m.VacuumCount++
-		m.InsertsSince = 0
-		if candidate.Horizon != 0 && candidate.Horizon > m.FrozenXID {
-			m.FrozenXID = candidate.Horizon
-		}
+		target.store.Maintenance.RecordVacuum(candidate, completed)
 		e.mu.Unlock()
 		if o.verbose {
 			ns, _ := catalog.NewRead(e.catalog.owner(), capture.catalog).Namespace(capture.relation.Namespace())

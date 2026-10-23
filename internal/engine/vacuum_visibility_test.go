@@ -199,18 +199,18 @@ func TestVacuumFreezeProvenance(t *testing.T) {
 	self := e.catalog.Domain.Tx(s.SessionToken, 999, e.catalog.state.Epoch(), s.Transactions, 999)
 	e.visibility.SetLastAssignedXIDLocked(99)
 	e.visibility.Entries[self] = visibility.Entry{XID: 700, FullXID: 90, AssignedXID: 90}
-	cutoff, err := e.vacuumCutoffLocked()
+	cutoff, err := e.visibility.VacuumCutoffLocked()
 	e.mu.Unlock()
 	if err != nil || cutoff != 90 {
 		t.Fatal(cutoff, err)
 	}
 	rows := []storage.RowVersion{{Row: 1, Version: 1, Born: 10000, InsertFullXID: 80}, {Row: 2, Version: 2, Born: 10000, InsertFullXID: 95}}
-	c, err := storage.PrepareVacuum(context.Background(), rows, nil, 10000, cutoff, false)
+	c, err := vacuumScan(context.Background(), rows, nil, 10000, cutoff, false)
 	if err != nil || c.Frozen != 1 || !c.Versions[0].Frozen || c.Versions[1].Frozen || c.Horizon != 90 || rows[0].Frozen || c.Versions[0].InsertFullXID != 80 {
 		t.Fatal("unsafe/cross-domain freeze", c, err)
 	}
 	rows[0].InsertFullXID = 0
-	c, err = storage.PrepareVacuum(context.Background(), rows, nil, 10000, cutoff, false)
+	c, err = vacuumScan(context.Background(), rows, nil, 10000, cutoff, false)
 	if err != nil || c.Horizon != 0 || c.Frozen != 0 {
 		t.Fatal("unknown provenance manufactured horizon", c, err)
 	}

@@ -10,6 +10,16 @@ import (
 	"testing"
 )
 
+// vacuumScan is one VACUUM heap pass over rows: inspection, then
+// materialization when it removes or freezes a version.
+func vacuumScan(ctx context.Context, rows []storage.RowVersion, ends *storage.DeletionRoot, frontier ids.CommitSeq, cutoff uint64, retire bool) (storage.VacuumCandidate, error) {
+	c, err := storage.InspectVacuum(ctx, rows, ends, frontier, cutoff, retire)
+	if err != nil {
+		return c, err
+	}
+	return storage.MaterializeVacuum(ctx, rows, ends, frontier, cutoff, c)
+}
+
 func TestVacuumCompactionIndexes(t *testing.T) {
 	e := New()
 	bytea, _ := e.CatalogRead().LookupType(sqltype.Bytea)
@@ -26,7 +36,7 @@ func TestVacuumCompactionIndexes(t *testing.T) {
 	ends := &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 10, End: 2}, 2: {Version: 19, End: 2}, 99: {Version: 99, End: 2}}}
 	store := &storage.Relation{Versions: rows, Ends: ends, Generation: 5}
 	old := slices.Clone(rows)
-	candidate, err := storage.PrepareVacuum(context.Background(), rows, ends, 2, 4, true)
+	candidate, err := vacuumScan(context.Background(), rows, ends, 2, 4, true)
 	if err != nil || candidate.Removed != 1 || candidate.Live != 2 || candidate.Dead != 0 || len(candidate.Versions) != 2 || len(candidate.Ends.Rows) != 2 {
 		t.Fatal(candidate, err)
 	}
@@ -52,7 +62,7 @@ func TestVacuumCompactionIndexes(t *testing.T) {
 	if err != nil || partial.Hash.Prefix != 1 || prefixHash.Prefix != 2 {
 		t.Fatal("incomplete hash coverage was promoted to full coverage", partial, err)
 	}
-	freezeOnly, err := storage.PrepareVacuum(context.Background(), rows, ends, 2, 4, false)
+	freezeOnly, err := vacuumScan(context.Background(), rows, ends, 2, 4, false)
 	if err != nil || freezeOnly.Positions != nil || freezeOnly.Removed != 0 {
 		t.Fatal("freeze-only scan compacted protected positions", freezeOnly, err)
 	}
@@ -69,23 +79,23 @@ func TestVacuumCompactionIndexes(t *testing.T) {
 	}
 	// A mismatched-version marker is not removal authority, including Born0.
 	for _, row := range []storage.RowVersion{{Row: 1, Version: 11, Born: 1, InsertFullXID: 3}, {Row: 1, Version: 10}} {
-		c, err := storage.PrepareVacuum(context.Background(), []storage.RowVersion{row}, ends, 2, 4, true)
+		c, err := vacuumScan(context.Background(), []storage.RowVersion{row}, ends, 2, 4, true)
 		if err != nil || c.Removed != 0 || len(c.Versions) != 1 {
 			t.Fatal("wrong-version/private removal", c, err)
 		}
 	}
 	allEnds := &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 10, End: 2}, 2: {Version: 20, End: 2}, 3: {Version: 30, End: 2}}}
-	all, err := storage.PrepareVacuum(context.Background(), rows, allEnds, 2, 4, true)
+	all, err := vacuumScan(context.Background(), rows, allEnds, 2, 4, true)
 	if err != nil || all.Removed != 3 || len(all.Versions) != 0 || len(all.Ends.Rows) != 0 {
 		t.Fatal("all-dead compaction", all, err)
 	}
-	empty, err := storage.PrepareVacuum(context.Background(), nil, nil, 2, 4, true)
+	empty, err := vacuumScan(context.Background(), nil, nil, 2, 4, true)
 	if err != nil || empty.Versions != nil || empty.Ends != nil || empty.Positions != nil {
 		t.Fatal("empty pass allocated", empty, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := storage.PrepareVacuum(canceled, rows, ends, 2, 4, true); err != context.Canceled {
+	if _, err := vacuumScan(canceled, rows, ends, 2, 4, true); err != context.Canceled {
 		t.Fatal("scan ignored cancellation", err)
 	}
 	// Actual attached index forms retain validity and never reevaluate domains.

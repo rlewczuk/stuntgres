@@ -87,13 +87,6 @@ func MaterializeVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoo
 	}
 	return c, ctx.Err()
 }
-func PrepareVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, frontier ids.CommitSeq, cutoff uint64, retire bool) (VacuumCandidate, error) {
-	c, err := InspectVacuum(ctx, rows, ends, frontier, cutoff, retire)
-	if err != nil {
-		return c, err
-	}
-	return MaterializeVacuum(ctx, rows, ends, frontier, cutoff, c)
-}
 
 // RemapVacuumIndex never evaluates keys or predicates. Keys/bindings and index
 // validity remain the original authority; only retained physical positions move.
