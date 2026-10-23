@@ -69,49 +69,13 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		if err != nil {
 			return Result{}, err
 		}
-		sess := op.Session
-		settings := sess.Settings
-		settings.Mu.Lock()
-		defer settings.Mu.Unlock()
-		sess.Mu.Lock()
-		defer sess.Mu.Unlock()
-		a := sess.Authorization
-		// Reserve failure unwind, retained savepoints and outer restoration.
-		if err := session.RoleRevisionHeadroom(a, uint64(len(sess.Transactions.Savepoints))+3); err != nil {
-			return Result{}, err
-		}
-		if err := publicationOperationLocked(e, op); err != nil {
-			return Result{}, err
-		}
-		e.touchOperationIdentityLocked(op)
-		settings.TouchRole(a.State.CurrentUser, s.Local)
-		a.State.CurrentUser = target
-		a.Revision++
-		return Result{}, nil
+		return Result{}, e.switchSessionRoleLocked(op, target, s.Local, false)
 	case *parser.SessionAuthorization:
 		target, err := role.SessionAuthorizationTarget(v.View, s)
 		if err != nil {
 			return Result{}, err
 		}
-		sess := op.Session
-		settings := sess.Settings
-		settings.Mu.Lock()
-		defer settings.Mu.Unlock()
-		sess.Mu.Lock()
-		defer sess.Mu.Unlock()
-		a := sess.Authorization
-		if err := session.RoleRevisionHeadroom(a, uint64(len(sess.Transactions.Savepoints))+3); err != nil {
-			return Result{}, err
-		}
-		if err := publicationOperationLocked(e, op); err != nil {
-			return Result{}, err
-		}
-		e.touchOperationIdentityLocked(op)
-		settings.TouchRole(a.State.CurrentUser, false)
-		a.State.SessionUser = target
-		a.State.CurrentUser = target
-		a.Revision++
-		return Result{}, nil
+		return Result{}, e.switchSessionRoleLocked(op, target, false, true)
 	case *parser.DropRole:
 		plan, err := role.PlanDropRoles(ddlHost{e: e, op: op}, v, s)
 		if err != nil {
@@ -120,6 +84,36 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		return e.publishDroppedRolesLocked(op, plan)
 	}
 	return Result{}, fmt.Errorf("stuntgres: invalid role statement")
+}
+
+// switchSessionRoleLocked makes target op's current user, and its session
+// user too when sessionUser is set (SET SESSION AUTHORIZATION). local marks a
+// SET LOCAL ROLE for the role setting's restore point. The caller holds
+// Engine.mu; this takes Settings.Mu, then Session.Mu, and releases both
+// before it returns.
+func (e *Engine) switchSessionRoleLocked(op *session.Operation, target authorization.PrincipalRef, local, sessionUser bool) error {
+	sess := op.Session
+	settings := sess.Settings
+	settings.Mu.Lock()
+	defer settings.Mu.Unlock()
+	sess.Mu.Lock()
+	defer sess.Mu.Unlock()
+	a := sess.Authorization
+	// Reserve failure unwind, retained savepoints and outer restoration.
+	if err := session.RoleRevisionHeadroom(a, uint64(len(sess.Transactions.Savepoints))+3); err != nil {
+		return err
+	}
+	if err := publicationOperationLocked(e, op); err != nil {
+		return err
+	}
+	e.touchOperationIdentityLocked(op)
+	settings.TouchRole(a.State.CurrentUser, local)
+	if sessionUser {
+		a.State.SessionUser = target
+	}
+	a.State.CurrentUser = target
+	a.Revision++
+	return nil
 }
 
 // publishDroppedRolesLocked installs a decided DROP ROLE: the role record

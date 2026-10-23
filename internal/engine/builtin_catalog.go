@@ -28,32 +28,17 @@ func builtinCatalogCapacity(types int) int {
 		len(catalog.BuiltinConversions) + routine.BuiltinOperatorCount + catalog.BuiltinFamilyDescriptorCount + 128
 }
 
-// installBuiltinProcedures installs the builtin routine descriptors.
+// installBuiltinProcedures installs the builtin routine descriptors: the
+// encoding conversion routines, the builtin routines and the native access
+// method handlers, in that order, then the native access methods.
 func (e *Engine) installBuiltinProcedures() {
-	procedures := routine.BuiltinProcedures(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
-	for i := range procedures {
-		d := &procedures[i]
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
-	}
-}
-
-// installBuiltinConversionRoutines installs the encoding conversion routines.
-func (e *Engine) installBuiltinConversionRoutines() {
-	procedures := typedef.BuiltinConversionProcedures(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
-	for i := range procedures {
-		d := &procedures[i]
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
-	}
-}
-
-func (e *Engine) installNativeAccessMethods() {
-	procedures := routine.NativeAccessMethodProcedures(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
-	for i := range procedures {
-		d := &procedures[i]
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
+	for _, procedures := range [...][]catalog.Procedure{typedef.BuiltinConversionProcedures(owner), routine.BuiltinProcedures(owner), routine.NativeAccessMethodProcedures(owner)} {
+		for i := range procedures {
+			d := &procedures[i]
+			e.catalog.state.SetDescriptor(d.Address(), d)
+			e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+		}
 	}
 	catalog.InstallBuiltinAccessMethods(e.catalog.state)
 }

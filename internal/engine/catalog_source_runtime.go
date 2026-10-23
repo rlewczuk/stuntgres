@@ -107,93 +107,36 @@ func (r engineCatalogRuntime) TemporaryOwner() ids.SessionToken        { return 
 func (r engineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 	return r.auth.State.CurrentUser
 }
+
+// sharedCaptureNames names the information_schema sources that share one
+// capture check; only the error names them apart.
+var sharedCaptureNames = map[ids.OID]string{
+	pgcatalog.InfoEnabledRolesOID:         "enabled_roles",
+	pgcatalog.InfoCharacterSetsOID:        "character_sets",
+	pgcatalog.KeyColumnUsageOID:           "key_column_usage",
+	pgcatalog.ConstraintColumnUsageOID:    "constraint_column_usage",
+	pgcatalog.InfoColumnColumnUsageOID:    "column_column_usage",
+	pgcatalog.InfoRoutineSequenceUsageOID: "routine_sequence_usage",
+	pgcatalog.InfoDomainConstraintsOID:    "domain_constraints",
+	pgcatalog.InfoSequencesOID:            "sequences",
+	pgcatalog.InfoViewTableUsageOID:       "view_table_usage",
+	pgcatalog.InfoUserMappingsOID:         "user_mappings",
+	pgcatalog.DataTypePrivilegesOID:       "data_type_privileges",
+	pgcatalog.InfoRoleColumnGrantsOID:     "role_column_grants",
+}
+
 func (r engineCatalogRuntime) ValidateCapture(view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, oid ids.OID) error {
 	a := r.auth
+	if name, ok := sharedCaptureNames[oid]; ok {
+		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
+			return fmt.Errorf("stuntgres: invalid %s capture", name)
+		}
+		if _, err := a.Object(ref); err != nil {
+			return err
+		}
+		return a.Roles.ValidatePrincipal(a.State.CurrentUser)
+	}
 	switch oid {
-	case pgcatalog.InfoRoleColumnGrantsOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid role_column_grants capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.InfoEnabledRolesOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid enabled_roles capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.InfoCharacterSetsOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid character_sets capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.KeyColumnUsageOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid key_column_usage capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.ConstraintColumnUsageOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid constraint_column_usage capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.InfoColumnColumnUsageOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid column_column_usage capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.InfoRoutineSequenceUsageOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid routine_sequence_usage capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.InfoDomainConstraintsOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid domain_constraints capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.InfoSequencesOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid sequences capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.InfoViewTableUsageOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid view_table_usage capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.InfoUserMappingsOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid user_mappings capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
-	case pgcatalog.DataTypePrivilegesOID:
-		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
-			return fmt.Errorf("stuntgres: invalid data_type_privileges capture")
-		}
-		if _, err := a.Object(ref); err != nil {
-			return err
-		}
 	case pgcatalog.TablePrivilegesOID:
 		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog.State() != view.State() || a.RoleRecord == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
 			return fmt.Errorf("stuntgres: invalid table_privileges capture")

@@ -216,9 +216,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	e.installBuiltinConversionRoutines()
 	e.installBuiltinProcedures()
-	e.installNativeAccessMethods()
 	if err := e.installBuiltinLanguages(); err != nil {
 		return nil, err
 	}

@@ -101,6 +101,28 @@ func (v AuthorizationView) ReferencePath() ([]ids.ObjectAddress, error) {
 	return referencePath(v)
 }
 
+// trustedRestoreForm names the statement form a trusted Restore runs as the
+// bootstrap superuser, or returns "". The CREATE forms need a table
+// destination; INSERT needs insert authority (insert is true). The name is
+// the authority a rejection names.
+func trustedRestoreForm(stmt parser.Statement) (name string, insert bool) {
+	switch s := stmt.(type) {
+	case *parser.CreateView:
+		return "view", false
+	case *parser.CreateQueryTable:
+		if s.Form == parser.CreateMaterializedView {
+			return "materialized view", false
+		}
+	case *parser.CreateIndex:
+		return "index", false
+	case *parser.CreatePolicy:
+		return "policy", false
+	case *parser.Insert:
+		return "insertion", true
+	}
+	return "", false
+}
+
 // Statement-local Restore authority must cover both lock resolution and effects.
 // INSERT/COMMENT stamp no owner; named directives and session identity stay intact.
 func (e *Engine) statementAuthorizationLocked(op *session.Operation, stmt parser.Statement) (AuthorizationView, error) {
@@ -108,59 +130,36 @@ func (e *Engine) statementAuthorizationLocked(op *session.Operation, stmt parser
 	if err != nil {
 		return AuthorizationView{}, err
 	}
-	if _, view := stmt.(*parser.CreateView); view && operationReplayOrZero(op).tableDestination {
-		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
-		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore view authority")
+	replay := operationReplayOrZero(op)
+	if name, insert := trustedRestoreForm(stmt); name != "" && (insert && replay.insertAuthority || !insert && replay.tableDestination) {
+		if err := e.trustRestoreBootstrap(&auth, name); err != nil {
+			return AuthorizationView{}, err
 		}
-		auth.namespaceUser = auth.State.CurrentUser
-		auth.State.CurrentUser = bootstrap.Ref
 	}
-	if creation, ok := stmt.(*parser.CreateQueryTable); ok && creation.Form == parser.CreateMaterializedView && operationReplayOrZero(op).tableDestination {
-		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
-		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore materialized view authority")
-		}
-		auth.namespaceUser = auth.State.CurrentUser
-		auth.State.CurrentUser = bootstrap.Ref
-	}
-	if _, index := stmt.(*parser.CreateIndex); index && operationReplayOrZero(op).tableDestination {
-		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
-		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore index authority")
-		}
-		auth.namespaceUser = auth.State.CurrentUser
-		auth.State.CurrentUser = bootstrap.Ref
-	}
-	if _, policy := stmt.(*parser.CreatePolicy); policy && operationReplayOrZero(op).tableDestination {
-		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
-		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore policy authority")
-		}
-		auth.namespaceUser = auth.State.CurrentUser
-		auth.State.CurrentUser = bootstrap.Ref
-	}
-	if _, insert := stmt.(*parser.Insert); insert && operationReplayOrZero(op).insertAuthority {
-		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
-		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore insertion authority")
-		}
-		auth.namespaceUser = auth.State.CurrentUser
-		auth.State.CurrentUser = bootstrap.Ref
-	}
-	if operationReplayOrZero(op).commentAuthority {
+	if replay.commentAuthority {
 		comment, ok := stmt.(*parser.Comment)
 		if !ok || (comment.Kind != parser.CommentTable && comment.Kind != parser.CommentForeignTable && comment.Kind != parser.CommentColumn && comment.Kind != parser.CommentSchema) {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
 		}
-		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
-		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment authority")
+		if err := e.trustRestoreBootstrap(&auth, "comment"); err != nil {
+			return AuthorizationView{}, err
 		}
-		auth.namespaceUser = auth.State.CurrentUser
-		auth.State.CurrentUser = bootstrap.Ref
 	}
 	return auth, nil
+}
+
+// trustRestoreBootstrap runs auth as the bootstrap superuser and keeps the
+// replayed user for namespace checks. The authenticated user must be that
+// superuser on an engine with import targets; name is the authority a
+// rejection names.
+func (e *Engine) trustRestoreBootstrap(auth *AuthorizationView, name string) error {
+	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
+	if err != nil || !bootstrap.Superuser || e.importTargets == nil {
+		return fmt.Errorf("stuntgres: invalid trusted restore %s authority", name)
+	}
+	auth.namespaceUser = auth.State.CurrentUser
+	auth.State.CurrentUser = bootstrap.Ref
+	return nil
 }
 
 // operationAuthorization returns op's current authorization view. It takes
