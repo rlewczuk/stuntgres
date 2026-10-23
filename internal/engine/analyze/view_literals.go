@@ -581,6 +581,9 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return children(r.Args, []expr.Expr{n.Arg})
 		}
+		if n, ok := bound.(plan.InstalledCubeExpr); ok {
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(plan.InstalledSoundexExpr); ok {
 			return children(r.Args, n.Args)
 		}

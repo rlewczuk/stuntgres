@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -44,7 +45,7 @@ func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, erro
 	if raw.Syntax != parser.OrdinaryFunctionSyntax || raw.StringSyntax != parser.OrdinaryStringSyntax {
 		return nil, false, nil
 	}
-	if node, handled, err := b.retainedGeometricTypeNameCast(raw); handled || err != nil {
+	if node, handled, err := b.retainedTypeNameCast(raw); handled || err != nil {
 		return node, handled, err
 	}
 	selected, handled, err := b.selectSQLCallable(raw, nil)
@@ -61,7 +62,8 @@ func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, erro
 func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExpr) (sqlCallableSelection, bool, error) {
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if !b.hasDynamicProcedureName(name) && !b.BindingCatalog().HasCasts() {
+	cubeFamily := functions.CubeFunctionName(name)
+	if !cubeFamily && !b.hasDynamicProcedureName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -78,7 +80,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	if len(raw.ArgNames) == 0 {
 		seen = make(map[catalog.ProcedureSignature]bool)
 	}
-	hasSQL := false
+	hasSQL, hasCube := false, false
 	for i := range path.Count() {
 		for d := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.Host.DefinitionOf(auth), path.At(i), name) {
 			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || len(raw.ArgNames) == 0 && seen[d.Signature] {
@@ -90,6 +92,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if d.DynamicCallable() {
 				hasSQL = true
 			}
+			if cubeFamily && extension.CubeProviderOf(d) == extension.StockCube {
+				hasCube = true
+			}
 			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil {
 				continue
 			}
@@ -100,7 +105,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			}
 		}
 	}
-	if !hasSQL && !b.BindingCatalog().HasCasts() {
+	if !hasSQL && !hasCube && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	issue := functions.FunctionLabels(raw)
@@ -177,7 +182,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 				selection.args = []expr.Expr{operands[0].Node}
 				return selection, true, nil
 			}
-		} else if len(operands) == 1 && (name == "box" || name == "circle" || name == "lseg" || name == "path" || name == "point" || name == "polygon") && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
+		} else if len(operands) == 1 && (name == "box" || name == "circle" || name == "lseg" || name == "path" || name == "point" || name == "polygon" || name == "cube") && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
 			annotation := parser.TypeName{Name: name, Pos: raw.Pos}
 			if len(raw.Name.Parts) == 2 {
 				annotation.Schema = &raw.Name.Parts[0]
@@ -211,7 +216,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		if selection.Targets != nil {
 			target = selection.Targets[i]
 		}
-		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || o.descriptor() != nil) {
+		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || extension.CubeProviderOf(selection.Procedure) == extension.StockCube || o.descriptor() != nil) {
 			selection.args[i], err = b.CoerceConditional(o, target, "function")
 			if err != nil {
 				return selection, true, err
@@ -402,6 +407,15 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true, TypeNameCallPosition: raw.Pos})
 	}
 	d := selected.Procedure
+	if d != nil && extension.CubeProviderOf(d) == extension.StockCube {
+		// Diagnose the written name before the selected gateway qualifies it.
+		if err := functions.ValidateCallSyntax(b, raw); err != nil {
+			return nil, err
+		}
+		if err := functions.CallDecorationError(raw); err != nil {
+			return nil, err
+		}
+	}
 	if d != nil && d.SQL != nil {
 		if d.RoutineKind == catalog.ProcedureRoutine {
 			diagnostic := expr.ErrorAt("42809", catalog.ObjectNameText(raw.Name)+"("+string(d.Signature)+") is a procedure", raw.Pos).(*sqlstate.Error)

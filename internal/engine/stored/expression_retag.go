@@ -102,6 +102,8 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 				address = installed.Ref.Address
 			case plan.InstalledSoundexExpr:
 				address = installed.Ref.Address
+			case plan.InstalledCubeExpr:
+				address = installed.Ref.Address
 			case plan.UnnestExpr:
 				if installed.Procedure != nil {
 					address = installed.Ref.Address
@@ -112,6 +114,9 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 			sameSignature := ok && current.Signature == captured.Signature
 			if ok && captured.SQL != nil {
 				sameSignature = sameMappedSQLRoutine(current, captured, retainedType)
+			}
+			if cube, cubeCall := node.(plan.InstalledCubeExpr); cubeCall {
+				sameSignature = ok && sameMappedCubeSignature(cube, current, retainedType)
 			}
 			if !ok || current.Name() != captured.Name() || !sameSignature || current.RoutineKind != captured.RoutineKind || current.Builtin != captured.Builtin {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
@@ -214,6 +219,23 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 			if err := extension.ValidateIntaggIdentity(view, proc, n.Ref, "int_array_enum"); err != nil {
 				return nil, false, err
 			}
+		}
+		rebound = n
+	case plan.InstalledCubeExpr:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
+		proc, ok := descriptor.(*catalog.Procedure)
+		if !ok || extension.CubeProviderOf(proc) != extension.StockCube {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped cube function")
+		}
+		changed = changed || n.Procedure != proc || n.CubeType != retainedType(n.CubeType)
+		n.Procedure, n.CubeType = proc, retainedType(n.CubeType)
+		n.Info = info
+		if err = ValidateInstalledCube(n, view); err != nil {
+			return nil, false, err
 		}
 		rebound = n
 	case plan.InstalledSoundexExpr:

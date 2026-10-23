@@ -57,6 +57,10 @@ func RestoreScalar(raw parser.Expr, stored bool) error {
 					return fmt.Errorf("stuntgres: invalid restore scalar")
 				}
 			case "split_part", "string_to_array", "parse_ident":
+			case "cube", "cube_dim", "cube_is_point":
+				// Selected installed constructors/inquiries use their ordinary
+				// binder for signatures, provider identity and value diagnostics.
+				// Syntax admission still recursively rejects every parameter.
 			case "acldefault", "makeaclitem":
 				// These typed scalar constructors are also emitted by the
 				// ordinary lossless datum renderer. Their binder owns the

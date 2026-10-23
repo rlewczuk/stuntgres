@@ -37,10 +37,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   set-returning `UnnestExpr`, `SeriesExpr` and `SubscriptsExpr` with their source
   protocol and cursors.
 - **Installed extension nodes** (`expression_installed.go`,
-  `expression_extension_paths.go`): `InstalledTextExpr` (unaccent,
+  `expression_cube.go`, `expression_extension_paths.go`): `InstalledTextExpr` (unaccent,
   `daitch_mokotoff`), `InstalledCryptoExpr`, `InstalledUUIDOsspExpr`,
-  `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`, `InstalledPgrowlocksExpr`
-  and `InstalledSoundexExpr` wrap a `functions` kernel with the captured
+  `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
+  `InstalledCubeExpr`, `InstalledPgrowlocksExpr` and `InstalledSoundexExpr` wrap a `functions` kernel with the captured
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity
   against the extension providers.

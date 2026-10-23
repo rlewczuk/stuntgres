@@ -44,6 +44,10 @@ standard library, and holds no state, no mutex and no engine callback. See
     every parameter is rejected even beneath strict-NULL expressions. This
     gives staged runtime phrase-failure atomicity without admitting Restore
     INSERT query sources.
+  - Selected `cube`/`cube_dim`/`cube_is_point` names admit constructor/inquiry
+    recipes in Restore INSERT values. Their ordinary installed binder owns
+    overloads, provider authority and value diagnostics; recursive parameter
+    rejection remains unconditional. Spatial cube routine names remain excluded.
 - **Capabilities** (`capabilities.go`), implemented above this package:
   - `Resolver.Predecessor` maps a dependency address to the OID of the dump
     event that must precede its consumer, or 0.

@@ -18,6 +18,7 @@ const (
 	UnaccentExtension
 	IntaggExtension
 	PgrowlocksExtension
+	CubeExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

@@ -120,3 +120,56 @@ func TestFTSOpsRestoreScalar(t *testing.T) {
 		t.Fatal("adjacent FTS constructor admitted")
 	}
 }
+
+func TestRestoreScalarCubeConstructors(t *testing.T) {
+	for _, expression := range []string{
+		"cube(1::double precision)",
+		"cube(1::double precision,2::double precision)",
+		"cube(ARRAY[1,2]::double precision[])",
+		"cube(ARRAY[1,2]::double precision[],ARRAY[3,4]::double precision[])",
+		"cube('(1),(2)'::cube,3::double precision)",
+		"cube('(1),(2)'::cube,3::double precision,4::double precision)",
+		"cube_dim('(1,2)'::cube)",
+		"cube_is_point('(1,2)'::cube)",
+		"cube(cube(1::double precision),2::double precision)",
+	} {
+		for _, prefix := range []string{"", "cube_restore_ns."} {
+			raw := selectTarget(t, "SELECT "+prefix+expression)
+			for _, stored := range []bool{false, true} {
+				if err := RestoreScalar(raw, stored); err != nil {
+					t.Fatal("selected cube scalar recipe rejected", expression, prefix, stored, err)
+				}
+			}
+		}
+	}
+	for _, name := range []string{"cube", "cube_dim", "cube_is_point"} {
+		// Traversal cannot use STRICT NULL to hide a parameter. Signature
+		// validation belongs to the normal binder, after this syntax guard.
+		raw := parser.FunctionExpr{
+			Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "cube_restore_ns"}, {Text: name}}},
+			Args: []parser.Expr{
+				parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}},
+				parser.CastExpr{
+					Child:    parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 49}},
+					TypeName: parser.TypeName{Name: "double precision"},
+				},
+			},
+		}
+		for _, stored := range []bool{false, true} {
+			err := RestoreScalar(raw, stored)
+			var diagnostic *sqlstate.Error
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" || diagnostic.Message != "parameters are not allowed in restore" || diagnostic.Position != "49" {
+				t.Fatal("cube recipe hid a Restore parameter", name, stored, err)
+			}
+		}
+	}
+	for _, expression := range []string{
+		"cube_distance('(1)'::cube,'(2)'::cube)",
+		"cube_ll_coord('(1)'::cube,1)",
+		"cube_union('(1)'::cube,'(2)'::cube)",
+	} {
+		if err := RestoreScalar(selectTarget(t, "SELECT "+expression), false); err == nil {
+			t.Fatal("adjacent cube operation admitted", expression)
+		}
+	}
+}

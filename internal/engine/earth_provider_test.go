@@ -178,12 +178,23 @@ func TestEarthProviderControls(t *testing.T) {
 	target := New()
 	owner, closeOwner := extensionTemporaryOperation(t, target, "postgres")
 	defer closeOwner()
+	// Retain a real TEMP object at the source earth type's OID. Do not rely
+	// on the number of members allocated by the prerequisite extensions.
+	target.mu.Lock()
+	target.catalog.nextOID = d.Address().ObjectID
+	target.mu.Unlock()
 	namespace := intarrayUnitTemporaryNamespace(t, target, owner)
+	if namespace.Address().ObjectID != d.Address().ObjectID {
+		t.Fatal("missing explicit retained TEMP collision")
+	}
 	installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
 	extensionUnitPublish(t, target, installer, cubeUnitStage(t, target, installer, "unaccent", namespace.Name()))
 	closeInstaller()
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
+	}
+	if target.catalog.state.Get(namespace.Address()) != namespace {
+		t.Fatal("retained TEMP namespace was reminted")
 	}
 	ext := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "earthdistance"}))
 	imported := target.catalog.state.MustType(ext.Members[0])

@@ -68,6 +68,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		if n.Procedure != nil {
 			r.Add(n.Ref.Address)
 		}
+	case plan.InstalledCubeExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledSoundexExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledMetaphoneExpr:

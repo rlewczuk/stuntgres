@@ -273,6 +273,13 @@ publication and lock-manager tickets stay in the engine.
   cross-width CAST. Catalog lifetime/provenance remains with existing admission
   and stored-renderer owners. See [kernels](../../sqltype/README.md#mac-address-operations)
   and [public proof](../../../reference/types/README.md#mac-address-operations).
+- **cube**: `bindCube` consumes selected/coerced operands from the shared
+  analyzer callable selector; exact/preferred/unknown ranking and type-name
+  coercion remain shared. A fixed eight-operation table chooses kernel/formals.
+  `CubeRoutine` exposes the resolved installation's cube descriptor without a
+  type-name lookup in `Binder`. `Cube` invokes sqltype's immutable constructor/
+  inquiry kernels; `plan.InstalledCubeExpr` preserves procedure authority through
+  rebuild, retag, substitution, grouping and stored rendering.
 - **unaccent**: `unaccent.rules` (PostgreSQL REL_18_0) is embedded and compiled
   once into `StockUnaccent`, used by `extension.UnaccentProvider`.
 - **dmetaphone licence**: Single Metaphone retains its complete release

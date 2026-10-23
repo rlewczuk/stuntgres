@@ -332,6 +332,11 @@ func ValidateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			return err
 		}
 		return ValidateGenerationPlan(view, d, n.Arg)
+	case plan.InstalledCubeExpr:
+		if err := stored.ValidateInstalledCube(n, view); err != nil {
+			return err
+		}
+		return args(n.Args)
 	case plan.InstalledSoundexExpr:
 		return args(n.Args)
 	case plan.InstalledMetaphoneExpr:

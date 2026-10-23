@@ -444,7 +444,9 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 		changed = changed || did
 		expression = e
 	case expr.Composite:
-		// Last, so the explicit engine wrappers above keep precedence.
+		// InstalledCubeExpr deliberately uses this protocol path: its Rebuild
+		// preserves installed authority, including when a child simplifies.
+		// Other explicit engine wrappers above keep precedence.
 		next, did, done, failure := simplifyCompositeNode(c, e, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure

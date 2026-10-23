@@ -44,6 +44,11 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			return "", err
 		}
 	}
+	if ext.Name() == "cube" {
+		if err := StockCube.ValidateExtension(view, ext); err != nil {
+			return "", err
+		}
+	}
 	for _, a := range ext.Members {
 		d := view.Get(a)
 		var member MemberOwner
@@ -54,8 +59,18 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if IntarrayProviderOf(d) != nil && d.Name() == "bqarr_out" {
 				member.Signature = "query_int"
 			}
-			if CubeProviderOf(d) != nil && d.Name() == "cube_out" {
-				member.Signature = "cube"
+			if CubeProviderOf(d) != nil {
+				base, ok := view.Type(ext.Members[0])
+				if !ok {
+					return "", fmt.Errorf("stuntgres: missing cube ownership type")
+				}
+				parts := strings.Split(member.Signature, ",")
+				for i, part := range parts {
+					if part == string(CubeSignature(base.SQLType.ID())) {
+						parts[i] = "cube"
+					}
+				}
+				member.Signature = strings.Join(parts, ",")
 			}
 			if CitextProviderOf(d) != nil && d.Name() == "citextout" {
 				member.Signature = "citext"
@@ -163,7 +178,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	case record.Name == "intarray" && record.Version == "1.5":
 		expectedMembers = 3
 	case record.Name == "cube" && record.Version == "1.5":
-		expectedMembers = 3
+		expectedMembers = 1 + len(cubeRoutines)
 	case record.Name == "citext" && record.Version == "1.8":
 		expectedMembers = 3
 	case record.Name == "earthdistance" && record.Version == "1.2":
@@ -213,7 +228,12 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 			case "intarray":
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
 			case "cube":
-				valid = member.Name == "cube_in" && member.Signature == "2275" || member.Name == "cube_out" && member.Signature == "cube"
+				for _, spec := range cubeRoutines {
+					if member.Name == spec.name && member.Signature == spec.ownerSignature() {
+						valid = true
+						break
+					}
+				}
 			case "citext":
 				valid = member.Name == "citextin" && member.Signature == "2275" || member.Name == "citextout" && member.Signature == "citext"
 			case "pgrowlocks":

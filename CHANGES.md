@@ -89,6 +89,52 @@ selected routine authority and executable stored replay. See the
 [behavioral tests](reference/types/README.md#testing) and
 [catalog tests](reference/catalogs/README.md#testing).
 
+## Installed cube constructors and inquiries
+
+`CREATE EXTENSION cube` now installs six scalar/float8-array/extend-dimension
+`cube` constructors, `cube_dim` and `cube_is_point`. Constructors preserve corner
+orientation, collapse IEEE-equal endpoints and flatten arrays. Native logical
+replay preserves exact values and stored DEFAULT/view/CHECK constructor
+expressions independently of display precision.
+
+Shared reference coverage includes scalar/array boundaries, strict NULL,
+complete diagnostics and precedence, held-statement recovery, atomic writes,
+catalog identity, logical ownership and same/fresh-target replay. A row-dependent
+GROUP BY regression covers structural cube constant identity without adding SQL
+cube equality. Component coverage checks exact descriptor, dimension, point flag
+and coordinate bits, including domains, signed zero, NaN payloads and generations.
+The identity fixture uses private staged scalar-import authority and validates
+against the published catalog; published cross-OID import rejection is unchanged.
+Restore INSERT syntax admits the selected constructor/inquiry names while the
+installed binder retains overload and provider authority and the recursive
+parameter guard remains unconditional.
+
+Earth metadata now expects the selected cube inquiries. Its collision fixture
+explicitly allocates a retained TEMP namespace at the imported earth type's
+source OID instead of depending on prerequisite manifest sizes; it requires both
+imported-type remint and unchanged live TEMP identity.
+
+Focused proof and feature smoke commands:
+
+```sh
+make check RUN='^TestReferenceCube(Constructors|ConstructorBinding|ConstructorDiagnostics|ConstructorCatalog|ConstructorControls|ConstructorFeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceCube(Constructors|ConstructorBinding|ConstructorDiagnostics|ConstructorCatalog|ConstructorControls|ConstructorFeatureSmoke)$'
+make check RUN='^(TestCubeConstructors|TestCubeConstructorDiagnostics|TestCubeConstructorIdentity|TestCubeSameDatum|TestCubeProvider(Identity|Conflicts|Controls)|TestRestoreScalarCubeConstructors)$'
+make check RACE=1 RUN='^(TestCubeConstructorIdentity|TestCubeSameDatum|TestCubeProviderControls|TestRestoreScalarCubeConstructors|TestReferenceCube(ConstructorBinding|ConstructorDiagnostics|ConstructorControls)|TestEarthProviderControls)$'
+make check RUN='^(TestEarthProviderControls|TestReferenceEarth(Controls|Metadata|PrerequisiteRemoval))$'
+make check REFERENCE=1 RUN='^TestReferenceEarth(Controls|Metadata|PrerequisiteRemoval)$'
+make check RUN='^TestReferenceCubeConstructorFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceCubeConstructorFeatureSmoke$'
+```
+
+The shared smoke constructs box/point/NULL rows, reuses prepared calls across
+success/error/success, checks diagnostic and write atomicity, and exercises
+rebuilt defaults/views/CHECKs and logical replacement. Real-mode controls also
+replay the actual native dump with its logical owner. The separate public-API
+smoke exercises held scalar/array calls, retained readers, same/fresh-driver
+replacement, failed staged replacement and deterministic redump.
+See the [fixture ownership contract](reference/types/README.md#cube-constructor-fixtures).
+
 <!-- moved from README.md -->
 
 ## External routine languages — change note

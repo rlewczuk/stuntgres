@@ -258,3 +258,97 @@ func TestCubeMismatchDetail(t *testing.T) {
 		t.Fatalf("separated numeric fragment: %#v (%v)", diagnostic, err)
 	}
 }
+
+func TestCubeSameDatum(t *testing.T) {
+	cube := cubeUnitType(t, 45000)
+	datum := func(dimension int, point bool, bits ...uint64) Value {
+		coordinates := make([]float64, len(bits))
+		for i, bitPattern := range bits {
+			coordinates[i] = math.Float64frombits(bitPattern)
+		}
+		return Value{typ: cube, cube: &cubePayload{dimension: dimension, point: point, coordinates: coordinates}}
+	}
+	for _, tc := range []struct {
+		name string
+		a, b Value
+		same bool
+	}{
+		{"empty", datum(0, true), datum(0, true), true},
+		{"point", datum(1, true, 0x3ff0000000000000), datum(1, true, 0x3ff0000000000000), true},
+		{"box", datum(1, false, 0x3ff0000000000000, 0x4000000000000000), datum(1, false, 0x3ff0000000000000, 0x4000000000000000), true},
+		{"orientation", datum(1, false, 0x3ff0000000000000, 0x4000000000000000), datum(1, false, 0x4000000000000000, 0x3ff0000000000000), false},
+		{"point_flag", datum(1, true, 0x3ff0000000000000), datum(1, false, 0x3ff0000000000000, 0x3ff0000000000000), false},
+		{"dimension", datum(1, true, 0x3ff0000000000000), datum(2, true, 0x3ff0000000000000, 0x4000000000000000), false},
+		{"coordinate", datum(1, true, 0x3ff0000000000000), datum(1, true, 0x4000000000000000), false},
+		{"signed_zero", datum(1, true, 0), datum(1, true, 1<<63), false},
+		{"same_nan_bits", datum(1, true, 0x7ff8000000000001), datum(1, true, 0x7ff8000000000001), true},
+		{"distinct_nan_bits", datum(1, true, 0x7ff8000000000001), datum(1, true, 0x7ff8000000000002), false},
+		{"infinity", datum(1, true, 0x7ff0000000000000), datum(1, true, 0x7ff0000000000000), true},
+		{"missing_payload", Value{typ: cube}, Value{typ: cube}, false},
+		{"negative_dimension", datum(-1, true), datum(-1, true), false},
+		{"excess_dimension", datum(101, true), datum(101, true), false},
+		{"short_point", datum(2, true, 0), datum(2, true, 0), false},
+		{"short_box", datum(1, false, 0), datum(1, false, 0), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := SameDatum(tc.a, tc.b); got != tc.same {
+				t.Fatal("cube structural identity", got, tc.same)
+			}
+			if got := SameDatum(tc.b, tc.a); got != tc.same {
+				t.Fatal("asymmetric cube structural identity", got, tc.same)
+			}
+			if tc.a.validCube() && !SameDatum(tc.a, tc.a) {
+				t.Fatal("valid immutable self identity rejected")
+			}
+			if !tc.a.validCube() && SameDatum(tc.a, tc.a) {
+				t.Fatal("shared invalid payload bypassed validation")
+			}
+		})
+	}
+	input := func(d *Descriptor, text string) Value {
+		v, err := d.Input(context.Background(), text, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	a, b := input(cube, "(1,2),(3,4)"), input(cube, "(1,2),(3,4)")
+	if a.cube == b.cube || !SameDatum(a, b) {
+		t.Fatal("separately owned equivalent cube payloads must match")
+	}
+	foreign := cubeUnitType(t, cube.ID())
+	if SameDatum(a, input(foreign, "(1,2),(3,4)")) || SameDatum(Null(cube), Null(foreign)) || SameDatum(Value{}, Value{}) {
+		t.Fatal("foreign or absent descriptor identity accepted")
+	}
+	if !SameDatum(Null(cube), Null(cube)) || SameDatum(a, Null(cube)) || SameDatum(Null(cube), a) {
+		t.Fatal("cube NULL identity does not follow exact-descriptor gates")
+	}
+	domain, err := Domain(45010, "cube_domain", "public.cube_domain", cube.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested, err := Domain(45011, "nested_cube_domain", "public.nested_cube_domain", domain.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []*Descriptor{domain, nested} {
+		left, right := input(d, "(1,2),(3,4)"), input(d, "(1,2),(3,4)")
+		if !SameDatum(left, right) || !SameDatum(left, left) || SameDatum(left, a) || SameDatum(left, input(d, "(3,4),(1,2)")) {
+			t.Fatal("domain-over-cube structural identity")
+		}
+		if !SameDatum(Null(d), Null(d)) || SameDatum(Null(d), Null(cube)) {
+			t.Fatal("domain cube NULL descriptor distinction")
+		}
+		invalid := Value{typ: d, cube: &cubePayload{dimension: 1, point: true}}
+		if SameDatum(invalid, invalid) {
+			t.Fatal("shared invalid domain cube payload accepted")
+		}
+	}
+	foreignDomain, err := Domain(domain.ID(), "cube_domain", "public.cube_domain", cube.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if SameDatum(input(domain, "1"), input(foreignDomain, "1")) || SameDatum(Null(domain), Null(foreignDomain)) {
+		t.Fatal("foreign domain descriptor generation accepted")
+	}
+}

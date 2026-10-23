@@ -32,6 +32,19 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return routineCallSQL(n, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), catalog.QuoteIdentifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
+	case plan.InstalledCubeExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+			return "", fmt.Errorf("stuntgres: invalid stored cube reference")
+		}
+		if err := ValidateInstalledCube(n, view); err != nil {
+			return "", err
+		}
+		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored cube namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
 	case plan.InstalledSoundexExpr:
 		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Soundex reference")

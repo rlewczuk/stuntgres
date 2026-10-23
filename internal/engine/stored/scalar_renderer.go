@@ -168,7 +168,7 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		r.record(n.Origin)
 		return catalog.QuoteIdentifier(r.Owner.Columns[n.Slot].Name), nil
-	case plan.SQLRoutineExpr, plan.ExtensionPathsExpr, plan.InstalledTextExpr, plan.InstalledUUIDOsspExpr, plan.InstalledCryptoExpr, plan.InstalledSoundexExpr, plan.InstalledMetaphoneExpr, plan.InstalledLevenshteinExpr:
+	case plan.SQLRoutineExpr, plan.ExtensionPathsExpr, plan.InstalledTextExpr, plan.InstalledUUIDOsspExpr, plan.InstalledCryptoExpr, plan.InstalledSoundexExpr, plan.InstalledMetaphoneExpr, plan.InstalledLevenshteinExpr, plan.InstalledCubeExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgrowlocksExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)

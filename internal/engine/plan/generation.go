@@ -80,6 +80,8 @@ func GenerationImmutable(node expr.Expr) bool {
 		return false
 	case ExtensionPathsExpr:
 		return false
+	case InstalledCubeExpr:
+		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args)
 	case InstalledSoundexExpr:
 		return args(n.Args)
 	case InstalledMetaphoneExpr:

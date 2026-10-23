@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -22,7 +23,7 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 	var cast *parser.CastExpr
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
-		if r.JSON != nil || r.Within || r.Variadic || !b.hasDynamicProcedureName(r.Name) {
+		if r.JSON != nil || r.Within || r.Variadic || !b.hasDynamicProcedureName(r.Name) && !functions.CubeFunctionName(r.Name) {
 			return nil, false, nil
 		}
 		parts := []parser.Identifier{{Text: r.Name, Pos: r.Pos}}
@@ -31,7 +32,7 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 		}
 		call = parser.FunctionExpr{Name: parser.ObjectName{Parts: parts}, Args: r.Args, Pos: r.Pos, Star: r.Star, Distinct: r.Distinct, Variadic: r.Variadic, Order: r.Order, Filter: r.Filter, Window: r.Window, Within: r.Within, WithinPos: r.WithinPos}
 	case parser.CastExpr:
-		if r.Syntax != parser.FunctionCast || !b.hasDynamicProcedureName(r.Callee) {
+		if r.Syntax != parser.FunctionCast || !b.hasDynamicProcedureName(r.Callee) && !functions.CubeFunctionName(r.Callee) {
 			return nil, false, nil
 		}
 		parts := []parser.Identifier{{Text: r.Callee, Pos: r.Pos}}
@@ -89,7 +90,7 @@ func geometricTypeNameID(name string) (sqltype.ID, bool) {
 
 // Retain only the selected type identity, never an executable expression or a
 // coercion plan. Existing analysis invalidation retires this occurrence group.
-func (b *Binder) retainedGeometricTypeNameCast(raw parser.FunctionExpr) (expr.Expr, bool, error) {
+func (b *Binder) retainedTypeNameCast(raw parser.FunctionExpr) (expr.Expr, bool, error) {
 	if !b.Expected.Held {
 		return nil, false, nil
 	}
@@ -105,8 +106,14 @@ func (b *Binder) retainedGeometricTypeNameCast(raw parser.FunctionExpr) (expr.Ex
 	if len(raw.Name.Parts) == 0 || len(raw.Args) != 1 || len(raw.ArgNames) != 0 || raw.Star || raw.Variadic {
 		return nil, true, fmt.Errorf("stuntgres: incompatible retained typename occurrence")
 	}
-	id, geometric := geometricTypeNameID(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
-	if !geometric || captured.Kind != TypeNameCast || captured.Base != b.Type(id).Usage() {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	id, geometric := geometricTypeNameID(name)
+	compatible := geometric && captured.Base == b.Type(id).Usage()
+	if captured.Base.Type.IsCube() && name == "cube" {
+		actual, ok := view.LookupType(captured.Base.Type.ID())
+		compatible = ok && actual == captured.Base.Type
+	}
+	if !compatible || captured.Kind != TypeNameCast {
 		return nil, true, fmt.Errorf("stuntgres: incompatible retained typename authority")
 	}
 	// Still resolve the current lexical namespace under ordinary authorization;
@@ -125,9 +132,13 @@ func (b *Binder) retainedGeometricTypeNameCast(raw parser.FunctionExpr) (expr.Ex
 		return nil, true, err
 	}
 	target := captured.Base.Type
+	schema, err := b.typeNameCallSchema(target)
+	if err != nil {
+		return nil, true, err
+	}
 	cast := parser.CastExpr{
 		Child:    raw.Args[0],
-		TypeName: parser.TypeName{Name: target.Name(), Schema: &parser.Identifier{Text: target.NamespaceName()}, Pos: raw.Pos},
+		TypeName: parser.TypeName{Name: target.Name(), Schema: &parser.Identifier{Text: schema}, Pos: raw.Pos},
 		Syntax:   parser.StandardCast, Pos: raw.Pos,
 	}
 	node, err := b.Cast(cast, ExpressionPolicy{Context: ProjectionContext})
@@ -135,6 +146,21 @@ func (b *Binder) retainedGeometricTypeNameCast(raw parser.FunctionExpr) (expr.Ex
 		b.Prepared.CaptureComposite(key, captured.Base, nil)
 	}
 	return node, true, err
+}
+
+func (b *Binder) typeNameCallSchema(target *sqltype.Descriptor) (string, error) {
+	if !target.IsCube() {
+		return target.NamespaceName(), nil
+	}
+	actual, ok := b.BindingCatalog().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
+	if !ok || actual.SQLType != target {
+		return "", fmt.Errorf("stuntgres: missing cube type-call authority")
+	}
+	namespace, ok := b.BindingCatalog().Namespace(actual.Namespace())
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing cube type-call namespace")
+	}
+	return namespace.Name(), nil
 }
 
 func legacyFunctionCastPredicate(raw parser.Expr) bool {

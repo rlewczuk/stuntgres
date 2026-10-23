@@ -12,8 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Stage installs the cube type, its array and its two I/O functions into
-// stage, owned by owner, allocating identities in member order.
+// Stage installs the scalar, associated array and selected routines atomically.
 func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "cube")
 	if err != nil {
@@ -22,8 +21,12 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "cube") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: CubeTypeContext}
 	}
-	ext.Members = make([]ids.ObjectAddress, 3)
-	for i, class := range [3]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
+	ext.Members = make([]ids.ObjectAddress, 1+len(cubeRoutines))
+	for i := range ext.Members {
+		class := ids.ProcedureClassID
+		if i == 0 {
+			class = ids.TypeClassID
+		}
 		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
@@ -51,21 +54,18 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 	if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
 		return err
 	}
-	for i := range 2 {
+	for i, spec := range cubeRoutines {
 		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}
-		name, signature, result := "cube_in", catalog.ProcedureSignature("2275"), ids.OID(typ.ID())
-		if i == 1 {
-			name, signature, result = "cube_out", CubeSignature(typ.ID()), 2275
-		}
+		name, signature, result := spec.name, spec.signature(typ.ID()), spec.resultOID(typ.ID())
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {
 				err.Context = CubeInputContext
-			} else {
+			} else if i == 1 {
 				err.Context = "SQL statement \"CREATE FUNCTION cube_out(cube)\nRETURNS cstring\nAS '$libdir/cube'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"cube--1.2.sql\", near line 16"
 			}
 			return err

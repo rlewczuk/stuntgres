@@ -110,8 +110,18 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		} else {
 			n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), n.Namespace(), mapping)
 		}
-		if IntarrayProviderOf(&n) != nil || CubeProviderOf(&n) != nil || CitextProviderOf(&n) != nil {
-			if n.Name() == "bqarr_in" || n.Name() == "cube_in" || n.Name() == "citextin" {
+		if CubeProviderOf(&n) != nil {
+			n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
+			parts := strings.Split(string(n.Signature), ",")
+			for i, part := range parts {
+				if oid, err := strconv.ParseUint(part, 10, 32); err == nil {
+					parts[i] = strconv.FormatUint(uint64(address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oid)}).ObjectID), 10)
+				}
+			}
+			n.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
+		}
+		if IntarrayProviderOf(&n) != nil || CitextProviderOf(&n) != nil {
+			if n.Name() == "bqarr_in" || n.Name() == "citextin" {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {
 				if oid, err := strconv.ParseUint(string(n.Signature), 10, 32); err == nil {

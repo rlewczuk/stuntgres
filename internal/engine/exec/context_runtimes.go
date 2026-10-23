@@ -267,6 +267,8 @@ func PlannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return session(children(n.Args...), n.Comparison.SessionDependent())
 	case plan.ExtensionPathsExpr:
 		return merge(children(n.Arg), expr.Stable)
+	case plan.InstalledCubeExpr:
+		return merge(n.Procedure.Volatility, children(n.Args...))
 	case plan.InstalledSoundexExpr:
 		return children(n.Args...)
 	case plan.InstalledMetaphoneExpr:

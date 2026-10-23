@@ -3,6 +3,7 @@ package extension
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -28,9 +29,61 @@ func CubeSignature(id sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
 }
 
+// Zero denotes this installation's cube identity, never a builtin OID.
+type cubeRoutineSpec struct {
+	name   string
+	args   [3]sqltype.ID
+	nargs  int
+	result sqltype.ID
+}
+
+var cubeRoutines = [...]cubeRoutineSpec{
+	{"cube_in", [3]sqltype.ID{2275}, 1, 0},
+	{"cube_out", [3]sqltype.ID{0}, 1, 2275},
+	{"cube", [3]sqltype.ID{sqltype.Float8}, 1, 0},
+	{"cube", [3]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, 0},
+	{"cube", [3]sqltype.ID{1022}, 1, 0},
+	{"cube", [3]sqltype.ID{1022, 1022}, 2, 0},
+	{"cube", [3]sqltype.ID{0, sqltype.Float8}, 2, 0},
+	{"cube", [3]sqltype.ID{0, sqltype.Float8, sqltype.Float8}, 3, 0},
+	{"cube_dim", [3]sqltype.ID{0}, 1, sqltype.Int4},
+	{"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool},
+}
+
+func (s cubeRoutineSpec) signature(cube sqltype.ID) catalog.ProcedureSignature {
+	var parts [3]string
+	for i := range s.nargs {
+		id := s.args[i]
+		if id == 0 {
+			id = cube
+		}
+		parts[i] = strconv.FormatUint(uint64(id), 10)
+	}
+	return catalog.ProcedureSignature(strings.Join(parts[:s.nargs], ","))
+}
+
+func (s cubeRoutineSpec) ownerSignature() string {
+	var parts [3]string
+	for i := range s.nargs {
+		if s.args[i] == 0 {
+			parts[i] = "cube"
+		} else {
+			parts[i] = strconv.FormatUint(uint64(s.args[i]), 10)
+		}
+	}
+	return strings.Join(parts[:s.nargs], ",")
+}
+
+func (s cubeRoutineSpec) resultOID(cube sqltype.ID) ids.OID {
+	if s.result == 0 {
+		return ids.OID(cube)
+	}
+	return ids.OID(s.result)
+}
+
 func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid cube manifest") }
-	if p != StockCube || ext.Name() != "cube" || ext.Version != p.control.Version || len(ext.Members) != 3 {
+	if p != StockCube || ext.Name() != "cube" || ext.Version != p.control.Version || len(ext.Members) != 1+len(cubeRoutines) {
 		return invalid()
 	}
 	if ext.Members[0].ClassID != ids.TypeClassID || ext.Members[1].ClassID != ids.ProcedureClassID || ext.Members[2].ClassID != ids.ProcedureClassID {
@@ -52,10 +105,8 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 		if !ok || proc.Address() != address || CubeProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
 			return invalid()
 		}
-		name, signature, result := "cube_in", catalog.ProcedureSignature("2275"), ids.OID(base.SQLType.ID())
-		if i == 1 {
-			name, signature, result = "cube_out", CubeSignature(base.SQLType.ID()), 2275
-		}
+		spec := cubeRoutines[i]
+		name, signature, result := spec.name, spec.signature(base.SQLType.ID()), spec.resultOID(base.SQLType.ID())
 		if proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
 			return invalid()
 		}
@@ -72,7 +123,7 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 func (p *CubeProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
-		return fmt.Errorf("stuntgres: missing cube codec installation")
+		return fmt.Errorf("stuntgres: missing cube routine installation")
 	}
 	return p.ValidateExtension(v, ext)
 }

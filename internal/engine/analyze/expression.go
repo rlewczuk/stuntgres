@@ -1750,7 +1750,7 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 		}
 		if request.Intent == functions.TypeNameCastArgument {
 			target := request.Target.Type
-			if id, geometric := geometricTypeNameID(target.Name()); geometric && target.ID() == id {
+			if id, geometric := geometricTypeNameID(target.Name()); geometric && target.ID() == id || target.IsCube() {
 				b.Prepared.CaptureComposite(PreparedTypeKey{Offset: request.TypeNameCallPosition.Offset, Kind: TypeNameCast}, request.Target, nil)
 			}
 		}
@@ -1762,10 +1762,14 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 			}
 			target := request.Target.Type
+			schema, err := b.typeNameCallSchema(target)
+			if err != nil {
+				return nil, err
+			}
 			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: request.TypeNameCallPosition}] = parser.CastExpr{
 				Child: argument.Raw,
 				TypeName: parser.TypeName{
-					Name: target.Name(), Schema: &parser.Identifier{Text: target.NamespaceName()}, Pos: request.TypeNameCallPosition,
+					Name: target.Name(), Schema: &parser.Identifier{Text: schema}, Pos: request.TypeNameCallPosition,
 				},
 				Syntax: parser.StandardCast, Pos: request.TypeNameCallPosition,
 			}

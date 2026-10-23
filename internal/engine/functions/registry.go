@@ -99,6 +99,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pgrowlocks"}, Bind: bindPgrowlocks, NamedCall: namedPgrowlocks},
 	{Names: pgcryptoNames[:], Bind: bindPgcrypto},
 	{Names: fuzzystrmatchNames[:], Bind: bindFuzzystrmatch},
+	{Names: []string{"cube", "cube_dim", "cube_is_point"}, Bind: bindCube},
 	{Names: []string{"unaccent", "daitch_mokotoff"}, Bind: bindInstalledText},
 	{Names: []string{"acldefault", "makeaclitem", "aclexplode"}, Bind: bindACLValue, NamedCall: namedACLValue},
 	{Names: []string{"pg_get_acl"}, Bind: bindObjectACL, NamedCall: namedObjectACL},

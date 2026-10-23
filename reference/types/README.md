@@ -179,3 +179,23 @@ COPY test in reference/dml.
 - BOOLEAN diagnostics and aggregates: `RUN='^TestReference(Boolean(Aggregate|Diagnostics)|AnyValueSourceACL)'`
 - Comparison operators, null/distinct predicates: `RUN='^TestReferenceCompare(Null|Ops)'`
 - `information_schema` domains: `RUN='^TestReferenceInfo(CardinalNumber|CharacterData|SQLIdentifier|TimeStamp|YesOrNo)'`
+
+### Cube constructor fixtures
+
+`cube_constructor_helpers_test.go` owns the shared constructor scenario and
+mixed cube/integer/Boolean result adapter. `cubeConstructorScenario` borrows and
+closes one connection per backend. `cubeConstructorSelect` checks cube raw cells
+and metadata without replacing the ordinary scalar-column assertions.
+Expected array and point text is specified independently of native formatting.
+
+Stored-expression fixtures retain actual procedure/type identity rather than
+spelling or allocated-OID goldens. Import authority belongs only to private
+migration candidates; remapped expressions must validate against the published
+catalog without retained import permission.
+
+Constructor controls preserve logical ownership across replacement and actual
+dump replay. PostgreSQL replay uses one pinned connection, resets session/role
+authorization, and cleans up created objects and roles before returning it.
+The Earth retained-TEMP fixture creates a real namespace at the source earth
+type's OID; replacement must remint the imported type without changing that
+live namespace's identity. Fixtures do not depend on prerequisite member counts.

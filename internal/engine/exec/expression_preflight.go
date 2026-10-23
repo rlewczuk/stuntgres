@@ -95,6 +95,10 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		return e, false, nil
 	case plan.DomainValueExpr:
 		return e, false, nil
+	case plan.InstalledCubeExpr:
+		// Its protocol rebuild retains procedure authority while the shared
+		// preflight materializes child coercions and applies constant folding.
+		return preflightComposite(c, e, decisiveDefaults)
 	case plan.InstalledSoundexExpr:
 		var args []expr.Expr
 		for i, arg := range e.Args {

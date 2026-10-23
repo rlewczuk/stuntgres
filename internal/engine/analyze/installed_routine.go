@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // InstalledRoutine resolves the namespace path first, so its lookup errors
@@ -60,6 +61,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.IntaggProviderOf(proc) == extension.StockIntagg
 	case functions.PgrowlocksExtension:
 		installed = extension.PgrowlocksProviderOf(proc) == extension.StockPgrowlocks
+	case functions.CubeExtension:
+		installed = extension.CubeProviderOf(proc) == extension.StockCube
 	default:
 		return nil, fmt.Errorf("stuntgres: unknown installed extension %d", family)
 	}
@@ -90,6 +93,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockIntagg.ValidateProcedure(r.catalog, p)
 	case extension.PgrowlocksProviderOf(p) != nil:
 		return extension.StockPgrowlocks.ValidateProcedure(r.catalog, p)
+	case extension.CubeProviderOf(p) != nil:
+		return extension.StockCube.ValidateProcedure(r.catalog, p)
 	case extension.UnaccentProviderOf(p) == extension.StockUnaccent:
 		ext, ok := r.catalog.Extension(p.Extension)
 		if !ok {
@@ -100,6 +105,18 @@ func (r installedExtensionRoutine) Validate() error {
 	return fmt.Errorf("stuntgres: invalid installed routine")
 }
 
+func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
+	ext, ok := r.catalog.Extension(r.procedure.Extension)
+	if !ok || extension.CubeProviderOf(r.procedure) != extension.StockCube || len(ext.Members) == 0 {
+		return nil
+	}
+	base, ok := r.catalog.Type(ext.Members[0])
+	if !ok {
+		return nil
+	}
+	return base.SQLType
+}
+
 // Attach wraps the bound call with the procedure identity. Each family
 // records its dependency as its engine binder did: deduplicated, except the
 // Levenshtein, Metaphone and Soundex calls, which always appended.
@@ -108,6 +125,13 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	ref := b.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()}
 	switch c := call.(type) {
+	case functions.Cube:
+		if extension.CubeProviderOf(p) != extension.StockCube {
+			break
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledCubeExpr{Cube: c, Procedure: p, Ref: ref}, nil
 	case functions.UUIDGeneration:
 		if extension.UUIDOsspProviderOf(p) != extension.StockUUIDOssp {
 			break

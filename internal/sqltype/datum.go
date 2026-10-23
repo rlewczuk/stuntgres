@@ -16,6 +16,23 @@ func SameDatum(a, b Value) bool {
 	if a.null || b.null {
 		return a.null == b.null
 	}
+	if a.typ.BaseType().IsCube() {
+		if !a.validCube() || !b.validCube() {
+			return false
+		}
+		if a.cube == b.cube {
+			return true
+		}
+		if a.cube.dimension != b.cube.dimension || a.cube.point != b.cube.point {
+			return false
+		}
+		for i, coordinate := range a.cube.coordinates {
+			if math.Float64bits(coordinate) != math.Float64bits(b.cube.coordinates[i]) {
+				return false
+			}
+		}
+		return true
+	}
 	if a.typ.BaseType().IsCitext() {
 		return a.text == b.text
 	}

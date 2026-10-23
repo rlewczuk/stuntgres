@@ -3,6 +3,7 @@ package extension
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -43,6 +44,11 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				return false, fmt.Errorf("stuntgres: inconsistent earthdistance ownership roles")
 			}
 		}
+		if record.Name == "cube" {
+			if len(ext.Members) != len(cubeRoutines)+1 {
+				return false, fmt.Errorf("stuntgres: invalid cube ownership manifest")
+			}
+		}
 		for _, member := range record.Members {
 			owner, ok := roles.Lookup(member.Owner)
 			if !ok {
@@ -56,12 +62,35 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				class = ids.TypeClassID
 			}
 			signature := member.Signature
-			if member.Kind == "procedure" && (record.Name == "intarray" && member.Name == "bqarr_out" || record.Name == "cube" && member.Name == "cube_out" || record.Name == "citext" && member.Name == "citextout") {
+			if member.Kind == "procedure" && (record.Name == "intarray" && member.Name == "bqarr_out" || record.Name == "citext" && member.Name == "citextout") {
 				base, ok := candidate.Type(ext.Members[0])
-				if !ok || record.Name == "intarray" && !base.SQLType.IsQueryInt() || record.Name == "cube" && !base.SQLType.IsCube() || record.Name == "citext" && !base.SQLType.IsCitext() {
+				if !ok || record.Name == "intarray" && !base.SQLType.IsQueryInt() || record.Name == "citext" && !base.SQLType.IsCitext() {
 					return false, fmt.Errorf("stuntgres: missing installed owner type")
 				}
 				signature = string(QueryIntSignature(base.SQLType.ID()))
+			}
+			if member.Kind == "procedure" && record.Name == "cube" {
+				base, ok := candidate.Type(ext.Members[0])
+				if !ok || !base.SQLType.IsCube() {
+					return false, fmt.Errorf("stuntgres: missing cube ownership type")
+				}
+				parts := strings.Split(signature, ",")
+				for i, part := range parts {
+					if part == "cube" {
+						parts[i] = string(CubeSignature(base.SQLType.ID()))
+					}
+				}
+				signature = strings.Join(parts, ",")
+				valid := false
+				for _, spec := range cubeRoutines {
+					if spec.name == member.Name && member.Signature == spec.ownerSignature() && string(spec.signature(base.SQLType.ID())) == signature {
+						valid = true
+						break
+					}
+				}
+				if !valid {
+					return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
+				}
 			}
 			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.TargetNamespace, Name: member.Name, Signature: signature})
 			if record.Name == "earthdistance" && member.Name == "earth[]" {
