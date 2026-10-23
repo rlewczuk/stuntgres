@@ -462,7 +462,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			if replan {
 				scope.Expected.temporals = b.Prepared.Temporals
-				scope.Expected.publishAnalysisTypeCasts(b.Prepared.Types)
+				scope.Expected.types = analyze.PublishDomainCasts(scope.Expected.types, b.Prepared.Types)
 				if preparableBody(stmt) {
 					scope.Expected.analysis = prepared
 				}
