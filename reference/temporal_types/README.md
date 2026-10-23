@@ -1,32 +1,42 @@
 # reference/temporal_types
 
+Dual-mode tests for the DATE, TIME, TIMESTAMP (without time zone) and INTERVAL
+types: input forms and civil bounds, modifiers and precision, diagnostics and
+statement atomicity, binding and raw metadata, ordering and comparison, clocks,
+notices, retained cursors, cancellation, and native Dump/Reset/Restore with
+PostgreSQL replay of the emitted SQL. Date/time functions, time zones and
+INTERVAL arithmetic are in [reference/datetime](../datetime/README.md#testing);
+temporal ranges are in [reference/types](../types/README.md#testing); timestamp
+series are in [reference/numeric](../numeric/README.md#testing).
+
 ## Testing
 
-Follow the [shared testing guide](../../docs/TESTING.md) for dual-mode placement,
-fixture ownership and pinned PostgreSQL oracle policy.
+Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
+`fixture.Main(m)`.
 
-### Timestamp diagnostics and atomicity
+- Assert raw cells before normalization. Native DATE and TIME cells are
+  strings; lib/pq returns `time.Time` for DATE and TIME (including the next-day
+  `24:00:00` endpoint). Finite TIMESTAMP cells are zero-offset `time.Time`.
+  lib/pq returns DATE/TIMESTAMP `infinity` and `-infinity` as owned byte payloads.
+- lib/pq may decode a zero-offset civil value with an unnamed fixed `Location`
+  instead of `time.UTC`. Compare the instant, civil fields and precision, never
+  `Location` identity.
+- A Go DATE bind at year-zero February 29 is February 29 BC natively but
+  March 1 BC through lib/pq (its BC formatting). Encode both expectations.
+- Prepared and transaction clock tests synchronize on a bounded, strict clock
+  advance, never on sleeps.
+- `TestReferenceTimestampDiagnosticsAndAtomicity` creates its fixture inside each
+  input subtest, before any backend work, so every input owns a full 30-second
+  scenario. The backend child owns its assertions and never calls a parent-bound
+  `Fatal`/`FailNow`.
+- `date_oracle_test.go` and `time_dates_test.go` carry the `reference` build tag
+  (PostgreSQL-only complements); only `REFERENCE=1` runs them.
 
-`TestReferenceTimestampDiagnosticsAndAtomicity` creates its fixture inside each
-original `timestampBadInputs` input subtest, before backend work. The backend
-child owns its assertion closure; no child calls a parent-bound Fatal/FailNow.
-Each case retains UTC/ISO MDY initialization and the full original sequence:
-é-prefixed typed-literal Prepare failure on an empty table, epoch insertion,
-three literal forms through direct execution/fresh Prepare (SELECT also through
-Exec), both parameter INSERT forms through direct/prepared execution, and the
-epoch-only unchanged read after every original failure. SQLSTATE, English, Hint,
-portal Context, rune-counted Position, stages and multirow atomicity remain exact.
-No input is grouped away and no live context is refreshed; each independent
-case owns the ordinary30s scenario bound.
+Add `REFERENCE=1` for the oracle. The DATE and TIMESTAMP patterns exclude
+same-prefix families in other packages (`DateRange`/`TimestampRange` in types,
+`Datetime*` in datetime, `TimestampSeries` in numeric).
 
-```sh
-make check RUN='^TestReferenceTimestampDiagnosticsAndAtomicity$' REFERENCE=1
-make check RUN='^TestReferenceTimestampDiagnosticsAndAtomicity$'
-make check RUN='^TestReferenceTimestampDiagnosticsAndAtomicity$' RACE=1
-```
-
-Use external900-second deadlines. Standalone public smoke should check actual
-Unicode-position22007 diagnostics at Prepare/direct Query/Exec, parameter portal
-Context and late-invalid multirow atomicity, with one unchanged1970-01-01 UTC
-epoch row after every failure. These commands specify required proof, not
-observed passing results.
+- DATE: `RUN='^TestReferenceDate([A-QS-Z]|Re[pt])'`
+- TIME: `RUN='^TestReferenceTime[A-Z]'`
+- TIMESTAMP: `RUN='^TestReferenceTimestamp([A-QT-Z]|Re|SQ|Set)'`
+- INTERVAL, including `avg(interval)`: `RUN='^TestReferenceInterval'`

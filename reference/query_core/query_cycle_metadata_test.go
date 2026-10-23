@@ -94,8 +94,8 @@ func cycleColumnMetadata(b fixture.Backend, names, types []string, markLength, m
 				t.Errorf("column %d nullable=%t/%t want=%t/%t", i, value, known, nullable, nullableKnown)
 			}
 			var length int64
-			// Ordinary unbounded TEXT has this Length contract on both adapters
-			// (docs/TYPES.md), independently of CYCLE or whether rows exist.
+			// Ordinary unbounded TEXT has this Length contract on both adapters,
+			// independently of CYCLE or whether rows exist.
 			lengthKnown := types[i] == "TEXT"
 			if lengthKnown {
 				length = 1<<63 - 1
