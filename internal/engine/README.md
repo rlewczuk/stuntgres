@@ -81,7 +81,7 @@ subpackage types directly (no aliases).
 
 | Root type | Implements |
 | --- | --- |
-| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `SequenceRuntime`, `TransactionInquiryRuntime`, `LargeObjectRuntime`, `PgrowlocksRuntime`) that `*exec.Context` forwards |
+| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `SequenceRuntime`, `TransactionInquiryRuntime`, `LargeObjectRuntime`, `PgrowlocksRuntime`, `FTSQueryRuntime`) that `*exec.Context` forwards |
 | `ddlHost` | `ddl.Host`, `ddl.SchemaHost`, `routine.DDLHost`, `typedef.StageHost`, `table.Host`, `index.Host`, `index.KeyHost`, `fdw.Host`, `role.Host`, `role.StageHost`, `partition.Host`, `view.Host`, `view.StageHost` |
 | `alterHost` | `table.AlterHost` |
 | `extensionHost` (`extension_host.go`) | `extension.Host`, `extension.Stage` |
@@ -186,6 +186,18 @@ Producers, the OID registry and descriptor specs live in
 `functions` nodes own binding, immutable recipes and argument demand; the root
 runtime bodies (`*_runtime.go`) keep the authority. No prepared node caches an
 owner.
+
+`fts_query_runtime.go` executes SQL rewrite rules inside the caller's admitted
+operation, transaction and statement snapshot. Lexical scratch and zero inner
+parameters are scoped stackwise; private staged writes remain visible. The
+ordinary parser, analyzer, admission and query producers supply exact typed rule
+rows, never a driver connection or a second SQL executor. The consumer fetches
+100 rows before checking result shape and retains one bounded typed rule batch.
+Deletion stops rule application, but the next batch is still fetched before
+testing emptiness again. Original fetch errors remain distinct from prepare/open
+errors. The cursor closes before restoring caller scratch; outer publication
+remains eager.
+
 
 ### Catalog inquiry and session identity
 

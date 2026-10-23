@@ -45,6 +45,7 @@ type sqlRoutineScratch struct {
 	largeObjectRead      catalog.Read
 	authority            *exec.Authority
 	routineAuth          AuthorizationView
+	routineDependencies  []catalog.ExpressionDependency
 	expected             *StatementDescription
 	prepared             preparedRebind
 	admissionWaited      bool
@@ -71,7 +72,8 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.activeMutation, cteInvocation: s.cteInvocation,
 		activeViews: s.viewCreationOrZero().Active, inheritanceRelations: s.inheritance.relations, inheritanceCatalog: s.inheritance.catalog,
 		authority: s.authority, routineAuth: s.routineAuth, expected: s.Expected,
-		prepared: s.prepared, admissionWaited: s.admissionWaited,
+		routineDependencies: s.routineDependencies,
+		prepared:            s.prepared, admissionWaited: s.admissionWaited,
 		initialParameters: s.initialParameters, input: s.input, output: s.output,
 		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
 		protocol: s.protocolSlot,
@@ -88,6 +90,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.setActiveViews(c.activeViews)
 	s.inheritance.relations, s.inheritance.catalog = c.inheritanceRelations, c.inheritanceCatalog
 	s.authority, s.routineAuth, s.Expected = c.authority, c.routineAuth, c.expected
+	s.routineDependencies = c.routineDependencies
 	s.prepared, s.admissionWaited = c.prepared, c.admissionWaited
 	s.initialParameters, s.sqlRoutine, s.inquiry = c.initialParameters, c.sqlRoutine, c.inquiry
 	s.protocolSlot = c.protocol
@@ -141,6 +144,7 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 type sqlRoutineDemand struct {
 	lexical        *proc.PLFrame
 	scalar         bool // Internal single-row SELECT demand, never public finalization.
+	rewrite        bool // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
 	result         sqltype.Usage
 	resultPlan     sqltype.CoercionPlan
 	definition     *proc.Definition

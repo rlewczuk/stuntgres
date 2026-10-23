@@ -42,7 +42,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot plan.Node
 	_, deleting := stmt.(*parser.Delete)
-	if (scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt) {
+	if ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite {
 		// Plan closed immutable recipes before executor startup, retaining
 		// imported-parameter, row, domain and volatile demand barriers. The
 		// private folded graph is also the graph retained by live portals.
@@ -617,6 +617,10 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		if scope.protocolOrZero().bind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)
+		}
+		if scope.sqlRoutine.rewrite {
+			rows, err := openRewriteQueryRows(ctx, queryRoot, source, canonical)
+			return Result{Rows: rows}, err
 		}
 		if scope.sqlRoutine.scalar {
 			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical)

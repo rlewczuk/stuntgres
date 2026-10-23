@@ -119,12 +119,14 @@ reconsidered on every execution, never stored as planning facts.
   no snapshot copies row values. Repeatable read retains every immutable root
   before analysis waits; read committed views stay fresh at grant time (see the
   [`visibility` README](../visibility/README.md)).
-- **Eager results.** Finite results are finalized before statement completion: a
-  late projection, sort, source-close or cancellation failure exposes no
-  successful prefix or cursor. `RowCursor` reads never resume SQL evaluation,
-  acquire grants or publish writes, and results expose copied values or
-  immutable owned backing, never execution scratch. Grouping, distinct and
-  windows are serial; the bounded SELECT scan is the parallel exception.
+- **Eager public results.** Finite public results are finalized before statement
+  completion: late projection, sort, source-close or cancellation failure exposes
+  no successful prefix. Public result reads do not resume SQL evaluation or
+  publish writes. Nested SQL rewrite rows instead borrow an active lexical
+  scope and `OpenQueryProjectStage`, exposing schema before ordered row demand;
+  their owner closes the stage, memberships and sources before scope restoration.
+  Grouping, distinct and windows are serial; the bounded SELECT scan is the
+  parallel exception.
 - **Row locks.** Rowmarks lock actual physical identities. After a wait only
   frozen contributors are followed to current heads; rechecks rebuild their
   bound frames without finding new matches or resorting. Immediate wait policies

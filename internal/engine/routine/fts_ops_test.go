@@ -62,9 +62,29 @@ func TestFTSOpsRoutineDeclarations(t *testing.T) {
 			t.Fatal("missing operator identity", tc)
 		}
 	}
-	for _, oid := range []ids.OID{3622, 3634, 3635, 3668, 3672} {
+	for _, oid := range []ids.OID{3622, 3634, 3635, 3668} {
 		if BuiltinRoutine(oid) != nil {
 			t.Fatal("adjacent routine promoted", oid)
+		}
+	}
+}
+
+func TestFTSQueryFunctionsRoutineDeclarations(t *testing.T) {
+	for _, tc := range []struct {
+		oid, result     ids.OID
+		name, signature string
+		volatility      expr.Volatility
+		parallel        byte
+	}{
+		{3672, 23, "numnode", "3615", expr.Immutable, 's'},
+		{3673, 25, "querytree", "3615", expr.Immutable, 's'},
+		{3684, 3615, "ts_rewrite", "3615,3615,3615", expr.Immutable, 's'},
+		{3685, 3615, "ts_rewrite", "3615,25", expr.Volatile, 'u'},
+	} {
+		got := BuiltinRoutine(tc.oid)
+		identity := catalog.RoutineIdentity{ID: tc.oid, Namespace: ids.PGCatalogNamespaceOID, Name: tc.name, Signature: catalog.ProcedureSignature(tc.signature)}
+		if got == nil || got.Identity != identity || got.Result != tc.result || got.Kind != catalog.FunctionRoutine || !got.Strict || got.Volatility != tc.volatility || got.Parallel != tc.parallel || got.ReturnsSet || got.Defaults != 0 || got.Variadic != 0 || got.Providers != functions.FTSQueryRoutineProvider {
+			t.Fatalf("query function declaration %d = %+v", tc.oid, got)
 		}
 	}
 }

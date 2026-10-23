@@ -58,6 +58,16 @@ validate the destination's constraints and indexes and publish both physical
 effects atomically, including transaction rollback and native logical replay.
 Concurrent waiters on a moved source receive PostgreSQL's serialization error.
 
+## Text-search query utilities
+
+Added `numnode`, `querytree` and both `ts_rewrite` overloads. SQL rewrite rules
+execute against the caller's live catalog, permissions and transaction state,
+with ordered typed rules and PostgreSQL-compatible shape and execution errors.
+The SQL overload preserves 100-row fetch/error precedence and the post-deletion
+fetch boundary without evaluating later batches unnecessarily.
+Direct rewrites preserve structural matching, multiplicity and empty-query
+semantics; stored consumers retain typed results through logical replay.
+
 ## MAC address operators and functions
 
 `macaddr` and `macaddr8` support fixed-width `~`, `&`, `|` and three-octet-prefix

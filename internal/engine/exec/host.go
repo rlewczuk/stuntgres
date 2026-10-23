@@ -107,6 +107,7 @@ type Host interface {
 	FunctionRegexExecution() *sqltype.PGRegexExecution
 	// plan.Runtime
 	InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef) (sqltype.Value, error)
+	RewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
 	OpenExtensionPaths(c *Context, n plan.ExtensionPathsExpr, name string) ([]sqltype.Value, error)
 
 	PresentationFormatters

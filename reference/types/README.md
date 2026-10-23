@@ -31,6 +31,10 @@ ranges in [reference/dml](../dml/README.md#testing).
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
 `fixture.Main(m)`. Each family keeps its helpers in `<family>_helpers_test.go`;
 these are shared across families:
+- `fts_query_functions_helpers_test.go` owns the shared query-utility callback
+  and direct/new-prepared scalar routes. Query utilities reuse the FTS scalar
+  quoting and native logical-control helpers; diagnostics assert complete
+  phase-specific records, and held SQL rules use one pinned session.
 
 - `box_helpers_test.go`: the geometry raw adapter. `boxScenario` and `boxSelect`
   check BOX/POINT/LSEG raw cells before normalization; LSEG (`lsegScenario`),
@@ -180,6 +184,7 @@ COPY test in reference/dml.
 - `multirange(anyrange)`, `unnest(anymultirange)`: `RUN='^TestReferenceRangeMore'`
 - Text search types: `RUN='^TestReferenceFTSTypes'`
 - Text search operators: `RUN='^TestReferenceFTSOps'`
+- Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
 - `cube` (scalar/codecs and spatial predicates/distances): `RUN='^TestReferenceCube'`
 - <a id="earth-domain-contract"></a>`earth`: `RUN='^TestReferenceEarth'`
 - <a id="citext-storage-and-value-round-trips"></a>`citext`: `RUN='^TestReferenceCitext'`

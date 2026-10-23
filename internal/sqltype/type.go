@@ -118,36 +118,36 @@ type Codec interface {
 
 // Descriptor has no mutable or execution-local state. Catalogs own generations.
 type Descriptor struct {
-	id                              ID
-	name, sql, database             string
-	base                            Usage
-	ownDomainChecks, domainChecks   bool
-	ownDomainNotNull, domainNotNull bool
-	element                         *Descriptor
-	associatedArray                 ID
-	delimiter                       byte
-	enum                            *enumDefinition
-	queryInt                        bool
-	cube                            bool
-	citext                          bool
-	composite                       *compositeDefinition
-	rangeSubtype                    *Descriptor
-	rangeBoolean                    *Descriptor
-	multirangeRange                 *Descriptor
-	multirangeCompanion             *Descriptor
-	networkCIDR                     *Descriptor
-	networkMasklen                  *Descriptor
-	networkBoolean                  *Descriptor
-	geometryPoint                   *Descriptor
-	circleBoolean, circleFloat      *Descriptor
-	pointBoolean, pointFloat        *Descriptor
-	polygonBoolean, polygonPoint    *Descriptor
-	polygonInt                      *Descriptor
-	pathInt                         *Descriptor
-	ftsBoolean, ftsDistance         *Descriptor
-	lookupOnly                      bool
-	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
-	namespace                       string
+	id                               ID
+	name, sql, database              string
+	base                             Usage
+	ownDomainChecks, domainChecks    bool
+	ownDomainNotNull, domainNotNull  bool
+	element                          *Descriptor
+	associatedArray                  ID
+	delimiter                        byte
+	enum                             *enumDefinition
+	queryInt                         bool
+	cube                             bool
+	citext                           bool
+	composite                        *compositeDefinition
+	rangeSubtype                     *Descriptor
+	rangeBoolean                     *Descriptor
+	multirangeRange                  *Descriptor
+	multirangeCompanion              *Descriptor
+	networkCIDR                      *Descriptor
+	networkMasklen                   *Descriptor
+	networkBoolean                   *Descriptor
+	geometryPoint                    *Descriptor
+	circleBoolean, circleFloat       *Descriptor
+	pointBoolean, pointFloat         *Descriptor
+	polygonBoolean, polygonPoint     *Descriptor
+	polygonInt                       *Descriptor
+	pathInt                          *Descriptor
+	ftsBoolean, ftsDistance, ftsText *Descriptor
+	lookupOnly                       bool
+	catalogNullOwner                 *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
+	namespace                        string
 }
 
 func (d *Descriptor) ID() ID          { return d.id }
@@ -319,7 +319,7 @@ func Builtins() []*Descriptor {
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
 		{id: Unknown, name: "unknown"},
 	}
-	var networkCIDR, integer, networkBoolean, geometryPoint, circleFloat *Descriptor
+	var networkCIDR, integer, networkBoolean, geometryPoint, circleFloat, ftsText *Descriptor
 	for _, d := range types {
 		switch d.id {
 		case Point:
@@ -328,6 +328,8 @@ func Builtins() []*Descriptor {
 			networkCIDR = d
 		case Int4:
 			integer = d
+		case Text:
+			ftsText = d
 		case Bool:
 			networkBoolean = d
 		case Float8:
@@ -356,7 +358,7 @@ func Builtins() []*Descriptor {
 			d.polygonInt = integer
 		}
 		if d.id == TSQuery {
-			d.ftsBoolean, d.ftsDistance = networkBoolean, integer
+			d.ftsBoolean, d.ftsDistance, d.ftsText = networkBoolean, integer, ftsText
 		}
 	}
 	for _, family := range []struct {

@@ -5,7 +5,7 @@ under `internal/engine`. It imports only the standard library and `sqlstate`.
 It owns immutable decoded vector lexemes/positions and query operator arenas,
 FTS quoting, grammar, canonical text and released byte/count checks. It does not
 own SQL descriptors, NULL, source positions, portal context, notices, catalogs,
-sessions, normalization, matching, dictionaries, ranking or indexes.
+sessions, dictionaries, ranking or indexes.
 
 ## Parsing and rendering
 
@@ -59,6 +59,20 @@ Left positions win, then shifted right positions append until 256/16383, retaini
 the first saturated weight rather than input max-weight merging. Final aligned
 storage is checked before rendering. Operation scans/copies/rendering check
 cancellation at bounded intervals, return no partial result and never mutate inputs.
+
+## Query inspection and rewriting
+
+`NodeCount` reads the immutable arena length. `IndexableTree` reduces NOT
+subtrees to TRUE without Boolean simplification or rewrite ordering.
+`RewriteWorkspace` owns transient indexed nodes and right-first child spans;
+AND/OR flattening, signed legacy-CRC ordering, multiset matching and binary
+reconstruction are iterative and cancellation-aware. Direct rewriting protects
+inserted roots from the same rule. SQL consumers use `ApplyRule` to clear that
+protection and normalize between rows. `Empty` reads the current root in O(1)
+without mutation or reconstruction; `Finish` emits one immutable arena and
+canonical text. Empty substitutes delete; SQL NULL remains outside this package.
+No transformation reparses rendered text.
+
 
 ## Error authority
 

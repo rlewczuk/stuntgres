@@ -160,7 +160,7 @@ A family whose evaluation reads subsystem state gets a narrow capability
 interface here (`ACLRuntime`, `TransactionInquiryRuntime`,
 `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `AdvisoryRuntime`,
 `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`,
-`PgrowlocksRuntime`). The node asserts it from `expr.Context`; `*exec.Context`
+`PgrowlocksRuntime`, `FTSQueryRuntime`). The node asserts it from `expr.Context`; `*exec.Context`
 implements it with a compile-time assertion and forwards to the root statement
 host, which owns all locking and returns owned values.
 
@@ -259,6 +259,11 @@ publication and lock-manager tickets stay in the engine.
 
 ## Family notes
 
+- **Text-search query utilities**: `FTSQuery` binds owner-checked INT4, TEXT
+  and TSQUERY results. Inspection and direct rewriting are immutable;
+  SQL-based rewriting is intrinsically volatile and only demands
+  `FTSQueryRuntime` after strict-NULL and empty-query bypass. Stored nodes keep
+  typed operands and routine identity, never SQL rows or a statement host.
 - **Cube spatial** (`cube_spatial.go`, `cube_spatial_bind.go`): `CubeSpatial`
   owns two coerced operands and a checked `sqltype.CubeSpatialPlan`.
   `InstalledCubeRoutine.CubeType` exposes the selected installation's descriptor
@@ -342,6 +347,7 @@ make check RUN='^Test(CatalogInquiry|TransactionInquiry|AdvisoryNode|BlockingInq
 make check RUN='^Test(ACLValues|ACLNodes|ACLValueEvaluates|ObjectACLEvaluates|AccessInquiryEvaluates)'  # ACL functions
 make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryRelation|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
 make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider authority
+make check RUN='^TestFTSQueryFunctions'  # query utility providers, kernels and runtime lifetime
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
 make check RUN='^TestMACOperationsProviderLifecycle$'  # fixed-width MAC function protocol
 ```

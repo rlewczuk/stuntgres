@@ -100,6 +100,12 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   not an optimization opportunity; long kernel loops check cancellation.
 - No geometric type gains default ordering/hash/index authority from its
   scalar operators.
+- `FTSQueryPlan` checks source/result descriptor authority for query inspection
+  and direct rewriting. `FTSRewriteRules` bridges actual typed SQL rule cells
+  into one leaf-owned workspace, distinguishing skipped NULL rows from empty
+  substitutes without exposing private query payloads or converting through text.
+  Its checked `Empty` inquiry reads accumulator state without finalizing,
+  rendering or reconstructing a query between SQL rule batches.
 - `CubeSpatialPlan` reads private entered endpoints without text conversion,
   normalized copies or padded coordinate allocations. Operand/result usages and
   descriptor identity are checked at binding. Ordered comparisons and sequential

@@ -650,3 +650,13 @@ func (c *Context) VisibilityInquiry(kind functions.VisibilityInquiryKind, value 
 	}
 	return host.VisibilityInquiry(kind, value, result)
 }
+
+var _ functions.FTSQueryRuntime = (*Context)(nil)
+
+func (c *Context) RewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: ts_rewrite lacks statement authority")
+	}
+	return host.RewriteQuerySQL(query, text, result)
+}
