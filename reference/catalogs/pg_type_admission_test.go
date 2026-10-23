@@ -46,6 +46,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		expected[13248], expected[13247] = true, true
 		expected[13256], expected[13255] = true, true
 		expected[13243], expected[13242] = true, true
+		expected[13246], expected[13245] = true, true
 		// MACADDR's scalar metadata and associated lookup identity are visible;
 		// catalog presence does not make the companion an executable array.
 		expected[829], expected[1040] = true, true

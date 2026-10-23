@@ -2696,8 +2696,8 @@ pq ScanType is int32 and Nullable is unknown. These driver facts do not replace
 the logical domain Usage or information-schema numeric precision32/radix2/scale0.
 Both logical and base usages have typmod-1/collation0: the checked-domain
 promotion must not inherit yes_or_no's C collation. The companion remains
-lookup-only and character_data remains nonconcrete; existing provider carriers
-and general native information-schema columns/domains providers are unchanged.
+lookup-only; existing provider carriers and general native information-schema
+columns/domains providers are unchanged.
 
 Supplemental package units cover inline payload and typed-NULL conversion,
 actual bound TRUE/FALSE/UNKNOWN CHECK evaluation, catalog replacement,
@@ -2706,6 +2706,49 @@ fresh INT4 generation reownership and logical descriptions:
 ```sh
 make check RUN='^TestInfo(CardinalNumber(BuiltinDescriptor|BuiltinCatalog|BuiltinBaseRebind|LogicalDescriptions)|SQLIdentifierBuiltinDescriptor|TimeStampBuiltinDescriptor|YesOrNoBuiltinDescriptor)$'
 ```
+
+### Information-schema character_data selected proof
+
+Consumer-declared `information_schema.character_data` columns use the ordinary
+domain path over unconstrained VARCHAR (OID1043, typmod-1) with C collation950,
+no CHECK/default/NOT NULL. Direct/prepared input preserves ordinary and empty
+strings, trailing spaces, Unicode, 80-character values and NULL (literal, bound
+nil and omitted column). Explicit casts preserve complete strings and NULL.
+Catalog assertions retain the qualified logical identity, base/routine facts,
+column domain identity and genuine lookup-only companion relationships without
+pinning allocated domain OIDs or enabling executable domain arrays.
+
+Physical metadata is VARCHAR/Go string or nil, string ScanType and unknown
+DecimalSize. Native unlimited Length is (MaxInt64,true), declared Nullable is
+(true,true); pq Length is (-5,true) and Nullable is (false,false). Populated,
+empty and all-NULL selections retain those adapter-specific facts. Expression
+nullability is separate from the declared-column contract. Pinned18.6 discovery
+confirmed the PostgreSQL constants before production changes.
+
+Bound NUL and invalid UTF8 strings fail22021 with complete English diagnostics
+and execute-stage parameter context on direct and held prepared paths. Exact
+ordered baseline rereads after every rejection prove no prefix publication.
+Same-owner Dump/Reset/Restore and one fresh-Driver Restore retain the qualified
+declaration, values/NULL, metadata, identity and rejection behavior. Dumps do not
+recreate this builtin domain. Native APIs are explicit native-only phases after
+shared SQL acceptance, not simulated PostgreSQL APIs. General information-schema
+columns/domains views and existing primitive provider carriers remain unchanged.
+
+Select all six shared definitions in both modes (external900-second deadlines):
+
+```sh
+make check RUN='^TestReferenceInfoCharacterData(Values|Metadata|Identity|DiagnosticsAtomicity|NativeControls|NativeFreshRestore)$' REFERENCE=1
+make check RUN='^TestReferenceInfoCharacterData(Values|Metadata|Identity|DiagnosticsAtomicity|NativeControls|NativeFreshRestore)$'
+make check RUN='^TestInfo(CharacterData(BuiltinDescriptor|BuiltinCatalog|BuiltinBaseRebind|LogicalDescriptions)|(CardinalNumber|SQLIdentifier|TimeStamp|YesOrNo)BuiltinDescriptor)$'
+```
+
+Supplemental units cover inline payload/source immutability, typed NULL,
+base codec serialization, immutable fresh-base rebind, catalog replacement
+and logical descriptions. Runtime smoke is a root-owned throwaway Go program,
+not a redundant permanent same-path test: qualified declaration, prepared
+trailing-space string and nil, VARCHAR metadata and qualified domain/base names,
+bound NUL rejection with unchanged rows, and native Dump/Reset/Restore retention.
+The selected identity tests independently assert complete catalog identity and C collation.
 
 
 ### INET subnet predicate oracle-first contract

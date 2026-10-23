@@ -47,9 +47,6 @@ func TestInfoCardinalNumberBuiltinDescriptor(t *testing.T) {
 	if a == nil || a.ID() != 13242 || a.Element() != d || a.Concrete() || a.Usage().Valid() || a.NamespaceName() != d.NamespaceName() {
 		t.Fatal("selected companion authority", a)
 	}
-	if sibling := types[13246]; sibling.Concrete() || sibling.Usage().Valid() || !sibling.IsDomain() {
-		t.Fatal("character_data promotion", sibling)
-	}
 	ctx := context.Background()
 	observer := &infoCardinalNumberInputObserver{t: t, target: d, base: base}
 	input := InputEnvironment{DomainChecks: observer}

@@ -20,11 +20,6 @@ func TestInfoTimeStampBuiltinDescriptor(t *testing.T) {
 	if a == nil || a.ID() != 13253 || a.Element() != d || a.Concrete() || a.Usage().Valid() || a.NamespaceName() != d.NamespaceName() {
 		t.Fatal("selected implicit array became executable", a)
 	}
-	for _, id := range []ID{13246} {
-		if sibling := types[id]; sibling.Concrete() || sibling.Usage().Valid() || !sibling.IsDomain() {
-			t.Fatal("sibling promotion", id)
-		}
-	}
 	if n := Null(d); n.Type() != d || !n.IsNull() {
 		t.Fatal("domain NULL tag", n)
 	}

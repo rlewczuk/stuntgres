@@ -4336,10 +4336,22 @@ decimal-size metadata and with no collation. Negative input fails23514;
 malformed integer text and overflow retain22P02/22003. Failed multirow INSERT
 publishes no prefix. Qualified native Dump/Reset/Restore preserves values,
 metadata and CHECK enforcement, without emitting CREATE DOMAIN for the builtin.
-The companion remains lookup-only and character_data remains unsupported;
+The companion remains lookup-only;
 general information-schema views and existing provider carriers are unchanged.
 Feature smoke: `make check RUN='^TestReferenceInfoCardinalNumberFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceInfoCardinalNumberFeatureSmoke$' REFERENCE=1`.
+
+Change note: consumer columns can declare `information_schema.character_data`,
+the predefined nullable, unconstrained VARCHAR domain with C collation.
+Ordinary direct/prepared input preserves empty strings, trailing spaces, Unicode,
+long strings and NULL. Catalogs retain qualified domain/base identity; physical
+results are VARCHAR/Go string or nil. Native unlimited Length is MaxInt64;
+pq reports -5, and declared-column nullability is known only natively.
+Bound NUL and invalid UTF8 fail22021 with PostgreSQL English diagnostics and
+no partial multirow INSERT. Qualified native Dump/Reset/Restore preserves the
+declaration, values, metadata and validation without recreating the builtin.
+The companion remains lookup-only; general information-schema views and existing
+provider carriers are unchanged. See [selected dual-mode proof](reference/types/README.md#information-schema-character_data-selected-proof).
 
 Change note: `CREATE POLICY`, selective `ALTER POLICY`, policy rename and
 `DROP POLICY [IF EXISTS]` now define immutable, table-attached policy metadata.

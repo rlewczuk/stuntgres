@@ -4035,9 +4035,24 @@ INT4/int64 with unknown Length/DecimalSize, including empty/all-NULL results.
 Native domain13243/namespace13229/companion13242 are allocated inventory
 identities, not fixed release OIDs. Qualified native Dump/Reset/Restore retains
 values, metadata and CHECK enforcement without recreating the builtin domain.
-Its companion stays lookup-only; `character_data`, executable domain arrays,
-general information_schema.columns/domains providers and migration of existing
-provider carriers remain outside this selected support.
+Its companion stays lookup-only; executable domain arrays, general
+information_schema.columns/domains providers and migration of existing provider
+carriers remain outside this selected support.
+
+The predefined `information_schema.character_data` supports consumer-declared
+columns as a nullable, unconstrained VARCHAR domain (base OID1043, typmod-1,
+C collation950), without a CHECK or default. Direct/prepared input preserves
+empty strings, significant trailing spaces, Unicode, long values and NULL.
+Qualified regtype/pg_type/pg_attribute introspection retains the domain identity
+and its base and companion relationships; allocated domain OIDs are not portable
+constants. Physical results expose VARCHAR/Go string or nil, unknown DecimalSize,
+native Length(MaxInt64,true) and declared Nullable(true,true); pq exposes
+Length(-5,true) and Nullable(false,false), including empty/all-NULL selections.
+Bound NUL and invalid UTF8 fail22021 with exact English encoding diagnostics;
+failed multirow INSERT publishes no prefix. Qualified native Dump/Reset/Restore
+retains values, NULL, metadata and input rejection without CREATE DOMAIN for
+the builtin. Its companion remains lookup-only; general information-schema
+views and existing provider carriers remain unchanged.
 
 Direct/prepared/held reads follow existing catalog publication, transaction,
 physical TEMP-session and native Dump/Reset/Restore lifecycles. Dumps contain

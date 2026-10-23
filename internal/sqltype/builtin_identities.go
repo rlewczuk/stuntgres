@@ -646,12 +646,12 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 	for _, fact := range builtinIdentities {
 		d := byID[fact.id]
 		if d == nil {
-			if fact.namespace == "information_schema" && (fact.name == "time_stamp" || fact.name == "sql_identifier" || fact.name == "yes_or_no" || fact.name == "cardinal_number") {
+			if fact.namespace == "information_schema" && (fact.name == "time_stamp" || fact.name == "sql_identifier" || fact.name == "yes_or_no" || fact.name == "cardinal_number" || fact.name == "character_data") {
 				// Construct selected domains before arrays capture element authority.
 				base := byID[fact.base].Usage()
 				base.Typmod = fact.typmod
 				checks := fact.name == "yes_or_no" || fact.name == "cardinal_number"
-				if fact.name == "yes_or_no" {
+				if fact.name == "yes_or_no" || fact.name == "character_data" {
 					base.Collation = CollationRef{ID: 950, Derivation: Default}
 				}
 				var err error
@@ -678,7 +678,7 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 		if fact.base != 0 {
 			d.base = byID[fact.base].Usage()
 			d.base.Typmod = fact.typmod
-			if fact.namespace == "information_schema" && fact.name == "yes_or_no" {
+			if fact.namespace == "information_schema" && (fact.name == "yes_or_no" || fact.name == "character_data") {
 				d.base.Collation = CollationRef{ID: 950, Derivation: Default}
 			}
 		}
