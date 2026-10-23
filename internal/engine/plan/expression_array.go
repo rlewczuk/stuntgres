@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -115,6 +116,7 @@ func (t *ArrayAssignmentTarget) applyBounds(ctx expr.Context, current, rhs sqlty
 // immutable flat payload. Neither route constructs an array per input row.
 type ScalarArrayComparisonExpr struct {
 	expr.Info
+	RoutineRef          ids.ObjectRef
 	Left, Array         expr.Expr
 	Items               []expr.Expr
 	Predicate           sqltype.ComparisonPredicate

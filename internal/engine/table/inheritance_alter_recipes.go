@@ -58,7 +58,7 @@ func RetainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribut
 // Inline redeclarations would change attislocal. These are the same supported
 // physical ALTER actions used by callers, before children/data observe recipes.
 // Captured-reference defaults retain the existing provider-dependent phase.
-func (t *DumpRelation) EmitInheritedDefaults(ctx context.Context, catalogView catalog.Read, deferDefaults bool, emit func(string) error) error {
+func (t *DumpRelation) EmitInheritedDefaults(ctx context.Context, catalogView catalog.Read, deferDefaults bool, emit func(int32, string) error) error {
 	if len(t.Recipes) == 0 {
 		return nil
 	}
@@ -78,7 +78,7 @@ func (t *DumpRelation) EmitInheritedDefaults(ctx context.Context, catalogView ca
 				}
 				clause = " SET DEFAULT " + text
 			}
-			if err := emit(prefix + catalog.QuoteIdentifier(column.Name) + clause + ";\n"); err != nil {
+			if err := emit(attribute, prefix+catalog.QuoteIdentifier(column.Name)+clause+";\n"); err != nil {
 				return err
 			}
 		}

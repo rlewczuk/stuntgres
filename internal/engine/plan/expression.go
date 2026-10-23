@@ -98,6 +98,7 @@ func (e CoercionExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type ComparisonExpr struct {
 	expr.Info
+	RoutineRef  ids.ObjectRef
 	Left, Right expr.Expr
 	Predicate   sqltype.ComparisonPredicate
 	Operator    string

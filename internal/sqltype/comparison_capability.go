@@ -8,7 +8,7 @@ func ComparisonCapabilities(d *Descriptor) (equality, ordering bool) {
 		return false, false
 	}
 	d = d.BaseType()
-	if d.IsEnum() || d.IsComposite() {
+	if d.IsEnum() || d.IsComposite() || d.IsCube() {
 		return true, true
 	}
 	if d.IsArray() {

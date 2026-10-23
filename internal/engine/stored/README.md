@@ -145,6 +145,58 @@ host methods.
 - The engine, not these payloads, owns admission records, post-wait
   selection/ACL fences and lazy producer pin lifetime.
 
+Installed cube comparisons retain the exact selected routine `ObjectRef` beside
+the immutable procedure capture. This includes scalar/row comparison pairs,
+distinctness, scalar-list predicates, NULLIF and each simple-CASE equality arm,
+not only explicit cube function calls. Address remapping moves those references
+before retagging; resolution uses only the mapped address, never source/name
+fallback. One cube-specific validator checks both source/mapped input slots,
+operation and procedure result, implementation, reference domain/epoch, actual
+registered stock manifest and exact member. Equality returns BOOL even when its
+NULLIF carrier returns cube. Rebinding reconstructs destination comparisons.
+Row and subquery lexical walks visit comparison operands rather than their
+carrier wrappers, so dependency collection explicitly records each pair's
+selected routine reference in addition to the normal child traversal.
+Other routine declaration/signature rules remain unchanged.
+Rule WHERE conditions obey the same mapped-first ordering as rule action
+bindings: remap references, then retag against the destination. Otherwise a
+lawfully captured source lifetime reaches the new-epoch validator unchanged.
+
+Scalar cube IN/NOT IN batches preserve an IN-list frozen recipe and renderer.
+Their typed scalar children do not become a public ARRAY expression during
+Dump/Restore. The lhs remains one occurrence and the existing evaluator retains
+item order/NULL behavior. Actual array children and other operators keep their
+ANY/ALL representation; no public cube-array provider/admission is added.
+
+Implicit installed-cube equality syntax (scalar IN/NOT IN, NULLIF and simple
+CASE) additionally requires a declaration binding context when rendered as SQL.
+The dump owner derives that context only from validated immutable typed captures,
+not SQL text or a familiar namespace name. Each actual owning DDL statement carries
+its optional cube-namespace binding separately from its SQL. The emitted private
+comment/SET protocol admits exactly one eligible statement per window and restores
+the baseline after it; owner switches remain outside. Native Restore reconstructs
+current stock authority, validates the actual newly bound target captures and
+publishes only a completely validated stage. A dedicated external PostgreSQL
+replay session finishes with RESET search_path (configured default, not an
+arbitrary previously selected path). No-window dumps retain their previous bytes.
+
+Comparison binding requirement traversal uses `SQLRoutineExpr.Capture`'s
+validated written-argument projection, not its complete executable `Children`.
+An omitted checked default belongs to the routine's declaration and does not
+impose cube-namespace USAGE on a calling view owner. Explicit written comparison
+arguments still require a caller window; declaration defaults are collected
+separately. Runtime evaluation, hard dependencies, refresh and remapping retain
+every expanded argument.
+
+Domain CHECK manifests retain their actual selected cube operator reference as
+well as the procedure/type references. Their provider validator admits only the
+exact checked stock-cube operator: current reference lifetime, selected typed
+capture, both operand slots, result/procedure, namespace and validated extension
+member must agree. This does not grant arbitrary operator providers.
+Independent source-literal retagging requires an explicit scalar translation on
+an unpublished candidate. Publication clears that temporary authority; mapping
+type descriptors alone does not authorize cross-ID scalar values.
+
 ## Invariants
 
 - Rendering is byte-stable: `pg_get_viewdef`, `pg_get_expr`,
@@ -196,3 +248,4 @@ add `REFERENCE=1` for the oracle.
 - Row security: `RUN='^TestReference(RLS|RowSecurity)'`
 - Catalog projections: `RUN='^TestReference(PGDepend|PGTableViews)'`
 - Stored generated columns: `RUN='^TestReferenceGeneratedStored'`
+- Installed comparison capture and lifecycle: `RUN='^TestCube'`

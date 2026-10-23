@@ -94,13 +94,14 @@ func (snapshot *Snapshot) Datum(value sqltype.Value, target *sqltype.Descriptor,
 
 // Row identities in positions are the source identities saved before remint.
 // No predicate, expression or domain conversion is executed by this transport.
-func (snapshot *Snapshot) Transport(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, positions map[ids.ObjectAddress]map[RowIdentity]int) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
-	return snapshot.TransportRows(ctx, next, relations, positions, false)
+func (snapshot *Snapshot) Transport(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, positions map[ids.ObjectAddress]map[RowIdentity]int) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+	return snapshot.TransportRows(ctx, view, relations, positions, false)
 }
 
 // Same-logical-ID domain generation changes retain every physical version and
 // produced key. Replacement's ordinary transport still compacts live rows.
-func (snapshot *Snapshot) TransportRows(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, positions map[ids.ObjectAddress]map[RowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, positions map[ids.ObjectAddress]map[RowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+	next := view.State()
 	roots := make(map[ids.ObjectAddress]*storage.IndexRoot, len(snapshot.Sources))
 	checkedParents := make(map[ids.ObjectAddress]bool)
 	collation := typedef.RemappedCollationCapabilities(next, snapshot.Mapping)
@@ -150,7 +151,7 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, next *catalog.State
 			}
 		}
 		if source.Root.Hash != nil {
-			binding, err := BindHashIndex(catalog.NewRead(nil, next), parent, index.SQLIndex)
+			binding, err := BindHashIndex(view, parent, index.SQLIndex)
 			if err != nil {
 				return nil, err
 			}
@@ -182,7 +183,7 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, next *catalog.State
 			}
 			roots[address] = &storage.IndexRoot{Hash: hash}
 		} else {
-			ordering, err := BindIndexKeys(catalog.NewRead(nil, next), parent, index.SQLIndex)
+			ordering, err := BindIndexKeys(view, parent, index.SQLIndex)
 			if err != nil {
 				return nil, err
 			}

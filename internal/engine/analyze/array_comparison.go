@@ -46,7 +46,7 @@ func (b *Binder) resolveComparisonCandidates(raw parser.OperatorExpr, lt, rt *sq
 		if err != nil {
 			return nil, nil, err
 		}
-		if err := requireBuiltinComparison(selected, raw.Pos); err != nil {
+		if err := b.requireBuiltinComparison(selected, raw.Pos); err != nil {
 			return nil, nil, err
 		}
 		return b.comparisonInputType(sqltype.ID(selected.Left), lt, rt), b.comparisonInputType(sqltype.ID(selected.Right), rt, lt), nil
@@ -116,7 +116,7 @@ func (b *Binder) bindArrayComparison(raw parser.ArrayComparisonExpr) (expr.Expr,
 		if selected.Result != ids.OID(sqltype.Bool) {
 			return nil, expr.ErrorAt("42809", "op ANY/ALL (array) requires operator to yield boolean", raw.Pos)
 		}
-		if err := requireBuiltinComparison(selected, raw.Pos); err != nil {
+		if err := b.requireBuiltinComparison(selected, raw.Pos); err != nil {
 			return nil, err
 		}
 		lt = b.comparisonInputType(sqltype.ID(selected.Left), left.descriptor(), element)
@@ -177,13 +177,14 @@ func (b *Binder) bindArrayComparison(raw parser.ArrayComparisonExpr) (expr.Expr,
 		namespace = raw.Name.Parts[0].Text
 	}
 	info := b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, properties)
+	var routineRef ids.ObjectRef
 	if declaration != nil {
-		info, err = b.selectedBuiltinRoutineInfo(info, declaration)
+		info, routineRef, err = b.selectedComparisonRoutineInfo(info, declaration)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return plan.ScalarArrayComparisonExpr{Info: info, Left: l, Array: r, Predicate: predicate, Operator: name, Namespace: namespace, All: raw.All}, nil
+	return plan.ScalarArrayComparisonExpr{Info: info, RoutineRef: routineRef, Left: l, Array: r, Predicate: predicate, Operator: name, Namespace: namespace, All: raw.All}, nil
 }
 
 func (b *Binder) InListHasVar(node expr.Expr) bool {
@@ -334,13 +335,14 @@ func (b *Binder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
 				properties.Volatility = expr.Stable
 			}
 			info := b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, properties)
+			var routineRef ids.ObjectRef
 			if declaration != nil {
-				info, err = b.selectedBuiltinRoutineInfo(info, declaration)
+				info, routineRef, err = b.selectedComparisonRoutineInfo(info, declaration)
 				if err != nil {
 					return nil, err
 				}
 			}
-			result = plan.ScalarArrayComparisonExpr{Info: info, Left: l, Items: children, Predicate: predicate, Operator: name, All: raw.Negate}
+			result = plan.ScalarArrayComparisonExpr{Info: info, RoutineRef: routineRef, Left: l, Items: children, Predicate: predicate, Operator: name, All: raw.Negate}
 			// PostgreSQL coerces an unknown Param occurrence in place, unlike
 			// an unknown Const. Only the original batch lhs is updated before
 			// Var pairs copy it; other transformed occurrences stay independent.
@@ -355,7 +357,13 @@ func (b *Binder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
 						elements = append(elements, item)
 					}
 				}
-				syntax = parser.ArrayComparisonExpr{Left: raw.Left, Right: parser.ArrayExpr{Elements: elements, Pos: raw.Pos}, Name: op.Name, All: raw.Negate, Pos: raw.Pos}
+				if leftTarget.IsCube() {
+					// The internal batch owns scalar children, not a public cube
+					// array. Keep its IN recipe executable through persistence.
+					syntax = parser.InListExpr{Left: raw.Left, Items: elements, Negate: raw.Negate, Pos: raw.Pos}
+				} else {
+					syntax = parser.ArrayComparisonExpr{Left: raw.Left, Right: parser.ArrayExpr{Elements: elements, Pos: raw.Pos}, Name: op.Name, All: raw.Negate, Pos: raw.Pos}
+				}
 			}
 		}
 	}

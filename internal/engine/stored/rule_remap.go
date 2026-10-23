@@ -329,11 +329,11 @@ func RemapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 		r := &RulesOf(&copy)[i]
 		var err error
 		if r.condition != nil {
-			r.condition, _, err = RetagTypes(view, r.condition, typ, collation)
+			r.condition, err = RemapExpression(r.condition, ref, nil)
 			if err != nil {
 				return nil, err
 			}
-			r.condition, err = RemapExpression(r.condition, ref, nil)
+			r.condition, _, err = RetagTypes(view, r.condition, typ, collation)
 			if err != nil {
 				return nil, err
 			}

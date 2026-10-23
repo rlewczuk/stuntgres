@@ -2473,6 +2473,12 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	}
 	a.typ, b.typ = p.left.BaseType(), p.right.BaseType()
 	p.left, p.right = a.typ, b.typ
+	if p.left.IsCube() {
+		if !a.validCube() || !b.validCube() {
+			return 0, fmt.Errorf("invalid cube comparison payload")
+		}
+		return compareCube(a.cube, b.cube), nil
+	}
 	if isRange(p.left.id) {
 		return p.left.compareRangeValues(a.rangeDatum, b.rangeDatum), nil
 	}

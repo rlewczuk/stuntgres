@@ -854,6 +854,13 @@ func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(ex
 				return "", err
 			}
 		}
+		if n.Left.ResultUsage().Type.IsCube() && n.RoutineRef != (ids.ObjectRef{}) && (n.Operator == "=" && !n.All || n.Operator == "<>" && n.All) {
+			membership := "IN"
+			if n.All {
+				membership = "NOT IN"
+			}
+			return "(" + left + " " + membership + " (" + strings.Join(items, ", ") + "))", nil
+		}
 		right = "ARRAY[" + strings.Join(items, ", ") + "]"
 	}
 	operator := n.Operator

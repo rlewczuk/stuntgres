@@ -120,5 +120,10 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 			}
 		}
 	}
+	if w.comparisonContext {
+		if err := w.emit("-- " + ComparisonContextEnd + "\nRESET search_path;\n"); err != nil {
+			return err
+		}
+	}
 	return ctx.Err()
 }

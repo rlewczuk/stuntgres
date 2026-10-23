@@ -190,7 +190,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		source.Address():      {},
 		destination.Address(): {{Row: 7, Version: 11}: 0},
 	}
-	roots, err := snapshot.Transport(evaluation.Context, view.State(), relations, positions)
+	roots, err := snapshot.Transport(evaluation.Context, view, relations, positions)
 	if err != nil {
 		t.Fatal(err)
 	}

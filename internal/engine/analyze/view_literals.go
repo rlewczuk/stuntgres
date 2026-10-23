@@ -124,6 +124,13 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		if parameter, ok := bound.(plan.ParameterExpr); b.Consumer.frozenDefinition && ok && parameter.Number == r.Number {
 			return nil
 		}
+	case parser.InListExpr:
+		if n, ok := bound.(plan.ScalarArrayComparisonExpr); ok && n.Array == nil {
+			if err := child(r.Left, n.Left); err != nil {
+				return err
+			}
+			return children(r.Items, n.Items)
+		}
 	case parser.ArrayComparisonExpr:
 		if n, ok := bound.(plan.ScalarArrayComparisonExpr); ok {
 			if err := child(r.Left, n.Left); err != nil {

@@ -101,7 +101,8 @@ func TestCubeConstructorIdentity(t *testing.T) {
 		if operation == sqltype.CubeIsPoint {
 			result = boolean
 		}
-		procedure := before.State().MustProcedure(ext.Members[3+int(operation)])
+		identity := functions.Cube{Operation: operation, Args: args}
+		procedure := before.State().MustProcedure(before.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: identity.Name(), Signature: identity.Signature()}))
 		info := expr.Info{Usage: result.Usage(), Property: expr.Properties{Volatility: expr.Immutable}, RoutineReference: procedure}
 		kernel, err := functions.NewCube(info, operation, base.SQLType, args)
 		if err != nil {
@@ -173,7 +174,7 @@ func TestCubeConstructorIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		actual := retagged.(plan.InstalledCubeExpr)
-		if actual.Procedure != after.Get(importedExt.Members[3+int(operation)]) || actual.Ref != mapRef(node.Ref) || actual.CubeType != imported.SQLType || actual.Operation != operation {
+		if actual.Procedure != after.Get(mapRef(node.Ref).Address) || actual.Ref != mapRef(node.Ref) || actual.CubeType != imported.SQLType || actual.Operation != operation {
 			t.Fatal("remap lost authority", actual)
 		}
 		if err := stored.ValidateInstalledCube(actual, after); err != nil {

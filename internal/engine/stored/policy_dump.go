@@ -29,6 +29,8 @@ func PolicyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 		table := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name())
 		var sql strings.Builder
 		for _, policy := range d.Security.Policies {
+			sql.Reset()
+			var binding *dump.DefinitionBinding
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -58,6 +60,16 @@ func PolicyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 				if clause.expr == nil {
 					continue
 				}
+				namespace, err := ComparisonBindingNamespace(view, clause.expr.Expression())
+				if err != nil {
+					return nil, err
+				}
+				if namespace != (ids.ObjectAddress{}) {
+					if binding != nil && binding.CubeNamespace != namespace {
+						return nil, fmt.Errorf("stuntgres: conflicting comparison binding namespaces")
+					}
+					binding = &dump.DefinitionBinding{CubeNamespace: namespace}
+				}
 				for _, leaf := range clause.expr.Presentation().Sources() {
 					relation, ok := view.Relation(leaf.Ref.Address)
 					if !ok {
@@ -85,9 +97,9 @@ func PolicyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 				sql.WriteString(" " + clause.name + " (" + text + ")")
 			}
 			sql.WriteString(";\n")
+			groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: sql.String(), Binding: binding})
 		}
-		groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: sql.String()})
 	}
-	slices.SortFunc(groups, func(a, b dump.Group) int { return strings.Compare(a.Table, b.Table) })
+	slices.SortStableFunc(groups, func(a, b dump.Group) int { return strings.Compare(a.Table, b.Table) })
 	return groups, nil
 }

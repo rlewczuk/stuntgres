@@ -4,6 +4,17 @@ Feature notes, newest first. Add a brief entry at the top for consumer-visible
 changes; do not write change notes anywhere else. Entries below the marker were
 moved verbatim from README.md in their original order.
 
+## Installed cube comparisons
+
+Installed `cube` supports `=`, `<>`, `<`, `<=`, `>` and `>=`, their comparison
+functions, and shared query ordering, equality/grouping and B-tree/unique keys.
+Typed comparisons preserve PostgreSQL's nontransitive NaN and cross-dimensional
+cases as well as coordinate and signed-zero behavior.
+Stored comparisons and selected provider identities survive native logical replay;
+omitted routine defaults retain declaration-owned namespace authority.
+See the [stored-expression contract](internal/engine/stored/README.md#recipe-rules)
+and [type-family testing guidance](reference/types/README.md#testing).
+
 ## MAC address operators and functions
 
 `macaddr` and `macaddr8` support fixed-width `~`, `&`, `|` and three-octet-prefix

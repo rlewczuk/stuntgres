@@ -50,6 +50,7 @@ func RemapOperatorClass(d *OperatorClass, mapping map[ids.ObjectAddress]ids.Obje
 	n := *d
 	n.ObjectAddress = move(d.Address())
 	n.ObjectNamespace = move(d.Namespace())
+	n.Extension = move(d.Extension)
 	n.Method = move(ids.ObjectAddress{ClassID: 2601, ObjectID: d.Method}).ObjectID
 	n.Family = move(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: d.Family}).ObjectID
 	n.InputType = move(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.InputType}).ObjectID

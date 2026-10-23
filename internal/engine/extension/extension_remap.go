@@ -124,18 +124,23 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 			if n.Name() == "bqarr_in" || n.Name() == "citextin" {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {
-				if oid, err := strconv.ParseUint(string(n.Signature), 10, 32); err == nil {
-					next := address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oid)})
-					if next.ObjectID != ids.OID(oid) {
-						n.Signature = QueryIntSignature(sqltype.ID(next.ObjectID))
+				parts := strings.Split(string(n.Signature), ",")
+				for i, part := range parts {
+					if oid, err := strconv.ParseUint(part, 10, 32); err == nil {
+						parts[i] = strconv.FormatUint(uint64(address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oid)}).ObjectID), 10)
 					}
 				}
+				n.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
 			}
 		}
 		if n.Address() == d.Address() && n.Namespace() == d.Namespace() && n.Extension == d.Extension && n.Dictionary == d.Dictionary && n.Signature == d.Signature && n.Result == d.Result && n.Aggregate == d.Aggregate {
 			return d
 		}
 		return &n
+	case *catalog.OperatorClass:
+		return catalog.RemapOperatorClass(d, mapping)
+	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+		return catalog.RemapOperatorFamily(d, mapping)
 	case *catalog.Operator:
 		n := *d
 		n.ObjectAddress = address(n.ObjectAddress)

@@ -77,10 +77,26 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			}
 			principal = d.Owner
 		case *catalog.Operator:
-			if ext.Name() != "cube" || !cubeSpatialOwnerName(d.Name(), true) || d.Extension != ext.Address() {
+			known := cubeSpatialOwnerName(d.Name(), true)
+			for _, name := range cubeOperatorNames {
+				known = known || d.Name() == name
+			}
+			if ext.Name() != "cube" || !known || d.Extension != ext.Address() {
 				return "", fmt.Errorf("stuntgres: invalid extension operator owner")
 			}
 			member = MemberOwner{Kind: "operator", Name: d.Name(), Signature: "cube,cube"}
+			principal = d.Owner
+		case *catalog.OperatorClass:
+			if d.Method != 403 {
+				return "", fmt.Errorf("stuntgres: unsupported extension class method")
+			}
+			member = MemberOwner{Kind: "operator_class", Name: d.Name(), Signature: "btree"}
+			principal = d.Owner
+		case *catalog.OperatorFamily:
+			if d.Method != 403 {
+				return "", fmt.Errorf("stuntgres: unsupported extension family method")
+			}
+			member = MemberOwner{Kind: "operator_family", Name: d.Name(), Signature: "btree"}
 			principal = d.Owner
 		case *catalog.TSDictionary:
 			member = MemberOwner{Kind: "dictionary", Name: d.Name()}
@@ -184,7 +200,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	case record.Name == "intarray" && record.Version == "1.5":
 		expectedMembers = 3
 	case record.Name == "cube" && record.Version == "1.5":
-		expectedMembers = cubeMemberCount
+		expectedMembers = CubeMemberCount
 	case record.Name == "citext" && record.Version == "1.8":
 		expectedMembers = 3
 	case record.Name == "earthdistance" && record.Version == "1.2":
@@ -265,7 +281,15 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "operator":
-			if record.Name != "cube" || member.Signature != "cube,cube" || !cubeSpatialOwnerName(member.Name, true) {
+			valid := cubeSpatialOwnerName(member.Name, true)
+			for _, name := range cubeOperatorNames {
+				valid = valid || member.Name == name
+			}
+			if record.Name != "cube" || !valid || member.Signature != "cube,cube" {
+				return invalid()
+			}
+		case "operator_class", "operator_family":
+			if record.Name != "cube" || member.Name != "cube_ops" || member.Signature != "btree" {
 				return invalid()
 			}
 		case "dictionary":

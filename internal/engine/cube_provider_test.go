@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -53,7 +54,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.5" || len(ext.Members) != 23 || base.Extension != ext.Address() || !base.SQLType.IsCube() || base.Owner != ext.Owner {
+	if ext.Version != "1.5" || len(ext.Members) != 38 || base.Extension != ext.Address() || !base.SQLType.IsCube() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	array, ok := view.LookupArray(base.SQLType)
@@ -67,7 +68,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 	if !stored.DependPinned(view, nil, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1007}) {
 		t.Fatal("builtin int4 array lost bootstrap pinning")
 	}
-	for i, address := range ext.Members {
+	for _, address := range ext.Members {
 		member := view.Get(address)
 		if member == nil || member.Namespace() != ext.TargetNamespace || catalog.ExtensionMembership(member) != ext.Address() {
 			t.Fatal("membership", address)
@@ -76,11 +77,22 @@ func TestCubeProviderIdentity(t *testing.T) {
 		if owner != ext.Owner {
 			t.Fatal("owner", address)
 		}
-		if i == 0 {
-			if err := (stored.TypeProvider{}).Validate(view, member); err != nil {
-				t.Fatal(err)
-			}
-		} else if err := (extension.CatalogProvider{address.ClassID}).Validate(view, member); err != nil {
+		var err error
+		switch member.Address().ClassID {
+		case ids.TypeClassID:
+			err = (stored.TypeProvider{}).Validate(view, member)
+		case ids.ProcedureClassID:
+			err = (extension.CatalogProvider{ids.ProcedureClassID}).Validate(view, member)
+		case ids.OperatorClassID:
+			err = (routine.OperatorProvider{}).Validate(view, member)
+		case ids.OperatorClassCatalogID:
+			err = (catalog.OperatorClassProvider{}).Validate(view, member)
+		case ids.OperatorFamilyClassID:
+			err = (catalog.OperatorFamilyProvider{Class: ids.OperatorFamilyClassID}).Validate(view, member)
+		default:
+			t.Fatal("unexpected cube member", address)
+		}
+		if err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -95,7 +107,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 		{"cube", cubeID + ",701", ids.OID(base.SQLType.ID())}, {"cube", cubeID + ",701,701", ids.OID(base.SQLType.ID())},
 		{"cube_dim", cubeID, 23}, {"cube_is_point", cubeID, 16},
 	} {
-		p, ok := view.Procedure(ext.Members[i+1])
+		p, ok := view.Procedure(view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: expected.name, Signature: expected.signature}))
 		if !ok || p.Name() != expected.name || string(p.Signature) != expected.signature || p.Result != expected.result {
 			t.Fatal("selected manifest signature/result", i, p, expected)
 		}
@@ -118,7 +130,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 23 || !arrayInternal {
+	if len(members) != 38 || !arrayInternal {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -147,7 +159,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 		t.Fatal("owner metadata comments", records, err)
 	}
 	record := records[0]
-	if record.Name != "cube" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 23 {
+	if record.Name != "cube" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 38 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {
@@ -163,11 +175,17 @@ func TestCubeProviderIdentity(t *testing.T) {
 		"cube_overlap(cube,cube)": true, "cube_contains(cube,cube)": true, "cube_contained(cube,cube)": true,
 		"cube_distance(cube,cube)": true, "distance_taxicab(cube,cube)": true, "distance_chebyshev(cube,cube)": true,
 		"&&": true, "@>": true, "<@": true, "<->": true, "<#>": true, "<=>": true,
+		"cube_eq(cube,cube)": true, "cube_ne(cube,cube)": true, "cube_lt(cube,cube)": true,
+		"cube_le(cube,cube)": true, "cube_gt(cube,cube)": true, "cube_ge(cube,cube)": true, "cube_cmp(cube,cube)": true,
+		"=": true, "<>": true, "<": true, "<=": true, ">": true, ">=": true,
+		"operator_class:cube_ops(btree)": true, "operator_family:cube_ops(btree)": true,
 	}
 	for _, member := range record.Members {
 		key := member.Name
 		if member.Kind == "procedure" {
 			key += "(" + member.Signature + ")"
+		} else if member.Kind == "operator_class" || member.Kind == "operator_family" {
+			key = member.Kind + ":" + key + "(" + member.Signature + ")"
 		}
 		if !wantSignatures[key] {
 			t.Fatal("nonportable or duplicate cube ownership signature", member)
@@ -194,6 +212,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 }
 
 func TestCubeProviderConflicts(t *testing.T) {
+	cubeComparisonProviderConflicts(t)
 	for _, collision := range []struct{ label, name, signature string }{
 		{"staged_codec_conflict", "cube_in", "2275"},
 		{"staged_constructor_conflict", "cube", "701"},
@@ -386,6 +405,8 @@ func TestCubeProviderConflicts(t *testing.T) {
 }
 
 func TestCubeProviderControls(t *testing.T) {
+	t.Run("comparison_manifest_remap", cubeComparisonProviderRemap)
+	t.Run("comparison_expression_remap", cubeComparisonExpressionRemap)
 	t.Run("real_import_remapping_and_retained_codec", func(t *testing.T) {
 		source, _, base := cubeUnitInstalled(t)
 		value, err := base.SQLType.Input(context.Background(), "(3,1),(1,4)", -1)

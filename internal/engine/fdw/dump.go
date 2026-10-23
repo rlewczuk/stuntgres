@@ -216,6 +216,8 @@ func DumpTable(ctx context.Context, view catalog.Read, roles authorization.Read,
 		}
 	}
 	b.WriteString(") SERVER " + catalog.QuoteIdentifier(server.Name()) + DumpOptions(r.Foreign.Options) + ";\n")
+	definition := b.String()
+	b.Reset()
 	if r.Comment != "" {
 		b.WriteString("COMMENT ON FOREIGN TABLE " + qualified + " IS " + dump.CommentLiteral(r.Comment) + ";\n")
 	}
@@ -227,5 +229,5 @@ func DumpTable(ctx context.Context, view catalog.Read, roles authorization.Read,
 	if owner.Name != "postgres" {
 		b.WriteString("ALTER FOREIGN TABLE " + qualified + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n")
 	}
-	return dump.Statement{Owner: "postgres", SQL: b.String()}, nil
+	return dump.Statement{Owner: "postgres", SQL: definition, FollowingSQL: b.String()}, nil
 }

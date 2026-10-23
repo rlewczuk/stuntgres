@@ -63,6 +63,19 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 	}
 	// Preserve the existing unsupported-input boundary without manufacturing a
 	// diagnostic-only class or consulting a static name/default fallback.
+	typeName := u.Type.DiagnosticName()
+	// Cube's installed-provider boundary uses catalog visibility. Preserve
+	// established DiagnosticName formatting for other input families.
+	if u.Type.IsCube() {
+		view := h.AccessView(auth).Catalog
+		if descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}); ok {
+			path, err := h.SearchNamespaces(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: descriptor.Name()}}}, ids.TypeClassID)
+			if err != nil {
+				return key, err
+			}
+			typeName = catalog.TypeDiagnosticNameAt(view, descriptor, path)
+		}
+	}
 	base := u.Type.BaseType()
 	if method == catalog.HashMethod && base.IsArray() || method == catalog.BtreeMethod && base.ID() == sqltype.NameArray {
 		return key, sqlError("0A000", "index operator class is unsupported")
@@ -75,13 +88,13 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 			return key, err
 		}
 		if !c.Accepts(u.Type) {
-			return key, sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*raw.Opclass), u.Type.DiagnosticName()))
+			return key, sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*raw.Opclass), typeName))
 		}
 		key.ExplicitClass = true
 		exists = true
 	}
 	if !exists {
-		return key, DefaultClassError(u.Type.DiagnosticName(), fact.Name())
+		return key, DefaultClassError(typeName, fact.Name())
 	}
 	var supportErr error
 	c, supportErr = routine.BindClassSupport(h.AccessView(auth).Catalog, c)

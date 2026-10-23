@@ -89,7 +89,7 @@ func (b *Binder) bindPredicate(raw parser.PredicateExpr, context ExpressionConte
 			return nil, err
 		}
 		equality := bound.(plan.ComparisonExpr)
-		return plan.DistinctExpr{Info: equality.Info, Left: equality.Left, Right: equality.Right, Equality: equality.Predicate, Not: raw.Kind == parser.IsNotDistinct}, nil
+		return plan.DistinctExpr{Info: equality.Info, RoutineRef: equality.RoutineRef, Left: equality.Left, Right: equality.Right, Equality: equality.Predicate, Not: raw.Kind == parser.IsNotDistinct}, nil
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid predicate kind")
 	}

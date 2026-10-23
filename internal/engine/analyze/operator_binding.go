@@ -208,7 +208,19 @@ func (b *Binder) selectCatalogOperator(set operatorCandidateSet, raw parser.Oper
 	return d, nil
 }
 
-func requireBuiltinComparison(d *catalog.Operator, pos parser.Position) error {
+func (b *Binder) requireBuiltinComparison(d *catalog.Operator, pos parser.Position) error {
+	if d.Extension != (ids.ObjectAddress{}) {
+		typ := b.Type(sqltype.ID(d.Left))
+		if typ.IsCube() && d.Left == d.Right {
+			procedure, err := b.cubeOperatorProcedure(d.Name(), typ)
+			if err != nil {
+				return err
+			}
+			if procedure.Address().ObjectID == d.Function {
+				return nil
+			}
+		}
+	}
 	if !routine.OperatorSeeded(d) {
 		return expr.ErrorAt("0A000", "custom operators are unsupported in this comparison context", pos)
 	}

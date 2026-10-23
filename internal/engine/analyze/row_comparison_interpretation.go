@@ -59,9 +59,15 @@ func (b *Binder) checkRowComparisonInterpretation(raw parser.OperatorExpr, pairs
 		if err != nil {
 			return err
 		}
+		if left.IsCube() && left == right {
+			if _, err := b.bindCubeOrdering(left.Usage()); err != nil {
+				return err
+			}
+			continue
+		}
 		formalLeft, formalRight := comparisonFormalID(left), comparisonFormalID(right)
 		selected := routine.OperatorRoutine(name, ids.OID(formalLeft), ids.OID(formalRight))
-		if declaration != nil && declaration == selected && rowBTreeFormalPair(formalLeft, formalRight) {
+		if declaration != nil && declaration.Builtin == selected && rowBTreeFormalPair(formalLeft, formalRight) {
 			continue
 		}
 		err = expr.ErrorAt("0A000", "could not determine interpretation of row comparison operator "+name, raw.Pos)

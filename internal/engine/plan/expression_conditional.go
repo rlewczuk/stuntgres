@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -16,6 +17,7 @@ type CaseBranch struct {
 	TestUsage   sqltype.Usage
 	TestContext string             // Original declared context; CASE itself always uses implicit coercion.
 	Routine     *catalog.Procedure // Selected equality declaration, never captured permission.
+	RoutineRef  ids.ObjectRef      // Exact installed declaration reference, mapped before retagging.
 }
 
 type CaseExpr struct {
@@ -76,6 +78,7 @@ func (e CaseExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type ConditionalExpr struct {
 	expr.Info
+	RoutineRef      ids.ObjectRef
 	Kind            parser.ConditionalKind
 	MissingOrdering bool
 	Args            []expr.Expr

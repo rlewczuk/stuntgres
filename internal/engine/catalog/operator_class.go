@@ -12,6 +12,7 @@ import (
 // OperatorClass is immutable catalog identity. StorageType zero means InputType.
 type OperatorClass struct {
 	ObjectAddress, ObjectNamespace         ids.ObjectAddress
+	Extension                              ids.ObjectAddress
 	ObjectRevision                         ids.DefinitionRevision
 	ObjectName                             string
 	Owner                                  authorization.PrincipalRef
@@ -143,6 +144,9 @@ func (OperatorClassProvider) Validate(v Read, d Descriptor) error {
 	c, ok := d.(*OperatorClass)
 	if !ok || c.Address().ClassID != ids.OperatorClassCatalogID || c.Address().ObjectID == 0 || c.Address().SubID != 0 || c.Revision() == 0 || c.Name() == "" || v.NameAddress(DescriptorNameKey(c)) != c.Address() {
 		return fmt.Errorf("stuntgres: invalid operator class authority")
+	}
+	if err := ValidateExtensionMembership(v, c); err != nil {
+		return err
 	}
 	if method, ok := v.AccessMethod(c.Method); !ok || method.MethodKind() != "i" {
 		return fmt.Errorf("stuntgres: invalid operator class method")

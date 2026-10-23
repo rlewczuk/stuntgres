@@ -18,9 +18,14 @@ func (b *Binder) groupingRoutineReference(usage sqltype.Usage) (ids.ObjectRef, b
 		return ids.ObjectRef{}, true, nil
 	}
 	base := usage.Type.BaseType()
-	var declaration *catalog.BuiltinRoutineDeclaration
+	var declaration *catalog.Procedure
 	if base.IsArray() {
-		declaration = routine.OperatorRoutine("=", 2277, 2277)
+		builtin := routine.OperatorRoutine("=", 2277, 2277)
+		var err error
+		declaration, _, err = b.captureBuiltinRoutineDeclaration(builtin)
+		if err != nil {
+			return ids.ObjectRef{}, false, err
+		}
 	} else {
 		var err error
 		declaration, _, err = b.comparisonRoutineDeclaration("=", base, base)
@@ -31,8 +36,8 @@ func (b *Binder) groupingRoutineReference(usage sqltype.Usage) (ids.ObjectRef, b
 	if declaration == nil {
 		return ids.ObjectRef{}, false, fmt.Errorf("stuntgres: missing query equality routine association")
 	}
-	_, ref, err := b.captureBuiltinRoutineDeclaration(declaration)
-	return ref, false, err
+	ref := b.BindingCatalog().Owner().Domain.Ref(b.BindingCatalog().Epoch(), declaration.Address())
+	return ref, false, nil
 }
 
 func (b *Binder) bindDistinctGrouping(expression expr.Expr) (plan.Grouping, error) {

@@ -209,7 +209,8 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 // physical artifacts to the new incarnation rather than retaining old pins or
 // evaluating declarations during publication. record, when set, receives each
 // retained candidate for the catalog stage.
-func TransportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *session.Journal, record func(ids.ObjectAddress, RootCandidate), address ids.ObjectAddress, store *storage.Relation) error {
+func TransportEmptyIndexStorage(ctx context.Context, view catalog.Read, changes *session.Journal, record func(ids.ObjectAddress, RootCandidate), address ids.ObjectAddress, store *storage.Relation) error {
+	snapshot := view.State()
 	parent, ok := snapshot.Relation(address)
 	if !ok || store == nil || len(store.Versions) != 0 {
 		return ids.ErrCatalogReplaced
@@ -228,13 +229,13 @@ func TransportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 		}
 		var root *storage.IndexRoot
 		if index.SQLIndex.Method == catalog.HashMethod {
-			binding, err := BindHashIndex(catalog.NewRead(nil, snapshot), parent, index.SQLIndex)
+			binding, err := BindHashIndex(view, parent, index.SQLIndex)
 			if err != nil {
 				return err
 			}
 			root = &storage.IndexRoot{Hash: &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
 		} else {
-			if err := bindIndexProvider(catalog.NewRead(nil, snapshot), parent, index.SQLIndex); err != nil {
+			if err := bindIndexProvider(view, parent, index.SQLIndex); err != nil {
 				return err
 			}
 			root = NewLogicalIndexRoot(index.SQLIndex, nil)

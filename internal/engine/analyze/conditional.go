@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -94,8 +95,7 @@ func (b *Binder) conditionalEquality(left, right ComparisonOperand, pos parser.P
 	if err != nil {
 		return nil, nil, sqltype.Comparison{}, nil, err
 	}
-	routine, _, err := b.captureBuiltinRoutineDeclaration(declaration)
-	return l, r, comparison, routine, err
+	return l, r, comparison, declaration, nil
 }
 
 func (b *Binder) bindConditional(raw parser.ConditionalExpr) (expr.Expr, error) {
@@ -150,8 +150,12 @@ func (b *Binder) bindConditional(raw parser.ConditionalExpr) (expr.Expr, error) 
 	if err != nil {
 		return nil, err
 	}
+	var routineRef ids.ObjectRef
 	if routine != nil {
-		info.RoutineReference = routine
+		info, routineRef, err = b.selectedComparisonRoutineInfo(info, routine)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if raw.Kind == parser.Greatest || raw.Kind == parser.Least {
 		comparison, missingOrdering, err = BindExtremaComparison(info.Usage, info.CollationConflict)
@@ -159,7 +163,7 @@ func (b *Binder) bindConditional(raw parser.ConditionalExpr) (expr.Expr, error) 
 			return nil, err
 		}
 	}
-	return plan.ConditionalExpr{Info: info, Kind: raw.Kind, MissingOrdering: missingOrdering, Args: args, Comparison: comparison}, nil
+	return plan.ConditionalExpr{Info: info, RoutineRef: routineRef, Kind: raw.Kind, MissingOrdering: missingOrdering, Args: args, Comparison: comparison}, nil
 }
 
 func (b *Binder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
@@ -195,6 +199,10 @@ func (b *Binder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 			input := plan.CaseTestExpr{Info: b.Info(test.ResultUsage(), test.SourcePosition(), expr.Properties{})}
 			arms[i].Test, arms[i].Condition, arms[i].Equality, arms[i].Routine, err = b.conditionalEquality(ComparisonOperand{Node: input}, o, arm.Pos)
 			if err == nil {
+				_, arms[i].RoutineRef, err = b.selectedComparisonRoutineInfo(expr.Info{}, arms[i].Routine)
+				if err != nil {
+					return nil, err
+				}
 				arms[i].TestUsage = arms[i].Test.ResultUsage()
 				if selected, selectionErr := catalog.SelectCoercion(b.BindingCatalog(), test.ResultUsage().BaseUsage(), arms[i].TestUsage.BaseUsage(), sqltype.Implicit); selectionErr != nil {
 					return nil, selectionErr

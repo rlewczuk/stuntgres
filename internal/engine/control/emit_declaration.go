@@ -49,7 +49,7 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 		if err := w.setOwner(view.Owner); err != nil {
 			return err
 		}
-		return w.emit(view.SQL)
+		return s.emitBound(w, castConsumer{Event: event}, view.SQL)
 	}
 	return emitDumpTable(ctx, s, w, s.table(oid))
 }
@@ -57,6 +57,7 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 // emitDumpStatement writes a domain, composite, routine or operator
 // declaration under its owner.
 func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration dump.Statement) error {
+	declaration.Binding = s.comparisonBindings[castConsumer{Event: dump.Event{OID: oid}}]
 	if domain := s.domainNodes[oid]; domain != nil && domain.SQLType.IsDomain() && declaration.Owner != "postgres" {
 		// Owner metadata does not imply schema CREATE/USAGE. Preserve
 		// its captured identity, construct as bootstrap, then transfer only
@@ -67,7 +68,7 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 		if err := w.setOwner("postgres"); err != nil {
 			return err
 		}
-		if err := w.emit(declaration.SQL); err != nil {
+		if err := w.emitDefinition(s.CatalogView, declaration); err != nil {
 			return err
 		}
 		qualified, err := regobj.TypeDeclaration(s.CatalogView, domain.SQLType.Usage())
@@ -79,7 +80,7 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 	if err := w.setOwner(declaration.Owner); err != nil {
 		return err
 	}
-	return w.emit(declaration.SQL)
+	return w.emitDefinition(s.CatalogView, declaration)
 }
 
 // emitDumpIndex writes an index definition, the physical primary-key
@@ -88,7 +89,7 @@ func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx OwnedStatement
 	if err := w.setOwner(idx.Owner); err != nil {
 		return err
 	}
-	if err := w.emit(idx.SQL); err != nil {
+	if err := s.emitBound(w, castConsumer{Event: dump.Event{OID: oid}}, idx.SQL); err != nil {
 		return err
 	}
 	original := s.OriginalCatalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
@@ -148,7 +149,7 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 	if err != nil {
 		return err
 	}
-	if err := w.emit(text); err != nil {
+	if err := s.emitBound(w, castConsumer{Event: dump.Event{OID: t.Descriptor.Address().ObjectID}}, text); err != nil {
 		return err
 	}
 	if inheritedOwnerReplay {
@@ -162,7 +163,9 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 	if err := w.emit(dumpRelationOptionsSQL(qualified, t.Descriptor.StorageOptions)); err != nil {
 		return err
 	}
-	if err := t.EmitInheritedDefaults(ctx, s.OriginalCatalog, s.DeferDefaults, w.emit); err != nil {
+	if err := t.EmitInheritedDefaults(ctx, s.OriginalCatalog, s.DeferDefaults, func(attribute int32, sql string) error {
+		return s.emitBound(w, castConsumer{Event: dump.Event{OID: t.Descriptor.Address().ObjectID}, Attribute: attribute}, sql)
+	}); err != nil {
 		return err
 	}
 	if err := t.EmitNoInheritNotNull(w.emit, w.setOwner); err != nil {
@@ -256,13 +259,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelatio
 		}
 		localElements := 0
 		for i, c := range t.Columns {
-			provenance := catalog.InheritedColumn{Local: true, ExplicitDefault: true, ExplicitGeneration: true}
-			if t.Descriptor.Inheritance != nil {
-				provenance = t.Descriptor.Inheritance.Columns[t.Attributes[i]]
-			}
-			if effective, exists := t.Recipes[t.Attributes[i]]; exists {
-				provenance = effective
-			}
+			provenance := t.ColumnProvenance(t.Attributes[i])
 			if !provenance.Local {
 				continue
 			}

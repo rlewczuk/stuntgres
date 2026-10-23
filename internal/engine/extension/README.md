@@ -35,15 +35,17 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `catalog.ExtensionMembership`. `extension_type_validation.go` validates an
   installed codec's array through the type provider registered in the catalog
   owner.
-- **Cube spatial members** (`cube_spatial.go`, `cube_spatial_call.go`): cube owns
-  its scalar type, two codecs, six constructors, two inquiries, six binary spatial
-  procedures and six operators as one validated 23-member manifest. Existing
-  routine order is retained before spatial procedure/operator tails; offsets and
-  member count derive from the routine tables. Operators carry real Extension
-  membership. Owner signatures replace every cube formal with symbolic `cube`,
-  preserving mixed constructor signatures and spatial `cube,cube` signatures.
-  `ImportOwners` enforces the same table-derived member count as staging and
-  owner-record decoding.
+- **Cube members** (`cube_provider.go`, `cube_spatial.go`, `cube_spatial_call.go`):
+  one atomic installation validates all 38 direct members. The selected comparison
+  graph keeps its 18-member prefix, constructors/inquiries follow, then the
+  existing spatial procedure/operator tails. Starts and the complete
+  `CubeMemberCount` derive from the routine tables; each table retains its feature
+  authority. Operators carry real Extension membership. Owner signatures replace
+  every cube formal with symbolic `cube`, preserving mixed constructor and binary
+  signatures. Import, staging, provider validation and owner decoding share the
+  complete manifest authority.
+  `RemapDescriptor` delegates class, family and class-owned row relocation to the
+  catalog remappers, preserving immutable source descriptors.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
   `ValidateIntaggIdentity`, `IntaggRecipeFunction`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured

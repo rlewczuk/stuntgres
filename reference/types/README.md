@@ -187,7 +187,12 @@ COPY test in reference/dml.
 - Comparison operators, null/distinct predicates: `RUN='^TestReferenceCompare(Null|Ops)'`
 - `information_schema` domains: `RUN='^TestReferenceInfo(CardinalNumber|CharacterData|SQLIdentifier|TimeStamp|YesOrNo)'`
 
-### Cube constructor fixtures
+### Cube fixtures
+
+Cube scenarios share `cubeScenario`, `cubeSelect` and the metadata/control helpers.
+Use `cubeSelect` only for actual cube columns; Boolean and integer comparison
+results use ordinary fixture projections. Assert raw cells and metadata before
+normalization, including empty and NULL-only results.
 
 `cube_constructor_helpers_test.go` owns the shared constructor scenario and
 mixed cube/integer/Boolean result adapter. `cubeConstructorScenario` borrows and
@@ -203,6 +208,34 @@ catalog without retained import permission.
 Constructor controls preserve logical ownership across replacement and actual
 dump replay. PostgreSQL replay uses one pinned connection, resets session/role
 authorization, and cleans up created objects and roles before returning it.
-The Earth retained-TEMP fixture creates a real namespace at the source earth
-type's OID; replacement must remint the imported type without changing that
-live namespace's identity. Fixtures do not depend on prerequisite member counts.
+The Earth retained-TEMP fixture retains real TEMP objects until an observed
+identity occupies the source earth type's OID; replacement must remint the
+imported type without changing that live object's or namespace's identity.
+Fixtures do not depend on prerequisite member counts.
+
+The comparison graph has 18 direct extension members: the scalar, nine
+strict immutable procedures (text input/output, six comparisons and `cube_cmp`),
+six comparison operators, and the default B-tree `cube_ops` class and family.
+The complete installed manifest also includes eight constructor/dimension/point
+routines and six spatial routine/operator pairs, for 38 direct members. The
+associated `_cube` catalog identity remains lookup-only and internally dependent,
+not array storage. Equality is merge-capable, not HASHES; there is no cube
+hash-index class. Native receive/send metadata stays zero. Constructor and spatial
+fixtures cover their own overloads; GiST, cube arrays and binary COPY remain
+outside this fixture contract.
+
+Catalog probes relate exact qualified procedure/operator signatures and both
+argument identities, without fixed dynamic OIDs. Keep probes bounded to a single
+catalog or derived identities rather than expanding catalog products.
+
+Control scenarios retain readers and compare same/fresh-driver results, settings,
+ownership and future writes. Forced remapping requires measured retained TEMP
+collisions, not permanent allocator spacers. Replay the actual emitted SQL on a
+dedicated PostgreSQL connection; refresh materialized views explicitly because
+native snapshot comments do not populate them.
+
+Declaration-window witnesses distinguish written expressions from inherited or
+omitted defaults. Preserve both valid inherited replay and malformed-window
+rejection, and prove inaccessible namespace authority with real denied lookups
+rather than grants or owner substitutions. See the
+[stored-expression contract](../../internal/engine/stored/README.md#recipe-rules).

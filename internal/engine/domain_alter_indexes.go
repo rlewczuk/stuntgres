@@ -53,7 +53,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		}
 		positions[address] = selected
 	}
-	roots, err := snapshot.TransportRows(stage.domainAlter.AlterContext(), next, stores, positions, true)
+	roots, err := snapshot.TransportRows(stage.domainAlter.AlterContext(), stage.Base.WithState(next), stores, positions, true)
 	if err != nil {
 		return err
 	}

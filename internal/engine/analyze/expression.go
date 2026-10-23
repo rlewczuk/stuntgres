@@ -1994,13 +1994,14 @@ func (b *Binder) bindComparisonOperandCandidates(raw parser.OperatorExpr, operat
 		namespace = raw.Name.Parts[0].Text
 	}
 	info := b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, p)
+	var routineRef ids.ObjectRef
 	if declaration != nil {
-		info, err = b.selectedBuiltinRoutineInfo(info, declaration)
+		info, routineRef, err = b.selectedComparisonRoutineInfo(info, declaration)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return plan.ComparisonExpr{Info: info, Left: l, Right: r, Predicate: predicate, Operator: name, Namespace: namespace}, nil
+	return plan.ComparisonExpr{Info: info, RoutineRef: routineRef, Left: l, Right: r, Predicate: predicate, Operator: name, Namespace: namespace}, nil
 }
 
 func arithmeticName(name string) bool {

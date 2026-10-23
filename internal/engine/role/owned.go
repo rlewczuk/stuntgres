@@ -140,13 +140,7 @@ func PlanOwned(view access.View, stmt parser.Statement, describe func(ids.Object
 			pending[a] = true
 		}
 		for _, a := range roots {
-			var extension ids.ObjectAddress
-			switch d := view.Catalog.Get(a).(type) {
-			case *catalog.Procedure:
-				extension = d.Extension
-			case *catalog.TSDictionary:
-				extension = d.Extension
-			}
+			extension := catalog.ExtensionMembership(view.Catalog.Get(a))
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
 				d := view.Catalog.MustExtension(extension)
 				return OwnedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + describe(a) + " because extension " + catalog.DependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + catalog.DependencyIdentifier(d.Name()) + " instead."}

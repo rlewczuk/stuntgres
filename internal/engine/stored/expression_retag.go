@@ -85,50 +85,59 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 			return nil, false, failure
 		}
 		if view.State() != nil {
-			address := captured.Address()
-			switch installed := node.(type) {
-			case plan.SQLRoutineExpr:
-				address = installed.Ref.Address
-			case plan.InstalledTextExpr:
-				address = installed.Ref.Address
-			case plan.InstalledPgrowlocksExpr:
-				address = installed.Ref.Address
-			case plan.InstalledCryptoExpr:
-				address = installed.Ref.Address
-			case plan.InstalledCubeSpatialExpr:
-				address = installed.Ref.Address
-			case plan.InstalledUUIDOsspExpr:
-				address = installed.Ref.Address
-			case plan.InstalledMetaphoneExpr:
-				address = installed.Ref.Address
-			case plan.InstalledLevenshteinExpr:
-				address = installed.Ref.Address
-			case plan.InstalledSoundexExpr:
-				address = installed.Ref.Address
-			case plan.InstalledCubeExpr:
-				address = installed.Ref.Address
-			case plan.UnnestExpr:
-				if installed.Procedure != nil {
-					address = installed.Ref.Address
+			if capture, isCube := cubeComparisonCaptureOf(node); isCube {
+				current, failure := remapCubeComparisonRoutine(view, reader, captured, capture, retainedType)
+				if failure != nil {
+					return nil, false, failure
 				}
+				changed = changed || current != captured
+				info.RoutineReference = current
+			} else {
+				address := captured.Address()
+				switch installed := node.(type) {
+				case plan.SQLRoutineExpr:
+					address = installed.Ref.Address
+				case plan.InstalledTextExpr:
+					address = installed.Ref.Address
+				case plan.InstalledPgrowlocksExpr:
+					address = installed.Ref.Address
+				case plan.InstalledCryptoExpr:
+					address = installed.Ref.Address
+				case plan.InstalledCubeSpatialExpr:
+					address = installed.Ref.Address
+				case plan.InstalledUUIDOsspExpr:
+					address = installed.Ref.Address
+				case plan.InstalledMetaphoneExpr:
+					address = installed.Ref.Address
+				case plan.InstalledLevenshteinExpr:
+					address = installed.Ref.Address
+				case plan.InstalledSoundexExpr:
+					address = installed.Ref.Address
+				case plan.InstalledCubeExpr:
+					address = installed.Ref.Address
+				case plan.UnnestExpr:
+					if installed.Procedure != nil {
+						address = installed.Ref.Address
+					}
+				}
+				descriptor, _ := catalog.DescriptorAt(view, reader, address)
+				current, ok := descriptor.(*catalog.Procedure)
+				sameSignature := ok && current.Signature == captured.Signature
+				if ok && captured.SQL != nil {
+					sameSignature = sameMappedSQLRoutine(current, captured, retainedType)
+				}
+				if cube, cubeCall := node.(plan.InstalledCubeExpr); cubeCall {
+					sameSignature = ok && sameMappedCubeSignature(cube, current, retainedType)
+				} else if installed, spatialCall := node.(plan.InstalledCubeSpatialExpr); spatialCall {
+					mapped := retainedType(installed.Args[0].ResultUsage().Type)
+					sameSignature = ok && extension.CubeProviderOf(current) == extension.StockCube && extension.CubeProviderOf(captured) == extension.StockCube && mapped != nil && mapped.IsCube() && current.Signature == extension.CubeBinarySignature(mapped.ID())
+				}
+				if !ok || current.Name() != captured.Name() || !sameSignature || current.RoutineKind != captured.RoutineKind || current.Builtin != captured.Builtin {
+					return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
+				}
+				changed = changed || current != captured
+				info.RoutineReference = current
 			}
-			descriptor, _ := catalog.DescriptorAt(view, reader, address)
-			current, ok := descriptor.(*catalog.Procedure)
-			sameSignature := ok && current.Signature == captured.Signature
-			if ok && captured.SQL != nil {
-				sameSignature = sameMappedSQLRoutine(current, captured, retainedType)
-			}
-			if cube, cubeCall := node.(plan.InstalledCubeExpr); cubeCall {
-				sameSignature = ok && sameMappedCubeSignature(cube, current, retainedType)
-			} else if installed, spatialCall := node.(plan.InstalledCubeSpatialExpr); spatialCall {
-				mapped := retainedType(installed.Args[0].ResultUsage().Type)
-				sameSignature = ok && extension.CubeProviderOf(current) == extension.StockCube && extension.CubeProviderOf(captured) == extension.StockCube && mapped != nil && mapped.IsCube() && current.Signature == extension.CubeBinarySignature(mapped.ID())
-			}
-			if !ok || current.Name() != captured.Name() || !sameSignature || current.RoutineKind != captured.RoutineKind || current.Builtin != captured.Builtin {
-				return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
-			}
-			changed = changed || current != captured
-			info.RoutineReference = current
 		}
 		// A catalog-free structural rewrite preserves this already-owned
 		// identity. It neither relocates the callable nor admits its execution.
@@ -244,6 +253,23 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 			return nil, false, err
 		}
 		rebound = n
+	case plan.CubeComparisonExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if err != nil {
+			return node, false, err
+		}
+		if view.State() != nil {
+			proc := info.RoutineReference.(*catalog.Procedure)
+			namespace := view.Get(proc.Namespace())
+			if namespace == nil {
+				return nil, false, fmt.Errorf("stuntgres: missing remapped cube namespace")
+			}
+			changed = changed || n.Namespace != namespace.Name()
+			n.Namespace = namespace.Name()
+		}
+		if changed {
+			rebound, err = n.Rebuild(info, n.Args[:])
+		}
 	case plan.InstalledSoundexExpr:
 		n.Args = children(n.Args)
 		if err != nil {
@@ -648,9 +674,19 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 			arm.Test = child(arm.Test)
 			arm.Condition, arm.Result = child(arm.Condition), child(arm.Result)
 			if arm.Routine != nil && view.State() != nil {
-				current, ok := view.Procedure(arm.Routine.Address())
-				if !ok || !exec.SameRoutineDeclaration(current, arm.Routine) {
-					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
+				var current *catalog.Procedure
+				if old.TestUsage.Type.IsCube() || old.Condition.ResultUsage().Type.IsCube() || old.RoutineRef != (ids.ObjectRef{}) {
+					var failure error
+					current, failure = remapCubeComparisonRoutine(view, reader, old.Routine, cubeComparisonCapture{ref: old.RoutineRef, left: old.TestUsage.Type, right: old.Condition.ResultUsage().Type, name: "cube_eq", result: sqltype.Bool}, retainedType)
+					if failure != nil {
+						return nil, false, failure
+					}
+				} else {
+					var ok bool
+					current, ok = view.Procedure(arm.Routine.Address())
+					if !ok || !exec.SameRoutineDeclaration(current, arm.Routine) {
+						return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
+					}
 				}
 				changed = changed || arm.Routine != current
 				arm.Routine = current

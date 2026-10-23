@@ -30,7 +30,8 @@ type RemintBase struct {
 // Imported storage is private to replacement. Exact retained TEMP storage keeps
 // its internal lifetime and row identities. Allocator frontiers advance only
 // after comparison, root construction and cancellation have all succeeded.
-func RemintStorage(ctx context.Context, next *catalog.State, base RemintBase, relations map[ids.ObjectAddress]*storage.Relation, snapshot *Snapshot) (map[ids.ObjectAddress]*storage.IndexRoot, uint64, uint64, error) {
+func RemintStorage(ctx context.Context, view catalog.Read, base RemintBase, relations map[ids.ObjectAddress]*storage.Relation, snapshot *Snapshot) (map[ids.ObjectAddress]*storage.IndexRoot, uint64, uint64, error) {
+	next := view.State()
 	retained := catalog.NewState(0)
 	for address, descriptor := range next.Descriptors() {
 		namespace, temporary := next.Namespace(descriptor.Namespace())
@@ -85,11 +86,11 @@ func RemintStorage(ctx context.Context, next *catalog.State, base RemintBase, re
 		// belong to the replaced incarnation and must not be inherited.
 		relation.Maintenance = storage.Maintenance{Live: int64(len(relation.Versions))}
 	}
-	roots, err := snapshot.Transport(ctx, next, relations, positions)
+	roots, err := snapshot.Transport(ctx, view, relations, positions)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	validationView := access.View{Catalog: catalog.NewRead(nil, next)}
+	validationView := access.View{Catalog: view}
 	for address, descriptor := range next.Descriptors() {
 		idx, ok := descriptor.(*catalog.Relation)
 		if !ok || idx.SQLIndex == nil || !idx.SQLIndex.Ready || !idx.SQLIndex.Live {

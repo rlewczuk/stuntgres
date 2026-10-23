@@ -117,6 +117,8 @@ The engine calls `ClassKind`, `ClassACL`, `AttributeMetadata`,
 helpers such as `CollectDepend`, `ClassRow`, `AttributeRow`, `TypeFacts` and
 `ConstraintOperator`. `CollationActualVersion` reads actual provider
 authority, never the recorded `Version`.
+`CollectDepend` emits each direct extension-membership edge through
+`catalog.ExtensionMembership`; per-class branches add only their other edges.
 
 ## Relations with special rules
 

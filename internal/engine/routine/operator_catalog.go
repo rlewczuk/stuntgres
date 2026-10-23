@@ -31,6 +31,9 @@ func (OperatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) 
 	if _, ok := v.Namespace(d.Namespace()); !ok {
 		return fmt.Errorf("stuntgres: invalid operator namespace")
 	}
+	if err := catalog.ValidateExtensionMembership(v, d); err != nil {
+		return err
+	}
 	for _, id := range []ids.OID{d.Left, d.Right} {
 		if id != 0 {
 			if _, ok := v.LookupType(sqltype.ID(id)); !ok {

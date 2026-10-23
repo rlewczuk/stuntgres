@@ -3,6 +3,8 @@ package pgcatalog
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -48,6 +50,9 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		if membership := catalog.ExtensionMembership(descriptor); membership != (ids.ObjectAddress{}) {
+			add(descriptor.Address(), membership, 'e')
+		}
 		switch d := descriptor.(type) {
 		case *catalog.AccessMethod:
 			if !catalog.AccessMethodSeeded(d) {
@@ -72,7 +77,6 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				}
 			}
 		case *catalog.Operator:
-			add(d.Address(), d.Extension, 'e')
 			if !runtime.OperatorSeeded(d) {
 				for _, address := range runtime.OperatorDependencies(view, d) {
 					add(d.Address(), address, 'n')
@@ -94,7 +98,6 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				add(d.Address(), required, 'n')
 			}
 		case *catalog.Procedure:
-			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
 			for address := range catalog.OwnedAggregateDependencies(d) {
 				add(d.Address(), address, 'n')
@@ -122,14 +125,21 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 					ext := view.MustExtension(d.Extension)
 					add(d.Address(), ext.Members[0], 'n')
 				}
+			} else if d.Implementation != nil {
+				if ext, ok := view.Extension(d.Extension); ok && len(ext.Members) > 0 {
+					base, ok := view.Type(ext.Members[0])
+					left, right, pair := strings.Cut(string(d.Signature), ",")
+					id, err := strconv.ParseUint(left, 10, 32)
+					if ok && base.SQLType.IsCube() && pair && left == right && err == nil && ids.OID(id) == base.Address().ObjectID {
+						add(d.Address(), base.Address(), 'n')
+					}
+				}
 			}
 		case *catalog.TSTemplate:
-			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Init, 'n')
 			add(d.Address(), d.Lexize, 'n')
 		case *catalog.TSDictionary:
-			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Template, 'n')
 		case *catalog.Collation:
@@ -145,7 +155,6 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			if runtime.Pinned(view, d.Address()) {
 				continue
 			}
-			add(d.Address(), d.Extension, 'e')
 			if d.SQLType.IsArray() {
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}, 'i')
 			} else if d.OwningRelation != (ids.ObjectAddress{}) && !d.SQLType.IsComposite() {

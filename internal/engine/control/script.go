@@ -25,6 +25,7 @@ type dumpScript struct {
 	rawFloat4                   bool
 	rawHelper, rawFinalDeferred bool
 	castWindows                 map[castConsumer][]castReplay
+	comparisonBindings          map[castConsumer]*dump.DefinitionBinding
 	deferredDomainChecks        map[ids.OID]map[string]bool
 
 	policyGroups, ruleGroups, securityGroups  []dump.Group
@@ -305,6 +306,9 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	// Deferral, inherited recipes and invalid-check phases are now final.
 	// Attach windows to the events that actually emit each expression.
 	if err := s.prepareCastWindows(); err != nil {
+		return nil, err
+	}
+	if err := s.prepareComparisonBindings(ctx); err != nil {
 		return nil, err
 	}
 	routine.NormalizeOperatorDumpPredecessors(s.CatalogView, s.Graph)

@@ -43,6 +43,11 @@ place, builds the script and writes it; the root never reads the capture again.
   export the feature's dump function and name it at the matching table position.
 - **Adapters** (`resolver.go`, `presenter.go`): `Resolver` (`dump.Resolver`)
   and `Presenter` (`dump.Presenter`) read only their arguments.
+  Extension-member predecessors collapse to their actual owning extension;
+  internally owned family rows first collapse to their class. Lifetime comes
+  from the extension's target namespace: a missing namespace is invalid, while
+  a valid TEMP installation gets the same atomic nonportable rejection as
+  extension collection, independent of descriptor traversal order.
 - **Large objects** (`largeobject.go`): a fixed-OID-sorted list outside the
   relation graph; owner and ACL formatting is preflighted before writer I/O.
 

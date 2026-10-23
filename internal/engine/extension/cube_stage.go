@@ -12,8 +12,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Stage installs the scalar, associated array, constructors/inquiries and
-// spatial procedures/operators atomically with genuine catalog identities.
+// Stage allocates the complete scalar, routine, comparison and spatial
+// manifest before creating descriptors. The caller publishes the stage once.
 func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "cube")
 	if err != nil {
@@ -22,13 +22,18 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "cube") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: CubeTypeContext}
 	}
-	ext.Members = make([]ids.ObjectAddress, cubeMemberCount)
+	ext.Members = make([]ids.ObjectAddress, CubeMemberCount)
 	for i := range ext.Members {
 		class := ids.ProcedureClassID
-		if i == 0 {
+		switch {
+		case i == 0:
 			class = ids.TypeClassID
-		} else if i >= cubeSpatialOperatorStart {
+		case i >= 10 && i < 16 || i >= cubeSpatialOperatorStart:
 			class = ids.OperatorClassID
+		case i == 16:
+			class = ids.OperatorFamilyClassID
+		case i == 17:
+			class = ids.OperatorClassCatalogID
 		}
 		oid, err := stage.AllocateOID()
 		if err != nil {
@@ -63,7 +68,7 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 			return err
 		}
 		name, signature, result := spec.name, spec.signature(typ.ID()), spec.resultOID(typ.ID())
-		proc := &catalog.Procedure{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: ext.Members[cubeRoutineMember(i)], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {
@@ -76,6 +81,9 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 		if err := stage.Create(proc); err != nil {
 			return err
 		}
+	}
+	if err := p.stageComparisons(stage, ext, owner, typ); err != nil {
+		return err
 	}
 	return p.stageSpatial(stage, ext, owner, typ)
 }

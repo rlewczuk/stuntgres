@@ -148,18 +148,18 @@ func emitDumpMaterializedSnapshots(ctx context.Context, s *dumpScript, w *dumpWr
 }
 
 func emitDumpPolicies(_ context.Context, s *dumpScript, w *dumpWriter) error {
-	return emitDumpGroups(w, s.policyGroups)
+	return emitDumpGroups(s.CatalogView, w, s.policyGroups)
 }
 
 func emitDumpRowSecurity(_ context.Context, s *dumpScript, w *dumpWriter) error {
-	return emitDumpGroups(w, s.securityGroups)
+	return emitDumpGroups(s.CatalogView, w, s.securityGroups)
 }
 
 // emitDumpRules writes user rules post-data: importing ordinary INSERT rows
 // must not rewrite fixture data before every relation and original stored
 // row exists.
 func emitDumpRules(_ context.Context, s *dumpScript, w *dumpWriter) error {
-	return emitDumpGroups(w, s.ruleGroups)
+	return emitDumpGroups(s.CatalogView, w, s.ruleGroups)
 }
 
 func emitDumpForeignDefaults(_ context.Context, s *dumpScript, w *dumpWriter) error {
@@ -170,7 +170,7 @@ func emitDumpForeignDefaults(_ context.Context, s *dumpScript, w *dumpWriter) er
 		return err
 	}
 	for _, statement := range s.foreignDefaultStatements {
-		if err := s.emitCastConsumer(w, statement.Site, "postgres", func() error { return w.emit(statement.SQL) }); err != nil {
+		if err := s.emitCastConsumer(w, statement.Site, "postgres", func(emit func(string) error) error { return emit(statement.SQL) }); err != nil {
 			return err
 		}
 	}
@@ -237,12 +237,12 @@ func emitDumpLines(w *dumpWriter, lines []string) error {
 }
 
 // emitDumpGroups writes table statement groups, each under its owner.
-func emitDumpGroups(w *dumpWriter, groups []dump.Group) error {
+func emitDumpGroups(view catalog.Read, w *dumpWriter, groups []dump.Group) error {
 	for _, group := range groups {
 		if err := w.setOwner(group.Owner); err != nil {
 			return err
 		}
-		if err := w.emit(group.SQL); err != nil {
+		if err := w.emitDefinition(view, dump.Statement{SQL: group.SQL, Binding: group.Binding}); err != nil {
 			return err
 		}
 	}

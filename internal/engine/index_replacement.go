@@ -22,5 +22,5 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.S
 // published engine state. The caller holds Engine.mu.
 func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *index.Snapshot, preserveProvenance bool) (map[ids.ObjectAddress]*storage.IndexRoot, uint64, uint64, error) {
 	base := index.RemintBase{Catalog: e.catalog.state, Relations: e.storage.Relations, Roots: e.storage.IndexRoots, NextRow: e.storage.RowFrontier(), NextVersion: e.storage.VersionFrontier(), Frontier: e.visibility.CommitSeq(), PreserveProvenance: preserveProvenance}
-	return index.RemintStorage(ctx, next, base, relations, snapshot)
+	return index.RemintStorage(ctx, e.catalog.read(next), base, relations, snapshot)
 }

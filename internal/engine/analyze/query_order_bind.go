@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func OrderOrdinal(raw parser.Expr, width int, clause string) (int, bool, error) {
@@ -146,7 +145,7 @@ func (b *Binder) FinishOrder(root plan.Node, keys []plan.SortKey, projection []e
 			key.TargetIdentity = key.OutputOrdinal
 		}
 		if !key.Expression.CollationIndeterminate() && !key.Comparison.OrderingBound() {
-			provider, err := sqltype.BindOrdering(key.Expression.ResultUsage())
+			provider, err := b.bindOrdering(key.Expression.ResultUsage())
 			if err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
 					positioned := *diagnostic

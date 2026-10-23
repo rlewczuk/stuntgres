@@ -352,7 +352,15 @@ func SystemAttributeType(name string) (ID, string) {
 
 // IndexSupport is an immutable catalog-selected member, never a type resolver.
 // Routine is checked against the native provider's released formal signature.
+type IndexSupportProvider uint8
+
+const (
+	BuiltinIndexSupport IndexSupportProvider = iota
+	CubeIndexSupport
+)
+
 type IndexSupport struct {
+	Provider                             IndexSupportProvider
 	Family, Member, Routine, Left, Right uint32
 	Revision                             uint64
 	FamilyRevision, RoutineRevision      uint64
@@ -390,6 +398,20 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 		return IndexComparison{}, failure("0A000", "index operator class is unsupported")
 	}
 	s := c.Support(1)
+	if s.Provider == CubeIndexSupport {
+		if !u.Type.BaseType().IsCube() || c.input != u.Type.BaseType().ID() || c.method != 403 || s.Family != c.family || s.Left != uint32(c.input) || s.Right != s.Left || s.Member == 0 || s.Routine == 0 || s.Revision == 0 || s.FamilyRevision == 0 || s.RoutineRevision == 0 || !u.validCollation() {
+			return IndexComparison{}, fmt.Errorf("invalid installed cube index support")
+		}
+		p, err := BindComparison(u.Type, u.Type, u.Collation, false)
+		if err != nil {
+			return IndexComparison{}, err
+		}
+		p.orderingBound, p.defaultBtreeOpclass = true, c.OID()
+		return IndexComparison{comparison: p, input: c.input, routine: s.Routine, support: s}, nil
+	}
+	if s.Provider != BuiltinIndexSupport {
+		return IndexComparison{}, fmt.Errorf("unknown index support provider")
+	}
 	n, ok := NativeIndexRoutineByOID(s.Routine)
 	if !ok || n.Kind != IndexCompareRoutine || n.Left != s.Left || n.Right != s.Right || s.Member == 0 {
 		return IndexComparison{}, fmt.Errorf("index comparison has no registered native support")
@@ -407,6 +429,8 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 }
 
 func (p IndexComparison) Support() IndexSupport { return p.support }
+
+func (p IndexComparison) DatumComparison() Comparison { return p.comparison }
 
 // SameOperation ignores ACL/name-only descriptor revisions. Captures still
 // retain those revisions, but metadata publication is not an ordering change.
@@ -432,6 +456,9 @@ func (p *IndexComparison) Compare(ctx context.Context, a, b Value, input InputEn
 	}
 	if a.typ != p.comparison.left || b.typ != p.comparison.right || a.null || b.null || !a.typ.Concrete() {
 		return 0, fmt.Errorf("invalid index comparison values")
+	}
+	if p.support.Provider == CubeIndexSupport {
+		return p.comparison.Compare(ctx, a, b, input)
 	}
 	if p.routine == 351 {
 		return nativeInt4Compare(a.integer, b.integer), nil

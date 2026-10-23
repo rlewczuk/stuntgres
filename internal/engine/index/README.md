@@ -24,6 +24,8 @@ builds a binder.
   metadata-only callbacks are not callable grants. Validation dispatches on the
   physical implementation while keys keep the exact SQL method identity and
   diagnostics use the declared method name.
+  The installed cube boundary formats type visibility from the captured catalog;
+  unrelated input families retain their established DiagnosticName formatting.
 - **Keys, roots and programs** (`index.go`, `hash*.go`, `gist.go`,
   `predicate.go`, `expression.go`, `program.go`, `clauses.go`, `options.go`,
   `property.go`): `BindIndexOrdering`, `BuildIndexRoot`, `MergeIndexRoot`,
@@ -158,6 +160,15 @@ projection never changes.
   target and descendants with actual equality; virtual (partitioned) indexes own
   metadata only and leaf providers enforce conflicts. CREATE and EXCLUDE
   ADD/DROP reuse staged recursive index production.
+
+Snapshot `Transport`/`TransportRows`, `RemintStorage` and
+`TransportEmptyIndexStorage` consume the actual `catalog.Read`, not an ownerless
+view reconstructed from its state. Imported and generation-rebound keys require
+the same registered installed-provider authority as ordinary binding; transport
+does not infer a stock provider from a name or retained discriminator. The
+caller supplies its existing owner with the candidate state (`WithState`).
+Captured keys, source rows and index expressions remain immutable; this changes
+authority retention, not predicate/expression evaluation during transport.
 
 ## What stays in the engine
 

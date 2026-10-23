@@ -2,6 +2,7 @@ package plan
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -122,6 +123,7 @@ func (e TruthTestExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type DistinctExpr struct {
 	expr.Info
+	RoutineRef  ids.ObjectRef
 	Left, Right expr.Expr
 	Equality    sqltype.ComparisonPredicate
 	Not         bool

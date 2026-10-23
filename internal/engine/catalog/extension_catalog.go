@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -127,9 +128,8 @@ func DescriptorNameKey(d Descriptor) ids.NameKey {
 	return key
 }
 
-// ExtensionMembership returns the extension that d claims to belong to, or
-// the zero address. Installed types, procedures, operators and text search
-// templates and dictionaries carry membership.
+// ExtensionMembership returns the extension claimed by a direct member, or
+// the zero address. Operator-family rows instead depend internally on a class.
 func ExtensionMembership(d Descriptor) ids.ObjectAddress {
 	switch d := d.(type) {
 	case *Type:
@@ -142,6 +142,28 @@ func ExtensionMembership(d Descriptor) ids.ObjectAddress {
 		return d.Extension
 	case *TSDictionary:
 		return d.Extension
+	case *OperatorClass:
+		return d.Extension
+	case *OperatorFamily:
+		return d.Extension
 	}
 	return ids.ObjectAddress{}
+}
+
+// ValidateExtensionMembership checks the reciprocal direct-member edge.
+func ValidateExtensionMembership(view Read, d Descriptor) error {
+	address := ExtensionMembership(d)
+	if address == (ids.ObjectAddress{}) {
+		return nil
+	}
+	ext, ok := view.Extension(address)
+	if !ok || ext.TargetNamespace != d.Namespace() {
+		return fmt.Errorf("stuntgres: invalid extension member placement")
+	}
+	for _, member := range ext.Members {
+		if member == d.Address() {
+			return nil
+		}
+	}
+	return fmt.Errorf("stuntgres: missing reciprocal extension membership")
 }

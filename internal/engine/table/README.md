@@ -129,6 +129,10 @@ ALTER stage.
   parent provider.
 - CHECK attachment and CHECK-origin validation share one cooked
   deparsed-definition comparator; `SameInheritedExpression` stays structural.
+- `DumpRelation.ColumnProvenance` supplies the same effective recipe ownership to
+  CREATE emission and comparison-binding collection. Unchanged inherited recipes
+  do not become CREATE expressions; actual deferred defaults and placeholder
+  generation repairs keep their own attribute-specific ALTER sites.
 
 ## What stays in the engine
 

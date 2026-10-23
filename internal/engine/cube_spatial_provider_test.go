@@ -227,9 +227,40 @@ func TestCubeSpatialProviderControls(t *testing.T) {
 		next.SetDescriptor(destination, descriptor)
 		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
+	// The combined installation also owns internal B-tree strategy/support rows.
+	// Keep their row identities while remapping every reference with the manifest.
+	for address, descriptor := range before.Descriptors() {
+		switch row := descriptor.(type) {
+		case *catalog.OperatorFamilyOperator:
+			if row.OwningClass == ext.Members[17].ObjectID {
+				mapped := catalog.RemapOperatorFamily(row, mapping)
+				next.UnbindName(catalog.DescriptorNameKey(row))
+				next.SetDescriptor(address, mapped)
+				next.BindName(catalog.DescriptorNameKey(mapped), address)
+			}
+		case *catalog.OperatorFamilySupport:
+			if row.OwningClass == ext.Members[17].ObjectID {
+				mapped := catalog.RemapOperatorFamily(row, mapping)
+				next.UnbindName(catalog.DescriptorNameKey(row))
+				next.SetDescriptor(address, mapped)
+				next.BindName(catalog.DescriptorNameKey(mapped), address)
+			}
+		}
+	}
 	next.SetEpoch(next.Epoch() + 1)
 	next.SetScalarImports(types)
 	view := e.catalog.read(next)
+	family := mapping[ext.Members[16]].ObjectID
+	class := mapping[ext.Members[17]].ObjectID
+	for strategy := int16(1); strategy <= 5; strategy++ {
+		row, ok := view.FamilyOperator(family, ids.OID(newType.ID()), ids.OID(newType.ID()), strategy, 's')
+		if !ok || row.Family != family || row.Left != ids.OID(newType.ID()) || row.Right != row.Left || row.OwningClass != class {
+			t.Fatal("missing mapped strategy lookup or class ownership", strategy, row)
+		}
+	}
+	if row, ok := view.FamilySupport(family, ids.OID(newType.ID()), ids.OID(newType.ID()), 1); !ok || row.Family != family || row.Left != ids.OID(newType.ID()) || row.Right != row.Left || row.OwningClass != class {
+		t.Fatal("missing mapped support lookup or class ownership", row)
+	}
 	if err := extension.StockCube.ValidateExtension(view, next.MustExtension(mapping[ext.Address()])); err != nil {
 		t.Fatal(err)
 	}

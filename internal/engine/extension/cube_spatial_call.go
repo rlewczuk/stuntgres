@@ -18,7 +18,7 @@ func ValidateCubeSpatialCall(v catalog.Read, proc *catalog.Procedure, call funct
 	}
 	op := call.Plan.Operation()
 	ext, ok := v.Extension(proc.Extension)
-	if !ok || ext.Name() != "cube" || ext.Version != "1.5" || len(ext.Members) != cubeMemberCount || int(op) >= len(cubeSpatialMembers) || ext.Members[cubeSpatialProcedureStart+int(op)] != proc.Address() || proc.Name() != op.Routine() || proc.Result != ids.OID(op.ResultID()) {
+	if !ok || ext.Name() != "cube" || ext.Version != "1.5" || len(ext.Members) != CubeMemberCount || int(op) >= len(cubeSpatialMembers) || ext.Members[cubeSpatialProcedureStart+int(op)] != proc.Address() || proc.Name() != op.Routine() || proc.Result != ids.OID(op.ResultID()) {
 		return fmt.Errorf("stuntgres: invalid cube spatial installation")
 	}
 	base, ok := v.Type(ext.Members[0])

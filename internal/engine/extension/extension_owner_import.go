@@ -44,27 +44,34 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				return false, fmt.Errorf("stuntgres: inconsistent earthdistance ownership roles")
 			}
 		}
-		if record.Name == "cube" {
-			if len(ext.Members) != cubeMemberCount {
-				return false, fmt.Errorf("stuntgres: invalid cube ownership manifest")
-			}
+		if record.Name == "cube" && (len(record.Members) != CubeMemberCount || len(ext.Members) != CubeMemberCount) {
+			return false, fmt.Errorf("stuntgres: incomplete cube ownership manifest")
 		}
+		membersSeen := map[ids.ObjectAddress]bool{}
 		for _, member := range record.Members {
 			owner, ok := roles.Lookup(member.Owner)
 			if !ok {
 				return false, fmt.Errorf("stuntgres: extension member owner %q does not exist", member.Owner)
 			}
-			class := ids.ProcedureClassID
-			if member.Kind == "dictionary" {
+			var class ids.OID
+			switch member.Kind {
+			case "procedure":
+				class = ids.ProcedureClassID
+			case "dictionary":
 				class = ids.TSDictionaryClassID
-			}
-			if member.Kind == "type" {
+			case "type":
 				class = ids.TypeClassID
-			}
-			if member.Kind == "operator" {
+			case "operator":
 				class = ids.OperatorClassID
+			case "operator_class":
+				class = ids.OperatorClassCatalogID
+			case "operator_family":
+				class = ids.OperatorFamilyClassID
+			default:
+				return false, fmt.Errorf("stuntgres: invalid extension ownership kind")
 			}
 			signature := member.Signature
+			var expectedCubeMember ids.ObjectAddress
 			if member.Kind == "procedure" && (record.Name == "intarray" && member.Name == "bqarr_out" || record.Name == "citext" && member.Name == "citextout") {
 				base, ok := candidate.Type(ext.Members[0])
 				if !ok || record.Name == "intarray" && !base.SQLType.IsQueryInt() || record.Name == "citext" && !base.SQLType.IsCitext() {
@@ -84,17 +91,48 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 					}
 				}
 				signature = strings.Join(parts, ",")
-				valid := member.Signature == "cube,cube" && cubeSpatialOwnerName(member.Name, member.Kind == "operator")
+				valid := false
 				if member.Kind == "procedure" {
-					for _, spec := range cubeRoutines {
+					for i, spec := range cubeRoutines {
 						if spec.name == member.Name && member.Signature == spec.ownerSignature() && string(spec.signature(base.SQLType.ID())) == signature {
 							valid = true
+							expectedCubeMember = ext.Members[cubeRoutineMember(i)]
 							break
+						}
+					}
+				} else if member.Signature == "cube,cube" {
+					for i, name := range cubeOperatorNames {
+						if member.Name == name {
+							valid = true
+							expectedCubeMember = ext.Members[10+i]
+							break
+						}
+					}
+				}
+				if member.Signature == "cube,cube" {
+					for i, spatial := range cubeSpatialMembers {
+						if member.Kind == "procedure" && member.Name == spatial.operation.Routine() {
+							valid = true
+							expectedCubeMember = ext.Members[cubeSpatialProcedureStart+i]
+						} else if member.Kind == "operator" && member.Name == spatial.operator {
+							valid = true
+							expectedCubeMember = ext.Members[cubeSpatialOperatorStart+i]
 						}
 					}
 				}
 				if !valid {
 					return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
+				}
+			}
+			if member.Kind == "operator_class" || member.Kind == "operator_family" {
+				if record.Name != "cube" || member.Name != "cube_ops" || member.Signature != "btree" {
+					return false, fmt.Errorf("stuntgres: invalid extension ownership method")
+				}
+				signature = "403"
+				if member.Kind == "operator_class" {
+					expectedCubeMember = ext.Members[17]
+				} else {
+					expectedCubeMember = ext.Members[16]
 				}
 			}
 			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.TargetNamespace, Name: member.Name, Signature: signature})
@@ -110,9 +148,10 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				}
 			}
 			d := candidate.Get(a)
-			if d == nil || catalog.ExtensionMembership(d) != ext.Address() {
+			if d == nil || catalog.ExtensionMembership(d) != ext.Address() || membersSeen[a] || expectedCubeMember != (ids.ObjectAddress{}) && a != expectedCubeMember {
 				return false, fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
+			membersSeen[a] = true
 			switch d := d.(type) {
 			case *catalog.Type:
 				if d.Owner != owner.Ref {
@@ -146,6 +185,20 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 					ownersChanged = true
 				}
 			case *catalog.TSDictionary:
+				if d.Owner != owner.Ref {
+					n := *d
+					n.Owner = owner.Ref
+					candidate.SetDescriptor(a, &n)
+					ownersChanged = true
+				}
+			case *catalog.OperatorClass:
+				if d.Owner != owner.Ref {
+					n := *d
+					n.Owner = owner.Ref
+					candidate.SetDescriptor(a, &n)
+					ownersChanged = true
+				}
+			case *catalog.OperatorFamily:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref

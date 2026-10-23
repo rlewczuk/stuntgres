@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -178,32 +179,41 @@ func TestEarthProviderControls(t *testing.T) {
 	target := New()
 	owner, closeOwner := extensionTemporaryOperation(t, target, "postgres")
 	defer closeOwner()
-	namespace := intarrayUnitTemporaryNamespace(t, target, owner)
+	// This fixture subsequently executes TEMP DDL: initialize both the catalog
+	// namespace and physical-session assignment through the ordinary SQL path.
+	roleExecute(t, target, owner, "CREATE TEMP TABLE earth_retained_seed(v integer)")
+	namespace := target.catalog.state.MustNamespace(owner.Session.TemporaryNamespace)
 	installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
 	extensionUnitPublish(t, target, installer, cubeUnitStage(t, target, installer, "unaccent", namespace.Name()))
 	closeInstaller()
-	// The prerequisite's member count must not decide whether earth collides.
-	// Keep genuine physical TEMP owners alive until an allocated namespace
-	// identity equals the actual source domain ID. Collision reservation is
-	// numeric across these descriptor classes, not just within pg_type.
-	var collision *catalog.Namespace
-	for collision == nil {
-		temporaryOwner, _ := extensionTemporaryOperation(t, target, "postgres")
-		temporary := intarrayUnitTemporaryNamespace(t, target, temporaryOwner)
+	// Cube's selected manifest can grow independently of this domain. Keep
+	// authentic TEMP objects live until an observed identity actually occupies
+	// the source domain's numeric ID, rather than assuming unaccent reaches it.
+	retainedCollision := func() (catalog.Descriptor, ids.OID) {
+		var collision catalog.Descriptor
 		var maximum ids.OID
-		for address, descriptor := range target.catalog.state.Descriptors() {
-			retained, ok := descriptor.(*catalog.Namespace)
-			if !ok || retained.Temporary != temporary.Temporary {
+		for address, object := range target.CatalogRead().Descriptors() {
+			if address != namespace.Address() && object.Namespace() != namespace.Address() {
 				continue
 			}
 			maximum = max(maximum, address.ObjectID)
 			if address.ObjectID == d.Address().ObjectID {
-				collision = retained
+				collision = object
 			}
 		}
-		if maximum == 0 || collision == nil && maximum >= d.Address().ObjectID {
-			t.Fatalf("TEMP allocation passed source earth identity %v without a retained collision", d.Address())
+		return collision, maximum
+	}
+	collision, maximum := retainedCollision()
+	for i := 0; collision == nil && maximum < d.Address().ObjectID; i++ {
+		previous := maximum
+		roleExecute(t, target, owner, fmt.Sprintf("CREATE TEMP TABLE earth_retained_%d(v integer)", i))
+		collision, maximum = retainedCollision()
+		if maximum <= previous {
+			t.Fatal("retained TEMP allocation made no progress", previous, maximum)
 		}
+	}
+	if collision == nil {
+		t.Fatal("retained TEMP identities skipped source domain", d.Address(), maximum)
 	}
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
@@ -215,6 +225,9 @@ func TestEarthProviderControls(t *testing.T) {
 	imported := target.catalog.state.MustType(ext.Members[0])
 	if imported.SQLType == d.SQLType || imported.SQLType.ID() == d.SQLType.ID() {
 		t.Fatal("missing real identity collision")
+	}
+	if target.catalog.state.Get(collision.Address()) != collision {
+		t.Fatal("import replaced the live colliding TEMP identity")
 	}
 	if err := (stored.TypeProvider{}).Validate(target.CatalogRead(), imported); err != nil {
 		t.Fatal(err)

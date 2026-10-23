@@ -16,9 +16,10 @@ import (
 // dumpWriter writes one Dump script and tracks the session authority the
 // replayed statements run under. It lives for one Dump call.
 type dumpWriter struct {
-	ctx          context.Context
-	dst          io.Writer
-	currentOwner string
+	ctx               context.Context
+	dst               io.Writer
+	currentOwner      string
+	comparisonContext bool
 }
 
 // emit writes one block of statements and honors cancellation before and
@@ -175,8 +176,8 @@ func emitDumpDefaults(ctx context.Context, s *dumpScript, w *dumpWriter, event d
 		member := t
 		member.Defaults = map[int32]catalog.ColumnDefault{attribute: definition}
 		site := castConsumer{Event: event, Attribute: attribute}
-		if err := s.emitCastConsumer(w, site, t.Owner, func() error {
-			return member.EmitDeferredDefaults(ctx, s.OriginalCatalog, w.emit)
+		if err := s.emitCastConsumer(w, site, t.Owner, func(emit func(string) error) error {
+			return member.EmitDeferredDefaults(ctx, s.OriginalCatalog, emit)
 		}); err != nil {
 			return err
 		}
@@ -209,8 +210,8 @@ func emitDumpInvalidConstraints(ctx context.Context, s *dumpScript, w *dumpWrite
 		d.Constraints.ForeignKeys = nil
 		member.Descriptor = &d
 		member.NotNullConstraints = nil
-		if err := s.emitCastConsumer(w, castConsumer{Event: event, Check: check.Name}, dumpInvalidConstraintOwner(s, event), func() error {
-			return member.EmitInvalidConstraints(ctx, s.OriginalCatalog, w.emit)
+		if err := s.emitCastConsumer(w, castConsumer{Event: event, Check: check.Name}, dumpInvalidConstraintOwner(s, event), func(emit func(string) error) error {
+			return member.EmitInvalidConstraints(ctx, s.OriginalCatalog, emit)
 		}); err != nil {
 			return err
 		}
@@ -229,8 +230,8 @@ func emitDumpInheritanceRecipes(ctx context.Context, s *dumpScript, w *dumpWrite
 		d := *t.Descriptor
 		d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{attribute: generation}
 		member.Descriptor = &d
-		if err := s.emitCastConsumer(w, castConsumer{Event: event, Attribute: attribute}, t.Owner, func() error {
-			return member.EmitInheritedGenerations(ctx, s.OriginalCatalog, w.emit)
+		if err := s.emitCastConsumer(w, castConsumer{Event: event, Attribute: attribute}, t.Owner, func(emit func(string) error) error {
+			return member.EmitInheritedGenerations(ctx, s.OriginalCatalog, emit)
 		}); err != nil {
 			return err
 		}
@@ -252,9 +253,9 @@ func emitDumpInheritanceChecks(ctx context.Context, s *dumpScript, w *dumpWriter
 		if t.RecipePlaceholders {
 			owner = "postgres"
 		}
-		if err := s.emitCastConsumer(w, castConsumer{Event: event, Check: check.Name}, owner, func() error {
+		if err := s.emitCastConsumer(w, castConsumer{Event: event, Check: check.Name}, owner, func(emit func(string) error) error {
 			only := !t.RecipePlaceholders && catalog.InheritanceParticipant(s.OriginalCatalog, t.Descriptor) && (check.NoInherit || !catalog.InheritanceHasChildren(s.OriginalCatalog, t.Descriptor.Address()))
-			return member.EmitInheritedChecks(ctx, s.OriginalCatalog, only, w.emit)
+			return member.EmitInheritedChecks(ctx, s.OriginalCatalog, only, emit)
 		}); err != nil {
 			return err
 		}
@@ -287,8 +288,8 @@ func emitDumpDomainChecks(ctx context.Context, s *dumpScript, w *dumpWriter, eve
 		}
 		// A domain owner need not have schema USAGE. Retain the existing
 		// bootstrap replay authority, without transferring ownership.
-		if err := s.emitCastConsumer(w, castConsumer{Event: event, Check: check.Name}, "postgres", func() error {
-			return w.emit(text)
+		if err := s.emitCastConsumer(w, castConsumer{Event: event, Check: check.Name}, "postgres", func(emit func(string) error) error {
+			return emit(text)
 		}); err != nil {
 			return err
 		}

@@ -7,13 +7,12 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // Identities are analysis targets, not structural expression cache identities.
 func (b *Binder) resolveDistinctOn(s *parser.Select, order []plan.SortKey, projection []expr.Expr, names []string) ([]plan.SortKey, []plan.Grouping, error) {
 	for i := range order {
-		if err := bindOnOrdering(&order[i]); err != nil {
+		if err := b.bindOnOrdering(&order[i]); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -94,11 +93,11 @@ func (b *Binder) resolveDistinctOn(s *parser.Select, order []plan.SortKey, proje
 	return on, families, nil
 }
 
-func bindOnOrdering(key *plan.SortKey) error {
+func (b *Binder) bindOnOrdering(key *plan.SortKey) error {
 	if key.Expression.CollationIndeterminate() {
 		return nil
 	}
-	provider, err := sqltype.BindOrdering(key.Expression.ResultUsage())
+	provider, err := b.bindOrdering(key.Expression.ResultUsage())
 	if d, ok := err.(*sqlstate.Error); ok {
 		copy := *d
 		if key.Position > 0 {

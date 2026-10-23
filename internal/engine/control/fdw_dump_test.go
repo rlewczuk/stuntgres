@@ -220,7 +220,7 @@ func TestFDWDumpDefinitions(t *testing.T) {
 	if !strings.Contains(statement.SQL, `"note" INTEGER OPTIONS ("column_name" E'actual_note')`) {
 		t.Fatal("column options were not read by actual attribute number")
 	}
-	if !strings.Contains(statement.SQL, `COMMENT ON FOREIGN TABLE "unit"."t" IS E'table''s comment';`) {
+	if !strings.Contains(statement.FollowingSQL, `COMMENT ON FOREIGN TABLE "unit"."t" IS E'table''s comment';`) || strings.Contains(statement.SQL, "COMMENT ON") {
 		t.Fatal("foreign comment declaration was not escaped")
 	}
 	if relation.Foreign.Columns[3][0].Value != "actual_note" || relation.Attributes[1] != 3 || relation.Comment != "table's comment" {

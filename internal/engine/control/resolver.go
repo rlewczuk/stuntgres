@@ -38,6 +38,12 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 	if !exists {
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
 	}
+	if membership := catalog.ExtensionMembership(object); membership != (ids.ObjectAddress{}) {
+		return predecessor(view, membership, consumer)
+	}
+	if owner := catalog.OperatorFamilyMemberOwner(object); owner != (ids.ObjectAddress{}) {
+		return predecessor(view, owner, consumer)
+	}
 	if foreign, ok := object.(*catalog.ForeignObject); ok {
 		if err := (catalog.ForeignCatalogProvider{Class: address.ClassID}).Validate(view, foreign); err != nil {
 			return 0, err
@@ -49,8 +55,11 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 	}
 	if extension, ok := object.(*catalog.Extension); ok {
 		namespace, ok := view.Namespace(extension.TargetNamespace)
-		if !ok || namespace.Temporary != (ids.SessionToken{}) {
+		if !ok {
 			return 0, fmt.Errorf("stuntgres: invalid extension dump dependency lifetime")
+		}
+		if namespace.Temporary != (ids.SessionToken{}) {
+			return 0, fmt.Errorf("stuntgres: temporary extension installation is not portable")
 		}
 		return extension.Address().ObjectID, nil
 	}

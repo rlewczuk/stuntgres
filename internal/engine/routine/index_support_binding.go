@@ -2,6 +2,7 @@ package routine
 
 import (
 	"fmt"
+	"strconv"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -50,6 +51,12 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 		if err != nil {
 			return class, err
 		}
+		if support.Provider == sqltype.CubeIndexSupport {
+			member, _ := view.FamilySupport(fact.Family, fact.InputType, fact.InputType, int16(slot))
+			if member == nil || member.OwningClass != fact.Address().ObjectID || fact.Extension == (ids.ObjectAddress{}) {
+				return class, fmt.Errorf("stuntgres: cube support requires its installed class")
+			}
+		}
 		class = class.WithSupport(slot, support)
 	}
 	return class, nil
@@ -75,7 +82,33 @@ func selectNativeIndexSupport(view catalog.Read, family, left, right uint32, slo
 	if !ok {
 		return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: missing registered index support")
 	}
+	if member.Family != ids.OID(family) || member.Left != ids.OID(left) || member.Right != ids.OID(right) || member.Number != slot || member.Revision() == 0 {
+		return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: inconsistent index support member")
+	}
 	proc, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: member.Function})
+	var cube catalog.ExtensionImplementation
+	if ok && proc.Implementation != nil && view.Owner() != nil {
+		cube = view.Owner().Extensions["cube"]
+	}
+	if cube != nil && proc.Implementation == cube {
+		installation, exists := view.Extension(proc.Extension)
+		if !exists {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: missing cube support installation")
+		}
+		if err := cube.ValidateExtension(view, installation); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
+		single := strconv.FormatUint(uint64(left), 10)
+		fact, exists := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(family)})
+		if !exists || fact.Method != 403 || fact.Extension != proc.Extension || slot != 1 || left != right || proc.Name() != "cube_cmp" || string(proc.Signature) != single+","+single || proc.Result != 23 || member.OwningClass == 0 {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed cube support selection")
+		}
+		class, exists := view.OperatorClass(member.OwningClass)
+		if !exists || class.Family != fact.Address().ObjectID || class.InputType != ids.OID(left) || class.Extension != fact.Extension || class.Method != 403 {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed cube support class")
+		}
+		return sqltype.IndexSupport{Provider: sqltype.CubeIndexSupport, Family: family, Member: uint32(member.Address().ObjectID), Routine: uint32(member.Function), Left: left, Right: right, Revision: uint64(member.Revision()), FamilyRevision: uint64(fact.Revision()), RoutineRevision: uint64(proc.Revision())}, nil
+	}
 	if !ok || proc.Builtin == nil {
 		return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: index support has no native routine")
 	}

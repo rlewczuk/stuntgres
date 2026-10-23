@@ -144,6 +144,10 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				direct = append(direct, edge)
 				continue
 			}
+			if membership := catalog.ExtensionMembership(descriptor); membership != (ids.ObjectAddress{}) && membership == target {
+				direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
+				continue
+			}
 			switch d := descriptor.(type) {
 			case *catalog.AccessMethod:
 				for _, dependency := range catalog.AccessMethodDependencies(d) {

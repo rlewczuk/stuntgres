@@ -17,6 +17,7 @@ func RemapOperatorFamily(d Descriptor, mapping map[ids.ObjectAddress]ids.ObjectA
 		n := *d
 		n.ObjectAddress = move(d.Address())
 		n.ObjectNamespace = move(d.Namespace())
+		n.Extension = move(d.Extension)
 		n.Method = oid(2601, d.Method)
 		if n == *d {
 			return d

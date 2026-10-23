@@ -14,7 +14,6 @@ import (
 
 type CubeProvider struct{ control catalog.ExtensionControl }
 
-// Control implements catalog.ExtensionImplementation.
 func (p *CubeProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
 func (p *CubeProvider) Versions() catalog.ExtensionVersions {
 	return catalog.ExtensionVersions{Bases: []string{"1.5"}}
@@ -28,6 +27,27 @@ const CubeInputContext = "SQL statement \"CREATE FUNCTION cube_in(cstring)\nRETU
 func CubeSignature(id sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
 }
+func CubeComparisonSignature(id sqltype.ID) catalog.ProcedureSignature {
+	s := string(CubeSignature(id))
+	return catalog.ProcedureSignature(s + "," + s)
+}
+
+var CubeComparisonNames = [...]string{"cube_eq", "cube_ne", "cube_lt", "cube_le", "cube_gt", "cube_ge", "cube_cmp"}
+var cubeOperatorNames = [...]string{"=", "<>", "<", "<=", ">", ">="}
+var cubeCommutators = [...]int{0, 1, 4, 5, 2, 3}
+var cubeNegators = [...]int{1, 0, 5, 4, 3, 2}
+var cubeRestrictions = [...]ids.OID{101, 102, 103, 336, 104, 337}
+var cubeJoins = [...]ids.OID{105, 106, 107, 386, 108, 398}
+var cubeStrategies = [...]int{2, 3, 0, 5, 4}
+
+func CubeComparisonName(name string) bool {
+	for _, n := range CubeComparisonNames {
+		if name == n {
+			return true
+		}
+	}
+	return false
+}
 
 // Zero denotes this installation's cube identity, never a builtin OID.
 type cubeRoutineSpec struct {
@@ -40,6 +60,13 @@ type cubeRoutineSpec struct {
 var cubeRoutines = [...]cubeRoutineSpec{
 	{"cube_in", [3]sqltype.ID{2275}, 1, 0},
 	{"cube_out", [3]sqltype.ID{0}, 1, 2275},
+	{CubeComparisonNames[0], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
+	{CubeComparisonNames[1], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
+	{CubeComparisonNames[2], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
+	{CubeComparisonNames[3], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
+	{CubeComparisonNames[4], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
+	{CubeComparisonNames[5], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
+	{CubeComparisonNames[6], [3]sqltype.ID{0, 0}, 2, sqltype.Int4},
 	{"cube", [3]sqltype.ID{sqltype.Float8}, 1, 0},
 	{"cube", [3]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, 0},
 	{"cube", [3]sqltype.ID{1022}, 1, 0},
@@ -50,11 +77,21 @@ var cubeRoutines = [...]cubeRoutineSpec{
 	{"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool},
 }
 
+// The selected comparison graph keeps its stable prefix. Other installed
+// routines follow it; each existing registry retains its feature authority.
 const (
-	cubeSpatialProcedureStart = 1 + len(cubeRoutines)
+	CubeComparisonMemberCount = 18
+	cubeSpatialProcedureStart = CubeComparisonMemberCount + len(cubeRoutines) - 2 - len(CubeComparisonNames)
 	cubeSpatialOperatorStart  = cubeSpatialProcedureStart + len(cubeSpatialMembers)
-	cubeMemberCount           = cubeSpatialOperatorStart + len(cubeSpatialMembers)
+	CubeMemberCount           = cubeSpatialOperatorStart + len(cubeSpatialMembers)
 )
+
+func cubeRoutineMember(index int) int {
+	if index < 2+len(CubeComparisonNames) {
+		return index + 1
+	}
+	return CubeComparisonMemberCount + index - 2 - len(CubeComparisonNames)
+}
 
 func (s cubeRoutineSpec) signature(cube sqltype.ID) catalog.ProcedureSignature {
 	var parts [3]string
@@ -89,7 +126,7 @@ func (s cubeRoutineSpec) resultOID(cube sqltype.ID) ids.OID {
 
 func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid cube manifest") }
-	if p != StockCube || ext.Name() != "cube" || ext.Version != p.control.Version || len(ext.Members) != cubeMemberCount {
+	if p != StockCube || ext.Name() != "cube" || ext.Version != p.control.Version || len(ext.Members) != CubeMemberCount {
 		return invalid()
 	}
 	if ext.Members[0].ClassID != ids.TypeClassID || ext.Members[1].ClassID != ids.ProcedureClassID || ext.Members[2].ClassID != ids.ProcedureClassID {
@@ -106,22 +143,46 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	if err := validateRegisteredType(v, array); err != nil {
 		return err
 	}
-	for i, address := range ext.Members[1:cubeSpatialProcedureStart] {
+	for i, spec := range cubeRoutines {
+		address := ext.Members[cubeRoutineMember(i)]
 		proc, ok := v.Procedure(address)
-		if !ok || proc.Address() != address || CubeProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
+		if !ok || address.ClassID != ids.ProcedureClassID || proc.Address() != address || CubeProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
 			return invalid()
 		}
-		spec := cubeRoutines[i]
 		name, signature, result := spec.name, spec.signature(base.SQLType.ID()), spec.resultOID(base.SQLType.ID())
-		if proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
+		if proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address || proc.RoutineKind != catalog.FunctionRoutine || proc.Aggregate != nil || proc.Foreign != nil || proc.Builtin != nil || proc.Name() != name || proc.Signature != signature || proc.Result != result || !proc.Strict || proc.Volatility != expr.Immutable || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) {
 			return invalid()
 		}
-		if proc.RoutineKind != catalog.FunctionRoutine || proc.Aggregate != nil || proc.Foreign != nil || proc.Builtin != nil {
+	}
+	for i, address := range ext.Members[10:16] {
+		o, ok := v.Operator(address)
+		if ok && o.Address() != address {
 			return invalid()
 		}
-		if proc.Name() != name || proc.Signature != signature || proc.Result != result || !proc.Strict || proc.Volatility != expr.Immutable || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) {
+		if !ok || o.Namespace() != ext.TargetNamespace || o.Extension != ext.Address() || o.Revision() == 0 || o.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(o)) != address || o.Name() != cubeOperatorNames[i] || o.Left != ids.OID(base.SQLType.ID()) || o.Right != o.Left || o.Result != 16 || o.Function != ext.Members[i+3].ObjectID || o.Commutator != ext.Members[10+cubeCommutators[i]].ObjectID || o.Negator != ext.Members[10+cubeNegators[i]].ObjectID || o.Hash || o.Merge != (i == 0) || o.Restriction != cubeRestrictions[i] || o.Join != cubeJoins[i] {
 			return invalid()
 		}
+	}
+	family, ok := v.OperatorFamily(ext.Members[16])
+	if ok && family.Address() != ext.Members[16] {
+		return invalid()
+	}
+	if !ok || family.Name() != "cube_ops" || family.Method != 403 || family.Extension != ext.Address() || family.Namespace() != ext.TargetNamespace || family.Owner == (authorization.PrincipalRef{}) || family.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(family)) != family.Address() {
+		return invalid()
+	}
+	class, ok := v.OperatorClass(ext.Members[17].ObjectID)
+	if !ok || class.Address() != ext.Members[17] || class.Name() != "cube_ops" || class.Method != 403 || class.Family != family.Address().ObjectID || class.InputType != ids.OID(base.SQLType.ID()) || class.StorageType != 0 || !class.Default || class.Extension != ext.Address() || class.Namespace() != ext.TargetNamespace || class.Owner == (authorization.PrincipalRef{}) || class.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(class)) != class.Address() {
+		return invalid()
+	}
+	for i, operator := range cubeStrategies {
+		m, ok := v.FamilyOperator(class.Family, class.InputType, class.InputType, int16(i+1), 's')
+		if !ok || m.Family != class.Family || m.Left != class.InputType || m.Right != class.InputType || m.Number != int16(i+1) || m.Purpose != 's' || m.Operator != ext.Members[10+operator].ObjectID || m.Method != 403 || m.SortFamily != 0 || m.OwningClass != class.Address().ObjectID || m.Revision() == 0 {
+			return invalid()
+		}
+	}
+	support, ok := v.FamilySupport(class.Family, class.InputType, class.InputType, 1)
+	if !ok || support.Family != class.Family || support.Left != class.InputType || support.Right != class.InputType || support.Number != 1 || support.Function != ext.Members[9].ObjectID || support.OwningClass != class.Address().ObjectID || support.Revision() == 0 {
+		return invalid()
 	}
 	return p.validateSpatial(v, ext, base)
 }

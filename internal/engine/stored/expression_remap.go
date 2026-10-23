@@ -76,6 +76,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case plan.CubeComparisonExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case plan.AssignmentValueExpr:
 		n.Base, n.Value = child(n.Base), child(n.Value)
 		targets, failure := MapRuleAssignmentTargets([]*plan.ArrayAssignmentTarget{n.Target}, func(expr expr.Expr) (expr.Expr, bool, error) {
@@ -314,6 +320,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		next = n
 	case plan.ScalarArrayComparisonExpr:
 		n.Left = child(n.Left)
+		if ref != nil && n.RoutineRef != (ids.ObjectRef{}) {
+			n.RoutineRef = ref(n.RoutineRef)
+		}
 		if n.Array != nil {
 			n.Array = child(n.Array)
 		}
@@ -324,6 +333,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		next = n
 	case plan.ComparisonExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
+		if ref != nil && n.RoutineRef != (ids.ObjectRef{}) {
+			n.RoutineRef = ref(n.RoutineRef)
+		}
 		next = n
 	case plan.NullTestExpr:
 		n.Child = child(n.Child)
@@ -333,12 +345,18 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		next = n
 	case plan.DistinctExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
+		if ref != nil && n.RoutineRef != (ids.ObjectRef{}) {
+			n.RoutineRef = ref(n.RoutineRef)
+		}
 		next = n
 	case plan.LogicalExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
 	case plan.ConditionalExpr:
 		n.Args = args(n.Args)
+		if ref != nil && n.RoutineRef != (ids.ObjectRef{}) {
+			n.RoutineRef = ref(n.RoutineRef)
+		}
 		next = n
 	case plan.ExtensionPathsExpr:
 		n.Arg = child(n.Arg)
@@ -427,6 +445,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		for i := range n.Arms {
 			n.Arms[i].Test = child(n.Arms[i].Test)
 			n.Arms[i].Condition, n.Arms[i].Result = child(n.Arms[i].Condition), child(n.Arms[i].Result)
+			if ref != nil && n.Arms[i].RoutineRef != (ids.ObjectRef{}) {
+				n.Arms[i].RoutineRef = ref(n.Arms[i].RoutineRef)
+			}
 		}
 		next = n
 	case expr.Composite:

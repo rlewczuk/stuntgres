@@ -33,6 +33,7 @@ type restoreRun struct {
 	domainDefaultPairs map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
 	extensionOwners    []extension.OwnerRecord
 	snapshots          []view.MaterializedSnapshot
+	comparison         comparisonRestore
 
 	// Table, NOT NULL and foreign key captures.
 	pendingForeignKeys      []table.RestoredForeignKeys
@@ -105,7 +106,10 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 		return err
 	}
 	r.domainDefaultPairs, err = typedef.PairDomainDefaults(r.source, r.statements, r.domainDefaults)
-	return err
+	if err != nil {
+		return err
+	}
+	return pairRestoreComparisonContext(r)
 }
 
 // Start starts the stage session as the bootstrap superuser, acquires its

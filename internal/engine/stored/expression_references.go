@@ -62,6 +62,25 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 	switch n := expr.(type) {
 	case plan.SQLRoutineExpr:
 		r.Add(n.Ref.Address)
+	case plan.CubeComparisonExpr:
+		r.Add(n.Ref.Address)
+	case plan.ComparisonExpr:
+		r.Add(n.RoutineRef.Address)
+	case plan.DistinctExpr:
+		r.Add(n.RoutineRef.Address)
+	case plan.ScalarArrayComparisonExpr:
+		r.Add(n.RoutineRef.Address)
+	case plan.ConditionalExpr:
+		r.Add(n.RoutineRef.Address)
+	case plan.CaseExpr:
+		for _, arm := range n.Arms {
+			r.Add(arm.RoutineRef.Address)
+		}
+	case plan.RowComparisonExpr:
+		// Lexical traversal visits pair operands, not the comparison carriers.
+		for _, pair := range n.Comparisons {
+			r.Add(pair.RoutineRef.Address)
+		}
 	case plan.SelectedOperatorExpr:
 		r.Add(n.Ref.Address)
 	case plan.UnnestExpr:
@@ -128,6 +147,9 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 	case functions.SequenceCall:
 		r.Add(n.Ref.Address)
 	case plan.SubqueryExpr:
+		for _, pair := range n.Comparisons {
+			r.Add(pair.RoutineRef.Address)
+		}
 		r.Query(n.QueryPlan.Root)
 	}
 	// Fixed builtin providers are pinned; installed providers above record their

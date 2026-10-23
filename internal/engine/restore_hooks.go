@@ -18,8 +18,10 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "typedef: domain default snapshots", Decode: decodeRestoreDomainDefault},
 	{Name: "extension: owner records", Decode: decodeRestoreExtensionOwners},
 	{Name: "view: materialized snapshot records", Decode: decodeRestoreMaterializedSnapshot},
+	{Name: "comparison binding records", Decode: decodeRestoreComparisonContext},
 
 	// Before admission.
+	{Name: "comparison binding context", Before: beforeRestoreComparisonContext},
 	{Name: "routine: SQL body replay directive", Before: beforeRestoreRoutineDirective},
 	{Name: "table: physical NOT NULL boundary", Before: beforeRestorePhysicalBoundary},
 	{Name: "table: physical NOT NULL constructor", Before: beforeRestorePhysicalConstructor},
@@ -72,6 +74,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "partition: UNIQUE replay", Prepare: prepareRestorePartitionUnique},
 
 	// After execution.
+	{Name: "comparison bound definition", After: afterRestoreComparisonContext},
 	{Name: "table: physical NOT NULL constructor capture", After: afterRestorePhysicalConstructor},
 	{Name: "table: physical foreign key provider", After: afterRestorePhysicalForeignKeyProvider},
 	{Name: "table: physical import index", After: afterRestorePhysicalImportIndex},
@@ -87,6 +90,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "inheritance: generation capture", After: afterRestoreGeneration},
 
 	// After the last statement.
+	{Name: "comparison context closure", Finish: finishRestoreComparisonContext},
 	{Name: "table: physical NOT NULL boundary at end", Finish: finishRestorePhysicalBoundary},
 	{Name: "table: foreign keys", Finish: finishRestoreForeignKeys},
 	{Name: "extension: owners", Finish: finishRestoreExtensionOwners},

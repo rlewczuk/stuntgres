@@ -12,6 +12,9 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 	if d == nil || d.Address().ClassID != p.Class || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid operator family descriptor authority")
 	}
+	if err := ValidateExtensionMembership(v, d); err != nil {
+		return err
+	}
 	switch d := d.(type) {
 	case *OperatorFamily:
 		method, exists := v.AccessMethod(d.Method)

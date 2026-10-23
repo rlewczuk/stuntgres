@@ -40,6 +40,19 @@ type DumpRelation struct {
 	IdentitySequences   map[ids.ObjectAddress]sequence.Dump
 }
 
+// ColumnProvenance describes the actual emitted declaration, including retained
+// inherited recipes that differ from the current parent providers.
+func (t *DumpRelation) ColumnProvenance(attribute int32) catalog.InheritedColumn {
+	provenance := catalog.InheritedColumn{Local: true, ExplicitDefault: true, ExplicitGeneration: true}
+	if t.Descriptor.Inheritance != nil {
+		provenance = t.Descriptor.Inheritance.Columns[attribute]
+	}
+	if effective, exists := t.Recipes[attribute]; exists {
+		provenance = effective
+	}
+	return provenance
+}
+
 func (t *DumpRelation) EmitDeferredDefaults(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
 	qualified := catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name)
 	for i, c := range t.Columns {

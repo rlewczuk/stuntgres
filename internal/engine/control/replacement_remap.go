@@ -58,8 +58,8 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 	return nil
 }
 
-// remapReplacementDescriptor returns d with its own address and its
-// references moved through mapping; target is d's new address.
+// remapReplacementDescriptor relocates descriptor kinds owned by control.
+// The caller delegates extension/catalog-owned descriptors to extension.RemapDescriptor.
 func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, a, target ids.ObjectAddress, d catalog.Descriptor) (catalog.Descriptor, error) {
 	switch r := d.(type) {
 	case *catalog.ForeignObject:
@@ -137,10 +137,6 @@ func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddr
 		if n != *r {
 			d = &n
 		}
-	case *catalog.OperatorClass:
-		d = catalog.RemapOperatorClass(r, mapping)
-	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
-		d = catalog.RemapOperatorFamily(r, mapping)
 	case *catalog.Relation:
 		return remapReplacementRelation(current, mapping, a, target, r)
 	}

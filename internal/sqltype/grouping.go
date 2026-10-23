@@ -46,6 +46,11 @@ func BindGrouping(usage Usage) (Grouping, error) {
 		g.element, g.prepare = &element, element.prepare
 		return g, nil
 	}
+	if base.IsCube() {
+		comparison, err := BindComparison(usage.Type, usage.Type, usage.Collation, false)
+		g.comparison = comparison
+		return g, err
+	}
 	if base.IsEnum() {
 		return g, nil
 	}
@@ -202,6 +207,15 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		return 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string hashing", Hint: "Use the COLLATE clause to set the collation explicitly."}
 	}
 	byteHash(1)
+	if v.typ.IsCube() {
+		if !v.validCube() {
+			return 0, fmt.Errorf("invalid cube grouping payload")
+		}
+		// An all-NaN point equals every cube of this dimension. Coordinates
+		// cannot participate in a hash compatible with released equality.
+		integerHash(uint64(v.cube.dimension))
+		return h, ctx.Err()
+	}
 	if v.typ.IsEnum() {
 		integerHash(uint64(v.integer))
 		return h, ctx.Err()

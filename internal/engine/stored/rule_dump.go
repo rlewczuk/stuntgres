@@ -543,6 +543,36 @@ func RuleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 		}
 		var sql strings.Builder
 		for _, r := range RulesOf(d) {
+			sql.Reset()
+			var binding *dump.DefinitionBinding
+			var bindingFailure error
+			visit := func(node expr.Expr) {
+				if bindingFailure != nil {
+					return
+				}
+				namespace, failure := ComparisonBindingNamespace(view, node)
+				if failure != nil {
+					bindingFailure = failure
+					return
+				}
+				if namespace != (ids.ObjectAddress{}) {
+					if binding != nil && binding.CubeNamespace != namespace {
+						bindingFailure = fmt.Errorf("stuntgres: conflicting comparison binding namespaces")
+						return
+					}
+					binding = &dump.DefinitionBinding{CubeNamespace: namespace}
+				}
+			}
+			visit(r.condition)
+			for _, action := range r.actions {
+				VisitRuleActionExpressions(action.binding, visit)
+				if action.binding.Query != nil {
+					plan.VisitCTEQuery(action.binding.Query.Root, func(plan.Node) {}, visit, true)
+				}
+			}
+			if bindingFailure != nil {
+				return nil, bindingFailure
+			}
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -598,9 +628,9 @@ func RuleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 				}
 			}
 			sql.WriteString(";\n")
+			groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: sql.String(), Binding: binding})
 		}
-		groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: sql.String()})
 	}
-	slices.SortFunc(groups, func(a, b dump.Group) int { return strings.Compare(a.Table, b.Table) })
+	slices.SortStableFunc(groups, func(a, b dump.Group) int { return strings.Compare(a.Table, b.Table) })
 	return groups, nil
 }

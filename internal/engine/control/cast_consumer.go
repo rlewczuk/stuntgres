@@ -224,14 +224,14 @@ func (s *dumpScript) addSeparatedCheckEvents() error {
 	return nil
 }
 
-func (s *dumpScript) emitCastConsumer(w *dumpWriter, site castConsumer, owner string, emit func() error) error {
+func (s *dumpScript) emitCastConsumer(w *dumpWriter, site castConsumer, owner string, emit func(func(string) error) error) error {
 	if err := s.openCastWindow(w, site); err != nil {
 		return err
 	}
 	if err := w.setOwner(owner); err != nil {
 		return err
 	}
-	if err := emit(); err != nil {
+	if err := emit(func(sql string) error { return s.emitBound(w, site, sql) }); err != nil {
 		return err
 	}
 	return s.closeCastWindow(w, site)

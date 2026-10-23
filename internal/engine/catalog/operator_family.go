@@ -10,6 +10,7 @@ import (
 // types are independent of the referenced routine's formal argument types.
 type OperatorFamily struct {
 	ObjectAddress, ObjectNamespace ids.ObjectAddress
+	Extension                      ids.ObjectAddress
 	ObjectRevision                 ids.DefinitionRevision
 	ObjectName                     string
 	Method                         ids.OID

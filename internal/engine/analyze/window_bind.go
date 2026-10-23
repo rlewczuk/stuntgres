@@ -388,7 +388,7 @@ func (b *Binder) bindWindowSpec(raw parser.WindowSpec, names map[string]plan.Win
 			_, err := b.bindDistinctGrouping(expr)
 			return spec, err
 		}
-		comparison, err := sqltype.BindOrdering(expr.ResultUsage())
+		comparison, err := b.bindOrdering(expr.ResultUsage())
 		if d, ok := err.(*sqlstate.Error); ok {
 			copy := *d
 			copy.Position = fmt.Sprint(key.Pos.Character)

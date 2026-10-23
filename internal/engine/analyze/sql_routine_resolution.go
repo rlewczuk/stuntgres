@@ -63,7 +63,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name)
-	if !cubeFamily && !b.hasDynamicProcedureName(name) && !b.BindingCatalog().HasCasts() {
+	if !cubeFamily && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -89,7 +89,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if seen != nil {
 				seen[d.Signature] = true
 			}
-			if d.DynamicCallable() {
+			if d.DynamicCallable() || extension.CubeProviderOf(d) == extension.StockCube && extension.CubeComparisonName(d.Name()) {
 				hasSQL = true
 			}
 			if cubeFamily && extension.CubeProviderOf(d) == extension.StockCube {
@@ -408,6 +408,9 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	}
 	d := selected.Procedure
 	if d != nil && extension.CubeProviderOf(d) == extension.StockCube {
+		if extension.CubeComparisonName(d.Name()) {
+			return b.bindSelectedCubeComparison(raw, selected)
+		}
 		// Diagnose the written name before the selected gateway qualifies it.
 		if err := functions.ValidateCallSyntax(b, raw); err != nil {
 			return nil, err
