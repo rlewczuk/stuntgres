@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `847e5705d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 146, 147 and 148). Steps 8–17 were
+Last verified against `master` at `6a0476cdd` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147 and 148). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -20,7 +20,6 @@ different packages may run in parallel on separate branches; items that
 share a prompt file touch different root files unless their "needs" says
 otherwise.
 
-- **Fourth round, statement and session:** 145 (regobj 21e).
 - **Fourth round, catalog, DDL, types, roles and Restore:** 149 (role
   28e), 150 (ddl 20e).
 - **Closing review 2:** 151 (docs only) waits for 134–150.
@@ -843,8 +842,9 @@ planned sub-step left; only 151 needs it.
     `e5ceb82e7`, `7663fe0ca`, `13a50c6ba`, then the docs commit)
   - [x] 11g — Runtime source values ([exec](ENGINE-SPLIT-exec.md))
     (`ea13f92d6`, `97abd0c6f`, `ab8a2d1b4`, then the docs commit)
-  - [ ] 21e — Output capture, spelling cache and regtype analysis
-    ([regobj](ENGINE-SPLIT-regobj.md))
+  - [x] 21e — Output capture, spelling cache and regtype analysis
+    ([regobj](ENGINE-SPLIT-regobj.md)) (`217db48c8`, `c09220536`, `ebcc01666`,
+    `d96214fe6`, then the docs commit)
   - [x] 12g — Search path and type-name resolution
     ([analyze](ENGINE-SPLIT-analyze.md)) (`3bff76829`, `4e4f635f9`,
     `d89bd926f`, `588dcdfe7`, `ab8c06fa4`, then the docs commit)
@@ -2149,8 +2149,16 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      aliases · targeted units (also `RACE=1`), quickcheck and the quick and
      `REFERENCE=1` pgrowlocks, session identity and pg_sequences selections
      passed; racecheck/finalcheck skipped at user request
-145. [ ] Regobj 21e: output capture, spelling cache and regtype analysis —
-     [regobj](ENGINE-SPLIT-regobj.md) 21e · needs —
+145. [x] Regobj 21e: output capture, spelling cache and regtype analysis —
+     [regobj](ENGINE-SPLIT-regobj.md) 21e · needs — (`217db48c8`, `c09220536`,
+     `ebcc01666`, `d96214fe6`, then the docs commit) · `regobj.CaptureRowsOutput`
+     with a collation-path callback; `regobj.SpellingCache` in
+     `presentationCaches`; `regobj.Analysis` over `Observation` and
+     `LookupPaths`, with guarded root wrappers; `regobj.LargeObjectACL`;
+     `regobj` imports `sequence` (user decision); no aliases · targeted
+     units (also `RACE=1`), quickcheck and the quick and `REFERENCE=1` reg\*
+     output, prepared reg\* literal and large-object Restore selections
+     passed; racecheck/finalcheck skipped at user request
 146. [x] Analyze 12g: search path and type-name resolution —
      [analyze](ENGINE-SPLIT-analyze.md) 12g · needs — (`3bff76829`,
      `4e4f635f9`, `d89bd926f`, `588dcdfe7`, `ab8c06fa4`, then the docs

@@ -582,9 +582,76 @@ no aliases remain; the checks in §8.3 pass.
     `regobj` README reference selection in quick mode and with
     `REFERENCE=1`; `make quickcheck` on the rebased branch. `make bench`
     not needed.
-- [ ] 21e — Output capture, spelling cache and regtype analysis (linear item 145)
+- [x] 21e — Output capture, spelling cache and regtype analysis (item 145)
+  (`217db48c8`, `c09220536`, `ebcc01666`, `d96214fe6`, then the docs commit) · targeted
+  units (also `RACE=1`), quickcheck and the quick and `REFERENCE=1` reg\*
+  output, prepared reg\* literal and large-object Restore selections passed;
+  racecheck/finalcheck skipped at user request
+  - Started at `481bcb11a` (master moved from `296fe97e7` through
+    `77a102f14` and session 13h while planning; neither touched the 21e
+    files). Re-measured with `frontier` over the move set (output in
+    `.cswd/tmp/PG18-ENGINE-SPLIT-REGOBJ-OUTPUT-CAPTURE/frontier-before.txt`):
+    OUT was the authorization view, `sequenceEnvironmentLocked`,
+    `lookupPath`/`referencePath`, the scope's inquiry snapshot and
+    presentation slot, the `Engine.mu` window and the Restore stage, as
+    planned. About 0.2k lines left the root.
+  - `217db48c8`: `regobj.CaptureRowsOutput(rows, view, owner, roles, path,
+    collationPath)` (`rows_output.go`) runs the flat, anonymous and
+    selected-source loops with the per-value order unchanged; the collation
+    path is a callback read on the first non-NULL regcollation value.
+    `Engine.captureRegObjectRowsValueLocked` is gone. The seam test
+    `TestCaptureRowsOutputCollationPathOnDemand` was written first and failed
+    to build.
+  - `c09220536`: `regobj.SpellingCache` (`spelling_cache.go`) with `Regproc`,
+    `Regprocedure`, `Operator` and `TextSearch`. `presentationCaches` holds
+    it as `spellings`; the `Format*` methods are forwarders with the
+    detached fallback.
+  - `ebcc01666`: `regobj.Analysis` (`Constants`, `NewAnalysis`, `Valid`,
+    `Invalidate`) over `regobj.Observation` (the engine's domain, the
+    database name, the `access.View` and its environment) and
+    `regobj.LookupPaths` (the type and collation path callbacks). The root
+    keeps `regtypeObservationLocked` and the guarded
+    `regtypeAnalysisLocked`/`regtypeAnalysisValidLocked` wrappers, so a
+    statement without reg\* literals builds no observation;
+    `StatementDescription.regtypes` is a `*regobj.Analysis`. The seam test
+    `TestAnalysisPathsOnDemand` was written first.
+  - `d96214fe6`: `regobj.LargeObjectACL` (`aclitem_largeobject.go`); the root
+    keeps the repair parse, the `Engine.mu` window, `ValidateACL`, the stage
+    and the publication.
+  - Deviation (user decision): `regobj` imports `sequence` (L9; `analyze`
+    already does). The cell stores a typed `sequence.Environment` and
+    compares it with `sequence.SameEnvironment`; a `samePath` callback alone
+    cannot avoid naming the stored path's type without generics or `any`.
+  - Allocations: Go's escape analysis treats a struct parameter as one
+    unit, so the callbacks are separate parameters (`LookupPaths`, the
+    `collationPath` argument), never fields beside the leaking environment.
+    `-gcflags=-m` against the base shows no new heap allocation in
+    `captureRegclassOutput` (every result) and both regtype closures on the
+    stack. The one new allocation is the environment box per observation,
+    only for statements with reg\* literals; it replaces one box per
+    `CanUse` call.
+  - Tests: new `regobj.TestCaptureRowsOutputCollationPathOnDemand` and
+    `regobj.TestAnalysisPathsOnDemand`. Adapted to the exported cell only:
+    `TestConversionRegprocCapturedProcedurePresentation`,
+    `TestExpectedOfCopiesHeldInputs`, `TestRegTSPreparedCapture`,
+    `TestRegOperatorPrepared{MixedIdentity,PathPublication,OperandManifest,OperandBoundaries}`
+    (and their helpers), `TestRoutineMixedOperatorCompoundCapture` and
+    `TestUpdateRowPreparedRecipeCaptures`. None moved or deleted.
+  - Verification: build and test compile at every commit; `regobj` vet
+    adds no finding; the literal multiset is unchanged except the new
+    tests' literals; the targeted units, with `RACE=1` on the prepared,
+    discard and rebind tests; `make quickcheck` on the branch rebased onto
+    `bf6a63058`, `d3e92b66b` (control 30g), `c0a69ed79` (typedef 15f),
+    `b0d9b77b5`, `847e5705d` and `6a0476cdd` (analyze 12g, which moved the
+    search path decisions the path callbacks reach; the first run passed
+    every package except one load flake,
+    `TestReferenceCastDefinitionAggregateBinary/retained_absent/memory`, a
+    30s step deadline at load average ~200, which passed 3/3 alone and with
+    its whole package); and `REFERENCE=1` over the changed paths,
+    `^TestReference(FormatRegclass|ArrayRegclass|UpdateReturningCapturedRegclass|RegCollationVisibility|ACLItem|RegroleParameters|RegProc(ValuesMetadata|PreparedAuthority)|RegOperator(Signatures|PreparedAnalysis)|RegTS(ValuesMetadata|PreparedLifetime)|RegtypeHeldFrames|SQLCursorRegtype|LargeObjectRestore)`
+    (31 tests in 7 packages). `make bench` not needed.
 
-Outstanding aliases: none (21b, 21c and 21d added none).
+Outstanding aliases: none (21b–21e added none).
 
 ### Notes for later steps
 
@@ -609,5 +676,11 @@ Outstanding aliases: none (21b, 21c and 21d added none).
   count it. Item 133 planned it, with the `DeparseInquiry` body, as table
   24j (item 136). Settled: 24j moved the bodies to `table.Deparse`; the
   root keeps the snapshot check and the `table.DeparseInputs` builder.
-- `presentationCaches` stays a root scope slot; its maps are keyed by
-  `exec` keys and filled through the `regobj` spellings.
+- `presentationCaches` stays a root scope slot. Since 21e it holds
+  `regobj.SpellingCache` beside the conversion defaults and the regex
+  executor.
+- 21e: `StatementScope.captureSQLCursorOutput` (held-cursor FETCH output,
+  `sql_cursor_hold.go`) keeps its own loop. It captures roles before the
+  collation and namespace aliases, reads the collation path eagerly in its
+  `Engine.mu` window and spells against the cursor's catalog, so moving it
+  onto `CaptureRowsOutput` would change its error order.

@@ -5,11 +5,13 @@ object-identifier types, type declarations, typed literals, `aclitem`
 I/O, object identity and the catalog inquiries over them. Step 21 of the
 engine split created it (21b moved the clean set; 21c moved the captured
 input resolvers; 21d moved the object address, comment and visibility
-inquiries). The package sits at
+inquiries; 21e moved the result output capture, the spelling cache, the
+prepared regtype analysis cell and the large-object ACL decode). The
+package sits at
 layer L11 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze`, `authorization`, `catalog`, `dump`, `exec`,
-`expr`, `functions`, `ids`, `pgcatalog`, `plan`, `routine`, `session`, `typedef`, `parser`,
+`expr`, `functions`, `ids`, `pgcatalog`, `plan`, `routine`, `sequence`, `session`, `typedef`, `parser`,
 `sqlstate`, `sqltype` and the standard library, and never the engine, `stored` or an upper
 feature. Only the upper features, `stored` and the engine import it; never
 `analyze`, `exec`, `session`, `pgcatalog` or a lower feature. See
@@ -25,7 +27,21 @@ feature. Only the upper features, `stored` and the engine import it; never
   catalog-backed formatters `ClassOutput`, `RoutineOutput`, `TypeOutput`
   (`View`, `Path`) and `RoleOutput`; output capture into `exec.FinalRows`
   (`Capture{Class,Proc,Operator,TextSearch,Object,Role,ACLItem}OutputValue`);
-  `RoleContextFormatter`.
+  `RoleContextFormatter`. `CaptureRowsOutput` (`rows_output.go`) runs them
+  over every flat, anonymous and selected-source value of a result, with the
+  collation path as a callback read on the first non-NULL regcollation
+  value. `SpellingCache` (`spelling_cache.go`) is a statement's regproc,
+  regprocedure, operator and text-search spellings by OID, filled on first
+  use; the caller passes the inquiry catalog and path on every call.
+- **Prepared reg\* literal analysis** (`regtype_analysis.go`): `Analysis`,
+  the cell a prepared statement holds for its reg\* constants (`Constants`,
+  the role, database and lookup paths they were resolved under), with
+  `NewAnalysis`, `Valid` and `Invalidate`. Both run over an `Observation`
+  (the engine's catalog domain, the session's database name, the
+  statement's `access.View` and its environment) and `LookupPaths`, the type
+  and collation path callbacks, read only when the constants need them. The
+  callbacks are a separate parameter so they do not escape with the
+  environment.
 - **reg\* input helpers** (`regclass_input.go`, `regrole_input.go`,
   `regoperator_groups.go`, `regproc_lookup.go`): `ClassNumeric`,
   `ClassQualifiedName`, `RoleInput`, `AccessRoleID` (the role argument of
@@ -85,9 +101,12 @@ feature. Only the upper features, `stored` and the engine import it; never
   statement's visibility snapshot (catalog, relation path, TEMP-filtered
   path). These are name-visibility rules, not MVCC visibility.
 - **`aclitem` I/O** (`aclitem_input.go`, `aclitem_output.go`,
-  `aclitem_dump.go`, `acl_empty.go`): `ACLItemInput`, `ACLItemOutput`,
-  `ACLItemValidationOutput`, `ACLItemContextFormatter`,
-  `ACLItemOutputContext`, `PreflightACLItemValue`, `ContainsEmptyACL`.
+  `aclitem_dump.go`, `acl_empty.go`, `aclitem_largeobject.go`):
+  `ACLItemInput`, `ACLItemOutput`, `ACLItemValidationOutput`,
+  `ACLItemContextFormatter`, `ACLItemOutputContext`,
+  `PreflightACLItemValue`, `ContainsEmptyACL`, and `LargeObjectACL`, the
+  decode of a Restore large-object ACL repair (canonical `aclitem[]`, SELECT
+  and UPDATE only, principals of the output owner).
 - **Object identity** (`object_identity.go`): `pg_identify_object`,
   `pg_describe_object` and `pg_get_object_address` through
   `IdentifyAddress`/`ObjectIdentity`, and the input helpers
@@ -139,15 +158,18 @@ their lower-case names.
   nothing when the host takes no notices; otherwise it emits to the
   captured operation. Notice order, text and portal context are unchanged.
 - No mutex; nothing takes `Engine.mu`. Callers that need the engine lock
-  (`Engine.capture*`) hold it themselves.
+  (`Engine.capture*`) hold it themselves, and the callbacks they pass
+  (`CaptureRowsOutput`'s collation path, `LookupPaths`) run under it.
 
 ## What stays in the engine
 
-- The statement caches and formatters: `presentationCaches` and the
-  `StatementScope.Format*` methods behind `exec.Host`. They are keyed by
-  `exec` keys and filled through the spellings above.
-- The constructors that read engine state: `Engine.captureRegclassOutput`,
-  `Engine.captureACLItemInput`, `Engine.captureRegObjectRowsValueLocked`,
+- The statement slot and formatters: `presentationCaches`, which holds the
+  `SpellingCache` beside the conversion defaults and the regex executor, and
+  the `StatementScope.Format*` methods behind `exec.Host`, forwarders with
+  the detached fallback.
+- The constructors that read engine state: `Engine.captureRegclassOutput`
+  (the `Engine.mu` window, the authority and the reference path around
+  `CaptureRowsOutput`), `Engine.captureACLItemInput`,
   `Engine.regclassLocked` (`regclass_lookup.go`), the `Engine.capture*Input`
   methods and `captureRegObjectsOnPath` with the `inputCapture` helper
   (`captured_input.go`, which drops the session and settings from the
@@ -165,8 +187,17 @@ their lower-case names.
   `pg_get_serial_sequence` bodies render through `stored` and `index`,
   which import `regobj`, so table 24j moved them to `table.Deparse` (the
   21d decision).
-- `regtypeAnalysis` and `Engine.regtypeAnalysisLocked`/`ValidLocked`: the
-  prepared-statement regtype analysis cell is statement state, not SQL text.
+- `Engine.regtypeObservationLocked` and the guarded
+  `regtypeAnalysisLocked`/`regtypeAnalysisValidLocked` wrappers
+  (`regtype_analysis.go`): the `Observation` and the sequence-environment
+  and collation-lookup closures under `Engine.mu`. A statement without
+  reg\* literals builds no observation.
+- `Engine.restoreLargeObjectACL` (`largeobject_restore.go`): the repair
+  parse, the `Engine.mu` window, the descriptor lookup, `ValidateACL`, the
+  revision, the stage and the publication around `LargeObjectACL`.
+- `StatementScope.captureSQLCursorOutput` (`sql_cursor_hold.go`): held-cursor
+  FETCH output keeps its own capture loop (roles first, an eager collation
+  path, the cursor's catalog), so it does not use `CaptureRowsOutput`.
 - `aclitem_remap.go` and `principal_remap.go` (the Restore stage and
   publication); they stay in the root after step 30 (see the
   [`control` README](../control/README.md)). The Dump ACL preflight is
@@ -178,12 +209,14 @@ their lower-case names.
 ```sh
 make check RUN='^TestVisibilityInquiryCollationSelection$'
 make check RUN='^(TestCapturedInputsRetargetOnlyTheirSinks|TestRoutineInputParameterAndLiteralCopies|TestTypeInputNoticesFollowTheCurrentHost|TestAddressLookupNamespaceAndNoticeCuts)$'
+make check RUN='^(TestCaptureRowsOutputCollationPathOnDemand|TestAnalysisPathsOnDemand)$'
 make check RUN='^TestGeometryConversionCBoxLiteralTransport$'
 make check RUN='^TestReference(Reg|ACLItem|ObjectAddress|FormatRegclass|SequenceRegclass|ArrayRegclass|RLSPolicyRegtype|SQLCursorRegtype|UpdateReturningCapturedRegclass|PGDependRegclass|PartitionConstraintsRegclass)'
 make check RUN='DumpRoundTrip|NativeControls'
 make check RUN='^TestReferenceCastDefinitionNestedConstructorReplay$'
 make check RUN='^TestMaterializedViewSnapshot(NestedConstructors|ConstructorProviders)$'
 make check RUN='^TestReference(ObjectAddress|Comment|CollationVersion|VisibilityInquiry|RegCollationVisibility|CheckReviewScalarComment|DeparseConstraintsReviewProviderVisibility)'
+make check RUN='^TestReferenceLargeObject(Restore|Privileges)$'
 ```
 
 Add `REFERENCE=1` for the real PostgreSQL oracle. The engine unit tests of
@@ -192,7 +225,10 @@ this code need an `Engine` and stay in `internal/engine`
 `TestRegTS*`, `TestRegOperator*`, `TestRoutine*`
 in `regproc_test.go`, `TestRegrole*`, `TestRegclass*`, `TestACLValues*`,
 `TestACLItem*`, `TestRegObjectAlias*`, `TestMaterializedRefreshOwnerContext`,
-`TestConversionRegprocCapturedProcedurePresentation`).
+`TestConversionRegprocCapturedProcedurePresentation`, and the prepared
+cell tests `TestRegOperatorPrepared*`, `TestRoutineRetainedWriteInputAuthority`,
+`TestRoutineMixedOperatorCompoundCapture`, `TestPreparedRebind*`,
+`TestDiscard*`).
 
 Input-origin/caller preservation uses these bounded public groups, each both
 as written and with `REFERENCE=1` (external900-second deadline):
