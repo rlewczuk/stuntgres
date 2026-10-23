@@ -3,7 +3,7 @@
 Row producers for the system relations: the `pg_catalog` tables and views and
 the `information_schema` views `table_privileges`, `data_type_privileges`,
 `user_mappings`, `key_column_usage`, `constraint_column_usage`,
-`routine_sequence_usage` and `character_sets`.
+`routine_sequence_usage`, `character_sets` and `enabled_roles`.
 Each producer is a pure function from a captured catalog, a paired role read
 and a narrow runtime capability to rows. The package sits at L5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
@@ -82,6 +82,20 @@ PostgreSQL OIDs are not cross-backend numeric constants.
 `pg_class`/`pg_database` expose genuine logical freezing bounds without changing
 unimplemented physical page/map/MultiXact fields.
 See [maintenance proof](../../../reference/catalogs/README.md#vacuum-oracle-first-contract).
+
+## Enabled-role projection
+
+`enabled_roles` (native relation16208) uses the existing paired immutable
+catalog/role capture and `CurrentPrincipal` execution identity. Its sole cell
+is wrapped by the source-owned sql_identifier domain over NAME. An ordinary
+actor uses one cancellation-aware inherited RoleClosure (self, deduplicated
+INHERIT paths and implicit database-owner hop); an actual current superuser
+enumerates live RoleEntries. No copied membership graph, cached name set or
+per-candidate privilege traversal is introduced. The producer validates current
+principal/source/root authority and discards partial rows on cancellation.
+The existing initializer owns PUBLIC SELECT, origins and row13348/array13347
+links; those builtin types are not duplicated.
+See [public proof](../../../reference/catalogs/README.md#enabled-roles).
 
 ## Registry
 

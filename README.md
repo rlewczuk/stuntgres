@@ -28,6 +28,18 @@ PL/pgSQL retains its existing unavailable-runtime rejection, not native executio
 See [availability limits](docs/DIALECT.md#external-routine-language-boundary)
 and [selected proof and smoke](reference/query_core/README.md#external-routine-language-boundary).
 
+## Enabled roles — change note
+
+`information_schema.enabled_roles` exposes its sole nullable `sql_identifier`
+domain column, `role_name` (public NAME metadata), through the ordinary catalog
+query path. Ordinary readers see self and transitively inheritable roles;
+actual current superusers see every live role. SET and ADMIN options do not
+enable privileges, and inherited SUPERUSER membership does not confer that
+attribute. Held queries refresh after role and membership changes while native
+captures retain their original names.
+See [semantics and boundaries](docs/DIALECT.md#enabled-roles) and
+[selected proof and feature smoke](reference/catalogs/README.md#enabled-roles).
+
 ## Relation storage parameters — change note
 
 `ALTER TABLE ... SET (...)` and `RESET (...)` retain validated logical storage

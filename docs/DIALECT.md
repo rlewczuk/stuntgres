@@ -1295,6 +1295,32 @@ Restore has a restricted parameter-free replay boundary, not general script
 execution. It does not import temporary objects, transaction controls, shared
 role effects or arbitrary CTE/RETURNING history. See [fixture contracts](FIXTURES.md).
 
+## Enabled roles
+
+`information_schema.enabled_roles` has exactly one nullable
+`information_schema.sql_identifier` domain column, `role_name`, exported as NAME.
+PUBLIC may read it. A valid unfiltered session always sees its current role;
+the remaining ordinary rows follow all-INHERIT-true membership paths, including
+the implicit current-database-owner membership in `pg_database_owner`.
+Alternate paths and multiple grantors never duplicate an identity. SET and ADMIN
+options are independent and do not enable roles. NOINHERIT determines defaults
+for new membership edges, not a blanket veto of explicit INHERIT TRUE edges.
+
+The actual current superuser sees every live role, including unrelated roles.
+Ordinary membership in a superuser role exposes that role name without
+inheriting its SUPERUSER attribute. SET ROLE changes the current closure, not
+the session identity used to authorize switching. Unrelated ordinary role
+names, credentials, PUBLIC pseudo-rows and membership-option columns are not
+projected. Empty/NULL predicates retain metadata and produce no placeholder row.
+Each held execution recaptures the paired catalog/role authority; returned
+native captures preserve old values and types after publication.
+
+This adds neither `applicable_roles` nor `administrable_role_authorizations`,
+nor a new authentication catalog or role command. Existing native ALTER ROLE
+RENAME remains unsupported; PostgreSQL rename observations and native's exact
+capability diagnostic remain distinct.
+See [selected proof and smoke](../reference/catalogs/README.md#enabled-roles).
+
 ## Routine sequence usage
 
 `information_schema.routine_sequence_usage` has nine ordered nullable

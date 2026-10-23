@@ -6,6 +6,39 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Enabled roles
+
+The six `TestReferenceInfoEnabledRoles` definitions share public native and
+pinned PostgreSQL scenarios with independently specified bags and diagnostics.
+They prescribe the sole nullable sql_identifier/NAME column, domain/base and
+row/array links, raw transport, direct/prepared/held consumers, typed empty and
+NULL predicates, membership-option independence, alternate paths and exact
+deduplication, NOINHERIT defaults, superuser-attribute isolation, Unicode names,
+implicit database-owner membership and execution-time freshness.
+
+`FeatureSmoke` and `Visibility` reuse one complete scenario: actor initially
+sees actor/admin/island; SET ROLE admin and wheel each see only self; RESET
+restores the initial bag. Island switching fails with exact42501 while still
+enabled. An independent admin enables then revokes the wheel path, immediately
+changing held results. ADMIN-only and unrelated roles remain absent to actor
+but appear in the restored superuser's literal scenario inventory. Missing
+projection is exact42703/English/Position8; IS NULL yields typed empty rows.
+No ordering is promised; bags preserve multiplicities.
+
+Held CREATE/DROP freshness runs in both modes. PostgreSQL rename succeeds;
+native retains its existing0A000/Position1 unsupported boundary. Fast
+precanceled query/continuation is native-only, not a pq transport assertion.
+Private producer units cover retained roots/names and malformed/canceled
+capture authority, without introducing public SQL tests outside reference.
+
+```sh
+make check RUN='^TestReferenceInfoEnabledRoles(Shape|Visibility|MembershipOptions|Prepared|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoEnabledRoles(Shape|Visibility|MembershipOptions|Prepared|Diagnostics|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestInfoEnabledRoles(Producer|Semantics|CaptureOwnership)$'
+make check RUN='^TestReferenceInfoEnabledRolesFeatureSmoke$'
+make check RUN='^TestReferenceInfoEnabledRolesFeatureSmoke$' REFERENCE=1
+```
+
 ### Partition navigation
 
 `partition_info_*_test.go` independently specifies the sole PostgreSQL 18
