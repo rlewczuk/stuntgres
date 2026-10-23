@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"testing"
 
@@ -12,9 +11,9 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 func parameterSpaceRequest(kind string, names ...string) *parser.ObjectGrant {
@@ -23,23 +22,6 @@ func parameterSpaceRequest(kind string, names ...string) *parser.ObjectGrant {
 		r.Relations = append(r.Relations, parser.ObjectName{Parts: []parser.Identifier{{Text: name}}})
 	}
 	return r
-}
-
-func TestObjectGrantParameterCanonicalTargets(t *testing.T) {
-	e := New()
-	for _, name := range []string{"lc_messages", "LC_MESSAGES", "application_name", "server_encoding", "OG_CUSTOM.Value"} {
-		got, err := e.canonicalGrantParameter(name)
-		if err != nil || got != settings.FoldName(name) {
-			t.Fatalf("canonical target %q: %q, %v", name, got, err)
-		}
-	}
-	for _, name := range []string{"sort_mem", "work_mem", "missing", "bad..name", ".bad", "bad.1name"} {
-		_, err := e.canonicalGrantParameter(name)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || diagnostic.Message != `unrecognized configuration parameter "`+name+`"` {
-			t.Fatalf("unsupported target %q: %v", name, err)
-		}
-	}
 }
 
 func TestObjectGrantParameterPublication(t *testing.T) {
@@ -63,11 +45,11 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			if authorization.ACLRights(d.ACL, d.Owner, []authorization.PrincipalRef{reader}, mask, true) != mask || !slices.Contains(descriptorReferences(d), reader) {
 				t.Fatal("parameter ALL/options/dependencies omit sA", d.ACL)
 			}
-			if err := (parameterProvider{&e.settings}).Validate(e.catalog.read(e.catalog.state), d); err != nil {
+			if err := (role.ParameterProvider{Settings: &e.settings}).Validate(e.catalog.read(e.catalog.state), d); err != nil {
 				t.Fatal(err)
 			}
 			copy := *d
-			if err := (parameterProvider{&e.settings}).Validate(e.catalog.read(e.catalog.state), &copy); err == nil {
+			if err := (role.ParameterProvider{Settings: &e.settings}).Validate(e.catalog.read(e.catalog.state), &copy); err == nil {
 				t.Fatal("copied parameter descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}

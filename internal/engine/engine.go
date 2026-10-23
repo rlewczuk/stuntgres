@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
@@ -152,7 +153,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.OperatorClassProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(parameterProvider{&e.settings}); err != nil {
+	if err := e.RegisterCatalogProvider(role.ParameterProvider{Settings: &e.settings}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(catalog.TablespaceProvider{}); err != nil {

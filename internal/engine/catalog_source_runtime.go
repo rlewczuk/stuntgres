@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -192,7 +193,7 @@ func (r engineCatalogRuntime) SelectColumns(ref ids.ObjectRef, relation *catalog
 	return r.auth.CheckColumns(ref, relation, authorization.SelectPrivilege, nil)
 }
 func (r engineCatalogRuntime) ValidateParameter(view catalog.Read, d *catalog.Parameter) error {
-	return (parameterProvider{&r.engine.settings}).Validate(view, d)
+	return (role.ParameterProvider{Settings: &r.engine.settings}).Validate(view, d)
 }
 func (r engineCatalogRuntime) ForeignServerVisible(server *catalog.ForeignObject, mapped authorization.PrincipalRef) (bool, error) {
 	a := r.auth

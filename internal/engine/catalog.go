@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
@@ -319,7 +320,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return err
 		}
 	case *catalog.Parameter:
-		if err := (parameterProvider{&provider.owner.settings}).Validate(provider.base, d); err != nil {
+		if err := (role.ParameterProvider{Settings: &provider.owner.settings}).Validate(provider.base, d); err != nil {
 			return err
 		}
 	case *catalog.Tablespace:

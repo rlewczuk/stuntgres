@@ -36,11 +36,11 @@ func (h ddlHost) ArgumentTypes(a ddl.Authority) (func(context.Context, parser.Ty
 }
 
 func (h ddlHost) CanonicalParameter(name string) (string, error) {
-	return h.e.canonicalGrantParameter(name)
+	return role.CanonicalGrantParameter(h.e.settings, name)
 }
 
 func (h ddlHost) GrantParameter(a ddl.Authority, key string) (*catalog.Parameter, error) {
-	return h.e.grantParameterDescriptorLocked(ddlAuthorityOf(a), key)
+	return role.GrantParameterDescriptorLocked(h.e.settings, ddlAuthorityOf(a).Catalog, key, &h.e.roles.domain, h.e.catalog.allocateOIDLocked, h.e.catalog.revisionLocked)
 }
 
 func (h ddlHost) ReferencingFeatures(ref authorization.PrincipalRef) []string {
