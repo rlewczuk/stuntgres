@@ -11,8 +11,7 @@ It sits at layer L8 of
 above `session` (it names `session.NoticeLevel`), below the feature packages.
 It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
 `session`, `sqlstate`, `sqltype` and the standard library, and never
-`analyze`, a feature package or the engine. See
-[ENGINE-SPLIT-ddl.md](../../../docs/ENGINE-SPLIT-ddl.md).
+`analyze`, a feature package or the engine.
 
 ## What it owns
 

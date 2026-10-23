@@ -9,8 +9,7 @@ walk and the scalar-type import of catalog replacement.
 
 ## Imports
 
-Layer L9 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)
-(see also [ENGINE-SPLIT-typedef.md](../../../docs/ENGINE-SPLIT-typedef.md)). It
+Layer L9 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
 imports only `access`, `authorization`, `catalog`, `ddl` (the shared host
 contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
 (journal slot interfaces, notice levels), `storage`, `parser`, `sqltype`,

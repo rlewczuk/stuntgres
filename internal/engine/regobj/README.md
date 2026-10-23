@@ -6,8 +6,7 @@ object identity and the catalog inquiries over them.
 
 ## Imports
 
-Layer L11 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)
-(see also [ENGINE-SPLIT-regobj.md](../../../docs/ENGINE-SPLIT-regobj.md)). It
+Layer L11 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
 imports `access`, `analyze`, `authorization`, `catalog`, `dump`, `exec`, `expr`,
 `functions`, `ids`, `pgcatalog`, `plan`, `routine`, `session`, `typedef`,
 `parser`, `sqlstate`, `sqltype` and the standard library, never the engine,

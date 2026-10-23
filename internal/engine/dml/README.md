@@ -6,8 +6,7 @@ enforcement and actions over `FinishHost`, and the pure pieces they use (ON
 CONFLICT arbitration, the INSERT write overlay, RETURNING, inheritance targets,
 TRUNCATE and FK action records, COPY insertion batching).
 
-Layer L13 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)
-([ENGINE-SPLIT-dml.md](../../../docs/ENGINE-SPLIT-dml.md)). It imports `access`,
+Layer L13 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports `access`,
 `analyze` (payload types and pure functions only), `authorization`, `catalog`,
 `copyfmt`, `exec`, `expr`, `fdw`, `ids`, `index`, `lock`, `partition`, `plan`,
 `session` (the operation's COPY input state), `storage`, `table`, `view`,

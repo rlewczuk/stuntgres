@@ -13,7 +13,7 @@ imports `access`, `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`,
 `sqlstate`, `sqltype`, `table` (CREATE FOREIGN TABLE stages through
 `table.StageCreateTable`) and the standard library, and never the engine,
 `dml` or another upper feature. `table` never imports it. The engine and the
-driver import it. See [ENGINE-SPLIT-fdw.md](../../../docs/ENGINE-SPLIT-fdw.md).
+driver import it.
 
 ## What it owns
 

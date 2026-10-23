@@ -8,8 +8,7 @@ implemented by the root engine.
 
 ## Imports
 
-Layer L7 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)
-(see also [ENGINE-SPLIT-exec.md](../../../docs/ENGINE-SPLIT-exec.md)). It imports
+Layer L7 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`, `lock`,
 `access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate` and the
 standard library, never the engine, `analyze`, `session` or a feature package

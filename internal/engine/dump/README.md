@@ -11,8 +11,7 @@ dump statements without reaching into the engine. The Dump driver itself is in
 The package sits at layer L3.5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
 imports only `ids`, `catalog`, `expr`, `functions`, `parser`, `sqltype` and the
-standard library, and holds no state, no mutex and no engine callback. See
-[ENGINE-SPLIT-dump.md](../../../docs/ENGINE-SPLIT-dump.md).
+standard library, and holds no state, no mutex and no engine callback.
 
 ## What it owns
 

@@ -8,8 +8,7 @@ evaluates them. Node `Eval` methods never name engine state: they use
 
 ## Imports
 
-Layer L6 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)
-(see also [ENGINE-SPLIT-plan.md](../../../docs/ENGINE-SPLIT-plan.md)). It imports
+Layer L6 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
 `sqltype` and the standard library, never the engine.
 

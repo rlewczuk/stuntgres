@@ -1,8 +1,7 @@
 # internal/engine/session
 
 Session-layer state at layer L7 of
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)
-([ENGINE-SPLIT-session.md](../../../docs/ENGINE-SPLIT-session.md)): sessions and
+[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture): sessions and
 operations, the transaction owner's state, savepoint marks, the per-session
 settings store, timeouts, notices, LISTEN/NOTIFY records, the transaction
 catalog journal and the slot interfaces through which this state holds root and

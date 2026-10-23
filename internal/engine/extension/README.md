@@ -9,8 +9,7 @@ EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
 
 ## Imports
 
-Layer L9 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)
-(see also [ENGINE-SPLIT-extension.md](../../../docs/ENGINE-SPLIT-extension.md)).
+Layer L9 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access` (privilege requirements and the captured view),
 `authorization`, `catalog`, `ddl` (the shared authority and allocator), `expr`,
 `functions` (kernels and member tables), `ids`, `parser`, `sqlstate`, `sqltype`,

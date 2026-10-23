@@ -9,8 +9,7 @@ indexes are [`index`](../index/README.md) code; recursive ALTER policy is in
 ## Imports
 
 An upper feature package (L12 in
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture); see
-also [ENGINE-SPLIT-partition.md](../../../docs/ENGINE-SPLIT-partition.md)) above
+[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)) above
 `index` and `table`. It imports lower engine packages (`analyze` for types and
 pure functions only), `parser`, `sqlstate`, `sqltype` and the standard library,
 never the engine, `view` or `dml`; only the engine, `control` and `dml` import

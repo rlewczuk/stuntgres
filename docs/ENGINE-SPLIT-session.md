@@ -1,1190 +1,252 @@
-# Engine split, step 13: `internal/engine/session`
-
-Session prompt. Start a fresh session with "Implement
-`docs/ENGINE-SPLIT-session.md`." Follow the shared rules in
-[ENGINE-SPLIT.md §8](ENGINE-SPLIT.md#8-implementation-sessions): protocol,
-constraints, verification, documentation and report.
-
-- **Plan:** [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 step 13; §3 rule 7 and L9;
-  §4.1 patterns 2 and 4; §7 decisions 7, 10 and 11.
-- **Needs:** nothing for 13a and 13b. 13c needs 11c, 12d and 8b. Read the
-  `lock` and `visibility` READMEs (lock order, snapshot retention) and the
-  transaction rules in `AGENTS.md`.
-- **Effort:** high for 13a; xhigh for 13b (publication and fences) and 13c;
-  high for 13d.
-- **Session size:** one sub-step per session; 13d spans several sessions.
-  13a, 13b and 13d are broad rewrites.
-- **Second round (planned at `c154e14fb`):** 13f (linear item 78) needs
-  nothing.
-
-## Goal
-
-The statement scope, the operation, the catalog journal and the stage stop
-carrying feature fields. Then sessions, operations, the transaction owner,
-the catalog journal and the settings store move into `session`, which imports
-no feature package and not `analyze`. The root package keeps the public
-facade, the statement scope and statement dispatch (13c refine).
-
-## Inventory (measured at `75fe0d710`)
-
-**Session-layer files** (39 files, 9.5k lines): `session*.go` (1,510),
-`protocol*.go` (1,603), `prepared*.go` (558), `sql_cursor*.go` (882),
-`notification*.go` (482), `transaction*.go` (3,969, including 2PC in
-`transaction_prepared.go`), `savepoints.go` (261), `commit_timestamp*.go`
-(250). Related: `catalog_transaction.go` and
-`catalog_transaction_storage.go` (the journal, 603), `discard.go`,
-`notices.go`, `execute.go`, `execute_bound.go`, `statement_signature.go`.
-
-**Root driver use of the engine:** `Engine` (`StartStatement`, `Begin`,
-`Commit`, `Rollback`, `StartSession`, `ResolveLogin`, `Reset`, `Dump`,
-`Restore`, `InspectIndex`, `InstallForeignDefinitions`), `Session`
-(`Engine`, `AcquireActivity`, `RequestEnd`, `AcquireCommand`,
-`WaitForNotification`, `WaitEnd`, `Reuse`, `IsLive`, `Check`), `Operation`
-(`CommandError`, `Done`, `DetachNotices`, `Context`), `StatementScope`
-(`Finish`, `Execute`, `RetainMessage`, `NextStatement`, `FinishMessage`,
-`Describe`, `Copy`), `RowResult`, `StatementDescription`, `TxOptions` and
-the isolation constants, `SessionStart`, `ParameterInfo`, `CopyBoundary`,
-`EndReason` values.
-
-**`StatementScope`** (`transaction.go:276`, 119 fields plus the embedded
-`statementMutation` with 21; 290 methods). Single-feature fields and their
-uses (selectors plus literal keys, production files), grouped into the slots
-of 13a:
-
-| Slot | Fields (uses/files) |
-|---|---|
-| protocol | `protocolBind` 15/6, `protocolResume` 3/2, `protocolSimple` 16/10, `protocolSimpleCreated` 4/3, `protocolSimpleStreaming` 3/2, `protocolSimplePortal` 4/2, `protocolCommand` 9/7, `initialParameters` 7/3 |
-| prepared rebind | `preparedReuse` 7/3, `preparedInvalid` 4/2, `preparedPath` 3/1, `preparedNamespace` 2/1, `preparedPrivate` 2/1, `preparedEpoch` 2/1, `preparedChangedDuringAdmission` 4/4 |
-| inquiry snapshot (value group) | `commentCatalog` 52/19, `commentRoles` 19/11, `deparseAuth` 22/8, `deparsePath` 24/13, `collationPath` 6/4, `visibilityCatalog` 12/4, `visibilityRelationPath` 5/3, `visibilityOtherPath` 6/4, `visibilityDemand` 13/5, `currentSchemaResult` 7/3, `searchPathResults` 4/2 |
-| presentation caches | `regprocOutput` 4/1, `regprocedureOutput` 4/1, `operatorOutput` 4/1, `operatorGroups` 3/1, `regTSOutput` 4/1, `conversionDefaults` 3/1, `pgRegex` 1/1, `quoteCaptures` 4/3 |
-| TRUNCATE | `truncateRelations` 7/3, `truncateSequences` 13/1, `truncateRestart` 4/3, `truncateNames` 3/2, `truncateSelected` 5/3, `foreignTruncateCascade` 2/2 |
-| foreign-key actions | `foreignActionAdmissions` 15/4, `foreignActionTransitions` 10/2, `foreignActionsSettling` 4/3, `foreignActionExclusionAdded` 2/2, `foreignActionJobs` 2/2, `foreignKeyTargets` 3/3, `alterForeignKeys` 4/2 |
-| view creation | `viewCreationNamespace` 6/3, `viewPersistence` 4/2, `viewBinding` 3/2, `viewChanges` 11/3, `activeViews` 6/1 |
-| materialized refresh | `materializedRefresh` 8/4, `materializedSources` 4/2, `materializedSourceView` 3/2 |
-| inheritance | `inheritanceRelations` 5/3, `inheritanceCatalog` 4/2, `inheritanceAlter` 41/9 |
-| index and exclusion | `indexMaintenance` 3/3, `existingIndexOutputs` 6/3, `exclusionModes` 15/3, `exclusionStarted` 4/3 |
-| partition | `partitionPrograms` 6/3, `partitionValidationView` 6/3 |
-| foreign tables | `foreignOwner` 11/5, `foreignCursor` 4/3, `foreignStatements` 17/4, `foreignModifications` 5/2, `foreignHoldPromotions` 9/4 |
-| domain | `domainEvaluation` 5/3, `domainPreparedChecks` 8/7, `domainInputCatalog` 9/7 |
-| drop | `consumedColumnDrops` 5/1 |
-
-The header keeps the lifecycle and cross-cutting fields: `self`, `owner`,
-`op`, `stage`, `view`, `finished`, `message`, `messageEnded`,
-`messageResult`, `result`, `worked`, `completed`, `sessionCompleted`,
-`controlOutcome`, `replacementRead` (148/46), `ticket`, `multiEvents`,
-`txRef` (132/55), `command`, `ownWrites`, `ownDeletes`, `implicit`,
-`input`, `output`, `statementStart`, `transactionStart`, `timeoutRef`,
-`ruleActionAuth`, `authority`, `routineAuth`, `identity`, `mutations`,
-`activeMutation`, `cteInvocation`, `notificationActions`,
-`notificationEvents`, `querySources`, `queryLockAdmission`, `queryLocks`,
-`catalog`, `catalogAuthority`, `projectedRoots`, `Expected`,
-`admissionWaited`, `routinePrograms`, `foreignActionAuth`, and the embedded
-`statementMutation`.
-
-**`Operation`** (`session.go:110`, 35 fields). Restore and population flags:
-`restoreTableDestination` 41/16, `restoreInsertAuthority` 5/4,
-`restoreCommentAuthority` 4/2, `restoreDefaultReplay` 4/2,
-`restorePartitionAttach` 5/2, `restorePartitionCheck` 5/2,
-`restorePartitionUsingIndex` 6/2, `restorePartitionUnique` 8/2,
-`materializedPopulation` 6/3, `materializedOwner` 6/2; DISCARD:
-`discardRoleReset` 7/1.
-
-**`catalogChanges` journal** (`catalog_transaction.go:16`). Feature fences:
-`indexFences` 6/2, `namespaceFences` 6/2, `readFences` (partition) 8/3,
-`truncateFences` 7/2, `materializedSources` 6/2, `domainValidations` 6/3.
-Feature maps: `indexCandidates` 24/9, `indexRebuilds` 11/4, `uniqueRoots`
-30/13, `domainIndexRoots` 11/3, `domainChanged` 6/2, `enumCreated` 9/2,
-`enumUnsafe` 9/3, `extensionAuthority` 7/2. Core: `originals`,
-`descriptors`, `names`, default ACLs, `generators`, `storage`,
-`dependencies`, `cachedBase`, `cached`, roles.
-
-**`CatalogStage`** (`catalog.go:340`, 39 fields). Feature fields: index
-(`indexRebuilds` 10/4, `indexCandidates` 22/9, `indexLayouts` 9/5,
-`indexParents` 8/3, `indexSets` 7/3, `indexOutput` 9/9), domain
-(`domainTargets` 30/11, `domainBases` 78/28, `domainValidation` 6/3,
-`domainAlter` 8/4, `domainIndexRoots` 7/3), materialized
-(`materializedReplacement` 24/6, `materializedSourceView` 4/3), typed
-tables (`typedSource` 5/3, `typedObserved` 4/3), identity
-(`identityOriginals` 15/4, `identityDependencies` 10/5), `likeSources` 7/3,
-cascade names (`schemaCascadeNames` 11/4, `viewCascadeNames` 28/10),
-`partitionReads` 6/3, `generators` 20/8. *(17a moved `generators` and both
-identity fields into the `sequenceStage` slot, which 17d moved as
-`sequence.Stage`.)*
-
-**`transactionOwner`** (`transaction.go:49`, 39 fields). FDW participants:
-`foreignCleanup` 8/2, `foreignMarkNext` 3/1, `foreignParticipants` 19/5.
-
-## Sub-steps
-
-### 13a — Statement scope slots (broad)
-
-1. For each slot in the table (except the inquiry snapshot), add a
-   feature-owned struct next to its feature code (for example
-   `truncateScope` in `truncate.go`) and one pointer field on
-   `StatementScope`, allocated on first use by one accessor
-   (`s.truncate()`). Where a feature reads a field only to test it for zero,
-   a nil slot must mean the same zero state.
-2. The inquiry snapshot is read in many files and captured eagerly; make it a
-   value group (`inquiry inquirySnapshot`), not a pointer, so allocation does
-   not change.
-3. Rewrite selectors with a `go/types` tool (field → slot path) and a census.
-   One commit per slot or per two small slots.
-4. Simplify `transaction_finish.go` (the reset) and `sql_cursor_hold.go` (the
-   copy for held cursors) to handle each slot as one unit. Check every reset
-   and copy against the old field list: a missed field is a behavior change.
-5. Result: about 70 fields leave the header. Record the final header list
-   here.
-
-**13a result** (re-measured at `e8598c73e`, rebased onto `1ecaa1876`): 74
-fields left the header (124 → 50 header fields plus 15 slot fields).
-
-| Slot | Kind | Type, home file | Fields |
-|---|---|---|---|
-| `inquiry` | value | `inquirySnapshot`, `query_sources.go` | the 11 inquiry fields, names kept |
-| `prepared` | value | `preparedRebind`, `prepared_rebind.go` | reuse, invalid, path, namespace, private, epoch, changedDuringAdmission |
-| `sqlRoutine` | value | `sqlRoutineDemand`, `sql_routine_scope.go` | scalar, result, resultPlan (new since the inventory) |
-| `inheritance` | value | `inheritanceScope`, `inheritance_query_scope.go` | relations, catalog, alter |
-| `domains` | value | `domainScope`, `domain_input.go` | evaluation, preparedChecks, inputCatalog |
-| `protocolSlot` | pointer | `protocolScope`, `protocol_portal.go` | bind, resume, simple, simpleCreated, simpleStreaming, simplePortal, command |
-| `presentationSlot` | pointer | `presentationCaches`, `regproc_output.go` | regproc, regprocedure, operators, operatorGroups, regTS, conversionDefaults, pgRegex |
-| `truncateSlot` | pointer | `truncateScope`, `truncate.go` | relations, sequences, restart, names, selected, foreignCascade |
-| `dropsSlot` | pointer | `dropScope`, `drop_provider.go` | consumedColumns |
-| `foreignActionsSlot` | pointer | `foreignActionScope`, `foreign_action_admission.go` | admissions, transitions, settling, exclusionAdded, jobs, keyTargets, alterKeys |
-| `viewCreationSlot` | pointer | `viewCreationScope`, `view.go` | namespace, persistence, binding, changes, active |
-| `materializedSlot` | pointer | `materializedRefreshScope`, `materialized_refresh.go` | refresh, sources, sourceView |
-| `indexesSlot` | pointer | `indexScope`, `index_maintenance.go` | maintenance, existingOutputs, exclusionModes, exclusionStarted |
-| `partitionsSlot` | pointer | `partitionScope`, `partition_routine.go` | programs, validationView |
-| `foreignTablesSlot` | pointer | `foreignTableScope`, `fdw_execute.go` | owner, cursor, statements, modifications, holdPromotions |
-
-Slot rules (also in the comment above the slot fields in `transaction.go`):
-a pointer slot `xSlot` stays nil until its first write through `x()`;
-reads use `xOrZero()`, which returns a copy and never allocates, so nil
-means all zero and the compiler rejects writes through the read accessor.
-Clearing on common paths (Finish, COMMIT, wire portals, held cursors) goes
-through nil-safe slot methods or setters that never allocate a missing slot.
-The SQL routine scratch swaps the `protocolSlot` and `presentationSlot`
-pointers, so a nested body starts empty as before; it saves partially saved
-slots (view `active`, partition `validationView`, foreign `owner`/`cursor`)
-field by field. Nothing else resets a slot to nil.
-
-Deviations from the table above, from re-measurement:
-
-- Value groups, not pointer slots, for `prepared`, `inheritance` and
-  `domains`: every SELECT/DML statement or SQL routine body writes them
-  (`selectPreparedAnalysis`, `acquireInheritanceSources`, the execution
-  input catalog), so a lazy slot would add an allocation per statement and
-  per SQL-function row.
-- `quoteCaptures` stays in the header: every bound statement sets it and the
-  rule scratch saves it with the query state, not with the presentation
-  caches.
-- `initialParameters` stays in the header: the driver path, prepared SQL and
-  SQL routines write it, not only the wire protocol.
-- `rowSecurity` and `activeSQLRoutineDepth` (new) stay in the header.
-
-Final header: `statementMutation` (embedded), `mutations`, `activeMutation`,
-`cteInvocation`, `self`, `owner`, `op`, `ruleActionAuth`, `rowSecurity`,
-`authority`, `routineAuth`, `stage`, `notificationActions`,
-`notificationEvents`, `view`, `finished`, `message`, `messageEnded`,
-`messageResult`, `result`, `worked`, `completed`, `sessionCompleted`,
-`controlOutcome`, `replacementRead`, `ticket`, `multiEvents`,
-`querySources`, `queryLockAdmission`, `queryLocks`, `txRef`, `command`,
-`ownWrites`, `ownDeletes`, `Expected`, `admissionWaited`, `implicit`,
-`input`, `routinePrograms`, `statementStart`, `transactionStart`,
-`timeoutRef`, `output`, `initialParameters`, `activeSQLRoutineDepth`,
-`quoteCaptures`, `catalog`, `catalogAuthority`, `projectedRoots`,
-`foreignActionAuth`, `identity`, then the 15 slot fields.
-
-### 13b — Operation, journal, stage and owner slots (broad)
-
-1. `Operation`'s Restore and population flags become one `restoreReplay`
-   slot (allocated only by Restore and materialized population);
-   `discardRoleReset` moves into a DISCARD slot or stays if it is the only
-   field.
-2. The journal's feature fences become one list of a `catalogFence`
-   interface with the methods publication calls today (measure them in
-   `catalog_transaction*.go` and `transaction_publication.go`: validate at
-   commit, savepoint copy, rollback). Keep each fence's validation order: the
-   list must preserve the current check order.
-3. The journal's feature maps move into feature journal slots (index, domain,
-   enum, extension). Savepoint marks (`savepointMark.catalog`) clone slots as
-   units; check `savepoints.go`.
-4. `CatalogStage`'s feature fields move into feature stage slots (index,
-   domain, materialized, typed tables, identity); the cascade names and
-   `likeSources` stay if no single feature owns them. Measure first.
-5. `transactionOwner`'s FDW fields become one slot.
-6. Feature steps 14–17 reuse these slots. If a feature step runs first, it
-   creates its own slot the same way, and 13b skips it. Typedef 15a created
-   the domain ALTER and typed-table stage slots and the domain and enum
-   journal slots; `domainBases`, `domainTargets` and `domainChanged` are
-   shared and stay (see the typedef prompt file's Status).
-
-**13b result** (measured at `01c1a9ec4`, rebased onto `c6766e328`): 32
-feature fields left the four structs. New pointer slots follow the 13a rules
-(`xSlot` field, allocating `x()`, copying `xOrZero()`, nil means all zero).
-
-| Struct | Slot | Kind | Type, home file | Fields |
-|---|---|---|---|---|
-| `Operation` | `replaySlot` | pointer | `restoreReplay`, `restore_replay.go` | tableDestination, insertAuthority, commentAuthority, materializedPopulation, materializedOwner, defaultReplay, sqlBodies, partitionAttach, partitionCheck, partitionUsingIndex, partitionUnique, domainReplay |
-| `catalogChanges` | `fences` | list | `catalogFence`, `catalog_fence.go` | the storage-read, index-set, namespace, extension authority, TRUNCATE graph and materialized source fences |
-| `catalogChanges` | `indexesSlot` | pointer | `indexJournal`, `index_journal.go` | uniqueRoots, candidates, rebuilds |
-| `CatalogStage` | `indexesSlot` | pointer | `indexStage`, `index_stage.go` | rebuilds, candidates, layouts, parents, sets, output |
-| `CatalogStage` | `materializedSlot` | pointer | `materializedStage`, `materialized_stage.go` | replacement, sourceView |
-| `transactionOwner` | `foreign` | value | `foreignTransaction`, `fdw_transaction.go` | participants, cleanup, markNext |
-
-Fence list: each fence type declares `fenceKind()` and its own
-`currentLocked(e, c)` next to its feature code (`storageReadFence`,
-`catalogIndexFence`, `catalogNamespaceFence`,
-`extensionAuthorityFence`, `truncateGraphFence`,
-`materializedSourceFence`). `catalogPreflightLocked` checks the kinds at
-the same four points as before: storage-read, index-set and namespace after
-the typedef domain fences; extension authority before the dependency
-preflight; TRUNCATE graph after it; materialized sources after the storage
-check. Within a call, kinds run in the given order and fences in recording
-order, so the first error is unchanged. The extension fence repeats the
-name-conflict check per observation; the check does not depend on the
-observation, so the first error is the same. The journal index slot's
-`clone` copies its maps (the journal is copy-on-write; savepoint marks keep
-old journals), `forget` replaces the paired deletes and `pending` the
-publication XID test.
-
-Stays, measured: `discardRoleReset` (the only DISCARD field); journal
-`domainChanged` (shared, see the typedef Status), `dependencies` and the
-core maps; stage `querySources` (written by policy, rule, view ALTER,
-TRUNCATE, CREATE TABLE AS and REFRESH stages), `storageReads` (generic
-storage read fences, also fed by index parents and candidates),
-`likeSources` (CREATE TABLE LIKE only, one field; postponed `table`),
-cascade names (about 11 features), `initialTables` and `initialTx` (CTAS,
-SELECT INTO, TEMP, materialized), `extensionNamespace` (one extension
-field; step 16), the database predecessor and authority, `roleCandidate`,
-`terminalCleanup`, `dependencyPath`, `rowShapes`.
-
-Deviations from the plan above:
-
-- `transactionOwner`'s FDW fields are a value group, not a pointer slot:
-  every SAVEPOINT advances `markNext`, so a lazy slot would allocate in
-  transactions with no foreign tables.
-- `extensionAuthority` became a fence kind rather than an extension journal
-  slot: publication only checks it, like the other fences. Step 16b moved
-  the observation to `extension.AuthorityObservation`; the engine wraps it
-  in `extensionAuthorityFence` (`extension_authority_fence.go`), because the
-  fence interface takes the engine.
-- `querySources` stays in the stage header (see above); only the two
-  refresh fields form the materialized slot.
-
-### 13c — Refine (docs only)
-
-After 11c and 12d:
-
-1. Re-run the appendix tool with the session-layer files as the move set.
-   List every path to the root package and to feature code.
-2. Decide what moves: `Session`, `Operation`, the statement scope core, the
-   transaction owner, savepoints, the journal, 2PC, notifications, timeouts,
-   SQL cursors, protocol portals, the prepared SQL registry, and the session
-   settings store (§7 decision 10).
-3. Decide how scope methods spread over feature files (about 290 methods)
-   are handled: methods that only touch the header move with the scope;
-   feature methods become feature functions taking the scope or its slot.
-4. Settle §7 decision 7 (slot typing after the move) and decision 11
-   (facade types).
-5. Write the 13d session order and commit sequence here; wait for approval.
-
-**13c refine (approved; measured at `3fbd7d241`).** The `frontier`,
-`reach` and `paths` tools (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/`;
-outputs in `.cswd/tmp/PG18-ENGINE-SPLIT-SESSION-REFINE/`), with the 43
-session-layer files (9.75k lines: `session*.go`, `protocol_*.go`,
-`prepared_rebind.go`, `prepared_sql.go`, `sql_cursor*.go`,
-`notification*.go`, `transaction*.go`, `savepoints.go`,
-`commit_timestamp_store.go`, `catalog_transaction*.go`, `catalog_fence.go`,
-`notices.go`, `statement_signature.go`) as the move set:
-
-- **Most of the layer is orchestration.** 57 `Engine` methods live in these
-  files (begin and end, publication, preflight, 2PC install, notification
-  publication, settings application, prepared re-analysis); they install
-  changes across catalog, storage and visibility under `Engine.mu` (§3 rule
-  4). `StatementScope` has 320 methods in 119 files; against a proposed core
-  header, 16 touch only core fields, 58 touch only core fields but call
-  other scope methods, 95 reach `Engine` and 151 use execution fields or
-  slots.
-- **Outside uses** (production, outside the move set): scope header fields
-  about 2.5k (`op` 767, `owner` 300, `input` 187, `inquiry` 140,
-  `replacementRead` 127), `Operation` about 1k (`session` 376, `Context`
-  362), `Session` about 440 (`Engine()` 146), transaction owner about 380
-  (`catalog` 187), journal about 310.
-- **What stays dirty after the obvious cuts** (session, notification and
-  fence back-pointers, the operation's analysis host and replay slot, the
-  three `*StatementScope` back-references, the owner's FDW and exclusion
-  values, the journal's index slot): `sqlCursor` holds two
-  `AuthorizationView` values, which stay in the root (authorization
-  prompt), and through it `protocolPortal`, the prepared registry, the
-  owner's cursor cleanup and `Session` reach the root.
-  `sessionNotifications` holds `*Engine` and its queue is guarded by
-  `Engine.mu`; the 2PC records are held only by `Engine.prepared`.
-- **Feature types inside moving structs:** the journal's
-  `typedef.EnumJournal`/`DomainJournal` and index slot, `Session.sequences`
-  (`sequence.SessionMemory`), the owner's `foreign` and `exclusionModes`,
-  and the savepoint exclusion projection.
-- **Layering.** `analyze` imports `typedef`, `sequence`, `routine` and
-  `extension` (§3 rule 6). Part B puts handlers that import `session` into
-  those packages, so `session` must never import `analyze` or a feature
-  package: either would form a cycle. `StatementDescription` holds
-  `analyze.ParameterInfo` and `*sequence.Analysis`, so it cannot move.
-- **Driver.** It calls `Session.Engine()` at six call sites (`conn.go`,
-  `tx.go`, `copy.go`, `control.go`).
-- **What session code needs from the scope is small.** Timeouts compare
-  `sessionTimeout.scope` and `Operation.timeoutScope` by identity and write
-  only `timeoutRef`; the owner's `copyScope` is identity only. No moving
-  code needs to get back from session state to the root scope.
-
-Decisions:
-
-1. **State moves, orchestration stays.** `session` gets `Session`,
-   `Operation` and the copy-input context; the transaction owner's state,
-   with the owner methods that stay clean (`inBlock`, `retainsTransaction`,
-   `truncateSavepoints`, `acquireAdmission`); savepoint marks; the
-   `catalogChanges` journal; timeouts; notices; `ProtocolCycle`; the
-   `Notification` and `notificationAction` records; the settings store; and
-   the value types `Tx*`, `Isolation`, `TxOptions`, `EndReason`,
-   `ResourceKind` and `SessionStart`. Engine orchestration stays in the
-   root. The other owner methods become root functions (for example
-   `clearTransaction(t)`, which retires cursors and portals).
-2. **`StatementScope` stays whole in the root** as the dispatch type. A
-   core split would buy 16 methods for about 2.5k exports and about 70 of
-   the 85 test literals (51 files). Instead `session` declares a small
-   `StatementLease` value (statement identity and `TimeoutRef`), held as a
-   named scope field; it replaces `Operation.timeoutScope`,
-   `sessionTimeout.scope` and the owner's `copyScope`, and the scope fields
-   the timeout code only reads (`op`, `message`, `txRef`,
-   `transactionStart`) become arguments. Part B feature handlers reach the
-   scope through per-consumer host interfaces on `statementHost` (§7
-   decision 8), not by naming the scope; they need hosts anyway because
-   `CatalogStage` stays in the root.
-3. **Stay in the root:** SQL cursors, protocol portals, the prepared SQL
-   registry, `sqlRoutines` and `StatementDescription` (execution runtime and
-   analysis output), the notification listener (`sessionNotifications`) and
-   the 2PC records. `Session` holds them through one root session payload,
-   allocated with the session; the owner holds the foreign participants,
-   exclusion modes and cursor cleanup through one root owner extension.
-   Prepared SQL rules therefore stay in `AGENTS.md`.
-4. **Slot typing (§7 decision 7): one interface per slot.** Each slot is a
-   `session` interface with an exported marker method (and `Clone` where
-   savepoints or the copy-on-write journal copy it); its owner recovers the
-   concrete type with one checked helper; a typed nil is never stored, so a
-   nil test keeps its meaning. Root-only slots with the same lifetime
-   collapse into one payload per struct (decision 3). The fence list
-   becomes `[]session.Fence` (`Kind()`); `catalogPreflightLocked` recovers
-   the root fence with a checked assertion and keeps the kind order and
-   recording order. No generic `session.Slot[T]`: a lower struct cannot
-   name the slot types, a typed-key table needs a registry and `[]any`, and
-   the slots' clone and reset rules differ.
-5. **Settings store (§7 decision 10): `session`.** `sessionSettings` holds
-   the `*Session` back-pointer, role setting actions and the owner's
-   characteristic projections, and its mutex sits between `Engine.mu` and
-   `session.mu` in the lock order; `settings` is L1. `settingAccess` (it
-   reads `AuthorizationView`) stays in the root.
-6. **Facade types (§7 decision 11), applied in 13e.** The driver and
-   `cmd/stuntgres` import `session` directly for `Session`, `SessionStart`,
-   `EndReason`, `ResourceKind`, `Tx*`, `TxOptions`, the isolation constants
-   and `ProtocolCycle`, with no permanent aliases (as `settings` in 8c,
-   `exec` in 11d and `analyze.ParameterInfo` in 12e). `StatementScope`,
-   `StatementDescription`, `Result`, the other `Protocol*` and
-   `CopyProtocol*` types, `CopyBoundary` and `FrameImporter` stay root
-   types. Deviation: `Session.Engine()` goes away (a lower type cannot
-   return `*Engine`), so the driver keeps its own engine field; the facade
-   is not source-compatible at those six call sites.
-7. **Layer line.** `session` imports `exec`, `settings` and L1–L5 only,
-   never `analyze` or a feature package (§3).
-
-### 13d — Move (several sessions)
-
-Six sessions, in this order. Each re-measures its move set with `reach` and
-`frontier`, checks with `go list` that `session` imports neither `analyze`
-nor a feature package, runs `make bench`, and runs `RACE=1` selections for
-timeouts, COPY, cancellation and 2PC.
-
-#### 13d.1 — Journal (broad; creates `session`)
-
-1. The journal's `enum`, `domain` and `indexesSlot` become `session` slot
-   interfaces with a marker and `Clone`; the typedef journals and the index
-   journal implement them; checked helpers recover them. Index maps stay
-   deep-copied (savepoint marks keep old journals).
-2. `fences` becomes `[]session.Fence`; root fences keep `currentLocked`
-   and are recovered by assertion in `catalogPreflightLocked`
-   (`catalog_fence_test.go` keeps passing unchanged).
-3. Export the journal members the root reads (about 310 references).
-4. Create `session`, move `catalogChanges`, `catalogStorageChange`,
-   `catalogDependencyObservation` and the clone helper, with aliases.
-
-**13d.1 result** (measured at `96460e8a2`). `session` holds `Journal` (was
-`catalogChanges`; 19 fields, all exported, `indexesSlot` became `Indexes`),
-`StorageChange`, `DependencyObservation`, `NewJournal`, `Journal.Clone`
-(absorbing `cloneDefaultChanges`; a nil journal clones to an empty one) and
-`AddFence`; it imports only `ids`, `authorization`, `catalog`, `storage`,
-`access` and `sqltype`. Slot interfaces `EnumSlot`, `DomainSlot`,
-`IndexSlot` (marker plus `Clone`) and `Fence` (`Kind() FenceKind`).
-`typedef.EnumJournal`/`DomainJournal` implement the slots, so `typedef` now
-imports `session` (planned for Part B; acyclic). The root keeps the index
-journal, the fence types, their kinds and check order, and the helpers
-`enumJournalOf`/`enumSlotOf`, `domainJournalOf`/`domainSlotOf`,
-`indexJournalOf`/`indexSlotOf`; the four slot accessor methods became root
-functions (`journalIndexes`, `journalIndexesOrZero`, `domainWritable`,
-`enumWritable`). Call sites of `newCatalogChanges`/`cloneCatalogChanges`
-name `session.NewJournal`/`Clone` directly.
-
-Deviations: `catalog_fence_test.go` changed in two lines (its probe fence
-implements `Kind() session.FenceKind` instead of `fenceKind()`); a foreign
-fence in `catalogFencesCurrentLocked` returns an internal error.
-
-Tests: new `session/journal_test.go` (`TestJournalCloneOfNilIsEmpty`,
-`TestJournalCloneKeepsNilSlotsNil`,
-`TestJournalCloneCopiesMapsAndSlotsAndSharesFences`). Engine unit tests were
-rewritten in place by the tools (slot reads through the helpers, exported
-members, `session.NewJournal`/`Clone`), for example
-`catalog_type_journal_test.go`, `enum_evolution_test.go`,
-`domain_alter_message_test.go` and `driver_batch_role_retirement_test.go`;
-`temporary_table_catalog_test.go` renamed a local `session` variable that
-shadowed the package. No test moved or was deleted.
-
-#### 13d.2 — Statement lease and small cuts (in place)
-
-May run in parallel with 13d.1 (it touches the timeout, COPY admission and
-authorization files, not the journal).
-
-1. Add `StatementLease`; replace `Operation.timeoutScope`,
-   `sessionTimeout.scope` and `transactionOwner.copyScope`; pass the read
-   fields to `startProvisionalTimeout` and `finishScopeTimeout`.
-2. `settingAccess` and `Operation.Authorization` become root functions.
-
-**13d.2 result.** `StatementLease` (`statement_lease.go`, still in the root;
-moves in 13d.6) holds `Statement any` (the owning scope, recovered with
-`scopeOfLease`) and `TimeoutRef` (was the scope's `timeoutRef`; `Session.mu`
-guards it). `StatementScope.lease` is a value field set in
-`newStatementScope`, so no allocation is added. `Operation.lease`, the
-timeout slot's `lease` and `transactionOwner.copyLease` replace the three
-back-pointers and compare by lease address; a copied scope's lease has
-another address, as the copy's pointer did. `startProvisionalTimeout(lease,
-op, transactionStart)` and `finishScopeTimeout(lease, op, message, txRef,
-failed)` take the fields they read. `stageMessageCatalog` and
-`insert_conflict_update_lock_test.go` recover the scope with `scopeOfLease`
-(the lease's back-reference, per §3 rule 7). `operationAuthorization(op)`
-replaces the method (30 production and 103 test call sites, rewritten with
-`meth2fn`); `settingAccess` was already a function and moved to
-`parameter_permission.go` (renamed `setting_permission.go` in role 28a).
-
-Tests: adapted in place, none moved or deleted (`session_timeout_test.go`,
-`session_timeout_pending_test.go`, `copy_admission_test.go`,
-`copy_binary_test.go`, `protocol_copy_scope_test.go`,
-`protocol_copy_input_start_test.go`, `protocol_simple_test.go`,
-`insert_conflict_update_lock_test.go`, and the `operationAuthorization`
-call sites).
-
-#### 13d.3 — Engine edges (broad)
-
-1. A `session.Host` interface, implemented by a root adapter over the
-   engine, for what moving code needs from it: session end maintenance
-   (TEMP collations; outside `s.mu`, never inside a `SessionResource`
-   callback), unregistering from `Engine.sessions` (under `s.mu`, takes
-   `Engine.sessionMu`), serializable enrolment for characteristic sync, the
-   lock manager and the setting definitions. Document each method's lock
-   contract.
-2. `engineOf(session)` replaces `Session.Engine()` in the root (about 220
-   call sites; `s.op.session.Engine()` becomes `s.engine()`); the driver
-   keeps an engine field.
-3. Owner methods that reach the engine, FDW or cursor code become root
-   functions; the owner's `EndSession` becomes a root session resource.
-
-**13d.3 result** (measured at `3438acb6a` with `frontier` over the decision 1
-types). `session.Host` (`session/host.go`) has two methods:
-`EndMaintenance(ids.SessionOwner) error` (TEMP collations; after the
-Transaction callback, without `Session.mu`, never inside a `SessionResource`
-callback) and `Unregister(ids.SessionToken, ids.SessionOwner)` (under
-`Session.mu`, takes only `Engine.sessionMu`). The root implements it with
-`sessionHost` (`session_host.go`), a pointer conversion of `*Engine` (no
-state, no allocation, works for test `&Engine{}` literals); `Session.engine`
-became `host session.Host`. `engineOf(session)` (nil for a host-less test
-session, as `Engine()` returned) and `StatementScope.engine()` replace
-`Session.Engine()`, which is gone: 316 engine call sites rewritten with
-`meth2fn`, 204 of them to `s.engine()`/`scope.engine()`. The driver's `conn`
-and the `cmd/stuntgres` client (`c.db.engine`) and `bootstrapExecute` keep
-their own engine. Root functions (`meth2fn`): `clearTransaction`,
-`drainCursorCleanup`, `commitForeign`, `foreignPending`, `foreignSavepoint`,
-`retireProtocolPortalsAfter`, `captureSavepoint`, `restoreSavepoint`,
-`finishNotificationBoundary`, `syncCharacteristics`. The owner's session end
-is `transactionSessionEnd` (a pointer conversion of the owner, attached as the
-Transaction resource) calling `endTransactionSession`. `validate` and
-`acquireAdmission` compare against `t.session.token.Domain()`, which is the
-engine's domain by construction; `validateSessionOperation(domain, op)` holds
-the body of `Engine.validateOperation`. Bench unchanged (about 820 µs/op,
-5014 allocs).
-
-Deviations: the Host has no serializable enrolment, lock manager or setting
-definitions: after the cuts no moving code needs them
-(`syncCharacteristics` and savepoint capture became root functions,
-`sessionAdvisory` holds the lock manager, `sessionSettings.initialize` takes
-the definitions). Exporting the session and owner mutexes stays in 13d.5.
-
-Remaining engine edges of the moving types, for 13d.4: `Session.operation`
-builds the operation's `bindingHost` with `engineOf` (the analysis slot), and
-`Session.pollNotification` (with `WaitForNotification` and
-`PollProtocolNotification`, which the driver and `cmd/stuntgres` call) reads
-the listener queue under `Engine.mu`: it is listener code and stays with the
-root notification payload.
-
-Tests: new `session_host_test.go` (`TestSessionHostRecoversEngine`,
-`TestSessionHostUnregisterKeepsOtherOwner`). Adapted in place, none moved or
-deleted: the `engineOf`/`meth2fn` rewrites across engine tests,
-`session_test.go` (a `Session` literal sets `host`), `savepoints_test.go` and
-`settings_local_lifecycle_test.go` (call `endTransactionSession`), and the
-root `session_adapter_mechanics_test.go` and `transaction_terminal_test.go`
-(compare the connection's engine field).
-
-#### 13d.4 — Root payloads (in place)
-
-1. The root session payload: cursors, prepared registry, `sqlRoutines`,
-   `sequences` and the notification listener, allocated with the session.
-2. The root owner extension: foreign participants and cleanup, exclusion
-   modes, cursor cleanup. `markNext` becomes a generic savepoint serial in
-   the owner. The savepoint exclusion mark becomes a slot that is nil when
-   zero.
-3. The operation's `replaySlot` and `analysis` become slots, without a new
-   allocation per operation (the root allocates operations through the
-   host).
-
-**13d.4 result** (measured at `ae961f3ac` with `frontier` over the decision 1
-types). Five slot interfaces in `session/root_slots.go`, each with only an
-exported marker method (no `Clone`: nothing copies them copy-on-write):
-
-| Struct | Slot | Root type, file | Holds |
-|---|---|---|---|
-| `Session` | `payload session.PayloadSlot` | `sessionPayload`, `session_payload.go` | `cursors`, `preparedSQL`, `sqlRoutines`, `sequences`, `notifications` |
-| `transactionOwner` | `extension session.OwnerSlot` | `ownerExtension`, `transaction_extension.go` | `foreign` (participants, cleanup), `exclusionModes`, `cursorCleanup` |
-| `savepointMark` | `exclusion session.ExclusionMarkSlot` | `exclusionMark`, `savepoints.go` | exclusion modes and pending projection; nil when both are exactly zero (`exclusionModes.zero`) |
-| `Operation` | `replaySlot session.ReplaySlot` | `restoreReplay`, `restore_replay.go` | unchanged fields |
-| `Operation` | `analysis session.AnalysisSlot` | `*bindingHost`, `analysis_host.go` | the operation's binding host |
-
-`startSession` allocates the session, its payload and the owner extension in
-one `sessionAllocation`; `newSessionOperation` (`session_host.go`) allocates an
-operation with its binding host in one `operationAllocation`. Session start,
-`Acquire` (3 allocations, as on master) and the bench are unchanged. Accessors
-are root functions: `payloadOf` (nil for a payload-less test literal),
-`ownerExtensionOf` (write; allocates only for test literal owners) and
-`ownerExtensionOrZero`, `exclusionMarkSlotOf`/`exclusionMarkOrZero`,
-`operationReplay`/`operationReplayOrZero` (were the `replay()` and
-`replayOrZero()` methods, rewritten with `meth2fn`, 135 call sites), and
-`Engine.analysisHost` (checked assertion, copies still get a fresh host).
-`ownerExtension.retireForeign` and `detachCursors` replace the repeated
-append pairs. `foreignTransaction.markNext` became the owner's generic
-`savepointSerial` (never reset; the exhaustion check is unchanged) and
-`savepointMark.foreignID` became `serial`. Selectors were rewritten with a
-new `pathrw` tool (`x.f` → `accessor(x).f`, write/read split; 349 payload and
-70 owner sites).
-
-Notification polling left `Session`: `Engine.WaitForNotification(op)`,
-`Engine.PollProtocolNotification(s)` and `Engine.pollNotification(s,
-check)` keep the lock sequence and errors and reject a session or operation
-of another engine. The driver (`notification.go`) and the wire server
-(`cmd/stuntgres/dispatch.go`) call them through the engine they hold.
-
-Deviations: none in scope. `newSessionOperation` is a root function, not a
-`Host` method yet: `session.Host` cannot name the root `Operation` until it
-moves (13d.6).
-
-Tests: new `session_payload_test.go`
-(`TestSessionPayloadHoldsRootResources`, `TestSessionPayloadOfLiteralIsNil`),
-`transaction_extension_test.go` (`TestOwnerExtensionAllocatedWithSession`,
-`TestOwnerExtensionOfLiteralOwner`), `savepoint_exclusion_test.go`
-(`TestExclusionMarkNilWhenZero`, `TestExclusionMarkRestoresCapturedState`)
-and `operation_slots_test.go` (`TestOperationAnalysisSlotHoldsItsHost`,
-`TestOperationReplaySlot`). Adapted in place by the tools, none moved or
-deleted: payload and owner selectors across engine tests (for example
-`update_current_of_test.go`, `exclusion_lifecycle_test.go`,
-`fdw_transaction_test.go`), the `operationReplay` call sites (for example
-`partition_unique_replay_test.go`), and the notification polling call sites
-(`notification_lifecycle_test.go`, `notification_publication_test.go`,
-`protocol_mechanism_test.go`, root `notification_mechanics_test.go`).
-
-#### 13d.5 — File splits and exports (broad)
-
-Split the mixed files (`transaction.go`, `session.go`, `session_timeout.go`,
-`notifications.go`, `savepoints.go`, `protocol_cycle.go`, the settings
-store) into moving and root files; export the moving members the root reads
-(about 2.1k references: `Operation` about 1k, `Session` about 440, owner
-about 380, settings); key positional test literals (`keylit`).
-
-**13d.5 result** (measured at `2b4b8d191` with `frontier -decls` over the
-decision 1 types; tools and outputs in
-`.cswd/tmp/PG18-ENGINE-SPLIT-SESSION-FILE-SPLITS/`). Three edges were cut
-first: `assignModes(t, modes)` is a root function (it syncs characteristics
-through the engine); the owner's `validate` compares `ref.Attachment()` with
-the owner instead of calling `txOwnerOf`; the settings store builds its
-default-provider error itself (same text as `RegistrationError`, which only
-wraps `errors.New`).
-
-Declarations then moved between files without code changes (`movedecl`), so
-these 15 files hold only moving declarations: `session.go`,
-`transaction_owner.go` (new: `Tx*`, `Isolation`, `TxOptions`, the owner,
-`validate`, `acquireAdmission`, `inBlock`, `Session.TransactionState`),
-`savepoint_marks.go` (new), `notification_records.go` (new),
-`protocol_cycle.go`, `session_settings.go`, `setting_admission.go` (gains
-`refreshStatementBudget`), `statement_lease.go`, `session_advisory.go`
-(new), `session_authorization.go` (new: the delegate and
-`Operation.RoleState`), `uuid_clock.go` (new), `session_timeout.go`,
-`notices.go`, `protocol_input_context.go`, `random.go`. Root leftovers went
-to `session_start.go` (`StartSession`, `startSession`,
-`validateOperation`), `protocol_command.go`, `setting_apply.go`
-(`sessionSetting`, `applySetting`, `executeSetting`) and `transaction.go`
-(`scopeOfLease`), or stayed in their files (`savepoints.go`,
-`notifications.go`, `advisory_lock.go`, `authorization.go`,
-`copy_admission.go`, `transaction_message.go`, `uuid_generation.go`).
-`frontier -files` over the 15 files reports only `newSessionOperation`,
-`sqlError` and the `catalogChanges` alias as outbound edges.
-
-Exports (`expspec` then `movex member`, tests rewritten in place): 192
-members that root code reads, about 7.8k references in all: `Operation` 32,
-`Session` with `sessionTimeouts`/`sessionTimeout` 49, and 111 others
-(owner 40, settings store 24, savepoint mark 15, settings mark 6, and the
-advisory and authorization delegates, `ProtocolCycle`, copy-input context,
-notification action, resource entry, setting override and role action,
-random and UUID state). Names are capitalized except `Session.token` →
-`SessionToken` (`Token()` exists), `Operation.done` → `Released` (`Done()`
-exists) and the initialisms `SQLFinished`, `SQLLeases`, `UUID`. The mutexes
-are now `Session.Mu`, `transactionOwner.Mu` and `Admission`,
-`sessionSettings.Mu`; lock order unchanged (`lock` README). Members used
-only by moving code stay unexported. `poslit` found no positional literal of
-a moving type outside the moving files, so `keylit` had nothing to key.
-
-Deviations: none in scope. Type names and package-level names stay
-unexported for 13d.6 (see the notes below).
-
-Tests: none moved or deleted; the rename tool adapted engine unit tests in
-place (for example `session_timeout_test.go`, `savepoints_test.go`,
-`copy_admission_test.go`, `notification_lifecycle_test.go`,
-`settings_local_lifecycle_test.go`).
-
-#### 13d.6 — Move (broad)
-
-One scripted session (it may merge with 13d.5, as 12d.6 did): move the
-types of decision 1 with aliases.
-
-**13d.6 result** (measured at `1645714d8`; script and outputs in
-`.cswd/tmp/PG18-ENGINE-SPLIT-SESSION-MOVE/`, `c2.sh` replays the move). The
-15 moving-only files of 13d.5 moved into `session` (`session_settings.go` →
-`settings_store.go`, `session_timeout.go` → `timeout.go`,
-`session_advisory.go` → `advisory.go`, `session_authorization.go` →
-`authorization.go`, `transaction_owner.go` → `owner.go`; the others keep
-their names). frontier before the move reported exactly the predicted
-outbound edges: `sqlError` became a `session/errors.go` copy;
-`newSessionOperation` became `Host.NewOperation(*Session) *Operation`,
-implemented by `sessionHost` (`Session.Operation` calls it; a host-less test
-session gets a plain operation with a nil analysis slot, which
-`Engine.analysisHost` already treats as "allocate a fresh host"); the
-moving files' `catalogChanges` uses became `Journal`. The `Host` callbacks
-now take `*Session` (`sessionOfOwner` is gone).
-
-Names: types keep their names when exported and otherwise become
-`TransactionOwner`, `SettingsStore` (`Settings` is a `ResourceKind`
-constant), `AuthorizationState` (`Authorization` is one too),
-`SavepointMark`, `SettingsMark`, `NotificationAction`, `RandomState`,
-`NoticeLevel` and `State` (the session lifecycle). Non-type names the root
-reads were exported and the root names them qualified (`session.Live`,
-`Initializing`, `Ending`, `Ended`, `LevelNotice`, `LevelWarning`,
-`LevelError` (the whole level block is exported), `RoleRevisionHeadroom`,
-`PendingProtocolUserCancel`, `ValidateOperation` (was
-`validateSessionOperation`), and the test-only `TimeoutFatal` and
-`StatementTimeoutCause`; 65 root files). Names used only inside the package
-stay unexported (`messageLevel`, `settingOverride`, `sessionAdvisory`,
-`sessionTimeout(s)`, `protocolCopyInputContext`, `resourceEntry`,
-`roleSettingAction`, `uuidClock`, `resourceKinds`). `session_aliases.go`
-holds 21 new type aliases and 22 constant aliases (the `EndReason`,
-`ResourceKind`, `TxState` and `Isolation` constants), so the driver and
-`cmd/stuntgres` compile unchanged. Four functions had a local named
-`session` that would capture a qualified name; it became `sess`
-(`discardAllPreflight`, `executeRole`, `transactionAuthority`,
-`TestProtocolCopyInputContext`).
-
-`session` now imports `access`, `authorization`, `catalog`, `functions`,
-`ids`, `lock`, `settings`, `storage`, `visibility`, `parser`, `sqlstate` and
-`sqltype`: no `analyze`, no feature package, no root engine. Bench
-unchanged (about 850–950 µs/op under load on both sides, 5020–5021 allocs).
-
-Deviations: none in scope. `transactionSessionEnd` stays a root defined type
-over the owner (through the alias).
-
-Tests: moved with their code into `session/`: `TestNoticesFilter`
-(`notices_level_test.go`, split out of `notices_test.go`) and
-`TestSettingsLocalActions`, `TestSettingsLocalEndedCleanup`
-(`settings_store_test.go`, split out of `settings_local_test.go`). Adapted
-in place: `session_test.go` passes `AdvisorySession+1` as the unknown
-resource kind instead of the `resourceKinds` sentinel, and the qualified or
-aliased names across engine tests (for example
-`session_timeout_test.go`, `format_encoding_test.go`,
-`protocol_input_context_test.go`). None deleted.
-
-### 13e — Remove the aliases (broad)
-
-Done; see the 13e result below. The plan is kept as the record.
-
-Use the alias tool. Apply decision 6: the driver and `cmd/stuntgres` import
-`session` directly; no permanent facade aliases.
-
-**13e result** (built at `ead015634`; scripts and outputs in
-`.cswd/tmp/PG18-ENGINE-SPLIT-SESSION-ALIASES/`, `c1.sh` … `c4.sh` replay the
-code commits). Tools: the 10d `unalias` and `shadowrn`, copied with a
-`-users` flag (also rewrite `engine.X` in the listed packages), an
-`unalias -skipself` mode (only those packages) and a `shadowrn` that names
-every renamed local `sess`, the 13d.6 convention. `unalias` already handled
-the constant aliases: it rewrites any package-level object declared in the
-alias file.
-
-- **Free the name** (`7893db6ce`): 32 engine locals and parameters named
-  `session` (50 sites that would capture `session.X`, in 28 files, four of
-  them production: `control.go`, `discard.go`, `generated_replacement.go`,
-  `transaction.go`) became `sess`.
-- **Driver and CLI** (`a858f66ba`, decision 6 in effect): `conn.go`,
-  `driver.go`, `transaction_terminal_test.go`,
-  `session_adapter_mechanics_test.go` and `cmd/stuntgres` (`database.go`,
-  `dispatch.go`, `server.go`, `startup.go`, `protocol_test.go`) import
-  `session` for `Session`, `SessionStart`, `ProtocolCycle`, `EndReason`,
-  `ResourceKind`, `TxOptions` and the end-reason, resource, transaction-state
-  and isolation constants (66 references in 9 files). Three locals or
-  parameters named `session` became `sess` (`Connector.Connect`,
-  `bootstrapExecute`, one protocol test). The struct fields named `session`
-  keep their names. The facade deviation of decision 6
-  (`Session.Engine()` is gone) was already in place.
-- **Engine rewrite** (`6079f8c03`): 1,536 references in 468 engine files
-  (production and tests; `Operation` 368, `Session` 239, `CleanClose` 138,
-  `catalogChanges` → `session.Journal` 102), 0 shadowed;
-  `session_aliases.go` deleted; `transactionSessionEnd` is a defined type
-  over `session.TransactionOwner`. Besides the renames the diff holds only
-  added imports and gofmt's reflow of three one-line function literals
-  (checked mechanically by `check-rename.py`). No file that is not
-  gofmt-clean on master was touched. `go vet` reports the same findings up to
-  line shifts and the new type spellings.
-- **Comments** (`99a56020a`): `routine_inquiry.go` and `role_store.go` named
-  `transactionOwner.admission` and `catalogChanges`.
-- **Tests.** None moved, deleted or rewritten; the only test edits are the
-  mechanical renames above.
-- **Verification.** `make build` and `go vet` after every commit; the
-  `RACE=1` selection of sessions, identity, payloads, timeouts, 2PC,
-  savepoints, SQL cursors WITH HOLD, notifications, COPY admission, protocol
-  termination and the root driver terminal and adapter tests (59 tests), and
-  the `cmd/stuntgres` server tests under `RACE=1`; `make quickcheck` passed.
-  Dual-mode reference selection (19 tests in `cursors`, `dml`,
-  `locking_transactions`, `session_state`, `sessions`: savepoints, prepared
-  transactions, held cursors, COPY TEXT transactions and statement timeout,
-  timeout settings, DISCARD, advisory cancel timeout, server notifications,
-  driver batch hold) passed in quick mode and with `REFERENCE=1` (real 18.6).
-  `make bench`: 831–955 µs/op, 5,014–5,021 allocs/op, as on master; under
-  the 1 ms target. `make deps`: module paths only; `session` imports no
-  `analyze`, feature package or root engine. `AGENTS.md`: 100 lines before
-  and after. racecheck/finalcheck skipped at user request.
-
-### 13f — Notification records, isolation text and owner handles (linear item 78)
-
-Added when the postponed packages were planned (measured at `c154e14fb`).
-Clean root declarations that belong with the session state:
-
-- `notifications.go`: `notificationFIFO` (with `append` and `normalize`),
-  `notificationLink`, `notificationState`, `reverseNotificationLinks`,
-  `appendNotificationEvents` and `filterNotificationBatch`. The `Engine`
-  methods (`pollNotification`, `WaitForNotification`,
-  `PollProtocolNotification`) and `StatementScope.executeNotification`
-  stay in the root.
-- `transaction_isolation.go`: `isolationFromText` and `isolationText`.
-- `owner_handles.go`: `txOwnerOf`, `privateSessionOf`, `txOwnerAttached`
-  and `sessionTokenAttached`, the checked helpers that recover session
-  types from the `ids` owner interfaces.
-
-`explicitUtility`, `earlyIndexUtility` and `modifyingTag` classify utility
-statements for read-only execution (`AGENTS.md`) and stay with the
-dispatch. Re-run `frontier` on the set: OUT may name only `session`, lower
-packages and `sqlError`.
-
-### 13g — Settings and statement classification (linear item 129)
-
-Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
-§6 "Third round"), measured at `17e01ca8b`. Needs —.
-
-- Clean: `sessionPresentation` (`transaction.go:332-366`) becomes a
-  `SettingsStore` method, `statementOperationStart` an `Operation` method,
-  `stableIsolation` (`serializable.go:8`) a `session.Isolation` method.
-- Small seams: `sessionSetting` (`setting_apply.go:17-31`) takes the
-  registry; the value-parse phase of `applySetting` and the SET argument
-  normalisation of `executeSetting` are cut out of their methods;
-  `settingAccess` (`setting_permission.go:14-33`) takes an `allowed`
-  callback. The `Engine.mu`, `owner.Mu` and `Session.Mu` windows stay.
-- Statement classification: `classifyCommandTag`, `queryCreationUtilityTag`
-  (`command_tag.go`), `modifyingTag`, `explicitUtility` and
-  `earlyIndexUtility` (`transaction_isolation.go`); first `fdw.CommandTag`
-  and `fdw.GrantKind` (pure parser helpers) move down to `session`, which
-  `fdw` imports. The dispatch allow-list error stays in the root caller.
-- The write-set merges (`write_set.go`, `prepareOwnWrites`) go to
-  `visibility`; correct its README.
-- Docs: the README layer number (L7) and the `index.Journal` name.
-
-Verify with `make build`, the targeted tests below plus the unit tests of
-the touched files, the quick and `REFERENCE=1` selections for the area, and
-quickcheck; no behavior, error text or error-order change, no aliases.
-
-### 13h — Notification registry and small session decisions (linear item 143)
-
-Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
-§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
-
-- `sessionNotifications` (`notifications.go`) becomes a `session`
-  registry with `…Locked` methods and no `engine` field; the engine holds
-  it as a field, as it holds `visibility`. A root wrapper implements
-  `EndSession` by taking `e.mu`. The `used` atomic fast path stays.
-- The decision half of `notification_publication.go`:
-  `notificationCapture`, `notificationPublication`,
-  `notificationEffects` (over the scope's action and event slices and a
-  `preparing` flag), the unlocked part of `prepareNotificationPublication`
-  and the bodies of the unchanged and install checks. The `e.mu` capture,
-  install and poll loops, `finishNotificationBoundary` and
-  `executeNotification` stay root.
-- `capturedFTSInput` (`fts_input.go`, clean), the validation loop of
-  `assignModes`, the mode mapping of `applyCurrentCharacteristic`, the
-  body of `transactionAuthority` and the survival predicate of
-  `reconcileSerializableWritesLocked`.
-- Optional, if the session has room: the journal bookkeeping
-  (`privateCatalogLocked`, `catalogChangeLocked`,
-  `defaultACLChangeLocked`, `creationACLChangesLocked`) as
-  `session.Journal` methods over a base `*catalog.State`, with root
-  wrappers for the about 220 call sites; `session.IndexSlot` gains
-  `Forget` (rule 7).
-
-The registry cut makes `payloadOf` clean, and with it the protocol
-helpers that reach the engine only through it. Session code never takes
-`Engine.mu`. `notification_publication_test.go` and three other test
-files need adapting.
-
-Verify with `make build`, the unit tests of the touched root files and
-the target package, quickcheck, and the quick and `REFERENCE=1` selections
-for LISTEN/NOTIFY, transaction characteristics, SERIALIZABLE and the session selections; no behavior, error text, error-order or lock-order change, no
-aliases. Re-run `reach` on the moved set first: sizes are approximate.
-
-## Stays in the engine
-
-`executeStatement` and the statement-kind dispatch, feature handlers until
-Part B of their feature steps, the public `Engine` facade (`NewWithSettings`,
-`StartSession`, `Reset`, `Dump`, `Restore`, ...), and native control
-(postponed `control`). After the 13c refine also: `StatementScope` (whole),
-the cross-subsystem orchestration (begin, end, publication, preflight, 2PC
-install, notification publication, settings application, prepared
-re-analysis), SQL cursors, protocol portals, the prepared SQL registry,
-`StatementDescription`, the notification lock windows and polling (the
-listener and registry types moved to `session` in 13h) and the 2PC records.
-
-## Invariants
-
-- One transaction-isolation owner; snapshot retention as in the `visibility`
-  README; CHAIN and abort rules from `AGENTS.md` unchanged.
-- Lock order: `Engine.mu`, session and owner mutexes, the lock manager last;
-  never the lock manager's mutex under `Engine.mu`. Document any change in
-  the `lock` README.
-- Catalog, storage and visibility publication stay atomic under `Engine.mu`;
-  fence validation keeps its order and messages.
-- Statement and session teardown release every resource on every exit;
-  held cursors copy exactly the state they copy today.
-- Prepared SQL rules in `AGENTS.md` (analysis-identity cells, invalidation,
-  shadow retention) are unchanged.
-- A `StatementLease` keeps the identity semantics of the scope pointers it
-  replaces: one lease per scope, compared by address, never copied.
-- A nil slot interface means "none", as a nil slot pointer does today; a
-  slot `Clone` copies exactly what the journal or savepoint copies today.
-
-## Targeted tests
-
-- Engine units: grep `*_test.go` for each moved field name, `StatementScope{`
-  and `Operation{`. Run with `RACE=1` for sessions, cancellation,
-  transactions, savepoints, 2PC, cursors, notifications and timeouts.
-- Reference selections (quick mode and `REFERENCE=1`; grep `reference/`):
-  transactions and savepoints, isolation levels, 2PC, LISTEN/NOTIFY, cursors
-  (WITH HOLD), prepared statements and invalidation, protocol (extended
-  query, COPY), TRUNCATE, foreign keys, materialized views, inheritance and
-  partition DDL, domains, timeouts, DISCARD, native Dump/Restore.
-- `make bench` after 13a, 13b and each 13d session.
-
-## Documentation
-
-- Create `internal/engine/session/README.md` (13d): what it owns, lock order,
-  slot rules, the dispatch boundary, `## Testing` with selectors moved from
-  `internal/engine/README.md` (it has a "Server protocol ownership" section).
-- `docs/TRANSACTIONS.md`, `docs/QUERIES.md`, `docs/DEVELOPMENT.md` and the
-  design notes that name `StatementScope`, `transactionOwner` or
-  `catalogChanges` (grep `docs/design`).
-- `AGENTS.md`: add `session` to the shared subpackage bullet. The prepared
-  SQL bullets ("Ordinary prepared SQL", "Prepared shadow retention") stay:
-  the prepared registry stays in the root (13c refine). The
-  transaction-isolation rule stays (it is cross-cutting).
-- The `lock` README: the `session.Host` callback contracts and the exported
-  session and owner mutexes (13d.3).
-
-## Done when
-
-`StatementScope`, `Operation`, the journal, `CatalogStage` and
-`transactionOwner` hold no feature fields. `session` imports no feature
-package, not `analyze`, and nothing above L9. The root package keeps the
-facade, the statement scope, dispatch and the root payloads of 13c decision
-3. The checks in §8.3 pass, including `RACE=1` selections.
+# Engine split: `internal/engine/session`, fifth round
+
+Session prompt for linear items 155, 160, 161, 162, 164 and 165 of the
+[status page](ENGINE-SPLIT-STATUS.md). The rules are in
+[ENGINE-SPLIT.md](ENGINE-SPLIT.md) §2, §3 and §5, and the package contract
+is in [the session README](../internal/engine/session/README.md). `session`
+never imports `exec`, `analyze` or a feature package, so anything those own
+comes in as a value or a func field. Sizes were measured at `fe0683b68`;
+re-run `reach` on the move set first.
+
+The README's "What stays in the engine" list (begin, commit, rollback and
+CHAIN, publication, preflight and 2PC, savepoints, settings application)
+shrinks with each item to the `Engine.mu` windows and publication.
+
+## Item 155 — Journal observation and state fences
+
+Needs 153, because both edit `default_privileges_catalog.go` and the
+publication fences. About 0.21k lines move.
+
+**Moves.**
+- The fence types `catalogIndexFence`, `catalogNamespaceFence`
+  (`catalog_fence.go`) and `storageReadFence` (`storage_read_fence.go`),
+  with one constructor for the four `storageReadFence{…}` literals.
+- The observe, namespace, touched and fence parts of
+  `captureCatalogStageLocked` (`catalog_message.go`). That file turns a
+  validated stage into the retained transaction's `session.Journal`.
+- `stageDefaultChangesLocked` (`default_privileges_catalog.go`).
+- The journal merge in `dropSequences` (`sequence.go`, about L434-460).
+
+**Cut.**
+- The value inputs are the committed and private `*catalog.State`, the
+  `*catalog.Candidate` and the predecessors.
+- `session` declares its three fence kinds, and
+  `catalogFencesCurrentLocked` gets one branch for session fences.
+
+**Stays root.** The capture runs as 3–4 `session` calls interleaved with the
+root's index, materialized-view and storage steps, so the fence recording
+order and the first-error order stay the same.
+
+**Callers and locks.** Everything runs under `Engine.mu` and takes no lock.
+
+**Tests.**
+- Root units: `driver_batch_catalog_test.go`,
+  `driver_batch_catalog_provider_test.go`,
+  `partition_attach_publication_test.go`,
+  `ownership_database_fence_test.go`, `temporary_view_test.go`,
+  `default_privileges_catalog_test.go` and the README's `CatalogFences`
+  selector. Use `RACE=1`.
+- Quick and `REFERENCE=1` selections: `TestReferenceRoleDefaultPrivileges`,
+  `TestReferenceForeignActionsConcurrentDDL` and one RR or serializable DDL
+  selection (`TestReferenceAlterTypeRepeatableRead`).
+
+**Docs.** Replace the README's "the root declares the kinds" with the three
+session kinds.
+
+## Item 160 — Owner transitions and the 2PC registry
+
+Needs —. About 0.2k lines move.
+
+**Moves.**
+- The `Engine.prepared` map becomes `session.PreparedRegistry`, with Locked
+  methods for:
+  - lookup;
+  - the publication preflight (`preparedPublicationPreflightLocked`);
+  - the actor check (`preparedActorLocked`);
+  - the claim half of `completePrepared`;
+  - the PREPARE refusal checks;
+  - the install and finish edits (`transaction_prepared.go`).
+- Owner transitions become `session` owner methods:
+  - the owner-field reset of `clearTransaction` (`transaction.go`);
+  - the abort reset in `failExplicitTransactionLocked`
+    (`transaction_finish.go`);
+  - the defaults in `beginLocked`;
+  - the CHAIN mode choice and install from `endAdmitted`
+    (`transaction_controls.go`);
+  - the ROLLBACK TO install, and the savepoint name lookup and mark
+    construction (`savepoints.go`).
+
+**Cut.** Roles come in as an `authorization.Read` value, and the lock
+checkpoint, the cursor ordinal and the exclusion slot as values. Cursors,
+portals, the owner extension, exclusions and SSI calls stay in root
+wrappers, which keep their order: root payload first, then the owner fields.
+
+**Dedupes.**
+- `restoreSavepoint` and the inline ROLLBACK TO branch.
+- The permission check in `preparedActorLocked` and the one in
+  `completePrepared`.
+- The four `len(e.prepared)` sites become `Len()`, and the pgcatalog
+  adapter iterates the registry.
+
+**Locks.** The registry runs under `Engine.mu`, plus `Session.Mu` at the
+publication preflight; the owner methods under `t.Mu`. The rollback install
+keeps Engine.mu → Settings.Mu → Session.Mu, with `t.Mu`.
+
+**Tests.**
+- Root units: `transaction_prepared_test.go`,
+  `transaction_prepared_boundary_test.go`, `transaction_identity_test.go`,
+  `notification_publication_test.go` and the savepoint tests. Use `RACE=1`.
+- Quick and `REFERENCE=1` selections: `TestReferencePreparedTransaction`,
+  `TestReferenceTransactionControls` and `TestReferenceAdvisoryXact`.
+
+## Item 161 — Statement classification
+
+Needs 160, because both edit `transaction_controls.go` and
+`transaction_prepared.go`. About 0.17k lines move, into a new
+`session/statement_class.go`.
+
+**Moves.**
+- the class switch of `snapshotPhase`, `readOnlyUtilityEligibility` and the
+  tail of `executionEligibility` (`transaction_isolation.go`);
+- the replacement-read classification in `gate`;
+- the two "describe as operation" switches in `Describe` (`execute.go`);
+- the state, word and notice table of `executeControl`
+  (`transaction_controls.go`);
+- the notices in `executePrepared`, and the savepoint word;
+- one shared error each for "current transaction is aborted, commands
+  ignored until end of transaction block" (5 copies) and "there is no
+  transaction in progress" (4 copies);
+- the CHAIN word mapping (2 copies).
+
+**Cut.** The inputs are values: state, InBlock and ReadOnly. The
+`partitionIndexTransaction` short-circuit stays in the root, because it
+takes `Engine.mu`.
+
+**Risks.** `Describe` and `execute` keep their call points and only ask the
+`session` predicates, so the error order stays the same.
+
+**Tests.** Quick and `REFERENCE=1` selections:
+`TestReferenceTransactionControls`, `TestReferenceServerAbortedDescribe`,
+`TestReferenceQueryTableCreateReadOnly` and
+`TestReferencePreparedTransactionUtilityProtocolStages`.
+
+**Docs.** Rewrite the README sentence "The root keeps the checks, their
+exceptions and errors".
+
+## Item 162 — Statement data views
+
+Needs 161, because both edit `transaction_isolation.go`. About 0.17k lines
+move, next to `storage_projection.go`.
+
+**Moves.**
+- the body of `captureDataRootsAtLocked` (about 150 of its 192 lines,
+  `transaction_visibility.go`);
+- `needsProjection` from `snapshotDataPhase` (`transaction_isolation.go`);
+- the root-capture loop that `snapshotDataPhase` and
+  `acquireSerializableSnapshot` (`serializable_snapshot.go`) both repeat.
+
+Also inline `captureDataViewsLocked`, which has two callers.
+
+**Cut.**
+- `privateStorageLocked`, `privateCatalogLocked` and the partitions slot
+  become value inputs: the store, the journal, the read and the existing
+  view.
+- `view.SameMaterializedLineage` and `index.SameRelationRowShape` become
+  static func fields, because `session` cannot import `view` or `index`.
+
+**Stays root.** The epoch checks, `visibilitySnapshotLocked`, the
+`pgrowlocks` dependency flag and storing `s.view`.
+
+**Callers and locks.** `Engine.mu`, plus `t.Mu` from `AcquireDataView` and
+`pgrowlocks`. Nothing new is locked.
+
+**Risks.** This runs on every statement. Pass the input by pointer, use
+static funcs, and add no allocations. Run `make bench` before and after.
+
+**Tests.**
+- Root units: `pgrowlocks_visibility_test.go` and the snapshot-phase tests
+  that name the moved code. Use `RACE=1`.
+- Quick and `REFERENCE=1` selections: `TestReferenceFixtureNativeIsolation`,
+  one RR selection (`TestReferenceMergeDeleteRepeatableRead`) and one
+  materialized view refresh visibility selection.
+
+## Item 164 — Settings, DISCARD and setting calls
+
+Needs 161 (`transaction_isolation.go`) and 163 (`discard.go`). About 0.16k
+lines move into `session.SettingsStore`.
+
+**Moves.**
+- the install body of `applySetting` (`setting_apply.go`);
+- `resetAllSettingsLocked` and the SHOW ALL rows (`discard.go`);
+- the session-mode-to-setting mapping in `executeCharacteristics`
+  (`transaction_isolation.go`);
+- the DISCARD role reset compute and validate, which folds in
+  `discardResetPreflightLocked` and its copy in `discardAllPreflight`;
+- `finishDiscardRoleResetLocked`;
+- the input decode of `current_setting` and `set_config`
+  (`setting_calls.go`);
+- `publicationOperationLocked` (`transaction_publication.go`), a locked
+  near-copy of `session.ValidateOperation`.
+
+**Cut.** Only `e.settings.Definitions()` and `domainOf(e)` reach the engine.
+Pass the `settings` registry and the domain as values.
+
+**Stays root.** The Engine.mu → Settings.Mu → Session.Mu windows, and the
+binder that `setting_calls.go` builds.
+
+**Tests.**
+- Root units: `settings_metadata_test.go`, `session_timeout_pending_test.go`,
+  `schema_test.go` and `row_security_provider_lifecycle_test.go`.
+- Quick and `REFERENCE=1` selections: `TestReferenceSettings` and
+  `TestReferenceDiscard`.
+
+**Docs.** Narrow the README's "settings application" entry to the lock
+windows.
+
+## Item 165 — Protocol value codec
+
+Needs —. Item 163 also edits `protocol_portal.go`, so whichever of the two
+lands second rebases over the other. About 0.24k lines move.
+
+**Moves.**
+- All of `protocol_values.go`: `ProtocolInput`, `ProtocolLogParameter`,
+  `ProtocolContext`, `ProtocolField`, the format and parameter decoding,
+  `protocolImport` and `encodeProtocolRow`.
+- The pure statement checks: `preparableBody` (`prepared_rebind.go`),
+  `protocolPlannedStatement` (`protocol_simple.go`), and
+  `protocolPlainSelect`, `protocolHasRows` and `protocolParameterOIDs`
+  (`protocol_prepared.go`).
+
+**Cut.**
+- `protocolImport` reads only `op.Context()` and `s.output`, so pass those as
+  values.
+- `analyze.ParameterInfo` becomes a `[]sqltype.Usage` and a count.
+
+**Callers.** Bind, Execute and the fastpath call with nothing held.
+`cmd/stuntgres` switches to `session.Protocol*`: about 13 references in 5
+files. It already imports `session`, and the driver package does not name
+these types.
+
+**Stays root.** `ProtocolStatement`, `ProtocolPortalDescription` and
+`ProtocolExecution`, because they carry `StatementDescription`.
+
+**Risks.** `encodeProtocolRow` runs once per row: keep the code unchanged and
+run `make bench` before and after.
+
+**Tests.**
+- Root units: `protocol_mechanism_test.go` (its pure codec cases move to
+  `session`) and the `cmd/stuntgres` tests.
+- Quick and `REFERENCE=1` selections: `TestReferenceServerExtended`,
+  `TestReferenceServerPortal`, `TestReferenceServerProtocol` and
+  `TestReferenceLikeBinaryParameters`.
+
+**Docs.** Add the protocol codec to the session README.
 
 ## Status
 
-- [x] 13a — Statement scope slots (`21d5f3a49`, `a4219195b`, `dd7faf016`,
-  `dd018885f`, `df6045183`, `a067c88db`, `40dc0f177`, `3271f3ea1`,
-  `dd2394458`, `ef136c2c5`, `c23fe3429`, `a08db5ff1`, then the docs commit)
-  *(selected unit/`RACE=1` and dual-mode reference proof and quickcheck
-  passed; the only `REFERENCE=1` failures, PostgreSQL-side
-  `PartitionExclusion*` and PG-only `SerialDefaultProviderPublicationHold`,
-  also fail on `master`; racecheck/finalcheck skipped at user request)*
-- [x] 13b — Operation, journal, stage and owner slots (`3ce970c39`,
-  `43237d634`, `45992db99`, `f37f352f3`, `8915f5271`, `92ae3b8f3`, then the
-  docs commit) *(selected unit/`RACE=1` and dual-mode proof and quickcheck
-  passed; racecheck/finalcheck skipped at user request; the only
-  `REFERENCE=1` failures, PostgreSQL-side `PartitionExclusion*`, also fail
-  on `master`)*
-- [x] 13c — Refine (docs only; the commit that records this text)
-  *(measured at `3fbd7d241`; quickcheck passed; racecheck/finalcheck
-  skipped at user request)*
-- [x] 13d — `session` created and moved (sessions per the 13c plan)
-  - [x] 13d.1 — Journal (creates `session`) (`548b81e54`, `353ec50ae`,
-    `7cc803313`, `2eb0cefb3`, then the docs commit) *(selected unit/`RACE=1`
-    and dual-mode proof (47 `REFERENCE=1` tests: timeouts, COPY admission,
-    savepoints, 2PC, enum, index) and quickcheck passed; bench unchanged,
-    about 830 µs/op and 5014 allocs; racecheck/finalcheck skipped at user
-    request)*
-  - [x] 13d.2 — Statement lease and small cuts (`d31baeb58`, `00fec2882`,
-    then the docs commit) *(same proof as 13d.1, run on the combined
-    branch)*
-  - [x] 13d.3 — Engine edges (`41dc92a34`, `12273fdb0`, `ff9eaf1a6`,
-    `0ae40ee4e`, then the docs commit) *(selected unit/`RACE=1` and dual-mode
-    proof (60 `REFERENCE=1` tests: timeouts, COPY, savepoints, 2PC,
-    LISTEN/NOTIFY, FDW transactions, TEMP collation teardown) and quickcheck
-    passed; bench unchanged; racecheck/finalcheck skipped at user request)*
-  - [x] 13d.4 — Root payloads (`de6299e91`, `40085169a`, `b29e65cda`,
-    `902eec726`, `405e83b53`, then the docs commit) *(selected unit/`RACE=1`
-    and dual-mode proof (37 `REFERENCE=1` tests: LISTEN/NOTIFY, cursors,
-    savepoints, 2PC, FDW transactions, deferred exclusion, DISCARD, Restore
-    atomicity) and quickcheck passed; bench unchanged, 5014 allocs;
-    racecheck/finalcheck skipped at user request)*
-  - [x] 13d.5 — File splits and exports (`c56fbf397`, `18c5f63d2`,
-    `6aea40304`, `e07c17cae`, `eb5e6fe83`, then the docs commit)
-    *(selected unit/`RACE=1` and dual-mode proof and quickcheck passed;
-    bench unchanged; racecheck/finalcheck skipped at user request)*
-  - [x] 13d.6 — Move (`1770770a8`, `f4c4bd5de`, `71a7ad850`, then the docs
-    commit) *(selected unit/`RACE=1` and dual-mode proof and quickcheck
-    passed; bench unchanged; racecheck/finalcheck skipped at user request)*
-- [x] 13e — Aliases removed (`7893db6ce`, `a858f66ba`, `6079f8c03`,
-  `99a56020a`, then the docs commit; see the 13e result) *(selected
-  unit/`RACE=1` and dual-mode proof and quickcheck passed; bench unchanged;
-  racecheck/finalcheck skipped at user request)*
-- [x] 13f — Notification records, isolation text and owner handles moved
-  (linear item 78) (`c639cc64d`, `8473b1789`, `4a6bea8d3`, then the docs commit) *(selected
-  unit/`RACE=1` and dual-mode proof and quickcheck passed;
-  racecheck/finalcheck skipped at user request)*
-- [x] 13g — Settings and statement classification moved (linear item 129)
-  (`a82279626`, `443bf6b00`, `42c1c25e1`, `530c173c9`, then the docs commit) *(selected unit/`RACE=1` and dual-mode proof
-  and quickcheck passed; racecheck/finalcheck skipped at user request)*
-- [x] 13h — Notification registry and small session decisions moved (linear
-  item 143) (`c66f9d1ac`, `3a8708f08`, `e5ceb82e7`, `7663fe0ca`, `13a50c6ba`,
-  then the docs commit) *(selected unit/`RACE=1` and dual-mode proof and
-  quickcheck passed; racecheck/finalcheck skipped at user request)*
-
-Outstanding aliases: none. 13e removed the 46 aliases of
-`session_aliases.go` (24 type, 22 constant); the driver and `cmd/stuntgres`
-import `session` directly.
-
-Notes for later steps:
-
-- 13d.1, for 13d.3–13d.6: the journal's methods now live in `session`, so
-  root code cannot add methods to `catalogChanges`; add root functions.
-  Fence kinds stay `session.FenceKind` constants in `catalog_fence.go`.
-- 13d.2, for 13d.4–13d.6: `StatementLease.Statement` is the only route from
-  session-layer state back to the scope (`scopeOfLease`). `copyDone` stays
-  next to `copyLease` on the owner.
-- 13d.3, for 13d.4–13d.6: moving code reaches the engine only through
-  `Session.host`; root code uses `engineOf`. When `Session` moves, tighten the
-  `Host` parameters from `ids.SessionOwner` to `*session.Session`. Notification
-  polling (`pollNotification`, `WaitForNotification`,
-  `PollProtocolNotification`) must leave `Session` with the listener payload
-  (13d.4), so the driver and `cmd/stuntgres` call sites change then.
-  `validateSessionOperation` moves with `Session`.
-- 13d.4, for 13d.5–13d.6: after 13d.4, `frontier` over the decision 1 types
-  reports these root edges besides the moving types themselves:
-  `newSessionOperation` (from `Session.operation`; becomes
-  `Host.NewOperation(*Session) *Operation` when `Operation` moves),
-  `syncCharacteristics` (from `transactionOwner.assignModes`, so
-  `assignModes` becomes a root function or the sync moves),
-  `RegistrationError` (from `sessionSettings.initialize`), `sqlError` and
-  `statementTimeoutCause` (from `Operation.CommandError`,
-  `refreshStatementBudget`, `Session.AcquireCommand`, timeouts), `txOwnerOf`
-  and `validateSessionOperation` (owner validation), and `randomState` and
-  `uuidClock` (value types with their own mutexes; they move with
-  `Session`). The root slot types stay in the root; `session` keeps
-  importing no feature package.
-- 13d.5, for 13d.6: move the 15 files listed in the 13d.5 result (their
-  tests move with them). Remaining edges: `newSessionOperation` becomes
-  `Host.NewOperation(*Session) *Operation`; `sqlError` becomes a
-  `session/errors.go` copy, as in every other subpackage; the
-  `catalogChanges` alias disappears. Package-level names the root still
-  reads need a session name and an alias or qualified rewrite: types
-  `transactionOwner` (28 production uses), `sessionSettings`,
-  `savepointMark`, `settingsMark`, `notificationAction`,
-  `sessionAuthorization`, `settingOverride`, `randomState`, `noticeLevel`;
-  constants `live`, `initializing`, `ending`, `ended`, `levelNotice` (45),
-  `levelWarning` (28), `levelError`, `resourceKinds`; functions and vars
-  `roleRevisionHeadroom`, `pendingProtocolUserCancel`,
-  `validateSessionOperation`, `messageLevel`, `timeoutFatal`,
-  `statementTimeoutCause` (the last three test-only). The root keeps
-  `transactionSessionEnd` (a defined type over the owner: after the move it
-  converts `*session` owner pointers and reads only exported fields).
-
-- 13d.6, for 13e: the alias file has type and constant aliases; `unalias`
-  handles type aliases, the constant block needs the same rewrite (engine
-  uses to `session.X`) and decision 6 for the driver and `cmd/stuntgres`
-  (`engine.CleanClose`, `engine.TxIdle`, isolation constants,
-  `engine.Session`, `engine.SessionStart`, `engine.TxOptions`,
-  `engine.ProtocolCycle`, `engine.ResourceKind`). Watch locals named
-  `session` in root code: the 13d.6 rewrite met four. Six pre-existing
-  positional `session.DependencyObservation` literals (13d.1) remain unkeyed
-  (vet reports them); `keylit` keys them if wanted.
-
-- 13e (done): the aliases are gone and decision 6 is in effect. Root code
-  and the Part B handlers (14c–17d) name `session.Operation`,
-  `session.Journal`, `session.TransactionOwner` and the other session types
-  directly, so a later move needs only the import. A local named `session`
-  in root code now shadows the package: name it `sess`. The six positional
-  `session.DependencyObservation` literals (13d.1) remain unkeyed; `keylit`
-  keys them if wanted. Historical text in the ENGINE-SPLIT prompt files
-  still uses the old alias spellings (`transactionOwner`, `catalogChanges`)
-  and was left as written.
-
-- 13f (done, measured at `205d59485`, rebased onto `92d17ca19`): `session/isolation_text.go`
-  (`IsolationFromText`, `IsolationText`), `session/owner_handles.go`
-  (`TxOwnerOf`, `PrivateSessionOf`, `TxOwnerAttached`, `TokenAttached`; the
-  root `owner_handles.go` is gone) and `session/notification_queue.go`
-  (`NotificationLink`, `NotificationFIFO` with `Append`/`Normalize`,
-  `ReverseNotificationLinks`, `NotificationState`,
-  `AppendNotificationEvents`, `FilterNotificationBatch`). Deviation:
-  `scanNotificationPending` also moved (`ScanNotificationPending`); it uses
-  only the FIFO and the filter. No aliases; callers name `session.X`. One
-  root local named `session` (`publishRowsPrepared`) became `sess`. New
-  unit tests `TestNotificationQueue*` (`session/notification_queue_test.go`)
-  pin queue order, filter sharing, scan order and duplicate suppression; no
-  test moved or was deleted. The polling (`pollNotification`,
-  `WaitForNotification`, `PollProtocolNotification`), the idle-boundary scan
-  (`finishNotificationBoundary`), publication fanout and
-  `sessionNotifications` stay in the root: they take `Engine.mu`.
-
-- 13g (done, measured at `f36e46aae`, branched at `30e4f7f5a`): settings
-  cores in `session/settings_presentation.go` (`SettingsStore.Presentation`),
-  `session/setting_values.go` (`SettingsStore.LookupDefinition` over the
-  registry, `SettingsStore.ParseValue`, `SetInput`) and
-  `session/setting_access.go` (`SettingAccess(d, allowed)`);
-  `Operation.StatementStart` and `Isolation.Stable` are methods. The root
-  keeps `applySetting`/`executeSetting` with their `Engine.mu`, `owner.Mu`
-  and `Session.Mu` windows, and `settingAccess(d, op)` as the binding of
-  `allowed` to `parameterSetAllowed` (its unit tests call it unchanged).
-  Statement classification in `session/command_tag.go` and
-  `session/statement_class.go`; `fdw.CommandTag`/`GrantKind` became
-  `session.ForeignDDLTag`/`ForeignGrantKind` (only the root used them).
-  The read-only and explicit-transaction admission checks and their errors
-  stay in the root. The write-set merges are `visibility.MergeDeletions`,
-  `MergePrivateRows` and `PrepareOwnWrites` (`visibility/write_set.go`).
-  The docs bullet (README layer L7, `index.Journal`) was already done by
-  the item 114 commit. No test moved or was deleted;
-  `update_allocation_test.go` and the presentation tests only renamed
-  calls. New unit tests: `TestSettingAccessAllowedCallback` (`session`),
-  `TestWriteSetMerges*` (`visibility`).
-- 13h (done, measured at `77a102f14`): the notification listener, its registry
-  and publication, the small decisions and the optional journal bookkeeping
-  moved; root production code 47,625 → 47,253 lines (−372), `session` 3,141 →
-  3,706. Per commit:
-  - `c66f9d1ac`: `session/notification_listener.go`. The root
-    `sessionNotifications` became `NotificationListener`, still held in the
-    root payload; its `engine` and `token` fields became one `Session`
-    back-pointer, so `payloadOf`, `sessionPayload`, `sessionAllocation`,
-    `clearTransaction`, `preparedDefinitionStamp`, `protocolPortalExists` and
-    `retireProtocolPortalsAfter` are clean (`reach`). `Engine.notifications` is
-    a `NotificationRegistry`, a map type that stays nil until the first
-    registration, with `EndLocked`. The root keeps the Notifications resource
-    as `notificationSessionEnd`, a pointer conversion of the listener that
-    checks the token and takes `Engine.mu`.
-  - `3a8708f08`: `session/notification_publication.go`:
-    `NotificationPublication`, `CaptureLocked`, `Prepare`, `UnchangedLocked`
-    and `InstallLocked`. The plan's "the `e.mu` capture, install and poll loops
-    stay root" was read as the lock windows: the root keeps
-    `prepareNotificationPublication` (early return, allocation before the lock,
-    the `Engine.mu` window around `CaptureLocked`, then `Prepare`), the
-    publisher's windows around `UnchangedLocked` and `InstallLocked`, polling
-    and `finishNotificationBoundary`. The root wrappers
-    `notificationPublicationUnchangedLocked` and `installNotificationsLocked`
-    are gone.
-  - `e5ceb82e7`: `session/notification_effects.go`: `NotificationEffects` over
-    a `NotificationStatement` (the scope's operation, owner, actions and
-    events) and a `completing` flag. The plan called it the `preparing` flag;
-    the value is `phase != nil && !phase.preparing`. The check order is
-    unchanged. `TransactionOwner.MergeNotifications` is also used by the
-    statement finish (`transaction_finish.go`), which had the same merge. The
-    root keeps `notificationEffects` as the adapter that builds the statement
-    on the stack.
-  - `7663fe0ca`: `session.FTSInput` (`fts_input.go`; the root file is gone),
-    `TransactionOwner.AssignModes`, `CharacteristicMode` and
-    `TransactionOwner.Characteristic` (`transaction_characteristics.go`; the
-    root keeps `assignModes` for the settings sync and the `owner.Mu` window of
-    `applyCurrentCharacteristic`), `TransactionAuthority` (`session.go`; the
-    root wrapper is gone, its three callers call it) and
-    `TransactionOwner.SerializableWriteSurvives` (`serializable_writes.go`,
-    passed as a method value).
-  - `13a50c6ba` (the optional part): `Journal.PrivateRead`, `RecordDescriptor`,
-    `RecordDefaultACL` and `ObserveCreationACL` (`journal_bookkeeping.go`) over
-    the published base state; the root keeps `privateCatalogLocked`,
-    `catalogChangeLocked`, `defaultACLChangeLocked` and
-    `creationACLChangesLocked` as one-line wrappers, so their call sites are
-    unchanged. `IndexSlot` gained `Forget`.
-  - No new heap escapes (`-gcflags=-m`, compared by message with a master
-    snapshot; the differences are the same sites counted again where a session
-    method is inlined into its root wrapper); the string literals of the root
-    and `session` are unchanged; `session` gained no import.
-  - Tests: none moved or deleted. Adapted to the exported fields:
-    `notification_publication_test.go`, `notification_lifecycle_test.go`,
-    `protocol_mechanism_test.go`, `session_payload_test.go` and
-    `statement_timeout_admission_preservation_test.go`;
-    `TestNotificationEffectsOwnership` gained the foreign-statement,
-    check-order, merge and completion cases. New `session` tests:
-    `TestNotificationRegistryEndLocked`,
-    `TestNotificationPublication(StaleCapture|PrepareAndInstall)`,
-    `TestAssignModesValidation`, `TestCharacteristicModeMapping`,
-    `TestSerializableWriteSurvives` and
-    `TestJournal(PrivateReadAndDescriptors|DefaultACLBookkeeping)`.
-- Part B of the feature steps (14c–17d) and the postponed packages need 13d.
-  After the 13c refine their handlers do not name `StatementScope` (it
-  stays in the root): each declares a host interface implemented on
-  `statementHost` (§7 decision 8), and root dispatch passes the feature's
-  slot. A feature that owns a journal or owner slot implements the `session`
-  slot interface (13c decision 4).
-- The FDW write work (`fdw_*.go`, `b54eae5ef`) added the four foreign-table
-  scope fields and the three owner fields listed above; it is included in
-  these measurements. Feature work keeps adding fields, so re-measure in 13a.
-- 13a moved no tests; unit tests that set scope fields directly were
-  rewritten in place by the selector tool (for example
-  `conversion_lookup_test.go`, `serial_sequence_test.go`,
-  `alter_tablespace_prefix_test.go`).
-- 13b kept the 15a/17a slots (`sequence`, `typed`, `domainAlter` on the
-  stage; `enum`, `domain` in the journal) in their own style (field plus
-  `xState()` accessor and nil-safe read methods); its new slots use the 13a
-  style. 13c settles one style per struct when the slots move.
-- 13b rewrote unit tests in place with the selector tool (for example
-  `partition_unique_replay_test.go`, `unique_lifetime_test.go`,
-  `materialized_refresh_test.go`, `fdw_transaction_test.go`); three fence
-  tests now read `fences` through the `catalogFencesOf` test helper. New
-  unit tests: `TestCatalogFencesCheckKindsInCallOrder`,
-  `TestCatalogFencesStopAtFirstFailure` (`catalog_fence_test.go`).
-- 13b, for 13c/13d: fence kinds are declared centrally in
-  `catalog_fence.go` because publication owns their order; a feature
-  package adding a fence must add its kind there. The 13b stays list
-  (above) names the stage fields with no single owner.
-- 13c, §7 decision 7: 13a uses two slot kinds (13b adds a third, the
-  journal's ordered fence list). Value groups (`inquiry`,
-  `prepared`, `sqlRoutine`, `inheritance`, `domains`) are written by every
-  statement; pointer slots are feature-only. Keep that split when slots
-  move with their features.
+- 155: not started.
+- 160: not started.
+- 161: not started.
+- 162: not started.
+- 164: not started.
+- 165: not started.

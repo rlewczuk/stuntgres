@@ -11,8 +11,7 @@ The package sits at layer L9 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
 imports only `authorization`, `catalog`, `expr`, `functions`, `ids`,
 `session`, `storage`, `parser`, `sqltype`, `sqlstate` and the standard
-library, and never `analyze`, `exec` or the engine. See
-[ENGINE-SPLIT-sequence.md](../../../docs/ENGINE-SPLIT-sequence.md).
+library, and never `analyze`, `exec` or the engine.
 
 ## What it owns
 

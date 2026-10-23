@@ -5,8 +5,7 @@ versions, deletion roots, logical B-tree and hash index roots, sequence
 generator state, and the `Store` that owns them. The package sits at layer
 L4 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `catalog`, `expr`, `ids`, `sqltype` and the standard library,
-and never the engine. See
-[ENGINE-SPLIT-storage.md](../../../docs/ENGINE-SPLIT-storage.md).
+and never the engine.
 
 ## What it owns
 

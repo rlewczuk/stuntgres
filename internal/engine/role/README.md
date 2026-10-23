@@ -14,8 +14,7 @@ The package is an upper feature at layer L12 of
 imports `access`, `analyze` (types and pure functions), `authorization`,
 `catalog`, `ddl`, `extension`, `ids`, `regobj`, `routine`, `sequence`,
 `session`, `settings`, `stored`, `parser`, `sqlstate` and the standard
-library, and never the engine, `analyze`'s binder or another upper feature. See
-[ENGINE-SPLIT-role.md](../../../docs/ENGINE-SPLIT-role.md).
+library, and never the engine, `analyze`'s binder or another upper feature.
 
 ## What it owns
 

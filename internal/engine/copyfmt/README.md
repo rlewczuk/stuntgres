@@ -9,7 +9,7 @@ The package sits at layer L4 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
 imports only `catalog`, `parser`, `sqltype`, `sqlstate` and the standard
 library. It holds no state beyond one reader's buffers, no mutex and no engine
-callback. See [ENGINE-SPLIT-copyfmt.md](../../../docs/ENGINE-SPLIT-copyfmt.md).
+callback.
 The name is not `copy`, which would shadow the builtin in every importing
 file.
 

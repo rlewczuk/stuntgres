@@ -7,8 +7,7 @@ privilege and lock walks over view definitions and the read side of DROP.
 
 ## Imports
 
-An upper feature in [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)
-(see also [ENGINE-SPLIT-view.md](../../../docs/ENGINE-SPLIT-view.md)). It imports
+An upper feature in [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 `access`, `analyze` (types and pure functions only), `authorization`, `catalog`,
 `ddl`, `exec`, `expr`, `functions`, `ids`, `index`, `lock`, `pgcatalog`, `plan`,
 `routine`, `sequence`, `session`, `storage`, `stored`, `table`, `typedef`,
