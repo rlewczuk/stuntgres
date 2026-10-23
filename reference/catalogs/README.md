@@ -211,3 +211,13 @@ Retained eager-row ownership is asserted only on native cursors.
 See [producer ownership](../../internal/engine/pgcatalog/README.md#information-schema-sequence-definitions).
 
 - Sequence definitions: `RUN='^TestReferenceInfoSequences'`
+
+### Column grant metadata
+
+`info_role_column_grants_helpers_test.go` owns the shared scenario, exact
+eight-column bags, domain/adapter metadata, identity setup and held consumers.
+The family checks ACL origins and raw-UNION multiplicity, enabled grantors and
+grantees, object classes, mutation atomicity and fresh execution visibility.
+Eager retained rows and native controls are explicit native-only phases.
+
+- Column grants: `RUN='^TestReferenceInfoRoleColumnGrants'`

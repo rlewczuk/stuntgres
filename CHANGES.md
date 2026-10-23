@@ -33,6 +33,13 @@ live subscriptions and queue holds without serializing or importing them.
 Both functions reject aggregate-star calls with PostgreSQL's SQLSTATE 42809
 diagnostic during direct binding and statement preparation.
 
+## Column grant metadata
+
+`information_schema.role_column_grants` exposes the eight domain-typed grant
+columns through normal direct and prepared queries. Table and column ACL origins,
+grant options, enabled grantor/grantee roles and current catalog identities remain
+visible according to their captured statement authority.
+
 ## MAC address operators and functions
 
 `macaddr` and `macaddr8` support fixed-width `~`, `&`, `|` and three-octet-prefix

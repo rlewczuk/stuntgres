@@ -5,7 +5,7 @@ the producer-backed `information_schema` views (`table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
-`sequences`). Each
+`sequences`, `role_column_grants`). Each
 producer is a pure function from a captured catalog, a paired role read and a
 narrow runtime capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -50,8 +50,16 @@ type Producer func(Input) ([][]sqltype.Value, error)
   rows are produced.
 - Absent and explicit-empty ACLs stay distinct: `ClassACL` returns NULL for an
   absent ACL and `{}` for an empty one.
-- Information-schema producers emit genuine `sql_identifier` and
-  `cardinal_number` domain values, not bare NAME or INT4.
+- Information-schema producers emit genuine source-owned domains, not bare
+  primitive carriers. `role_column_grants` uses `sql_identifier`,
+  `character_data` and `yes_or_no` from the captured type catalog.
+- `role_column_grants` captures one catalog/role frontier and projects actual
+  table/column ACL origins on live positive attributes. Its raw-origin UNION
+  includes the grant-option bit before ownership determines grantability, so
+  identical final rows can retain multiplicity. Visibility uses enabled grantor
+  or enabled named grantee, including PUBLIC origins with an enabled grantor;
+  it does not reuse table/column data-access predicates. Membership closures
+  and grantee/owner authority are cached within that capture.
 
 ## Registry
 
