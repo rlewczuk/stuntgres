@@ -6,12 +6,13 @@ table. Before step 30 both lived in the root's `control.go`, which named
 the internals of almost every feature. Now a feature adds a table entry
 instead of editing a central switch.
 
-The package imports `access`, `analyze`, `authorization`, `catalog`, `dump`, `expr`,
-`extension`, `fdw`, `ids`, `index`, `partition`, `pgcatalog`, `plan`,
-`regobj`, `routine`, `sequence`, `session`, `storage`, `stored`, `table`,
-`typedef`, `view`, `visibility`, `parser`, `sqltype` and `sqlstate`. Only the
-root `engine` package imports it. It holds no mutex, no engine pointer and
-no state between calls. Step 30 of the split created it; see
+The package imports `access`, `analyze`, `authorization`, `catalog`, `dump`,
+`exec`, `expr`, `extension`, `fdw`, `ids`, `index`, `largeobject`,
+`partition`, `pgcatalog`, `plan`, `regobj`, `routine`, `sequence`,
+`session`, `storage`, `stored`, `table`, `typedef`, `view`, `visibility`,
+`parser`, `sqltype` and `sqlstate`. Only the root `engine` package imports
+it. It holds no mutex, no engine pointer and no state between calls. Step
+30 of the split created it; see
 [ENGINE-SPLIT-control.md](../../../docs/ENGINE-SPLIT-control.md).
 
 ## What it owns
@@ -107,6 +108,19 @@ no state between calls. Step 30 of the split created it; see
   nothing executes). A statement no entry handles is rejected with
   SQLSTATE `0A000` and the allow-list text. `Outcome{Created}` is what an
   executed statement tells the `After` entries.
+- **Admission checks** (`admit.go`, `admit_checks.go`): the allow-list
+  entries that never read the caller's run. `AdmitKind[R, T]` admits every
+  statement of kind `T`; `AdmitSchemaObject[R]` and `AdmitOperator[R]`
+  admit the schema-object and operator DDL kinds; `AdmitStatement[R,
+  T](check)` admits a `T` that `check` accepts, else answers `NotHandled`
+  with the check's error. The checks read only the statement:
+  `CheckCreateTable` (TEMP staging rejection, then the stored-expression
+  Restore scalars; the caller captures and strips foreign keys first),
+  `CheckAlterDomain`, `CheckAlterView`, `CheckCreateView`,
+  `CheckCreateQueryTable`, `CheckAlterIndex`, `CheckAlterTableOf`,
+  `CheckAttachPartition`, `CheckCreateSequence`, `CheckAlterTableDefault`,
+  `CheckSelect`, `CheckComment` and `CheckInsert`. The root's hook table
+  names them in its own order, so rejection order stays the table's.
 
 ### Catalog replacement
 
@@ -153,6 +167,19 @@ no state between calls. Step 30 of the split created it; see
   `preserveTemporaryLocked`, under `Engine.mu`, with the retain, check,
   import, repair and install steps between them; error texts are the
   engine's.
+- **TEMP replacement checks** (`temporary_sources.go`): over the published
+  catalog, which the caller holds under `Engine.mu`.
+  `CheckTemporaryRelationSourcesLocked(current)` rejects a retained TEMP
+  table with a persistent inheritance parent
+  (`TemporaryInheritanceReplacementError`); the root runs it, then its
+  typed-table check, at replacement preallocation, at final replacement
+  admission and first in `preserveTemporaryLocked`.
+  `CheckTemporaryRuleSourcesLocked(current)` rejects a retained TEMP rule
+  that depends on an object outside its session's temporary namespace
+  (pinned builtins aside). `RetainTemporaryViewProvidersLocked(current,
+  next, temporary)` keeps in the candidate the exact bootstrap catalog
+  sources of retained TEMP views, after checking their shape and
+  namespace/ACL authority, and rejects any other persistent source.
 
 ## The host contract
 
@@ -183,9 +210,10 @@ implements it:
 - The OID allocator (`catalogStore.allocateOIDLocked`) and the TEMP
   preservation orchestrator (`preserveTemporaryLocked`): it holds
   `Engine.mu`, calls the phases above and keeps the steps that need the
-  engine or its stage: `retainDatabaseLocked`, the relation, typed and
-  rule source checks, `retainTemporaryViewProvidersLocked`, the scalar
-  and domain imports, `repairRemappedGenerationsLocked`, the installation
+  engine or its stage: `retainDatabaseLocked`, the composition of the
+  relation source check with the typed-table check
+  (`checkTemporaryRelationSourcesReplacementLocked`), the scalar and
+  domain imports, `repairRemappedGenerationsLocked`, the installation
   of the live TEMP descriptors and storage (with the stage lock), the TEMP
   policy and rule ref refresh, and the final validation.
 - The restore stage (`restoreStage` in `principal_remap.go`) and the atomic
@@ -194,9 +222,12 @@ implements it:
   replacement in the same publication.
 - `restoreRun`, `restoreHost` and the hook table `restoreHooks`
   (`[]control.Hook[*restoreRun]`, composed at package initialization), the
-  admit adapters (`restoreAdmitKind`, `restoreAdmitChecked`,
-  `restoreAdmitReplayed`), every entry and hook body, and the operation
-  replay slot (`restore_replay.go`). Entries share state only through
+  admit adapters for entries that read the run (`restoreAdmitChecked`,
+  `restoreAdmitReplayed`), those entries (ALTER OWNER, CREATE TABLE's
+  foreign key capture, ALTER TABLE, DETACH PARTITION, DROP TABLE, ALTER
+  SEQUENCE, SET SESSION AUTHORIZATION, the UPDATE and DELETE repairs and
+  SQL/MED), every other hook body, and the operation replay slot
+  (`restore_replay.go`). Entries share state only through
   `restoreRun`, so their order is part of the contract; every entry runs
   on the stage, never on the target engine.
 - `Engine.Reset`, and the thin `Engine.Dump` (nil-writer and context
@@ -246,18 +277,19 @@ The scenario checks post-Restore maintained inserts and late failed replacement
 atomicity. See [design](../../../docs/design/PG18-INDEX-OPCLASS.md).
 
 
-Package units: the driver order with a fake `Host`, and the walkers:
+Package units: the driver order with a fake `Host`, the walkers and the
+INSERT admission check:
 
 ```sh
-make check RUN='^TestRestore(Driver|Hooks).*'
+make check RUN='^TestRestore(Driver|Hooks).*|^TestRestoreAdmitsInsertTargetIndirection$'
 ```
 
-Engine witnesses: the INSERT admit entry, the presenter's domain
+Engine witnesses: the ALTER DOMAIN admission check, the presenter's domain
 expressions, the builtin namespace ACL check, the resolver users and the
 definition OID remap and the TEMP preservation callers:
 
 ```sh
-make check RUN='^Test(RuleNamedConstraintRemap|DeparseConstraintsAllocatorOccupancy|PartitionConstraintsDefinitionRemapping|ViewRuleOIDUniquenessAfterRestore|RestoreAdmitsInsertTargetIndirection|DumpPresenterDomainExpressions|PGNamespaceShape|PredefinedRoleControls|IndexPropertyDump.*|IdentityDumpProviderMapping|IdentityControlsOwnerCollisionPredecessors|PartitionAttachDumpPhaseDependencies|PartitionDetach(Replay|UniqueReplay).*|DomainAlterConstraintReplayEligibility|InheritanceControls.*|TypedTemporary.*|PGAggregateIntagg.*|UserOperatorIndex.*|ExtensionTemporary.*|DefaultPrivilegesControls|PartitionConstraints.*|.*RetainedTemporary.*|.*TemporaryCollision)$'
+make check RUN='^Test(RuleNamedConstraintRemap|DeparseConstraintsAllocatorOccupancy|PartitionConstraintsDefinitionRemapping|ViewRuleOIDUniquenessAfterRestore|DumpPresenterDomainExpressions|PGNamespaceShape|PredefinedRoleControls|IndexPropertyDump.*|IdentityDumpProviderMapping|IdentityControlsOwnerCollisionPredecessors|PartitionAttachDumpPhaseDependencies|PartitionDetach(Replay|UniqueReplay).*|DomainAlterConstraintReplayEligibility|InheritanceControls.*|TypedTemporary.*|PGAggregateIntagg.*|UserOperatorIndex.*|ExtensionTemporary.*|DefaultPrivilegesControls|PartitionConstraints.*|.*RetainedTemporary.*|.*TemporaryCollision)$'
 ```
 
 Public behavior is covered by the Dump, Restore and Control reference tests

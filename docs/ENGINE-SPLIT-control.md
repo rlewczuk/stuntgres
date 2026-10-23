@@ -890,9 +890,90 @@ stage and the atomic replacement. The checks in §8.3 pass.
     user request.
   - **Status page.** Its tree still showed 30e unticked although item 121
     was ticked; fixed with this record.
-- [ ] 30g — Run-free Restore admission and TEMP replacement checks (linear item 148)
+- [x] 30g — Run-free Restore admission and TEMP replacement checks moved
+  (linear item 148) (`32741a734`, `4d0d0a332`, then the docs commit).
+  Re-measured at `481bcb11a` with `reach`: every run-free admit entry was dirty only
+  through its unused `*restoreRun` parameter; `restoreDomainAlter`,
+  `restoreStagesTemporary`, `restoreForeignDefault` and
+  `temporaryInheritanceReplacementError` were clean, and the three TEMP
+  checks were dirty only through `e.catalog.state` and its read.
+  - **Moved, admission** (bodies unchanged; `admit.go`,
+    `admit_checks.go`): the adapters `control.AdmitKind[R, T]` (was
+    `restoreAdmitKind`), `AdmitSchemaObject[R]`, `AdmitOperator[R]` and
+    `AdmitStatement[R, T](check func(T) error)`, generic over the run the
+    entries never read; the checks `CheckAlterDomain` (was
+    `restoreDomainAlter`, `domain_alter_dump.go`), `CheckAlterView`,
+    `CheckCreateView`, `CheckCreateQueryTable`, `CheckAlterIndex`,
+    `CheckAlterTableOf`, `CheckAttachPartition`, `CheckCreateSequence`,
+    `CheckAlterTableDefault`, `CheckSelect`, `CheckComment`,
+    `CheckInsert`, and `CheckCreateTable` (the TEMP staging rejection,
+    then the stored-expression scalar walk, in the old order) with the
+    unexported `stagesTemporary`. The root `restoreHooks` table names them
+    at the same positions (`control.AdmitStatement[*restoreRun](control.CheckInsert)`),
+    so admission and rejection order are unchanged;
+    `admitRestoreCreateTable` keeps the foreign key capture and strip and
+    then calls `control.CheckCreateTable`.
+  - **Moved, TEMP checks** (`temporary_sources.go`):
+    `control.CheckTemporaryRelationSourcesLocked(current *catalog.State)`
+    (the inheritance part) with `TemporaryInheritanceReplacementError`,
+    `CheckTemporaryRuleSourcesLocked(current catalog.Read)` and
+    `RetainTemporaryViewProvidersLocked(current, next, temporary)`;
+    `e.catalog.state` became `current`/`current.State()`. The root keeps
+    `checkTemporaryRelationSourcesReplacementLocked` as the composition
+    of the control check and `checkTemporaryTypedReplacementLocked` (its
+    three callers: preallocation and final admission in `catalog.go`, and
+    `preserveTemporaryLocked`), so `control` never calls the typed check.
+    `preserveTemporaryLocked` builds `current` right after
+    `retainDatabaseLocked` instead of after the source checks
+    (side-effect free) and calls the rule check and the view retention at
+    their old positions. All callers already held `Engine.mu`; no lock
+    order change.
+  - **Stayed root (deviation).** The plan named `restoreRejectForeignDDL`;
+    `b9483eba6` (IMPORT FOREIGN SCHEMA) replaced it with
+    `restoreAdmitForeignDDL`, which reads the run through
+    `admitRestoreCreateTable` for foreign tables, so by the round's rule
+    it stays root with `restoreForeignDefault` (also read by
+    `afterRestoreDefault`). `restoreAdmitChecked`, `restoreAdmitReplayed`
+    and the run-reading entries stay root as planned.
+  - **Layering.** `control` gains `largeobject` (a leaf: `parser`,
+    `sqlstate`); `go list` shows only the root imports `control`.
+  - **Tests.** Moved: `TestRestoreAdmitsInsertTargetIndirection` to
+    `control/admit_test.go` over `AdmitStatement[*hookRun](CheckInsert)`
+    (name unchanged). Adapted (engine fixtures, so they stay root):
+    `TestDomainAlterConstraintReplayEligibility` calls
+    `control.CheckAlterDomain`; `TestInheritanceControlsTemporaryReplacementRejection`
+    compares with `control.TemporaryInheritanceReplacementError`.
+    Unchanged: `TestRestoreAdmitsForeignDefaultRepair` (its entry stayed
+    root; `reference/tables/README.md` names it). None deleted; no new
+    unit test, because the move adds no semantics.
+  - **Verification**: after each commit, the byte-identity dump smoke
+    (the 30d `dumpsmoke`, baseline on the starting master `481bcb11a`),
+    the 30f targeted engine units plus `TestRestoreAdmits.*` and
+    `TestDomainAlterConstraintReplayEligibility`, `Test.*(Temporary|Retained).*`
+    and the `control` tests, and quick
+    `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)`,
+    `^TestReferenceControl` and `^TestReference.*Temporary`; after the
+    rebases onto `08f9c8987` and `bf6a63058` (reference FDW fixtures,
+    geometry functions and `information_schema.character_sets`, none
+    touching the moved code), quickcheck; `REFERENCE=1` for
+    `^TestReferenceControl.*`, `TestReferenceDumpRoundTrip`,
+    `TestReferenceTypeCoreDumpRoundTrip`,
+    `TestReferenceCollationSeedNativeReplay`,
+    `TestReferenceCompositeAlterDumpReplay`,
+    `TestReferenceInheritanceTemporaryControls`,
+    `TestReferenceTypedTableTemporaryControls`,
+    `TestReferenceRuleReviewTemporaryProvenance`,
+    `TestReferenceMaterializedAlterControlFailures`,
+    `TestReferencePGAttributeRankRepairSQL` and
+    `TestReferenceRoleRestoreOwnerReset` (the `patterns_encoding` and
+    `types` packages first failed at container start, the testcontainers
+    reaper timing out, and passed on a rerun); `go list` shows only the
+    root imports `control`; `make deps` clean. racecheck/finalcheck
+    skipped at user request.
+  - **Status page.** Its tree still showed 11g unticked although item 144
+    was ticked; fixed with this record.
 
-Outstanding aliases: none (30a, 30c, 30d, 30e and 30f added none).
+Outstanding aliases: none (30a, 30c, 30d, 30e, 30f and 30g added none).
 
 ### Notes for later steps
 
@@ -938,7 +1019,14 @@ Outstanding aliases: none (30a, 30c, 30d, 30e and 30f added none).
   to `control` in a later cleanup; the 30f plan kept them root. Item 133
   planned the view-provider retention and the two source checks as 30g
   (item 148); the TEMP policy and rule ref refresh and the final
-  validation loop stay with the install loop.
+  validation loop stay with the install loop. Settled by 30g: the three
+  checks are in `control`, the root composes the relation check with the
+  typed check.
+- 30g: typedef 15f (item 147) moves `checkTemporaryTypedReplacementLocked`
+  into `typedef`; it then replaces the second call in the root composition
+  `checkTemporaryRelationSourcesReplacementLocked`
+  (`temporary_preservation.go`) and keeps `control` free of the typed
+  check.
 - 30d: `dump_capture.go` is now only the lock window. Its two remaining
   engine-only steps are `validateTemporaryCollationDump` (needs
   `BeginCatalogStage` for `domainDependencyClosure`) and the

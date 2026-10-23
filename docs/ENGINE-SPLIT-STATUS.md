@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `77a102f14` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143 and 144). Steps 8–17 were
+Last verified against `master` at `bf6a63058` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144 and 148). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -22,8 +22,7 @@ otherwise.
 
 - **Fourth round, statement and session:** 145 (regobj 21e).
 - **Fourth round, catalog, DDL, types, roles and Restore:** 146 (analyze
-  12g), 147 (typedef 15f), 148 (control 30g), 149 (role 28e), 150 (ddl
-  20e).
+  12g), 147 (typedef 15f), 149 (role 28e), 150 (ddl 20e).
 - **Closing review 2:** 151 (docs only) waits for 134–150.
 
 Steps 1–17 and `access` (A1–B7) are done, and so is item 54, the second
@@ -842,15 +841,17 @@ planned sub-step left; only 151 needs it.
   - [x] 13h — Notification registry and small session decisions
     ([session](ENGINE-SPLIT-session.md)) (`c66f9d1ac`, `3a8708f08`,
     `e5ceb82e7`, `7663fe0ca`, `13a50c6ba`, then the docs commit)
-  - [ ] 11g — Runtime source values ([exec](ENGINE-SPLIT-exec.md))
+  - [x] 11g — Runtime source values ([exec](ENGINE-SPLIT-exec.md))
+    (`ea13f92d6`, `97abd0c6f`, `ab8a2d1b4`, then the docs commit)
   - [ ] 21e — Output capture, spelling cache and regtype analysis
     ([regobj](ENGINE-SPLIT-regobj.md))
   - [ ] 12g — Search path and type-name resolution
     ([analyze](ENGINE-SPLIT-analyze.md))
   - [ ] 15f — ALTER type resolvers, domain replay and scalar import
     ([typedef](ENGINE-SPLIT-typedef.md))
-  - [ ] 30g — Run-free Restore admission and TEMP replacement checks
-    ([control](ENGINE-SPLIT-control.md))
+  - [x] 30g — Run-free Restore admission and TEMP replacement checks
+    ([control](ENGINE-SPLIT-control.md)) (`32741a734`, `4d0d0a332`, then
+    the docs commit)
   - [ ] 28e — ACL and role leftovers ([role](ENGINE-SPLIT-role.md))
   - [ ] 20e — Tablespace and extension leftovers
     ([ddl](ENGINE-SPLIT-ddl.md))
@@ -2152,9 +2153,19 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      [analyze](ENGINE-SPLIT-analyze.md) 12g · needs —
 147. [ ] Typedef 15f: ALTER type resolvers, domain replay and scalar
      import — [typedef](ENGINE-SPLIT-typedef.md) 15f · needs —
-148. [ ] Control 30g: run-free Restore admission and TEMP replacement
-     checks —
-     [control](ENGINE-SPLIT-control.md) 30g · needs —
+148. [x] Control 30g: run-free Restore admission and TEMP replacement
+     checks — [control](ENGINE-SPLIT-control.md) 30g · needs —
+     (`32741a734`, `4d0d0a332`, then the docs commit) ·
+     `control.AdmitKind`, `AdmitSchemaObject`, `AdmitOperator` and `AdmitStatement` generic
+     over the run, and the statement checks (`CheckCreateTable`,
+     `CheckAlterDomain`, `CheckInsert` and ten more); the `restoreHooks`
+     table keeps its order; `CheckTemporaryRelationSourcesLocked` (root
+     composes it with the typed check), `CheckTemporaryRuleSourcesLocked`
+     and `RetainTemporaryViewProvidersLocked`; `restoreAdmitForeignDDL`
+     now reads the run and stayed root; `control` imports `largeobject`;
+     no aliases · targeted units, quickcheck and the quick and
+     `REFERENCE=1` Restore, Control, dump round-trip and TEMP retention
+     selections passed; racecheck/finalcheck skipped at user request
 149. [ ] Role 28e: ACL and role leftovers — [role](ENGINE-SPLIT-role.md)
      28e · needs —
 150. [ ] DDL 20e: tablespace and extension leftovers —
