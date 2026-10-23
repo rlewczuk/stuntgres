@@ -90,6 +90,15 @@ function-level staging/conflict/import witnesses live in the engine package.
   `DropTargets` selects DROP EXTENSION's targets (notices through a
   callback). `ImportOwners` applies Restore's owner records to a private
   clone of the catalog state and reports whether an owner changed.
+- **Registry and update paths** (`extension_register.go`,
+  `extension_paths.go`): `Register(registry, name, implementation)` checks
+  one startup registration (name, control version, `ValidateActions`,
+  duplicates, in that order) and returns the registry with it added,
+  allocating a nil one; on error it returns nil and leaves the registry
+  unchanged. `UpdatePathRows(ctx, registry, name, shape)` builds the
+  `pg_extension_update_paths` rows (the 0A000 "is not available" error
+  first, then one row per ordered version pair, with `ctx` checked before
+  each).
 - **Owners, remap, errors**: the owner metadata codec (`OwnerMetadata`,
   `DecodeOwners`, `OwnerRecord`, `MemberOwner`, `OwnersMarker`;
   `extension_owners.go`), `RemapDescriptor` (`extension_remap.go`),
@@ -124,8 +133,9 @@ publication fence check) and `RemovalRoots`.
 
 The `extension.Host` and `extension.Stage` adapter `extensionHost`
 (`extension_host.go`, with `stageOf`, which gives the root its
-`CatalogStage` back); registration (`registerExtension`, the startup list in
-`engine.go`); the orchestration of the handlers (`extension_install.go`,
+`CatalogStage` back); the closed-registry check of `registerExtension` and
+the startup list in `engine.go`; the snapshot check of
+`statementHost.OpenExtensionPaths`; the orchestration of the handlers (`extension_install.go`,
 `extension_update.go`, `extension_drop.go`, `extension_owner_import.go`):
 argument count, `Engine.mu`, authorization capture, publication
 (`publishExtensionStage`), DROP's removal pipeline and its multi-target
@@ -154,8 +164,16 @@ Public both-mode definitions are documented in
 [`reference/types`](../../../reference/types/README.md#earth-domain-contract).
 
 
-The package has no unit tests of its own: every witness needs an engine
-that installs the extension. Engine witnesses:
+The package test pins `Register`: a nil registry is allocated, and a
+duplicate, nil, versionless or badly named registration is rejected with
+the registry unchanged:
+
+```sh
+make check RUN='^TestRegisterAddsOnlyValidImplementations$'
+```
+
+Every other witness needs an engine that installs the extension. Engine
+witnesses:
 
 ```sh
 make check RUN='^(TestExtensionHostRefusesDiscardedStage|TestExtensionHostBeginStageHandsBackRootStage|TestExtensionMembersHoldBareProviders|TestExtensionProviderIdentity|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures|TestExtensionOwnerManifestAdmission|TestPgcryptoOwnerMetadata|TestExtensionVersionGraph)$'

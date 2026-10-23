@@ -602,3 +602,9 @@ Notes for later steps:
   owner decoding (`extension.DecodeOwners` in `control.go`) becomes a
   Restore hook entry (`control` 30a). The handler orchestration listed in
   the README stays in the root.
+- Fourth round (ddl 20e, item 150; recorded in
+  [ENGINE-SPLIT-ddl.md](ENGINE-SPLIT-ddl.md)): the registration checks
+  became `extension.Register` (the root keeps the closed-registry check)
+  and the `pg_extension_update_paths` row building became
+  `extension.UpdatePathRows` (the root keeps the snapshot check). The
+  package now has its first unit test.

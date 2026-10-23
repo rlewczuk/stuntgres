@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `6a0476cdd` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147 and 148). Steps 8–17 were
+Last verified against `master` at `e50976422` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148 and 150). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -21,8 +21,8 @@ share a prompt file touch different root files unless their "needs" says
 otherwise.
 
 - **Fourth round, catalog, DDL, types, roles and Restore:** 149 (role
-  28e), 150 (ddl 20e).
-- **Closing review 2:** 151 (docs only) waits for 134–150.
+  28e).
+- **Closing review 2:** 151 (docs only) waits for 149.
 
 Steps 1–17 and `access` (A1–B7) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -855,8 +855,9 @@ planned sub-step left; only 151 needs it.
     ([control](ENGINE-SPLIT-control.md)) (`32741a734`, `4d0d0a332`, then
     the docs commit)
   - [ ] 28e — ACL and role leftovers ([role](ENGINE-SPLIT-role.md))
-  - [ ] 20e — Tablespace and extension leftovers
-    ([ddl](ENGINE-SPLIT-ddl.md))
+  - [x] 20e — Tablespace and extension leftovers
+    ([ddl](ENGINE-SPLIT-ddl.md)) (`9bb67d97f`, `ac3e010f5`, `740a0cd44`,
+    then the docs commit)
   - [ ] Closing review 2 (docs only; [ENGINE-SPLIT.md](ENGINE-SPLIT.md))
 
 `access` is tracked under Part B above, not under the later waves.
@@ -2204,8 +2205,17 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      selections passed; racecheck/finalcheck skipped at user request
 149. [ ] Role 28e: ACL and role leftovers — [role](ENGINE-SPLIT-role.md)
      28e · needs —
-150. [ ] DDL 20e: tablespace and extension leftovers —
-     [ddl](ENGINE-SPLIT-ddl.md) 20e · needs —
+150. [x] DDL 20e: tablespace and extension leftovers —
+     [ddl](ENGINE-SPLIT-ddl.md) 20e · needs — (`9bb67d97f`, `ac3e010f5`,
+     `740a0cd44`, then the docs commit) · `ddl.AlterAllTablespace` over
+     `access.View`, its environment and the statement (the deferred unlock
+     stays root); `ddl.TablespaceLocation` and `TablespaceDatabase` over
+     the retained `catalog.Read`, the latter returning its WARNING;
+     `extension.Register` over the registry map and
+     `extension.UpdatePathRows`; no aliases · targeted units, quickcheck
+     and the quick and `REFERENCE=1` tablespace, tablespace inquiry and
+     extension selections passed; racecheck/finalcheck skipped at user
+     request
 151. [ ] Closing review 2 (docs only): re-measure after the fourth round,
      write ENGINE-SPLIT.md §2.10, close the split —
      [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 · needs 134, 135, 136, 137,

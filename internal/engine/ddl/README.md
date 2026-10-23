@@ -59,7 +59,18 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   `CheckAlterTablespaceCreate(view, env, ref)` checks CREATE on a SET
   TABLESPACE or ALL IN TABLESPACE destination (none for `pg_default`), and
   `AlterTablespaceKind(relation)` rejects SET TABLESPACE on relation kinds
-  without their own storage (42809).
+  without their own storage (42809). `AlterAllTablespace(view, env, s)`
+  decides ALTER ... ALL IN TABLESPACE: owner membership, both references,
+  the pg_global rejection (22023), the destination CREATE check, success
+  for the same tablespace and 0A000 otherwise; it never selects or locks a
+  relation.
+- **Tablespace inquiries** (`tablespace_info.go`):
+  `TablespaceLocation(read, oid, result)` and
+  `TablespaceDatabase(read, oid, result)` are `pg_tablespace_location` and
+  one row of `pg_tablespace_databases` over the statement's retained
+  `catalog.Read`. `TablespaceDatabase` returns its 01000 WARNING (a
+  `pg_global` or non-tablespace OID) beside a NULL, not-present value; the
+  caller emits it.
 - **LOAD lexical boundary**: `Load(ctx, view, s)` uses the current actor's
   SUPERUSER attribute, then PostgreSQL's exact plugin-prefix/suffix restriction
   and slash-containing filename macro validation. Once valid it always returns
@@ -105,7 +116,11 @@ actor read that gates every staged statement, one call per statement),
 `stageSchemaDomainsLocked`, `relationDiagnosticName` and
 `schemaNotice` (the fdw DDL still uses it). `ddlHost` implements
 `SchemaHost` in `schema_host.go`. `executeCreateTablespace` keeps the
-argument count check, the lock and the authority capture.
+argument count check, the lock and the authority capture;
+`alterAllTablespaceLocked` keeps the argument count check and the deferred
+`Engine.mu` unlock. `statementHost.TablespaceLocation` and
+`TablespaceDatabase` (`catalog_inquiry_runtime.go`) keep the retained
+snapshot and owner check and emit the returned warning.
 
 ## Testing
 
@@ -113,11 +128,12 @@ Run from the repository root under the shared
 [testing policy](../../../docs/TESTING.md). The package tests build a catalog
 owner, a seeded role root and a TEMP namespace without an engine, and pin
 that `Check` uses the authority as the environment, that `ObjectRef` stamps
-the catalog epoch, that `Notice` emits NOTICE level and which relation kinds
-SET TABLESPACE accepts:
+the catalog epoch, that `Notice` emits NOTICE level, which relation kinds
+SET TABLESPACE accepts and that `TablespaceDatabase` returns its warning
+instead of emitting it:
 
 ```sh
-timeout 900s make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|AlterTablespaceKind)$'
+timeout 900s make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|AlterTablespaceKind|TablespaceDatabaseReturnsWarning)$'
 ```
 
 The engine adapter is pinned by the `TestDDLHost` tests in the engine
@@ -143,8 +159,10 @@ outcomes live in the [catalog reference scenarios](../../../reference/catalogs/R
 `TestDDLHostStageSchemaTableKeepsAuthority` (`schema_host_test.go`) pins
 that `StageSchemaTable` leaves the caller's authority unchanged and stages
 the table owned by the given owner in the given namespace;
-`TestTablespaceExecutorNoPublication` pins CREATE TABLESPACE. The public
-schema and tablespace behavior is in the dual-mode reference tests:
+`TestTablespaceExecutorNoPublication` pins CREATE TABLESPACE and the
+`TestTablespaceInfo` tests pin the inquiry adapter. The public schema and
+tablespace behavior, including ALL IN TABLESPACE and the tablespace
+inquiries, is in the dual-mode reference tests:
 
 ```sh
 timeout 900s make check RUN='^TestReference((Alter)?Schema|.*Tablespace)'

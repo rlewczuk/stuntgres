@@ -612,7 +612,66 @@ in §8.3 pass.
   Dump and Restore reference selections in both modes, and quickcheck
   passed; no bench (startup untouched); racecheck/finalcheck skipped at user
   request
-- [ ] 20e — Tablespace and extension leftovers (linear item 150)
+- [x] 20e — Tablespace and extension leftovers moved (`9bb67d97f`,
+  `ac3e010f5`, `740a0cd44`, then the docs commit; linear item 150).
+  Re-measured at `6a0476cdd` with `reach`: the four functions were dirty
+  only through their receiver (`Engine`, `statementHost` → `StatementScope`);
+  since `4c05da8fe` only `8b401d705` touched them (it renamed
+  `tablespaceInquiryCatalog` to `catalogInquiryCatalog`), so the plan
+  above was followed as written.
+  - **Moved to `ddl`.** `AlterAllTablespace(view, env, s)` in
+    `tablespace.go` (was the body of `alterAllTablespaceLocked`: owner
+    membership, both `TablespaceRef`s, the pg_global 22023, the
+    `CheckAlterTablespaceCreate` check, the same-space return and the
+    0A000, in the old order). `TablespaceLocation(read, oid, result)` and
+    `TablespaceDatabase(read, oid, result)` in the new `tablespace_info.go`
+    (were the `statementHost` bodies in `catalog_inquiry_runtime.go`);
+    `TablespaceDatabase` returns its WARNING as a `*sqlstate.Error`
+    instead of emitting it.
+  - **Moved to `extension`.** `Register(registry, name, implementation)`
+    (`extension_register.go`, was `registerExtension`'s checks) returns the
+    registry with the implementation added, allocating a nil one, and nil
+    on error, so a rejected registration leaves the registry unchanged.
+    `UpdatePathRows(ctx, registry, name, shape)` (`extension_paths.go`, was
+    the body of `statementHost.OpenExtensionPaths` after its snapshot
+    check) keeps the "not available" error and the per-row `ctx.Err()`.
+  - **Stayed root.** `alterAllTablespaceLocked` keeps the argument count
+    and the deferred `e.mu.Unlock()`; `statementHost.TablespaceLocation`
+    and `TablespaceDatabase` keep `catalogInquiryCatalog` (snapshot and
+    owner check) and emit the returned warning at `session.LevelWarning`
+    before returning, as before; `registerExtension` keeps the
+    closed-registry check and stores the returned map;
+    `OpenExtensionPaths` keeps the missing-snapshot check. All one-file
+    callers are unchanged. No new imports: `ddl` and `extension` already
+    imported every package the bodies use. No aliases.
+  - **Tests.** New, each observed failing first (undefined function):
+    `ddl.TestTablespaceDatabaseReturnsWarning` (a non-tablespace OID reads
+    nothing and returns NULL, not present, and the exact WARNING) and
+    `extension.TestRegisterAddsOnlyValidImplementations`, the first unit
+    test of `extension`. Moved: the duplicate, nil and versionless
+    registration checks of the engine's `TestExtensionProviderIdentity`
+    into the new `extension` test (which adds empty and invalid names);
+    its closed-registry check stays root and now uses a fresh name, so it
+    fails only because the registry is closed. Unchanged:
+    `TestTablespaceInfo*`, `TestExtensionVersionGraph`,
+    `TestExtensionVersionPathsConsumers` and `TestAvailableExtensions*`
+    (engine fixtures; they reach the moved code through the root). None
+    deleted.
+  - **Verification.** After each commit, `make build` and the targeted
+    units (`TestTablespace*`, `TestAlterTablespaceKind`,
+    `TestExtensionProviderIdentity`, `TestExtensionVersionGraph`,
+    `TestExtensionVersionPathsConsumers`, `TestAvailableExtensions*` and
+    the two new tests); the quick and `REFERENCE=1`
+    `^TestReference(.*Tablespace|Extension|AvailableExtensions)` selections
+    (77 tests; `alter`, `catalogs`, `object_grants`) and quickcheck passed.
+    The string-literal multiset of the moved files is unchanged except
+    import paths; `ddl` and `extension` list the same imports as before.
+    `registerExtension` runs in `New`, so startup was measured: steady-state
+    allocations are 5357 per Ping/Close on both master and the branch
+    (interleaved test binaries). ns/op (2.4–18 ms) is not meaningful: the
+    host ran at load average 84 from parallel sessions, so the <1 ms
+    target could not be checked. racecheck/finalcheck skipped at user
+    request
 
 Outstanding aliases: none.
 
