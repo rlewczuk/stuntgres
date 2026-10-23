@@ -251,6 +251,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	var candidate StatementDescription
 	quoteCapturesChanged := false
 	valid := true
+	var rebindTypes map[analyze.PreparedTypeKey]analyze.TypeOccurrence
+	var rebindTemporals []analyze.TemporalConstant
+	eanAuthorityRebind := false
 	replan := scope.prepared.invalid || expected != nil && expected.planOwner == op.Session.SessionToken && expected.planGeneration != op.Session.DiscardPlansGeneration
 	if expected != nil && expected.analysis != nil {
 		path, er := e.sequenceEnvironmentLocked(auth)
@@ -265,10 +268,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.prepared.changedDuringAdmission = true
 		}
 		replan = replan || !current
+		eanAuthorityRebind = replan && e.preparedEan13AuthorityRebindLocked(auth, expected, path)
+		rebindTemporals = e.preparedEan13LiteralTemporalsLocked(auth, expected, path)
 	}
 	if expected != nil {
 		if replan {
-			expected.retireAnalysisTypeCasts()
+			rebindTypes = expected.retireAnalysisTypeCastsForRebind(eanAuthorityRebind)
 		}
 		valid, err = e.sequenceAnalysisValidLocked(auth, expected.sequences)
 		if err != nil {
@@ -276,6 +281,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 		candidate = *expected
+		if rebindTemporals != nil {
+			candidate.temporals = rebindTemporals
+		}
+		if replan {
+			candidate.types = rebindTypes
+		}
 		if expected.Parameters.Count != 0 {
 			// Parameterized executions never borrow a retained quote group.
 			candidate.quotes = nil

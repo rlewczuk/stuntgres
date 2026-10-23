@@ -119,36 +119,37 @@ type Codec interface {
 
 // Descriptor has no mutable or execution-local state. Catalogs own generations.
 type Descriptor struct {
-	id                               ID
-	name, sql, database              string
-	base                             Usage
-	ownDomainChecks, domainChecks    bool
-	ownDomainNotNull, domainNotNull  bool
-	element                          *Descriptor
-	associatedArray                  ID
-	delimiter                        byte
-	enum                             *enumDefinition
-	queryInt                         bool
-	cube                             bool
-	citext                           bool
-	composite                        *compositeDefinition
-	rangeSubtype                     *Descriptor
-	rangeBoolean                     *Descriptor
-	multirangeRange                  *Descriptor
-	multirangeCompanion              *Descriptor
-	networkCIDR                      *Descriptor
-	networkMasklen                   *Descriptor
-	networkBoolean                   *Descriptor
-	geometryPoint                    *Descriptor
-	circleBoolean, circleFloat       *Descriptor
-	pointBoolean, pointFloat         *Descriptor
-	polygonBoolean, polygonPoint     *Descriptor
-	polygonInt                       *Descriptor
-	pathInt                          *Descriptor
+	id                              ID
+	name, sql, database             string
+	base                            Usage
+	ownDomainChecks, domainChecks   bool
+	ownDomainNotNull, domainNotNull bool
+	element                         *Descriptor
+	associatedArray                 ID
+	delimiter                       byte
+	enum                            *enumDefinition
+	queryInt                        bool
+	cube                            bool
+	citext                          bool
+	ean13                           bool
+	composite                       *compositeDefinition
+	rangeSubtype                    *Descriptor
+	rangeBoolean                    *Descriptor
+	multirangeRange                 *Descriptor
+	multirangeCompanion             *Descriptor
+	networkCIDR                     *Descriptor
+	networkMasklen                  *Descriptor
+	networkBoolean                  *Descriptor
+	geometryPoint                   *Descriptor
+	circleBoolean, circleFloat      *Descriptor
+	pointBoolean, pointFloat        *Descriptor
+	polygonBoolean, polygonPoint    *Descriptor
+	polygonInt                      *Descriptor
+	pathInt                         *Descriptor
 	ftsBoolean, ftsDistance, ftsText *Descriptor
-	lookupOnly                       bool
-	catalogNullOwner                 *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
-	namespace                        string
+	lookupOnly                      bool
+	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
+	namespace                       string
 }
 
 func (d *Descriptor) ID() ID          { return d.id }
@@ -163,6 +164,9 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 	}
 	if d.IsEnum() {
 		return 4
+	}
+	if d.IsEan13() {
+		return 8
 	}
 	if d.IsArray() || d.IsComposite() || d.rangeSubtype != nil || d.multirangeRange != nil {
 		return -1
@@ -448,6 +452,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if fromEnum.IsCitext() != toEnum.IsCitext() || fromEnum.IsCitext() && fromEnum != toEnum {
 		return Value{}, fmt.Errorf("incompatible citext generation")
 	}
+	if fromEnum.IsEan13() != toEnum.IsEan13() || fromEnum.IsEan13() && (fromEnum != toEnum || !v.null && !v.validEan13()) {
+		return Value{}, fmt.Errorf("incompatible ean13 generation")
+	}
 	if fromEnum.IsEnum() != toEnum.IsEnum() {
 		return Value{}, fmt.Errorf("incompatible enum declaration")
 	}
@@ -727,7 +734,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -745,6 +752,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsCitext() {
 		return Value{typ: d, text: text}, nil
+	}
+	if d.IsEan13() {
+		return d.ean13Input(text)
 	}
 	switch d.id {
 	case Path:
@@ -1042,6 +1052,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsCitext() {
 		return v.text, nil
 	}
+	if d.IsEan13() {
+		return d.ean13Output(v)
+	}
 	switch d.id {
 	case Path:
 		return pathOutput(v, env)
@@ -1268,6 +1281,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	}
 	if d.IsCitext() {
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
+	}
+	if d.IsEan13() {
+		text, err := d.ean13Output(v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
 	}
 	switch d.id {
 	case Path:
@@ -1846,12 +1866,12 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 			return p, failure("42804", "incompatible source and destination types")
 		}
 	}
-	if source.Type.IsQueryInt() || target.Type.IsQueryInt() || source.Type.IsCube() || target.Type.IsCube() {
+	if source.Type.IsQueryInt() || target.Type.IsQueryInt() || source.Type.IsCube() || target.Type.IsCube() || source.Type.IsEan13() || target.Type.IsEan13() {
 		if source.Type == target.Type {
 			return p, nil
 		}
 		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) ||
-			context == Assignment && (source.Type.IsQueryInt() || source.Type.IsCube()) && IsCharacter(target.Type.id) {
+			context == Assignment && (source.Type.IsQueryInt() || source.Type.IsCube() || source.Type.IsEan13()) && IsCharacter(target.Type.id) {
 			p.method = viaIO
 			return p, nil
 		}

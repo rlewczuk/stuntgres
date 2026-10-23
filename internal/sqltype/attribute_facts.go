@@ -38,6 +38,10 @@ func (d *Descriptor) AttributeFacts() PostgreSQLAttributeFacts {
 		f.Storage = "x"
 		return f
 	}
+	if d.IsEan13() {
+		f.ByValue, f.Alignment = true, "d"
+		return f
+	}
 	switch d.id {
 	case Bool, Char:
 		f.ByValue, f.Alignment = true, "c"
@@ -94,5 +98,5 @@ func ResultNull(u Usage) Value {
 // ValidResult preserves exact captured descriptor identity, including the
 // narrowly nullable catalog carrier. No nonnull pseudo value can escape.
 func (v Value) ValidResult(u Usage) bool {
-	return v.typ != nil && v.typ == u.Type && (v.typ.Concrete() || v.null && u.CatalogNullUsage())
+	return v.typ != nil && v.typ == u.Type && (v.typ.Concrete() || v.null && u.CatalogNullUsage()) && (v.null || !v.typ.BaseType().IsEan13() || v.validEan13())
 }

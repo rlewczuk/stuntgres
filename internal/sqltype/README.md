@@ -33,8 +33,8 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   generation with current naming and base authority.
 - `Value.Retag` remints descriptor ownership without changing the datum. It
   requires the same type ID, domain/base identity and constraints, and rejects
-  foreign citext generations and enum members even for equal OIDs; only
-  source-authorized catalog import remaps explicitly (`RemapCitext`).
+  foreign citext/ean13 generations and enum members even for equal OIDs; only
+  source-authorized catalog import remaps explicitly (`RemapCitext`, `RemapEan13`).
 - Capabilities (comparison, ordering, grouping, hashing, index, binary
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
@@ -61,7 +61,7 @@ continue owning their original descriptors. Fresh metadata and diagnostics name
 the current type; prepared occurrence capture/recreation policy belongs to the
 engine, not a codec-level stale-name retry.
 
-Installed cube/query_int/citext/earth retain real codec/manifest roles and earth
+Installed cube/query_int/citext/ean13/earth retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
 Neither a logical OID nor lifecycle support introduces a new range provider,
@@ -114,6 +114,15 @@ or widen it.
 - Structured receive validates member OIDs/generations/typmods and grows only
   with received members, never from an announced cardinality. Wire OIDs never
   grant catalog identity.
+
+## EAN13 identifiers
+
+`Ean13` descriptors own a packed integer containing thirteen decimal digits and
+the invalid-input flag. Text input validates digit counts and checksums; output
+uses the attributed PostgreSQL 18.6 prefix/family ranges in `ean13_ranges.go`.
+Leading zeros, computed check digits, marked corrected inputs and typed NULLs
+retain distinct identities. Explicit text I/O and assignment to text reuse the
+shared coercion planner; descriptor generations are never interchangeable by OID.
 
 ## Type families
 
@@ -283,4 +292,4 @@ match engine tests of the same mechanism):
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
-- Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
+- Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`

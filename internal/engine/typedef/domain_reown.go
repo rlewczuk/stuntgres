@@ -28,7 +28,7 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain base")
 		}
-		if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() {
+		if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() {
 			target, namespace, extension := address, d.Namespace(), d.Extension
 			if to, ok := mapping[address]; ok {
 				target = to
@@ -55,6 +55,9 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 				}
 				if d.SQLType.IsCitext() {
 					constructor = sqltype.Citext
+				}
+				if d.SQLType.IsEan13() {
+					constructor = sqltype.Ean13
 				}
 				typ, err := constructor(sqltype.ID(target.ObjectID), d.Name(), declaration)
 				if err != nil {
@@ -319,7 +322,7 @@ func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 	}
 	if imported := imports[value.Type().BaseType()]; imported != nil {
-		if imported != target.BaseType() || !target.BaseType().IsEnum() && !target.BaseType().IsQueryInt() && !target.BaseType().IsCube() && !target.BaseType().IsCitext() {
+		if imported != target.BaseType() || !target.BaseType().IsEnum() && !target.BaseType().IsQueryInt() && !target.BaseType().IsCube() && !target.BaseType().IsCitext() && !target.BaseType().IsEan13() {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign imported scalar destination")
 		}
 		physical, err := value.BaseValue()
@@ -332,6 +335,8 @@ func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 			physical, err = physical.RemapCube(target.BaseType())
 		} else if physical.Type().IsCitext() {
 			physical, err = physical.RemapCitext(target.BaseType())
+		} else if physical.Type().IsEan13() {
+			physical, err = physical.RemapEan13(target.BaseType())
 		} else {
 			physical, err = physical.RemapEnum(target.BaseType())
 		}
@@ -357,7 +362,7 @@ func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 		from.Collation = mapped
 	}
-	if (!from.Type.IsEnum() && !from.Type.IsComposite() && !from.Type.IsQueryInt() && !from.Type.IsCube() && !from.Type.IsCitext() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
+	if (!from.Type.IsEnum() && !from.Type.IsComposite() && !from.Type.IsQueryInt() && !from.Type.IsCube() && !from.Type.IsCitext() && !from.Type.IsEan13() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported domain base")
 	}
 	physical, err := value.BaseValue()

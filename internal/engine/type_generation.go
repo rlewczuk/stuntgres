@@ -17,18 +17,18 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	if _, err := typedef.ReownDomainTypes(next, nil, false); err != nil {
 		return err
 	}
-	// Citext deliberately rejects ordinary same-OID generation Retag. Authorize
-	// only the exact published source pointer of a changed catalog-owned role,
+	// Citext and EAN13 deliberately reject ordinary same-OID generation Retag.
+	// Authorize only the exact published source pointer of a changed catalog-owned role,
 	// using the existing transient scalar-import seam for nested values/recipes.
 	imports := next.ScalarImports()
 	authorized := false
 	for address, descriptor := range next.Descriptors() {
 		typ, ok := descriptor.(*catalog.Type)
-		if !ok || !typ.SQLType.IsCitext() {
+		if !ok || !typ.SQLType.IsCitext() && !typ.SQLType.IsEan13() {
 			continue
 		}
 		old, exists := stage.Base.Type(address)
-		if !exists || !old.SQLType.IsCitext() || old.SQLType == typ.SQLType || old.Extension != typ.Extension || old.Array != typ.Array {
+		if !exists || !(old.SQLType.IsCitext() && typ.SQLType.IsCitext() || old.SQLType.IsEan13() && typ.SQLType.IsEan13()) || old.SQLType == typ.SQLType || old.Extension != typ.Extension || old.Array != typ.Array {
 			continue
 		}
 		if !authorized {

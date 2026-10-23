@@ -75,6 +75,9 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if CitextProviderOf(d) != nil && symbol == "citextout" {
 				member.Signature = "citext"
 			}
+			if IsnProviderOf(d) != nil && symbol == "ean13_out" {
+				member.Signature = "ean13"
+			}
 			principal = d.Owner
 		case *catalog.Operator:
 			name, signature, known := cubeOwnerOperatorIdentity(slot)
@@ -207,6 +210,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = CubeMemberCount
 	case record.Name == "citext" && record.Version == "1.8":
 		expectedMembers = 3
+	case record.Name == "isn" && record.Version == "1.3":
+		expectedMembers = 3
 	case record.Name == "earthdistance" && record.Version == "1.2":
 		expectedMembers = 2
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
@@ -256,7 +261,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		case "procedure":
 			// Mutable procedure labels are checked against the current installed
 			// slot by ImportOwners, not used as installation identity.
-			if record.Name == "earthdistance" || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "intarray" || record.Name == "cube" || record.Name == "citext") && member.Slot == 0 {
+			if record.Name == "earthdistance" || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "intarray" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
 				return invalid()
 			}
 			if signature, ok := ownerProcedureSignature(record.Name, record.Version, member.Slot); !ok || signature != member.Signature {
@@ -280,7 +285,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") || member.Signature != "" {
+			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") || member.Signature != "" {
 				return invalid()
 			}
 		default:
@@ -333,13 +338,16 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		if slot >= cubeSpatialProcedureStart && slot < cubeSpatialOperatorStart {
 			return "cube,cube", true
 		}
-	case "intarray", "citext":
+	case "intarray", "citext", "isn":
 		if slot == 1 {
 			return "2275", true
 		}
 		if slot == 2 {
 			if name == "intarray" {
 				return "query_int", true
+			}
+			if name == "isn" {
+				return "ean13", true
 			}
 			return name, true
 		}

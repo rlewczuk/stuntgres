@@ -6,10 +6,12 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -73,8 +75,96 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 	return nil
 }
 
+func (e *Engine) preparedAnalysisEnvironmentValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment) bool {
+	return analysis != nil && !analysis.needsReanalysis && analysis.domain == e.catalog.Domain && analysis.epoch == auth.Catalog.Epoch() && analysis.session == auth.session.SessionToken && analysis.private == auth.session.Transactions.Catalog && analysis.namespace == auth.Catalog.State().NamespaceGeneration() && sequence.SameEnvironment(analysis.path, path)
+}
+
 func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment) bool {
-	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.Catalog.Epoch() || analysis.session != auth.session.SessionToken || analysis.private != auth.session.Transactions.Catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(analysis.path, path) {
+	return e.preparedAnalysisDefinitionsValidLocked(auth, analysis, path, false)
+}
+
+func (e *Engine) preparedEan13AuthorityRebindLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) bool {
+	return expected != nil && expected.planGeneration == auth.session.DiscardPlansGeneration && e.preparedAnalysisDefinitionsValidLocked(auth, expected.analysis, path, true)
+}
+
+// Caller holds Engine.mu. Only the exact prepared source cell can authorize a
+// statement-owned EAN datum import into the genuine current manifest member.
+// The returned slice belongs to this attempt; neither imports nor values publish
+// until the existing successful reanalysis publication path accepts them.
+func (e *Engine) preparedEan13LiteralTemporalsLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) []analyze.TemporalConstant {
+	if expected == nil {
+		return nil
+	}
+	original := expected.temporals
+	var candidate []analyze.TemporalConstant
+	var imports map[*sqltype.Descriptor]*sqltype.Descriptor
+	checked := false
+	for i, capture := range original {
+		source := capture.Value.Type()
+		if source == nil || !source.IsEan13() {
+			continue
+		}
+		if !checked {
+			if expected.planGeneration != auth.session.DiscardPlansGeneration || (!e.preparedAnalysisValidLocked(auth, expected.analysis, path) && !e.preparedEan13AuthorityRebindLocked(auth, expected, path)) {
+				return original
+			}
+			checked = true
+		}
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(capture.TypeID)}
+		old := expected.analysis.types[address]
+		if capture.TypeID != source.ID() || old == nil || old.SQLType != source || old.Address() != address {
+			return original
+		}
+		captured := false
+		for _, dep := range expected.analysis.dependencies {
+			if dep.Ref.Address == address && dep.Ref.Domain() == e.catalog.Domain && dep.Ref.Epoch == auth.Catalog.Epoch() {
+				captured = true
+				break
+			}
+		}
+		current, ok := auth.Catalog.Type(address)
+		if !captured || !ok || !current.SQLType.IsEan13() || old.Extension != current.Extension || old.Array != current.Array {
+			return original
+		}
+		nominal := *old
+		nominal.Owner, nominal.ACL = current.Owner, current.ACL
+		if !samePreparedTypeDefinition(&nominal, current) {
+			return original
+		}
+		ext, ok := auth.Catalog.Extension(current.Extension)
+		if !ok {
+			return original
+		}
+		role, installed, err := extension.InstalledType(auth.Catalog, ext)
+		if err != nil || role != "ean13" || installed != current || installed.SQLType != current.SQLType {
+			return original
+		}
+		if source == current.SQLType {
+			continue
+		}
+		if imports == nil {
+			imports = make(map[*sqltype.Descriptor]*sqltype.Descriptor)
+		}
+		imports[source] = current.SQLType
+		value, err := typedef.ReownDomainDatum(capture.Value, current.SQLType, nil, imports, nil)
+		if err != nil {
+			return original
+		}
+		if candidate == nil {
+			candidate = append([]analyze.TemporalConstant(nil), original...)
+		}
+		candidate[i].Value = value
+	}
+	if candidate != nil {
+		return candidate
+	}
+	return original
+}
+
+// The rebind mode validates nominal EAN13 occurrences only, never executable
+// reuse. Owner/ACL changes still require fresh analysis and authority checks.
+func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment, eanAuthorityRebind bool) bool {
+	if !e.preparedAnalysisEnvironmentValidLocked(auth, analysis, path) {
 		return false
 	}
 	for pair, observed := range analysis.casts {
@@ -90,7 +180,24 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 		}
 		if preparedDefinitionStamp(d, auth.session) != dep.Revision {
 			current, ok := d.(*catalog.Type)
-			if !ok || !samePreparedTypeDefinition(analysis.types[dep.Ref.Address], current) {
+			if !ok {
+				return false
+			}
+			if eanAuthorityRebind && !current.SQLType.IsEan13() {
+				return false
+			}
+			old := analysis.types[dep.Ref.Address]
+			if samePreparedTypeDefinition(old, current) {
+				continue
+			}
+			if !eanAuthorityRebind || old == nil || !old.SQLType.IsEan13() || !current.SQLType.IsEan13() {
+				return false
+			}
+			// Compare the same immutable definition while deliberately leaving
+			// authority to the fresh binder, not to retained executable analysis.
+			nominal := *old
+			nominal.Owner, nominal.ACL = current.Owner, current.ACL
+			if !samePreparedTypeDefinition(&nominal, current) {
 				return false
 			}
 		}

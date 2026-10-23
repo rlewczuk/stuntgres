@@ -6,6 +6,8 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/largeobject"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
@@ -102,13 +104,57 @@ func restoreForeignDefault(s *parser.ForeignDDL) *parser.AlterTableDefault {
 	return alteration
 }
 
-// admitRestoreAlterOwner pairs an ALTER OWNER with the domain or inheriting
-// table its owner directive created.
+// admitRestoreAlterOwner admits captured installed-type ownership or pairs an
+// ALTER OWNER with the domain or inheriting table its owner directive created.
 func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
+	if s.Kind == "type" {
+		return admitRestoreInstalledTypeOwner(r, op, s)
+	}
 	if s.Kind == "domain" {
 		return r.stage.restoreDomainOwner(op, s, r.cur.domainOwnerPair)
 	}
 	return r.stage.restoreInheritedOwner(op, s, r.cur.ownerPair)
+}
+
+func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
+	reject := func() error { return sqlError("0A000", table.RestoreInheritedOwnerBoundary) }
+	if s.IfExists || len(s.Name.Parts) != 2 || s.Target.Identity != "" || s.Target.Name == "" {
+		return reject()
+	}
+	auth, err := operationAuthorization(op)
+	if err != nil {
+		return err
+	}
+	for _, record := range r.extensionOwners {
+		if record.Name != "isn" {
+			continue
+		}
+		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: record.Name})
+		ext, ok := auth.Catalog.Extension(address)
+		if !ok || ext.Version != record.Version || auth.Catalog.MustNamespace(ext.TargetNamespace).Name() != record.Schema {
+			continue
+		}
+		owner, err := auth.Roles.Descriptor(ext.Owner)
+		if err != nil {
+			return err
+		}
+		if owner.Name != record.Owner {
+			continue
+		}
+		role, typ, err := extension.InstalledType(auth.Catalog, ext)
+		if err != nil {
+			return err
+		}
+		if role != "ean13" || typ == nil || typ.Name() != s.Name.Parts[1].Text || auth.Catalog.MustNamespace(typ.Namespace()).Name() != s.Name.Parts[0].Text {
+			continue
+		}
+		for _, member := range record.Members {
+			if member.Kind == "type" && member.Name == role && member.Signature == "" && member.Owner == s.Target.Name {
+				return nil // The ordinary ownership executor still checks authority.
+			}
+		}
+	}
+	return reject()
 }
 
 // admitRestoreCreateTable captures and strips the table's foreign keys

@@ -23,6 +23,9 @@ func InstalledType(v catalog.Read, ext *catalog.Extension) (string, *catalog.Typ
 	case "citext":
 		name = "citext"
 		err = StockCitext.ValidateExtension(v, ext)
+	case "isn":
+		name = "ean13"
+		err = StockIsn.ValidateExtension(v, ext)
 	case "earthdistance":
 		name = "earth"
 		err = StockEarthdistance.ValidateExtension(v, ext)

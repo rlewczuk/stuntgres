@@ -198,7 +198,7 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 			}
 			n.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
 		}
-		if IntarrayProviderOf(&n) != nil || CitextProviderOf(&n) != nil {
+		if IntarrayProviderOf(&n) != nil || CitextProviderOf(&n) != nil || IsnProviderOf(&n) != nil {
 			if d.Signature == "2275" {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {

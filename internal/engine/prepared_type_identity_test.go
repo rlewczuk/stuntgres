@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -22,6 +23,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 		{"cube", "", "cube", false},
 		{"query_int", "", "intarray", false},
 		{"citext", "", "citext", false},
+		{"ean13", "", "isn", false},
 	} {
 		array := family.array
 		name := family.name
@@ -117,6 +119,21 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			changed.ACL.Explicit = !changed.ACL.Explicit
 			if samePreparedTypeDefinition(old, &changed) {
 				t.Fatal("authority change concealed")
+			}
+			changed = *current
+			changed.Owner = authorization.PrincipalRef{}
+			if samePreparedTypeDefinition(old, &changed) {
+				t.Fatal("owner change concealed")
+			}
+			if current.SQLType.IsEan13() {
+				changed = *current
+				changed.SQLType, err = sqltype.Citext(current.SQLType.ID(), current.Name(), current.SQLType.SQLName())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if samePreparedTypeDefinition(old, &changed) {
+					t.Fatal("foreign installed family concealed")
+				}
 			}
 			if current.SQLType.IsEnum() {
 				changed = *current

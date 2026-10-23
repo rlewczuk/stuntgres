@@ -119,7 +119,7 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				}
 			}
 			if runtime.TypeProviderProcedure(d) {
-				if d.Name() == "bqarr_in" || d.Name() == "cube_in" {
+				if d.Name() == "bqarr_in" || d.Name() == "cube_in" || d.Name() == "ean13_in" {
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
 				} else {
 					ext := view.MustExtension(d.Extension)

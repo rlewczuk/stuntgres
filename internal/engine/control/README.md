@@ -100,8 +100,10 @@ source addresses once without converting replay prerequisites into hard edges.
   ordinary ALTERs under bootstrap authority. Deterministic free temporary names
   break cross-member cycles; moves preserve companion spelling and renames use
   the shared generated-array predictor. This predictor seeds mixed domain/composite
-  rendering, including domains over installed arrays. The schedule is transient
-  captured rendering state, not a persisted identity registry.
+  rendering, including domains over installed arrays. The EAN base's captured
+  owner is then restored with ordinary TYPE OWNER SQL, which transfers its
+  companion without changing independent extension or I/O owners. The schedule
+  is transient captured rendering state, not a persisted identity registry.
 
 ## Restore
 
@@ -119,10 +121,12 @@ source addresses once without converting replay prerequisites into hard edges.
   (`AdmitKind`, `AdmitSchemaObject`, `AdmitOperator`, `AdmitStatement(check)`
   over `Check*` functions). The root's table names them in its own order, so
   rejection order is the table's.
-  TYPE admission covers only the implemented RENAME/SET SCHEMA identity AST,
-  not arbitrary TYPE evolution or DROP TYPE. It executes through the same
-  private candidate and atomic installation. Canonical extension member-role
-  owner metadata resolves through genuine destination manifests, not final names.
+  TYPE admission covers the implemented RENAME/SET SCHEMA identity AST and
+  qualified named-role OWNER for a genuine installed EAN base paired to its
+  canonical captured owner record, not arbitrary TYPE evolution or DROP TYPE.
+  Ownership uses ordinary authority checks and staged base/companion transfer.
+  Canonical extension member-role owner metadata resolves through genuine
+  destination manifests, not final names, and validates independent member owners.
 
 ### Host contract
 

@@ -8,7 +8,7 @@ nullability, CHECK and identity lifecycle); composite types (declarations, field
 expressions, ALTER TYPE attributes); enums (values, ALTER TYPE, support
 functions); integer, numeric, date, timestamp and timestamptz ranges and their
 multiranges (operators, inspection, `multirange`/`unnest`); text search types and
-operators; extension types (`cube`, `earth`, `citext`, `query_int`); ACL values
+operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`); ACL values
 (`aclitem`, `makeaclitem`, `acldefault`, `aclexplode`); TID; UUID (values,
 `gen_random_uuid`/`uuidv4`/`uuidv7`, extraction); BOOLEAN diagnostics and
 aggregates; the `information_schema` domains; and scalar comparison operators and
@@ -79,6 +79,11 @@ these are shared across families:
   provenance. The GeometryMeasure, GeometryMeasureBoxLine and
   GeometryMeasurePath families share these helpers; path-specific helpers live in
   `geometry_measure_path_helpers_test.go`.
+- `ean13_helpers_test.go`: shared installed-identifier scenario, raw string/byte
+  transport, exact diagnostics and metadata checks. The reusable family selector
+  is `RUN='^TestReferenceEan13'`; controls retain readers across replacement,
+  validate whole-script diagnostic positions and rollback with identical failing
+  SQL on PostgreSQL, and replay actual emitted SQL on PostgreSQL.
 
 Client quirks:
 
@@ -155,6 +160,9 @@ COPY test in reference/dml.
 reciprocal companions, typed values/NULL/raw metadata, independent diagnostics,
 dependency closure, live authorization and held-occurrence lifetime. Registered
 I/O signature probes use public regprocedure identity and admitted pg_proc columns.
+Installed EAN13 scenarios retain leading-zero, marked and NULL values across
+identity ALTER, held casts/INSERTs/raw readers and same/fresh-driver controls;
+base/array ownership stays independent of extension I/O routine authority.
 Domains retain pg_type I/O identities and genuine base/CHECK providers, separately
 from procedure inventory. Explicit companion DROP follows its actual extension
 owner where applicable.

@@ -63,7 +63,7 @@ func EnumWithMembers(id ID, name, declaration string, members []EnumMember) (*De
 }
 func (d *Descriptor) IsEnum() bool { return d != nil && d.enum != nil }
 func (d *Descriptor) IsUserDefined() bool {
-	return d != nil && !d.IsBuiltin() && (d.IsDomain() || !d.lookupOnly && (d.IsEnum() || d.IsComposite() || d.IsQueryInt() || d.IsCube() || d.IsCitext()))
+	return d != nil && !d.IsBuiltin() && (d.IsDomain() || !d.lookupOnly && (d.IsEnum() || d.IsComposite() || d.IsQueryInt() || d.IsCube() || d.IsCitext() || d.IsEan13()))
 }
 func (d *Descriptor) EnumLabels() []string {
 	if !d.IsEnum() {

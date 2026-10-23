@@ -102,6 +102,9 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if CitextProviderOf(selected) != nil && symbol == "citextout" {
 					signature = "citext"
 				}
+				if IsnProviderOf(selected) != nil && symbol == "ean13_out" {
+					signature = "ean13"
+				}
 			case *catalog.Operator:
 				expectedName, portableSignature, valid := cubeOwnerOperatorIdentity(member.Slot)
 				if record.Name != "cube" || !valid {

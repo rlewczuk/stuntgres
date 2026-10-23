@@ -170,7 +170,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	for _, registration := range []struct {
 		name           string
 		implementation extension.Installer
-	}{{"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"unaccent", extension.StockUnaccent}, {"intarray", extension.StockIntarray}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgrowlocks", extension.StockPgrowlocks}, {"pgcrypto", extension.StockPgcrypto}, {"uuid-ossp", extension.StockUUIDOssp}} {
+	}{{"isn", extension.StockIsn}, {"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"unaccent", extension.StockUnaccent}, {"intarray", extension.StockIntarray}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgrowlocks", extension.StockPgrowlocks}, {"pgcrypto", extension.StockPgcrypto}, {"uuid-ossp", extension.StockUUIDOssp}} {
 		if err := e.registerExtension(registration.name, registration.implementation); err != nil {
 			return nil, err
 		}

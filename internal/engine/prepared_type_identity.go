@@ -55,6 +55,8 @@ func samePreparedTypeDefinition(old, current *catalog.Type) bool {
 		return b.IsQueryInt()
 	case a.IsCitext():
 		return b.IsCitext()
+	case a.IsEan13():
+		return b.IsEan13()
 	}
 	return false
 }

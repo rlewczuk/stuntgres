@@ -85,6 +85,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 			"unaccent":      {"unaccent", "1.1", version, comment},
 			"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
 			"intagg":        {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
+			"isn":          {"isn", "1.3", nil, "data types for international product numbering standards"},
 			"pgrowlocks":    {"pgrowlocks", "1.2", nil, "show row-level locking information"},
 			"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
 			"pgcrypto":      {"pgcrypto", "1.4", nil, "cryptographic functions"},
@@ -97,6 +98,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 			expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}
 			expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
 			expected["intagg"] = []any{"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}
+			expected["isn"] = []any{"isn", "1.3", false, true, true, true, nil, nil, "data types for international product numbering standards"}
 			expected["pgrowlocks"] = []any{"pgrowlocks", "1.2", false, true, false, true, nil, nil, "show row-level locking information"}
 			expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 			expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}

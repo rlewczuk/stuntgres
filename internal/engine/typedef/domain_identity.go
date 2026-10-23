@@ -177,6 +177,8 @@ func stageTypeIdentity(h StageHost, auth ddl.Authority, source parser.ObjectName
 		next.SQLType, err = sqltype.Citext(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsQueryInt():
 		next.SQLType, err = sqltype.QueryInt(old.SQLType.ID(), name, declaration)
+	case old.SQLType.IsEan13():
+		next.SQLType, err = sqltype.Ean13(old.SQLType.ID(), name, declaration)
 	default:
 		return fmt.Errorf("stuntgres: missing user type identity provider")
 	}

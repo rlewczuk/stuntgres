@@ -161,6 +161,8 @@ func validateInstalledProcedure(v catalog.Read, d *catalog.Procedure) (ids.Objec
 		return d.Extension, CubeProviderOf(d).ValidateProcedure(v, d)
 	case CitextProviderOf(d) != nil:
 		return d.Extension, CitextProviderOf(d).ValidateProcedure(v, d)
+	case IsnProviderOf(d) != nil:
+		return d.Extension, IsnProviderOf(d).ValidateProcedure(v, d)
 	}
 	if d.Conversion.Name() != "" || UnaccentProviderOf(d) != StockUnaccent {
 		return invalid()

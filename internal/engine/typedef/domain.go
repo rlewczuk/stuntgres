@@ -119,7 +119,7 @@ func StageCreateDomainLocked(h StageHost, auth ddl.Authority, s *parser.CreateDo
 	}
 	arrayName := h.AssociatedArrayName(ns.Address, name)
 	var array *sqltype.Descriptor
-	if !typ.Concrete() || typ.BaseType().IsCube() || typ.BaseType().IsQueryInt() || typ.BaseType().IsCitext() || sqltype.IsNetwork(typ.BaseType().ID()) || sqltype.IsOperatorAlias(typ.BaseType().ID()) || sqltype.IsRegTS(typ.BaseType().ID()) {
+	if !typ.Concrete() || typ.BaseType().IsEan13() || typ.BaseType().IsCube() || typ.BaseType().IsQueryInt() || typ.BaseType().IsCitext() || sqltype.IsNetwork(typ.BaseType().ID()) || sqltype.IsOperatorAlias(typ.BaseType().ID()) || sqltype.IsRegTS(typ.BaseType().ID()) {
 		array = sqltype.LookupArray(sqltype.ID(arrayOID), arrayName, typ)
 	} else {
 		array, err = sqltype.Array(sqltype.ID(arrayOID), arrayName, typ)

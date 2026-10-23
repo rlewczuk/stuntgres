@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for the ten bundled extensions (citext, cube, earthdistance,
-fuzzystrmatch, intagg, intarray, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
+and control data for the eleven bundled extensions (citext, cube, earthdistance,
+fuzzystrmatch, intagg, intarray, isn, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
@@ -68,6 +68,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   singleton manifest, not spelling. Owner metadata, transaction publication,
   dependency removal and remap use the shared extension lifecycle; no lock state
   is serialized.
+- **isn** (`isn_provider.go`, `isn_stage.go`): the trusted, relocatable 1.3
+  provider installs `ean13`, its lookup-only associated array and genuine
+  `ean13_in(cstring)`/`ean13_out(ean13)` immutable strict I/O members. Owner
+  metadata records the output argument symbolically and remaps it to the
+  destination descriptor during catalog replacement.
 - **citext and earthdistance.** Citext stages the scalar and its two text-I/O
   members, resolving I/O helper names through `ScriptFunctions`; its owner
   metadata serializes the output signature symbolically and resolves it to the
@@ -131,7 +136,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   that is also a source does not trigger another mapping step.
 
 Type identity is its validated manifest role, not its mutable name or namespace.
-`InstalledType`/`MemberTypeRole` resolve cube/query_int/citext/earth through the
+`InstalledType`/`MemberTypeRole` resolve cube/query_int/citext/ean13/earth through the
 existing manifest/provider and reciprocal array checks. Member ALTER retains
 installation membership; direct DROP remains protected. The owners-v1 codec
 keeps canonical type role keys (including earth[]) across rename/move, preserving

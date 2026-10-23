@@ -26,6 +26,11 @@ func CitextProviderOf(d *catalog.Procedure) *CitextProvider {
 	return p
 }
 
+func IsnProviderOf(d *catalog.Procedure) *IsnProvider {
+	p, _ := d.Implementation.(*IsnProvider)
+	return p
+}
+
 func FuzzystrmatchProviderOf(d *catalog.Procedure) *FuzzystrmatchProvider {
 	p, _ := d.Implementation.(*FuzzystrmatchProvider)
 	return p

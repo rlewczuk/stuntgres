@@ -152,8 +152,18 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   composite and installed types compare immutable executable definitions and
   authority, with child types in the same dependency cell. Domains retain their
   domain-specific stamps.
-  Genuine reanalysis retires these casts alongside the existing cast group;
-  it never repairs obsolete source spelling with an alias.
+  Reanalysis normally retires these casts alongside the existing cast group.
+  An EAN13 owner/ACL-only invalidation in the same resolution environment may
+  carry its nominal cast identity into a single candidate analysis. Executable
+  analysis is still invalidated; current lookup, authority and coercion run
+  before fresh captures publish. A failed candidate leaves the original casts
+  retired. No alias repairs obsolete source spelling.
+  Direct held EAN13 literals use candidate-only datum reownership from the exact
+  captured analysis descriptor to the genuine current installed manifest member,
+  under the same environment and definition gates. A local pointer import
+  preserves packed payloads and NULL framing without changing ordinary Retag or
+  catalog import roots. Identity-only attempts leave original temporals intact;
+  successful reanalysis publishes fresh temporals and source analysis together.
 - Full invalidation publishes atomically, after analysis, signature and
   provenance succeed: genuine temporal scalar/array candidates, sequence/regtype
   candidates and identity stamps. It preserves native logical enum, domain and
@@ -284,6 +294,13 @@ provider validation; CREATE and UPDATE share one final publication. Retirement
 captures the complete target set, including automatic aliases, and rejects
 incoming dependencies with `catalog.Conflict` before mutation.
 
+Identity ALTER remints citext/EAN13 values through a transient exact
+source-descriptor-to-current-descriptor map, never an OID-only permission.
+Generation reownership restores the prior import map before returning and leaves
+retained catalog/storage roots unchanged. Base rename, move and ownership do not
+change installed I/O routine namespaces or owners; canonical manifest roles own
+portable ownership records and identity replay.
+
 ## VACUUM and row mutation
 
 - `vacuum.go` runs in one StatementScope and transaction/ticket; per-target
@@ -363,6 +380,7 @@ make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogAC
 make check RUN='^Test(AlterDropColumnRevisionFrontier|CatalogConcurrentReplacement|AccessMethod|Builtin)'  # catalog writes, seed
 make check RUN='^Test(CatalogRelations|NamespaceIdentity|ObjectAddress)'  # catalog inquiry and identity
 make check RUN='^TestNotification'                     # immutable session/cluster queues and publication
+make check RUN='^TestIsnProvider'                      # installed identifier authority and import
 make check RUN='^Test(Advisory|BlockingPids|DeadlockResultScheduling|RelationDeadlock|RelationLockWaits|PGLocks)'  # advisory, waits, deadlocks
 make check RUN='^Test(UpdateCore|TransactionIdentity|CommitTime)'  # MultiXact, transaction identity
 make check RUN='^TestSnapshot'                        # binding, retained command/transaction pairs and physical frontier filters

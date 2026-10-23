@@ -137,7 +137,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			}
 			name, signature, result = spec.name, spec.signature(base.SQLType.ID()), spec.resultOID(base.SQLType.ID())
 		}
-	case StockIntarray, StockCitext:
+	case StockIntarray, StockCitext, StockIsn:
 		count = 3
 		if slot < 1 || slot > 2 {
 			return invalid()
@@ -146,7 +146,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if !ok || base.SQLType == nil {
 			return invalid()
 		}
-		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
+		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockCitext && !base.SQLType.IsCitext() || p.Implementation == StockIsn && !base.SQLType.IsEan13() {
 			return invalid()
 		}
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
@@ -163,6 +163,11 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name = "citextin"
 			if slot == 2 {
 				name = "citextout"
+			}
+		case StockIsn:
+			name = "ean13_in"
+			if slot == 2 {
+				name = "ean13_out"
 			}
 		}
 		if slot == 2 {
