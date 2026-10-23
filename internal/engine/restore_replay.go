@@ -72,7 +72,7 @@ func prepareRestoreReplayFlags(_ *restoreRun, op *session.Operation, stmt parser
 func restoreTableDestination(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
 	case *parser.CreateTable, *parser.CreateDomain, *parser.CreateEnum, *parser.CreateComposite,
-		*parser.CreatePolicy, *parser.CreateRule, *parser.CreateSequence, *parser.CreateView,
+		*parser.CreateTrigger, *parser.CreatePolicy, *parser.CreateRule, *parser.CreateSequence, *parser.CreateView,
 		*parser.CreateIndex, *parser.CreateCollation, *parser.CreateConversion, *parser.AlterConversion,
 		*parser.CreateOperator, *parser.AlterOperator, *parser.CreateExtension, *parser.AlterRoutine:
 		return true

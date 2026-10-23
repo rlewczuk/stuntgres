@@ -240,7 +240,9 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		}
 		// Do not authorize source capture with the pre-unlock authority view.
 		// Keep the original binding's actual-column manifest and exact ref.
-		auth, err = e.statementAuthorizationLocked(op, stmt)
+		// A nested SQL body still belongs to the active RI owner after
+		// provider evaluation; refreshing roles must not restore the initiator.
+		auth, err = scope.statementAuthorizationLocked(stmt)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err

@@ -190,24 +190,31 @@ func TestReferenceInsertReturningConcurrency(t *testing.T) {
 		})
 	}
 }
-func TestReferenceInsertReturningExternal(t *testing.T) {
+func TestReferenceInsertReturningConditionalTriggers(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			run := func(s fixture.Step) { insertReturningRun(t, p, b, s) }
 			run(fixture.Exec("CREATE TABLE triggered(id INT,v INT)", 0))
-			if !b.PG {
-				d := fixture.ControlsReferenceDiagnostic("0A000", "CREATE syntax is unsupported")
-				d.Position = "8"
-				run(fixture.ErrorDiagnostic("CREATE TRIGGER adjust BEFORE INSERT ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_insert()", d))
-				run(fixture.Select("SELECT count(*) FROM triggered", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-				return
-			}
-			for _, q := range []string{"CREATE FUNCTION adjust_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id=0 THEN RETURN NULL; END IF; NEW.v:=NEW.v+100; RETURN NEW; END $$", "CREATE TRIGGER adjust BEFORE INSERT ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_insert()"} {
-				if _, err := b.DB.ExecContext(p.Ctx, q); err != nil {
-					t.Fatal(err)
-				}
-			}
+			definition := "CREATE FUNCTION adjust_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id=0 THEN RETURN NULL; END IF; NEW.v:=NEW.v+100; RETURN NEW; END $$"
+			run(fixture.Exec(definition, 0))
+			run(fixture.Exec("CREATE TRIGGER adjust BEFORE INSERT ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_insert()", 0))
+			run(fixture.Select("INSERT INTO triggered VALUES(1,10),(0,20) RETURNING old.v,new.v,v", []string{"v", "v", "v"}, []string{"INT4", "INT4", "INT4"}, [][]any{{nil, int64(110), int64(110)}}))
+			run(fixture.Exec("INSERT INTO triggered VALUES(0,30) RETURNING *", 0))
+			run(fixture.Exec("INSERT INTO triggered VALUES(2,40) RETURNING *", 1))
+			run(fixture.Select("SELECT id,v FROM triggered ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(110)}, {int64(2), int64(140)}}))
+		})
+	}
+}
+
+func TestReferenceInsertReturningTriggers(t *testing.T) {
+	p := fixture.NewScenario(t)
+	for _, b := range p.Backends() {
+		t.Run(b.Name, func(t *testing.T) {
+			run := func(s fixture.Step) { insertReturningRun(t, p, b, s) }
+			run(fixture.Exec("CREATE TABLE triggered(id INT,v INT)", 0))
+			run(fixture.Exec("CREATE FUNCTION adjust_insert() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN NEW.v:=NEW.v+100; RETURN CASE WHEN NEW.id=0 THEN NULL ELSE NEW END; END$$", 0))
+			run(fixture.Exec("CREATE TRIGGER adjust BEFORE INSERT ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_insert()", 0))
 			run(fixture.Select("INSERT INTO triggered VALUES(1,10),(0,20) RETURNING old.v,new.v,v", []string{"v", "v", "v"}, []string{"INT4", "INT4", "INT4"}, [][]any{{nil, int64(110), int64(110)}}))
 			run(fixture.Exec("INSERT INTO triggered VALUES(0,30) RETURNING *", 0))
 			run(fixture.Exec("INSERT INTO triggered VALUES(2,40) RETURNING *", 1))

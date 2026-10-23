@@ -1,0 +1,120 @@
+package stored
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+)
+
+// TriggerDumpGroups emits portable definitions, never invocation frames or
+// partition clones (replay derives clones from their parent definition).
+func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorization.Read) ([]dump.Group, error) {
+	var groups []dump.Group
+	for _, descriptor := range read.Descriptors() {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || !relation.HasTriggers() {
+			continue
+		}
+		if read.MustNamespace(relation.Namespace()).Temporary != (ids.SessionToken{}) {
+			continue
+		}
+		owner, err := roles.Descriptor(relation.Owner)
+		if err != nil {
+			return nil, err
+		}
+		table, err := ruleRelationSQL(read, ids.ObjectRef{Address: relation.Address()})
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range TriggersOf(relation) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			p := t.Parts()
+			if p.Parent.ObjectID != 0 {
+				continue
+			}
+			function, ok := read.Get(p.Procedure.Address).(*catalog.Procedure)
+			if !ok {
+				return nil, ids.ErrCatalogReplaced
+			}
+			functionNS := read.MustNamespace(function.Namespace())
+			if functionNS.Temporary != (ids.SessionToken{}) {
+				return nil, fmt.Errorf("stuntgres: dump cannot serialize a trigger referencing a temporary function")
+			}
+			var sql strings.Builder
+			sql.WriteString("CREATE TRIGGER " + catalog.QuoteIdentifier(p.Name) + " BEFORE ")
+			var events []string
+			if p.Events&TriggerInsert != 0 {
+				events = append(events, "INSERT")
+			}
+			if p.Events&TriggerUpdate != 0 {
+				event := "UPDATE"
+				if len(p.UpdateColumns) != 0 {
+					columns := make([]string, len(p.UpdateColumns))
+					for i, a := range p.UpdateColumns {
+						columns[i], err = DeparseAttribute(relation, a)
+						if err != nil {
+							return nil, err
+						}
+					}
+					event += " OF " + strings.Join(columns, ",")
+				}
+				events = append(events, event)
+			}
+			if p.Events&TriggerDelete != 0 {
+				events = append(events, "DELETE")
+			}
+			sql.WriteString(strings.Join(events, " OR ") + " ON " + table + " FOR EACH ROW")
+			if p.When != nil {
+				renderer := Deparser{View: read, ShowImplicit: true}
+				renderer.ColumnSQL = func(column plan.ColumnExpr) (string, error) {
+					if column.Scope != analyze.RulePseudoScope {
+						return "", fmt.Errorf("stuntgres: invalid trigger WHEN column scope")
+					}
+					address := column.Origin.Address
+					address.SubID = 0
+					target, ok := read.Relation(address)
+					if !ok {
+						return "", ids.ErrCatalogReplaced
+					}
+					name, err := DeparseAttribute(target, column.Origin.Address.SubID)
+					if err != nil {
+						return "", err
+					}
+					side := "OLD"
+					if column.Frame == 2 {
+						side = "NEW"
+					}
+					return side + "." + name, nil
+				}
+				text, err := renderer.SQL(ctx, p.When, DeparseParent{})
+				if err != nil {
+					return nil, err
+				}
+				sql.WriteString(" WHEN (" + text + ")")
+			}
+			args := make([]string, len(p.Arguments))
+			for i, arg := range p.Arguments {
+				args[i] = "'" + strings.ReplaceAll(arg, "'", "''") + "'"
+			}
+			sql.WriteString(" EXECUTE FUNCTION " + catalog.QuoteIdentifier(functionNS.Name()) + "." + catalog.QuoteIdentifier(function.Name()) + "(" + strings.Join(args, ",") + ");\n")
+			groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: sql.String()})
+		}
+	}
+	slices.SortFunc(groups, func(a, b dump.Group) int {
+		if a.Table != b.Table {
+			return strings.Compare(a.Table, b.Table)
+		}
+		return strings.Compare(a.SQL, b.SQL)
+	})
+	return groups, nil
+}

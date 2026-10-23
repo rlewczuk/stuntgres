@@ -344,6 +344,14 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, Target: target, Root: root, OID: rule.OID, Label: "rule " + catalog.DependencyIdentifier(rule.Name) + " on " + catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
 					}
 				}
+				for _, trigger := range stored.TriggersOf(d) {
+					if stored.TriggerDepends(trigger, target) {
+						if name == "" {
+							name = stored.DependencyRelationName(base, d, path)
+						}
+						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2620, ObjectID: trigger.OID()}, Target: target, Root: root, OID: trigger.OID(), Label: "trigger " + catalog.DependencyIdentifier(trigger.Name()) + " on table " + name, Relation: d})
+					}
+				}
 				if d.View != nil {
 					if ViewDepends(d, target) {
 						passive := false

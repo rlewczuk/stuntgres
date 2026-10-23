@@ -50,7 +50,7 @@ func CheckTemporaryRelationSourcesLocked(current *catalog.State) error {
 func CheckTemporaryRuleSourcesLocked(current catalog.Read) error {
 	for _, descriptor := range current.State().Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)
-		if !ok || len(stored.RulesOf(d)) == 0 {
+		if !ok || len(stored.RulesOf(d)) == 0 && !d.HasTriggers() {
 			continue
 		}
 		ns, ok := current.State().Namespace(d.Namespace())
@@ -77,6 +77,22 @@ func CheckTemporaryRuleSourcesLocked(current catalog.Read) error {
 				providerNS, ok := current.State().Namespace(provider.Namespace())
 				if !ok || providerNS.Temporary != ns.Temporary {
 					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary rule %q dependencies", rule.Name)
+				}
+			}
+		}
+		for _, trigger := range stored.TriggersOf(d) {
+			for _, address := range trigger.Parts().References {
+				address.SubID = 0
+				if stored.DependPinned(current, nil, address) {
+					continue
+				}
+				provider := current.State().Get(address)
+				if provider == nil {
+					return ids.ErrCatalogReplaced
+				}
+				providerNS, ok := current.State().Namespace(provider.Namespace())
+				if !ok || providerNS.Temporary != ns.Temporary {
+					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary trigger %q dependencies", trigger.Name())
 				}
 			}
 		}

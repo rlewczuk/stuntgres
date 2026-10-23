@@ -42,6 +42,9 @@ func VisitDefinitionExpressions(d catalog.Descriptor, visit func(expr.Expr)) err
 				visit(p.expression)
 			}
 		}
+		for _, trigger := range TriggersOf(d) {
+			visit(trigger.parts.When)
+		}
 		for _, rule := range RulesOf(d) {
 			visit(rule.condition)
 			for _, action := range rule.actions {

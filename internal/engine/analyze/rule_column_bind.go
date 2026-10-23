@@ -19,6 +19,26 @@ func (b *Binder) RuleColumn(raw parser.ColumnExpr) (expr.Expr, bool, error) {
 		return nil, false, nil
 	}
 	ns := b.Target.RuleNamespace
+	if ns.Trigger {
+		if side == "old" && ns.TriggerInsert {
+			return nil, true, expr.ErrorAt("42P17", "INSERT trigger's WHEN condition cannot reference OLD values", raw.Pos)
+		}
+		if side == "new" && ns.TriggerDelete {
+			return nil, true, expr.ErrorAt("42P17", "DELETE trigger's WHEN condition cannot reference NEW values", raw.Pos)
+		}
+		if side == "new" && len(raw.Name.Parts) > 1 {
+			name := raw.Name.Parts[1].Text
+			switch name {
+			case "ctid", "xmin", "xmax", "cmin", "cmax", "tableoid":
+				return nil, true, expr.ErrorAt("0A000", "BEFORE trigger's WHEN condition cannot reference NEW system columns", raw.Pos)
+			}
+			if slot, ok := ns.Relation.Index[name]; ok {
+				if _, generated := ns.Relation.ColumnMeta.Generations[ns.Relation.Attributes[slot]]; generated {
+					return nil, true, expr.ErrorAt("42P17", "BEFORE trigger's WHEN condition cannot reference NEW generated columns", raw.Pos)
+				}
+			}
+		}
+	}
 	if side == "old" && ns.Event == "INSERT" || side == "new" && ns.Event == "DELETE" || ns.Event == "SELECT" {
 		return nil, true, sqlError("42P17", fmt.Sprintf("ON %s rule cannot use %s", ns.Event, strings.ToUpper(side)))
 	}

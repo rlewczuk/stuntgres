@@ -41,6 +41,7 @@ var dumpSections = [...]dumpSection{
 	{"policies", emitDumpPolicies},
 	{"row security", emitDumpRowSecurity},
 	{"rules", emitDumpRules},
+	{"triggers", emitDumpTriggers},
 	{"foreign defaults", emitDumpForeignDefaults},
 	{"attribute ranks", emitDumpAttributeRanks},
 }
@@ -161,6 +162,11 @@ func emitDumpRowSecurity(_ context.Context, s *dumpScript, w *dumpWriter) error 
 // row exists.
 func emitDumpRules(_ context.Context, s *dumpScript, w *dumpWriter) error {
 	return emitDumpGroups(s.CatalogView, w, s.ruleGroups)
+}
+
+// Trigger definitions follow saved data so Restore never transforms rows twice.
+func emitDumpTriggers(_ context.Context, s *dumpScript, w *dumpWriter) error {
+	return emitDumpGroups(s.CatalogView, w, s.triggerGroups)
 }
 
 func emitDumpForeignDefaults(_ context.Context, s *dumpScript, w *dumpWriter) error {

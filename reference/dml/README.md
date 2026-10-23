@@ -16,6 +16,9 @@ sequence and identity semantics in `reference/sequences`; row locking in
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
 COPY transports and notice connections are documented in the
 [fixture README](../fixture/README.md).
+INSERT RETURNING observes final BEFORE replacement rows and omits suppressed
+rows from both output and affected counts. Shared trigger cases cover expression
+and conditional PL row replacement and suppression.
 
 - COPY helpers: `copyTextScenario` (`copy_text_helpers_test.go`) borrows a pinned
   connection per backend (native `p.Native` with the public `CopyFrom`/`CopyTo`;

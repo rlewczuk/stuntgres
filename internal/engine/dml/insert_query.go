@@ -140,8 +140,12 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 		}
 		candidate := index.WriteCandidate{Values: row}
 		if command != nil && command.PartitionInsert != nil {
-			if err := ValidateInsertRow(h, b, schema, row, &evaluation); err != nil {
-				return index.WriteBatch{}, err
+			proceed, failure := ValidateInsertRow(h, b, schema, row, &evaluation)
+			if failure != nil {
+				return index.WriteBatch{}, failure
+			}
+			if !proceed {
+				continue
 			}
 			if copyInsert != nil {
 				recordCopyInsertion(copyInsert, h, b, &candidate, len(rows.Values))
@@ -165,10 +169,26 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			rows.Append(candidate)
 			continue
 		}
+		if h != nil {
+			result, failure := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeInsert, New: row})
+			if failure != nil {
+				return index.WriteBatch{}, failure
+			}
+			if !result.Proceed {
+				continue
+			}
+			copy(row, result.Row)
+		}
 		if err := table.EvaluateGenerations(ctx, b.Relation, row, &evaluation); err != nil {
 			return index.WriteBatch{}, err
 		}
 		if b.Relation.RelationKind == catalog.ForeignRelation {
+			if command != nil && command.ForeignTriggerInsert != nil {
+				if err := command.ForeignTriggerInsert.accept(h, row, &evaluation); err != nil {
+					return index.WriteBatch{}, err
+				}
+				continue
+			}
 			rows.Append(candidate)
 			continue
 		}

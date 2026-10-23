@@ -9,6 +9,26 @@ SQL/PL routines share callable captures. Language/body kind, declaration replay
 sources and typed local Usages participate in validation, equivalence and remap;
 no activation values or evaluated PL expressions enter stored payloads.
 
+`Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
+by table-local name. Definitions retain routine/attribute identities, immutable
+WHEN recipes and partition-clone provenance, never activation values. Mapping
+preserves source snapshots; SQL serialization omits derived clones and renders
+current catalog names from retained identities.
+Partition synchronization may replace a conflicting local child definition only
+along the exact CREATE OR REPLACE root definition's stage-local clone lineage.
+Ordinary CREATE, ATTACH and unrelated catalog synchronization retain conflicts;
+replaced local definitions and their dependency edges retire atomically.
+WHEN literal validation closes OLD/NEW occurrences over the owning relation,
+not the synthetic Boolean projection's output frame. Ordinary view validation
+retains its query-frame rules. Pseudo-column remapping resolves current physical
+slots from mapped stable attribute identities.
+Installed WHEN validation checks current captured routine/language authority
+and completeness of semantic DROP edges, not only the supplied reference list.
+The operation's `catalog.ProcedureRemapper` is shared by the executable WHEN,
+its binding and its frozen presentation, including retained TEMP payloads.
+Partition cloning supplies one checked current-declaration mapper for the whole
+stage; projecting parent rows onto a child does not rewrite routine signatures.
+
 ## Imports
 
 Layer L11 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture),

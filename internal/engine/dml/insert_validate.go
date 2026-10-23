@@ -50,13 +50,18 @@ func CheckViewRow(h Host, b *analyze.Binding, row []sqltype.Value, evaluation *e
 	return exec.EvaluationContext(&newFrame)
 }
 
-// ValidateInsertRow routes a partitioned INSERT row, or validates row against
-// b's own relation.
-func ValidateInsertRow(h Host, b analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
+// ValidateInsertRow owns the one semantic INSERT BEFORE boundary, routing a
+// partitioned row first. Revalidation uses validatePhysicalInsertRow directly.
+func ValidateInsertRow(h Host, b analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) (bool, error) {
 	if h.Command().PartitionInsert != nil {
 		return validatePartitionInsert(h, b, row, evaluation)
 	}
-	return validatePhysicalInsertRow(h, b, &b, schema, row, evaluation)
+	result, err := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeInsert, New: row})
+	if err != nil || !result.Proceed {
+		return false, err
+	}
+	copy(row, result.Row)
+	return true, validatePhysicalInsertRow(h, b, &b, schema, row, evaluation)
 }
 func validatePhysicalInsertRow(h Host, b analyze.Binding, named *analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
 	if err := evaluation.Context.Err(); err != nil {

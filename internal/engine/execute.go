@@ -29,6 +29,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.CreateTrigger:
+		return e.executeTrigger(scope, stmt.(*parser.CreateTrigger), count)
 	case *parser.CreateFunction, *parser.CreateAggregate:
 		return e.executeSQLRoutineDDL(scope, stmt, count)
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:
@@ -191,7 +193,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	auth, err := e.statementAuthorizationLocked(op, stmt)
+	auth, err := scope.statementAuthorizationLocked(stmt)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -335,6 +337,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	b, err := e.describeScoped(scope, stmt, auth, expected)
 	if err != nil {
 		e.mu.Unlock()
+		if scope.sqlRoutine.lexical != nil && scope.sqlRoutine.lexical.Program.Trigger {
+			return Result{}, &plExpressionBindingError{err}
+		}
 		return Result{}, err
 	}
 	if scope.sqlRoutine.terminal {
@@ -355,7 +360,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 		e.mu.Lock()
-		auth, err = e.statementAuthorizationLocked(op, stmt)
+		auth, err = scope.statementAuthorizationLocked(stmt)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -519,7 +524,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		auth, err = e.statementAuthorizationLocked(op, stmt)
+		auth, err = scope.statementAuthorizationLocked(stmt)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err

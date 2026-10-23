@@ -122,6 +122,14 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		if !ok {
 			continue
 		}
+		if d.HasTriggers() {
+			var err error
+			d, err = RemapTriggers(view, d, mapping, ref, typ, collation, procedure)
+			if err != nil {
+				return err
+			}
+			next.SetDescriptor(address, d)
+		}
 		if len(RulesOf(d)) != 0 {
 			var err error
 			d, err = remapRules(view, d, mapping, ref, typ, collation, procedure)

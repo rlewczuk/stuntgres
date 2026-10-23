@@ -29,7 +29,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if err != nil {
 		return fail(err)
 	}
-	return e.publishRelationChangeLocked(scope, auth, change)
+	return e.publishRelationChangeLocked(scope, auth, change, triggerReplacement{})
 }
 
 // Engine.mu is held on entry and released on every return. Even a missing-object

@@ -183,6 +183,13 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   query source admission selects its pair after relation waits, while utility
   entry selects before utility-specific waits. Later roots and cursor producers
   consume that same immutable pair; expression evaluation never recaptures it.
+  Admitted RC mutation targets retain immutable version/end roots with the pair,
+  using inline single-target storage and deduplicated additional targets only.
+  Eligibility comes from the actual snapshot-entry command AST; modifying CTEs
+  additionally retain their registered target manifests, not an inferred caller.
+  Source admission consumes those roots; it neither refreshes the frontier nor
+  loses a candidate when a peer replaces its head before delayed capture.
+  Latest-row arbitration remains responsible for the current committed successor.
 - DML synthetic query roots are not stable AST owners: retain the original table
   occurrences. Writable views retain their logical target identity, not the
   translated physical base.
@@ -347,6 +354,9 @@ remain separate. Ordinary operations and untrusted/foreign captures gain no look
 authority.
 
 ## Testing
+
+Trigger payload/frame/runtime/remap/stage units share
+`RUN='^TestTriggerCore(Catalog|Frame|Return|Runtime|Persistence|AtomicStage|PartitionPath|WhenProvider)$'`.
 
 Root tests are package-level units of these contracts; public SQL behavior is
 tested only in `reference/` ([docs/TESTING.md](../../docs/TESTING.md)). SHOW ALL

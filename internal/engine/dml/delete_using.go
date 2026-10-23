@@ -126,6 +126,13 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 				continue
 			}
 		}
+		before, failure := Before(h, pair.Physical.Leaf.Relation, BeforeRow{Relation: candidate.Ref, Event: BeforeDelete, Old: current.Values})
+		if failure != nil {
+			return Outcome{}, failure
+		}
+		if !before.Proceed {
+			continue
+		}
 		if err := ClaimUniqueRow(h, candidate.Ref, current); err != nil {
 			return Outcome{}, err
 		}

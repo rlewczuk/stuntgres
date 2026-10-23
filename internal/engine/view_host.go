@@ -32,12 +32,22 @@ func (h ddlHost) DescribeRule(a ddl.Authority, stmt parser.Statement, target ids
 }
 
 func (h ddlHost) BindRuleCondition(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error) {
+	return h.bindPseudoRowCondition(a, ns, raw, input, "WHERE")
+}
+
+// BindTriggerWhen shares scalar capture/freeze inputs with rule conditions, but
+// owns an explicit trigger namespace and WHEN diagnostic context.
+func (h ddlHost) BindTriggerWhen(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error) {
+	return h.bindPseudoRowCondition(a, ns, raw, input, "trigger WHEN condition")
+}
+
+func (h ddlHost) bindPseudoRowCondition(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment, clause string) (expr.Expr, *parser.Select, analyze.Binding, error) {
 	auth := ddlAuthorityOf(a)
 	binder := newExpressionBinder(h.op.Context(), h.e, input, h.op, nil)
 	binder.Target.RuleNamespace = ns
 	binder.Params.NoParameters = true
 	binder.Query.Auth = &auth
-	binder.Clause.AggregateClause = "WHERE"
+	binder.Clause.AggregateClause = clause
 	binder.Query.Frame = 1
 	binder.Query.NextQueryFrame = 1
 	condition, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.FilterContext})

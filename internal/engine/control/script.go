@@ -31,6 +31,7 @@ type dumpScript struct {
 	extensionTypeSQL            string
 
 	policyGroups, ruleGroups, securityGroups  []dump.Group
+	triggerGroups                             []dump.Group
 	domainNodes                               map[ids.OID]*catalog.Type
 	collationStatements, conversionStatements []dump.Statement
 	seedStatements, conversionSeeds           []string
@@ -58,6 +59,9 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if s.ruleGroups, err = stored.RuleDumpGroups(ctx, s.OriginalCatalog, s.OriginalRoles); err != nil {
+		return nil, err
+	}
+	if s.triggerGroups, err = stored.TriggerDumpGroups(ctx, s.OriginalCatalog, s.OriginalRoles); err != nil {
 		return nil, err
 	}
 	if s.securityGroups, err = stored.RowSecurityDumpGroups(ctx, s.CatalogView, s.DomainRoles); err != nil {

@@ -140,7 +140,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []exec.
 	var invoker authorization.PrincipalRef
 	for _, leaf := range leaves {
 		if leaf.Relation.RelationKind == catalog.ViewRelation {
-			auth, err := e.authorizationLocked(scope.op)
+			auth, err := scope.routineAuthorizationLocked()
 			if err != nil {
 				return nil, err
 			}

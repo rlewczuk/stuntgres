@@ -29,10 +29,10 @@ private frames, not catalog authority.
   ...). Sub-records are values, never pointers, so copying a `Relation` shares
   their slices and maps exactly like its top-level ones.
 - **Payload interfaces.** Engine-defined payloads stay behind `ViewPayload`,
-  `RulesPayload`, `PolicyPayload` and `ExtensionImplementation`, which expose only
+  `RulesPayload`, `TriggersPayload`, `PolicyPayload` and `ExtensionImplementation`, which expose only
   what `analyze`, `pgcatalog` and object-identity code read. Visitors stop at the
   first error; checked accessors (`stored.ViewOf`, `stored.RulesOf`,
-  `stored.PolicyOf`, ...) recover the concrete types.
+  `stored.TriggersOf`, `stored.PolicyOf`, ...) recover the concrete types.
 - **State and Read** (`read.go`, `state_access.go`). `State` is one catalog
   snapshot (epoch, namespace generation, descriptor and name maps,
   operator/procedure name indexes, default ACL records, dump priorities,

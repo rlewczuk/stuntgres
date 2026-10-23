@@ -86,9 +86,10 @@ type MergeActionRow struct {
 
 type MergeRows struct {
 	index.WriteBatch
-	Predecessors []storage.RowVersion
-	Actions      []MergeActionRow
-	Returning    *exec.FinalRows
+	Predecessors  []storage.RowVersion
+	Actions       []MergeActionRow
+	Returning     *exec.FinalRows
+	StagedActions int // Accepted prefix already visible to later BEFORE invocations.
 }
 
 type MergeCandidate struct {

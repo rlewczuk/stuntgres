@@ -177,6 +177,17 @@ func RuleDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddre
 				}
 			}
 		}
+		for _, trigger := range stored.TriggersOf(d) {
+			for _, target := range targets {
+				if stored.TriggerDepends(trigger, target) {
+					if observe != nil {
+						observe(d.Address())
+					}
+					dependents = append(dependents, Dependent{OID: trigger.OID(), target: target, Label: "trigger " + catalog.DependencyIdentifier(trigger.Name()) + " on table " + stored.DependencyRelationName(catalogView, d, path)})
+					break
+				}
+			}
+		}
 	}
 	return dependents
 }

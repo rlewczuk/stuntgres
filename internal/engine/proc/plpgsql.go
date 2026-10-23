@@ -21,6 +21,7 @@ type PLProgram struct {
 	Function    string
 	Procedure   bool
 	SearchCount int
+	Trigger     bool
 }
 type PLVariable struct {
 	Name                      string
@@ -132,6 +133,20 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 	returnPolicy := PLReturnPolicy(definition.Result, len(definition.OutputFormals), procedure)
 	var diagnostics plDiagnosticDatums
 	outer := &PLBlock{Label: definition.Name, Bindings: make(map[string]int)}
+	if definition.Trigger {
+		if procedure || len(definition.Formals) != 0 || definition.Result.Type == nil || definition.Result.Type.ID() != 2279 {
+			return nil, fmt.Errorf("stuntgres: invalid PL trigger declaration")
+		}
+		variables, err := TriggerVariables(resolve)
+		if err != nil {
+			return nil, err
+		}
+		p.Trigger = true
+		p.Variables = variables
+		for i, v := range variables {
+			outer.Bindings[v.Name] = i
+		}
+	}
 	for i, f := range definition.Formals {
 		p.Variables = append(p.Variables, PLVariable{Name: f.Name, Usage: f.Usage, InheritInputCollation: f.Usage.Collation.ID != 0})
 		for _, name := range [2]string{"$" + strconv.Itoa(i+1), f.Name} {

@@ -16,6 +16,17 @@ BEGIN ATOMIC is an ordered SQL program, not a transaction or procedural return.
 Checked standard-body and declaration-default recipes live in `stored`, above
 this package, never as cached values or catalog dependencies in proc.
 
+PL trigger definitions carry an explicit trigger contract and zero formals.
+Their fixed OLD/NEW and TG lexical slots are separate from SQL parameters;
+invocations supply fresh physical row shapes, typed absent records and owned
+zero-based text-array arguments. The engine validates final trigger row returns
+strictly, separately from ordinary permissive PL row assignment.
+Engine-created scalar TG slots resolve fixed `pg_catalog` types regardless of
+search_path or shadow types; user-written declarations keep ordinary lookup.
+Trigger assignment diagnostics retain binding-versus-execution provenance:
+binding failures identify the complete assignment, while an executed arithmetic
+failure retains its causal error and PL statement frame.
+
 Complete parsing closes positional formals even after an unresolved call stops
 semantic binding. Private Restore may defer only a structured terminal missing
 call in a quoted body; blocked semantic checks run once invocation can resolve it.

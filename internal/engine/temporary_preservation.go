@@ -131,7 +131,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	targetProcedure := e.retainedRoutineProcedureRemapper(current)
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || relation.View == nil && len(relation.Security.Policies) == 0 && len(stored.RulesOf(relation)) == 0 {
+		if !ok || relation.View == nil && len(relation.Security.Policies) == 0 && len(stored.RulesOf(relation)) == 0 && !relation.HasTriggers() {
 			continue
 		}
 		view := e.catalog.read(next)
@@ -177,6 +177,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				copy.View = stored.ViewPayload(definition)
 				relation = &copy
 			}
+		}
+		if relation.HasTriggers() {
+			replacement, err := stored.RemapTriggers(view, relation, nil, remap, typ, nil, targetProcedure)
+			if err != nil {
+				return err
+			}
+			relation = replacement
 		}
 		next.SetDescriptor(address, relation)
 	}

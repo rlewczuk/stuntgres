@@ -50,6 +50,13 @@ func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame
 	return result, nil
 }
 
+// Preserve failed expression analysis separately from execution. Trigger
+// assignment diagnostics name the complete assignment on a binding failure,
+// while a successfully bound arithmetic failure names only the PL statement.
+type plExpressionBindingError struct{ error }
+
+func (e *plExpressionBindingError) Unwrap() error { return e.error }
+
 func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, block *proc.PLBlock, read catalog.Read) (sqltype.Value, bool, error) {
 	f.Enter(block)
 	defer f.Leave(block)
@@ -146,7 +153,13 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			value, _, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil)
 			expressionError := err != nil
 			if err == nil {
-				value, err = s.convertPLValue(value, d.SQL.Result)
+				if d.SQL.Trigger {
+					if !value.IsNull() && (value.Type() == nil || !value.Type().BaseType().IsComposite()) {
+						err = sqlError("42804", "cannot return non-composite value from function returning composite type")
+					}
+				} else {
+					value, err = s.convertPLValue(value, d.SQL.Result)
+				}
 			}
 			if err != nil {
 				return sqltype.Value{}, false, plRuntimeError(err, read, d, statement.ExpressionStart, statement.ExpressionEnd, statement.Pos, "at RETURN", expressionError)
@@ -167,14 +180,18 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 		if err != nil {
 			var diagnostic *sqlstate.Error
 			var domainError *plan.AssignmentDomainError
-			if !expressionError && !errors.As(err, &domainError) && errors.As(err, &diagnostic) && strings.HasPrefix(diagnostic.Context, "SQL function ") {
+			var bindingError *plExpressionBindingError
+			if !errors.As(err, &domainError) && errors.As(err, &diagnostic) && ((!expressionError || d.SQL.Trigger) && strings.HasPrefix(diagnostic.Context, "SQL function ") || d.SQL.Trigger && errors.As(err, &bindingError)) {
 				copy := *diagnostic
 				start := statement.Pos.Offset
 				end := statement.ExpressionStart.Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.ExpressionStart, statement.ExpressionEnd))
-				copy.Context += "\nPL/pgSQL assignment \"" + strings.TrimSpace(d.SQL.Source[start:end]) + "\""
+				if copy.Context != "" {
+					copy.Context += "\n"
+				}
+				copy.Context += "PL/pgSQL assignment \"" + strings.TrimSpace(d.SQL.Source[start:end]) + "\""
 				err = sqlstate.WithDiagnostic(err, &copy)
 			}
-			if expressionError && errors.As(err, &diagnostic) {
+			if expressionError && !d.SQL.Trigger && errors.As(err, &diagnostic) {
 				copy := *diagnostic
 				start := statement.Pos.Offset
 				end := statement.ExpressionStart.Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.ExpressionStart, statement.ExpressionEnd))
@@ -367,7 +384,11 @@ func (s *StatementScope) assignPLVariable(f *proc.PLFrame, slot int, value sqlty
 	var err error
 	if variable.Record {
 		if value.IsNull() {
-			value = sqltype.Value{}
+			if f.Program.Trigger && slot < 2 {
+				value = sqltype.Null(f.Values[slot].Type())
+			} else {
+				value = sqltype.Value{}
+			}
 		} else if value.Type() == nil || !value.Type().BaseType().IsComposite() {
 			return sqltype.Value{}, sqlError("0A000", "input of anonymous composite types is not implemented")
 		}
@@ -412,7 +433,8 @@ func plRuntimeError(err error, read catalog.Read, d *catalog.Procedure, start, e
 			copy.Position = ""
 		}
 	}
-	if expression && plExpressionContext(err, &copy) {
+	var bindingError *plExpressionBindingError
+	if expression && (!d.SQL.Trigger && plExpressionContext(err, &copy) || d.SQL.Trigger && copy.Context == "" && errors.As(err, &bindingError) && (copy.Code == "55000" || copy.Code == "42703" || copy.Code == "22012" || copy.Code == "21000")) {
 		copy.Context = "PL/pgSQL expression \"" + source + "\""
 	}
 	line := strings.Count(d.SQL.Source[:offset], "\n") + 1

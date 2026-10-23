@@ -521,7 +521,7 @@ var keywords = [...]keyword{
 	{"transaction", Unreserved, true, TRANSACTION},
 	{"transform", Unreserved, true, 0},
 	{"treat", ColumnName, true, 0},
-	{"trigger", Unreserved, true, 0},
+	{"trigger", Unreserved, true, TRIGGER},
 	{"trim", ColumnName, true, 0},
 	{"true", Reserved, true, TRUE},
 	{"truncate", Unreserved, true, TRUNCATE},

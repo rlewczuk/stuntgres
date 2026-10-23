@@ -9,6 +9,10 @@ resolution and SQL body binding stay in the engine.
 SQL and PL declarations share formal/default/staging authority. DO and CREATE
 check language USAGE; calls check EXECUTE, not language USAGE again. Dump renders
 the actual language and orders real declaration prerequisites before PL source.
+PL/pgSQL admits RETURNS trigger only for zero-formal trigger functions, never as
+a scalar-storable pseudotype. Trigger installation checks function EXECUTE;
+the admitted trigger entry does not recheck it at firing. Ordinary calls and
+helper calls retain their normal effective-actor EXECUTE checks.
 
 ## Routine ALTER contract
 

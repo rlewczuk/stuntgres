@@ -29,16 +29,17 @@ type InsertGroup struct {
 // $user there). NamedRow, Destination and PhysicalRow describe the row being
 // routed; Groups and Order belong only to INSERT/COPY, never UPDATE batches.
 type InsertState struct {
-	Catalog     catalog.Read
-	Authority   access.View
-	Env         access.Environment
-	Target      *catalog.Relation
-	Destination *catalog.Relation
-	Layouts     map[ids.ObjectAddress]*exec.InheritanceQuerySegment
-	PhysicalRow []sqltype.Value
-	NamedRow    []sqltype.Value
-	Groups      map[ids.ObjectAddress]*InsertGroup
-	Order       []*InsertGroup
+	Catalog      catalog.Read
+	Authority    access.View
+	Env          access.Environment
+	Target       *catalog.Relation
+	Destination  *catalog.Relation
+	Layouts      map[ids.ObjectAddress]*exec.InheritanceQuerySegment
+	PhysicalRow  []sqltype.Value
+	NamedRow     []sqltype.Value
+	Groups       map[ids.ObjectAddress]*InsertGroup
+	Order        []*InsertGroup
+	BeforeInsert bool // Applicable physical INSERT chain in the captured route.
 }
 
 // CaptureInsertLocked returns shared DML routing state for target, a member
@@ -80,6 +81,16 @@ func CaptureInsertLocked(read catalog.Read, authority access.View, env access.En
 	captureLayouts = func(d *catalog.Relation) error {
 		if err := captureLayout(d); err != nil {
 			return err
+		}
+		// This is the already captured target subtree, not its ancestors.
+		// Record applicability once; routing and row admission never rescan it.
+		if d.Partition == nil && !state.BeforeInsert {
+			for _, definition := range stored.TriggersOf(d) {
+				if definition.Fires(stored.TriggerInsert, nil) {
+					state.BeforeInsert = true
+					break
+				}
+			}
 		}
 		if d.Partition != nil {
 			for _, address := range d.Partition.Children {

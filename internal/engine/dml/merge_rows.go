@@ -18,7 +18,7 @@ import (
 // DELETE alone, and each run of INSERTs or of UPDATEs with one lock mode as
 // one batch.
 func StageMergeRows(h Host, rows *MergeRows, ref ids.ObjectRef) error {
-	for start := 0; start < len(rows.Actions); {
+	for start := rows.StagedActions; start < len(rows.Actions); {
 		action := rows.Actions[start]
 		if action.Action == parser.MergeDeleteAction {
 			if _, err := h.Delete(action.Deletion); err != nil {
@@ -45,6 +45,7 @@ func StageMergeRows(h Host, rows *MergeRows, ref ids.ObjectRef) error {
 		}
 		start = end
 	}
+	rows.StagedActions = len(rows.Actions)
 	return nil
 }
 
@@ -307,10 +308,16 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 		// enters MATCHED merely because a peer made ON true.
 		for {
 			if arm != nil && arm.Action != parser.MergeNothingAction {
+				beforeActions := len(result.Actions)
 				if err := appendMergeAction(h, b, in.Catalog, result, &evaluation, in.Schema, unique, arm, old, candidate.Deletion, accepted, &excluded); err != nil {
 					return nil, err
 				}
-				if output != nil {
+				if b.Relation.HasTriggers() {
+					if err := StageMergeRows(h, result, b.Ref); err != nil {
+						return nil, err
+					}
+				}
+				if output != nil && len(result.Actions) > beforeActions {
 					actualOld := old.Values
 					var row []sqltype.Value
 					if arm.Action != parser.MergeDeleteAction {
@@ -345,6 +352,13 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 
 func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *MergeRows, evaluation *exec.Context, schema string, unique bool, arm *analyze.MergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
 	if arm.Action == parser.MergeDeleteAction {
+		before, failure := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeDelete, Old: old.Values})
+		if failure != nil {
+			return failure
+		}
+		if !before.Proceed {
+			return nil
+		}
 		if accepted[old.Row] {
 			return MergeCardinalityError()
 		}
@@ -398,8 +412,29 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 	if arm.Action == parser.MergeUpdateAction {
 		command.RLS.Proposal = command.RLS.MergeUpdate
 	}
-	if err := ValidateInsertRow(h, b, schema, row, &rowContext); err != nil {
-		return err
+	if arm.Action == parser.MergeUpdateAction {
+		if b.Relation.HasTriggers() {
+			targets := UpdateTargetAttributes(h, b.Ref, b.Relation, arm.Input.Targets, nil)
+			before, failure := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeUpdate, Old: old.Values, New: row, Targets: targets})
+			if failure != nil {
+				return failure
+			}
+			if !before.Proceed {
+				return nil
+			}
+			row = before.Row
+		}
+		if err := validatePhysicalInsertRow(h, b, &b, schema, row, &rowContext); err != nil {
+			return err
+		}
+	} else {
+		proceed, err := ValidateInsertRow(h, b, schema, row, &rowContext)
+		if err != nil {
+			return err
+		}
+		if !proceed {
+			return nil
+		}
 	}
 	predecessor := storage.RowVersion{}
 	var actionMode lock.MultiMode

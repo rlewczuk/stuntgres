@@ -58,6 +58,9 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 			for _, r := range stored.RulesOf(d) {
 				claimed[r.OID] = true
 			}
+			for _, t := range stored.TriggersOf(d) {
+				claimed[t.OID()] = true
+			}
 			for _, p := range d.Security.Policies {
 				claimed[p.OID] = true
 			}
@@ -149,11 +152,12 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 		}
 		constraintMapping[ids.ObjectAddress{ClassID: 2606, ObjectID: old}] = ids.ObjectAddress{ClassID: 2606, ObjectID: next}
 	}
+	var triggerMapping map[ids.OID]ids.OID
 	for _, old := range relations {
 		if ns, ok := next.Namespace(old.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if len(old.Constraints.NotNull)+len(old.Constraints.Check)+len(old.Constraints.Unique)+len(old.Constraints.Exclusion)+len(old.Constraints.ForeignKeys)+len(old.ColumnMeta.Defaults)+len(old.ColumnMeta.Generations)+len(old.Security.Policies)+len(stored.RulesOf(old)) == 0 {
+		if len(old.Constraints.NotNull)+len(old.Constraints.Check)+len(old.Constraints.Unique)+len(old.Constraints.Exclusion)+len(old.Constraints.ForeignKeys)+len(old.ColumnMeta.Defaults)+len(old.ColumnMeta.Generations)+len(old.Security.Policies)+len(stored.RulesOf(old))+len(stored.TriggersOf(old)) == 0 {
 			continue
 		}
 		d := *old
@@ -171,6 +175,29 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 			}
 			stored.RulesOf(&d)[i].OID = id
 			changed = true
+		}
+		if old.HasTriggers() {
+			if triggerMapping == nil {
+				triggerMapping = make(map[ids.OID]ids.OID)
+			}
+			triggers := append([]stored.Trigger(nil), stored.TriggersOf(old)...)
+			for i, t := range triggers {
+				p := t.Parts()
+				id, err := remint(p.OID)
+				if err != nil {
+					return err
+				}
+				triggerMapping[p.OID] = id
+				if id != p.OID {
+					p.OID = id
+					triggers[i], err = stored.NewTrigger(p)
+					if err != nil {
+						return err
+					}
+					changed = true
+				}
+			}
+			d.Triggers = stored.TriggersPayload(triggers)
 		}
 		for i, p := range old.Security.Policies {
 			id, err := remint(p.OID)
@@ -325,6 +352,34 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 		if changed {
 			replacement := d
 			next.SetDescriptor(d.Address(), &replacement)
+		}
+	}
+	for address, descriptor := range next.Descriptors() {
+		d, ok := descriptor.(*catalog.Relation)
+		if !ok || !d.HasTriggers() {
+			continue
+		}
+		var triggers []stored.Trigger
+		for i, t := range stored.TriggersOf(d) {
+			p := t.Parts()
+			mapped, ok := triggerMapping[p.Parent.ObjectID]
+			if !ok || mapped == p.Parent.ObjectID {
+				continue
+			}
+			if triggers == nil {
+				triggers = append([]stored.Trigger(nil), stored.TriggersOf(d)...)
+			}
+			p.Parent.ObjectID = mapped
+			var err error
+			triggers[i], err = stored.NewTrigger(p)
+			if err != nil {
+				return err
+			}
+		}
+		if triggers != nil {
+			copy := *d
+			copy.Triggers = stored.TriggersPayload(triggers)
+			next.SetDescriptor(address, &copy)
 		}
 	}
 	for _, descriptor := range next.Descriptors() {

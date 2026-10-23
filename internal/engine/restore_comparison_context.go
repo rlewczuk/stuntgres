@@ -86,6 +86,8 @@ func comparisonDDLPosition(stmt parser.Statement) (int, bool) {
 		return s.Pos.Offset, true
 	case *parser.CreatePolicy:
 		return s.Pos.Offset, true
+	case *parser.CreateTrigger:
+		return s.Pos.Offset, true
 	case *parser.CreateRule:
 		return s.Pos.Offset, true
 	case *parser.AlterTableDefault:

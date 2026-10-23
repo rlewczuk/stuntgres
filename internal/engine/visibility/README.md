@@ -18,7 +18,7 @@ standard library. It never imports the root engine. Layering is in
 - **Snapshot data:** `View`, the handle a statement reads through, and
   `Data`, its immutable payload: the frontier, the catalog read, captured
   storage `Generation`s, end roots, own writes and the private deletion
-  overlay. `Root` is the repeatable-read retention of one relation.
+  overlay. `Root` retains one relation's immutable version/end headers.
 - **The ordinary heap operation authority:** zero-state concrete
   `HeapOperations` owns the single `LiveVersion` implementation over real
   `storage.RowVersion`, frontier, end roots and `PrivateDeletes` overlays.
@@ -86,9 +86,15 @@ standard library. It never imports the root engine. Layering is in
 - **Snapshots and retention.** Repeatable read and serializable acquire every
   immutable relation root and end root (`Root`), the tuple frontier and the public
   full-XID value together, including snapshot-requiring transaction analysis.
-  Ordinary RC execution acquires its pair after relation admission. Utilities
-  acquire an active pair at entry; roots obtained after their internal waits are
-  birth/end-filtered at that original frontier. Dynamic extensions keep their
+  Ordinary RC execution acquires its pair after relation admission. Admitted
+  physical mutation targets retain their committed version/end roots in that
+  same engine-lock window: one target is inline, and only additional distinct
+  targets need a map. Later source capture uses those roots without an early
+  narrowed data view or read enrollment; current private overlays remain separate.
+  A peer replacement between pair selection and root consumption cannot erase
+  the command's frozen candidate, while row arbitration still reads live storage.
+  Utilities acquire an active pair at entry; roots obtained after their internal
+  waits are birth/end-filtered at that original frontier. Dynamic extensions keep their
   base frontier; partition grant-time validation and private rewrites retain
   their explicit visibility rules. Retention holds roots by pointer and never
   copies row values. A `View` handle has its

@@ -23,6 +23,23 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		return invalid()
 	}
 	bindings := p.FormalCount
+	if p.Trigger != d.Trigger || d.Trigger && (p.Procedure || len(d.Formals) != 0 || d.Result.Type == nil || d.Result.Type.ID() != 2279 || len(p.Variables) < TriggerSlotCount) {
+		return invalid()
+	}
+	if d.Trigger {
+		bindings = TriggerSlotCount
+		for i, name := range triggerNames {
+			v := p.Variables[i]
+			if v.Name != name || p.Root.Bindings[name] != i || v.Record != (i < 2) || v.Constant || v.NotNull || v.InheritInputCollation {
+				return invalid()
+			}
+			if i >= 2 {
+				if v.Usage.Type == nil || uint32(v.Usage.Type.ID()) != triggerTypes[i] || v.Usage != v.Usage.Type.Usage() {
+					return invalid()
+				}
+			}
+		}
+	}
 	for i, formal := range d.Formals {
 		variable := p.Variables[i]
 		positional := "$" + strconv.Itoa(i+1)
@@ -43,6 +60,9 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 	}
 	slot := p.FormalCount
 	var diagnostics plDiagnosticDatums
+	if d.Trigger {
+		slot = TriggerSlotCount
+	}
 	var walk func(*PLBlock, *parser.PLBlock, []*PLBlock) error
 	searches := 0
 	queries := make(map[*parser.Select]bool)

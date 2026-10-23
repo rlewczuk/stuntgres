@@ -28,7 +28,9 @@ type Command struct {
 	Indexes
 	Insert
 	Partition
-	RLS view.RowSecurity
+	RLS            view.RowSecurity
+	BeforeCaptures map[BeforeKey]BeforeCapture
+	BeforeTargets  []BeforeTargets
 }
 
 // Indexes holds the unique and exclusion write bindings (index).
@@ -39,9 +41,10 @@ type Indexes struct {
 
 // Insert holds INSERT's ON CONFLICT and RETURNING state.
 type Insert struct {
-	InsertConflict  *InsertConflictState
-	InsertReturning *InsertReturningOutput
-	CopyFrom        *CopyFromState
+	InsertConflict       *InsertConflictState
+	InsertReturning      *InsertReturningOutput
+	CopyFrom             *CopyFromState
+	ForeignTriggerInsert *foreignTriggerInsert
 }
 
 // Partition holds shared DML partition routing and INSERT's per-leaf groups.

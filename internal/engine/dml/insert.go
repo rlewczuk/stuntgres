@@ -69,8 +69,12 @@ func ExecuteInsert(h Host, in InsertInput) (Outcome, error) {
 				return Outcome{}, err
 			}
 			schema := in.Catalog.Get(b.Relation.Namespace()).Name()
-			if err = ValidateInsertRow(h, b, schema, row, evaluation); err != nil {
-				return Outcome{}, err
+			proceed, failure := ValidateInsertRow(h, b, schema, row, evaluation)
+			if failure != nil {
+				return Outcome{}, failure
+			}
+			if !proceed {
+				continue
 			}
 			candidate := index.WriteCandidate{Values: row}
 			admitted, admitErr := AdmitInsertProducer(h, b, &candidate, rows, evaluation)
@@ -121,8 +125,12 @@ func ExecuteInsert(h Host, in InsertInput) (Outcome, error) {
 			}
 		}
 		schema := in.Catalog.Get(b.Relation.Namespace()).Name()
-		if err = ValidateInsertRow(h, b, schema, row, evaluation); err != nil {
-			return Outcome{}, err
+		proceed, failure := ValidateInsertRow(h, b, schema, row, evaluation)
+		if failure != nil {
+			return Outcome{}, failure
+		}
+		if !proceed {
+			continue
 		}
 		candidate := index.WriteCandidate{Values: row}
 		admitted, admitErr := AdmitInsertProducer(h, b, &candidate, rows, evaluation)

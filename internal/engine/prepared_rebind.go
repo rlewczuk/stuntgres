@@ -53,7 +53,7 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	auth, err := e.statementAuthorizationLocked(s.op, stmt)
+	auth, err := s.statementAuthorizationLocked(stmt)
 	if err != nil {
 		return err
 	}

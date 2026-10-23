@@ -233,6 +233,13 @@ func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event 
 			continue
 		}
 		if deletion {
+			before, failure := Before(h, job.Child, BeforeRow{Relation: ref, Event: BeforeDelete, Old: old.Values})
+			if failure != nil {
+				return foreignActionError(h, failure, job, event, action, view)
+			}
+			if !before.Proceed {
+				continue
+			}
 			if err = h.DeleteForeignAction(ref, old); err != nil {
 				return foreignActionError(h, err, job, event, action, view)
 			}
@@ -260,6 +267,17 @@ func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event 
 			if err != nil {
 				return foreignActionError(h, err, job, event, action, view)
 			}
+		}
+		if job.Child.HasTriggers() {
+			targets := UpdateTargetAttributes(h, ref, job.Child, plan.Targets, nil)
+			before, failure := Before(h, job.Child, BeforeRow{Relation: ref, Event: BeforeUpdate, Old: old.Values, New: row, Targets: targets})
+			if failure != nil {
+				return foreignActionError(h, failure, job, event, action, view)
+			}
+			if !before.Proceed {
+				continue
+			}
+			row = before.Row
 		}
 		b := analyze.Binding{Ref: ref, Relation: job.Child, Targets: plan.Targets}
 		if err = ValidateMutationRow(h, b, schema, row, &evaluation); err != nil {

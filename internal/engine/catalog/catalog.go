@@ -77,6 +77,7 @@ type Relation struct {
 	VirtualView       bool
 	Populated         bool // Independent of stored row count, including populated-empty MVs.
 	Rules             RulesPayload
+	Triggers          TriggersPayload
 	Foreign           *ForeignTableDefinition
 	OnCommit          parser.OnCommitAction
 }

@@ -141,9 +141,13 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	}
 	sql.WriteString(")")
 	if d.RoutineKind != catalog.ProcedureRoutine {
-		result, err := p.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
-		if err != nil {
-			return dump.Statement{}, err
+		result := "pg_catalog.trigger"
+		if !d.SQL.Trigger {
+			var err error
+			result, err = p.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
+			if err != nil {
+				return dump.Statement{}, err
+			}
 		}
 		sql.WriteString(" RETURNS " + result)
 	}

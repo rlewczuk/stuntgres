@@ -141,6 +141,19 @@ func admitInsertConflictUpdate(h Host, ref ids.ObjectRef, candidate *index.Write
 		b := BindingForConflict(ref, parent, c)
 		// Constraint Detail can disclose SET outputs, not unread carried target data.
 		b.Targets = c.UpdateTargets
+		if parent.HasTriggers() {
+			targets := UpdateTargetAttributes(h, ref, parent, c.UpdateTargets, nil)
+			before, failure := Before(h, parent, BeforeRow{Relation: ref, Event: BeforeUpdate, Old: old.Values, New: row, Targets: targets})
+			if failure != nil {
+				return failure
+			}
+			if !before.Proceed {
+				journal.RestoreDelta()
+				DiscardExclusion(h, candidate)
+				return nil
+			}
+			row = before.Row
+		}
 		if err := validatePhysicalInsertRow(h, b, &b, schema, row, &evaluation); err != nil {
 			return err
 		}

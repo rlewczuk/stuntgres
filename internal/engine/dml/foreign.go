@@ -63,6 +63,22 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	evaluation.Host = h
 	evaluation.PhysicalTable = b.Ref // Actual relation identity, never a fabricated row ID.
 	if op == catalog.ForeignInsert {
+		var stream *foreignTriggerInsert
+		if b.Relation.HasTriggers() {
+			stream = &foreignTriggerInsert{modification: m, binding: b}
+			if b.Returning != nil {
+				stream.output = exec.NewFinalRows(b.Returning.Schema, 0)
+				_, stream.output.Output = h.Environments()
+			}
+			command := h.Command()
+			command.ForeignTriggerInsert = stream
+			defer func() {
+				command.ForeignTriggerInsert = nil
+				if err != nil && stream.output != nil {
+					stream.output.Close()
+				}
+			}()
+		}
 		var rows [][]sqltype.Value
 		if b.CommandQuery {
 			b.Query = &plan.Query{Root: in.QueryRoot}
@@ -73,7 +89,9 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 			}
 			rows = batch.Values
 		} else {
-			rows = make([][]sqltype.Value, 0, len(b.Insert.Rows))
+			if stream == nil {
+				rows = make([][]sqltype.Value, 0, len(b.Insert.Rows))
+			}
 			for i, raw := range b.Insert.Rows {
 				row := make([]sqltype.Value, len(b.Relation.Columns))
 				for j, c := range b.Relation.Columns {
@@ -117,11 +135,28 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 						}
 					}
 				}
+				before, failure := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeInsert, New: row})
+				if failure != nil {
+					return Outcome{}, failure
+				}
+				if !before.Proceed {
+					continue
+				}
+				row = before.Row
 				if err := table.EvaluateGenerations(h.Context(), b.Relation, row, &evaluation); err != nil {
 					return Outcome{}, err
 				}
+				if stream != nil {
+					if err := stream.accept(h, row, &evaluation); err != nil {
+						return Outcome{}, err
+					}
+					continue
+				}
 				rows = append(rows, row)
 			}
+		}
+		if stream != nil {
+			return finishForeignResult(h, b, stream.output, stream.count)
 		}
 		return foreignInsertResult(h, m, b, rows, &evaluation)
 	}
@@ -309,6 +344,17 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 				if err != nil {
 					return Outcome{}, err
 				}
+				if b.Relation.HasTriggers() {
+					targets := UpdateTargetAttributes(h, b.Ref, b.Relation, b.Targets, nil)
+					before, failure := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeUpdate, Old: candidate.Row, New: row, Targets: targets})
+					if failure != nil {
+						return Outcome{}, failure
+					}
+					if !before.Proceed {
+						continue
+					}
+					row = before.Row
+				}
 				if err := table.EvaluateGenerations(ctx, b.Relation, row, evaluation); err != nil {
 					return Outcome{}, err
 				}
@@ -321,6 +367,13 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 					return Outcome{}, exec.ForeignCallbackError(err)
 				}
 			} else {
+				before, failure := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeDelete, Old: candidate.Row})
+				if failure != nil {
+					return Outcome{}, failure
+				}
+				if !before.Proceed {
+					continue
+				}
 				input, exportErr := m.Export(ctx, candidate.Row, h)
 				if exportErr != nil {
 					return Outcome{}, exportErr

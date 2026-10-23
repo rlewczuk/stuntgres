@@ -53,7 +53,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		return
 	}
 	if syntax.Query == nil {
-		if err = s.snapshotDataPhase(); err != nil {
+		if err = s.snapshotPhase(syntax); err != nil {
 			return
 		}
 	}

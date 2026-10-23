@@ -16,9 +16,9 @@ below it imports it; it never imports the engine and never builds a binder.
 ## Hosts
 
 `Host` (`host.go`) embeds `exec.Host`, `index.WriteHost` and `fdw.WriteRuntime`
-and adds four parts, each with one owner. The engine's `statementHost`
-implements it (`statement_host_dml.go`, `statement_host_stage.go`,
-`statement_host_latest_row.go`).
+and adds command, stage, row-lock, presentation and BEFORE-row capabilities.
+The engine's `statementHost` implements them (`statement_host_dml.go`,
+`statement_host_stage.go`, `statement_host_latest_row.go`, `statement_host_trigger.go`).
 
 - `Statement`: the active command, target, private rows, snapshot, unique
   journal, query authority, scopes, lock ticket, WHERE CURRENT OF row,
@@ -34,6 +34,24 @@ implements it (`statement_host_dml.go`, `statement_host_stage.go`,
   with the caller holding nothing; `LatestRow` reads one row per `RowKind`
   under one lock.
 - `Presentation`: `RowDetail`, `SchemaName`, `CaptureRegclassOutput`.
+- `BeforeRow`: captures physical relation trigger provenance under the engine
+  mutex, then evaluates WHEN and PL unlocked in the same statement stage.
+  UPDATE OF captures physical lexical target attributes once per command; when
+  a BEFORE UPDATE row hook exists, PostgreSQL's conservative generated-column
+  recomputation also includes every generated attribute in that firing vector.
+  Ordinary non-generated OF columns still require lexical SET membership.
+  Final generation updates both physical storage and named RETURNING frames.
+  Producers invoke it once after defaults/latest OLD admission and before
+  generation, proposal checks and output. Suppression skips the operation and
+  its counts; DELETE ignores non-NULL returned contents. Accepted INSERT rows
+  use incremental staging when triggers require same-statement visibility.
+  Partition capture records applicable physical INSERT chains once over its
+  admitted target subtree. Without RETURNING or such a chain, INSERT retains
+  batch ownership and allocates no incremental output; leaf-only INSERT chains
+  require accepted prefixes even when the named parent has no trigger.
+  Foreign trigger inserts use the existing participant row by row, making each
+  accepted insertion available before the next BEFORE invocation without
+  introducing another transaction or changing participant rollback guarantees.
 
 `FinishHost` adds `ForeignKeys`, the FK runtime's engine side
 (`statement_host_foreign_key.go`). `Staged` never locks; the job, authority and
@@ -44,6 +62,11 @@ slot. `Authority` is the statement authority the FK runtime checks and
 evaluates with (`ActingAs` gives the referencing table owner's); the engine's
 `*AuthorizationView` implements it and is also an `exec.Context`'s
 `RoutineAuthority`.
+Reached trigger-body statements, routine helpers and source reads retain the
+referencing-table owner's RI authority through description, prepared analysis
+and execution, including live role recapture after unlocked provider preflight.
+Each recapture checks current ACLs as that owner; neither the initiator nor
+trigger-function ownership supplies body privileges.
 
 ## Command state
 
@@ -97,13 +120,19 @@ Package-internal helpers keep lower-case names.
   physical-to-named layout and copies finalized values by index into a private
   buffer, never into scratch still borrowed by OLD evaluation or RETURNING. No
   row matches columns by name or builds a second layout.
-- Partition UPDATE evaluates source generations before deciding membership.
-  Staying rows use source constraints and `ReplaceRows`; departing rows route
-  only within the named target, then use destination INSERT constraints/indexes.
+- Partition UPDATE runs the source BEFORE UPDATE chain before source generations
+  and membership selection. Staying rows use source constraints and `ReplaceRows`;
+  departing rows route only within the named target. Their source BEFORE DELETE
+  chain precedes deletion; destination BEFORE INSERT sees that private deletion.
+  A DELETE veto preserves OLD. An INSERT veto leaves the deletion but contributes
+  no UPDATE count or RETURNING row. Destination replacements cannot reroute and
+  must pass generation, row-policy and row-constraint checks before selected-leaf
+  membership checks, then view and index checks. A table CHECK violation wins
+  over an invalid partition key in both ordinary and trigger-modified rows.
   A move takes a delete-strength grant and passes the original captured deletion
   identity to `Delete`, which refreshes the current predecessor internally.
   `ApplyValidated` stages the fresh destination identity in the same write stage;
-  INSERT/COPY groups are not UPDATE batches. Only Finish publishes the pair.
+  INSERT/COPY groups are not UPDATE batches. Only Finish publishes accepted effects.
   Committed movement end markers distinguish concurrent movement from ordinary
   deletion without following a destination row.
 - COPY FROM runs omitted defaults before rejection/limit admission; the shared

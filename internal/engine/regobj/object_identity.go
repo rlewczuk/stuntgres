@@ -226,7 +226,7 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		}
 		return r, nil
 	}
-	if a.ClassID == 2606 || a.ClassID == 2604 || a.ClassID == 2618 || a.ClassID == 3256 {
+	if a.ClassID == 2606 || a.ClassID == 2604 || a.ClassID == 2618 || a.ClassID == 2620 || a.ClassID == 3256 {
 		return identifyOwnedAddress(view, path, a, r), nil
 	}
 	if d == nil {
@@ -381,6 +381,9 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 		case 2618:
 			r.Identity = catalog.Identifier(name) + " on " + relation
 			r.Description = "rule " + name + " on " + description
+		case 2620:
+			r.Identity = catalog.Identifier(name) + " on " + relation
+			r.Description = "trigger " + name + " on " + description
 		case 3256:
 			r.Identity = catalog.Identifier(name) + " on " + relation
 			r.Description = "policy " + name + " on " + description
@@ -440,6 +443,17 @@ func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) 
 			return nil
 		})
 		if found {
+			return name, 0
+		}
+	case 2620:
+		var name string
+		_ = d.VisitTriggers(func(t catalog.TriggerFact) error {
+			if t.OID == a.ObjectID {
+				name = t.Name
+			}
+			return nil
+		})
+		if name != "" {
 			return name, 0
 		}
 	case 3256:
@@ -629,6 +643,17 @@ func OwnedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID
 			return nil
 		})
 		if found {
+			return oid
+		}
+	case 2620:
+		var oid ids.OID
+		_ = d.VisitTriggers(func(t catalog.TriggerFact) error {
+			if t.Name == name {
+				oid = t.OID
+			}
+			return nil
+		})
+		if oid != 0 {
 			return oid
 		}
 	case 3256:

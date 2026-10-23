@@ -317,7 +317,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.AlterOwner, *parser.ReassignOwned, *parser.DropOwned:
 		return StatementDescription{}, nil
-	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
+	case *parser.CreateTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
 		return StatementDescription{}, nil
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return StatementDescription{}, nil
@@ -365,7 +365,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := scope.refreshRelationGrantsLocked(e); err != nil {
 		return StatementDescription{}, err
 	}
-	auth, err := e.statementAuthorizationLocked(op, stmt)
+	auth, err := scope.statementAuthorizationLocked(stmt)
 	if err != nil {
 		return StatementDescription{}, err
 	}

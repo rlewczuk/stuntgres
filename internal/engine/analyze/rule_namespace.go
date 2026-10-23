@@ -12,7 +12,9 @@ const RulePseudoScope = ^uint32(0)
 // RuleNamespace is the relation a rule is defined on, with the rule event; it
 // supplies the rule's OLD and NEW pseudo columns.
 type RuleNamespace struct {
-	Relation *catalog.Relation
-	Ref      ids.ObjectRef
-	Event    string
+	Relation                     *catalog.Relation
+	Ref                          ids.ObjectRef
+	Event                        string
+	Trigger                      bool
+	TriggerInsert, TriggerDelete bool
 }

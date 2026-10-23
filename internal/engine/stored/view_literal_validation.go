@@ -12,7 +12,26 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (v *View) ValidateLiterals(catalog catalog.Read) error {
+// Pseudo-row validation is invocation-free and local to this traversal. Ordinary
+// views retain their query-frame rules; trigger rows close over their owner.
+type viewLiteralValidator struct {
+	*View
+	read        catalog.Read
+	triggerRows *catalog.Relation
+	events      TriggerEvent
+}
+
+func (v *View) ValidateLiterals(read catalog.Read) error {
+	validator := viewLiteralValidator{View: v, read: read}
+	return validator.validate(read)
+}
+
+func (v *View) validateTriggerLiterals(read catalog.Read, owner *catalog.Relation, events TriggerEvent) error {
+	validator := viewLiteralValidator{View: v, read: read, triggerRows: owner, events: events}
+	return validator.validate(read)
+}
+
+func (v *viewLiteralValidator) validate(catalog catalog.Read) error {
 	count, columnCount, starCount, compositeCount, routineCount := 0, 0, 0, 0, 0
 	for frame, project := range v.frames {
 		s := project.Syntax
@@ -207,8 +226,20 @@ func (v *View) ValidateLiterals(catalog catalog.Read) error {
 
 // Scalar stars and ordinary column syntax close over the same captured frame
 // and slot, independently of composite expansion occurrences.
-func (v *View) validateColumnOccurrence(path analyze.ViewLiteralPath) error {
+func (v *viewLiteralValidator) validateColumnOccurrence(path analyze.ViewLiteralPath) error {
 	column, ok := v.columns[path]
+	if v.triggerRows != nil {
+		relation := v.triggerRows
+		address := column.RuleRef.Address
+		address.SubID = 0
+		if !ok || column.RuleSide != 1 && column.RuleSide != 2 || column.Frame != column.RuleSide || address != relation.Address() || !ReferenceEpochValid(v.read, relation, column.RuleRef) || column.Slot < 0 || column.Slot >= len(relation.Attributes) || relation.Attributes[column.Slot] != column.RuleRef.Address.SubID {
+			return fmt.Errorf("stuntgres: invalid trigger column occurrence")
+		}
+		if column.RuleSide == 1 && v.events&TriggerInsert != 0 || column.RuleSide == 2 && v.events&TriggerDelete != 0 {
+			return fmt.Errorf("stuntgres: unavailable trigger column occurrence")
+		}
+		return nil
+	}
 	owner := v.frames[column.Frame]
 	if !ok || owner == nil {
 		return fmt.Errorf("stuntgres: invalid view column frame")
@@ -226,7 +257,7 @@ func (v *View) validateColumnOccurrence(path analyze.ViewLiteralPath) error {
 	return nil
 }
 
-func (v *View) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path analyze.ViewLiteralPath, ordinal, count, columnCount, compositeCount, routineCount *int) error {
+func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path analyze.ViewLiteralPath, ordinal, count, columnCount, compositeCount, routineCount *int) error {
 	if raw == nil {
 		return nil
 	}

@@ -43,6 +43,14 @@ func DefinitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 	}) != nil {
 		return true
 	}
+	if d.VisitTriggers(func(t TriggerFact) error {
+		if t.OID == id {
+			return errDefinitionOIDFound
+		}
+		return nil
+	}) != nil {
+		return true
+	}
 	for _, p := range d.Security.Policies {
 		if p.OID == id {
 			return true
@@ -115,6 +123,7 @@ func ReserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 			return nil
 		})
 	}
+	_ = d.VisitTriggers(func(t TriggerFact) error { reserved[t.OID] = true; return nil })
 	for _, p := range d.Security.Policies {
 		reserved[p.OID] = true
 	}
@@ -188,6 +197,9 @@ func ValidateDefinitionOIDs(view Read) error {
 			if err := d.VisitRules(func(r RuleFact) error { return claim(r.OID) }); err != nil {
 				return err
 			}
+		}
+		if err := d.VisitTriggers(func(t TriggerFact) error { return claim(t.OID) }); err != nil {
+			return err
 		}
 		for _, p := range d.Security.Policies {
 			if err := claim(p.OID); err != nil {

@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
@@ -23,6 +24,16 @@ func (Presenter) TypeDeclaration(view catalog.Read, reader catalog.DefinitionRea
 }
 
 func (Presenter) ColumnDeclaration(view catalog.Read, column catalog.Column) (string, error) {
+	// Dump does not own the replay session's search_path. Use the existing
+	// machine-identity spelling for unmodified builtin scalars: SQL keyword
+	// aliases remain keywords, while shadowable names stay schema-qualified.
+	typ := column.Usage.Type
+	if column.Usage.Typmod < 0 && !typ.IsArray() && !typ.IsUserDefined() && !typ.IsDomain() {
+		if current, ok := view.LookupType(typ.ID()); !ok || current != typ {
+			return "", fmt.Errorf("stuntgres: invalid builtin declaration authority")
+		}
+		return regobj.TypeSpelling(view, nil, ids.OID(typ.ID())), nil
+	}
 	return regobj.ColumnDeclaration(view, column)
 }
 

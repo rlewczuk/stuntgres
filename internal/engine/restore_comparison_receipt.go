@@ -39,6 +39,9 @@ func (e *Engine) validateComparisonBindingStatement(op *session.Operation, stmt 
 	case *parser.CreatePolicy:
 		target = s.Table
 		kind = 1
+	case *parser.CreateTrigger:
+		target = s.Table
+		kind = 1
 	case *parser.CreateRule:
 		target = s.Table
 		kind = 1

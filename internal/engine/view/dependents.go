@@ -143,15 +143,17 @@ func DropRuleDependents(r DropReader, targets []ids.ObjectAddress, mode parser.D
 			descriptor = replacement
 		}
 		d, ok := descriptor.(*catalog.Relation)
-		if !ok || len(stored.RulesOf(d)) == 0 {
+		if !ok || len(stored.RulesOf(d)) == 0 && !d.HasTriggers() {
 			continue
 		}
 		kept := KeepRules(r.BaseRead(), stored.RulesOf(d), targets)
-		if len(kept) == len(stored.RulesOf(d)) {
+		keptTriggers := stored.KeepTriggers(stored.TriggersOf(d), targets)
+		if len(kept) == len(stored.RulesOf(d)) && len(keptTriggers) == len(stored.TriggersOf(d)) {
 			continue
 		}
 		copy := *d
 		copy.Rules = stored.RulesPayload(kept)
+		copy.Triggers = stored.TriggersPayload(keptTriggers)
 		revision, err := r.Revision(copy.Revision())
 		if err != nil {
 			return err

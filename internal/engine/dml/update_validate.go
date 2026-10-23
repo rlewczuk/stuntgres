@@ -59,6 +59,11 @@ func validateInheritedMutationRow(h Host, named analyze.Binding, physical exec.Q
 	if err := table.EvaluateGenerations(eval.Context, physical.Leaf.Relation, row, &generationEval); err != nil {
 		return err
 	}
+	if physical.Segment != nil && physical.Segment.Layout != nil {
+		for i, slot := range physical.Segment.Layout {
+			proposal[i] = row[slot]
+		}
+	}
 	return validateInheritedMutationConstraints(h, named, physical, schema, row, proposal, &generationEval)
 }
 
@@ -67,14 +72,6 @@ func validateInheritedMutationConstraints(h Host, named analyze.Binding, physica
 		return validateMutationConstraints(h, named, schema, row, eval, true)
 	}
 	relation := physical.Leaf.Relation
-	// OLD may still borrow the segment's mapping scratch for RETURNING. Reuse
-	// the private logical replacement for finalized NEW instead of overwriting
-	// that borrowed frame, and project only when an actual program needs it.
-	if h.Command().RLS.New != nil && physical.Segment != nil && physical.Segment.Layout != nil {
-		for i, slot := range physical.Segment.Layout {
-			proposal[i] = row[slot]
-		}
-	}
 	if err := h.Command().RLS.CheckProposal(proposal, eval); err != nil {
 		return err
 	}

@@ -79,7 +79,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		if err == nil && s.admissionWaited {
 			e := s.engine()
 			e.mu.Lock()
-			auth, authErr := e.statementAuthorizationLocked(s.op, stmt)
+			auth, authErr := s.statementAuthorizationLocked(stmt)
 			err = authErr
 			if err == nil {
 				err = s.validateAdmissionNamesLocked(e, auth)
@@ -190,7 +190,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	auth, err := e.statementAuthorizationLocked(s.op, authorityStmt)
+	auth, err := s.statementAuthorizationLocked(authorityStmt)
 	parentAuth := auth
 	if err == nil {
 		err = view.PolicyPreflight(s.op, auth.View, stmt, true)
@@ -445,7 +445,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			descriptor.SQLIndex != materializedAlterAuthority.SQLIndex) {
 		// Check current ownership on the admitted identity, not its old name.
 		// A still-authorized actor cannot adopt a changed defining predecessor.
-		currentAuth, authorityErr := e.statementAuthorizationLocked(s.op, authorityStmt)
+		currentAuth, authorityErr := s.statementAuthorizationLocked(authorityStmt)
 		if authorityErr != nil {
 			return authorityErr
 		}
@@ -481,7 +481,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	// Definition evolution while waiting is valid for this exact relation.
 	// Pin the grant-time descriptor and revalidate current role authority.
-	auth, err = e.statementAuthorizationLocked(s.op, authorityStmt)
+	auth, err = s.statementAuthorizationLocked(authorityStmt)
 	if err != nil {
 		return err
 	}

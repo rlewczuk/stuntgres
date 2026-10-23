@@ -98,6 +98,7 @@ type CatalogStage struct {
 	authRevision        uint64
 	roleRevision        uint64
 	extensionNamespace  ids.ObjectAddress
+	triggerReplacement  triggerReplacement
 	databasePredecessor catalog.Descriptor
 	databaseAuthority   catalog.Descriptor
 	// Optional DROP OWNED membership deletions join this publication, not a
@@ -399,6 +400,10 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	e.mu.Lock()
+	if err := e.synchronizeStageTriggersLocked(s); err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
 	if err := s.validateRoleCandidate(e.roles.published); err != nil {
 		e.mu.Unlock()
 		return nil, err
@@ -740,6 +745,11 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(stored.RulesOf(relation)) != 0 {
 				if err := stored.ValidateRules(e.catalog.read(next), relation); err != nil {
+					return ChangeSet{}, err
+				}
+			}
+			if relation, ok := descriptor.(*catalog.Relation); ok && relation.HasTriggers() {
+				if err := stored.ValidateTriggers(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}

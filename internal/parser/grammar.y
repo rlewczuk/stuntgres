@@ -6,6 +6,9 @@ package parser
  stmt Statement
  statements []Statement
  rule *CreateRule
+ trigger *CreateTrigger
+ triggerEvent TriggerEvent
+ triggerEvents []TriggerEvent
  foreignDDL *ForeignDDL
  foreignOptions []ForeignOption
  databaseOptions []DatabaseOption
@@ -228,6 +231,7 @@ package parser
 %token <tok> TYPE_INPUT
 %token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN PL_EXCEPTION PL_RAISE PL_SQLSTATE PL_ELSIF
 %token <tok> PL_THEN PL_WHEN PL_WHEN_COMMA
+%token <tok> TRIGGER
 %token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
@@ -418,6 +422,15 @@ package parser
 %type <tok> truncate_identity
 %type <stmt> create_policy alter_policy drop_policy
 %type <stmt> create_rule alter_rule drop_rule rule_action
+%type <stmt> create_trigger
+%type <trigger> trigger_head
+%type <triggerEvent> trigger_event
+%type <triggerEvents> trigger_events
+%type <tok> trigger_timing trigger_function trigger_each trigger_statement
+%type <desc> trigger_row
+%type <expr> trigger_when
+%type <names> trigger_arguments trigger_argument_list
+%type <tok> trigger_argument
 %type <rule> rule_head
 %type <tok> rule_event
 %type <expr> rule_condition
@@ -889,6 +902,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
  | create_rule | alter_rule | drop_rule
+ | create_trigger
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
  | generic_statement_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -927,6 +941,37 @@ tablespace_owner: /* empty */ {$$=nil}
 tablespace_location: KW_U {if $1.text!="location" {sqllex.(*lexer).syntax($1);return 1}} ;
 tablespace_options: /* empty */ {$$=nil}
  | WITH '(' maintenance_index_option_list ')' {$$=$3} ;
+trigger_head: CREATE TRIGGER name trigger_timing trigger_events ON relation_name {
+ $$=&CreateTrigger{Name:Identifier{Text:$3.text,Pos:$3.pos},Timing:$4.text,Events:$5,Table:$7,Pos:$1.pos}
+} | CREATE OR replace_word TRIGGER name trigger_timing trigger_events ON relation_name {
+ $$=&CreateTrigger{Name:Identifier{Text:$5.text,Pos:$5.pos},Timing:$6.text,Events:$7,Table:$9,Replace:true,Pos:$1.pos}
+} ;
+create_trigger: trigger_head trigger_row trigger_when EXECUTE trigger_function relation_name '(' trigger_arguments ')' {
+ $1.Row=$2;$1.When=$3;$1.Function=$6;$1.Arguments=$8;$$=$1
+} ;
+trigger_timing: name {
+ if $1.keyword==nil || ($1.text!="before" && $1.text!="after") {sqllex.(*lexer).syntax($1);return 1};$$=$1
+} | INSTEAD OF {$$=$1} ;
+trigger_events: trigger_event {$$=[]TriggerEvent{$1}}
+ | trigger_events OR trigger_event {$$=append($1,$3)} ;
+trigger_event: INSERT {$$=TriggerEvent{Name:"insert"}}
+ | UPDATE {$$=TriggerEvent{Name:"update"}}
+ | UPDATE OF view_names {$$=TriggerEvent{Name:"update",Columns:$3}}
+ | DELETE {$$=TriggerEvent{Name:"delete"}}
+ | TRUNCATE {$$=TriggerEvent{Name:"truncate"}} ;
+trigger_row: /* empty */ {$$=false}
+ | FOR ROW {$$=true}
+ | FOR trigger_each ROW {$$=true}
+ | FOR trigger_statement {$$=false}
+ | FOR trigger_each trigger_statement {$$=false} ;
+trigger_each: KW_U {if $1.text!="each" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+trigger_statement: KW_U {if $1.text!="statement" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+trigger_when: /* empty */ {$$=nil} | WHEN '(' target_or ')' {$$=$3} ;
+trigger_function: FUNCTION | PROCEDURE ;
+trigger_arguments: /* empty */ {$$=nil} | trigger_argument_list ;
+trigger_argument_list: trigger_argument {$$=[]string{$1.text}}
+ | trigger_argument_list ',' trigger_argument {$$=append($1,$3.text)} ;
+trigger_argument: name | STRING | NUMBER ;
 rule_head: CREATE RULE name AS ON rule_event TO relation_name {
  sqllex.(*lexer).ruleDefinition=true
  $$=&CreateRule{Name:Identifier{Text:$3.text,Pos:$3.pos},Event:$6.text,Table:$8,Pos:$1.pos}
@@ -3093,6 +3138,7 @@ setting_word: setting_word_without_between | BETWEEN ;
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
 non_between_name: window_name | PARTITION | FRAME_UNIT | MATCH | PERIOD ;
 window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD
+ | TRIGGER
  | VACUUM
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
@@ -3111,6 +3157,7 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
+ | TRIGGER
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | SQLJSON_PARSE
  | CONVERSION
@@ -3150,6 +3197,7 @@ generic_statement_word: generic_word_base_without_vacuum | WITH | EXISTS ;
 generic_word_base: generic_word_base_without_vacuum | VACUUM ;
 generic_word_base_without_vacuum: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
+ | TRIGGER
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | CONVERSION
  | RECURSIVE

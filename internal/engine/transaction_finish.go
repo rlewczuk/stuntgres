@@ -26,6 +26,8 @@ func (s *StatementScope) Finish(err error) error {
 	defer func() {
 		s.currentSnapshot = nil
 		s.snapshotFrontier = 0
+		s.snapshotTarget = visibility.Root{}
+		s.snapshotTargets = nil
 		for _, program := range s.rlsPrograms {
 			program.Close()
 		}

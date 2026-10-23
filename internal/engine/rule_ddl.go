@@ -23,20 +23,21 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	if err != nil {
 		return fail(err)
 	}
-	return e.publishRelationChangeLocked(scope, auth, change)
+	return e.publishRelationChangeLocked(scope, auth, change, triggerReplacement{})
 }
 
-// publishRelationChangeLocked finishes a planned RULE or POLICY change.
+// publishRelationChangeLocked finishes a planned RULE, POLICY or TRIGGER change.
 // Engine.mu is held on entry and released on every return. A skip ends in its
 // fenced NOTICE; otherwise the change is staged with its query sources and,
 // after the unlock, replaced, validated and published against the epoch of
 // the relation reference.
-func (e *Engine) publishRelationChangeLocked(scope *StatementScope, auth AuthorizationView, change view.RelationChange) (Result, error) {
+func (e *Engine) publishRelationChangeLocked(scope *StatementScope, auth AuthorizationView, change view.RelationChange, replacement triggerReplacement) (Result, error) {
 	if change.Skip != "" {
 		return e.finishPolicyNoticeLocked(scope, change.Skip)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
+	stage.triggerReplacement = replacement
 	stage.querySources = append(stage.querySources, change.Sources...)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

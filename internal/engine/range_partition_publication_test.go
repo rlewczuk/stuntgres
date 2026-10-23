@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"sync/atomic"
 	"testing"
 )
@@ -41,6 +42,23 @@ func (c *rangePartitionPhaseContext) Err() error {
 	return c.Context.Err()
 }
 
+// Cancel on real private progress, independently of executor function names or
+// the number of context checks. No other goroutine mutates this owned stage.
+type partitionStagedCancelContext struct {
+	context.Context
+	scope         *StatementScope
+	first, second ids.ObjectAddress
+	cancel        context.CancelFunc
+	entered       atomic.Bool
+}
+
+func (c *partitionStagedCancelContext) Err() error {
+	if !c.entered.Load() && len(c.scope.stage.rows[c.first]) != 0 && len(c.scope.stage.rows[c.second]) == 0 && c.entered.CompareAndSwap(false, true) {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
 func TestRangePartitionPublicationCancelAtMultiLeafApply(t *testing.T) {
 	e := New()
 	session := sessionStart(t, e, nil)
@@ -54,19 +72,23 @@ func TestRangePartitionPublicationCancelAtMultiLeafApply(t *testing.T) {
 	}
 	underlying, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ctx := &rangePartitionPhaseContext{Context: underlying, target: "dml.ApplyInsertValidated", effect: cancel}
-	op, err := session.Acquire(ctx.Context)
+	first, second := rangePartitionRelation(t, e, "low"), rangePartitionRelation(t, e, "high")
+	op, err := session.Acquire(underlying)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Acquire wraps its input with WithCancel; observe the actual operation
-	// context so the real family checkpoints reach this callback.
-	ctx.Context = op.Context()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		op.Done()
+		t.Fatal(err)
+	}
+	ctx := &partitionStagedCancelContext{Context: op.Context(), scope: scope, first: first.Address(), second: second.Address(), cancel: cancel}
 	op.Ctx = ctx
-	_, err = e.Execute(op, statement(t, "INSERT INTO root VALUES(2,21),(12,22)"), 0, nil)
+	_, err = scope.Execute(statement(t, "INSERT INTO root VALUES(2,21),(12,22)"), 0, nil)
+	err = scope.Finish(err)
 	op.Done()
 	if !ctx.entered.Load() || !errors.Is(err, context.Canceled) {
-		t.Fatal("real multi-leaf apply did not observe cancellation", ctx.entered.Load(), err)
+		t.Fatal("private first-leaf progress did not observe cancellation", ctx.entered.Load(), err)
 	}
 	expected := [][]driver.Value{{int64(1), int64(10)}, {int64(11), int64(20)}}
 	if !reflect.DeepEqual(tuples(sessionSQL(t, session, "SELECT k,v FROM root ORDER BY k")), expected) {

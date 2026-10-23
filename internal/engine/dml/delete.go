@@ -122,6 +122,13 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 				continue
 			}
 		}
+		before, failure := Before(h, physical.Leaf.Relation, BeforeRow{Relation: candidate.Ref, Event: BeforeDelete, Old: current.Values})
+		if failure != nil {
+			return Outcome{}, failure
+		}
+		if !before.Proceed {
+			continue
+		}
 		if err := ClaimUniqueRow(h, candidate.Ref, current); err != nil {
 			return Outcome{}, err
 		}

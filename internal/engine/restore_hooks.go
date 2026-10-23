@@ -47,6 +47,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "ALTER INDEX", Admit: control.AdmitStatement[*restoreRun](control.CheckAlterIndex)},
 	{Name: "CREATE POLICY", Admit: control.AdmitKind[*restoreRun, *parser.CreatePolicy]},
 	{Name: "CREATE RULE", Admit: control.AdmitKind[*restoreRun, *parser.CreateRule]},
+	{Name: "CREATE TRIGGER", Admit: control.AdmitKind[*restoreRun, *parser.CreateTrigger]},
 	{Name: "ALTER TABLE", Admit: restoreAdmitChecked(admitRestoreAlterTable)},
 	{Name: "ALTER TABLE OF", Admit: control.AdmitStatement[*restoreRun](control.CheckAlterTableOf)},
 	{Name: "DETACH PARTITION", Admit: restoreAdmitChecked(admitRestoreDetachPartition)},

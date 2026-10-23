@@ -148,7 +148,7 @@ func ClassRow(in Input, relation *catalog.Relation) ([]sqltype.Value, error) {
 		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.History.HasIndexes), boolean(15, shared),
 		text(16, ClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.ColumnMeta.HighWater)), integer(19, int64(len(relation.Constraints.Check))),
-		boolean(20, relation.HasRules() || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.History.HasSubclasses),
+		boolean(20, relation.HasRules() || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, relation.HasTriggers()), boolean(22, relation.History.HasSubclasses),
 		boolean(23, relation.Security.RLSEnabled), boolean(24, relation.Security.RLSForced), boolean(25, relation.RelationKind != catalog.MaterializedViewRelation || relation.Populated),
 		text(26, replica), boolean(27, relation.Membership != nil || relation.SQLIndex != nil && relation.SQLIndex.PartitionParent != (ids.ObjectAddress{})), oid(28, 0),
 		checked(sqltype.XIDValue(source.Columns[29].Usage.Type, frozenXID)), checked(sqltype.XIDValue(source.Columns[30].Usage.Type, 0)), acl, options, bound,

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -10,6 +11,7 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/parser"
 )
 
 func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*visibility.View, error) {
@@ -58,6 +60,69 @@ func (s *StatementScope) captureDataViewsAtLocked(e *Engine, refs []ids.ObjectRe
 		}
 	}
 	return captured, nil
+}
+
+// retainSnapshotTargetRootsLocked pairs already-admitted physical mutation
+// targets with the RC frontier while Engine.mu still excludes publication.
+// The first target is inline; only a distinct additional target needs a map.
+// This does not acquire a data view or enroll a read before source admission.
+func (s *StatementScope) retainSnapshotTargetRootsLocked(e *Engine) {
+	retain := func(relation *catalog.Relation) {
+		if relation == nil {
+			return
+		}
+		address := relation.Address()
+		if s.snapshotTarget.Relation != nil && s.snapshotTarget.Relation.Address() == address {
+			return
+		}
+		if _, exists := s.snapshotTargets[address]; exists {
+			return
+		}
+		// Private schema projections keep their existing snapshot owner.
+		if s.owner.Catalog != nil && s.owner.Catalog.Storage[address].Rewritten {
+			return
+		}
+		stored := e.privateStorageLocked(s.owner.Catalog, address)
+		if stored == nil {
+			return
+		}
+		root := visibility.Root{Versions: stored.Versions, Ends: stored.Ends, Storage: stored, Relation: relation}
+		if s.snapshotTarget.Relation == nil {
+			s.snapshotTarget = root
+			return
+		}
+		if s.snapshotTargets == nil {
+			s.snapshotTargets = make(map[ids.ObjectAddress]visibility.Root)
+		}
+		s.snapshotTargets[address] = root
+	}
+	capture := func(mutation *statementMutation, admitted bool) {
+		if !admitted && !parser.ModifyingStatement(mutation.statement) {
+			copy, ok := mutation.statement.(*parser.Copy)
+			if !ok || !copy.From {
+				return
+			}
+		}
+		relation, _ := mutation.lockedDescriptor.(*catalog.Relation)
+		retain(relation)
+		for _, target := range mutation.InheritedTargets {
+			retain(target.Relation)
+		}
+	}
+	capture(&s.statementMutation, s.snapshotTargetAdmission)
+	for i := range s.mutations {
+		if i != s.activeMutation {
+			capture(&s.mutations[i], false)
+		}
+	}
+}
+
+func (s *StatementScope) snapshotTargetRoot(address ids.ObjectAddress) (visibility.Root, bool) {
+	if s.snapshotTarget.Relation != nil && s.snapshotTarget.Relation.Address() == address {
+		return s.snapshotTarget, true
+	}
+	root, exists := s.snapshotTargets[address]
+	return root, exists
 }
 
 // Root retention fixes the statement frontier, but is not itself a relation
@@ -165,6 +230,16 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 		var rewrite session.StorageChange
 		if s.owner.Catalog != nil {
 			rewrite = s.owner.Catalog.Storage[ref.Address]
+		}
+		if !latest && base == nil && !s.owner.Isolation.Stable() && !rewrite.Rewritten {
+			if root, exists := s.snapshotTargetRoot(ref.Address); exists {
+				current, ok := catalog.Relation(ref.Address)
+				if !ok || root.Storage != stored || !index.SameRelationRowShape(root.Relation, current) {
+					return nil, ids.ErrCatalogReplaced
+				}
+				versions, ends = root.Versions, root.Ends
+				needsBirthFilter = false
+			}
 		}
 		if base != nil && (!s.owner.Isolation.Stable() || rewrite.Rewritten) {
 			root, ok := base.DynamicRoots[ref.Address]

@@ -127,6 +127,12 @@ func (s *StatementScope) snapshotExecutionAdmission(stmt parser.Statement) error
 func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	switch stmt.(type) {
 	case *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable, *parser.RefreshMaterializedView, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.SettingCall:
+		previous := s.snapshotTargetAdmission
+		s.snapshotTargetAdmission = parser.ModifyingStatement(stmt)
+		if copy, ok := stmt.(*parser.Copy); ok {
+			s.snapshotTargetAdmission = copy.From
+		}
+		defer func() { s.snapshotTargetAdmission = previous }()
 		return s.snapshotDataPhase()
 	default:
 		return nil
@@ -240,8 +246,9 @@ func (e *Engine) captureStatementSnapshotLocked(s *StatementScope) error {
 		return err
 	}
 	s.currentSnapshot, s.snapshotFrontier = snapshot, e.visibility.CommitSeq()
-	// RC retains only the command pair, but acquiring it still closes the
-	// transaction-characteristics window for the rest of this transaction.
+	s.retainSnapshotTargetRootsLocked(e)
+	// RC retains the command pair and admitted target roots, not transaction-wide
+	// roots. Snapshot acquisition closes the transaction-characteristics window.
 	t.SnapshotSet = true
 	return nil
 }

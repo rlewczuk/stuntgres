@@ -436,6 +436,19 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			}); err != nil {
 				return nil, err
 			}
+			if err := d.VisitTriggers(func(trigger catalog.TriggerFact) error {
+				owner := ids.ObjectAddress{ClassID: 2620, ObjectID: trigger.OID}
+				add(owner, d.Address(), 'a')
+				for _, reference := range trigger.References {
+					add(owner, reference, 'n')
+				}
+				if trigger.Parent.ObjectID != 0 {
+					add(owner, trigger.Parent, 'P')
+				}
+				return nil
+			}); err != nil {
+				return nil, err
+			}
 			if d.View != nil {
 				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.View.RuleOID()}
 				add(owner, d.Address(), 'i')

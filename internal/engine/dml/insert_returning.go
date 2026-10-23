@@ -4,25 +4,49 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
-// BeginInsertReturning installs the active command's RETURNING output for b,
-// if b has RETURNING.
+// BeginInsertReturning installs the active command's incremental INSERT stage
+// and optional RETURNING output. Triggers require accepted rows to be visible
+// to later invocations even without a RETURNING clause.
 func BeginInsertReturning(h Host, b analyze.Binding) {
 	if b.Returning == nil {
-		return
+		beforeInsert := false
+		if state := h.Command().PartitionInsert; state != nil {
+			beforeInsert = state.BeforeInsert
+		} else {
+			for _, definition := range stored.TriggersOf(b.Relation) {
+				if definition.Fires(stored.TriggerInsert, nil) {
+					beforeInsert = true
+					break
+				}
+			}
+		}
+		if !beforeInsert {
+			return
+		}
 	}
-	rows := exec.NewFinalRows(b.Returning.Schema, 0)
+	var schema []catalog.Column
+	if b.Returning != nil {
+		schema = b.Returning.Schema
+	}
+	rows := exec.NewFinalRows(schema, 0)
 	_, rows.Output = h.Environments()
 	h.Command().InsertReturning = &InsertReturningOutput{Binding: b, Rows: rows}
 }
 func projectInsertReturning(h Host, row, old []sqltype.Value, c *exec.Context) error {
 	output := h.Command().InsertReturning
 	if output == nil {
+		return nil
+	}
+	if output.Binding.Returning == nil {
+		output.Rows.Count++
 		return nil
 	}
 	evaluation := *c
@@ -43,13 +67,18 @@ func projectInsertReturning(h Host, row, old []sqltype.Value, c *exec.Context) e
 }
 func finishInsertReturning(h Host) (Outcome, error) {
 	output := h.Command().InsertReturning
-	if output.Binding.Returning.RegclassOutput && output.Rows.Count != 0 {
+	if output.Binding.Returning != nil && output.Binding.Returning.RegclassOutput && output.Rows.Count != 0 {
 		if err := h.CaptureRegclassOutput(output.Rows); err != nil {
 			return Outcome{}, err
 		}
 	}
 	if err := h.Context().Err(); err != nil {
 		return Outcome{}, err
+	}
+	if output.Binding.Returning == nil {
+		count := output.Rows.Count
+		output.Rows.Close()
+		return Outcome{Count: int64(count)}, nil
 	}
 	return Outcome{Count: int64(output.Rows.Count), Rows: output.Rows}, nil
 }

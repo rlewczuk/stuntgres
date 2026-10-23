@@ -68,16 +68,23 @@ func TestListPartitionPublicationCancellation(t *testing.T) {
 		}
 		underlying, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		ctx := &rangePartitionPhaseContext{Context: underlying, target: "dml.ApplyInsertValidated", effect: cancel}
-		op, err := session.Acquire(ctx.Context)
+		first, second := rangePartitionRelation(t, e, "low"), rangePartitionRelation(t, e, "high")
+		op, err := session.Acquire(underlying)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx.Context, op.Ctx = op.Context(), ctx
-		_, err = e.Execute(op, statement(t, "INSERT INTO root VALUES(2,21),(12,22)"), 0, nil)
+		scope, err := e.StartStatement(op)
+		if err != nil {
+			op.Done()
+			t.Fatal(err)
+		}
+		ctx := &partitionStagedCancelContext{Context: op.Context(), scope: scope, first: first.Address(), second: second.Address(), cancel: cancel}
+		op.Ctx = ctx
+		_, err = scope.Execute(statement(t, "INSERT INTO root VALUES(2,21),(12,22)"), 0, nil)
+		err = scope.Finish(err)
 		op.Done()
 		if !ctx.entered.Load() || !errors.Is(err, context.Canceled) {
-			t.Fatal("real multileaf apply did not cancel", ctx.entered.Load(), err)
+			t.Fatal("private first-leaf progress did not cancel", ctx.entered.Load(), err)
 		}
 		if got := tuples(sessionSQL(t, session, "SELECT k,v FROM root ORDER BY k")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1), int64(10)}, {int64(11), int64(20)}}) {
 			t.Fatal("canceled INSERT published leaf groups", got)

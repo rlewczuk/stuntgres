@@ -49,6 +49,8 @@ func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) 
 		return Target{}, false, nil
 	}
 	switch v := stmt.(type) {
+	case *parser.CreateTrigger:
+		return Target{Name: v.Table, Mode: lock.ShareRowExclusive}, true, nil
 	case *parser.CreateTable:
 		if v.PartitionOf == nil {
 			return Target{}, false, nil

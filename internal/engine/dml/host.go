@@ -32,6 +32,9 @@ type Host interface {
 	Stage
 	RowLocks
 	Presentation
+	// BeforeRow captures live trigger provenance under synchronization, then
+	// admits/evaluates WHEN and the PL body unlocked in the caller's stage.
+	BeforeRow(BeforeRow) (BeforeResult, error)
 }
 
 // FinishHost is Host plus the foreign-key runtime that statement Finish runs:

@@ -239,6 +239,14 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 			continue
 		}
 		physicalRow := ScatterMutationRow(candidate.Physical, old, row, b.Targets)
+		before, failure := BeforeMutationUpdate(h, b, candidate.Physical, old, row, physicalRow)
+		if failure != nil {
+			return Outcome{}, failure
+		}
+		if !before.Proceed {
+			continue
+		}
+		physicalRow = before.Row
 		destination, physicalRow, err := prepareUpdateRow(h, b, candidate.Physical, schema, physicalRow, row, &eval)
 		if err != nil {
 			return Outcome{}, err
@@ -282,6 +290,14 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 					return Outcome{}, err
 				}
 				physicalRow = ScatterMutationRow(candidate.Physical, old, row, b.Targets)
+				before, failure := BeforeMutationUpdate(h, b, candidate.Physical, old, row, physicalRow)
+				if failure != nil {
+					return Outcome{}, failure
+				}
+				if !before.Proceed {
+					continue
+				}
+				physicalRow = before.Row
 				destination, physicalRow, err = prepareUpdateRow(h, b, candidate.Physical, schema, physicalRow, row, &eval)
 				if err != nil {
 					return Outcome{}, err

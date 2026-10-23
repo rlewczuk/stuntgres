@@ -405,6 +405,10 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		}
 		pending = pending[:oldPending]
 		switch s := statement.(type) {
+		case *CreateTrigger:
+			if err := expression(s.When); err != nil {
+				return err
+			}
 		case *CreateRule:
 			if err := expression(s.Condition); err != nil {
 				return err

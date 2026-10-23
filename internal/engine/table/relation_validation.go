@@ -138,6 +138,9 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := stored.ValidateRules(v, r); err != nil {
 		return err
 	}
+	if err := stored.ValidateTriggers(v, r); err != nil {
+		return err
+	}
 	if err := typedef.ValidateTypedAttachment(v, r); err != nil {
 		return err
 	}

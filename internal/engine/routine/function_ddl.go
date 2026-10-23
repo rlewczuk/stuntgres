@@ -43,6 +43,12 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			return sqltype.Usage{}, err
 		}
 		typ, ok := h.DefinitionType(auth, sqltype.ID(id))
+		if result && typ != nil && typ.ID() == 2279 && s.Language.Text == "plpgsql" && !s.Procedure {
+			if len(s.Arguments) != 0 {
+				return sqltype.Usage{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "trigger functions cannot have declared arguments", Hint: "The arguments of the trigger can be accessed through TG_NARGS and TG_ARGV instead.", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", s.Name.Parts[len(s.Name.Parts)-1].Text)}
+			}
+			return typ.Usage(), nil
+		}
 		if !ok || !typ.Concrete() || typ.BaseType().IsComposite() {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL functions require concrete scalar types", raw.Pos)
 		}
@@ -114,7 +120,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if s.Language.Text == "plpgsql" {
 		var syntax *parser.PLBlock
 		syntax, err = parser.ParsePLpgSQL(s.Body, proc.PLReturnPolicy(result, len(layout.OutputFormals), s.Procedure))
-		definition = &proc.Definition{Kind: proc.PLpgSQLBody, Source: s.Body, Position: s.BodyPos, Inputs: inputs, Result: result, PLSyntax: syntax}
+		definition = &proc.Definition{Kind: proc.PLpgSQLBody, Trigger: result.Type.ID() == 2279, Source: s.Body, Position: s.BodyPos, Inputs: inputs, Result: result, PLSyntax: syntax}
 	} else {
 		definition, err = proc.New(s.Body, s.BodyPos, inputs, result)
 	}

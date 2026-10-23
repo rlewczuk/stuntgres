@@ -13,6 +13,26 @@ comparison, BETWEEN and conditional expressions are in
 [reference/query_core](../query_core/README.md#testing) and
 [reference/types](../types/README.md#testing); explicit casts and the
 comparison resolution matrix are in `reference/type_resolution`.
+Row-level BEFORE trigger scenarios cover private PL frames, ordered row chains,
+permissions, physical mutation producers and native post-data replay. The shared
+`triggerScenario` helper follows the ordinary configured-backend loop.
+Lifetime witnesses combine supported routine/relation/column rename with
+dependency RESTRICT/CASCADE/drop-recreate routes. A competing function reusing
+the original name must not retarget an installed trigger, including two native
+replacement rounds and unchanged-stream PostgreSQL replay.
+Generated partition CREATE/ATTACH boundaries are asserted explicitly; movement
+semantics use nongenerated partitions, while ordinary-table Ordering covers
+generation after BEFORE transformation.
+Implicit TG type cases use exact overloads under shadow types; WHEN identity
+cases combine overload competition, live column/table rename, two replay rounds,
+portable PostgreSQL replay and one retained DML handle. RI authority cases
+distinguish initiator, referencing owner and function owner through independently
+granted helper/read permissions, including UPDATE and DELETE cascade rollback.
+`PartitionReplace` distinguishes explicit parent replacement from ordinary CREATE
+and ATTACH conflicts, including failed replacement preservation.
+`GeneratedUpdateOf` checks conservative generated-column firing with a
+column-specific BEFORE hook alone and with an earlier broad hook, using exact
+direct/prepared final values rather than runtime changed-value inference.
 
 ## Testing
 
@@ -53,6 +73,7 @@ Add `REFERENCE=1` for the oracle.
 - `regoperator` external boundary: `RUN='^TestReferenceRegOperatorExternalBoundary$'`
 - <a id="routine-parameter-binding"></a>Routine parameter binding: `RUN='^TestReferenceRoutineParameters'`
 - <a id="cast-definitions"></a>CREATE CAST definitions: `RUN='^TestReferenceCastDefinition'`
+- Row-level triggers: `RUN='^TestReferenceTriggerCore'`
 
 ### PL/pgSQL core
 

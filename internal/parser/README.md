@@ -30,6 +30,11 @@ single-statement limit of driver calls) belong to callers.
   never a partial parse.
 - Grammar actions copy semantic values and allocate AST nodes and backing
   slices independently, so no returned AST depends on parser lifetime.
+- Trigger declarations retain explicit timing/row kind, ordered event syntax,
+  positioned WHEN and literal arguments. Parsing does not reinterpret the default
+  statement kind as ROW; execution admits the supported timing and target kind.
+  Timing words require keyword identity: quoted `"before"`/`"after"` are names,
+  not timing syntax, and cannot install definitions.
 
 ### Scratch receivers
 

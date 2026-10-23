@@ -28,6 +28,10 @@ PL bootstrap languages/handlers are validated and omitted, not recreated.
 Altered language authority rejects Dump before writer I/O. Restore compiles PL
 declarations on CREATE, preserves lazy expression binding, and remaps declaration
 source addresses once without converting replay prerequisites into hard edges.
+Row-trigger definitions are post-data SQL groups, after their functions/tables
+and saved rows, so Restore never transforms stored data twice. Partition clones
+are derived through catalog publication rather than serialized independently;
+definition OIDs, parent provenance and WHEN captures remap with the destination.
 
 - **Collect tables** (`collect*.go`): `dumpCollectors` is an ordered list of
   `{name, matches, collect}`. Temporary-namespace objects are skipped, the first
@@ -70,6 +74,10 @@ source addresses once without converting replay prerequisites into hard edges.
   export the feature's dump function and name it at the matching table position.
 - **Adapters** (`resolver.go`, `presenter.go`): `Resolver` (`dump.Resolver`)
   and `Presenter` (`dump.Presenter`) read only their arguments.
+  Unmodified builtin scalar declarations use the existing machine-identity
+  spelling: SQL keyword aliases remain keywords and other names are qualified.
+  Routine overloads and table columns therefore retain builtin identities when
+  replay runs with shadowing domains before `pg_catalog` in `search_path`.
   Extension-member predecessors collapse to their actual owning extension;
   internally owned family rows first collapse to their class. Lifetime comes
   from the extension's target namespace: a missing namespace is invalid, while

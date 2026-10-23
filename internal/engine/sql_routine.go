@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -47,7 +48,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	defer parent.leaveSQLRoutine()
 	e := parent.engine()
 	e.mu.Lock()
-	auth, err := e.authorizationLocked(parent.op)
+	auth, err := parent.routineAuthorizationLocked()
 	if err == nil {
 		var current *catalog.Procedure
 		current, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
@@ -76,6 +77,9 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	e.mu.Unlock()
 	if err != nil {
 		return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
+	}
+	if d.SQL.Trigger {
+		return value, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "trigger functions can only be called as triggers", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", d.Name())}
 	}
 	if d.SQL.Kind == proc.PLpgSQLBody {
 		return parent.invokePLRoutine(d, frame, read, inputCollation)
@@ -219,7 +223,7 @@ func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *s
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: mismatched SQL-standard command capture")
 	}
-	auth, err := e.statementAuthorizationLocked(s.op, program.Action(index).Syntax())
+	auth, err := s.statementAuthorizationLocked(program.Action(index).Syntax())
 	if err != nil {
 		e.mu.Unlock()
 		return err

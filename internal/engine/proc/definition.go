@@ -19,6 +19,7 @@ const (
 // Standard bodies additionally require a checked catalog-owned frozen program.
 type Definition struct {
 	Kind          BodyKind
+	Trigger       bool // PL trigger-call/result contract, never a scalar result.
 	PLSyntax      *parser.PLBlock
 	PL            *PLProgram
 	Source        string
