@@ -219,12 +219,20 @@ func (r engineCatalogRuntime) IndexKey(parent *catalog.Relation, key catalog.Ind
 	return index.CatalogKey(parent, key)
 }
 func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visit func(catalog.Descriptor) error) error {
-	for address, descriptor := range r.sequenceBase.Descriptors() {
-		if err := ctx.Err(); err != nil {
-			return err
+	return visitSequenceOverlay(r.sequenceBase, r.sequenceOwn, ctx.Err, visit)
+}
+
+// visitSequenceOverlay visits the base definitions that own does not
+// override, then own's. A non-nil check runs before each base definition.
+func visitSequenceOverlay(base *catalog.State, own *session.Journal, check func() error, visit func(catalog.Descriptor) error) error {
+	for address, descriptor := range base.Descriptors() {
+		if check != nil {
+			if err := check(); err != nil {
+				return err
+			}
 		}
-		if r.sequenceOwn != nil {
-			if _, overridden := r.sequenceOwn.Descriptors[address]; overridden {
+		if own != nil {
+			if _, overridden := own.Descriptors[address]; overridden {
 				continue
 			}
 		}
@@ -232,8 +240,8 @@ func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visi
 			return err
 		}
 	}
-	if r.sequenceOwn != nil {
-		for _, descriptor := range r.sequenceOwn.Descriptors {
+	if own != nil {
+		for _, descriptor := range own.Descriptors {
 			if err := visit(descriptor); err != nil {
 				return err
 			}
