@@ -4,6 +4,24 @@ Feature notes, newest first. Add a brief entry at the top for consumer-visible
 changes; do not write change notes anywhere else. Entries below the marker were
 moved verbatim from README.md in their original order.
 
+## Domain constraints — change note
+
+`information_schema.domain_constraints` exposes the released eight-column view:
+six nullable `sql_identifier` identity columns (public NAME metadata), followed
+by two nullable `yes_or_no` flags (VARCHAR(3)). Actual own domain CHECK and
+NOT NULL definitions supply rows; inherited constraints remain on their owning
+domain. Duplicate constraint names retain distinct domain identities, while
+table CHECKs and unconstrained domains contribute no rows.
+Visibility follows enabled domain ownership or effective type USAGE, without
+a schema-USAGE or search-path filter. ADD/DROP, validation, rename, schema move,
+ownership and ACL changes refresh normal direct and prepared reads. Both
+deferrability flags are NO; NOT VALID and validation do not change this
+projection. No expression, validation or constraint-kind column is invented.
+Native Reset/Restore recomputes rows from real metadata; returned native Rows
+retain their original cells and types.
+See [semantics and boundaries](internal/engine/pgcatalog/README.md#domain-constraints)
+and [selected proof and smoke](reference/catalogs/README.md#domain-constraints).
+
 <!-- moved from README.md -->
 
 ## External routine languages — change note

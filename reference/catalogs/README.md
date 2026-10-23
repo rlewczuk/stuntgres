@@ -139,3 +139,48 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `RUN='^TestReference(CatalogCore|CatalogControls|Control(Failed|Snapshot)|TransactionNativeControls|Smoke)'`
 - Engine units use the family names without `Reference`, for example
   `make check RUN='^TestPGDepend'` or `make check RUN='^TestPGOperator'`.
+
+### Domain constraints
+
+The seven `TestReferenceInfoDomainConstraints` definitions prescribe the exact
+released eight columns, nullable logical sql_identifier/yes_or_no identity,
+NAME/VARCHAR(3) driver metadata/raw transport and row/array relationships.
+Actual own CHECK/NOT NULL rows include genuine bootstrap recipes. Duplicate
+constraint names retain distinct domains; table checks, inherited definitions
+and unconstrained domains do not create rows. Empty/false/NULL/nil-parameter
+predicates keep the complete description through direct/prepared execution,
+EOF and Close.
+
+Visibility covers enabled owner roles, direct/inherited/PUBLIC type USAGE,
+grant options, NOINHERIT/SET-only membership, actual SET ROLE, superuser and
+owner/ACL refresh on the same held statement. Schema USAGE is neither sufficient
+nor necessary for this view. Lifecycle assertions check full bags after
+ADD/NOT VALID/VALIDATE/DROP, SET/DROP NOT NULL, rename/move/drop and failures.
+All projected flags remain NO; validation is separately witnessed through
+pg_constraint. Complete English diagnostics and failure stages include missing
+columns/constraints, duplicates, ownership and stored-data validation.
+
+The controls definition runs shared SQL acceptance in both modes, then native
+Dump/Reset/Restore, fresh-driver restore, retained eager data/types and failed
+or canceled restore/read atomicity. PostgreSQL transactional ALTER followed by
+rollback is distinct from native's existing explicit-transaction capability
+diagnostic; this view does not widen DDL admission.
+See the [projection and visibility contract](../../internal/engine/pgcatalog/README.md#domain-constraints).
+
+```sh
+make check RUN='^TestReferenceInfoDomainConstraints(Shape|Population|Visibility|Lifecycle|Diagnostics|NativeControls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceInfoDomainConstraints(Shape|Population|Visibility|Lifecycle|Diagnostics|NativeControls|FeatureSmoke)$'
+make check RUN='^TestInfoDomainConstraints(Producer|Capture|Cancellation)$'
+make check RUN='^TestCatalogSourceProducerCoverage$'
+make check RUN='^TestReferenceInfoDomainConstraintsFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceInfoDomainConstraintsFeatureSmoke$'
+```
+
+Expected smoke behavior: exactly three initial full identity rows (two same-name
+CHECKs and one own NOT NULL), then a fourth NOT VALID CHECK row; validation
+leaves the bag unchanged and selected DROP removes only its actual row. The
+same held consumer omits a domain after PUBLIC USAGE revocation and includes it
+after direct type USAGE without schema USAGE. Typed empty NULL/nil predicates
+and full42703/Position8 missing-column diagnostics finish the scenario.
+These are proof commands and expected observations, not a passing-check claim.
+

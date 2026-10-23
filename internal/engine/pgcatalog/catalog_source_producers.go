@@ -86,6 +86,7 @@ var producers = [...]Registration{
 	{InfoEnabledRolesOID, captureInfoEnabledRoles},
 	{InfoViewTableUsageOID, captureInfoViewTableUsage},
 	{InfoColumnColumnUsageOID, captureInfoColumnColumnUsage},
+	{InfoDomainConstraintsOID, captureInfoDomainConstraints},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

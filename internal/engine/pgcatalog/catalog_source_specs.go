@@ -743,4 +743,14 @@ var Specs = [...]Spec{
 		{"column_name", 13248, true, 950, 0, -1},
 		{"dependent_column", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing column column usage domain"},
+	{InfoDomainConstraintsOID, 13229, "domain_constraints", []ColumnSpec{
+		{"constraint_catalog", 13248, true, 950, 0, -1},
+		{"constraint_schema", 13248, true, 950, 0, -1},
+		{"constraint_name", 13248, true, 950, 0, -1},
+		{"domain_catalog", 13248, true, 950, 0, -1},
+		{"domain_schema", 13248, true, 950, 0, -1},
+		{"domain_name", 13248, true, 950, 0, -1},
+		{"is_deferrable", 13256, true, 950, 0, -1},
+		{"initially_deferred", 13256, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing domain constraint domain"},
 }

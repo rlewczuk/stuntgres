@@ -4,7 +4,7 @@ Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` views (`table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
-`character_sets`, `enabled_roles`, `view_table_usage`). Each
+`character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`). Each
 producer is a pure function from a captured catalog, a paired role read and a
 narrow runtime capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -157,6 +157,50 @@ authority, never the recorded `Version`.
 - `character_sets`: one current-database UTF8 row; encoding and locale facts
   are shared with `pg_database`.
 
+## Domain constraints
+
+`information_schema.domain_constraints` has exactly eight ordered nullable
+domain columns: `constraint_catalog`, `constraint_schema`, `constraint_name`,
+`domain_catalog`, `domain_schema`, `domain_name` are
+`information_schema.sql_identifier` over NAME; `is_deferrable` and
+`initially_deferred` are `information_schema.yes_or_no` over VARCHAR(3).
+Logical attribute typmods are -1, with C collation; real rows have eight
+non-NULL cells. Both catalogs name the current database, and both flags are NO
+for current CHECK/NOT NULL definitions. Empty, false and NULL predicates retain
+the same description without placeholder rows.
+
+Rows project actual domain-owned CHECK and own NOT NULL definitions. Inherited
+definitions remain on their original domain; unconstrained domains, table
+CHECKs and name-like expression text manufacture no rows. Distinct domains can
+share a constraint name. NOT VALID CHECKs appear normally; validation changes
+`pg_constraint.convalidated`, not this view. The released view has no expression,
+validation, enforcement or constraint-kind columns.
+
+The PUBLIC-readable relation filters each domain by enabled owner membership
+or effective type USAGE, including direct, inherited and PUBLIC grants and
+actual superuser authority. Schema USAGE alone is insufficient, while type
+USAGE without schema USAGE is sufficient for this metadata view. Search paths
+and TEMP ownership add no filters. NOINHERIT/SET-only membership does not enable
+ownership until SET ROLE. Hidden domains are omitted successfully, not exposed
+as NULL identities or permission errors.
+
+Fresh direct/prepared and held executions use current catalog/role captures
+after supported ADD/DROP/VALIDATE, NOT NULL, rename, schema move, owner/ACL and
+domain-drop changes. Failed DDL preserves prior rows. Native replay rebuilds
+the metadata from real definitions; returned eager native rows retain their
+original data/types. Existing ALTER DOMAIN explicit-transaction and validation
+boundaries remain unchanged; no adjacent DDL or information-schema view is added.
+
+`info_domain_constraints.go` reads captured type records directly, not a
+reconstructed pg_constraint query or inherited recipe traversal. Source-owned
+sql_identifier/yes_or_no cells retain canonical base-generation authority.
+The engine pairs catalog/role/session authority, validates exact source
+identity and wraps rows through the ordinary catalog source path. Successful
+empty capture is nonnil; cancellation or malformed authority/shape returns no
+partial rows. Native relation identity16211 is independent of PostgreSQL's
+allocator-dependent view OID.
+See [selected proof and smoke](../../../reference/catalogs/README.md#domain-constraints).
+
 ## Testing
 
 Package units here run without an engine. Producer behavior tests need an
@@ -174,3 +218,13 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - Large objects: `RUN='^TestReferenceLargeObject'`
 - Settings view: `RUN='^TestReferenceStatisticsSettings'`
 - Transforms: `RUN='^TestReferencePGTransform'`
+
+### Domain constraints
+
+```sh
+make check RUN='^TestInfoDomainConstraints(Producer|Capture|Cancellation)$'
+make check RUN='^TestCatalogSourceProducerCoverage$'
+make check RUN='^TestReferenceInfoDomainConstraints(Shape|Population|Visibility|Lifecycle|Diagnostics|NativeControls|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoDomainConstraints(Shape|Population|Visibility|Lifecycle|Diagnostics|NativeControls|FeatureSmoke)$' REFERENCE=1
+```
+
