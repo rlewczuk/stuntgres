@@ -1022,11 +1022,11 @@ Outstanding aliases: none (30a, 30c, 30d, 30e, 30f and 30g added none).
   validation loop stay with the install loop. Settled by 30g: the three
   checks are in `control`, the root composes the relation check with the
   typed check.
-- 30g: typedef 15f (item 147) moves `checkTemporaryTypedReplacementLocked`
-  into `typedef`; it then replaces the second call in the root composition
+- 30g: done by typedef 15f (item 147): the root composition
   `checkTemporaryRelationSourcesReplacementLocked`
-  (`temporary_preservation.go`) and keeps `control` free of the typed
-  check.
+  (`temporary_preservation.go`) now calls
+  `typedef.CheckTemporaryTypedReplacementLocked(e.catalog.state)` second,
+  and `control` stays free of the typed check.
 - 30d: `dump_capture.go` is now only the lock window. Its two remaining
   engine-only steps are `validateTemporaryCollationDump` (needs
   `BeginCatalogStage` for `domainDependencyClosure`) and the

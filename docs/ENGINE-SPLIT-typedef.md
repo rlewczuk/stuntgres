@@ -370,6 +370,10 @@ are presentation and go to `stored` (22b); `typed_inheritance.go` and
 
 ### 15f — ALTER type resolvers, domain replay and scalar import (linear item 147)
 
+Done; see 15f in Status (deviation: the replay transport holds a
+`typedef.DomainReplayLiteral`, and the root builds the plan literal at the
+binder seam). The plan below is kept as the record.
+
 Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
 §6 "Fourth round"), measured at `4c05da8fe`. Needs —.
 
@@ -688,7 +692,90 @@ Part B: the type DDL handlers live in `typedef`. The checks in §8.3 pass.
     and `TestReferenceCompositeExprCorrelatedReturning/postgres` fail (as in
     15a–15d; every stuntgres subtest passes). No bench: startup is not
     touched. Racecheck and finalcheck skipped at user request.
-- [ ] 15f — ALTER type resolvers, domain replay and scalar import (linear item 147)
+- [x] 15f — ALTER type resolvers, domain replay and scalar import moved
+  (linear item 147) (`dc235f1af`, `22252f20c`, `a30da2ad0`, `f7d1bfb50`,
+  then the docs commit) *(racecheck/finalcheck skipped at user request)*
+  - Measured with the 11a `reach` at `87554e0f7`: the two resolvers,
+    `restoreDomainReplayNode`, `importScalarTypesLocked` and
+    `checkTemporaryTypedReplacementLocked` were dirty only through `Engine`
+    (namespace lookup, `e.catalog.Domain`, the binder, the enum member
+    allocator, `e.catalog.state`) and `captureDomainReplay` through
+    `StatementScope`; `refreshScalarImportDestinations` and
+    `expressionUsesCompositeField` were clean. About 0.33k lines moved, as
+    planned.
+  - `dc235f1af` (resolvers): `typedef.ResolveAlterEnumLocked` and
+    `ResolveAlterDomainLocked` (`alter_resolve.go`) over `ddl.Host`
+    (`SearchNamespaces`, `AccessView`) and `ddl.Authority`
+    (`ReferencePath`, `ddl.Check`, `ddl.ObjectRef`); the cleared schema-part
+    position is one helper, `utilityLookupName`. Each swap is the same call:
+    `ddlHost.SearchNamespaces` runs `lookupNamespaces` with `TypeLookup`,
+    `View.Owner` is the catalog store's owner, and `ReferencePath` is
+    `referencePath`. `executeEnumDDL` and `executeAlterDomain` pass a
+    stage-less `ddlHost` in the windows before the stage exists, and
+    `executeEnumDDL` reuses one staged host for its three typedef calls.
+  - `22252f20c` (domain replay, `domain_replay_restore.go`):
+    `typedef.DomainReplayEnv` (context, catalog, input and output
+    environments, and the `Scalar` callback), `DomainReplayProvenance` and
+    `DomainReplayDomainNull`, `RestoreDomainReplayNode` (the structural walk,
+    the scalar `SELECT` parse and shape check, then the callback, then the
+    NULL and type check) and `DomainReplayCells` (the cell-to-slot checks).
+    The root keeps the replay authority, target, identity and owner checks,
+    the insert slots (`analyze.BindInsertTargets` and the width checks), the
+    evaluation context, `scope.routineAuth` and the transport;
+    `Engine.domainReplayEnv` builds the env, and its callback is the old
+    leaf (`view.MaterializedSnapshotScalar`, binding under `Engine.mu`,
+    evaluation in a local context copy).
+  - `a30da2ad0` (scalar import): `typedef.ImportScalarTypesLocked` with the
+    enum member allocator as a callback (the 30f `TemporaryCollisionMapping`
+    shape; same iteration, so member IDs keep their order) and
+    `RefreshScalarImportDestinations` (`scalar_import.go`);
+    `CheckTemporaryTypedReplacementLocked(state)` (`typed_control.go`). The
+    root files `scalar_import.go` and `typed_control.go` are gone.
+  - `f7d1bfb50` (secondary): `plan.ExpressionUsesCompositeField` next to
+    `ExpressionChildren` (`expression_walk.go`).
+  - Deviations: the transport holds `typedef.DomainReplayLiteral` (the
+    literal's `expr.Info` and value), and `capturedDomainReplayCell` builds
+    the `plan.LiteralExpr`, so `typedef` imports nothing new (no `plan`).
+    The root `restoreDomainReplayNode` keeps no wrapper: besides
+    `captureDomainReplay` only tests called it.
+  - Tests: new seam test `TestRestoreDomainReplayScalarLeaf`
+    (`typedef/domain_replay_restore_test.go`), written first and observed
+    failing: the callback gets the parsed target and the leaf usage, a
+    non-scalar `SELECT` never reaches it, NULL or mistyped results and
+    cancellation are rejected. Adapted mechanically:
+    `domain_default_restore_test.go`, `geometry_conversion_replay_test.go`
+    and `geometry_conversion_mixed_replay_test.go` (the walk through
+    `typedef.RestoreDomainReplayNode(e.domainReplayEnv(...), ...)`) and
+    `domain_alter_default_nullability_test.go` (the resolver). None moved or
+    deleted.
+  - Verification: `make build` after every commit; the targeted
+    engine, `typedef` and `plan` units after every commit (the resolver,
+    domain ALTER, enum, `TestDDLHost`, domain default replay, geometry
+    replay, citext/cube/intarray provider, `TestPGEnum*`, typed TEMP, the
+    inheritance and operator-index TEMP collision, `TestPGAggregateIntagg*`
+    and composite ALTER tests, 109 in all) with the quick reference
+    selections of each area; `go vet` (only the existing `composites` and
+    `copylocks` findings, none in touched files). The production
+    string-literal multiset of `internal/engine` equals the base's, and no
+    reference fixture names a moved frame. Layering: no engine subpackage
+    imports the engine, and the `typedef` and `plan` import sets are
+    unchanged. `make quickcheck` passed on `08f9c8987`. After the final
+    rebase onto `bf6a63058` (a `pgcatalog` feature commit touching none of
+    these files) it passed except for one load-timing failure,
+    `TestAlterNullabilityReviewOwnedSequenceReplacement` (a 3-second wait
+    around a concurrent Restore), which passed 3/3 alone. Control 30g
+    (`d3e92b66b`) then landed first; rebasing onto it conflicted only in
+    the control README and the status page. The root composition
+    `checkTemporaryRelationSourcesReplacementLocked` now calls
+    `control.CheckTemporaryRelationSourcesLocked`, then
+    `typedef.CheckTemporaryTypedReplacementLocked`. Build, the targeted
+    units (plus the `control` TEMP and admission tests) and `make
+    quickcheck` passed on that base. With `REFERENCE=1` the 119-test selection
+    `^TestReference(EnumAlter|DomainAlter|DomainDefault|DomainNullability|TypedTable|CompositeAlter|AlterTypeNativeRoundTrip|EnumOwnerAndTemporaryRemapping|CitextTemporary|DumpRound)`
+    passed with no failures. `make deps`: module paths only. No `make
+    bench`: startup is not touched. AGENTS.md: 100 lines, untouched.
+    Integration tips: branch start `87554e0f7`, rebased onto `08f9c8987`,
+    `bf6a63058` and `d3e92b66b`. Racecheck and finalcheck skipped at user request.
 
 Outstanding aliases: none (15b qualified every reference; no type aliases).
 
@@ -725,6 +812,11 @@ Notes for later steps:
 - 13b: the domain, typed-table and enum slots exist; skip them. The journal
   fence list of 13b item 2 must keep `domainJournal.validations` first in
   `catalogReadPreflightLocked`.
+- Control 30g (item 148) merged first and moved the inheritance part of
+  the relation check to `control.CheckTemporaryRelationSourcesLocked`; the
+  root composition `checkTemporaryRelationSourcesReplacementLocked` now
+  runs it, then `typedef.CheckTemporaryTypedReplacementLocked(state)`, so
+  `control` never calls the typed check (§6 "Fourth round").
 - `reference/type_resolution/comparison-ledger.md` still names
   `internal/engine/types.go` for the declaration/cast storage rules, which
   are now in `type_resolution.go`; `reference/` is read-only during the

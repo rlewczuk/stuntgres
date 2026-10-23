@@ -5,7 +5,8 @@ composites and typed tables, collations and conversions. Part A of step 15
 moved the records, validation, Dump/Restore and remap helpers here; Part B
 (15d) moved the DDL stage handlers, which reach the engine through
 `StageHost`; 15e moved the type dump statements, which render through
-`dump.Presenter`. The package sits at layer L9 of
+`dump.Presenter`; 15f moved the ALTER ENUM/DOMAIN resolvers, the native
+domain replay walk and the scalar-type import of catalog replacement. The package sits at layer L9 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access`, `authorization`, `catalog`, `ddl` (the shared
 host contract), `dump` (dump records and the `Presenter`), `expr`, `ids`,
@@ -26,6 +27,10 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
   `StageAlterDomainLocked` (`domain_edit_stage.go`, returning a
   `DomainEdit` with explicit none/CHECK/NULLness validation) stage one
   ALTER TYPE ... VALUE or ALTER DOMAIN action; executors stay in the engine.
+  `ResolveAlterEnumLocked` and `ResolveAlterDomainLocked` (`alter_resolve.go`)
+  resolve the target type in PostgreSQL's order (existence, kind, ownership;
+  ALTER DOMAIN reads the reference path before the kind check) over
+  `ddl.Host`, using only `SearchNamespaces` and `AccessView`.
   Pure domain identity staging uses `StageHost.ReplaceDomainIdentity` to preserve
   the existing executable analysis stamp while advancing descriptor revisions.
   Ordinary replacement invalidates by default; OWNER stays with the role owner.
@@ -45,8 +50,13 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
   `DomainValidationFence`, `DomainGraphEqual`, `DomainHistoricalViolation`;
   `domain_alter_discovery.go`); the Dump/Restore replay codec
   (`DomainReplay*`, `EncodeDomainReplay`, `DecodeDomainReplay`,
-  `PairDomainReplay`; `domain_replay_codec.go`) and replay names
-  (`domain_replay_names.go`); generation reownership (`ReownDomainTypes`,
+  `PairDomainReplay`; `domain_replay_codec.go`), its reconstruction
+  (`domain_replay_restore.go`: `RestoreDomainReplayNode` walks the domain,
+  NULL, array, composite and scalar `SELECT` shapes over a `DomainReplayEnv`
+  whose `Scalar` callback binds and evaluates the leaf, returning
+  `DomainReplayProvenance`; `DomainReplayCells` checks each captured cell
+  against its insert slot and requires authentic domain-NULL provenance) and
+  replay names (`domain_replay_names.go`); generation reownership (`ReownDomainTypes`,
   `ReownDomainDatum`; `domain_reown.go`); `TypeDefault`, `DefaultDomainACL`,
   captured input providers (`domain_input.go`) and
   the restored-owner record (`domain_owner_restore.go`).
@@ -67,6 +77,14 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
   `SynchronizeRowTypeMetadata` (`row_type.go`; table 24b moved it here), the typed-table shape checks (`typed_shape.go`), the
   typed inheritance plan helpers (`TypedShapeActions`,
   `FinishTypedInheritance`, `TypedSortedAddresses`) and `TypedColumnAction`.
+- **Catalog replacement** (`scalar_import.go`, `typed_control.go`):
+  `ImportScalarTypesLocked` gives an imported candidate's enum, `query_int`,
+  `cube` and `citext` types their destination codecs, with enum members from
+  the engine's allocator callback in member order (so Dump stays
+  byte-identical); `RefreshScalarImportDestinations` repoints the imports
+  after reconstruction; `CheckTemporaryTypedReplacementLocked` rejects a
+  replacement while a TEMP typed table of the published state has a
+  persistent OF type.
 - **Type helpers** (`types.go`, `usage_dependency.go`):
   `CanonicalDeclarationTypeName`, `RelationTypeNameOccupied`,
   `StoredArrayElement`, `TypeDiagnostic`, `UnsupportedColumnType`,
@@ -126,6 +144,12 @@ type methods. The engine implements it on its one staging adapter,
 - **No locks, no engine state.** The package has no mutex and reads the
   catalog only through `catalog.Read`/`catalog.State`. The engine
   synchronizes the slots it holds, as it did before the move.
+- **Lock contract of the moved decisions.** `ResolveAlter*Locked`,
+  `ImportScalarTypesLocked` and `CheckTemporaryTypedReplacementLocked` run
+  with `Engine.mu` held and take no lock; the allocator callback runs under
+  the caller's lock. `RestoreDomainReplayNode` and `DomainReplayCells` run
+  without `Engine.mu`, because the engine's `Scalar` callback takes it to
+  bind the leaf.
 - **Slots are owned by the engine.** `CatalogStage` and the journal
   (`session.Journal`) hold the slots; the engine allocates them
   (`domainAlterState`, `typedState`, and the journal slots through
@@ -147,10 +171,16 @@ type methods. The engine implements it on its one staging adapter,
 
 The `ddlHost` type methods (`typedef_host.go`) and the schema statement
 dispatch (`schema.go`); the self-orchestrating executors (`executeEnumDDL`,
-`executeAlterDomain`, `executeAlterComposite`, `alterTableOfLocked`) and the
-resolvers `resolveAlterEnumLocked`/`resolveAlterDomainLocked`, which hold
-the lock windows, lock-manager waits, row validation and publication; the
-enum journal updates; `type_generation.go` and `enum_generation.go`
+`executeAlterDomain`, `executeAlterComposite`, `alterTableOfLocked`), which hold
+the lock windows, lock-manager waits, row validation and publication (they
+pass a stage-less `ddlHost` to the resolvers before the stage exists); the
+enum journal updates; the native replay INSERT (`domain_default_restore.go`:
+the replay authority, target and owner checks, the insert slots from
+`analyze.BindInsertTargets`, the scalar leaf built by
+`Engine.domainReplayEnv`, which binds under `Engine.mu` and evaluates in a
+local context, and the operation transport the destination binder reads);
+the TEMP preservation orchestrator, which calls the scalar import with
+`catalogStore.allocateEnumMemberLocked`; `type_generation.go` and `enum_generation.go`
 (publication-time reownership); domain index generations
 (`domain_alter_indexes.go`; the output reownership they call is
 `index.ReownDomainIndexOutputs`); journal capture (`domain_alter_message.go`);
@@ -184,7 +214,7 @@ unrelated captured cells remain rejected.
 Package seams:
 
 ```sh
-make check RUN='^(TestBuiltinConversionProcedures|TestBuiltinDomainSeeds|TestDomainDefaultReplayPairingInternal|TestPGEnumSortInsertion|TestCatalogTypeJournalSlotsCopyOnWrite)$'
+make check RUN='^(TestBuiltinConversionProcedures|TestBuiltinDomainSeeds|TestDomainDefaultReplayPairingInternal|TestPGEnumSortInsertion|TestCatalogTypeJournalSlotsCopyOnWrite|TestRestoreDomainReplayScalarLeaf)$'
 ```
 
 The selected default/nullability stage, snapshot, NN-only remap and publication
@@ -219,6 +249,15 @@ Engine witnesses that use the package through the catalog and DDL:
 
 ```sh
 make check RUN='^(TestDomainDefaultReplayAdmissionInternal|TestPGEnumAllocatorBounds|TestTypedTemporaryReplacementAdmission|TestConversionDescriptorCreateAndMoveUniqueness)$'
+```
+
+`TestRestoreDomainReplayScalarLeaf` pins the scalar callback contract (the
+parsed target and leaf usage, shape rejection before the callback, NULL or
+mistyped results, cancellation). The engine replay witnesses run the walk
+with the real leaf (`Engine.domainReplayEnv`):
+
+```sh
+make check RUN='^(TestDomainDefaultReplay(Admission|DeferredChecks|RoutineManifest)Internal|TestGeometryConversion(ReplayShapes|MixedReplayProvenance|MixedReplayBoundedRow))$'
 ```
 
 The dump statements (`TestCollationDumpLosslessBootstrapSelection` calls

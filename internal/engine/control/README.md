@@ -171,9 +171,10 @@ it. It holds no mutex, no engine pointer and no state between calls. Step
   catalog, which the caller holds under `Engine.mu`.
   `CheckTemporaryRelationSourcesLocked(current)` rejects a retained TEMP
   table with a persistent inheritance parent
-  (`TemporaryInheritanceReplacementError`); the root runs it, then its
-  typed-table check, at replacement preallocation, at final replacement
-  admission and first in `preserveTemporaryLocked`.
+  (`TemporaryInheritanceReplacementError`); the root runs it, then
+  typedef's typed-table check (`CheckTemporaryTypedReplacementLocked`), at
+  replacement preallocation, at final replacement admission and first in
+  `preserveTemporaryLocked`.
   `CheckTemporaryRuleSourcesLocked(current)` rejects a retained TEMP rule
   that depends on an object outside its session's temporary namespace
   (pinned builtins aside). `RetainTemporaryViewProvidersLocked(current,
@@ -211,9 +212,14 @@ implements it:
   preservation orchestrator (`preserveTemporaryLocked`): it holds
   `Engine.mu`, calls the phases above and keeps the steps that need the
   engine or its stage: `retainDatabaseLocked`, the composition of the
-  relation source check with the typed-table check
-  (`checkTemporaryRelationSourcesReplacementLocked`), the scalar and
-  domain imports, `repairRemappedGenerationsLocked`, the installation
+  relation source check with typedef's typed-table check
+  (`checkTemporaryRelationSourcesReplacementLocked` runs
+  `CheckTemporaryRelationSourcesLocked`, then
+  `typedef.CheckTemporaryTypedReplacementLocked` over the published state),
+  the calls to typedef's scalar and domain imports
+  (`ImportScalarTypesLocked` with the engine's enum member allocator,
+  `ReownDomainTypes`, `RefreshScalarImportDestinations`),
+  `repairRemappedGenerationsLocked`, the installation
   of the live TEMP descriptors and storage (with the stage lock), the TEMP
   policy and rule ref refresh, and the final validation.
 - The restore stage (`restoreStage` in `principal_remap.go`) and the atomic

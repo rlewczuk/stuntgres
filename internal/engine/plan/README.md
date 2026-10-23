@@ -48,8 +48,9 @@ It imports only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`,
   literal NULL under transparent collation and coercion nodes; the engine's
   column-default elision uses it (moved here in catalog 5i).
 - **Walkers** shared by binding and execution: `WalkExpression`,
-  `ExpressionChildren`, `WalkDemandedExpression` and
-  `LiteralSearchedCaseMatch` (`expression_walk.go`);
+  `ExpressionChildren`, `WalkDemandedExpression`,
+  `LiteralSearchedCaseMatch` and `ExpressionUsesCompositeField` (the field
+  dependency test of composite ALTER; typedef 15f) (`expression_walk.go`);
   `RewriteQueryExpressions`, `VisitExecutableQuery`, `VisitCTEQuery`,
   `QueryInputs` and `QueryExpressions` (`query_walk.go`);
   `FunctionFromConjuncts`, `FunctionFromRestriction`,
