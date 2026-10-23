@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -453,12 +452,6 @@ func (c *Context) Sequence(request functions.SequenceRequest) (int64, error) {
 		return 0, fmt.Errorf("stuntgres: sequence call lacks statement authority")
 	}
 	return host.Sequence(request)
-}
-
-type IdentitySnapshot struct {
-	Database, Current, Session, System sqltype.Value
-	CurrentMissing, SessionMissing     authorization.PrincipalRef
-	CurrentPrincipal                   authorization.PrincipalRef
 }
 
 func (c *Context) IdentityValue(kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
