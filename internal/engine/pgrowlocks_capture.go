@@ -1,12 +1,6 @@
 package engine
 
 import (
-	"context"
-	"fmt"
-	"math"
-
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -19,37 +13,6 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-func pgrowlocksLogicalTID(version ids.VersionID) (uint32, uint16, error) {
-	if version == 0 || uint64(version) > uint64(math.MaxUint32)*65535 {
-		return 0, 0, fmt.Errorf("stuntgres: logical row version exceeds tid range")
-	}
-	n := uint64(version) - 1
-	return uint32(n / 65535), uint16(n%65535 + 1), nil
-}
-
-func pgrowlocksTable(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation) error {
-	if d.RelationKind == catalog.PartitionedRelation {
-		return &sqlstate.Error{
-			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809",
-			Message: fmt.Sprintf(`"%s" is a partitioned table`, d.Name()),
-			Detail:  "Partitioned tables do not contain rows.",
-		}
-	}
-	if d.RelationKind != catalog.TableRelation {
-		return sqlError("42809", fmt.Sprintf(`"%s" is not a table`, d.Name()))
-	}
-	// Every represented native ordinary storage relation uses heap. There is no
-	// table-AM descriptor or public native CREATE ACCESS METHOD authority.
-	inherited, err := auth.Roles.InheritsRole(auth.State.CurrentUser, auth.Owner.Principals.Principal(authorization.StatScanTablesRoleID))
-	if err != nil {
-		return err
-	}
-	if inherited {
-		return nil
-	}
-	return auth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege})
-}
 
 // Pgrowlocks materializes once, with no manager calls under Engine.mu. The
 // relation lock is an exact, temporary contribution rather than SELECT's normal
@@ -126,7 +89,7 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 		err = s.pgrowlocksReadmitLocked(e, auth, name, ref, descriptor, stored)
 	}
 	if err == nil {
-		err = pgrowlocksTable(auth, ref, descriptor)
+		err = exec.CheckPgrowlocksTable(auth.View, auth, ref, descriptor)
 	}
 	var view *visibility.View
 	local := false
@@ -150,7 +113,7 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 	if local {
 		defer view.Release()
 	}
-	tuples, err := pgrowlocksPrefix(s.op.Context(), view, ref)
+	tuples, err := exec.PgrowlocksPrefix(s.op.Context(), view, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -166,27 +129,7 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 	if !valid {
 		return nil, ids.ErrCatalogReplaced
 	}
-	return pgrowlocksValues(s.op.Context(), result, records)
-}
-
-func pgrowlocksPrefix(ctx context.Context, view *visibility.View, ref ids.ObjectRef) ([]lock.PgrowlocksTuple, error) {
-	source, err := exec.CaptureSource(ctx, view, ref)
-	if err != nil {
-		return nil, err
-	}
-	defer source.Close()
-	tuples := make([]lock.PgrowlocksTuple, source.Count())
-	for i := range tuples {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		version := source.VersionAt(source.RawIndex(i))
-		tuples[i] = lock.PgrowlocksTuple{
-			Tuple:            lock.MultiTuple{Resource: lock.Resource{ObjectRef: ref, Row: version.Row}, Version: version.Version},
-			PrivateInsertion: version.Born == 0,
-		}
-	}
-	return tuples, nil
+	return exec.PgrowlocksValues(s.op.Context(), result, records)
 }
 
 // Engine.mu is held; an admission wait never rebinds the lexical name to a

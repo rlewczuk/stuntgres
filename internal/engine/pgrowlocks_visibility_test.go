@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -49,7 +50,7 @@ func pgrowlocksVisibilityUnits(t *testing.T) {
 			t.Helper()
 			view := visibility.NewView(data)
 			defer view.Release()
-			prefix, err := pgrowlocksPrefix(context.Background(), view, ref)
+			prefix, err := exec.PgrowlocksPrefix(context.Background(), view, ref)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -164,7 +165,7 @@ func pgrowlocksDynamicSnapshotUnits(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer local.Release()
-			prefix, err := pgrowlocksPrefix(context.Background(), local, targetRef)
+			prefix, err := exec.PgrowlocksPrefix(context.Background(), local, targetRef)
 			if err != nil || len(prefix) != 1 || prefix[0].Tuple.Version != versions[0].Version || local.Load().Frontier != frontier || scope.view != first {
 				t.Fatal("dynamic target resampled frontier/root or replaced outer view", prefix, err)
 			}
