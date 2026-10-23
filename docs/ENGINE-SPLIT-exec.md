@@ -292,6 +292,10 @@ that can move with the family.)
 
 ### 11g — Runtime source values (linear item 144)
 
+Done; see "11g result" in Status (deviation: the `pg_sequences` rows read a
+fresh cancellation check, not one captured context). The plan below is kept
+as the record.
+
 Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
 §6 "Fourth round"), measured at `4c05da8fe`. Needs —.
 
@@ -392,7 +396,9 @@ names no `exec.Context` internals: DML executors open their inputs through
 - [x] 11f — Preflight moved (linear item 76) (`78e557fef`, `f1287c2c4`,
   `013311667`, then the docs commit) *(racecheck/finalcheck skipped at
   user request)*
-- [ ] 11g — Runtime source values (linear item 144)
+- [x] 11g — Runtime source values moved (linear item 144) (`ea13f92d6`,
+  `97abd0c6f`, `ab8a2d1b4`, then the docs commit) *(racecheck/finalcheck
+  skipped at user request)*
 
 Outstanding aliases: none. The engine, the root driver and `cmd/stuntgres`
 name the `exec` types directly.
@@ -942,3 +948,84 @@ Notes for later steps:
   `pruneQuoteCaptures` (`string_variadic_capture.go`) still reads
   `viewOf` and the view definition's quote revision, so it goes with
   `stored`.
+
+### 11g result
+
+Measured and built at `03993410b`, rebased onto `0de988fe1` and then
+`984dbed36` (two feature commits and a `docs/TESTING.md` change; none
+touches the moved files). Scratch files:
+`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-RUNTIME-SOURCE-VALUES/` (`lits.sh`,
+`docs-edit.py`, the logs) and the 11a `reach`.
+
+- **Measurement.** `reach` over `pgrowlocks_values.go`,
+  `pgrowlocks_capture.go`, `session_identity.go` and `pg_sequences.go`:
+  `pgrowlocksLogicalTID`, `pgrowlocksPrefix`, `pgrowlocksTable`,
+  `pgrowlocksMode` and `pgrowlocksValues` clean; `captureIdentityLocked` and
+  `capturePGSequencesLocked` dirty only through `StatementScope` (the
+  database name; the owner's catalogs, the session token and the inquiry
+  roles).
+- **pgrowlocks** (`ea13f92d6`): `exec/pgrowlocks.go` holds
+  `PgrowlocksLogicalTID`, `PgrowlocksPrefix`, `PgrowlocksValues` and
+  `CheckPgrowlocksTable(view, env, ref, d)`, which reads the `access.View`
+  and checks SELECT with `view.Check(env, ...)`. The root passes `auth.View,
+  auth`: the same view and environment `AuthorizationView.Check` used.
+  `pgrowlocks_values.go` is gone; `statementHost.Pgrowlocks` (name
+  resolution, the relation lock wait, the `Engine.mu` and `owner.Mu`
+  windows) and `pgrowlocksReadmitLocked` stay.
+- **Identity** (`97abd0c6f`): `exec/identity.go` holds `IdentitySnapshot`
+  (moved from `context_runtimes.go`), `CaptureIdentity(read, roles, state,
+  database)` and the kind switch `IdentitySnapshot.Value`.
+  `captureIdentityLocked` stays as a wrapper for its eight production
+  callers and still assigns the snapshot only on success. `IdentityValue`
+  applies the authority-expression and foreign-action overrides first (same
+  error order), keeps the current-schema branch and calls `Value` for every
+  other kind.
+- **pg_sequences** (`ab8a2d1b4`):
+  `pgcatalog.CapturePGSequences(PGSequencesInput)`
+  (`pgcatalog/pg_sequences.go`) builds the rows and returns their sequence
+  addresses. The root keeps the base and overlay choice, the namespace
+  lookup closure, the refs (appended from nil, as before) and the
+  `exec.Source`; `CompletePGSequence` is unchanged. `pgcatalog` imports
+  nothing new and not `session`.
+- **Deviation: a fresh cancellation check.** The plan reused
+  `VisitSequenceDefinitions(ctx, ...)`, which checks one captured context.
+  `capturePGSequencesLocked` read `scope.op.Context()` afresh for each
+  definition, and while COPY input is held that context becomes a masked one
+  once a protocol cancel is pending, so a captured context could report a
+  cancel the original masks. `PGSequencesInput` takes an `Err` check instead
+  (the root passes a closure over `scope.op.Context()`), and the overlay
+  loop became `visitSequenceOverlay(base, own, check, visit)`:
+  `VisitSequenceDefinitions` passes `ctx.Err` (unchanged), `pg_sequences`
+  passes no walk check (as before).
+- **Tests.** `TestPgrowlocksLogicalTID` moved to
+  `exec/pgrowlocks_tid_test.go` and takes the `tid` descriptor from
+  `sqltype.Builtins()` instead of a new engine.
+  `pgrowlocks_visibility_test.go` calls `exec.PgrowlocksPrefix`. No test was
+  deleted or rewritten.
+- **Verification.** `make build` after every commit; the targeted units
+  after each commit (`TestPgrowlocks*`, `TestPGLocks*`,
+  `TestSessionIdentity*`, `TestCTEDMLLateFailureIdentity`,
+  `TestMaterializedRefresh(QueuedReplacement|OwnerContext)`,
+  `TestNamespaceIdentity*`, `TestPGSequence*`, `TestCatalogSource*`,
+  `TestPGCursorsSource`) with the quick `TestReferencePgrowlocks*`,
+  `TestReferenceSessionIdentity*` and `TestReferencePGSequences*`
+  selections, and `RACE=1` for `TestPGSequences(Cancellation|Concurrency)`,
+  `TestPGSequenceSnapshotsAndCancellation` and
+  `TestPgrowlocks(Eligibility|Capture)`. The string-literal multiset of
+  `internal/engine` is unchanged apart from import paths, and the `exec` and
+  `pgcatalog` import sets equal master's. `make quickcheck` passed after the
+  code commits on `0de988fe1`; the final rebase onto `984dbed36` brought
+  only a `docs/TESTING.md` change. The `pgrowlocks`, session identity and
+  `pg_sequences` reference selections passed in quick mode and with
+  `REFERENCE=1`. `make deps`: module paths only. No `make bench`: no
+  startup, catalog seeding or per-row path changed. No reference fixture
+  names a moved frame. AGENTS.md: 100 lines, untouched. racecheck/finalcheck
+  skipped at user request.
+
+Notes for later steps:
+
+- The other catalog producers get one captured `scope.op.Context()` through
+  `pgcatalog.Input`; only `pg_sequences` re-reads it per definition. If a
+  producer can run under held COPY input, a protocol cancel that arrives
+  during its capture is reported rather than masked. That is existing
+  behavior and out of scope here.

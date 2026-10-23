@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `80706f8ca` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141 and 142). Steps 8–17 were
+Last verified against `master` at `984dbed36` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142 and 144). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -20,8 +20,8 @@ different packages may run in parallel on separate branches; items that
 share a prompt file touch different root files unless their "needs" says
 otherwise.
 
-- **Fourth round, statement and session:** 143 (session 13h), 144 (exec
-  11g), 145 (regobj 21e).
+- **Fourth round, statement and session:** 143 (session 13h), 145 (regobj
+  21e).
 - **Fourth round, catalog, DDL, types, roles and Restore:** 146 (analyze
   12g), 147 (typedef 15f), 148 (control 30g), 149 (role 28e), 150 (ddl
   20e).
@@ -2122,8 +2122,17 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      user request
 143. [ ] Session 13h: notification registry and small session decisions —
      [session](ENGINE-SPLIT-session.md) 13h · needs —
-144. [ ] Exec 11g: runtime source values — [exec](ENGINE-SPLIT-exec.md)
-     11g · needs —
+144. [x] Exec 11g: runtime source values — [exec](ENGINE-SPLIT-exec.md) 11g
+     · needs — (`ea13f92d6`, `97abd0c6f`, `ab8a2d1b4`, then the docs commit)
+     · `exec.PgrowlocksLogicalTID`, `PgrowlocksPrefix`, `PgrowlocksValues`
+     and `CheckPgrowlocksTable` over an `access.View` and its environment;
+     `exec.CaptureIdentity` and `IdentitySnapshot.Value`;
+     `pgcatalog.CapturePGSequences` over `PGSequencesInput` with a fresh
+     cancellation check and the shared root `visitSequenceOverlay`; root
+     wrappers `captureIdentityLocked` and `capturePGSequencesLocked`; no
+     aliases · targeted units (also `RACE=1`), quickcheck and the quick and
+     `REFERENCE=1` pgrowlocks, session identity and pg_sequences selections
+     passed; racecheck/finalcheck skipped at user request
 145. [ ] Regobj 21e: output capture, spelling cache and regtype analysis —
      [regobj](ENGINE-SPLIT-regobj.md) 21e · needs —
 146. [ ] Analyze 12g: search path and type-name resolution —

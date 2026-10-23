@@ -144,8 +144,8 @@ rather than masking missing authority with panic suppression or invented facts.
 The engine calls these directly: `ClassKind`, `ClassACL`, `AttributeMetadata`,
 `HasSystemAttributes`, `AttributeNumber`, `InitializeAttributes`,
 `CollationActualVersion`, `DatabaseCollationActualVersion`,
-`DescriptorComment`, `ForeignDependencies`,
-`VirtualViewWriteError`, `LockRows` and the OID constants (`LocksOID`,
+`DescriptorComment`, `ForeignDependencies`, `VirtualViewWriteError`,
+`LockRows`, `CapturePGSequences` and the OID constants (`LocksOID`,
 `CursorsOID`, `SettingsOID`, `TypeOID`, ...). Engine unit tests also call
 `CollectDepend`, `ClassRow`, `AttributeRow`, `TypeFacts`, `ConstraintOperator`
 and a few other row helpers, because they check producer behavior against an
@@ -167,8 +167,13 @@ or unsupported executable definitions retain their semantic errors.
 - `pg_locks` capture (`pg_locks_capture.go`): it releases and retakes
   `Engine.mu` and never takes the lock manager mutex under it. Rows come from
   `LockRows`.
-- `pg_sequences` lazy completion, which acquires sequence locks through the
-  statement scope, and the `pg_sequence` journal overlay.
+- `pg_sequences` source construction and lazy completion: the engine picks
+  the retained base and the journal overlay, passes the overlay walk, a
+  namespace lookup and a fresh cancellation check to `CapturePGSequences`
+  (`pg_sequences.go`, which builds the rows with `last_value` left NULL),
+  builds the source refs, and acquires the sequence locks through the
+  statement scope at completion. The `pg_sequence` producer reads the same
+  overlay through `VisitSequenceDefinitions`.
 - Descriptor registration during catalog seeding (`initializeCatalogSources`,
   `catalogSourceDescriptor`, `registerCatalogSource`), which reads `Specs`.
 - The `Runtime` bodies over stored definitions, which forward to `stored`:

@@ -90,6 +90,12 @@ It imports `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`,
   `WriteDiagnosticValue`), single-relation source capture
   (`source_capture.go`: `CaptureSource`, `CapturePrefix`) and the CURRENT OF
   scan helpers (`cursor_scan.go`).
+- **Runtime source values** (exec 11g): the `pgrowlocks` values
+  (`pgrowlocks.go`: `PgrowlocksLogicalTID`, `PgrowlocksPrefix`,
+  `PgrowlocksValues`) and the table check `CheckPgrowlocksTable` over an
+  `access.View` and its environment; the session identity snapshot
+  (`identity.go`: `CaptureIdentity` and the kind switch
+  `IdentitySnapshot.Value`).
 - **Seams**: `Host` and `PresentationFormatters` (`host.go`),
   `DetachedPresentation` (`detached_presentation.go`), `Preparation` and
   `InstallPreparation` (`preparation.go`), and the admission slots
@@ -211,7 +217,11 @@ portals; rule execution; `statementHost` with the capability bodies,
 `enginePreparation`, query grouping admission (`admitQueryGroupings`, which
 needs `analyze`), and the engine-side helpers that take a `*Context` (the
 domain-check preparation, `identifyObjectValues`,
-`expressionPrincipal`, ...). The deparse inquiry bodies and the ALTER
+`expressionPrincipal`, ...). The `pgrowlocks` host method keeps the name
+resolution, the relation lock wait and the readmit check
+(`pgrowlocks_capture.go`); `IdentityValue` keeps the authority-expression
+and foreign-action overrides and the current-schema branch
+(`session_identity.go`). The deparse inquiry bodies and the ALTER
 DOMAIN row scan are `table.Deparse` and `table.ValidateSelectedDomainRows`
 (table 24j). `ValidInstalledText` is `analyze.ValidInstalledText`.
 
@@ -305,7 +315,14 @@ The executor's unit tests still live in the engine, because they build
 statements through an `Engine` and `Session`: grep
 `internal/engine/*_test.go` for `exec.OpenNode`, `exec.Finalize`,
 `exec.Source`, `exec.RowCursor` and `statementHost`. Run row-lock, cursor,
-foreign-scan, CTE and detach selections with `RACE=1`.
+foreign-scan, CTE and detach selections with `RACE=1`. The `pgrowlocks` tid
+mapping has its own unit here; the identity and `pgrowlocks` values are
+pinned by engine and reference selections:
+
+```sh
+make check RUN='^TestPgrowlocksLogicalTID$'
+make check RUN='^Test(Pgrowlocks|SessionIdentity|ReferencePgrowlocks|ReferenceSessionIdentity)'
+```
 
 Public proof is the reference selection of step 11, in quick mode and with
 `REFERENCE=1`:
