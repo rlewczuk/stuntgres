@@ -1,5 +1,7 @@
 package session
 
+import "stuntgres/internal/engine/ids"
+
 // The slots below carry feature state in the catalog journal without naming
 // the feature types. Each owner stores and recovers its value with one checked
 // helper and never stores a nil pointer, so a nil slot means "none".
@@ -22,8 +24,10 @@ type DomainSlot interface {
 }
 
 // IndexSlot holds private unique roots, produced index candidates and
-// REINDEX intents (root index code).
+// REINDEX intents (index). Forget drops the private index state of an
+// address whose descriptor the journal removes.
 type IndexSlot interface {
 	IndexSlot()
 	Clone() IndexSlot
+	Forget(ids.ObjectAddress)
 }

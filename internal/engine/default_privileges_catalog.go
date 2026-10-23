@@ -26,16 +26,7 @@ func (s *CatalogStage) creationTypeACL(owner authorization.PrincipalRef, schema 
 	return acl, authorization.MatchesDefaultBaseline(acl, owner, authorization.DefaultTypes, false)
 }
 func (e *Engine) defaultACLChangeLocked(c *session.Journal, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
-	if c.DefaultOriginals == nil {
-		c.DefaultOriginals = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
-		c.DefaultACLs = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
-	}
-	if _, exists := c.DefaultOriginals[key]; !exists {
-		c.DefaultOriginals[key] = e.catalog.state.DefaultACL(key)
-	}
-	c.DefaultACLs[key] = record
-	c.CachedBase = nil
-	c.Cached = catalog.Read{}
+	c.RecordDefaultACL(e.catalog.state, key, record)
 }
 func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *session.Journal) {
 	for key, record := range s.DefaultReads() {
@@ -78,19 +69,5 @@ func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
 	}
 }
 func (e *Engine) creationACLChangesLocked(c *session.Journal, view catalog.Read, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
-	for _, namespace := range []ids.ObjectAddress{{}, schema} {
-		key := catalog.DefaultACLKey{Creator: owner, Schema: namespace, Class: class}
-		if _, private := c.DefaultACLs[key]; !private {
-			if c.DefaultReads == nil {
-				c.DefaultReads = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
-			}
-			if _, exists := c.DefaultReads[key]; !exists {
-				c.DefaultReads[key] = e.catalog.state.DefaultACL(key)
-			}
-		}
-		if schema == (ids.ObjectAddress{}) {
-			break
-		}
-	}
-	return catalog.CreationDefaultACL(view, owner, schema, class)
+	return c.ObserveCreationACL(e.catalog.state, view, owner, schema, class)
 }

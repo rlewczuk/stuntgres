@@ -19,66 +19,10 @@ import (
 
 // Caller holds Engine.mu and the session's statement admission.
 func (e *Engine) privateCatalogLocked(c *session.Journal) catalog.Read {
-	if c == nil {
-		return e.catalog.read(e.catalog.state)
-	}
-	if c.CachedBase == e.catalog.state && c.Cached.State() != nil {
-		return c.Cached
-	}
-	if len(c.Descriptors) == 0 && len(c.DefaultACLs) == 0 {
-		c.CachedBase = e.catalog.state
-		c.Cached = e.catalog.read(e.catalog.state)
-		return c.Cached
-	}
-	n := catalog.CloneState(e.catalog.state)
-	n.OverlayDefaultACLs(e.catalog.state, c.DefaultACLs)
-	operators := catalog.OperatorIndexEdit{Index: e.catalog.state.OperatorNames()}
-	procedures := catalog.ProcedureIndexEdit{Index: e.catalog.state.ProcedureNames()}
-	for a, d := range c.Descriptors {
-		operators.Replace(e.catalog.state.Get(a), d)
-		procedures.Replace(e.catalog.state.Get(a), d)
-		if old := n.Get(a); old != nil {
-			n.UnbindName(catalog.DescriptorNameKey(old))
-		}
-		if d == nil {
-			n.RemoveDescriptor(a)
-			n.RemoveDumpPriority(a)
-		} else {
-			n.SetDescriptor(a, d)
-		}
-	}
-	for _, d := range c.Descriptors {
-		if d != nil {
-			n.BindName(catalog.DescriptorNameKey(d), d.Address())
-		}
-	}
-	n.SetOperatorNames(operators.Index)
-	n.SetProcedureNames(procedures.Index)
-	c.CachedBase, c.Cached = e.catalog.state, e.catalog.read(n)
-	return c.Cached
+	return c.PrivateRead(e.catalog.owner(), e.catalog.state)
 }
 func (e *Engine) catalogChangeLocked(c *session.Journal, a ids.ObjectAddress, d catalog.Descriptor) {
-	if _, ok := c.Originals[a]; !ok {
-		c.Originals[a] = e.catalog.state.Get(a)
-	}
-	if original := c.Originals[a]; original != nil {
-		k := catalog.DescriptorNameKey(original)
-		if _, ok := c.Names[k]; !ok {
-			c.Names[k] = e.catalog.state.NameAddress(k)
-		}
-	}
-	if d != nil {
-		k := catalog.DescriptorNameKey(d)
-		if _, ok := c.Names[k]; !ok {
-			c.Names[k] = e.catalog.state.NameAddress(k)
-		}
-	}
-	c.Descriptors[a] = d
-	if d == nil {
-		index.JournalOf(c.Indexes).Forget(a)
-	}
-	c.CachedBase = nil
-	c.Cached = catalog.Read{}
+	c.RecordDescriptor(e.catalog.state, a, d)
 }
 func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *storage.SequenceGenerator {
 	if s.catalog != nil {
