@@ -257,14 +257,18 @@ adjacent constructor or operator becomes executable.
 make check RUN='^TestGeometryConversionDeclarations$'
 ```
 
-The six selected REL_18_6 area/center/diameter declarations use
-`GeometryMeasureRoutineProvider`: OIDs975/979/1468/1469/1542/1543, exact BOX/PATH/
-CIRCLE formals and FLOAT8/POINT results, strict immutable parallel-safe scalar
-functions. Radius1470 retains `CircleRoutineProvider`; it is not re-registered
-or migrated. Public `TestReferenceGeometryMeasureRoutines` checks the seven
-released identities and actual namespace-selected behavior; Consumers/Controls
-exercise stored execution and replay. No adjacent lookup-only geometry routine
-is made executable by this inventory.
+The ten selected REL_18_6 area/center/diameter/width/height/diagonal/slope
+declarations use `GeometryMeasureRoutineProvider`: OIDs975/976/977/979/981/992/
+1468/1469/1542/1543, exact BOX/PATH/CIRCLE/POINT formals and FLOAT8/POINT/LSEG
+results, strict immutable parallel-safe scalar functions. Radius1470 retains
+`CircleRoutineProvider`; it is not re-registered or migrated. Public
+`TestReferenceGeometryMeasureRoutines` and `TestReferenceGeometryMeasureBoxLineRoutines`
+check supported released catalog fields, canonical signatures and actual
+namespace-selected behavior; Consumers/Controls exercise stored execution/replay.
+No adjacent lookup-only geometry routine becomes executable.
+`make check RUN='^TestGeometryMeasureBoxLineDeclarations$'` supplements the public
+contract with exact formal OIDs, scalar/nonvariadic/no-default declaration facts
+not projected by native pg_proc; this part does not expand that catalog.
 
 Selected cast DDL/runtime coverage:
 `make check RUN='^TestReferenceCastDefinition(Grammar|Notices|Signatures|SignatureAdapters|Authority|Dependencies|FunctionAndContexts|UtilityPolicies)$'`

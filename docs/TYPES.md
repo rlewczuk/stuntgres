@@ -117,9 +117,11 @@ from these operators. See [circle reference proof](../reference/types/README.md#
 
 ## Geometric measurements
 
-Exactly seven strict scalar signatures execute: `area(box)`, `area(path)`,
-`area(circle)`, `center(box)`, `center(circle)`, `diameter(circle)` and
-`radius(circle)`. Centers return POINT600; other measurements return FLOAT8/701.
+Exactly eleven strict scalar signatures execute: `area(box)`, `area(path)`,
+`area(circle)`, `center(box)`, `center(circle)`, `diameter(circle)`,
+`radius(circle)`, `width(box)`, `height(box)`, `diagonal(box)` and
+`slope(point,point)`. Centers return POINT600, diagonal LSEG601 and other
+measurements FLOAT8/701.
 Open PATH area is NULL before coordinate arithmetic. Closed paths retain vertex
 order and cyclic successors, accumulating checked `x[i]*y[j]` then subtracting
 checked `y[i]*x[j]`, before absolute value and division by2. Reversed triangles
@@ -133,11 +135,22 @@ without radius validation; negative constructor radii remain valid typed values.
 Checked underflow/overflow reports22003 with the released English diagnostic;
 explicit NaN/Infinity propagate according to the arithmetic.
 
+Width and height perform checked high-minus-low subtraction on their selected
+stored BOX axis only. Component updates can retain inverted corners; measurements
+do not renormalize them or take absolute dimensions. Diagonal returns the ordered
+segment `[high,low]` without span arithmetic, preserving raw corners.
+Slope uses the two defining POINTs, not unary LINE or LSEG overloads (LSEG
+endpoints can be supplied through subscripts). Fuzzy-equal X coordinates return
+positive Infinity, including coincident points; otherwise fuzzy-equal Y returns
+positive zero. Equality here is exact equality or absolute difference≤1e-6.
+Other slopes perform checked Y subtraction, X subtraction, then division.
+The X branch wins when both coordinate pairs are fuzzy-equal.
+
 Defaults, CHECKs, generated outputs, SQL wrappers and views preserve exact
 selected overloads through native logical Dump/Reset/Restore; typed literal
 and NULL formals remain explicit on replay. This is logical host replacement,
-not physical PostgreSQL storage or WAL. No `area(polygon)`, `@@`, path closure
-helper, length/count helper or additional box/line measurement is introduced.
+not physical PostgreSQL storage or WAL. No `area(polygon)`, `@@`, path closure,
+length/count helper or unary LINE/LSEG slope overload is introduced.
 See [measurement proof](../reference/types/README.md#geometric-measurement-oracle-contract).
 
 ## Geometric constructors and conversions

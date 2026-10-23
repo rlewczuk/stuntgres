@@ -287,12 +287,13 @@ equality/ordering capabilities: ORDER BY, DISTINCT/GROUP BY and default
 B-tree/hash operator classes remain unavailable. NaN area predicates are all
 false, including `<>`. The
 [twenty-one selected constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
-and [seven geometric measurements](TYPES.md#geometric-measurements) are admitted
-separately, including POINT-valued circle centers, area/diameter and default
-twelve-point or explicit-count circle-to-polygon sampling.
+and [eleven geometric measurements](TYPES.md#geometric-measurements) are admitted
+separately, including POINT-valued centers, area/diameter, default twelve-point
+or explicit-count circle-to-polygon sampling, LSEG-valued `diagonal(box)`,
+`width(box)`, `height(box)` and `slope(point,point)`.
 Other adjacent-geometry constructors/conversions, transformations, circle arrays
-and spatial indexes remain unavailable. Path closure/length/count and additional
-box/line measurements remain outside the selected measurement family.
+and spatial indexes remain unavailable. Path closure/length/count and unary
+LINE/LSEG slope overloads remain outside the selected measurement family.
 Text and 24-byte binary codecs, metadata and native logical controls share the
 [type-owned circle contract](TYPES.md#circle).
 

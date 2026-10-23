@@ -41,13 +41,16 @@ the documented Dump rejection. See the [execution contract](docs/QUERIES.md#user
 
 ## Geometric measurements — change note
 
-Selected strict measurements now include `area(box/path/circle)`,
-`center(box/circle)`, `diameter(circle)` and the existing `radius(circle)`.
-Open-path area is NULL; closed paths use sequential checked float8 arithmetic,
-not polygon validation or a geometric centroid. Centers return POINT and other
-measurements FLOAT8, including typed NULL. Stored consumers and native logical
-replay retain the selected overloads. Adjacent path/box-line helpers and
-`area(polygon)` are not added.
+Selected strict measurements include `area(box/path/circle)`,
+`center(box/circle)`, `diameter(circle)`, `radius(circle)`, `width(box)`,
+`height(box)`, `diagonal(box)` and `slope(point,point)`. Diagonal returns the
+ordered LSEG from the stored high corner to the low corner, not a length.
+Slope measures defining POINTs (including LSEG endpoints), not unary LINE/LSEG
+overloads. Open-path area is NULL; closed paths use sequential checked float8
+arithmetic, not polygon validation or a geometric centroid. Centers return POINT,
+diagonal LSEG and other measurements FLOAT8, including typed NULL. Stored consumers
+and native logical replay retain selected overloads. Path closure/length/count
+helpers and `area(polygon)` are not added.
 See [type semantics](docs/TYPES.md#geometric-measurements) and
 [selected proof](reference/types/README.md#geometric-measurement-oracle-contract).
 

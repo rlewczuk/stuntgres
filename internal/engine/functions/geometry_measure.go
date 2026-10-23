@@ -11,47 +11,59 @@ import (
 type GeometryMeasure struct {
 	expr.Info
 	Plan      sqltype.GeometryMeasurePlan
-	Arg       expr.Expr
+	Args      [2]expr.Expr
 	Namespace string
 }
 
-func NewGeometryMeasure(info expr.Info, op sqltype.GeometryMeasure, arg expr.Expr, namespace string) (GeometryMeasure, error) {
-	if arg == nil {
-		return GeometryMeasure{}, fmt.Errorf("stuntgres: missing geometry measurement operand")
+func NewGeometryMeasure(info expr.Info, op sqltype.GeometryMeasure, args [2]expr.Expr, namespace string) (GeometryMeasure, error) {
+	if op.Name() == "" || missingArgument(args[:op.Arity()]) || op.Arity() == 1 && args[1] != nil {
+		return GeometryMeasure{}, fmt.Errorf("stuntgres: invalid geometry measurement operands")
 	}
-	p, err := sqltype.BindGeometryMeasure(op, info.Usage, arg.ResultUsage())
-	return GeometryMeasure{info, p, arg, namespace}, err
+	var usages [2]sqltype.Usage
+	for i := range op.Arity() {
+		usages[i] = args[i].ResultUsage()
+	}
+	p, err := sqltype.BindGeometryMeasure(op, info.Usage, usages)
+	return GeometryMeasure{info, p, args, namespace}, err
 }
-func (e GeometryMeasure) Children() []expr.Expr { return []expr.Expr{e.Arg} }
+func (e GeometryMeasure) Children() []expr.Expr { return e.Args[:e.Plan.Operation().Arity()] }
 func (e GeometryMeasure) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.FunctionLiteralNull(e.Arg) {
-		return sqltype.Null(e.Usage.Type), nil
+	for _, arg := range e.Children() {
+		if c.FunctionLiteralNull(arg) {
+			return sqltype.Null(e.Usage.Type), nil
+		}
 	}
-	v, err := e.Arg.Eval(c)
-	if err != nil {
-		return sqltype.Value{}, err
+	var values [2]sqltype.Value
+	for i, arg := range e.Children() {
+		values[i], err = arg.Eval(c)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
 	}
-	return e.Plan.Evaluate(ctx, v)
+	return e.Plan.Evaluate(ctx, values)
 }
 func (e GeometryMeasure) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("GeometryMeasure", children, 1); err != nil {
+	if err := checkChildren("GeometryMeasure", children, len(e.Children())); err != nil {
 		return nil, err
 	}
-	return rebuilt(NewGeometryMeasure(info, e.Plan.Operation(), children[0], e.Namespace))
+	var args [2]expr.Expr
+	copy(args[:], children)
+	return rebuilt(NewGeometryMeasure(info, e.Plan.Operation(), args, e.Namespace))
 }
 func (e GeometryMeasure) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("GeometryMeasure", children, 1); err != nil {
+	if err := checkChildren("GeometryMeasure", children, len(e.Children())); err != nil {
 		return nil, err
 	}
-	e.Info, e.Arg = info, children[0]
+	e.Info = info
+	copy(e.Args[:], children)
 	return e, nil
 }
 func (e GeometryMeasure) Validate() error {
-	n, err := NewGeometryMeasure(e.Info, e.Plan.Operation(), e.Arg, e.Namespace)
+	n, err := NewGeometryMeasure(e.Info, e.Plan.Operation(), e.Args, e.Namespace)
 	if err != nil || n.Plan != e.Plan {
 		return fmt.Errorf("stuntgres: invalid stored geometry measurement")
 	}
@@ -65,11 +77,19 @@ func (e GeometryMeasure) Capture(kind expr.CaptureKind) (expr.CaptureOperands, b
 	if kind != expr.CaptureFunction {
 		return expr.CaptureOperands{}, false, nil
 	}
-	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Arg}, Count: 1}, true, nil
+	return expr.CaptureOperands{Inline: e.Args, Count: len(e.Children())}, true, nil
 }
 func (e GeometryMeasure) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
 	o, ok := other.(GeometryMeasure)
-	return ok && e.Plan == o.Plan && e.Namespace == o.Namespace && same(e.Arg, o.Arg)
+	if !ok || e.Plan != o.Plan || e.Namespace != o.Namespace {
+		return false
+	}
+	for i, arg := range e.Children() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
 }
 func (e GeometryMeasure) Render() (expr.Rendering, error) {
 	children := e.Children()

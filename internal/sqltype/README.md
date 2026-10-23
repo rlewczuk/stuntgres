@@ -143,14 +143,20 @@ guard16*n+40<=INT_MAX (54000), then coordinate arithmetic (22003 on overflow).
 NaN/Infinity and negative constructor radii outside fuzzy zero are not blanket
 rejected. Unary SQL-wrapper kernel diagnostics retain their function Context.
 
-`GeometryMeasurePlan` owns six unary area/center/diameter operations, leaving
-radius in `CirclePlan`. It validates the same catalog's input/result authority
-before strict NULL, reuses BOX/CIRCLE area kernels and the BOX/LSEG midpoint,
-and never reparses text or copies path vertices. Open-path area bypasses
-coordinate arithmetic; closed paths use sequential checked products/add/subtract
-then absolute half, checking cancellation per vertex. Inline circle-center
-copies retain IEEE bits. Checked operation order is a contract, not an
-optimization opportunity.
+`GeometryMeasurePlan` owns ten unary/binary area/center/diameter/width/height/
+diagonal/slope operations, leaving radius in `CirclePlan`. Its fixed two-operand
+plan validates every formal's Usage and same-catalog authority before strict
+runtime NULL, including the second POINT. It reuses BOX/CIRCLE area kernels
+and the BOX/LSEG midpoint, never reparsing text or copying path vertices.
+Open-path area bypasses coordinate arithmetic; closed paths use sequential
+checked products/add/subtract then absolute half, checking cancellation per vertex.
+Inline circle-center copies retain IEEE bits. Width/height subtract only their
+stored axis without renormalization. Diagonal shares the immutable BOX payload
+under LSEG authority, preserving raw corner order and IEEE bits without span
+arithmetic. Slope tests scalar fuzzy X equality before Y equality, returning
+positive Infinity/zero respectively, then checked Y difference/X difference.
+It does not construct LINE or apply NaN-aware point sameness. Checked operation
+order is a contract, not an optimization opportunity.
 
 
 `Citext` is a catalog-generation-owned scalar using Value's immutable string,
@@ -365,11 +371,11 @@ Focused measurement invariants guard unsafe midpoint/cross-product rewrites,
 foreign catalog NULL retagging, traversal-only cancellation and center bit loss:
 
 ```sh
-make check RUN='^TestGeometryMeasure(ArithmeticOrder|Authority|Cancellation|CenterBits)$'
+make check RUN='^TestGeometryMeasure(ArithmeticOrder|Authority|Cancellation|CenterBits|BoxLineKernel|BoxLineAuthority|BoxLineCancellation)$'
 ```
 
-Public values/diagnostics/metadata and logical replay use the six shared
-definitions in [`reference/types`](../../reference/types/README.md#geometric-measurement-oracle-contract).
+Public values/diagnostics/metadata and logical replay use both six-definition
+families in [`reference/types`](../../reference/types/README.md#geometric-measurement-oracle-contract).
 
 Binary datum and raw32 supplemental units exercise actual word/byte/coordinate
 results, all scalar family pairs, temporal epoch/infinity translation, descriptor

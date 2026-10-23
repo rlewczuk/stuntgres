@@ -16,6 +16,10 @@ import (
 var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	// Selected REL_18_6 measurements; radius remains with CircleRoutineProvider.
 	{catalog.RoutineIdentity{975, ids.PGCatalogNamespaceOID, "area", "603"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
+	{catalog.RoutineIdentity{976, ids.PGCatalogNamespaceOID, "width", "603"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
+	{catalog.RoutineIdentity{977, ids.PGCatalogNamespaceOID, "height", "603"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
+	{catalog.RoutineIdentity{981, ids.PGCatalogNamespaceOID, "diagonal", "603"}, catalog.FunctionRoutine, 601, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
+	{catalog.RoutineIdentity{992, ids.PGCatalogNamespaceOID, "slope", "600,600"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
 	{catalog.RoutineIdentity{979, ids.PGCatalogNamespaceOID, "area", "602"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
 	{catalog.RoutineIdentity{1468, ids.PGCatalogNamespaceOID, "area", "718"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},
 	{catalog.RoutineIdentity{1469, ids.PGCatalogNamespaceOID, "diameter", "718"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.GeometryMeasureRoutineProvider},

@@ -147,19 +147,22 @@ Public SQL, full diagnostics and native control proof live in
 
 ## Geometric measurement provider
 
-`GeometryMeasure` binds the six selected `area`, `center` and `diameter`
-signatures through pure exact/best-implicit probes and one winning coercion.
-It retains selected routine/formal/result authority, evaluates its child once,
-and uses typed literal transport for overloaded stored replay. Radius remains
-with the existing Circle provider. No typename-cast shortcut, parser-specific
-dispatch, new closure helper or area(polygon) signature is admitted.
+`GeometryMeasure` binds ten selected `area`, `center`, `diameter`, `width`,
+`height`, `diagonal` and `slope` signatures through pure exact/best-implicit
+probes of every formal and coercion of only the winner. The fixed two-operand
+provider retains routine/formal/result authority, evaluates demanded children
+once, and uses typed literal transport for stored replay. Runtime NULL does
+not hide a second-child failure; existing literal-NULL short circuit is retained.
+Radius remains with the Circle provider. No typename-cast shortcut, parser-specific
+dispatch, closure helper, area(polygon) or unary LINE/LSEG slope is admitted.
 
 ### Testing
 
-`make check RUN='^TestGeometryMeasureGroupIdentity$'` guards grouping of
-equal-result but distinct selected calls, including center versus conversion.
+`make check RUN='^TestGeometryMeasure(GroupIdentity|BoxLineProviderLifecycle)$'`
+guards grouping of equal-result but distinct selected calls, both operands,
+evaluation/NULL/cancellation and stored-provider reconstruction/capture.
 Public routine identity, direct/prepared behavior, metadata, stored consumers
-and actual native/PG replay are exercised by the six measurement definitions in
+and actual native/PG replay use both six-definition measurement families in
 [`reference/types`](../../../reference/types/README.md#geometric-measurement-oracle-contract),
 not private declaration mirrors or render-text assertions.
 

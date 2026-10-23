@@ -9,20 +9,25 @@ repository root.
 ### Geometric measurement oracle contract
 
 `TestReferenceGeometryMeasure{Values,BindingsMetadata,Diagnostics,Routines,
-Consumers,Controls}` specifies exactly `area(box/path/circle)`,
-`center(box/circle)`, `diameter(circle)` and the existing `radius(circle)`.
-Expectations are independently specified before backend comparison: closed
-triangle area6 versus open-path NULL, BOX4, CIRCLE12.566370614359172,
-strict typed NULL and POINT/FLOAT8 metadata, checked arithmetic and full input
-diagnostics, same-held binding recovery, stored generated/default/CHECK/view
-and SQL-function consumers, failure atomicity and public native controls.
-The control scenario reuses existing geometry metadata and failing-I/O helpers;
-it executes new inserts after same/fresh native Restore and actual dump SQL
-replay on PostgreSQL. It does not add adjacent path helpers or polygon area.
+Consumers,Controls}` specifies `area(box/path/circle)`, `center(box/circle)`,
+`diameter(circle)` and the existing `radius(circle)`.
+`TestReferenceGeometryMeasureBoxLine{Values,BindingsMetadata,Diagnostics,Routines,
+Consumers,Controls}` adds exactly `width(box)`, `height(box)`, `diagonal(box)`
+and `slope(point,point)`. Rectangle dimensions are3/4 and diagonal is the ordered
+LSEG `[(4,6),(1,2)]`, not a length. LINE fixtures use separately retained defining
+POINTs; LSEG fixtures use their endpoints. Unary LINE/LSEG slope is rejected.
+Raw inverted BOX measurements stay negative; vertical/coincident/epsilon-X slopes
+are positive Infinity and horizontal/epsilon-Y slopes positive zero, X first.
 
-The shared scenario runs every available backend. Native host-control phases
-are explicitly native-only; ordinary SQL expectations remain shared with the
-pinned PostgreSQL fixture.
+Expectations precede backend comparison: exact values and strict typed NULL,
+POINT/LSEG/FLOAT8 raw metadata, axis-independent checked arithmetic, full input/
+signature diagnostics and stages, same-held recovery, owned buffers/cells,
+namespace authority, stored generated/default/CHECK/view/SQL-wrapper consumers,
+atomic failures and public native controls. Controls execute new inserts after
+same/fresh native Restore and actual emitted dump SQL replay on PostgreSQL, and
+retain old rows/metadata across replacement. No adjacent path helper or polygon
+area is added. Each shared scenario runs all available backends; only native
+host controls and fast precancellation have explicit native-only phases.
 
 Selected proof, each with an external900-second deadline:
 
@@ -30,18 +35,24 @@ Selected proof, each with an external900-second deadline:
 make check RUN='^TestReferenceGeometryMeasure(Values|BindingsMetadata|Diagnostics|Routines|Consumers|Controls)$' REFERENCE=1
 make check RUN='^TestReferenceGeometryMeasure(Values|BindingsMetadata|Diagnostics|Routines|Consumers|Controls)$'
 make check RUN='^TestReferenceGeometryMeasure(BindingsMetadata|Consumers|Controls)$' RACE=1
+make check RUN='^TestReferenceGeometryMeasureBoxLine(Values|BindingsMetadata|Diagnostics|Routines|Consumers|Controls)$' REFERENCE=1
+make check RUN='^TestReferenceGeometryMeasureBoxLine(Values|BindingsMetadata|Diagnostics|Routines|Consumers|Controls)$'
+make check RUN='^TestReferenceGeometryMeasureBoxLine(BindingsMetadata|Controls)$' RACE=1
 ```
 
-Public routine evidence uses supported `pg_proc` columns and exact selected
-regprocedure/result identities, not unsupported catalog helper expansion or
-private declaration mirrors. A separate root-owned temporary public consumer
-is the feature smoke; no permanent duplicate FeatureSmoke definition is added.
-After implementation its session source is `local://geom-measure-smoke.go`;
-root materializes `.geom-measure-smoke/main.go`, runs
-`timeout --signal=KILL 900s go run ./.geom-measure-smoke`, then removes the
-temporary directory. Expected observations are generated results/open NULL,
-same-held malformed-input recovery, overflow without prefix publication,
-public Dump/Reset/Restore and successful new post-Restore inserts.
+Public routine evidence uses supported `pg_proc` columns and canonical selected
+regprocedure signatures, not catalog expansion. Supplemental private declaration
+units assert formal OIDs and scalar/no-default/nonvariadic facts not projected
+by native pg_proc.
+
+A separate root-owned temporary public consumer is the feature smoke, not a
+permanent duplicate FeatureSmoke definition. The living part plan supplies
+`local://geom-measure-feature-smoke.go`; materialize it as an OMP session file and
+run `go run /ABSOLUTE/OMP/SESSION/geom-measure-feature-smoke.go` from the worktree
+with an external900-second deadline. Expected quiet exit0 proves rectangle3/4/
+ordered LSEG, endpoint slopes.5/+Infinity/+zero, held second-bind error/recovery,
+overflow without prefix publication, Dump/Reset/Restore and new generated rows,
+and failed generated-expression Restore preserving previous publication.
 
 ### Domain default and nullability alterations
 

@@ -6,8 +6,8 @@ import (
 	"math"
 )
 
-// GeometryMeasure names only the six selected measurements. Radius retains
-// its existing CirclePlan owner; adjacent path and box helpers are separate.
+// GeometryMeasure names the ten selected unary and binary measurements.
+// Radius retains its existing CirclePlan owner.
 type GeometryMeasure uint8
 
 const (
@@ -17,18 +17,28 @@ const (
 	CenterBox
 	CenterCircle
 	DiameterCircle
+	WidthBox
+	HeightBox
+	DiagonalBox
+	SlopePoints
 )
 
 var geometryMeasures = [...]struct {
-	name           string
-	formal, result ID
+	name    string
+	formals [2]ID
+	result  ID
+	arity   int
 }{
-	{"area", Box, Float8},
-	{"area", Path, Float8},
-	{"area", Circle, Float8},
-	{"center", Box, Point},
-	{"center", Circle, Point},
-	{"diameter", Circle, Float8},
+	{"area", [2]ID{Box}, Float8, 1},
+	{"area", [2]ID{Path}, Float8, 1},
+	{"area", [2]ID{Circle}, Float8, 1},
+	{"center", [2]ID{Box}, Point, 1},
+	{"center", [2]ID{Circle}, Point, 1},
+	{"diameter", [2]ID{Circle}, Float8, 1},
+	{"width", [2]ID{Box}, Float8, 1},
+	{"height", [2]ID{Box}, Float8, 1},
+	{"diagonal", [2]ID{Box}, Lseg, 1},
+	{"slope", [2]ID{Point, Point}, Float8, 2},
 }
 
 func (op GeometryMeasure) Name() string {
@@ -37,39 +47,92 @@ func (op GeometryMeasure) Name() string {
 	}
 	return geometryMeasures[op].name
 }
-func (op GeometryMeasure) Formal() ID   { return geometryMeasures[op].formal }
-func (op GeometryMeasure) ResultID() ID { return geometryMeasures[op].result }
+func (op GeometryMeasure) Arity() int {
+	if op.Name() == "" {
+		return 0
+	}
+	return geometryMeasures[op].arity
+}
+func (op GeometryMeasure) Formal(i int) ID { return geometryMeasures[op].formals[i] }
+func (op GeometryMeasure) ResultID() ID    { return geometryMeasures[op].result }
 
 type GeometryMeasurePlan struct {
-	operation     GeometryMeasure
-	input, result *Descriptor
+	operation GeometryMeasure
+	inputs    [2]*Descriptor
+	result    *Descriptor
 }
 
-func BindGeometryMeasure(op GeometryMeasure, result, input Usage) (GeometryMeasurePlan, error) {
+func BindGeometryMeasure(op GeometryMeasure, result Usage, inputs [2]Usage) (GeometryMeasurePlan, error) {
 	if op.Name() == "" || result.Type == nil || result.Type.id != op.ResultID() || result != result.Type.Usage() {
 		return GeometryMeasurePlan{}, fmt.Errorf("invalid geometry measurement result")
 	}
 	owner := geometryConversionOwner(result.Type)
-	if owner == nil || input.Type == nil || input.Type.id != op.Formal() || input != input.Type.Usage() || geometryConversionOwner(input.Type) != owner {
-		return GeometryMeasurePlan{}, fmt.Errorf("invalid geometry measurement operand")
+	if owner == nil || op.Arity() == 1 && inputs[1] != (Usage{}) {
+		return GeometryMeasurePlan{}, fmt.Errorf("invalid geometry measurement authority or arity")
 	}
-	return GeometryMeasurePlan{op, input.Type, result.Type}, nil
+	p := GeometryMeasurePlan{operation: op, result: result.Type}
+	for i := range op.Arity() {
+		u := inputs[i]
+		if u.Type == nil || u.Type.id != op.Formal(i) || u != u.Type.Usage() || geometryConversionOwner(u.Type) != owner {
+			return GeometryMeasurePlan{}, fmt.Errorf("invalid geometry measurement operand")
+		}
+		p.inputs[i] = u.Type
+	}
+	return p, nil
 }
 
 func (p GeometryMeasurePlan) Operation() GeometryMeasure { return p.operation }
-func (p GeometryMeasurePlan) Evaluate(ctx context.Context, a Value) (Value, error) {
+func (p GeometryMeasurePlan) Evaluate(ctx context.Context, values [2]Value) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
-	if p.result == nil || p.input == nil || p.operation.Name() == "" || a.typ != p.input {
-		return Value{}, fmt.Errorf("invalid geometry measurement value")
+	if p.result == nil || p.operation.Name() == "" {
+		return Value{}, fmt.Errorf("invalid geometry measurement plan")
 	}
-	if a.null {
-		return Null(p.result), nil
+	for i := range p.operation.Arity() {
+		if p.inputs[i] == nil || values[i].typ != p.inputs[i] {
+			return Value{}, fmt.Errorf("invalid geometry measurement value")
+		}
 	}
+	for i := range p.operation.Arity() {
+		if values[i].null {
+			return Null(p.result), nil
+		}
+	}
+	a := values[0]
 	var n float64
 	var err error
 	switch p.operation {
+	case WidthBox, HeightBox, DiagonalBox:
+		if a.geometry == nil {
+			return Value{}, fmt.Errorf("missing BOX payload")
+		}
+		if p.operation == DiagonalBox {
+			return Value{typ: p.result, geometry: a.geometry}, nil
+		}
+		axis := 0
+		if p.operation == HeightBox {
+			axis = 1
+		}
+		n, err = checkedFloatingBinary(ArithmeticSubtract, Float8, a.geometry.coordinates[axis], a.geometry.coordinates[axis+2])
+	case SlopePoints:
+		x1, y1 := pointCoordinates(a)
+		x2, y2 := pointCoordinates(values[1])
+		if boxFuzzyEqual(x1, x2) {
+			n = math.Inf(1)
+		} else if boxFuzzyEqual(y1, y2) {
+			n = 0
+		} else {
+			dy, e := checkedFloatingBinary(ArithmeticSubtract, Float8, y1, y2)
+			if e != nil {
+				return Value{}, e
+			}
+			dx, e := checkedFloatingBinary(ArithmeticSubtract, Float8, x1, x2)
+			if e != nil {
+				return Value{}, e
+			}
+			n, err = checkedFloatingBinary(ArithmeticDivide, Float8, dy, dx)
+		}
 	case AreaBox:
 		n, err = boxArea(a)
 	case AreaCircle:
