@@ -56,7 +56,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			if storage == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			stage.storageReads = append(stage.storageReads, storageReadFence{address: ref.Address, storage: storage, length: len(storage.Versions), ends: storage.Ends, generation: storage.Generation})
+			stage.storageReads = append(stage.storageReads, newStorageReadFence(ref.Address, storage))
 		}
 		// Constraint validation must include writers completed before the
 		// hierarchy lock grant, without advancing the active utility pair.

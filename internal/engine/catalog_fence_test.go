@@ -8,7 +8,7 @@ import (
 )
 
 // catalogFencesOf returns the journal's fences of type F in recording order.
-func catalogFencesOf[F catalogFence](c *session.Journal) []F {
+func catalogFencesOf[F session.Fence](c *session.Journal) []F {
 	var out []F
 	for _, f := range c.Fences {
 		if typed, ok := f.(F); ok {

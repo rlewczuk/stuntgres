@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"maps"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -12,16 +13,29 @@ import (
 	"stuntgres/internal/engine/view"
 )
 
+// catalogIndexFence records the committed indexes of parent, so publication
+// fails when an index of parent was created or dropped.
 type catalogIndexFence struct {
 	parent  ids.ObjectAddress
 	indexes map[ids.ObjectAddress]bool
 }
 
+func newCatalogIndexFence(committed *catalog.State, parent ids.ObjectAddress) catalogIndexFence {
+	f := catalogIndexFence{parent: parent, indexes: map[ids.ObjectAddress]bool{}}
+	for a, d := range committed.Descriptors() {
+		r, ok := d.(*catalog.Relation)
+		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == parent {
+			f.indexes[a] = true
+		}
+	}
+	return f
+}
+
 func (catalogIndexFence) Kind() session.FenceKind { return fenceIndexSet }
 
-func (f catalogIndexFence) currentLocked(e *Engine, _ *session.Journal) error {
+func (f catalogIndexFence) current(committed *catalog.State, _ map[ids.ObjectAddress]*storage.Relation) error {
 	count := 0
-	for a, d := range e.catalog.state.Descriptors() {
+	for a, d := range committed.Descriptors() {
 		r, ok := d.(*catalog.Relation)
 		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == f.parent {
 			if !f.indexes[a] {
@@ -36,16 +50,28 @@ func (f catalogIndexFence) currentLocked(e *Engine, _ *session.Journal) error {
 	return nil
 }
 
+// catalogNamespaceFence records the committed members of a removed namespace,
+// so publication fails when a member changed or was added.
 type catalogNamespaceFence struct {
 	namespace ids.ObjectAddress
 	members   map[ids.ObjectAddress]catalog.Descriptor
 }
 
+func newCatalogNamespaceFence(committed *catalog.State, namespace ids.ObjectAddress) catalogNamespaceFence {
+	f := catalogNamespaceFence{namespace: namespace, members: map[ids.ObjectAddress]catalog.Descriptor{}}
+	for a, d := range committed.Descriptors() {
+		if d.Namespace() == namespace {
+			f.members[a] = d
+		}
+	}
+	return f
+}
+
 func (catalogNamespaceFence) Kind() session.FenceKind { return fenceNamespace }
 
-func (f catalogNamespaceFence) currentLocked(e *Engine, _ *session.Journal) error {
+func (f catalogNamespaceFence) current(committed *catalog.State, _ map[ids.ObjectAddress]*storage.Relation) error {
 	count := 0
-	for a, d := range e.catalog.state.Descriptors() {
+	for a, d := range committed.Descriptors() {
 		if d.Namespace() == f.namespace {
 			if f.members[a] != d {
 				return catalog.Conflict{}
@@ -99,66 +125,18 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			return err
 		}
 	}
-	observe := func(a ids.ObjectAddress, d catalog.Descriptor) error {
-		if current.Get(a) != d {
-			return catalog.Conflict{}
-		}
-		if _, ok := c.Originals[a]; !ok {
-			c.Originals[a] = e.catalog.state.Get(a)
-		}
-		return nil
-	}
+	capture := journalCapture{journal: c, candidate: &s.Candidate, committed: e.catalog.state, current: current}
 	if s.databasePredecessor != nil {
-		database := e.catalog.owner().DatabaseAddress()
-		if current.Get(database) != s.databaseAuthority || e.catalog.state.Get(database) != s.databasePredecessor {
-			return ids.ErrCatalogReplaced
+		if err := capture.observeDatabase(e.catalog.owner().DatabaseAddress(), s.databaseAuthority, s.databasePredecessor); err != nil {
+			return err
 		}
-		if original, ok := c.Originals[database]; ok && original != s.databasePredecessor {
-			return catalog.Conflict{}
-		}
-		c.Originals[database] = s.databasePredecessor
 		if authority != nil {
 			authority.databaseAuthority = s.databaseAuthority
 			authority.databasePredecessor = s.databasePredecessor
 		}
 	}
-	for a := range s.Descriptors() {
-		if err := observe(a, s.Base.Get(a)); err != nil {
-			return err
-		}
-	}
-	for a := range s.Removals() {
-		if err := observe(a, s.Base.Get(a)); err != nil {
-			return err
-		}
-	}
-	observeNamespace := func(ns ids.ObjectAddress) error {
-		if d := s.Base.Get(ns); d != nil {
-			// TEMP creation can add its namespace to the candidate before
-			// constructing the ordinary stage. That exact creation intent is
-			// part of the stage's entry authority, not a later projection.
-			// Its committed absence/name fences already belong to c.
-			if current.Get(ns) == nil {
-				original, created := c.Originals[ns]
-				key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}
-				_, named := c.Names[key]
-				if created && original == nil && c.Descriptors[ns] == d && named && current.NameAddress(key) == (ids.ObjectAddress{}) {
-					return nil
-				}
-			}
-			return observe(ns, d)
-		}
-		return nil
-	}
-	for _, d := range s.Descriptors() {
-		if err := observeNamespace(d.Namespace()); err != nil {
-			return err
-		}
-		if old := s.Base.Get(d.Address()); old != nil {
-			if err := observeNamespace(old.Namespace()); err != nil {
-				return err
-			}
-		}
+	if err := capture.observeCandidate(); err != nil {
+		return err
 	}
 	domainBases := s.domainBases
 	if authority != nil && authority.session == s.authSession && authority.authorization == s.authRevision && authority.roles == s.roleRevision &&
@@ -180,30 +158,25 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 				}
 			}
 		}
-		if observed := s.Base.Get(source.Address()); observed != nil {
-			if err := observe(source.Address(), observed); err != nil {
-				return err
-			}
+		if err := capture.observeBase(source.Address()); err != nil {
+			return err
 		}
 	}
 	for _, sources := range [][]catalog.Descriptor{s.tableOrZero().LikeSources, domainBases} {
 		for _, d := range sources {
-			observed := s.Base.Get(d.Address())
-			if observed != nil {
-				if err := observe(d.Address(), observed); err != nil {
-					return err
-				}
+			if err := capture.observeBase(d.Address()); err != nil {
+				return err
 			}
 		}
 	}
 	stageIndexes := s.indexesOrZero()
 	for a, d := range stageIndexes.Parents {
-		if err := observe(a, d); err != nil {
+		if err := capture.observe(a, d); err != nil {
 			return err
 		}
 	}
 	for a, d := range stageIndexes.Rebuilds {
-		if err := observe(a, d); err != nil {
+		if err := capture.observe(a, d); err != nil {
 			return err
 		}
 		if index.JournalIndexesOrZero(c).Rebuilds == nil {
@@ -211,52 +184,11 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		}
 		index.JournalIndexes(c).Rebuilds[a] = d
 	}
-	for k, a := range s.Touched() {
-		if current.NameAddress(k) != a {
-			return catalog.Conflict{}
-		}
-		if _, ok := c.Names[k]; !ok {
-			c.Names[k] = e.catalog.state.NameAddress(k)
-		}
-	}
-	for parent := range stageIndexes.Sets {
-		for address, descriptor := range current.Descriptors() {
-			index, ok := descriptor.(*catalog.Relation)
-			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
-				if err := observe(address, index); err != nil {
-					return err
-				}
-			}
-		}
-		f := catalogIndexFence{parent: parent, indexes: map[ids.ObjectAddress]bool{}}
-		for a, d := range e.catalog.state.Descriptors() {
-			r, ok := d.(*catalog.Relation)
-			if ok && r.SQLIndex != nil && r.SQLIndex.Parent == parent {
-				f.indexes[a] = true
-			}
-		}
-		c.AddFence(f)
-	}
-	for a := range s.Removals() {
-		if a.ClassID == ids.NamespaceClassID {
-			f := catalogNamespaceFence{namespace: a, members: map[ids.ObjectAddress]catalog.Descriptor{}}
-			for address, d := range e.catalog.state.Descriptors() {
-				if d.Namespace() == a {
-					f.members[address] = d
-				}
-			}
-			c.AddFence(f)
-		}
+	if err := capture.fenceNames(maps.Keys(stageIndexes.Sets)); err != nil {
+		return err
 	}
 	captureStorage := func(a ids.ObjectAddress) {
-		store := e.storage.Relations[a]
-		f := storageReadFence{address: a, storage: store}
-		if store != nil {
-			f.length = len(store.Versions)
-			f.ends = store.Ends
-			f.generation = store.Generation
-		}
-		c.AddFence(f)
+		c.AddFence(newStorageReadFence(a, e.storage.Relations[a]))
 	}
 	for _, f := range s.storageReads {
 		captureStorage(f.address)

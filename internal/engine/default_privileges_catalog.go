@@ -10,8 +10,11 @@ import (
 func (e *Engine) defaultACLChangeLocked(c *session.Journal, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
 	c.RecordDefaultACL(e.catalog.state, key, record)
 }
-func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *session.Journal) {
-	for key, record := range s.DefaultReads() {
+
+// recordCandidateDefaults records the default ACLs candidate read, unless c
+// changed them, and then candidate's default ACL changes against base.
+func recordCandidateDefaults(c *session.Journal, base *catalog.State, candidate *catalog.Candidate) {
+	for key, record := range candidate.DefaultReads() {
 		if _, private := c.DefaultACLs[key]; private {
 			continue
 		}
@@ -22,8 +25,8 @@ func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *session.Journal) 
 			c.DefaultReads[key] = record
 		}
 	}
-	for key, record := range s.DefaultACLs() {
-		e.defaultACLChangeLocked(c, key, record)
+	for key, record := range candidate.DefaultACLs() {
+		c.RecordDefaultACL(base, key, record)
 	}
 }
 

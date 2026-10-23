@@ -434,29 +434,8 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	for address := range checkStage.Descriptors() {
-		expected := auth.Catalog.Get(address)
-		if original, private := changes.Originals[address]; private {
-			expected = original
-		}
-		if e.catalog.state.Get(address) != expected {
-			return Result{}, catalog.Conflict{}
-		}
-	}
-	for address := range checkStage.Removals() {
-		expected := auth.Catalog.Get(address)
-		if original, private := changes.Originals[address]; private {
-			expected = original
-		}
-		if e.catalog.state.Get(address) != expected {
-			return Result{}, catalog.Conflict{}
-		}
-	}
-	for address, descriptor := range checkStage.Descriptors() {
-		e.catalogChangeLocked(changes, address, descriptor)
-	}
-	for address := range checkStage.Removals() {
-		e.catalogChangeLocked(changes, address, nil)
+	if err := mergeCandidate(changes, e.catalog.state, auth.Catalog.State(), &checkStage.Candidate); err != nil {
+		return Result{}, err
 	}
 	cascade := checkStage.dropCascadeNames
 	for _, ref := range refs {

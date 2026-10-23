@@ -3,7 +3,10 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 )
 
 // catalogFence is one feature's commit precondition in the transaction
@@ -15,6 +18,14 @@ type catalogFence interface {
 	// currentLocked reports whether the fence still holds. Caller holds
 	// Engine.mu.
 	currentLocked(e *Engine, c *session.Journal) error
+}
+
+// committedFence is a fence over the committed catalog and storage alone.
+type committedFence interface {
+	session.Fence
+	// current reports whether the fence still holds against the committed
+	// catalog and storage relations. Caller holds Engine.mu.
+	current(committed *catalog.State, relations map[ids.ObjectAddress]*storage.Relation) error
 }
 
 // The fence kinds fix where catalogPreflightLocked checks a fence. The kinds
@@ -37,11 +48,16 @@ func (e *Engine) catalogFencesCurrentLocked(c *session.Journal, kinds ...session
 			if f.Kind() != kind {
 				continue
 			}
-			fence, ok := f.(catalogFence)
-			if !ok {
+			var err error
+			switch fence := f.(type) {
+			case committedFence:
+				err = fence.current(e.catalog.state, e.storage.Relations)
+			case catalogFence:
+				err = fence.currentLocked(e, c)
+			default:
 				return fmt.Errorf("stuntgres: foreign catalog fence %T", f)
 			}
-			if err := fence.currentLocked(e, c); err != nil {
+			if err != nil {
 				return err
 			}
 		}

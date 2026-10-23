@@ -37,7 +37,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	}
 	changes := session.NewJournal()
 	f.e.mu.Lock()
-	f.e.stageDefaultChangesLocked(stage, changes)
+	recordCandidateDefaults(changes, f.e.catalog.state, &stage.Candidate)
 	private := f.e.privateCatalogLocked(changes)
 	f.e.mu.Unlock()
 	if private.State().DefaultACL(key) != nil || changes.DefaultOriginals[key] != record {

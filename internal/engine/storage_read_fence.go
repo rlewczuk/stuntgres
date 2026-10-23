@@ -18,11 +18,25 @@ type storageReadFence struct {
 	generation uint64
 }
 
+// newStorageReadFence records store, the storage read at a; a nil store
+// records its absence.
+func newStorageReadFence(a ids.ObjectAddress, store *storage.Relation) storageReadFence {
+	f := storageReadFence{address: a, storage: store}
+	if store != nil {
+		f.length, f.ends, f.generation = len(store.Versions), store.Ends, store.Generation
+	}
+	return f
+}
+
 func (storageReadFence) Kind() session.FenceKind { return fenceStorageRead }
 
-func (f storageReadFence) currentLocked(e *Engine, _ *session.Journal) error {
-	s := e.storage.Relations[f.address]
-	if s != f.storage || s != nil && (len(s.Versions) != f.length || s.Ends != f.ends || s.Generation != f.generation) {
+// matches reports whether s is the recorded storage, unchanged.
+func (f storageReadFence) matches(s *storage.Relation) bool {
+	return s == f.storage && (s == nil || len(s.Versions) == f.length && s.Ends == f.ends && s.Generation == f.generation)
+}
+
+func (f storageReadFence) current(_ *catalog.State, relations map[ids.ObjectAddress]*storage.Relation) error {
+	if !f.matches(relations[f.address]) {
 		return catalog.Conflict{}
 	}
 	return nil
@@ -30,8 +44,7 @@ func (f storageReadFence) currentLocked(e *Engine, _ *session.Journal) error {
 
 func (e *Engine) storageReadsValidLocked(stage *CatalogStage) bool {
 	for _, read := range stage.storageReads {
-		current := e.stageStorageLocked(stage, read.address)
-		if current != read.storage || current == nil || len(current.Versions) != read.length || current.Ends != read.ends || current.Generation != read.generation {
+		if current := e.stageStorageLocked(stage, read.address); current == nil || !read.matches(current) {
 			return false
 		}
 	}
