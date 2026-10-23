@@ -290,7 +290,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if !regtypeValid {
 			// Invalidation survives failed analysis. Restoring the old path
 			// must not make its retired literal captures reusable again.
-			expected.regtypes.invalidated = true
+			expected.regtypes.Invalidate()
 			candidate.regtypes = nil
 		}
 		if replan {

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -109,10 +110,10 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.SQLType.ID()), 23)
 	sessionSQL(t, s, "SET ROLE routine_operand_a")
 	ast, d := sequencePreparedDescription(t, e, s, `SELECT '("abs(integer)","public.#=#(routine_types.secret,integer)",integer)'::public.routine_operator_pair AS c,'551'::regoperator AS o,'23'::regtype AS t`)
-	if d.regtypes == nil || len(d.regtypes.constants) != 3 {
+	if d.regtypes == nil || len(d.regtypes.Constants) != 3 {
 		t.Fatal("mixed datum did not enter shared analysis", d.regtypes)
 	}
-	saved := regoperatorPreparedSnapshot(d.regtypes.constants)
+	saved := regoperatorPreparedSnapshot(d.regtypes.Constants)
 	c := saved[0]
 	if c.TypeID == 0 || c.Operator != 0 || c.Value.Type() == nil || !c.Value.Type().ContainsRegproc() || !c.Value.Type().ContainsOperatorAlias() {
 		t.Fatal("mixed datum lost routine-owner classification", c)
@@ -161,7 +162,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		for i := range cells {
 			cells[i].Offset = 7
 		}
-		expected := StatementDescription{regtypes: &regtypeAnalysis{constants: cells}}
+		expected := StatementDescription{regtypes: &regobj.Analysis{Constants: cells}}
 		b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &expected)
 		b.Query.Auth = &auth
 		pos := parser.Position{Offset: 7, Character: 8}
@@ -212,7 +213,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		}
 		t.Fatal("mixed authority denial did not fail without rows", failure)
 	}
-	if d.analysis != before || !reflect.DeepEqual(d.regtypes.constants, saved) || !reflect.DeepEqual(d.Results, signature) {
+	if d.analysis != before || !reflect.DeepEqual(d.regtypes.Constants, saved) || !reflect.DeepEqual(d.Results, signature) {
 		t.Fatal("failed mixed reanalysis published partial capture or signature")
 	}
 	sessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_a")
@@ -253,8 +254,8 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		t.Fatal("mixed revision did not recapture unchanged actual identities", values, err)
 	}
 	want[0].Revision = changed.Revision()
-	if !reflect.DeepEqual(d.regtypes.constants[0].Operands, want) {
-		t.Fatal("mixed recapture retained stale operand stamps", d.regtypes.constants[0].Operands, want)
+	if !reflect.DeepEqual(d.regtypes.Constants[0].Operands, want) {
+		t.Fatal("mixed recapture retained stale operand stamps", d.regtypes.Constants[0].Operands, want)
 	}
 	assertDependencies(d.analysis.dependencies)
 	if !reflect.DeepEqual(d.Results, signature) || !regoperatorPreparedCellValid(t, e, s, d.regtypes) {

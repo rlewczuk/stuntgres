@@ -68,7 +68,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			}
 			assertOwned()
 			_, regtype := sequencePreparedDescription(t, e, s, "SELECT 'integer'::regtype")
-			if regtype.regtypes == nil || len(regtype.regtypes.constants) != 1 {
+			if regtype.regtypes == nil || len(regtype.regtypes.Constants) != 1 {
 				t.Fatal("direct regtype capture was discarded")
 			}
 			before := description.analysis

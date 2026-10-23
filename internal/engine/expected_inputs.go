@@ -24,7 +24,7 @@ func expectedOf(d *StatementDescription) analyze.Expected {
 		Sequences:        d.sequences,
 	}
 	if d.regtypes != nil {
-		e.Regtypes = d.regtypes.constants
+		e.Regtypes = d.regtypes.Constants
 	}
 	return e
 }

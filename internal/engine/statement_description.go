@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 )
 
@@ -19,7 +20,7 @@ type StatementDescription struct {
 	temporals        []analyze.TemporalConstant
 	types            map[analyze.PreparedTypeKey]analyze.TypeOccurrence
 	sequences        *sequence.Analysis
-	regtypes         *regtypeAnalysis
+	regtypes         *regobj.Analysis
 	analysis         *preparedAnalysis
 	quotes           []exec.QuoteConstant
 	quoteGeneration  uint64 // Published separately after successful quote preflight.

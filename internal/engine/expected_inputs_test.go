@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/sqltype"
 )
@@ -26,7 +27,7 @@ func TestExpectedOfCopiesHeldInputs(t *testing.T) {
 		temporals:        []analyze.TemporalConstant{{Offset: 4}},
 		types:            map[analyze.PreparedTypeKey]analyze.TypeOccurrence{{}: {}},
 		sequences:        &sequence.Analysis{Constants: []sequence.Constant{{Offset: 5}}},
-		regtypes:         &regtypeAnalysis{constants: []analyze.RegtypeConstant{{Offset: 6}}},
+		regtypes:         &regobj.Analysis{Constants: []analyze.RegtypeConstant{{Offset: 6}}},
 		planOwner:        ids.SessionToken{},
 		planGeneration:   7,
 		refreshTemporals: true,
@@ -43,7 +44,7 @@ func TestExpectedOfCopiesHeldInputs(t *testing.T) {
 		PlanGeneration:   7,
 		Types:            d.types,
 		Sequences:        d.sequences,
-		Regtypes:         d.regtypes.constants,
+		Regtypes:         d.regtypes.Constants,
 	}
 	if got := expectedOf(d); !reflect.DeepEqual(got, want) {
 		t.Fatalf("expectedOf = %+v, want %+v", got, want)
