@@ -166,6 +166,16 @@ func validateRoutineScalar(bound expr.Expr, inputs []sqltype.Usage, read catalog
 			if n.Number <= 0 || n.Number > len(inputs) || n.ResultUsage() != inputs[n.Number-1] {
 				failure = fmt.Errorf("stuntgres: invalid frozen routine formal")
 			}
+		case plan.RangeConstructorExpr:
+			failure = n.ValidateStoredProvider()
+			if failure == nil && read.State() != nil {
+				current, ok := read.Procedure(n.Ref.Address)
+				if !ok || current.RangeConstructor != n.Procedure.RangeConstructor {
+					failure = fmt.Errorf("invalid current range constructor capture")
+				} else {
+					failure = catalog.ValidateRangeConstructor(read, current)
+				}
+			}
 		case plan.SQLRoutineExpr:
 			failure = n.ValidateStoredProvider()
 			if failure == nil && read.State() != nil {

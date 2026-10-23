@@ -120,6 +120,12 @@ host methods.
   preserves sharing/cycles and source immutability; pending payloads complete and
   validate before publication. Normal type evolution rebinds affected current
   payloads while leaving unaffected originals intact.
+  Generated range constructors participate in the same declaration-stabilization
+  phase: the operation memo owns their destination type/provider, exact signature
+  and result. No separate post-principal COW pass creates unregistered target
+  clones, and no current/newer declaration replaces a captured original.
+  Selected cast/operator gateway negative parameter slots are transport only;
+  the owning written expression supplies frozen children, including typed NULL.
   The same operation memo owns original `proc.PLProgram` identities and maps
   complete formal/result/non-RECORD local Usages, including typmod and collation
   capabilities. PL lexical names belong to immutable `Definition.Name`, not the
@@ -247,6 +253,19 @@ host methods.
   rule and policy remap entries initialize their own occurrence boundary, while
   the internal operation seams reuse the complete mapper. Retained TEMP rules
   keep their separate target-container policy; import mappings never enter it.
+  `RangeIdentityConstraints` captures actual finite alias relationships from
+  rows and known stored/default/generation recipes through range-bearing
+  carriers. Captured source interval records retain flags, empty/NULL and
+  independent unbounded sides. Each companion's numeric endpoint preorder
+  preserves separation and hidden overlap comparisons, not written argument
+  adjacency; expanded and VARIADIC forms share those semantics. Independent
+  rows/carrier elements acquire no cross-value edges. Capture is cancellation-
+  aware and provider-free under the catalog lock. Shared object addresses share
+  assignments; dangling numbers stay fixed. The control planner activates only
+  affected endpoint components and includes ordinary collision capacity in the
+  same demand-driven plan. `ValidateRemappedRanges` still certifies the detached
+  destination with real providers and operation context after unlocking, before
+  publication.
 - **Readers of stored definitions.** `pg_depend` references
   (`ExpressionDependRefs`, `QueryDependRefs`, `IndexDependRefs`,
   `PartitionDependRefs`, `DependPinned`); temporary provenance and reference

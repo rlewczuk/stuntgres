@@ -120,6 +120,8 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			before := target.CatalogRead()
 			ref := catalogRef(t, target, before, "t")
 			owner, stored, frontier := target.catalog.Domain, target.storage.Relations[ref.Address], target.visibility.CommitSeq()
+			beforeOID := target.catalog.nextOID
+			var reservedNext ids.OID
 			stage := target.BeginCatalogStage(before)
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -150,6 +152,11 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				defer target.replacementMu.Unlock()
 				target.mu.Lock()
 				defer target.mu.Unlock()
+				oids := target.catalog.oidReservationLocked()
+				if _, err := target.catalog.allocateOIDFromLocked(&oids.next, 0); err != nil {
+					return err
+				}
+				reservedNext = oids.next
 				next, _, err := target.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 				if err != nil {
 					return err
@@ -165,13 +172,20 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				return target.installForeignCatalogLocked(boundary, next, preparedStorage, preparedSequences, nextRevision, prepared)
+				return target.installForeignCatalogLocked(boundary, next, preparedStorage, preparedSequences, nextRevision, prepared, oids)
 			}()
 			if err == nil {
 				target.locks.Fence(target.CatalogRead().Epoch())
 			}
 			if ctx.Err() != context.Canceled || !boundary.observed || target.catalog.Domain != owner {
 				t.Fatal("boundary not exercised", boundary.observed, err)
+			}
+			expectedOID := beforeOID
+			if late {
+				expectedOID = reservedNext
+			}
+			if target.catalog.nextOID != expectedOID {
+				t.Fatal("canceled installation changed OID issuance boundary", target.catalog.nextOID, expectedOID)
 			}
 			if late {
 				if err != nil || target.CatalogRead().Epoch() != before.Epoch()+1 || target.visibility.CommitSeq() != frontier+1 {

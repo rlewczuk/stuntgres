@@ -386,7 +386,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 		next := catalog.CloneState(source.catalog.state)
 		relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
 		e.mu.Lock()
-		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e))
+		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalogOIDReservation{base: e.catalog.nextOID, next: e.catalog.nextOID})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -509,7 +509,7 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	next := catalog.CloneState(f.view.State())
 	relations := map[ids.ObjectAddress]*storage.Relation{f.leaf.Address(): {}}
 	destination.mu.Lock()
-	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(f.e, destination))
+	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(f.e, destination), &catalogOIDReservation{base: destination.catalog.nextOID, next: destination.catalog.nextOID})
 	destination.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

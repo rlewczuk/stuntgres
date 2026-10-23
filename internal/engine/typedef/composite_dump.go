@@ -67,6 +67,13 @@ func MixedDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Rea
 		if err := replay.Reserve(d); err != nil {
 			return nil, err
 		}
+		var companion *catalog.Type
+		if _, custom := d.SQLType.RangeDefinition(); custom {
+			companion = view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.MultirangeType().ID())})
+			if err := replay.Reserve(companion); err != nil {
+				return nil, err
+			}
+		}
 		var statement dump.Statement
 		var err error
 		if composite := composites[id]; composite != nil {
@@ -81,6 +88,9 @@ func MixedDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Rea
 			result[id] = statement
 		}
 		replay.Associate(d)
+		if companion != nil {
+			replay.Associate(companion)
+		}
 	}
 	return result, nil
 }

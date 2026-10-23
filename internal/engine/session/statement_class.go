@@ -110,7 +110,7 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "CREATE TABLE"
 	case *parser.DropTable:
 		return "DROP TABLE"
-	case *parser.CreateComposite, *parser.CreateEnum:
+	case *parser.CreateRange, *parser.CreateComposite, *parser.CreateEnum:
 		return "CREATE TYPE"
 	case *parser.AlterEnum, *parser.AlterComposite, *parser.AlterType:
 		return "ALTER TYPE"

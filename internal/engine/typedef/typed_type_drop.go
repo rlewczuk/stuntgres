@@ -55,6 +55,16 @@ func stageDropTypes(h StageHost, auth ddl.Authority, names []parser.ObjectName, 
 		if err := catalog.TypeDropProtection(view.Catalog, typ, path, seen); err != nil {
 			return err
 		}
+		if typ.SQLType.IsMultirange() && typ.SQLType.IsUserDefined() {
+			parentAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.RangeType().ID())}
+			if seen[parentAddress] == nil {
+				companion, _ := h.DependencyObject(auth, typ.Address())
+				parent, _ := h.DependencyObject(auth, parentAddress)
+				d := sqlError("2BP01", "cannot drop "+companion+" because "+parent+" requires it").(*sqlstate.Error)
+				d.Hint = "You can drop " + parent + " instead."
+				return d
+			}
+		}
 	}
 	for _, typ := range roots {
 		h.DropTarget(typ.Address())

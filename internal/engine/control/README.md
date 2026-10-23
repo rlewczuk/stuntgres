@@ -154,14 +154,35 @@ contract; every entry runs on the stage, never on the target engine.
 
 ## Catalog replacement
 
-The root's `preserveTemporaryLocked` holds `Engine.mu` for the whole replacement
-and calls these on the private candidate, in order, before allocator and
-publication work; error texts are the engine's:
+The root's `preserveTemporaryLocked` holds `Engine.mu` for identity planning and
+publication. Provider repair uses the existing isolated candidate/session with
+the target mutex released and publication fences rechecked. On the private
+candidate, these owning operations retain the engine's error contracts:
 
 1. `PersistentReplacementCatalog`, `TemporarySet`,
    `RetainTemporaryBuiltinTypes`, `CheckTemporaryDependencies`,
    `TemporaryCollisionMapping`, `RemapReplacementIdentities`
    (`persistent_replacement.go`, `temporary_*.go`, `replacement_remap*.go`).
+   Collision remapping stays selective outside actual affected alias endpoint
+   components. All captured range/member order edges are structural facts;
+   unrelated collisions, unused families and separate singleton values do not
+   activate them. A finite retain-first/backtracking assignment includes all
+   ordinary collision demand in one owned pool from the central allocator's
+   operation-local replacement cursor. Normal issuance uses the same helper.
+   Complete search precedes every further acquisition and stops immediately on
+   success, leaving unnecessary later intervals and future capacity untouched.
+   Only saturated/impossible intervals permit sparse floor jumps through the
+   existing allocator. Fixed numeric endpoints remain fixed; TEMP identities
+   are excluded destinations, not source anchors. Exhausted legal complete
+   choices alone justify no-fit. Provider certification remains unlocked.
+   The candidate cursor spans all preservation OID consumers, including view
+   rules, and publishes only with the final catalog installation. A no-fit,
+   later validation error or cancellation discards private reservations, not
+   live issuance. Ordinary allocations during unlocked repair invalidate the
+   candidate through both repair and publication frontier fences.
+   Generated constructors with independently changed routine owners or explicit
+   ACLs reject Dump before output; four-type owner replay does not serialize or
+   reset independently altered routine authority.
 2. `RemapViewRuleOIDs(view, allocate)` and `RemapDefinitionOIDs`
    (`view_rule_oids.go`, `definition_oids.go`): give colliding imported rules,
    checks, policies, constraints, defaults and generations fresh OIDs from the

@@ -313,6 +313,18 @@ func (e *Engine) stageSchemaDomainsLocked(op *session.Operation, auth Authorizat
 	for _, d := range contained {
 		label := stored.DependencyObject(stage.Base, d.Address(), stage.dependencyPath)
 		namespaceAddress := d.Namespace()
+		if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsRange() {
+			for _, schema := range schemas {
+				if schema.Address() == namespaceAddress {
+					break
+				}
+				companion := stage.Base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.MultirangeType().ID())})
+				if companion != nil && companion.Namespace() == schema.Address() {
+					namespaceAddress = schema.Address()
+					break
+				}
+			}
+		}
 		if extension, ok := d.(*catalog.Extension); ok {
 			namespaceAddress = extension.TargetNamespace
 		}

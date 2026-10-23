@@ -70,10 +70,10 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 // declaration under its owner.
 func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration dump.Statement) error {
 	declaration.Binding = s.comparisonBindings[castConsumer{Event: dump.Event{OID: oid}}]
-	if domain := s.domainNodes[oid]; domain != nil && domain.SQLType.IsDomain() && declaration.Owner != "postgres" {
-		// Owner metadata does not imply schema CREATE/USAGE. Preserve
-		// its captured identity, construct as bootstrap, then transfer only
-		// the exact fresh domain through the ordinary owner executor.
+	if typ := s.domainNodes[oid]; typ != nil && (typ.SQLType.IsDomain() || typ.SQLType.IsRange()) && declaration.Owner != "postgres" {
+		// Owner metadata does not imply schema CREATE/USAGE. Preserve its
+		// captured identity, construct as bootstrap, then transfer only the
+		// exact fresh type through the ordinary owner executor.
 		if err := w.forceOwner(declaration.Owner); err != nil {
 			return err
 		}
@@ -83,11 +83,15 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 		if err := w.emitDefinition(s.CatalogView, declaration); err != nil {
 			return err
 		}
-		qualified, err := regobj.TypeDeclaration(s.CatalogView, domain.SQLType.Usage())
+		qualified, err := regobj.TypeDeclaration(s.CatalogView, typ.SQLType.Usage())
 		if err != nil {
 			return err
 		}
-		return w.emit("ALTER DOMAIN " + qualified + " OWNER TO " + catalog.Identifier(declaration.Owner) + ";\n")
+		kind := "DOMAIN"
+		if typ.SQLType.IsRange() {
+			kind = "TYPE"
+		}
+		return w.emit("ALTER " + kind + " " + qualified + " OWNER TO " + catalog.Identifier(declaration.Owner) + ";\n")
 	}
 	if err := w.setOwner(declaration.Owner); err != nil {
 		return err

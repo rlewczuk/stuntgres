@@ -27,6 +27,9 @@ func WalkOperatorReferencesAt(view catalog.Read, reader catalog.DefinitionReader
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return WalkOperatorReferencesAt(view, reader, leaf, record) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := WalkOperatorReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
@@ -74,6 +77,11 @@ func OperatorLiteral(view catalog.Read, value sqltype.Value) (string, error) {
 func RemapOperatorDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return value, nil
+	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.MapRange(value.Type(), sqltype.RangeMapIdentity, func(leaf sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
+			return RemapOperatorDatum(leaf, destination)
+		})
 	}
 	if value.Type().BaseType().IsComposite() {
 		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {

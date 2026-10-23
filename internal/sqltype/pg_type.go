@@ -88,6 +88,12 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 	if d.IsQueryInt() || d.IsCube() || d.IsEan13() {
 		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "U", Modifier: -1}, true
 	}
+	if d.IsRange() {
+		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "r", Category: "R", Input: 3834, Output: 3835, Receive: 3836, Send: 3837, Analyze: 3916, Modifier: -1}, true
+	}
+	if d.IsMultirange() {
+		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "m", Category: "R", Input: 4231, Output: 4232, Receive: 4233, Send: 4234, Analyze: 4242, Modifier: -1}, true
+	}
 	if !d.IsBuiltin() {
 		return PGTypeMetadata{}, false
 	}
@@ -208,24 +214,6 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 		f = PGTypeMetadata{Kind: "b", Category: "N", Input: 3736, Output: 3737, Receive: 3738, Send: 3739}
 	case 3769: // regdictionary
 		f = PGTypeMetadata{Kind: "b", Category: "N", Input: 3771, Output: 3772, Receive: 3773, Send: 3774}
-	case 3904: // int4range
-		f = PGTypeMetadata{Kind: "r", Category: "R", Input: 3834, Output: 3835, Receive: 3836, Send: 3837, Analyze: 3916}
-	case 3906: // numrange
-		f = PGTypeMetadata{Kind: "r", Category: "R", Input: 3834, Output: 3835, Receive: 3836, Send: 3837, Analyze: 3916}
-	case 3908: // tsrange
-		f = PGTypeMetadata{Kind: "r", Category: "R", Input: 3834, Output: 3835, Receive: 3836, Send: 3837, Analyze: 3916}
-	case 3910: // tstzrange
-		f = PGTypeMetadata{Kind: "r", Category: "R", Input: 3834, Output: 3835, Receive: 3836, Send: 3837, Analyze: 3916}
-	case 3912: // daterange
-		f = PGTypeMetadata{Kind: "r", Category: "R", Input: 3834, Output: 3835, Receive: 3836, Send: 3837, Analyze: 3916}
-	case 3926: // int8range
-		f = PGTypeMetadata{Kind: "r", Category: "R", Input: 3834, Output: 3835, Receive: 3836, Send: 3837, Analyze: 3916}
-	case 4451: // int4multirange
-		f = PGTypeMetadata{Kind: "m", Category: "R", Input: 4231, Output: 4232, Receive: 4233, Send: 4234, Analyze: 4242}
-	case 4532: // nummultirange
-		f = PGTypeMetadata{Kind: "m", Category: "R", Input: 4231, Output: 4232, Receive: 4233, Send: 4234, Analyze: 4242}
-	case 4536: // int8multirange
-		f = PGTypeMetadata{Kind: "m", Category: "R", Input: 4231, Output: 4232, Receive: 4233, Send: 4234, Analyze: 4242}
 	case 705: // unknown
 		f = PGTypeMetadata{Kind: "p", Category: "X", Input: 109, Output: 110, Receive: 2416, Send: 2417}
 	case 2278: // void

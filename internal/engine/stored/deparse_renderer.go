@@ -746,6 +746,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
+	case plan.RangeConstructorExpr:
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("missing constructor namespace")
+		}
+		return rangeConstructorCallSQL(n, r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), func(arg expr.Expr) (string, error) {
+			argRenderer := r
+			argRenderer.ShowImplicit = true
+			return argRenderer.SQL(ctx, arg, DeparseParent{})
+		})
 	case plan.SQLRoutineExpr:
 		if err := n.ValidateStoredProvider(); err != nil {
 			return "", err

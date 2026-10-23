@@ -11,15 +11,15 @@ import (
 
 // Restore hook entries for owner directives (SET SESSION AUTHORIZATION).
 // A superuser directive after another owner's directive makes that owner the
-// owner of the next CREATE; the created domain or inheriting table is then
+// owner of the next CREATE; the created domain, range or inheriting table is then
 // paired with the ALTER OWNER that follows it.
 
 // beforeRestoreOwnerSnapshot moves the owner directive state into the
 // current statement and clears it, so it reaches only the next statement.
 func beforeRestoreOwnerSnapshot(r *restoreRun, _ *session.Operation, _ parser.Statement) (bool, error) {
 	r.cur.priorAuthorization, r.cur.ownerForCreate, r.cur.ownerPair = r.lastAuthorization, r.createOwner, r.pairedOwner
-	r.cur.domainOwnerPair = r.pairedDomainOwner
-	r.pairedDomainOwner = typedef.RestoredDomainOwner{}
+	r.cur.typeOwnerPair = r.pairedTypeOwner
+	r.pairedTypeOwner = typedef.RestoredTypeOwner{}
 	r.lastAuthorization, r.createOwner = authorization.PrincipalRef{}, authorization.PrincipalRef{}
 	r.pairedOwner = table.RestoredInheritedOwner{}
 	return false, nil

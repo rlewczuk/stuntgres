@@ -92,14 +92,23 @@ func prepareRestorePartitionUnique(r *restoreRun, op *session.Operation, stmt pa
 	return nil
 }
 
-// afterRestoreDomainOwner pairs a domain created under an owner directive
-// with the ALTER DOMAIN OWNER that follows it.
-func afterRestoreDomainOwner(r *restoreRun, op *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
-	if _, domain := stmt.(*parser.CreateDomain); !domain || r.cur.ownerForCreate == (authorization.PrincipalRef{}) || outcome.Created == (ids.ObjectRef{}) {
+// afterRestoreTypeOwner pairs a domain or genuine range created under an owner
+// directive with the exact ALTER OWNER that immediately follows it.
+func afterRestoreTypeOwner(r *restoreRun, op *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
+	if r.cur.ownerForCreate == (authorization.PrincipalRef{}) || outcome.Created == (ids.ObjectRef{}) {
+		return nil
+	}
+	kind := ""
+	switch stmt.(type) {
+	case *parser.CreateDomain:
+		kind = "domain"
+	case *parser.CreateRange:
+		kind = "type"
+	default:
 		return nil
 	}
 	var err error
-	r.pairedDomainOwner, err = r.stage.captureRestoredDomainOwner(op, outcome.Created, r.cur.ownerForCreate)
+	r.pairedTypeOwner, err = r.stage.captureRestoredTypeOwner(op, outcome.Created, r.cur.ownerForCreate, kind)
 	return err
 }
 

@@ -20,7 +20,7 @@ func (v *View) SQLRoutineRecipeProcedure(read catalog.Read, path analyze.ViewLit
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen SQL routine reference")
 	}
 	d, ok := read.Procedure(ref.Address)
-	if !ok || d.SQL == nil || len(raw.Name.Parts) != 2 {
+	if !ok || d.SQL == nil && d.RangeConstructor == nil || len(raw.Name.Parts) != 2 {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen SQL routine procedure")
 	}
 	if _, valid := analyze.SQLCallableShape(read, nil, d, raw); !valid {

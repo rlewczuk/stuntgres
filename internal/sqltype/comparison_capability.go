@@ -14,7 +14,7 @@ func ComparisonCapabilities(d *Descriptor) (equality, ordering bool) {
 	if d.IsArray() {
 		return ComparisonCapabilities(d.Element())
 	}
-	if isRange(d.ID()) || isMultirange(d.ID()) {
+	if d.IsRange() || d.IsMultirange() {
 		return true, true
 	}
 	if d.ID() == PgNodeTree {

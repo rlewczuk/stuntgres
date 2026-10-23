@@ -182,8 +182,9 @@ func BindExclusionOperator(view catalog.Read, usage sqltype.Usage, class sqltype
 		input = sqltype.Oid
 	case sqltype.Cidr:
 		input = sqltype.Inet
-	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange:
-		input = 3831 // Released polymorphic anyrange operator input.
+	}
+	if t.IsRange() {
+		input = 3831
 	}
 	if sqltype.IsRegObjectAlias(input) || sqltype.IsRoutineAlias(input) || sqltype.IsOperatorAlias(input) || sqltype.IsRegTS(input) {
 		input = sqltype.Oid

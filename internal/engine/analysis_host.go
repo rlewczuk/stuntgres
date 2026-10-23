@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -259,6 +260,10 @@ func (h *bindingHost) EmitNotice(diagnostic sqlstate.Error) {
 
 func (h *bindingHost) ReplayInsertAuthority() bool {
 	return h.op != nil && operationReplayOrZero(h.op).insertAuthority
+}
+
+func (h *bindingHost) ReplayConstructorCall(raw parser.FunctionExpr) bool {
+	return h.ReplayInsertAuthority() && !dump.RestoreFunctionRecipe(raw) && restoreRangeConstructorEligible(h.CurrentCatalog(), raw)
 }
 
 func (h *bindingHost) ReplayDomainCell(b *analyze.Binding, s *parser.Insert, row, column int) (expr.Expr, bool, error) {

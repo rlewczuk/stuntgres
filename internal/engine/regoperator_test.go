@@ -198,7 +198,7 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 				mapping[domain.Address()] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60001 + i)}
 				mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.Array)}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60003 + i)}
 			}
-			if changed, err := typedef.ReownDomainTypes(next, mapping, false); err != nil || !changed {
+			if changed, err := typedef.ReownDomainTypes(next, mapping, false, rangeTypeRebinder(next, mapping)); err != nil || !changed {
 				t.Fatal("domain reownership", changed, err)
 			}
 			for i, original := range []*catalog.Type{direct, chain} {

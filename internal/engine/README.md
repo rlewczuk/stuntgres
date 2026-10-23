@@ -241,6 +241,13 @@ Producers, the OID registry and descriptor specs live in
 - `catalog.AdvanceRevisionFrontier` is pure and saturating and never reserves
   the global allocator; publication commits its local frontier only at
   successful installation under `Engine.mu`.
+- Persistent replacement reserves OIDs with an operation-local base/next cursor
+  through the same `catalogStore.allocateOIDFromLocked` checks as ordinary
+  issuance. All preservation OID users share it. Only final catalog installation
+  commits its frontier; no-fit, cancellation and later validation failures leave
+  live capacity unchanged. Unlocked repair and final installation fence the
+  live OID frontier, including aborted ordinary allocations without a new root.
+  Failed candidates never reset another operation's consumed identities.
 - `CatalogStage` embeds `catalog.Candidate`, which owns the catalog-only
   publication fences, the apply step, the history markers and the creation
   ACLs; DDL authorization, lifecycle, rowtype synchronization, storage
@@ -387,6 +394,7 @@ Add `RACE=1` for lifecycle, cancellation and contention selections.
 
 ```sh
 make check RUN='^TestPreparedRebind'                  # prepared analysis identity
+make check RUN='^TestRangeType(Parser|Providers|Bounds|Multirange|Atomicity|IdentityRemap|DependencyClosure|Adapter|Constructors|ExactEndpoints)$'
 make check RUN='^TestDatabaseCreate'                   # registry, template, publication, target authority
 make check RUN='^TestSetting'                         # settings registry
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # producers; one catalog: ^TestPG<Name>

@@ -48,6 +48,11 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   expression lowering, while shared targets evaluate runtime bounds before the
   leaf. Each output row privately reconstructs the same original datum; activation
   publication and detached field-ancestor reconstruction belong to the engine.
+- **Generated range constructors** (`range_constructor.go`):
+  `RangeConstructorExpr` captures the actual type-owned procedure and result
+  generation, with ordinary callable coercion, dependency and EXECUTE admission.
+  Its closed native declaration invokes typed range/member construction directly;
+  explicit VARIADIC retains the genuine associated range-array formal.
 - **Installed extension nodes** (`expression_installed.go`,
   `expression_cube.go`, `expression_cube_spatial.go`, `expression_extension_paths.go`):
   `InstalledTextExpr` (unaccent, `daitch_mokotoff`), `InstalledCryptoExpr`,

@@ -24,7 +24,7 @@ type castReplay struct {
 }
 
 func sameReplayCast(a, b *catalog.Cast) bool {
-	return a.Source == b.Source && a.Target == b.Target && a.Method == b.Method && a.Context == b.Context && a.Function == b.Function
+	return a.Source == b.Source && a.Target == b.Target && a.Method == b.Method && a.Context == b.Context && a.Function == b.Function && a.GeneratedRange == b.GeneratedRange
 }
 func castContext(context string, mode sqltype.CoercionContext) string {
 	if context != "" {
@@ -232,7 +232,7 @@ rows:
 	}
 	for _, descriptor := range s.CatalogView.Descriptors() {
 		final, ok := descriptor.(*catalog.Cast)
-		if !ok || s.lateForeignCasts[final.OID] {
+		if !ok || final.GeneratedRange != (ids.ObjectAddress{}) || s.lateForeignCasts[final.OID] {
 			continue
 		}
 		for oid := range s.lateForeignCasts {
@@ -248,6 +248,23 @@ rows:
 		// Signature adapters must exist before a temporary WITH FUNCTION row.
 		sort.SliceStable(required, func(i, j int) bool { return required[i].Method != "f" && required[j].Method == "f" })
 		for _, d := range required {
+			if d.GeneratedRange != (ids.ObjectAddress{}) {
+				actual, ok := s.CatalogView.Cast(d.Source, d.Target)
+				if !ok || !sameReplayCast(actual, &d) {
+					return fmt.Errorf("stuntgres: stale generated range cast")
+				}
+				if err := (catalog.CastProvider{}).Validate(s.CatalogView, actual); err != nil {
+					return err
+				}
+				if !site.ForeignDefault {
+					oid, err := predecessor(s.CatalogView, d.GeneratedRange, ids.ObjectAddress{})
+					if err != nil {
+						return err
+					}
+					s.Graph.Add(event, dump.Event{OID: oid})
+				}
+				continue
+			}
 			final, exists := s.CatalogView.Cast(d.Source, d.Target)
 			raw := s.rawFloat4 && d.Source == sqltype.Xid && d.Target == sqltype.Float4
 			if raw && d.Method == "b" && d.Context == "e" {

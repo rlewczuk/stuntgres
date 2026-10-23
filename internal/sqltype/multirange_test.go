@@ -138,6 +138,9 @@ func TestMultirangeOwnershipAndValidation(t *testing.T) {
 			if _, err := bad.Retag(foreign); err == nil {
 				t.Fatal("invalid retag admitted")
 			}
+			if _, err := bad.Retag(d); err == nil {
+				t.Fatal("same-generation builtin retag skipped ordering invariants")
+			}
 		}
 		mergeable, _ := d.multirangeRange.Input(ctx, "[3,8)", -1)
 		bad := Value{typ: d, multirange: &multirangePayload{[]rangeDatum{first, mergeable.rangeDatum, second}}}

@@ -105,13 +105,13 @@ func restoreForeignDefault(s *parser.ForeignDDL) *parser.AlterTableDefault {
 }
 
 // admitRestoreAlterOwner admits captured installed-type ownership or pairs an
-// ALTER OWNER with the domain or inheriting table its owner directive created.
+// ALTER OWNER with the exact fresh type or inheriting table its directive created.
 func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
+	if s.Kind == "domain" || s.Kind == "type" && r.cur.typeOwnerPair.Kind == "type" {
+		return r.stage.restoreTypeOwner(op, s, r.cur.typeOwnerPair)
+	}
 	if s.Kind == "type" {
 		return admitRestoreInstalledTypeOwner(r, op, s)
-	}
-	if s.Kind == "domain" {
-		return r.stage.restoreDomainOwner(op, s, r.cur.domainOwnerPair)
 	}
 	return r.stage.restoreInheritedOwner(op, s, r.cur.ownerPair)
 }

@@ -107,7 +107,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 			var prepared index.RemintedIndexStorage
 			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
 			if err == nil {
-				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared)
+				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared, e.catalog.oidReservationLocked())
 			}
 		}
 	}

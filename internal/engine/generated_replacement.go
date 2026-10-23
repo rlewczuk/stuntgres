@@ -23,7 +23,8 @@ import (
 // after repair; later container writes must use that store's locked methods.
 // When no repair is needed, it returns nil and leaves the containers detached.
 func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *session.Operation, indexes *index.Snapshot) (installedStage *Engine, result error) {
-	needed := indexes.NeedsOwnerRepair() || partition.HasHashPartition(next)
+	rangeValidation := len(mapping) != 0 && stored.HasAliasRangeTypes(next)
+	needed := rangeValidation || indexes.NeedsOwnerRepair() || partition.HasHashPartition(next)
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -38,10 +39,11 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		return installedStage, ctx.Err()
 	}
 	catalogSnapshot, roles, frontier := e.catalog.state, e.roles.published, e.visibility.CommitSeq()
+	oidFrontier := e.catalog.nextOID
 	e.mu.Unlock()
 	defer func() {
 		e.mu.Lock()
-		if result == nil && (e.catalog.state != catalogSnapshot || e.roles.published != roles || e.visibility.CommitSeq() != frontier) {
+		if result == nil && (e.catalog.state != catalogSnapshot || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.catalog.nextOID != oidFrontier) {
 			result = ids.ErrCatalogReplaced
 		}
 	}()
@@ -115,6 +117,9 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		stage.mu.Unlock()
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.catalog.read(candidate)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	if err == nil && rangeValidation {
+		err = stored.ValidateRemappedRanges(ctx, candidate, relations)
+	}
 	changed := indexes.TrackedGenerations(candidate)
 	if err == nil {
 		err = table.RecomputeRemappedGenerations(ctx, candidate, relations, mapping, evaluation, changed, remapCheckCapture(evaluation.Host))

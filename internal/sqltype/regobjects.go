@@ -41,6 +41,9 @@ func (d *Descriptor) containsRegObject(kind ID) bool {
 		return false
 	}
 	physical := d.BaseType()
+	if r := physical.RangeType(); r != nil {
+		return r.rangeSubtype.containsRegObject(kind)
+	}
 	if physical.IsArray() {
 		return physical.element.containsRegObject(kind)
 	}

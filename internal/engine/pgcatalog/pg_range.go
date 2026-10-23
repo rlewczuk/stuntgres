@@ -2,6 +2,7 @@ package pgcatalog
 
 import (
 	"fmt"
+	catalogtypes "stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -28,26 +29,24 @@ func capturePGRange(in Input) ([][]sqltype.Value, error) {
 			return nil, fmt.Errorf("stuntgres: foreign range source type")
 		}
 	}
-	var facts [6]sqltype.RangeMetadata
-	count := 0
-	for _, id := range [...]sqltype.ID{sqltype.Int4Range, sqltype.NumRange, sqltype.TimestampRange, sqltype.TimestamptzRange, sqltype.DateRange, sqltype.Int8Range} {
+	var facts []sqltype.RangeMetadata
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		d, ok := catalog.LookupType(id)
-		if !ok || !d.Concrete() {
+		t, ok := descriptor.(*catalogtypes.Type)
+		if !ok || !t.SQLType.IsRange() {
 			continue
 		}
-		fact, ok := d.RangeMetadata()
+		fact, ok := t.SQLType.RangeMetadata()
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: invalid range owner metadata")
 		}
-		facts[count] = fact
-		count++
+		facts = append(facts, fact)
 	}
-	rows := make([][]sqltype.Value, count)
-	values := make([]sqltype.Value, count*7)
-	for i, fact := range facts[:count] {
+	rows := make([][]sqltype.Value, len(facts))
+	values := make([]sqltype.Value, len(facts)*7)
+	for i, fact := range facts {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

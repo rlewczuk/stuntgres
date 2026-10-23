@@ -47,7 +47,7 @@ func domainAlterReplayOwnership(t *testing.T) {
 				if err == nil || e.catalog.state != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) {
 					t.Fatal("ineligible owner replay changed destination", err)
 				}
-				message := typedef.RestoreDomainOwnerBoundary
+				message := typedef.RestoreTypeOwnerBoundary("domain")
 				if tc.name == "wrong_kind" {
 					message = table.RestoreInheritedOwnerBoundary
 				}

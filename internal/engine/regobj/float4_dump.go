@@ -18,7 +18,7 @@ func ConstructorBoundedInputContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, constructorBoundsKey{}, true)
 }
 func ConstructorArrayTargetBounds(v sqltype.Value) string {
-	if v.IsNull() || !v.Type().BaseType().IsArray() || !(v.RequiresCircleConstructorReplay() || NeedsFloat4RawReplay(v) && v.Type().BaseType().Element().BaseType().ID() != sqltype.Float4) {
+	if v.IsNull() || !v.Type().BaseType().IsArray() || !(ContainsCustomRange(v.Type()) || v.RequiresCircleConstructorReplay() || NeedsFloat4RawReplay(v) && v.Type().BaseType().Element().BaseType().ID() != sqltype.Float4) {
 		return ""
 	}
 	needed := false
@@ -49,6 +49,11 @@ func ContainsFloat4(t *sqltype.Descriptor) bool {
 	if t.ID() == sqltype.Float4 {
 		return true
 	}
+	if r := t.RangeType(); r != nil {
+		if d, ok := r.RangeDefinition(); ok {
+			return ContainsFloat4(d.Subtype.Type)
+		}
+	}
 	if t.IsArray() {
 		return ContainsFloat4(t.Element())
 	}
@@ -71,6 +76,21 @@ func NeedsFloat4RawReplay(v sqltype.Value) bool {
 	t := v.Type().BaseType()
 	if t.ID() == sqltype.Float4 {
 		return v.Float4NeedsRawReplay()
+	}
+	if t.IsRange() {
+		bounds, err := v.RangeBounds()
+		if err != nil || bounds.Empty {
+			return false
+		}
+		return NeedsFloat4RawReplay(bounds.Lower) || NeedsFloat4RawReplay(bounds.Upper)
+	}
+	if t.IsMultirange() {
+		for i := range v.MultirangeLen() {
+			if NeedsFloat4RawReplay(v.MultirangeMember(i)) {
+				return true
+			}
+		}
+		return false
 	}
 	if t.IsArray() {
 		for i := range v.ArrayLen() {
@@ -103,6 +123,9 @@ func constructorLiteral(ctx context.Context, view catalog.Read, reader catalog.D
 			return "", err
 		}
 		return "CAST(CAST('" + strconv.FormatUint(uint64(bits), 10) + "' AS pg_catalog.xid) AS pg_catalog.float4)", nil
+	}
+	if u.Type.IsRange() || u.Type.IsMultirange() {
+		return rangeConstructorLiteral(ctx, view, reader, n, acl)
 	}
 	if u.Type.IsComposite() {
 		parts := make([]string, v.CompositeLen())
@@ -217,4 +240,25 @@ func constructorLiteral(ctx context.Context, view catalog.Read, reader catalog.D
 		return "CAST(" + text + " AS " + declaration + ")", err
 	}
 	return "", fmt.Errorf("stuntgres: invalid constructor container")
+}
+
+// ContainsCustomRange selects the ordinary recursive constructor renderer for
+// nested custom families; their endpoints may carry symbolic or exact leaves.
+func ContainsCustomRange(t *sqltype.Descriptor) bool {
+	t = t.BaseType()
+	if r := t.RangeType(); r != nil {
+		_, custom := r.RangeDefinition()
+		return custom
+	}
+	if t.IsArray() {
+		return ContainsCustomRange(t.Element())
+	}
+	if t.IsComposite() {
+		for i := range t.CompositeLen() {
+			if ContainsCustomRange(t.CompositeMember(i).Usage.Type) {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -119,37 +119,38 @@ type Codec interface {
 
 // Descriptor has no mutable or execution-local state. Catalogs own generations.
 type Descriptor struct {
-	id                              ID
-	name, sql, database             string
-	base                            Usage
-	ownDomainChecks, domainChecks   bool
-	ownDomainNotNull, domainNotNull bool
-	element                         *Descriptor
-	associatedArray                 ID
-	delimiter                       byte
-	enum                            *enumDefinition
-	queryInt                        bool
-	cube                            bool
-	citext                          bool
-	ean13                           bool
-	composite                       *compositeDefinition
-	rangeSubtype                    *Descriptor
-	rangeBoolean                    *Descriptor
-	multirangeRange                 *Descriptor
-	multirangeCompanion             *Descriptor
-	networkCIDR                     *Descriptor
-	networkMasklen                  *Descriptor
-	networkBoolean                  *Descriptor
-	geometryPoint                   *Descriptor
-	circleBoolean, circleFloat      *Descriptor
-	pointBoolean, pointFloat        *Descriptor
-	polygonBoolean, polygonPoint    *Descriptor
-	polygonInt                      *Descriptor
-	pathInt                         *Descriptor
+	id                               ID
+	name, sql, database              string
+	base                             Usage
+	ownDomainChecks, domainChecks    bool
+	ownDomainNotNull, domainNotNull  bool
+	element                          *Descriptor
+	associatedArray                  ID
+	delimiter                        byte
+	enum                             *enumDefinition
+	queryInt                         bool
+	cube                             bool
+	citext                           bool
+	ean13                            bool
+	composite                        *compositeDefinition
+	rangeSubtype                     *Descriptor
+	customRange                      *RangeDefinition
+	rangeBoolean                     *Descriptor
+	multirangeRange                  *Descriptor
+	multirangeCompanion              *Descriptor
+	networkCIDR                      *Descriptor
+	networkMasklen                   *Descriptor
+	networkBoolean                   *Descriptor
+	geometryPoint                    *Descriptor
+	circleBoolean, circleFloat       *Descriptor
+	pointBoolean, pointFloat         *Descriptor
+	polygonBoolean, polygonPoint     *Descriptor
+	polygonInt                       *Descriptor
+	pathInt                          *Descriptor
 	ftsBoolean, ftsDistance, ftsText *Descriptor
-	lookupOnly                      bool
-	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
-	namespace                       string
+	lookupOnly                       bool
+	catalogNullOwner                 *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
+	namespace                        string
 }
 
 func (d *Descriptor) ID() ID          { return d.id }
@@ -499,11 +500,22 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if !v.null && d.BaseType().id == Polygon && !v.validPolygon() {
 		return Value{}, fmt.Errorf("missing polygon payload")
 	}
-	if !v.null && isRange(d.BaseType().id) && !v.validRange() {
+	if v.typ.BaseType().IsRange() != d.BaseType().IsRange() || v.typ.BaseType().IsMultirange() != d.BaseType().IsMultirange() {
+		return Value{}, fmt.Errorf("incompatible range family identity")
+	}
+	if !v.null && d.BaseType().IsRange() && !v.validRange() {
 		return Value{}, fmt.Errorf("invalid range datum")
 	}
-	if !v.null && isMultirange(d.BaseType().id) && (!v.validMultirange() || !d.BaseType().validMultirangeAuthority() || d.BaseType().multirangeRange.id != v.typ.BaseType().multirangeRange.id || d.BaseType().multirangeRange.rangeSubtype.id != v.typ.BaseType().multirangeRange.rangeSubtype.id) {
-		return Value{}, fmt.Errorf("invalid multirange datum")
+	if !v.null && d.BaseType().IsMultirange() {
+		valid := false
+		if v.typ.BaseType().RangeType().customRange != nil {
+			valid = v.validMultirangeShape()
+		} else {
+			valid = v.validMultirange()
+		}
+		if !valid || !d.BaseType().validMultirangeAuthority() || d.BaseType().multirangeRange.id != v.typ.BaseType().multirangeRange.id || d.BaseType().multirangeRange.rangeSubtype.id != v.typ.BaseType().multirangeRange.rangeSubtype.id {
+			return Value{}, fmt.Errorf("invalid multirange datum")
+		}
 	}
 	if !v.null && IsNetwork(d.BaseType().id) && !v.network.valid(d.BaseType().id == Cidr) {
 		return Value{}, fmt.Errorf("invalid network datum")
@@ -525,6 +537,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if v.typ.BaseType().IsArray() {
 		return v.MapArray(d, func(element Value, target *Descriptor) (Value, error) { return element.Retag(target) })
+	}
+	if fromEnum.RangeType() != nil && fromEnum.RangeType().customRange != nil {
+		return v.MapRange(d, RangeMapGeneration, func(endpoint Value, target *Descriptor) (Value, error) { return endpoint.Retag(target) })
 	}
 	if v.typ.BaseType().IsComposite() {
 		for _, member := range d.BaseType().composite.members {
@@ -756,6 +771,12 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.IsEan13() {
 		return d.ean13Input(text)
 	}
+	if d.IsRange() {
+		return d.rangeInput(ctx, text, env)
+	}
+	if d.IsMultirange() {
+		return d.multirangeInput(ctx, text, env)
+	}
 	switch d.id {
 	case Path:
 		return d.pathInput(text)
@@ -781,10 +802,6 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.aclitemInput(ctx, text, env)
 	case Inet, Cidr:
 		return d.networkInput(text)
-	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange:
-		return d.rangeInput(ctx, text, env)
-	case Int4Multirange, Int8Multirange, NumMultirange:
-		return d.multirangeInput(ctx, text, env)
 	case Money:
 		return d.moneyInput(text, env.MonetaryLocale)
 	case Bit, VarBit:
@@ -1055,6 +1072,12 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsEan13() {
 		return d.ean13Output(v)
 	}
+	if d.IsRange() {
+		return v.rangeOutput(ctx, env)
+	}
+	if d.IsMultirange() {
+		return v.multirangeOutput(ctx, env)
+	}
 	switch d.id {
 	case Path:
 		return pathOutput(v, env)
@@ -1079,10 +1102,6 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return "", fmt.Errorf("invalid network value")
 		}
 		return v.network.output(d.id == Cidr), nil
-	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange:
-		return v.rangeOutput(env)
-	case Int4Multirange, Int8Multirange, NumMultirange:
-		return v.multirangeOutput(ctx, env)
 	case Money:
 		return moneyOutput(v.integer, env.MonetaryLocale), nil
 	case Bit, VarBit:
@@ -1265,6 +1284,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	}
+	if d.IsRange() || d.IsMultirange() {
+		text, err := d.Output(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	}
 	if d.IsQueryInt() {
 		text, err := d.queryIntOutput(ctx, v)
 		if err != nil {
@@ -1349,18 +1375,6 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return d.sql + " '" + text + "'", nil
-	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange:
-		text, err := v.rangeOutput(OutputEnvironment{})
-		if err != nil {
-			return "", err
-		}
-		return "'" + text + "'", nil
-	case Int4Multirange, Int8Multirange, NumMultirange:
-		text, err := v.multirangeOutput(ctx, OutputEnvironment{})
-		if err != nil {
-			return "", err
-		}
-		return "'" + text + "'", nil
 	case Money:
 		return "MONEY '" + moneyOutput(v.integer, Locale{}) + "'", nil
 	case Bit, VarBit:
@@ -1947,6 +1961,18 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		}
 		return p, nil
 	}
+	sourceFamily, targetFamily := source.Type.RangeType(), target.Type.RangeType()
+	if sourceFamily != nil && sourceFamily.customRange != nil || targetFamily != nil && targetFamily.customRange != nil {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) ||
+			context == Assignment && (source.Type.IsRange() || source.Type.IsMultirange()) && IsCharacter(target.Type.id) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
 	if source.Type.IsComposite() || target.Type.IsComposite() {
 		if source.Type == target.Type {
 			return p, nil
@@ -2465,7 +2491,7 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 	if left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath {
 		return p, failure("42883", "incompatible comparison operands")
 	}
-	if isRange(left.id) || isRange(right.id) || isMultirange(left.id) || isMultirange(right.id) {
+	if left.IsRange() || right.IsRange() || left.IsMultirange() || right.IsMultirange() {
 		if left != right {
 			return p, failure("42883", "incompatible comparison operands")
 		}
@@ -2534,10 +2560,10 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		}
 		return compareCube(a.cube, b.cube), nil
 	}
-	if isRange(p.left.id) {
-		return p.left.compareRangeValues(a.rangeDatum, b.rangeDatum), nil
+	if p.left.IsRange() {
+		return p.left.compareRangeValues(ctx, a.rangeDatum, b.rangeDatum)
 	}
-	if isMultirange(p.left.id) {
+	if p.left.IsMultirange() {
 		if a.multirange == nil || b.multirange == nil {
 			return 0, fmt.Errorf("missing multirange comparison payload")
 		}

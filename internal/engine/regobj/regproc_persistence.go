@@ -36,6 +36,9 @@ func WalkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader,
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return WalkRoutineReferencesAt(view, reader, leaf, record) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := WalkRoutineReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
@@ -71,6 +74,11 @@ func WalkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader,
 func RemapRoutineDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return value, nil
+	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.MapRange(value.Type(), sqltype.RangeMapIdentity, func(leaf sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
+			return RemapRoutineDatum(leaf, destination)
+		})
 	}
 	if value.Type().BaseType().IsComposite() {
 		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {

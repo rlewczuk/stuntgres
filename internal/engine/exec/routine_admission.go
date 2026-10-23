@@ -345,11 +345,18 @@ func StrictScalarRoutine(routine *catalog.Procedure) bool {
 		routine.Result != 2249 && !preparation.ReturnsSet(routine)
 }
 
-// Expanded variadic path elements form one non-NULL array argument. A NULL
+// Expanded variadic elements form one non-NULL array argument. A NULL
 // element is not a NULL formal; explicit VARIADIC retains the array child.
 func StrictRoutineArguments(node expr.Expr, visit func(expr.Expr)) {
 	if expression, ok := node.(functions.JSONExtract); ok && !expression.Variadic {
 		visit(expression.Args[0])
+		return
+	}
+	if expression, ok := node.(plan.RangeConstructorExpr); ok && !expression.Variadic &&
+		expression.Procedure != nil && expression.Procedure.RangeConstructor != nil &&
+		expression.Procedure.RangeConstructor.Form == catalog.MultirangeConstructorMany {
+		// This declaration has only its variadic array formal. Expanded
+		// range members, including NULLs, are not nullable call formals.
 		return
 	}
 	plan.ExpressionChildren(node, visit)

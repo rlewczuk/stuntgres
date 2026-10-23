@@ -97,7 +97,7 @@ func OwnershipRoot(view catalog.Read, d catalog.Descriptor, operatorSeeded func(
 	case *catalog.Relation:
 		return t.RelationKind != catalog.CatalogRelation && t.RelationKind != catalog.IndexRelation && t.RelationKind != catalog.CompositeRelation && (t.Sequence == nil || t.Sequence.Owned == (ids.ObjectAddress{}))
 	case *catalog.Type:
-		if !t.SQLType.IsUserDefined() || t.SQLType.IsArray() {
+		if !t.SQLType.IsUserDefined() || t.SQLType.IsArray() || t.SQLType.IsMultirange() {
 			return false
 		}
 		if t.OwningRelation == (ids.ObjectAddress{}) {
@@ -116,7 +116,7 @@ func OwnershipRoot(view catalog.Read, d catalog.Descriptor, operatorSeeded func(
 	case *catalog.Operator:
 		return !operatorSeeded(t)
 	case *catalog.Procedure:
-		return !t.Seeded() && t.Foreign == nil
+		return !t.Seeded() && t.Foreign == nil && t.RangeConstructor == nil
 	case *catalog.Database, *catalog.Extension, *catalog.TSDictionary:
 		return true
 	}

@@ -303,6 +303,19 @@ type CreateEnum struct {
 
 func (*CreateEnum) statement() {}
 
+type RangeOption struct {
+	Name  Identifier
+	Value TypeName
+}
+
+type CreateRange struct {
+	Name    ObjectName
+	Options []RangeOption
+	Pos     Position
+}
+
+func (*CreateRange) statement() {}
+
 type AlterEnum struct {
 	Name                        ObjectName
 	Label, Old, Neighbor        EnumLabel

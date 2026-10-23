@@ -109,7 +109,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.executeDropView(scope, stmt.(*parser.DropView), count)
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
 		return e.executeSequenceDDL(scope, stmt, count)
-	case *parser.CreateEnum, *parser.AlterEnum:
+	case *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum:
 		return e.executeEnumDDL(scope, stmt, count)
 	case *parser.AlterDomain:
 		domain := stmt.(*parser.AlterDomain)

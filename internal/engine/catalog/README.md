@@ -94,6 +94,11 @@ private frames, not catalog authority.
   in place. Reset clears them and wholesale import/remap rebuilds them before
   binders run. Binder definition readers enumerate the indexed bucket plus staged
   deltas, never the full base inventory.
+- **Generated range declarations** (`range_constructor.go`): `RangeConstructor`
+  is the finite two-/three-bound and zero-/single-/variadic-member native
+  provider carried by a real `Procedure`. Current owner-type, namespace,
+  signature and generation validation never grants capability by routine name.
+  `RangeConstructorOwner` supplies its INTERNAL ownership edge.
 - **Access methods, operator classes and families, casts** (`access_method.go`,
   `operator_class*.go`, `operator_family*.go`, `cast*.go`). Immutable global
   descriptors read through `Read.AccessMethod`, `Read.OperatorFamily`, ..., the

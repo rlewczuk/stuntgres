@@ -173,3 +173,38 @@ func TestRestoreScalarCubeConstructors(t *testing.T) {
 		}
 	}
 }
+
+func TestRangeTypeRestoreRecipeEligibility(t *testing.T) {
+	eligible := func(r parser.FunctionExpr) bool {
+		return len(r.Name.Parts) == 2 && r.Name.Parts[0].Text == "public" && (r.Name.Parts[1].Text == "left" || r.Name.Parts[1].Text == "right")
+	}
+	for _, sql := range []string{`SELECT public."left"(1,3,'[]')`, `SELECT public."right"()`, `SELECT public."right"('a','b','c')`} {
+		raw := selectTarget(t, sql)
+		if RestoreFunctionRecipe(raw.(parser.FunctionExpr)) {
+			t.Fatal("constructor shape mistaken for incumbent static recipe", sql)
+		}
+		if err := RestoreScalar(raw, false, eligible); err != nil {
+			t.Fatal("qualified constructor eligibility must supplement static recipe shape", sql, err)
+		}
+		if err := RestoreScalar(raw, false); err == nil {
+			t.Fatal("constructor widened the unconfigured static whitelist", sql)
+		}
+	}
+	incumbent := selectTarget(t, `SELECT pg_catalog.left('abc',2)`).(parser.FunctionExpr)
+	if !RestoreFunctionRecipe(incumbent) {
+		t.Fatal("incumbent recipe shape lost")
+	}
+	if err := RestoreScalar(incumbent, false, func(parser.FunctionExpr) bool { return false }); err != nil {
+		t.Fatal("incumbent recipe became dependent on constructor eligibility", err)
+	}
+	for _, sql := range []string{`SELECT forged."right"()`, `SELECT "right"()`} {
+		if err := RestoreScalar(selectTarget(t, sql), false, eligible); err == nil {
+			t.Fatal("unqualified/forged namespace gained eligibility", sql)
+		}
+	}
+	err := RestoreScalar(selectTarget(t, `SELECT public."right"(NULL,public."left"($1,3,'[]'))`), false, eligible)
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" {
+		t.Fatal("supplemental strict constructor skipped recursive parameter guard", err)
+	}
+}

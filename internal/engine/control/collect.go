@@ -247,6 +247,15 @@ func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddre
 
 func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Procedure)
+	if t.RangeConstructor != nil {
+		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
+			return err
+		}
+		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
+			return fmt.Errorf("stuntgres: dump cannot serialize altered generated constructor authority")
+		}
+		return nil
+	}
 	if t.PLHandler != catalog.NoPLHandler {
 		if err := catalog.ValidatePLHandler(c.CatalogView, t); err != nil {
 			return err
@@ -336,6 +345,9 @@ func collectExtensionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 
 func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Type)
+	if t.SQLType.IsMultirange() && t.SQLType.IsUserDefined() {
+		return (stored.TypeProvider{}).Validate(c.CatalogView, t)
+	}
 	// A recipe can regenerate synthetic type defaults, never a real
 	// explicit ACL (even one equal to the effective baseline).
 	if t.ACL.Explicit && !typedef.DefaultDomainACL(t) {

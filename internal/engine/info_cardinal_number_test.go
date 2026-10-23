@@ -146,7 +146,7 @@ func TestInfoCardinalNumberBuiltinBaseRebind(t *testing.T) {
 	base := *next.MustType(baseAddress)
 	base.SQLType, _ = fresh.CatalogRead().LookupType(sqltype.Int4)
 	next.SetDescriptor(baseAddress, &base)
-	changed, err := typedef.ReownDomainTypes(next, nil, false)
+	changed, err := typedef.ReownDomainTypes(next, nil, false, rangeTypeRebinder(next, nil))
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}

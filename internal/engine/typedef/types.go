@@ -15,6 +15,10 @@ func StoredArrayElement(typ *sqltype.Descriptor) bool {
 	if physical.ID() == sqltype.PgSnapshot {
 		return false
 	}
+	if r := physical.RangeType(); r != nil {
+		_, custom := r.RangeDefinition()
+		return custom
+	}
 	if physical.ID() == sqltype.Lseg || physical.ID() == sqltype.Circle || physical.ID() == sqltype.Tid || physical.ID() == sqltype.Macaddr || physical.ID() == sqltype.Macaddr8 || sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
 		return false
 	}

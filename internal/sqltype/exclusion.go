@@ -142,7 +142,7 @@ func (p ExclusionOperator) Matches(ctx context.Context, left, right Value) (bool
 		return false, nil
 	}
 	if p.Name == "&&" {
-		if isRange(p.usage.Type.BaseType().id) {
+		if p.usage.Type.BaseType().IsRange() {
 			value, err := p.rangePlan.Evaluate(ctx, [2]Value{left, right})
 			if err != nil {
 				return false, err

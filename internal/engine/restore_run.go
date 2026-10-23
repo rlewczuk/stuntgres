@@ -58,7 +58,7 @@ type restoreRun struct {
 	// consumes.
 	lastAuthorization, createOwner authorization.PrincipalRef
 	pairedOwner                    table.RestoredInheritedOwner
-	pairedDomainOwner              typedef.RestoredDomainOwner
+	pairedTypeOwner                typedef.RestoredTypeOwner
 
 	cur restoreStatement
 }
@@ -73,7 +73,7 @@ type restoreStatement struct {
 	// Owner directive state as it was before this statement.
 	priorAuthorization, ownerForCreate authorization.PrincipalRef
 	ownerPair                          table.RestoredInheritedOwner
-	domainOwnerPair                    typedef.RestoredDomainOwner
+	typeOwnerPair                      typedef.RestoredTypeOwner
 }
 
 // startCaptures allocates the capture maps once the restore session is

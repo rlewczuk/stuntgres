@@ -46,6 +46,9 @@ func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, erro
 		return nil, false, nil
 	}
 	if node, handled, err := b.retainedTypeNameCast(raw); handled || err != nil {
+		if err == nil && handled && b.replayConstructorCall(raw) {
+			return nil, true, fmt.Errorf("stuntgres: invalid restore scalar")
+		}
 		return node, handled, err
 	}
 	selected, handled, err := b.selectSQLCallable(raw, nil)
@@ -393,6 +396,11 @@ func SelectSQLCallables(view catalog.Read, candidates []SQLCallable, operands []
 }
 
 func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallableSelection, original parser.Expr, policy ExpressionPolicy) (expr.Expr, error) {
+	// Syntax eligibility admits a name bucket, not every overload in it.
+	// Reject a different ordinary winner before constructing its body/provider.
+	if b.replayConstructorCall(raw) && (selected.Procedure == nil || selected.Procedure.RangeConstructor == nil) {
+		return nil, fmt.Errorf("stuntgres: invalid restore scalar")
+	}
 	if selected.typeNameTarget.Type != nil {
 		if err := functions.ValidateCallSyntax(b, raw); err != nil {
 			return nil, err
@@ -408,6 +416,47 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true, TypeNameCallPosition: raw.Pos})
 	}
 	d := selected.Procedure
+	if d != nil && d.RangeConstructor != nil {
+		if err := functions.ValidateCallSyntax(b, raw); err != nil {
+			return nil, err
+		}
+		if err := functions.CallDecorationError(raw); err != nil {
+			return nil, err
+		}
+		view := selected.auth.ReadCatalog()
+		if err := catalog.ValidateRangeConstructor(view, d); err != nil {
+			return nil, err
+		}
+		ref := b.Host.CatalogOwner().Domain.Ref(view.Epoch(), d.Address())
+		b.dependency(ref, d.Revision())
+		result, _ := b.authorityType(selected.auth, sqltype.ID(d.Result))
+		info := b.Info(result.Usage(), raw.Pos, selected.properties)
+		info.RoutineReference = d
+		// Selected operator/cast dispatch already owns bound operands. Its
+		// negative parameter slots are internal transport, never frozen SQL.
+		// The owning cast/operator records the original written children.
+		synthetic := false
+		if len(raw.Args) != 0 {
+			parameter, ok := raw.Args[0].(parser.ParameterExpr)
+			synthetic = ok && parameter.Number < 0
+		}
+		if (b.Params.NoParameters || b.Consumer.frozenDefinition) && !synthetic {
+			namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
+			if !ok {
+				return nil, fmt.Errorf("missing constructor namespace")
+			}
+			frozen := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: d.Name()}}}, Args: raw.Args, ArgNames: raw.ArgNames, Variadic: raw.Variadic, Pos: raw.Pos, StoredSQLRoutine: true}
+			if b.Stored.Syntax == nil {
+				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+			}
+			b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+		}
+		node := plan.RangeConstructorExpr{Info: info, Procedure: d, Ref: ref, Args: selected.args, Variadic: raw.Variadic}
+		if err := node.ValidateStoredProvider(); err != nil {
+			return nil, err
+		}
+		return node, nil
+	}
 	if d != nil && extension.CubeProviderOf(d) == extension.StockCube {
 		symbol, err := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
 		if err != nil {
@@ -591,4 +640,14 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	raw.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: symbol}}}
 	raw.Args = args
 	return b.BindFunctionProvider(raw)
+}
+
+// Only supplemental written replay values acquire the constructor-only winner
+// restriction. Incumbent stored/default/SQL/PL recipes keep their own authority,
+// even when evaluated while the enclosing INSERT carries replay authority.
+func (b *Binder) replayConstructorCall(raw parser.FunctionExpr) bool {
+	if b.Consumer.frozenDefinition || b.Consumer.DefaultConsumer || b.Consumer.CheckConsumer || b.Params.ClosedRoutineFormals || b.PL != nil {
+		return false
+	}
+	return b.Host.ReplayConstructorCall(raw)
 }

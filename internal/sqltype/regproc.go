@@ -38,6 +38,9 @@ func (d *Descriptor) ContainsRegproc() bool {
 		return false
 	}
 	physical := d.BaseType()
+	if r := physical.RangeType(); r != nil {
+		return r.rangeSubtype.ContainsRegproc()
+	}
 	if physical.IsArray() {
 		return physical.element.ContainsRegproc()
 	}

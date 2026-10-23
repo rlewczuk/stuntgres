@@ -29,8 +29,7 @@ func rangeAggregateInput(input *sqltype.Descriptor) *sqltype.Descriptor {
 		return nil
 	}
 	input = input.BaseType()
-	switch input.ID() {
-	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
+	if input.IsRange() && input.MultirangeType() != nil || input.IsMultirange() {
 		return input
 	}
 	return nil

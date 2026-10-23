@@ -15,6 +15,23 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	switch n := node.(type) {
+	case plan.RangeConstructorExpr:
+		if err := n.ValidateStoredProvider(); err != nil {
+			return "", err
+		}
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) {
+			return "", fmt.Errorf("invalid stored constructor reference")
+		}
+		p, ok := r.descriptor(view, n.Ref.Address).(*catalog.Procedure)
+		if !ok || !exec.SameRoutineDeclaration(p, n.Procedure) {
+			return "", fmt.Errorf("invalid stored constructor declaration")
+		}
+		ns, ok := r.descriptor(view, p.Namespace()).(*catalog.Namespace)
+		if !ok {
+			return "", fmt.Errorf("missing constructor namespace")
+		}
+		r.record(n.Ref)
+		return rangeConstructorCallSQL(n, catalog.QuoteIdentifier(ns.Name())+"."+catalog.QuoteIdentifier(p.Name()), func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
 	case plan.SQLRoutineExpr:
 		if err := n.ValidateStoredProvider(); err != nil {
 			return "", err

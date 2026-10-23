@@ -17,8 +17,8 @@ const (
 	rangeUpperUnbounded
 )
 
-// Ranges are inline and immutable. Endpoint interpretation belongs to the
-// descriptor's subtype; omitted and empty endpoints have entirely zero payloads.
+// Ranges are immutable. Builtin bounds stay inline; custom finite bounds refer
+// into owned typed endpoint pairs. Omitted and empty endpoints have zero payloads.
 // SQL NULL belongs to Value.null, not the flags or an endpoint sentinel.
 type rangeDatum struct {
 	lower, upper rangeBound
@@ -26,11 +26,14 @@ type rangeDatum struct {
 }
 
 type rangeBound struct {
+	value            *Value // Interior reference into one immutable endpoint pair.
 	coefficient      string
 	magnitude, scale int64
 	negative         bool
 	special          uint8
 }
+
+type rangeEndpointPair struct{ lower, upper Value }
 
 func isRange(id ID) bool {
 	return id == Int4Range || id == Int8Range || id == NumRange || id == DateRange || id == TimestampRange || id == TimestamptzRange
@@ -39,7 +42,7 @@ func isRange(id ID) bool {
 func (d *Descriptor) rangeBoundInput(ctx context.Context, input string, env InputEnvironment) (rangeBound, error) {
 	if d.rangeSubtype.id == Numeric {
 		v, err := d.rangeSubtype.numericInput(input, -1)
-		return rangeBound{v.text, v.exponent, v.scale, v.negative, v.special}, err
+		return rangeBound{coefficient: v.text, magnitude: v.exponent, scale: v.scale, negative: v.negative, special: v.special}, err
 	}
 	if d.rangeSubtype.id == Date || d.rangeSubtype.id == Timestamp || d.rangeSubtype.id == Timestamptz {
 		v, err := d.rangeSubtype.InputWithEnvironment(ctx, input, -1, env)
@@ -57,7 +60,7 @@ func (b rangeBound) numericView() numericView {
 	return numericView{text: b.coefficient, exponent: b.magnitude, negative: b.negative, special: b.special}
 }
 
-func (d *Descriptor) compareRangeBounds(a, b rangeBound) int {
+func (d *Descriptor) compareBuiltinRangeBounds(a, b rangeBound) int {
 	if d.rangeSubtype.id == Numeric {
 		return compareNumericViews(a.numericView(), b.numericView())
 	}
@@ -68,6 +71,16 @@ func (d *Descriptor) compareRangeBounds(a, b rangeBound) int {
 		return 1
 	}
 	return 0
+}
+
+func (d *Descriptor) compareRangeBounds(ctx context.Context, a, b rangeBound) (int, error) {
+	if d.customRange != nil {
+		if a.value == nil || b.value == nil {
+			return 0, fmt.Errorf("missing custom range endpoint")
+		}
+		return d.customRange.Ordering.Compare(ctx, *a.value, *b.value, InputEnvironment{})
+	}
+	return d.compareBuiltinRangeBounds(a, b), nil
 }
 
 func malformedRange(input, detail string) error {
@@ -181,39 +194,106 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string, env InputEnvi
 	if d.rangeSubtype == nil {
 		return Value{}, fmt.Errorf("missing range subtype")
 	}
-	if lowerAbsent {
-		datum.flags = datum.flags&^rangeLowerInclusive | rangeLowerUnbounded
-	} else {
-		bound, err := d.rangeBoundInput(ctx, lower, env)
-		if err != nil {
-			return Value{}, err
+	if d.customRange != nil {
+		lo, hi := Null(d.rangeSubtype), Null(d.rangeSubtype)
+		if !lowerAbsent {
+			lo, err = d.rangeSubtype.InputWithEnvironment(ctx, lower, -1, env)
+			if err != nil {
+				return Value{}, err
+			}
 		}
-		datum.lower = bound
-	}
-	if upperAbsent {
-		datum.flags = datum.flags&^rangeUpperInclusive | rangeUpperUnbounded
-	} else {
-		bound, err := d.rangeBoundInput(ctx, upper, env)
-		if err != nil {
-			return Value{}, err
+		if !upperAbsent {
+			hi, err = d.rangeSubtype.InputWithEnvironment(ctx, upper, -1, env)
+			if err != nil {
+				return Value{}, err
+			}
 		}
-		datum.upper = bound
+		return d.rangeFromTypedBounds(ctx, lo, hi, datum.flags, true)
+	} else {
+		if lowerAbsent {
+			datum.flags = datum.flags&^rangeLowerInclusive | rangeLowerUnbounded
+		} else {
+			bound, err := d.rangeBoundInput(ctx, lower, env)
+			if err != nil {
+				return Value{}, err
+			}
+			datum.lower = bound
+		}
+		if upperAbsent {
+			datum.flags = datum.flags&^rangeUpperInclusive | rangeUpperUnbounded
+		} else {
+			bound, err := d.rangeBoundInput(ctx, upper, env)
+			if err != nil {
+				return Value{}, err
+			}
+			datum.upper = bound
+		}
 	}
-	datum, err = d.canonicalRange(datum, true)
+	datum, err = d.canonicalRange(ctx, datum, true)
 	if err != nil {
 		return Value{}, err
 	}
 	return Value{typ: d, rangeDatum: datum}, nil
 }
 
+// Generic families have no canonical function. Shared typed construction and
+// operator/binary normalization use the same captured comparison and errors.
+func (d *Descriptor) canonicalGenericBounds(ctx context.Context, flags uint8, lower, upper Value, inputSave bool) (uint8, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if flags&rangeEmpty != 0 {
+		return rangeEmpty, nil
+	}
+	if flags&(rangeLowerUnbounded|rangeUpperUnbounded) != 0 {
+		return flags, nil
+	}
+	cmp, err := d.customRange.Ordering.Compare(ctx, lower, upper, InputEnvironment{})
+	if err != nil {
+		return 0, err
+	}
+	if cmp > 0 {
+		err := failure("22000", "range lower bound must be less than or equal to range upper bound")
+		if inputSave {
+			err = sqlstate.SoftInputError(err)
+		}
+		return 0, err
+	}
+	if cmp == 0 && flags&(rangeLowerInclusive|rangeUpperInclusive) != rangeLowerInclusive|rangeUpperInclusive {
+		return rangeEmpty, nil
+	}
+	return flags, nil
+}
+
 // inputSave belongs only to text input, not binary/constructor/operator callers.
-func (d *Descriptor) canonicalRange(x rangeDatum, inputSave bool) (rangeDatum, error) {
+func (d *Descriptor) canonicalRange(ctx context.Context, x rangeDatum, inputSave bool) (rangeDatum, error) {
 	if x.flags == rangeEmpty {
+		return x, nil
+	}
+	if d.customRange != nil {
+		var lower, upper Value
+		if x.flags&rangeLowerUnbounded == 0 {
+			lower = *x.lower.value
+		}
+		if x.flags&rangeUpperUnbounded == 0 {
+			upper = *x.upper.value
+		}
+		flags, err := d.canonicalGenericBounds(ctx, x.flags, lower, upper, inputSave)
+		if err != nil {
+			return rangeDatum{}, err
+		}
+		if flags == rangeEmpty {
+			return rangeDatum{flags: rangeEmpty}, nil
+		}
+		x.flags = flags
 		return x, nil
 	}
 	lo, hi := x.flags&rangeLowerUnbounded != 0, x.flags&rangeUpperUnbounded != 0
 	if !lo && !hi {
-		cmp := d.compareRangeBounds(x.lower, x.upper)
+		cmp, compareErr := d.compareRangeBounds(ctx, x.lower, x.upper)
+		if compareErr != nil {
+			return x, compareErr
+		}
 		if cmp > 0 {
 			err := failure("22000", "range lower bound must be less than or equal to range upper bound")
 			if inputSave {
@@ -244,7 +324,7 @@ func (d *Descriptor) canonicalRange(x rangeDatum, inputSave bool) (rangeDatum, e
 			x.flags &^= rangeUpperInclusive
 		}
 		if !lo && !hi {
-			cmp := d.compareRangeBounds(x.lower, x.upper)
+			cmp := d.compareBuiltinRangeBounds(x.lower, x.upper)
 			if cmp > 0 || cmp == 0 && x.flags&(rangeLowerInclusive|rangeUpperInclusive) != rangeLowerInclusive|rangeUpperInclusive {
 				return rangeDatum{flags: rangeEmpty}, nil
 			}
@@ -305,14 +385,14 @@ func (v Value) validRange() bool {
 		return false
 	}
 	d := v.typ.BaseType()
-	if !isRange(d.id) || d.rangeSubtype == nil {
+	if !d.IsRange() || d.rangeSubtype == nil {
 		return false
 	}
 	return d.validRangeDatum(v.rangeDatum)
 }
 
 func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
-	if !isRange(d.id) || d.rangeSubtype == nil {
+	if !d.IsRange() || d.rangeSubtype == nil {
 		return false
 	}
 	if r.flags&rangeEmpty != 0 {
@@ -328,6 +408,15 @@ func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
 	if upperAbsent && (r.upper != (rangeBound{}) || r.flags&rangeUpperInclusive != 0) {
 		return false
 	}
+	if d.customRange != nil {
+		valid := func(b rangeBound, absent bool) bool {
+			if absent {
+				return b == (rangeBound{})
+			}
+			return b.value != nil && b == (rangeBound{value: b.value}) && b.value.typ == d.rangeSubtype && !b.value.null
+		}
+		return valid(r.lower, lowerAbsent) && valid(r.upper, upperAbsent)
+	}
 	if d.id == NumRange {
 		if !lowerAbsent && !r.lower.validNumeric(d.rangeSubtype) || !upperAbsent && !r.upper.validNumeric(d.rangeSubtype) {
 			return false
@@ -335,7 +424,7 @@ func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
 		if lowerAbsent || upperAbsent {
 			return true
 		}
-		cmp := d.compareRangeBounds(r.lower, r.upper)
+		cmp := d.compareBuiltinRangeBounds(r.lower, r.upper)
 		return cmp < 0 || cmp == 0 && r.flags&(rangeLowerInclusive|rangeUpperInclusive) == rangeLowerInclusive|rangeUpperInclusive
 	}
 	if d.id == TimestampRange || d.id == TimestamptzRange {
@@ -345,7 +434,7 @@ func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
 		if lowerAbsent || upperAbsent {
 			return true
 		}
-		cmp := d.compareRangeBounds(r.lower, r.upper)
+		cmp := d.compareBuiltinRangeBounds(r.lower, r.upper)
 		return cmp < 0 || cmp == 0 && r.flags&(rangeLowerInclusive|rangeUpperInclusive) == rangeLowerInclusive|rangeUpperInclusive
 	}
 	if d.id == DateRange {
@@ -359,7 +448,7 @@ func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
 		if lowerAbsent || upperAbsent {
 			return true
 		}
-		cmp := d.compareRangeBounds(r.lower, r.upper)
+		cmp := d.compareBuiltinRangeBounds(r.lower, r.upper)
 		return cmp < 0 || cmp == 0 && r.flags&(rangeLowerInclusive|rangeUpperInclusive) == rangeLowerInclusive|rangeUpperInclusive
 	}
 	if r.flags&rangeUpperInclusive != 0 || !lowerAbsent && r.flags&rangeLowerInclusive == 0 {
@@ -374,7 +463,7 @@ func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
 	return lowerAbsent || upperAbsent || r.lower.magnitude < r.upper.magnitude
 }
 
-func (v Value) rangeOutput(env OutputEnvironment) (string, error) {
+func (v Value) rangeOutput(ctx context.Context, env OutputEnvironment) (string, error) {
 	if !v.validRange() {
 		return "", fmt.Errorf("invalid range datum")
 	}
@@ -383,8 +472,45 @@ func (v Value) rangeOutput(env OutputEnvironment) (string, error) {
 		return "empty", nil
 	}
 	var out strings.Builder
-	v.typ.BaseType().writeRangeDatum(&out, r, env)
+	if err := v.typ.BaseType().appendRangeDatum(ctx, &out, r, env); err != nil {
+		return "", err
+	}
 	return out.String(), nil
+}
+
+func (d *Descriptor) appendRangeDatum(ctx context.Context, out *strings.Builder, r rangeDatum, env OutputEnvironment) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if d.customRange == nil {
+		d.writeRangeDatum(out, r, env)
+		return nil
+	}
+	left, right := byte('('), byte(')')
+	if r.flags&rangeLowerInclusive != 0 {
+		left = '['
+	}
+	if r.flags&rangeUpperInclusive != 0 {
+		right = ']'
+	}
+	out.WriteByte(left)
+	if r.flags&rangeLowerUnbounded == 0 {
+		text, err := d.rangeSubtype.OutputWithEnvironment(ctx, *r.lower.value, env)
+		if err != nil {
+			return err
+		}
+		writeRangeBoundText(out, text)
+	}
+	out.WriteByte(',')
+	if r.flags&rangeUpperUnbounded == 0 {
+		text, err := d.rangeSubtype.OutputWithEnvironment(ctx, *r.upper.value, env)
+		if err != nil {
+			return err
+		}
+		writeRangeBoundText(out, text)
+	}
+	out.WriteByte(right)
+	return nil
 }
 
 // Write directly into the caller's builder, avoiding a string per integer member.

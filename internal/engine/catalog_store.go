@@ -52,12 +52,31 @@ func (s *catalogStore) registerProviderLocked(id ids.OID, p catalog.Provider) er
 // allocateOIDLocked returns the next unused object identifier, skipping
 // reserved OIDs and those that current descriptors already use.
 func (s *catalogStore) allocateOIDLocked() (ids.OID, error) {
-	for s.nextOID != 0 {
-		n := s.nextOID
+	return s.allocateOIDFromLocked(&s.nextOID, 0)
+}
+
+// catalogOIDReservation belongs to one unpublished replacement. Its frontier
+// becomes live only at the catalog installation boundary; base fences ordinary
+// allocations made while candidate providers run outside the target lock.
+type catalogOIDReservation struct{ base, next ids.OID }
+
+func (s *catalogStore) oidReservationLocked() catalogOIDReservation {
+	return catalogOIDReservation{base: s.nextOID, next: s.nextOID}
+}
+
+// allocateOIDFromLocked is the single allocator, for both normal issuance and
+// replacement reservations. Only the supplied cursor changes; all reservation,
+// descriptor, definition and exhaustion checks below are identical.
+func (s *catalogStore) allocateOIDFromLocked(cursor *ids.OID, floor ids.OID) (ids.OID, error) {
+	if *cursor != 0 && *cursor < floor {
+		*cursor = floor
+	}
+	for *cursor != 0 {
+		n := *cursor
 		if n == ^ids.OID(0) {
-			s.nextOID = 0
+			*cursor = 0
 		} else {
-			s.nextOID++
+			(*cursor)++
 		}
 		if n == ids.NamespaceClassID || n == ids.RelationClassID || n == ids.PGCatalogNamespaceOID || n == ids.PublicNamespaceOID {
 			continue
@@ -96,7 +115,14 @@ func (s *catalogStore) allocateOIDLocked() (ids.OID, error) {
 		}
 		return n, nil
 	}
-	return 0, fmt.Errorf("stuntgres: catalog object identity exhausted")
+	return 0, catalog.ErrObjectIdentityExhausted
+}
+
+// allocateOIDAtLeastLocked skips an unused numeric interval without replacing
+// the ordinary allocator's reservation/definition checks or recycling identities.
+// Only affected alias endpoint planning supplies a nonzero floor.
+func (s *catalogStore) allocateOIDAtLeastLocked(floor ids.OID) (ids.OID, error) {
+	return s.allocateOIDFromLocked(&s.nextOID, floor)
 }
 
 // revisionLocked reserves the next definition revision.

@@ -79,6 +79,9 @@ func captureRegtypeOutputValue(rows *exec.FinalRows, view catalog.Read, path []i
 	if value.IsNull() || !value.Type().ContainsRegtype() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return captureRegtypeOutputValue(rows, view, path, leaf) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := captureRegtypeOutputValue(rows, view, path, value.CompositeField(i)); err != nil {

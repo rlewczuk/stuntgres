@@ -34,7 +34,7 @@ func AdmitStatement[R any, T parser.Statement](check func(T) error) func(R, *ses
 // AdmitSchemaObject admits the schema-level object DDL.
 func AdmitSchemaObject[R any](_ R, _ *session.Operation, stmt parser.Statement) (Admission, error) {
 	switch stmt.(type) {
-	case *parser.CreateCast, *parser.DropCast, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.AlterType, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
+	case *parser.CreateCast, *parser.DropCast, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateRange, *parser.CreateEnum, *parser.CreateDomain, *parser.AlterType, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
 		return Admitted, nil
 	}
 	return NotHandled, nil

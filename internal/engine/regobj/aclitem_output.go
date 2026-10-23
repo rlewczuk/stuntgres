@@ -68,6 +68,9 @@ func CaptureACLItemOutputValue(rows *exec.FinalRows, output ACLItemOutput, value
 	if value.IsNull() || !value.Type().ContainsACLItem() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return CaptureACLItemOutputValue(rows, output, leaf) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := CaptureACLItemOutputValue(rows, output, value.CompositeField(i)); err != nil {

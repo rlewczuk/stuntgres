@@ -30,6 +30,13 @@ func (d *Descriptor) AttributeFacts() PostgreSQLAttributeFacts {
 		f.ByValue = true
 		return f
 	}
+	if d.IsRange() || d.IsMultirange() {
+		f.Storage = "x"
+		if d.RangeType().rangeSubtype.AttributeFacts().Alignment == "d" {
+			f.Alignment = "d"
+		}
+		return f
+	}
 	if d.IsCube() {
 		f.Alignment = "d"
 		return f
@@ -62,9 +69,9 @@ func (d *Descriptor) AttributeFacts() PostgreSQLAttributeFacts {
 		f.Storage = "m"
 	case Bytea, Text, BPChar, VarChar, Bit, VarBit, JSON, JSONB, JSONPath, PgNodeTree, 142, 1790, 3361, 3402, 5017, 3614, 4600, 4601:
 		f.Storage = "x"
-	case Int4Range, NumRange, DateRange, Int4Multirange, NumMultirange, 4535:
+	case 4535:
 		f.Storage = "x"
-	case TimestampRange, TimestamptzRange, Int8Range, Int8Multirange, 4533, 4534, 602, 604, 2970, 5038,
+	case 4533, 4534, 602, 604, 2970, 5038,
 		71, 75, 81, 83, 2249, 2277, 3831, 5078, 5080, 4537, 4538:
 		f.Alignment, f.Storage = "d", "x"
 	}

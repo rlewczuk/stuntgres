@@ -5,24 +5,56 @@ import "context"
 func rangeFromBounds(lower, upper rangeDatum) rangeDatum {
 	return rangeDatum{lower: lower.lower, upper: upper.upper, flags: lower.flags&(rangeLowerInclusive|rangeLowerUnbounded) | upper.flags&(rangeUpperInclusive|rangeUpperUnbounded)}
 }
-func (r *Descriptor) unionRanges(a, b rangeDatum) rangeDatum {
+func (r *Descriptor) unionRanges(ctx context.Context, a, b rangeDatum) (rangeDatum, error) {
 	lo, hi := a, a
-	if r.compareRangeEndpoint(a, true, b, true) >= 0 {
+	cmp, err := r.compareRangeEndpoint(ctx, a, true, b, true)
+	if err != nil {
+		return rangeDatum{}, err
+	}
+	if cmp >= 0 {
 		lo = b
 	}
-	if r.compareRangeEndpoint(a, false, b, false) <= 0 {
+	cmp, err = r.compareRangeEndpoint(ctx, a, false, b, false)
+	if err != nil {
+		return rangeDatum{}, err
+	}
+	if cmp <= 0 {
 		hi = b
 	}
-	return rangeFromBounds(lo, hi)
+	return rangeFromBounds(lo, hi), nil
+}
+
+func (r *Descriptor) connectedRanges(ctx context.Context, a, b rangeDatum) (bool, error) {
+	yes, err := r.rangeOverlaps(ctx, a, b)
+	if yes || err != nil {
+		return yes, err
+	}
+	yes, err = r.rangeBoundsAdjacent(ctx, a, b)
+	if yes || err != nil {
+		return yes, err
+	}
+	return r.rangeBoundsAdjacent(ctx, b, a)
 }
 
 // Subtract one member into at most two canonical survivors. The caller decides
 // whether two pieces are representable (multirange) or an SQL data exception.
-func (r *Descriptor) subtractRange(a, b rangeDatum) (left, right rangeDatum, count int, err error) {
-	if !r.rangeOverlaps(a, b) {
+func (r *Descriptor) subtractRange(ctx context.Context, a, b rangeDatum) (left, right rangeDatum, count int, err error) {
+	overlaps, err := r.rangeOverlaps(ctx, a, b)
+	if err != nil {
+		return left, right, 0, err
+	}
+	if !overlaps {
 		return a, rangeDatum{}, 1, nil
 	}
-	before, after := r.compareRangeEndpoint(a, true, b, true) < 0, r.compareRangeEndpoint(a, false, b, false) > 0
+	lo, err := r.compareRangeEndpoint(ctx, a, true, b, true)
+	if err != nil {
+		return left, right, 0, err
+	}
+	hi, err := r.compareRangeEndpoint(ctx, a, false, b, false)
+	if err != nil {
+		return left, right, 0, err
+	}
+	before, after := lo < 0, hi > 0
 	if before {
 		x := a
 		x.upper = b.lower
@@ -30,7 +62,7 @@ func (r *Descriptor) subtractRange(a, b rangeDatum) (left, right rangeDatum, cou
 		if b.flags&rangeLowerInclusive == 0 {
 			x.flags |= rangeUpperInclusive
 		}
-		x, err = r.canonicalRange(x, false)
+		x, err = r.canonicalRange(ctx, x, false)
 		if err != nil {
 			return left, right, 0, err
 		}
@@ -46,7 +78,7 @@ func (r *Descriptor) subtractRange(a, b rangeDatum) (left, right rangeDatum, cou
 		if b.flags&rangeUpperInclusive == 0 {
 			x.flags |= rangeLowerInclusive
 		}
-		x, err = r.canonicalRange(x, false)
+		x, err = r.canonicalRange(ctx, x, false)
 		if err != nil {
 			return left, right, 0, err
 		}
@@ -71,20 +103,31 @@ func (p RangeOperatorPlan) evaluateSet(ctx context.Context, a, b Value) (Value, 
 			if xe {
 				x = y
 			} else if !ye {
-				if !r.rangeOverlaps(x, y) && !r.rangeBoundsAdjacent(x, y) && !r.rangeBoundsAdjacent(y, x) {
+				connected, err := r.connectedRanges(ctx, x, y)
+				if err != nil {
+					return Value{}, err
+				}
+				if !connected {
 					return Value{}, failure("22000", "result of range union would not be contiguous")
 				}
-				x = r.unionRanges(x, y)
+				x, err = r.unionRanges(ctx, x, y)
+				if err != nil {
+					return Value{}, err
+				}
 			}
 		case RangeIntersection:
 			if xe || ye {
 				x = rangeDatum{flags: rangeEmpty}
 			} else {
-				x = r.intersectRangeDatums(x, y)
+				var err error
+				x, err = r.intersectRangeDatums(ctx, x, y)
+				if err != nil {
+					return Value{}, err
+				}
 			}
 		case RangeDifference:
 			if !xe && !ye {
-				lo, _, n, err := r.subtractRange(x, y)
+				lo, _, n, err := r.subtractRange(ctx, x, y)
 				if err != nil {
 					return Value{}, err
 				}
@@ -126,7 +169,15 @@ func (p RangeOperatorPlan) evaluateSet(ctx context.Context, a, b Value) (Value, 
 				}
 			}
 			var x rangeDatum
-			if j == len(bb) || i < len(aa) && r.compareRanges(aa[i], bb[j]) < 0 {
+			left := j == len(bb)
+			if i < len(aa) && j < len(bb) {
+				cmp, err := r.compareRanges(ctx, aa[i], bb[j])
+				if err != nil {
+					return Value{}, err
+				}
+				left = cmp < 0
+			}
+			if left {
 				x = aa[i]
 				i++
 			} else {
@@ -138,8 +189,15 @@ func (p RangeOperatorPlan) evaluateSet(ctx context.Context, a, b Value) (Value, 
 				continue
 			}
 			last := &out[len(out)-1]
-			if r.rangeOverlaps(*last, x) || r.rangeBoundsAdjacent(*last, x) {
-				*last = r.unionRanges(*last, x)
+			connected, err := r.connectedRanges(ctx, *last, x)
+			if err != nil {
+				return Value{}, err
+			}
+			if connected {
+				*last, err = r.unionRanges(ctx, *last, x)
+				if err != nil {
+					return Value{}, err
+				}
 			} else {
 				out = append(out, x)
 			}
@@ -153,11 +211,17 @@ func (p RangeOperatorPlan) evaluateSet(ctx context.Context, a, b Value) (Value, 
 				}
 			}
 			steps++
-			x := r.intersectRangeDatums(aa[i], bb[j])
+			x, err := r.intersectRangeDatums(ctx, aa[i], bb[j])
+			if err != nil {
+				return Value{}, err
+			}
 			if x.flags&rangeEmpty == 0 {
 				out = appendOperatorRange(out, x, len(aa)+len(bb))
 			}
-			cmp := r.compareRangeEndpoint(aa[i], false, bb[j], false)
+			cmp, err := r.compareRangeEndpoint(ctx, aa[i], false, bb[j], false)
+			if err != nil {
+				return Value{}, err
+			}
 			if cmp <= 0 {
 				i++
 			}
@@ -176,7 +240,14 @@ func (p RangeOperatorPlan) evaluateSet(ctx context.Context, a, b Value) (Value, 
 			}
 			remaining := a
 			alive := true
-			for j < len(bb) && r.compareRangeEndpoint(bb[j], false, remaining, true) < 0 {
+			for j < len(bb) {
+				cmp, err := r.compareRangeEndpoint(ctx, bb[j], false, remaining, true)
+				if err != nil {
+					return Value{}, err
+				}
+				if cmp >= 0 {
+					break
+				}
 				j++
 				steps++
 				if steps&255 == 0 {
@@ -185,14 +256,21 @@ func (p RangeOperatorPlan) evaluateSet(ctx context.Context, a, b Value) (Value, 
 					}
 				}
 			}
-			for alive && j < len(bb) && r.compareRangeEndpoint(bb[j], true, remaining, false) <= 0 {
+			for alive && j < len(bb) {
+				cmp, err := r.compareRangeEndpoint(ctx, bb[j], true, remaining, false)
+				if err != nil {
+					return Value{}, err
+				}
+				if cmp > 0 {
+					break
+				}
 				if steps&255 == 0 {
 					if err := ctx.Err(); err != nil {
 						return Value{}, err
 					}
 				}
 				steps++
-				lo, hi, n, err := r.subtractRange(remaining, bb[j])
+				lo, hi, n, err := r.subtractRange(ctx, remaining, bb[j])
 				if err != nil {
 					return Value{}, err
 				}
@@ -203,7 +281,11 @@ func (p RangeOperatorPlan) evaluateSet(ctx context.Context, a, b Value) (Value, 
 					out = appendOperatorRange(out, lo, len(aa)+len(bb))
 					remaining = hi
 				case 1:
-					if r.compareRangeEndpoint(lo, true, remaining, true) == 0 {
+					cmp, err := r.compareRangeEndpoint(ctx, lo, true, remaining, true)
+					if err != nil {
+						return Value{}, err
+					}
+					if cmp == 0 {
 						out = appendOperatorRange(out, lo, len(aa)+len(bb))
 						alive = false
 					} else {
@@ -211,7 +293,11 @@ func (p RangeOperatorPlan) evaluateSet(ctx context.Context, a, b Value) (Value, 
 					}
 				}
 				// A cutter reaching beyond this member may also affect the next member.
-				if r.compareRangeEndpoint(bb[j], false, a, false) >= 0 {
+				cmp, err = r.compareRangeEndpoint(ctx, bb[j], false, a, false)
+				if err != nil {
+					return Value{}, err
+				}
+				if cmp >= 0 {
 					break
 				}
 				j++

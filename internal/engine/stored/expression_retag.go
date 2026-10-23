@@ -107,6 +107,9 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 				}
 			}
 			sameSignature := ok && current.Signature == captured.Signature
+			if captured.RangeConstructor != nil {
+				sameSignature = ok && current.RangeConstructor != nil && current.RangeConstructor.Form == captured.RangeConstructor.Form && current.RangeConstructor.Type == retainedType(captured.RangeConstructor.Type)
+			}
 			if ok && captured.SQL != nil {
 				var collation typedef.CollationRemapper
 				if len(collations) != 0 {

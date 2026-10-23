@@ -77,6 +77,29 @@ func SameDatum(a, b Value) bool {
 		}
 		return true
 	}
+	if a.typ.BaseType().IsRange() {
+		return a.validRange() && b.validRange() && sameRangeDatum(a.rangeDatum, b.rangeDatum)
+	}
+	if a.typ.BaseType().IsMultirange() {
+		valid := func(v Value) bool {
+			if v.typ.BaseType().RangeType().customRange != nil {
+				return v.validMultirangeShape()
+			}
+			return v.validMultirange()
+		}
+		if !valid(a) || !valid(b) || len(a.multirange.members) != len(b.multirange.members) {
+			return false
+		}
+		if a.multirange == b.multirange {
+			return true
+		}
+		for i, member := range a.multirange.members {
+			if !sameRangeDatum(member, b.multirange.members[i]) {
+				return false
+			}
+		}
+		return true
+	}
 	switch a.typ.BaseType().id {
 	case Point:
 		return math.Float64bits(a.floating) == math.Float64bits(b.floating) && a.integer == b.integer
@@ -105,21 +128,6 @@ func SameDatum(a, b Value) bool {
 		return a.integer == b.integer
 	case Inet, Cidr:
 		return a.network.valid(a.typ.BaseType().id == Cidr) && b.network.valid(b.typ.BaseType().id == Cidr) && a.network == b.network
-	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange:
-		return a.validRange() && b.validRange() && a.rangeDatum == b.rangeDatum
-	case Int4Multirange, Int8Multirange, NumMultirange:
-		if !a.validMultirange() || !b.validMultirange() || len(a.multirange.members) != len(b.multirange.members) {
-			return false
-		}
-		if a.multirange == b.multirange {
-			return true
-		}
-		for i, member := range a.multirange.members {
-			if member != b.multirange.members[i] {
-				return false
-			}
-		}
-		return true
 	case PgSnapshot:
 		if a.snapshot == nil || b.snapshot == nil {
 			return false
@@ -177,4 +185,17 @@ func SameDatum(a, b Value) bool {
 	default:
 		return false
 	}
+}
+
+func sameRangeDatum(a, b rangeDatum) bool {
+	if a.flags != b.flags {
+		return false
+	}
+	bound := func(a, b rangeBound) bool {
+		if a.value == nil || b.value == nil {
+			return a == b
+		}
+		return SameDatum(*a.value, *b.value)
+	}
+	return bound(a.lower, b.lower) && bound(a.upper, b.upper)
 }

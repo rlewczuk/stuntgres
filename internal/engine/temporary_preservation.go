@@ -18,7 +18,7 @@ import (
 
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
-func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, restoreOp *session.Operation, indexes *index.Snapshot, principal catalog.ProcedureRemapper) error {
+func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, restoreOp *session.Operation, indexes *index.Snapshot, principal catalog.ProcedureRemapper, oids *catalogOIDReservation) error {
 	e.retainDatabaseLocked(next)
 	current := e.catalog.read(e.catalog.state)
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
@@ -44,7 +44,14 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := control.RetainTemporaryViewProvidersLocked(current, next, temporary); err != nil {
 		return err
 	}
-	mapping, err := control.TemporaryCollisionMapping(next, temporary, e.catalog.allocateOIDLocked)
+	var constraints []catalog.AliasOrderConstraint
+	if len(temporary) != 0 {
+		constraints, err = stored.RangeIdentityConstraints(ctx, next, relations)
+		if err != nil {
+			return err
+		}
+	}
+	mapping, err := control.TemporaryCollisionMapping(ctx, next, temporary, constraints, func(floor ids.OID) (ids.OID, error) { return e.catalog.allocateOIDFromLocked(&oids.next, floor) })
 	if err != nil {
 		return err
 	}
@@ -52,7 +59,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	defer func() { next.SetScalarImports(nil) }()
-	domainsChanged, err := typedef.ReownDomainTypes(next, mapping, true)
+	domainsChanged, err := typedef.ReownDomainTypes(next, mapping, true, rangeTypeRebinder(next, mapping))
 	if err != nil {
 		return err
 	}
@@ -191,7 +198,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	for address, descriptor := range next.Descriptors() {
 		previous[address] = descriptor
 	}
-	if err := control.RemapViewRuleOIDs(e.catalog.read(next), e.catalog.allocateOIDLocked); err != nil {
+	if err := control.RemapViewRuleOIDs(e.catalog.read(next), func() (ids.OID, error) { return e.catalog.allocateOIDFromLocked(&oids.next, 0) }); err != nil {
 		return err
 	}
 	if err := table.RemapInheritanceConstraintOrigins(next, previous); err != nil {

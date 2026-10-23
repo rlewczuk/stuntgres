@@ -60,6 +60,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		return
 	}
 	switch n := expr.(type) {
+	case plan.RangeConstructorExpr:
+		r.Add(n.Ref.Address)
 	case plan.SQLRoutineExpr:
 		r.Add(n.Ref.Address)
 	case plan.CubeComparisonExpr:

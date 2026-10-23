@@ -101,6 +101,9 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 			return err
 		}
 	}
+	if err := validateRangeProvider(view, t); err != nil {
+		return err
+	}
 	if err := ValidateDomainDefault(view, t); err != nil {
 		return err
 	}

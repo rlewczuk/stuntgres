@@ -14,7 +14,7 @@ import (
 func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	view := e.stageRead(stage)
 	next := view.State()
-	if _, err := typedef.ReownDomainTypes(next, nil, false); err != nil {
+	if _, err := typedef.ReownDomainTypes(next, nil, false, rangeTypeRebinder(next, nil)); err != nil {
 		return err
 	}
 	// Citext and EAN13 deliberately reject ordinary same-OID generation Retag.

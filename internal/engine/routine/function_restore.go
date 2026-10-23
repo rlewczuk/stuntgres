@@ -33,7 +33,7 @@ func ReplayDirective(data string, stmt parser.Statement) bool {
 func RebindSQLDefinitions(state *catalog.State, remap *catalog.RoutineRemap) error {
 	for address, descriptor := range state.Descriptors() {
 		d, ok := descriptor.(*catalog.Procedure)
-		if !ok || d.SQL == nil && len(d.Body) == 0 {
+		if !ok || d.SQL == nil && d.RangeConstructor == nil && len(d.Body) == 0 {
 			continue
 		}
 		mapped, err := remap.Procedure(d)

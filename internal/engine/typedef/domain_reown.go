@@ -11,7 +11,7 @@ import (
 // Importing mints destination composite codecs even when logical identities and
 // members are unchanged. Visiting their children first then rebuilds dependent
 // domains and arrays against those codecs; staged evolution remains copy-on-change.
-func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, importing bool) (bool, error) {
+func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, importing bool, rangeOrdering func(sqltype.RangeDefinition) (sqltype.RangeDefinition, error)) (bool, error) {
 	visited := make(map[ids.ObjectAddress]bool)
 	active := make(map[ids.ObjectAddress]bool)
 	changed := false
@@ -27,6 +27,74 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 		d, ok := next.Type(address)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain base")
+		}
+		if d.SQLType.IsMultirange() && d.SQLType.IsUserDefined() {
+			return visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.RangeType().ID())})
+		}
+		if definition, ok := d.SQLType.RangeDefinition(); ok {
+			active[address] = true
+			subtypeAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(definition.Subtype.Type.ID())}
+			if err := visit(subtypeAddress); err != nil {
+				return err
+			}
+			definition.Subtype.Type = next.MustType(subtypeAddress).SQLType
+			if collation != nil {
+				var err error
+				definition.Subtype.Collation, err = collation(definition.Subtype.Collation)
+				if err != nil {
+					return err
+				}
+			}
+			if rangeOrdering == nil {
+				return fmt.Errorf("stuntgres: missing range support rebinder")
+			}
+			var err error
+			definition, err = rangeOrdering(definition)
+			if err != nil {
+				return err
+			}
+			multiAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.MultirangeType().ID())}
+			multi, ok := next.Type(multiAddress)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing multirange import identity")
+			}
+			destination := func(a ids.ObjectAddress) ids.ObjectAddress {
+				if to, ok := mapping[a]; ok {
+					return to
+				}
+				return a
+			}
+			qualified := func(t *catalog.Type) string {
+				return catalog.DependencyIdentifier(next.Get(t.Namespace()).Name()) + "." + catalog.DependencyIdentifier(t.Name())
+			}
+			oldDefinition, _ := d.SQLType.RangeDefinition()
+			if importing || definition != oldDefinition || destination(address) != address || destination(multiAddress) != multiAddress || qualified(d) != d.SQLType.SQLName() || qualified(multi) != multi.SQLType.SQLName() {
+				boolean := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).SQLType
+				r, m, err := sqltype.NewRangeFamily(sqltype.ID(destination(address).ObjectID), d.Name(), qualified(d), sqltype.ID(destination(multiAddress).ObjectID), multi.Name(), qualified(multi), definition, boolean)
+				if err != nil {
+					return err
+				}
+				for _, member := range []struct {
+					old *catalog.Type
+					typ *sqltype.Descriptor
+				}{{d, r}, {multi, m}} {
+					copy := *member.old
+					copy.SQLType = member.typ
+					copy.ObjectNamespace = destination(member.old.Namespace())
+					copy.Array = sqltype.ID(destination(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(member.old.Array)}).ObjectID)
+					next.SetDescriptor(member.old.Address(), &copy)
+					if importing {
+						if next.ScalarImports() == nil {
+							next.SetScalarImports(make(map[*sqltype.Descriptor]*sqltype.Descriptor))
+						}
+						next.SetScalarImport(member.old.SQLType, member.typ)
+					}
+				}
+				changed = true
+			}
+			delete(active, address)
+			visited[address], visited[multiAddress] = true, true
+			return nil
 		}
 		if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() {
 			target, namespace, extension := address, d.Namespace(), d.Extension
@@ -304,6 +372,21 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 // Only an explicit catalog identity mapping can reidentify a domain. Ordinary
 // Value.Retag remains a checked same-logical-ID generation reownership operation.
 func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation CollationRemapper, imports map[*sqltype.Descriptor]*sqltype.Descriptor, aclImport func(sqltype.Value) (sqltype.Value, error)) (sqltype.Value, error) {
+	if source := value.Type().BaseType().RangeType(); source != nil {
+		if _, custom := source.RangeDefinition(); custom {
+			physicalTarget := target.BaseType()
+			if value.Type().BaseType().ID() != physicalTarget.ID() && imports[value.Type().BaseType()] != physicalTarget {
+				return sqltype.Value{}, fmt.Errorf("stuntgres: unauthorized imported range identity")
+			}
+			mode := sqltype.RangeMapGeneration
+			if len(imports) != 0 {
+				mode = sqltype.RangeMapIdentity
+			}
+			return value.MapRange(target, mode, func(endpoint sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
+				return ReownDomainDatum(endpoint, t, collation, imports, aclImport)
+			})
+		}
+	}
 	if value.Type().BaseType().IsComposite() && target.BaseType().IsComposite() {
 		return value.MapComposite(target, func(v sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
 			return ReownDomainDatum(v, t, collation, imports, aclImport)

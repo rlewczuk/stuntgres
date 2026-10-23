@@ -40,6 +40,11 @@ func RemapAliasDatum(value sqltype.Value, destination func(ids.ObjectAddress) id
 	if value.IsNull() || !value.Type().ContainsRegtype() && !value.Type().ContainsRegObject() {
 		return value, nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.MapRange(value.Type(), sqltype.RangeMapIdentity, func(leaf sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
+			return RemapAliasDatum(leaf, destination)
+		})
+	}
 	if value.Type().BaseType().IsComposite() {
 		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
 			return RemapAliasDatum(member, destination)

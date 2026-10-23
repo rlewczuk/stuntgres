@@ -87,6 +87,19 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 		if err = stage.Replace(&next); err != nil {
 			return err
 		}
+		if old.SQLType.IsRange() {
+			multi := old.SQLType.MultirangeType()
+			if multi == nil {
+				return catalog.Conflict{}
+			}
+			companion, ok := stage.BaseCatalog().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(multi.ID())})
+			if !ok || companion.SQLType != multi || multi.RangeType() != old.SQLType {
+				return catalog.Conflict{}
+			}
+			if err = StageOwnership(stage, companion, target); err != nil {
+				return err
+			}
+		}
 		if old.Array != 0 {
 			array, ok := stage.BaseCatalog().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Array)})
 			if !ok || !array.SQLType.IsArray() || array.SQLType.Element().ID() != old.SQLType.ID() {

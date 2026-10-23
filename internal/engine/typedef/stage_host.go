@@ -35,6 +35,7 @@ type StageHost interface {
 	ResolveType(parser.TypeName) (sqltype.Usage, error)
 	ResolveDomainBase(parser.TypeName) (sqltype.Usage, error)
 	ResolveColumnCollation(sqltype.Usage, *parser.ObjectName) (sqltype.Usage, error)
+	RangeClass(ddl.Authority, sqltype.Usage, *parser.ObjectName) (sqltype.IndexClass, error)
 
 	BindDomainDefault(auth ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error
 	BindDomainConstraints(auth ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error

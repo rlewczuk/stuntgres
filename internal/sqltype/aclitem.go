@@ -58,6 +58,9 @@ func (d *Descriptor) ContainsACLItem() bool {
 		return false
 	}
 	physical := d.BaseType()
+	if r := physical.RangeType(); r != nil {
+		return r.rangeSubtype.ContainsACLItem()
+	}
 	if physical.IsArray() {
 		return physical.element.ContainsACLItem()
 	}

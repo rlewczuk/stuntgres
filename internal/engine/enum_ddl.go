@@ -52,6 +52,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	host := ddlHost{e: e, op: op, stage: stage}
+	var created ids.ObjectRef
 	if create, ok := stmt.(*parser.CreateEnum); ok {
 		if err := typedef.StageCreateEnumLocked(host, auth, create); err != nil {
 			return Result{}, err
@@ -68,6 +69,20 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 				}
 			}
 		}
+	} else if create, ok := stmt.(*parser.CreateRange); ok {
+		if err := typedef.StageCreateRangeLocked(host, auth, create); err != nil {
+			return Result{}, err
+		}
+		// Retain the constructor's actual fresh range identity for the same
+		// bounded owner-pair protocol used by CREATE DOMAIN. Never resolve
+		// a later object by name or substitute the companion/array identity.
+		for address, descriptor := range stage.Descriptors() {
+			if typ, ok := descriptor.(*catalog.Type); ok && typ.SQLType.IsRange() && stage.Base.Get(address) == nil {
+				created = e.catalog.Domain.Ref(stage.Base.Epoch(), address)
+				break
+			}
+		}
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	} else {
 		alter := stmt.(*parser.AlterEnum)
 		old, ref, err := typedef.ResolveAlterEnumLocked(host, auth, alter.Name)
@@ -111,5 +126,5 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		e.catalogChangeLocked(changes, a, d)
 	}
 	scope.catalog = changes
-	return Result{}, nil
+	return Result{created: created}, nil
 }

@@ -77,6 +77,11 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 	if typ.IsEnum() {
 		return true
 	}
+	if r := typ.RangeType(); r != nil {
+		if definition, custom := r.RangeDefinition(); custom {
+			return hasEnumInput(definition.Subtype.Type)
+		}
+	}
 	if typ.IsArray() {
 		return hasEnumInput(typ.Element())
 	}

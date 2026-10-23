@@ -102,7 +102,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.IsEan13() || target.Type.IsCitext() || target.Type.IsCube() || target.Type.IsQueryInt() || sqltype.IsTransactionIdentifier(target.Type.ID()) || sqltype.IsOperatorAlias(target.Type.ID()) || sqltype.IsRegObjectAlias(target.Type.ID()) || sqltype.IsRegTS(target.Type.ID()) {
 			return sqltype.Null(target.Type), nil
 		}
-		if target.Type.ContainsACLItem() || sqltype.IsNetwork(target.Type.ID()) || target.Type.ID() == sqltype.Int4Multirange || target.Type.ID() == sqltype.Int8Multirange || target.Type.ID() == sqltype.NumMultirange || target.Type.ID() == sqltype.Int4Range || target.Type.ID() == sqltype.Int8Range || target.Type.ID() == sqltype.NumRange || target.Type.ID() == sqltype.DateRange || target.Type.ID() == sqltype.TimestampRange || target.Type.ID() == sqltype.TimestamptzRange || target.Type.ID() == sqltype.Money || target.Type.ID() == sqltype.Bytea || target.Type.ID() == sqltype.JSON || target.Type.ID() == sqltype.JSONB || target.Type.ID() == sqltype.JSONPath || target.Type.ID() == sqltype.Bit || target.Type.ID() == sqltype.VarBit {
+		if target.Type.ContainsACLItem() || sqltype.IsNetwork(target.Type.ID()) || target.Type.IsRange() || target.Type.IsMultirange() || target.Type.ID() == sqltype.Money || target.Type.ID() == sqltype.Bytea || target.Type.ID() == sqltype.JSON || target.Type.ID() == sqltype.JSONB || target.Type.ID() == sqltype.JSONPath || target.Type.ID() == sqltype.Bit || target.Type.ID() == sqltype.VarBit {
 			return sqltype.Null(target.Type), nil
 		}
 	case time.Time:
@@ -224,7 +224,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 			return nil, err
 		}
 	}
-	if v.Type().IsEan13() || v.Type().IsCitext() || v.Type().IsCube() || v.Type().IsQueryInt() || v.Type().IsArray() || v.Type().IsEnum() || v.Type().IsComposite() {
+	if v.Type().IsEan13() || v.Type().IsCitext() || v.Type().IsCube() || v.Type().IsQueryInt() || v.Type().IsArray() || v.Type().IsEnum() || v.Type().IsComposite() || v.Type().IsRange() || v.Type().IsMultirange() {
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
@@ -248,9 +248,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 			return nil, err
 		}
 		return []byte(raw), nil
-	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
-		return v.Type().OutputWithEnvironment(ctx, v, output)
-	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange, sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Char:
+	case sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Char:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Timestamp, sqltype.Timestamptz:
 		n, err := v.Timestamp()
@@ -288,7 +286,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 	if d.Usage().CatalogNullUsage() {
 		return reflect.TypeFor[any]()
 	}
-	if d.BaseType().IsEan13() || d.BaseType().IsCitext() || d.BaseType().IsCube() || d.BaseType().IsQueryInt() || d.BaseType().IsArray() || d.BaseType().IsEnum() || d.BaseType().IsComposite() || d.IsDeferredRecord() {
+	if d.BaseType().IsEan13() || d.BaseType().IsCitext() || d.BaseType().IsCube() || d.BaseType().IsQueryInt() || d.BaseType().IsArray() || d.BaseType().IsEnum() || d.BaseType().IsComposite() || d.BaseType().IsRange() || d.BaseType().IsMultirange() || d.IsDeferredRecord() {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {
@@ -298,8 +296,6 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	case sqltype.Circle, sqltype.Polygon, sqltype.Tid, sqltype.Macaddr, sqltype.Macaddr8, sqltype.Inet, sqltype.Cidr:
 		return reflect.TypeFor[string]()
-	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
-		return reflect.TypeFor[string]()
 	case sqltype.Bytea, sqltype.Xid, sqltype.Cid, sqltype.Xid8, sqltype.PgSnapshot:
 		return reflect.TypeFor[[]byte]()
 	case sqltype.Timestamp, sqltype.Timestamptz:
@@ -308,7 +304,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
-	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange, sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Regtype, sqltype.Regproc, sqltype.Regprocedure, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary, sqltype.Char:
+	case sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Regtype, sqltype.Regproc, sqltype.Regprocedure, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary, sqltype.Char:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:
 		return reflect.TypeFor[bool]()

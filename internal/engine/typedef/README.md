@@ -1,6 +1,6 @@
 # internal/engine/typedef
 
-User-defined type support that does not need the engine: domains, enums,
+User-defined type support that does not need the engine: domains, enums, ranges,
 composites and typed tables, collations and conversions. It owns the records,
 validation, Dump/Restore and remap helpers, the DDL stage handlers (which reach
 the engine through `StageHost`), the type dump statements (rendered through
@@ -19,12 +19,18 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
 ## What it owns
 
 - **Stage handlers** (`collation_ddl.go`, `conversion_ddl.go`, `domain*.go`,
-  `enum.go`, `composite.go`, `typed_type_drop.go`): CREATE/ALTER/DROP COLLATION
+  `enum.go`, `range*.go`, `composite.go`, `typed_type_drop.go`): CREATE/ALTER/DROP COLLATION
   and CONVERSION, CREATE/DROP DOMAIN, domain RENAME/SET SCHEMA, CREATE TYPE AS
-  ENUM/composite, and general type identity/DROP, as `Stage...Locked(h, auth, statement)`.
+  ENUM/RANGE/composite, and general type identity/DROP, as `Stage...Locked(h, auth, statement)`.
   `StageAlterEnumLabelLocked` and `StageAlterDomainLocked` stage one ALTER TYPE
   ... VALUE or ALTER DOMAIN action and return an edit record; the executors stay
   in the engine.
+  Range creation stages both type/array identities and five genuine generated
+  constructor declarations atomically. The constructors live in the range's
+  namespace even when its companion type lives elsewhere. Their finite native
+  declaration is type-owned, not a builtin alias or SQL-text body.
+  `StageHost.RangeClass` selects genuine catalog support in the engine;
+  typedef does not import routine binding.
 - **ALTER resolvers** (`alter_resolve.go`): `ResolveAlterEnumLocked` and
   `ResolveAlterDomainLocked` resolve the target in diagnostic order (existence,
   kind, ownership; ALTER DOMAIN reads the reference path before the kind check)
@@ -50,10 +56,13 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   `ImportScalarTypesLocked` gives an imported candidate's enum, `query_int`,
   `cube`, `citext` and `ean13` types their destination codecs, taking enum members from
   the engine's allocator callback in member order so Dump stays byte-identical;
+  `ReownDomainTypes` rebuilds custom range families after their subtype, invoking
+  the engine's range-ordering rebinder for destination class/support identities.
+  Generated companions are reconstructed with their range, not independently.
   `CheckTemporaryTypedReplacementLocked` rejects a replacement while a TEMP typed
   table of the published state has a persistent OF type.
 - **Dump statements** (`*_dump.go`): `CollationDumpStatements`,
-  `ConversionDumpStatements`, `MixedDumpStatements` (domains, enums and
+  `ConversionDumpStatements`, `MixedDumpStatements` (domains, enums, ranges and
   composites in captured graph order) and the domain CHECK statements. They are
   pure functions of the captured view; declaration, DEFAULT and CHECK text comes
   from the caller's `dump.Presenter`, so the package never names the stored-SQL
@@ -93,10 +102,9 @@ remain in the shared closure for batch diagnostics and idempotent retirement.
 RESTRICT reports genuine consumers; CASCADE prunes dependent columns and objects
 while retaining unrelated columns, holder rows and zero-column table cardinality.
 Installed membership does not prohibit identity ALTER, but
-direct DROP still requires the owning extension. No user base/range/multirange
-provider, temporal companion descriptors or general enum[]/installed-array codecs
-are added. The native range companion join retains its three integer/numeric
-relationships versus PostgreSQL's six temporal-inclusive relationships.
+direct DROP still requires the owning extension. Custom range/multirange families
+reuse supported subtype providers; they do not introduce a general user-defined
+base-type provider or change installed-array codec policy.
 
 Held casts retain logical captures until normal effective-path/dependency
 invalidation reanalyzes their original SQL; fresh lookup/metadata/diagnostics use

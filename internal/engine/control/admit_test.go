@@ -21,7 +21,7 @@ func TestRestoreAdmitsInsertTargetIndirection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse %q: %v", tc.sql, err)
 		}
-		answer, err := AdmitStatement[*hookRun](CheckInsert)(new(hookRun), nil, statements[0])
+		answer, err := AdmitStatement[*hookRun](func(s *parser.Insert) error { return CheckInsert(s) })(new(hookRun), nil, statements[0])
 		if tc.fail {
 			if err == nil {
 				t.Fatalf("%q admitted as %v, want an error", tc.sql, answer)

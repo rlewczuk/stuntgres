@@ -61,7 +61,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "SET SESSION AUTHORIZATION", Admit: restoreAdmitChecked(admitRestoreSessionAuthorization)},
 	{Name: "UPDATE catalog repair", Admit: restoreAdmitReplayed(replayRestoreCatalogUpdate)},
 	{Name: "DELETE physical NOT NULL repair", Admit: restoreAdmitReplayed(replayRestorePhysicalNotNull)},
-	{Name: "INSERT", Admit: control.AdmitStatement[*restoreRun](control.CheckInsert)},
+	{Name: "INSERT", Admit: restoreAdmitChecked(admitRestoreInsert)},
 	{Name: "SQL/MED", Admit: restoreAdmitForeignDDL},
 
 	// After admission, before execution.
@@ -80,7 +80,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "table: physical foreign key provider", After: afterRestorePhysicalForeignKeyProvider},
 	{Name: "table: physical import index", After: afterRestorePhysicalImportIndex},
 	{Name: "owner directive", After: afterRestoreOwnerDirective},
-	{Name: "typedef: domain owner", After: afterRestoreDomainOwner},
+	{Name: "typedef: fresh type owner", After: afterRestoreTypeOwner},
 	{Name: "inheritance: historical relation", After: afterRestoreHistoricalRelation},
 	{Name: "table: NOT NULL origins", After: afterRestoreNotNullOrigins},
 	{Name: "inheritance: generation placeholders", After: afterRestoreGenerationPlaceholders},

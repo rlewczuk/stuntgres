@@ -35,12 +35,12 @@ func BindRangeAggregate(input *Descriptor, operation RangeAggregateOperation) (R
 		return RangeAggregate{}, fmt.Errorf("invalid range aggregate authority")
 	}
 	r := input
-	if isMultirange(input.id) {
+	if input.IsMultirange() {
 		if !input.validMultirangeAuthority() {
 			return RangeAggregate{}, fmt.Errorf("invalid range aggregate family")
 		}
 		r = input.multirangeRange
-	} else if !isRange(input.id) || input.multirangeCompanion == nil ||
+	} else if !input.IsRange() || input.multirangeCompanion == nil ||
 		input.multirangeCompanion.multirangeRange != input || !input.multirangeCompanion.validMultirangeAuthority() {
 		return RangeAggregate{}, fmt.Errorf("invalid range aggregate family")
 	}
@@ -73,7 +73,7 @@ func (p RangeAggregate) Advance(ctx context.Context, s *RangeAggregateState, v V
 	if v.null {
 		return nil
 	}
-	if isRange(p.input.id) {
+	if p.input.IsRange() {
 		if !p.rangeType.validRangeDatum(v.rangeDatum) {
 			return fmt.Errorf("invalid range aggregate datum")
 		}
@@ -86,7 +86,11 @@ func (p RangeAggregate) Advance(ctx context.Context, s *RangeAggregateState, v V
 			if !s.seen {
 				s.value = v.rangeDatum
 			} else {
-				s.value = p.rangeType.intersectRangeDatums(s.value, v.rangeDatum)
+				next, err := p.rangeType.intersectRangeDatums(ctx, s.value, v.rangeDatum)
+				if err != nil {
+					return err
+				}
+				s.value = next
 			}
 			s.seen = true
 		}
@@ -124,10 +128,21 @@ func (p RangeAggregate) Advance(ctx context.Context, s *RangeAggregateState, v V
 			return err
 		}
 		a, b := s.members[left], incoming[right]
-		if value := p.rangeType.intersectRangeDatums(a, b); value.flags&rangeEmpty == 0 {
+		value, err := p.rangeType.intersectRangeDatums(ctx, a, b)
+		if err != nil {
+			clear(out)
+			s.scratch = out[:0]
+			return err
+		}
+		if value.flags&rangeEmpty == 0 {
 			out = append(out, value)
 		}
-		cmp := p.rangeType.compareRangeEndpoint(a, false, b, false)
+		cmp, err := p.rangeType.compareRangeEndpoint(ctx, a, false, b, false)
+		if err != nil {
+			clear(out)
+			s.scratch = out[:0]
+			return err
+		}
 		if cmp <= 0 {
 			left++
 		}
@@ -157,7 +172,7 @@ func (p RangeAggregate) Finalize(ctx context.Context, s *RangeAggregateState) (V
 	}
 	result := Null(p.result)
 	if s.seen {
-		if isRange(p.result.id) {
+		if p.result.IsRange() {
 			result = Value{typ: p.result, rangeDatum: s.value}
 		} else {
 			members := s.members
@@ -180,23 +195,33 @@ func (p RangeAggregate) Finalize(ctx context.Context, s *RangeAggregateState) (V
 	return result, nil
 }
 
-func (d *Descriptor) intersectRangeDatums(a, b rangeDatum) rangeDatum {
+func (d *Descriptor) intersectRangeDatums(ctx context.Context, a, b rangeDatum) (rangeDatum, error) {
 	if a.flags&rangeEmpty != 0 || b.flags&rangeEmpty != 0 {
-		return rangeDatum{flags: rangeEmpty}
+		return rangeDatum{flags: rangeEmpty}, nil
 	}
 	result := a
-	if d.compareRangeEndpoint(a, true, b, true) < 0 {
+	lo, err := d.compareRangeEndpoint(ctx, a, true, b, true)
+	if err != nil {
+		return rangeDatum{}, err
+	}
+	hi, err := d.compareRangeEndpoint(ctx, a, false, b, false)
+	if err != nil {
+		return rangeDatum{}, err
+	}
+	if lo < 0 {
 		result.lower = b.lower
 		result.flags = result.flags&^(rangeLowerInclusive|rangeLowerUnbounded) | b.flags&(rangeLowerInclusive|rangeLowerUnbounded)
 	}
-	if d.compareRangeEndpoint(a, false, b, false) > 0 {
+	if hi > 0 {
 		result.upper = b.upper
 		result.flags = result.flags&^(rangeUpperInclusive|rangeUpperUnbounded) | b.flags&(rangeUpperInclusive|rangeUpperUnbounded)
 	}
-	// Bounds are borrowed from valid canonical inputs; endpoint order also
-	// distinguishes a closed continuous point from either excluded point.
-	if d.compareRangeEndpoint(result, true, result, false) > 0 {
-		return rangeDatum{flags: rangeEmpty}
+	cmp, err := d.compareRangeEndpoint(ctx, result, true, result, false)
+	if err != nil {
+		return rangeDatum{}, err
 	}
-	return result
+	if cmp > 0 {
+		return rangeDatum{flags: rangeEmpty}, nil
+	}
+	return result, nil
 }

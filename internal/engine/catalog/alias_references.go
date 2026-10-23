@@ -39,6 +39,9 @@ func WalkAliasReferencesAt(view Read, reader DefinitionReader, value sqltype.Val
 	if value.IsNull() || !value.Type().ContainsRegtype() && !value.Type().ContainsRegObject() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return WalkAliasReferencesAt(view, reader, leaf, record) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := WalkAliasReferencesAt(view, reader, value.CompositeField(i), record); err != nil {

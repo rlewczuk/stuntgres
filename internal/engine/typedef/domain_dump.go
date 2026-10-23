@@ -25,6 +25,10 @@ func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Rea
 	if err != nil {
 		return dump.Statement{}, err
 	}
+	if d.SQLType.IsRange() {
+		text, err := rangeDumpSQL(ctx, p, view, d, qualified)
+		return dump.Statement{Owner: owner.Name, SQL: text}, err
+	}
 	if d.SQLType.IsEnum() {
 		labels := d.SQLType.EnumLabels()
 		for i, label := range labels {

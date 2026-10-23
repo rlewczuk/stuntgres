@@ -70,6 +70,40 @@ Domains over lookup-only bases retain user ownership, checks, names and immediat
 base identity without gaining storage/input codecs. Builtin lookup provenance
 remains distinct from these user domain declarations.
 
+### Range families
+
+`NewRangeFamily` creates reciprocal range/multirange descriptors with a captured
+subtype `Usage`, actual B-tree class/support ordering and optional diff identity.
+Builtin families retain their canonicalization policy; custom families have no
+canonical function. Family selection uses `IsRange`/`IsMultirange`, not an OID
+list. Range types themselves are noncollatable.
+
+Builtin endpoints remain inline. Custom finite endpoints refer into one immutable
+owned pair of typed values; merged bounds can retain endpoints from different
+pairs. Empty and unbounded endpoints carry no payload. Comparison failures
+propagate through normalization, operators and aggregates before publication.
+`SameDatum` compares endpoint representations, never pair-pointer identity.
+`MapRange` remints fresh endpoint pairs through an authorized leaf mapping for
+catalog replacement; ordinary `Retag` never changes logical type identity.
+
+`RangeFromValues`, `MultirangeFromValues` and `MultirangeFromArray` construct
+through the same comparison and normalization authority without endpoint text
+conversion. NULL bounds are unbounded; a NULL member is not an empty range.
+`RangeBounds` and `VisitRangeEndpoints` expose only immutable typed leaves for
+the existing reference/output/dump visitors. Identity mappings preserve owned
+payloads; destination generation changes allocate and rebind fresh pairs.
+Custom multirange `Retag` validates immutable physical shape and reciprocal
+family generations without executing a subtype comparator, including the
+same-generation fast return. Changed generations use checked
+`MapRange(RangeMapGeneration)` and fresh endpoint pairs; unchanged values retain
+their owned payload without allocation. Builtin multirange Retag still checks
+ordering/normalization invariants. Comparison-changing catalog imports are
+certified separately with the operation context outside binder/catalog locks.
+`MultirangeFromSource` evaluates typed member sources into that single owned
+normalization buffer, without an intermediate value slice or a replacement
+comparison callback.
+
+
 ### Soft input errors
 
 `InputSoftError` decides whether a conversion failure is recoverable: a direct

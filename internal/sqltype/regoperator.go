@@ -39,6 +39,9 @@ func (d *Descriptor) ContainsOperatorAlias() bool {
 		return false
 	}
 	p := d.BaseType()
+	if r := p.RangeType(); r != nil {
+		return r.rangeSubtype.ContainsOperatorAlias()
+	}
 	if p.IsArray() {
 		return p.element.ContainsOperatorAlias()
 	}

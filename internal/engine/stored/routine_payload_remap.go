@@ -39,6 +39,7 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 	usages := &ViewQueryRemapper{Type: r.Type, Collation: r.Collation}
 	bodies := make(map[*RoutineProgram]catalog.RoutineProgram)
 	defaults := make(map[*RoutineDefaults]catalog.RoutineDefaults)
+	var constructors map[*catalog.RangeConstructor]*catalog.RangeConstructor
 	bodyUsers := make(map[*RoutineProgram][]*catalog.Procedure)
 	defaultUsers := make(map[*RoutineDefaults][]*catalog.Procedure)
 	r.Definition = func(original *proc.Definition) (*proc.Definition, error) {
@@ -94,6 +95,24 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 		return mapped, nil
 	}
 	attach := func(p *catalog.Procedure) error {
+		if original := p.RangeConstructor; original != nil {
+			mapped := r.Type(original.Type)
+			if mapped == nil { return fmt.Errorf("stuntgres: missing generated constructor destination type") }
+			if mapped != original.Type {
+				provider := constructors[original]
+				if provider == nil {
+					copy := *original
+					copy.Type = mapped
+					provider = &copy
+					if constructors == nil { constructors = make(map[*catalog.RangeConstructor]*catalog.RangeConstructor) }
+					constructors[original], constructors[provider] = provider, provider
+				}
+				p.RangeConstructor = provider
+			}
+			signature, err := p.RangeConstructor.Signature(view)
+			if err != nil { return err }
+			p.Signature, p.Result = signature, ids.OID(mapped.ID())
+		}
 		if p.SQL == nil {
 			return nil
 		}

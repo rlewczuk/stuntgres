@@ -278,18 +278,10 @@ func TestReferencePGOperatorPolymorphicIdentity(t *testing.T) {
 		pgOperatorInventory(t, p, b)
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TYPE operator_enum AS ENUM('a','b')", 0))
 		const customRange = "CREATE TYPE operator_range AS RANGE(subtype=integer)"
-		if b.PG {
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(customRange, 0))
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE operator_custom_range(r operator_range)", 0))
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO operator_custom_range VALUES('[1,3)')", 1))
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT r @> 2 AS value FROM operator_custom_range", []string{"value"}, []string{"BOOL"}, [][]any{{true}}))
-		} else {
-			s := fixture.ImplicitError(customRange, fixture.Diagnostic{Code: "0A000", Message: "CREATE TYPE syntax is unsupported", Position: "31"})
-			s.ErrorStage = "execute"
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-			s.Prepared, s.ErrorStage = true, "prepare"
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-		}
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(customRange, 0))
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE operator_custom_range(r operator_range)", 0))
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO operator_custom_range VALUES('[1,3)')", 1))
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT r @> 2 AS value FROM operator_custom_range", []string{"value"}, []string{"BOOL"}, [][]any{{true}}))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE operator_polymorphic(e operator_enum,f operator_enum,r INT4RANGE)", 0))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO operator_polymorphic VALUES('a','b','[1,3)')", 1))
 		for _, tc := range []struct{ expression, typ, want string }{

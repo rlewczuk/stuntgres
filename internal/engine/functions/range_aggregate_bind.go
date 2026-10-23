@@ -41,9 +41,8 @@ func bindRangeAggregate(b AggregateBinder, raw parser.AggregateExpr, name parser
 	provider := NewRangeAggregateProvider(input.Usage(), usage, rangeAggregateKind(raw.Name), bound)
 	call := AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Operation: identity}
 	formal := sqltype.ID(3831)
-	switch input.ID() {
-	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
-		formal = sqltype.ID(4537)
+	if input.IsMultirange() {
+		formal = 4537
 	}
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, raw.Name, formal)
 	if err != nil {

@@ -227,6 +227,22 @@ func StageDropCast(h DDLHost, a ddl.Authority, s *parser.DropCast) error {
 		}
 		return castTypeError(h, a, source, target, "42704", "cast from type %s to type %s does not exist")
 	}
+	if d.GeneratedRange != (ids.ObjectAddress{}) {
+		if err := (catalog.CastProvider{}).Validate(h.AccessView(a).Catalog, d); err != nil {
+			return err
+		}
+		cast, err := h.DependencyObject(a, d.Address())
+		if err != nil {
+			return err
+		}
+		function, err := h.DependencyObject(a, d.Function)
+		if err != nil {
+			return err
+		}
+		diagnostic := sqlError("2BP01", "cannot drop "+cast+" because "+function+" requires it").(*sqlstate.Error)
+		diagnostic.Hint = "You can drop " + function + " instead."
+		return diagnostic
+	}
 	h.DropTarget(d.Address())
 	return h.RecordDependencyPath(a)
 }

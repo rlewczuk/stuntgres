@@ -30,6 +30,9 @@ func (d *Descriptor) ContainsRegrole() bool {
 		return false
 	}
 	physical := d.BaseType()
+	if r := physical.RangeType(); r != nil {
+		return r.rangeSubtype.ContainsRegrole()
+	}
 	if physical.IsArray() {
 		return physical.element.ContainsRegrole()
 	}

@@ -35,7 +35,10 @@ func TestRangeOperatorEndpointOrder(t *testing.T) {
 	ranks := []int{0, 1, 1, 2}
 	for i, a := range endpoints {
 		for j, b := range endpoints {
-			cmp := d.compareRangeEndpoint(a.x, a.lower, b.x, b.lower)
+			cmp, err := d.compareRangeEndpoint(context.Background(), a.x, a.lower, b.x, b.lower)
+			if err != nil {
+				t.Fatal(err)
+			}
 			want := ranks[i] - ranks[j]
 			if cmp < 0 != (want < 0) || cmp > 0 != (want > 0) {
 				t.Fatal(i, j, cmp, want)
@@ -44,15 +47,35 @@ func TestRangeOperatorEndpointOrder(t *testing.T) {
 	}
 	omitted := inspectUnitInput(t, d, "(,)")
 	explicit := inspectUnitInput(t, d, "[-Infinity,NaN]")
-	if d.compareRangeEndpoint(omitted.rangeDatum, true, explicit.rangeDatum, true) >= 0 || d.compareRangeEndpoint(omitted.rangeDatum, false, explicit.rangeDatum, false) <= 0 {
+	lower, err := d.compareRangeEndpoint(context.Background(), omitted.rangeDatum, true, explicit.rangeDatum, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	upper, err := d.compareRangeEndpoint(context.Background(), omitted.rangeDatum, false, explicit.rangeDatum, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lower >= 0 || upper <= 0 {
 		t.Fatal("omission collapsed into explicit infinity")
 	}
 	empty := inspectUnitInput(t, d, "empty")
-	if d.compareRangeValues(empty.rangeDatum, explicit.rangeDatum) >= 0 || d.compareRangeValues(explicit.rangeDatum, empty.rangeDatum) <= 0 {
+	lower, err = d.compareRangeValues(context.Background(), empty.rangeDatum, explicit.rangeDatum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	upper, err = d.compareRangeValues(context.Background(), explicit.rangeDatum, empty.rangeDatum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lower >= 0 || upper <= 0 {
 		t.Fatal("empty order")
 	}
 	a, b := inspectUnitInput(t, d, "[1.0,2.00]"), inspectUnitInput(t, d, "[1.000,2.0]")
-	if d.compareRangeValues(a.rangeDatum, b.rangeDatum) != 0 || a.rangeDatum == b.rangeDatum {
+	cmp, err := d.compareRangeValues(context.Background(), a.rangeDatum, b.rangeDatum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmp != 0 || a.rangeDatum == b.rangeDatum {
 		t.Fatal("semantic equality versus physical spelling")
 	}
 }

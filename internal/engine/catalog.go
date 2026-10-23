@@ -1106,6 +1106,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		defer e.replacementMu.Unlock()
 		e.mu.Lock()
 		defer e.mu.Unlock()
+		oids := e.catalog.oidReservationLocked()
 		if len(e.prepared) != 0 {
 			return ChangeSet{}, fmt.Errorf("stuntgres: cannot replace catalog while prepared transactions exist")
 		}
@@ -1127,7 +1128,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if sequenceErr != nil {
 			return ChangeSet{}, sequenceErr
 		}
-		if err := e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes, nil); err != nil {
+		if err := e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes, nil, &oids); err != nil {
 			return ChangeSet{}, err
 		}
 		nextRevision, err := e.replacementACLsLocked(next)
@@ -1154,7 +1155,10 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
-		e.installReplacementLocked(next, relations, sequences, roots, nextRow, nextVersion, nextRevision)
+		if e.catalog.nextOID != oids.base {
+			return ChangeSet{}, ids.ErrCatalogReplaced
+		}
+		e.installReplacementLocked(next, relations, sequences, roots, nextRow, nextVersion, nextRevision, oids.next)
 		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -1177,6 +1181,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	defer e.replacementMu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	oids := e.catalog.oidReservationLocked()
 	if len(e.prepared) != 0 {
 		return ChangeSet{}, fmt.Errorf("stuntgres: cannot replace catalog while prepared transactions exist")
 	}
@@ -1196,7 +1201,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	if err = e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes, procedure); err != nil {
+	if err = e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes, procedure, &oids); err != nil {
 		return ChangeSet{}, err
 	}
 	nextRevision, err := e.replacementACLsLocked(next)
@@ -1207,7 +1212,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared); err != nil {
+	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids); err != nil {
 		return ChangeSet{}, err
 	}
 	e.foreign.AdoptNamespaces(sourceForeign)
@@ -1220,14 +1225,14 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage) error {
-	if prepared.Catalog != next || prepared.BaseCatalog != e.catalog.state || prepared.BaseRow != e.storage.RowFrontier() || prepared.BaseVersion != e.storage.VersionFrontier() || prepared.Frontier != e.visibility.CommitSeq() {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalogOIDReservation) error {
+	if prepared.Catalog != next || prepared.BaseCatalog != e.catalog.state || prepared.BaseRow != e.storage.RowFrontier() || prepared.BaseVersion != e.storage.VersionFrontier() || prepared.Frontier != e.visibility.CommitSeq() || e.catalog.nextOID != oids.base {
 		return ids.ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.installReplacementLocked(next, relations, sequences, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision)
+	e.installReplacementLocked(next, relations, sequences, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision, oids.next)
 	return nil
 }
 
@@ -1271,14 +1276,15 @@ func (e *Engine) replacementCapacityLocked(relations map[ids.ObjectAddress]*stor
 
 // installReplacementLocked installs a validated replacement generation: its
 // catalog, rows, index roots and sequences publish at one boundary, and the
-// row, version, commit and serializable frontiers move past the old catalog.
+// reserved OID, row, version, commit and serializable frontiers publish together.
 // The caller holds replacementMu and mu.
-func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision) {
+func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision, nextOID ids.OID) {
 	e.storage.SetFrontierLocked(nextRow, nextVersion)
 	e.storage.ReplaceIndexRootsLocked(roots)
 	e.visibility.AdvanceCommitSeqLocked()
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
+	e.catalog.nextOID = nextOID
 	e.storage.ReplaceRelationsLocked(relations)
 	e.databaseFrozenXID = 0
 	e.vacuumProgress = nil

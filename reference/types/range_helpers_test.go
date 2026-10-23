@@ -84,7 +84,9 @@ func rangeSelect(backend fixture.Backend, query string, columns, types []string,
 func rangeConsumeHeld(t *testing.T, rows *sql.Rows, check fixture.Step) {
 	t.Helper()
 	defer rows.Close()
-	check.CheckMetadata(t, rows)
+	if check.CheckMetadata != nil {
+		check.CheckMetadata(t, rows)
+	}
 	types, err := rows.ColumnTypes()
 	if err != nil {
 		t.Fatal(err)
@@ -105,7 +107,7 @@ func rangeConsumeHeld(t *testing.T, rows *sql.Rows, check fixture.Step) {
 			t.Fatal(err)
 		}
 		for i, value := range row {
-			if !check.CheckRaw(t, i, len(got), value) {
+			if check.CheckRaw == nil || !check.CheckRaw(t, i, len(got), value) {
 				fixture.AssertRawValue(t, false, check.Types[i], value)
 			}
 			row[i] = fixture.Normalize(value)

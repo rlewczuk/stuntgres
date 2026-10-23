@@ -99,6 +99,13 @@ func StageDropSchema(h SchemaHost, auth Authority, s *parser.DropSchema) (bool, 
 func schemaDependents(read catalog.Read, children []ids.ObjectAddress) ([]*catalog.Relation, []catalog.Descriptor, error) {
 	var dependent []*catalog.Relation
 	var domains []catalog.Descriptor
+	seen := make(map[ids.ObjectAddress]bool)
+	add := func(d catalog.Descriptor) {
+		if !seen[d.Address()] {
+			seen[d.Address()] = true
+			domains = append(domains, d)
+		}
+	}
 	for _, address := range children {
 		d := read.Get(address)
 		if catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
@@ -113,23 +120,36 @@ func schemaDependents(read catalog.Read, children []ids.ObjectAddress) ([]*catal
 			}
 			dependent = append(dependent, r)
 		} else if t, ok := d.(*catalog.Type); ok && t.SQLType.IsUserDefined() && (t.OwningRelation == (ids.ObjectAddress{}) || t.SQLType.IsComposite() && read.MustRelation(t.OwningRelation).RelationKind == catalog.CompositeRelation) {
-			domains = append(domains, t)
+			if t.SQLType.IsMultirange() {
+				owner, err := catalog.TypeUsageAuthority(read, t)
+				if err != nil {
+					return nil, nil, err
+				}
+				add(owner)
+			} else {
+				add(t)
+			}
 		} else if c, ok := d.(*catalog.Collation); ok {
-			domains = append(domains, c)
+			add(c)
 		} else if c, ok := d.(*catalog.Conversion); ok {
-			domains = append(domains, c)
+			add(c)
 		} else if family, ok := d.(*catalog.OperatorFamily); ok {
-			domains = append(domains, family)
+			add(family)
 		} else if class, ok := d.(*catalog.OperatorClass); ok {
-			domains = append(domains, class)
+			add(class)
 		} else if d.Kind() == ids.OperatorFamilyOperatorObject || d.Kind() == ids.OperatorFamilySupportObject {
 			continue // family retirement owns its separately addressed members
 		} else if operator, ok := d.(*catalog.Operator); ok {
-			domains = append(domains, operator)
+			add(operator)
 		} else if extension, ok := d.(*catalog.Extension); ok {
-			domains = append(domains, extension)
+			add(extension)
+		} else if procedure, ok := d.(*catalog.Procedure); ok && procedure.RangeConstructor != nil {
+			if err := catalog.ValidateRangeConstructor(read, procedure); err != nil {
+				return nil, nil, err
+			}
+			continue // genuine INTERNAL children follow the owning family
 		} else if procedure, ok := d.(*catalog.Procedure); ok && procedure.Foreign != nil {
-			domains = append(domains, procedure)
+			add(procedure)
 		} else if t, ok := d.(*catalog.Type); ok && (t.OwningRelation != (ids.ObjectAddress{}) || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined()) {
 			continue // removed automatically with the owning relation or element type
 		} else {

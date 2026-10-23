@@ -69,6 +69,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		}
 		// Retagging belongs to the routine recipe's existing type mapper.
 		next = n
+	case plan.RangeConstructorExpr:
+		n.Args = args(n.Args)
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case plan.SQLRoutineExpr:
 		n.Args = args(n.Args)
 		if ref != nil {

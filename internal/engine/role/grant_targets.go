@@ -174,6 +174,11 @@ func grantObject(h Host, auth ddl.Authority, name parser.ObjectName, kind string
 			diagnostic.Hint = "Set the privileges of the element type instead."
 			return ids.ObjectRef{}, diagnostic
 		}
+		if t.SQLType.IsMultirange() {
+			diagnostic := sqlError("0LP01", "cannot set privileges of multirange types").(*sqlstate.Error)
+			diagnostic.Hint = "Set the privileges of the range type instead."
+			return ids.ObjectRef{}, diagnostic
+		}
 	}
 	return view.Ref(address), nil
 }

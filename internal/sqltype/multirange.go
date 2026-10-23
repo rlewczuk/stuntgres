@@ -8,16 +8,12 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// Storage is owned by the codec and never mutated after publication. Descriptor
-// authority belongs only to the outer Value, allowing generation-only Retag.
+// Storage and custom endpoint pairs are immutable after publication. The outer
+// descriptor and each typed endpoint retain their own generation authority.
 type multirangePayload struct{ members []rangeDatum }
 
-func isMultirange(id ID) bool {
-	return id == Int4Multirange || id == Int8Multirange || id == NumMultirange
-}
-
 func (d *Descriptor) validMultirangeAuthority() bool {
-	return d != nil && isMultirange(d.id) && d.multirangeRange != nil && isRange(d.multirangeRange.id) && d.multirangeRange.Concrete() && d.multirangeRange.multirangeCompanion == d && d.multirangeRange.rangeSubtype.Concrete()
+	return d != nil && d.IsMultirange() && d.multirangeRange.IsRange() && d.multirangeRange.Concrete() && d.multirangeRange.multirangeCompanion == d && d.multirangeRange.rangeSubtype.Concrete()
 }
 
 func malformedMultirange(input, detail string) error {
@@ -141,6 +137,9 @@ func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeD
 	comparisons := 0
 	var failure error
 	slices.SortFunc(members, func(a, b rangeDatum) int {
+		if failure != nil {
+			return 0
+		}
 		if comparisons&255 == 0 {
 			failure = ctx.Err()
 		}
@@ -148,7 +147,9 @@ func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeD
 		if failure != nil {
 			return 0
 		}
-		return r.compareRanges(a, b)
+		var cmp int
+		cmp, failure = r.compareRanges(ctx, a, b)
+		return cmp
 	})
 	if failure != nil {
 		return nil, failure
@@ -160,17 +161,32 @@ func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeD
 				return nil, err
 			}
 		}
-		if used == 0 || r.rangesSeparated(members[used-1], member) {
+		separated := used == 0
+		if used > 0 {
+			var err error
+			separated, err = r.rangesSeparated(ctx, members[used-1], member)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if separated {
 			members[used] = member
 			used++
 		} else {
 			last := &members[used-1]
-			// Released range_union chooses the second bound on equality.
-			if r.compareRangeEndpoint(*last, true, member, true) >= 0 {
+			lo, err := r.compareRangeEndpoint(ctx, *last, true, member, true)
+			if err != nil {
+				return nil, err
+			}
+			hi, err := r.compareRangeEndpoint(ctx, *last, false, member, false)
+			if err != nil {
+				return nil, err
+			}
+			if lo >= 0 {
 				last.lower = member.lower
 				last.flags = last.flags&^(rangeLowerInclusive|rangeLowerUnbounded) | member.flags&(rangeLowerInclusive|rangeLowerUnbounded)
 			}
-			if r.compareRangeEndpoint(*last, false, member, false) <= 0 {
+			if hi <= 0 {
 				last.upper = member.upper
 				last.flags = last.flags&^(rangeUpperInclusive|rangeUpperUnbounded) | member.flags&(rangeUpperInclusive|rangeUpperUnbounded)
 			}
@@ -182,7 +198,7 @@ func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeD
 }
 
 // Endpoint order includes infinity direction, inclusivity and lower/upper side.
-func (d *Descriptor) compareRangeEndpoint(a rangeDatum, lowerA bool, b rangeDatum, lowerB bool) int {
+func (d *Descriptor) compareRangeEndpoint(ctx context.Context, a rangeDatum, lowerA bool, b rangeDatum, lowerB bool) (int, error) {
 	boundA, absentA, inclusiveA := a.upper, a.flags&rangeUpperUnbounded != 0, a.flags&rangeUpperInclusive != 0
 	boundB, absentB, inclusiveB := b.upper, b.flags&rangeUpperUnbounded != 0, b.flags&rangeUpperInclusive != 0
 	if lowerA {
@@ -193,90 +209,131 @@ func (d *Descriptor) compareRangeEndpoint(a rangeDatum, lowerA bool, b rangeDatu
 	}
 	if absentA && absentB {
 		if lowerA == lowerB {
-			return 0
+			return 0, nil
 		}
 		if lowerA {
-			return -1
+			return -1, nil
 		}
-		return 1
+		return 1, nil
 	}
 	if absentA {
 		if lowerA {
-			return -1
+			return -1, nil
 		}
-		return 1
+		return 1, nil
 	}
 	if absentB {
 		if lowerB {
-			return 1
+			return 1, nil
 		}
-		return -1
+		return -1, nil
 	}
-	if cmp := d.compareRangeBounds(boundA, boundB); cmp != 0 {
-		return cmp
+	cmp, err := d.compareRangeBounds(ctx, boundA, boundB)
+	if err != nil || cmp != 0 {
+		return cmp, err
 	}
 	if !inclusiveA && !inclusiveB {
 		if lowerA == lowerB {
-			return 0
+			return 0, nil
 		}
 		if lowerA {
-			return 1
+			return 1, nil
 		}
-		return -1
+		return -1, nil
 	}
 	if !inclusiveA {
 		if lowerA {
-			return 1
+			return 1, nil
 		}
-		return -1
+		return -1, nil
 	}
 	if !inclusiveB {
 		if lowerB {
-			return -1
+			return -1, nil
 		}
-		return 1
+		return 1, nil
 	}
-	return 0
+	return 0, nil
 }
 
-func (d *Descriptor) compareRanges(a, b rangeDatum) int {
-	if cmp := d.compareRangeEndpoint(a, true, b, true); cmp != 0 {
-		return cmp
+func (d *Descriptor) compareRanges(ctx context.Context, a, b rangeDatum) (int, error) {
+	cmp, err := d.compareRangeEndpoint(ctx, a, true, b, true)
+	if err != nil || cmp != 0 {
+		return cmp, err
 	}
-	return d.compareRangeEndpoint(a, false, b, false)
+	return d.compareRangeEndpoint(ctx, a, false, b, false)
 }
 
-func (d *Descriptor) rangesSeparated(a, b rangeDatum) bool {
+func (d *Descriptor) rangesSeparated(ctx context.Context, a, b rangeDatum) (bool, error) {
 	if a.flags&rangeUpperUnbounded != 0 || b.flags&rangeLowerUnbounded != 0 {
-		return false
+		return false, nil
 	}
-	cmp := d.compareRangeBounds(a.upper, b.lower)
-	return cmp < 0 || cmp == 0 && a.flags&rangeUpperInclusive == 0 && b.flags&rangeLowerInclusive == 0
+	cmp, err := d.compareRangeBounds(ctx, a.upper, b.lower)
+	return cmp < 0 || cmp == 0 && a.flags&rangeUpperInclusive == 0 && b.flags&rangeLowerInclusive == 0, err
 }
 
-func (v Value) validMultirange() bool {
+// validMultirangeShape checks physical generations only, without executing a
+// subtype provider. Structural comparison and catalog import run under locks;
+// destination ordering/normalization is certified separately before publication.
+func (v Value) validMultirangeShape() bool {
 	if v.typ == nil || v.null || v.multirange == nil {
 		return false
 	}
 	d := v.typ.BaseType()
-	r := d.multirangeRange
 	if !d.validMultirangeAuthority() {
 		return false
 	}
-	for i, member := range v.multirange.members {
-		if member.flags&rangeEmpty != 0 || !r.validRangeDatum(member) {
-			return false
-		}
-		if i > 0 && (r.compareRanges(v.multirange.members[i-1], member) >= 0 || !r.rangesSeparated(v.multirange.members[i-1], member)) {
+	for _, member := range v.multirange.members {
+		if member.flags&rangeEmpty != 0 || !d.RangeType().validRangeDatum(member) {
 			return false
 		}
 	}
 	return true
 }
 
+func (v Value) validMultirange() bool { return v.validateMultirange(context.Background()) == nil }
+
+func (v Value) validateMultirange(ctx context.Context) error {
+	if v.typ == nil || v.null || v.multirange == nil {
+		return fmt.Errorf("invalid multirange datum")
+	}
+	d := v.typ.BaseType()
+	r := d.multirangeRange
+	if !d.validMultirangeAuthority() {
+		return fmt.Errorf("invalid multirange authority")
+	}
+	for i, member := range v.multirange.members {
+		if i&255 == 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		if member.flags&rangeEmpty != 0 || !r.validRangeDatum(member) {
+			return fmt.Errorf("invalid multirange member")
+		}
+		if i > 0 {
+			cmp, err := r.compareRanges(ctx, v.multirange.members[i-1], member)
+			if err != nil {
+				return err
+			}
+			if cmp >= 0 {
+				return fmt.Errorf("unordered multirange member")
+			}
+			separated, err := r.rangesSeparated(ctx, v.multirange.members[i-1], member)
+			if err != nil {
+				return err
+			}
+			if !separated {
+				return fmt.Errorf("unnormalized multirange member")
+			}
+		}
+	}
+	return ctx.Err()
+}
+
 func (v Value) multirangeOutput(ctx context.Context, env OutputEnvironment) (string, error) {
-	if !v.validMultirange() {
-		return "", fmt.Errorf("invalid multirange datum")
+	if err := v.validateMultirange(ctx); err != nil {
+		return "", err
 	}
 	var out strings.Builder
 	out.WriteByte('{')
@@ -289,7 +346,9 @@ func (v Value) multirangeOutput(ctx context.Context, env OutputEnvironment) (str
 		if i != 0 {
 			out.WriteByte(',')
 		}
-		v.typ.BaseType().multirangeRange.writeRangeDatum(&out, member, env)
+		if err := v.typ.BaseType().multirangeRange.appendRangeDatum(ctx, &out, member, env); err != nil {
+			return "", err
+		}
 	}
 	out.WriteByte('}')
 	return out.String(), nil

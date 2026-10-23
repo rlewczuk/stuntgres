@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // ArrayTypeOwner resolves genuine internal ownership, including displaced
@@ -56,23 +55,17 @@ func TypeAlterRowProtection(v Read, typ *Type, path []ids.ObjectAddress) error {
 	return nil
 }
 
-// MultirangeOwnerProtection uses the existing released inventory. It does not
-// create a user-range provider or infer identity from a mutable spelling.
+// MultirangeOwnerProtection follows the current reciprocal range identity.
+// Generated companions cannot independently change ownership.
 func MultirangeOwnerProtection(v Read, typ *Type, path []ids.ObjectAddress) error {
-	if typ.SQLType.IsUserDefined() {
+	if !typ.SQLType.IsMultirange() {
 		return nil
 	}
-	for _, id := range [...]sqltype.ID{sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange} {
-		rangeType, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-		if !ok {
-			continue
-		}
-		fact, ok := rangeType.SQLType.RangeMetadata()
-		if ok && fact.Multitype == uint32(typ.SQLType.ID()) {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter multirange type " + TypeDiagnosticNameAt(v, typ, path), Hint: "You can alter type " + TypeDiagnosticNameAt(v, rangeType, path) + ", which will alter the multirange type as well."}
-		}
+	owner, err := TypeUsageAuthority(v, typ)
+	if err != nil {
+		return err
 	}
-	return nil
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter multirange type " + TypeDiagnosticNameAt(v, typ, path), Hint: "You can alter type " + TypeDiagnosticNameAt(v, owner, path) + ", which will alter the multirange type as well."}
 }
 
 // TypeDropProtection is for fully resolved, authorized explicit SQL roots only.

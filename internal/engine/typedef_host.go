@@ -7,9 +7,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -104,4 +107,26 @@ func (h ddlHost) NewCompositeRelation(namespace ids.ObjectAddress, name string, 
 
 func (h ddlHost) StageRowType(relation *catalog.Relation) error {
 	return h.e.stageRowTypeLocked(h.stage, relation)
+}
+
+func (h ddlHost) RangeClass(a ddl.Authority, u sqltype.Usage, name *parser.ObjectName) (sqltype.IndexClass, error) {
+	view := h.AccessView(a).Catalog
+	class, ok := view.DefaultIndexClass(403, u.Type)
+	if name != nil {
+		var err error
+		class, err = index.LookupClass(h, a, *name, 403)
+		if err != nil {
+			return class, err
+		}
+		if !class.Accepts(u.Type) {
+			return class, sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*name), u.Type.DiagnosticName()))
+		}
+		ok = true
+	}
+	if !ok {
+		d := sqlError("42704", fmt.Sprintf(`data type %s has no default operator class for access method "btree"`, u.Type.DiagnosticName())).(*sqlstate.Error)
+		d.Hint = "You must specify an operator class for the range type or define a default operator class for the subtype."
+		return class, d
+	}
+	return routine.BindClassSupport(view, class)
 }

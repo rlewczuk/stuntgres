@@ -114,8 +114,7 @@ func AggregateOrdering(usage sqltype.Usage, pos parser.Position, distinct bool) 
 	base := usage.Type.BaseType()
 	if base.IsArray() || base.IsComposite() || base.ID() == sqltype.PgNodeTree ||
 		base.ID() == sqltype.Bit || base.ID() == sqltype.VarBit ||
-		base.ID() == sqltype.Int4Range || base.ID() == sqltype.Int8Range || base.ID() == sqltype.NumRange || base.ID() == sqltype.DateRange || base.ID() == sqltype.TimestampRange || base.ID() == sqltype.TimestamptzRange ||
-		base.ID() == sqltype.Int4Multirange || base.ID() == sqltype.Int8Multirange || base.ID() == sqltype.NumMultirange {
+		base.IsRange() || base.IsMultirange() {
 		kind := "ordering"
 		if distinct {
 			kind = "DISTINCT"

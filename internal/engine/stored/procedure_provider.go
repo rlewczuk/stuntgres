@@ -24,6 +24,9 @@ func (ProcedureProvider) ClassID() ids.OID { return ids.ProcedureClassID }
 
 func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Procedure)
+	if ok && d.RangeConstructor != nil && (d.Implementation != nil || d.AccessMethod != catalog.NoAccessMethod) {
+		return extension.InvalidProviderDescriptor()
+	}
 	if ok && d.Implementation != nil {
 		if d.AccessMethod != catalog.NoAccessMethod {
 			return extension.InvalidProviderDescriptor()
@@ -52,6 +55,12 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 		return nil
 	}
 	switch {
+	case d.RangeConstructor != nil:
+		if err := catalog.ValidateRangeConstructor(v, d); err != nil {
+			return err
+		}
+		owner, _ := v.Type(catalog.RangeConstructorOwner(d))
+		return (TypeProvider{}).Validate(v, owner)
 	case d.SQL != nil:
 		return validateSQLProcedure(v, d)
 	case d.Aggregate != nil:

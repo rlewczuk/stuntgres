@@ -28,6 +28,9 @@ func CaptureObjectOutputValue(rows *exec.FinalRows, view catalog.Read, path []id
 	if value.IsNull() || !value.Type().ContainsRegObject() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return CaptureObjectOutputValue(rows, view, path, leaf) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := CaptureObjectOutputValue(rows, view, path, value.CompositeField(i)); err != nil {

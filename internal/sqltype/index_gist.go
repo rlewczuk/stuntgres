@@ -15,7 +15,7 @@ func LookupGiSTIndexClass(name string) (IndexClass, bool) {
 }
 
 func DefaultGiSTIndexClass(t *Descriptor) (IndexClass, bool) {
-	if t != nil && t.Concrete() && isRange(t.BaseType().id) {
+	if t != nil && t.Concrete() && t.BaseType().IsRange() {
 		return LookupGiSTIndexClass("range_ops")
 	}
 	return IndexClass{}, false
@@ -40,7 +40,7 @@ func bindGiSTExclusion(u Usage, class IndexClass, name string) (ExclusionOperato
 		}
 		return p, nil
 	}
-	if class.input == 3831 && isRange(t.id) && name == "&&" && u == t.Usage() {
+	if class.input == 3831 && t.IsRange() && name == "&&" && u == t.Usage() {
 		var err error
 		p.rangePlan, err = BindRangeOperator(RangeOverlap, t.rangeBoolean.Usage(), u, u)
 		return p, err

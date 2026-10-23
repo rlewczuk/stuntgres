@@ -37,12 +37,10 @@ func probeStringVariadic(b CallTypeContext, raw parser.FunctionExpr, operands []
 }
 
 func rangeCallFormal(selected *sqltype.Descriptor) sqltype.ID {
-	switch selected.ID() {
-	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
+	if selected.IsMultirange() {
 		return 4537
-	default:
-		return 3831
 	}
+	return 3831
 }
 
 func probeRangeInspect(b CallTypeContext, raw parser.FunctionExpr, operands []Argument, declared, targets []sqltype.Usage) bool {

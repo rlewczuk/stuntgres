@@ -67,7 +67,7 @@ func RangeInspectKind(name string) (RangeInspectOperation, bool) {
 	return 0, false
 }
 func IsRangeInspectType(d *Descriptor) bool {
-	return d != nil && (isRange(d.BaseType().id) || isMultirange(d.BaseType().id))
+	return d != nil && (d.BaseType().IsRange() || d.BaseType().IsMultirange())
 }
 
 // RangeInspectPlan retains exact input/result authority, never borrowed mutable
@@ -83,18 +83,18 @@ func RangeInspectResult(operation RangeInspectOperation, input *Descriptor) *Des
 		return nil
 	}
 	r := input
-	if isMultirange(input.id) {
+	if input.IsMultirange() {
 		if !input.validMultirangeAuthority() {
 			return nil
 		}
 		r = input.multirangeRange
 	}
-	if !isRange(r.id) || r.rangeSubtype == nil || !r.rangeSubtype.Concrete() {
+	if !r.IsRange() || r.rangeSubtype == nil || !r.rangeSubtype.Concrete() {
 		return nil
 	}
 	switch operation {
 	case RangeConstruct:
-		if !isRange(input.id) || input.multirangeCompanion == nil || !input.multirangeCompanion.validMultirangeAuthority() {
+		if !input.IsRange() || input.multirangeCompanion == nil || !input.multirangeCompanion.validMultirangeAuthority() {
 			return nil
 		}
 		return input.multirangeCompanion
@@ -121,7 +121,7 @@ func BindRangeInspect(operation RangeInspectOperation, result Usage, args ...Usa
 		return p, fmt.Errorf("invalid range inspection result authority")
 	}
 	arity := 1
-	if operation == RangeMerge && isRange(input.id) {
+	if operation == RangeMerge && input.IsRange() {
 		arity = 2
 	}
 	if len(args) != arity {
@@ -133,7 +133,7 @@ func BindRangeInspect(operation RangeInspectOperation, result Usage, args ...Usa
 		}
 	}
 	r := input
-	if isMultirange(input.id) {
+	if input.IsMultirange() {
 		r = input.multirangeRange
 	}
 	return RangeInspectPlan{input, expected, r, operation, uint8(arity)}, nil
@@ -171,7 +171,7 @@ func (p RangeInspectPlan) Evaluate(ctx context.Context, values [2]Value) (Value,
 	// Borrow only the touched datums. No endpoint/member copies precede the
 	// construction of the final scalar or enclosing range.
 	first, last := &values[0].rangeDatum, &values[0].rangeDatum
-	if isMultirange(p.input.id) {
+	if p.input.IsMultirange() {
 		payload := values[0].multirange
 		if payload == nil {
 			return Value{}, fmt.Errorf("missing multirange inspection payload")
@@ -201,10 +201,18 @@ func (p RangeInspectPlan) Evaluate(ctx context.Context, values [2]Value) (Value,
 				return Value{typ: p.result, rangeDatum: *first}, nil
 			}
 			lower, upper := first, first
-			if p.rangeType.compareRangeEndpoint(*first, true, *last, true) >= 0 {
+			lo, err := p.rangeType.compareRangeEndpoint(ctx, *first, true, *last, true)
+			if err != nil {
+				return Value{}, err
+			}
+			hi, err := p.rangeType.compareRangeEndpoint(ctx, *first, false, *last, false)
+			if err != nil {
+				return Value{}, err
+			}
+			if lo >= 0 {
 				lower = last
 			}
-			if p.rangeType.compareRangeEndpoint(*first, false, *last, false) <= 0 {
+			if hi <= 0 {
 				upper = last
 			}
 			first, last = lower, upper
@@ -224,6 +232,12 @@ func (p RangeInspectPlan) Evaluate(ctx context.Context, values [2]Value) (Value,
 		}
 		if empty || absent {
 			return Null(p.result), nil
+		}
+		if p.rangeType.customRange != nil {
+			if bound.value == nil || bound.value.typ != p.result {
+				return Value{}, fmt.Errorf("invalid custom range endpoint")
+			}
+			return *bound.value, nil
 		}
 		if p.result.id == Numeric {
 			return bound.numericValue(p.result), nil

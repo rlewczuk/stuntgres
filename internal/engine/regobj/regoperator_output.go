@@ -57,6 +57,9 @@ func CaptureOperatorOutputValue(rows *exec.FinalRows, view catalog.Read, path []
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return CaptureOperatorOutputValue(rows, view, path, leaf) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := CaptureOperatorOutputValue(rows, view, path, value.CompositeField(i)); err != nil {

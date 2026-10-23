@@ -12,18 +12,21 @@ import (
 // (stored) retain their binder's admission rules; INSERT expressions retain
 // the Restore whitelist. Both modes reject every parameter reached through
 // the shared recursive visitor.
-func RestoreScalar(raw parser.Expr, stored bool) error {
+// The optional eligibility hook recognizes catalog-owned constructor names
+// only. It neither resolves an overload nor grants execution authority; the
+// ordinary binder must enforce the selected-provider restriction.
+func RestoreScalar(raw parser.Expr, stored bool, eligible ...func(parser.FunctionExpr) bool) error {
 	switch r := raw.(type) {
 	case parser.SQLJSONQueryExpr:
 		for _, child := range r.Children() {
-			if err := RestoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored, eligible...); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.SQLJSONExpr:
 		for _, child := range r.Args {
-			if err := RestoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored, eligible...); err != nil {
 				return err
 			}
 		}
@@ -32,10 +35,10 @@ func RestoreScalar(raw parser.Expr, stored bool) error {
 		}
 		return nil
 	case parser.JSONPredicateExpr:
-		return RestoreScalar(r.Child, stored)
+		return RestoreScalar(r.Child, stored, eligible...)
 	case parser.SubqueryExpr:
 		if r.Left != nil {
-			if err := RestoreScalar(r.Left, stored); err != nil {
+			if err := RestoreScalar(r.Left, stored, eligible...); err != nil {
 				return err
 			}
 		}
@@ -47,153 +50,89 @@ func RestoreScalar(raw parser.Expr, stored bool) error {
 		}
 		return nil
 	case parser.FunctionExpr:
-		if !stored {
-			if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
-				return fmt.Errorf("stuntgres: invalid restore scalar")
-			}
-			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
-			case "circle":
-				if !functions.CircleConstructorReplay(r) {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			case "split_part", "string_to_array", "parse_ident":
-			case "cube", "cube_dim", "cube_is_point":
-				// Selected installed constructors/inquiries use their ordinary
-				// binder for signatures, provider identity and value diagnostics.
-				// Syntax admission still recursively rejects every parameter.
-			case "acldefault", "makeaclitem":
-				// These typed scalar constructors are also emitted by the
-				// ordinary lossless datum renderer. Their binder owns the
-				// signature and value checks; recurse below to reject parameters.
-			case "array_position", "array_positions", "array_remove", "array_replace":
-			case "array_dims", "array_length", "array_lower", "array_upper", "array_ndims", "cardinality":
-			case "array_append", "array_prepend", "array_cat", "array_fill", "array_reverse", "array_sort", "trim_array", "array_to_string":
-			case "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge":
-			case "tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained":
-				// Selected scalar algebra shares its ordinary typed binder. Recurse
-				// below to retain Restore's unconditional parameter prohibition.
-			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "json_strip_nulls", "jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first":
-			case "json_typeof", "jsonb_typeof", "jsonb_pretty", "json_array_length", "jsonb_array_length":
-			case "to_json", "to_jsonb", "array_to_json", "row_to_json", "json_build_array", "jsonb_build_array", "json_build_object", "jsonb_build_object":
-			case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
-			case "to_bin", "to_oct", "to_hex":
-			case "pg_size_bytes", "pg_size_pretty":
-			case "age", "isfinite":
-			case "overlaps":
-			case "date_trunc", "date_bin":
-			case "timezone", "date_add", "date_subtract":
-			case "justify_days", "justify_hours", "justify_interval":
-			case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
-			case "gen_random_uuid", "uuidv4", "uuidv7":
-			case "uuid_extract_timestamp", "uuid_extract_version":
-			case "abbrev", "host", "family", "masklen", "inet_same_family", "broadcast", "hostmask", "netmask", "network", "inet_merge", "set_masklen":
-			case "format", "concat", "concat_ws", "quote_ident", "quote_literal", "quote_nullable", "pg_client_encoding":
-			case "convert", "convert_from", "convert_to", "encode", "decode", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
-			case "regexp_count", "regexp_instr", "regexp_substr", "regexp_like", "regexp_match", "regexp_replace", "regexp_split_to_array":
-				_, _, _, valid := functions.RegexpSignature(r.Name.Parts[len(r.Name.Parts)-1].Text, len(r.Args), true)
-				if !valid || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			case "like_escape":
-				if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) != 2 || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			case "similar_to_escape":
-				if r.Syntax != parser.SimilarEscapeFunctionSyntax || len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) < 1 || len(r.Args) > 2 || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			case "left", "right":
-				if len(r.Args) != 2 || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			case "substring", "substr":
-				if (len(r.Args) != 2 && len(r.Args) != 3) || r.Variadic {
-					return fmt.Errorf("stuntgres: invalid restore scalar")
-				}
-			default:
-				return fmt.Errorf("stuntgres: invalid restore scalar")
-			}
+		if !stored && !RestoreFunctionRecipe(r) && (len(eligible) == 0 || eligible[0] == nil || !eligible[0](r)) {
+			return fmt.Errorf("stuntgres: invalid restore scalar")
 		}
 		for _, child := range r.Args {
-			if err := RestoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored, eligible...); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.CaseExpr:
 		if r.Test != nil {
-			if err := RestoreScalar(r.Test, stored); err != nil {
+			if err := RestoreScalar(r.Test, stored, eligible...); err != nil {
 				return err
 			}
 		}
 		for _, arm := range r.Arms {
-			if err := RestoreScalar(arm.Condition, stored); err != nil {
+			if err := RestoreScalar(arm.Condition, stored, eligible...); err != nil {
 				return err
 			}
-			if err := RestoreScalar(arm.Result, stored); err != nil {
+			if err := RestoreScalar(arm.Result, stored, eligible...); err != nil {
 				return err
 			}
 		}
 		if r.Else != nil {
-			return RestoreScalar(r.Else, stored)
+			return RestoreScalar(r.Else, stored, eligible...)
 		}
 		return nil
 	case parser.ConditionalExpr:
 		for _, child := range r.Args {
-			if err := RestoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored, eligible...); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.LogicalExpr:
-		if err := RestoreScalar(r.Left, stored); err != nil {
+		if err := RestoreScalar(r.Left, stored, eligible...); err != nil {
 			return err
 		}
 		if r.Right != nil {
-			return RestoreScalar(r.Right, stored)
+			return RestoreScalar(r.Right, stored, eligible...)
 		}
 		return nil
 	case parser.PredicateExpr:
-		if err := RestoreScalar(r.Left, stored); err != nil {
+		if err := RestoreScalar(r.Left, stored, eligible...); err != nil {
 			return err
 		}
 		if r.Right != nil {
-			return RestoreScalar(r.Right, stored)
+			return RestoreScalar(r.Right, stored, eligible...)
 		}
 		return nil
 	case parser.CollateExpr:
-		return RestoreScalar(r.Child, stored)
+		return RestoreScalar(r.Child, stored, eligible...)
 	case parser.CastExpr:
-		return RestoreScalar(r.Child, stored)
+		return RestoreScalar(r.Child, stored, eligible...)
 	case parser.RegclassExpr:
-		return RestoreScalar(r.Child, stored)
+		return RestoreScalar(r.Child, stored, eligible...)
 	case parser.FieldExpr:
-		return RestoreScalar(r.Base, stored)
+		return RestoreScalar(r.Base, stored, eligible...)
 	case parser.RowExpr:
 		for _, field := range r.Fields {
-			if err := RestoreScalar(field, stored); err != nil {
+			if err := RestoreScalar(field, stored, eligible...); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.InListExpr:
-		if err := RestoreScalar(r.Left, stored); err != nil {
+		if err := RestoreScalar(r.Left, stored, eligible...); err != nil {
 			return err
 		}
 		for _, item := range r.Items {
-			if err := RestoreScalar(item, stored); err != nil {
+			if err := RestoreScalar(item, stored, eligible...); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.ArrayComparisonExpr:
-		if err := RestoreScalar(r.Left, stored); err != nil {
+		if err := RestoreScalar(r.Left, stored, eligible...); err != nil {
 			return err
 		}
-		return RestoreScalar(r.Right, stored)
+		return RestoreScalar(r.Right, stored, eligible...)
 	case parser.ArrayExpr:
 		for _, element := range r.Elements {
-			if err := RestoreScalar(element, stored); err != nil {
+			if err := RestoreScalar(element, stored, eligible...); err != nil {
 				return err
 			}
 		}
@@ -201,17 +140,17 @@ func RestoreScalar(raw parser.Expr, stored bool) error {
 	case parser.SubscriptExpr:
 		var storage [13]parser.Expr
 		for _, child := range r.Children(&storage) {
-			if err := RestoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored, eligible...); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.TimeZoneExpr:
-		if err := RestoreScalar(r.Value, stored); err != nil {
+		if err := RestoreScalar(r.Value, stored, eligible...); err != nil {
 			return err
 		}
 		if !r.Local {
-			return RestoreScalar(r.Zone, stored)
+			return RestoreScalar(r.Zone, stored, eligible...)
 		}
 		return nil
 	case parser.ParameterExpr:
@@ -237,7 +176,7 @@ func RestoreScalar(raw parser.Expr, stored bool) error {
 			}
 		}
 		for _, child := range r.Args {
-			if err := RestoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored, eligible...); err != nil {
 				return err
 			}
 		}

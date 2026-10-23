@@ -166,7 +166,7 @@ func CheckComment(s *parser.Comment) error {
 
 // CheckInsert admits a plain VALUES INSERT whose subscripts and values are
 // Restore scalars.
-func CheckInsert(s *parser.Insert) error {
+func CheckInsert(s *parser.Insert, eligible ...func(parser.FunctionExpr) bool) error {
 	if len(s.With) != 0 {
 		return sqlError("0A000", "restore INSERT WITH clauses are unsupported")
 	}
@@ -186,12 +186,12 @@ func CheckInsert(s *parser.Insert) error {
 			}
 			bound := step.Subscript
 			if bound.Lower != nil {
-				if err := dump.RestoreScalar(bound.Lower, false); err != nil {
+				if err := dump.RestoreScalar(bound.Lower, false, eligible...); err != nil {
 					return err
 				}
 			}
 			if bound.Upper != nil {
-				if err := dump.RestoreScalar(bound.Upper, false); err != nil {
+				if err := dump.RestoreScalar(bound.Upper, false, eligible...); err != nil {
 					return err
 				}
 			}
@@ -199,7 +199,7 @@ func CheckInsert(s *parser.Insert) error {
 	}
 	for _, row := range s.Rows {
 		for _, v := range row {
-			if err := dump.RestoreScalar(v, false); err != nil {
+			if err := dump.RestoreScalar(v, false, eligible...); err != nil {
 				return err
 			}
 		}

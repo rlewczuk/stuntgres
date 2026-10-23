@@ -67,9 +67,16 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 	var queue []ids.ObjectAddress
 	for address, descriptor := range state.Descriptors() {
 		d, ok := descriptor.(*catalog.Procedure)
-		if !ok || d.SQL == nil {
+		if !ok { continue }
+		if d.RangeConstructor != nil {
+			if typ(d.RangeConstructor.Type) != d.RangeConstructor.Type {
+				if changes == nil { changes = make(map[ids.ObjectAddress]*refresh) }
+				changes[address] = &refresh{source:d}
+				queue = append(queue,address)
+			}
 			continue
 		}
+		if d.SQL == nil { continue }
 		definition, err := remap.Definition(d.SQL)
 		if err != nil {
 			return err
@@ -155,6 +162,10 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 		mapped, err := remap.Procedure(change.source)
 		if err != nil {
 			return err
+		}
+		if change.source.RangeConstructor != nil {
+			state.SetDescriptor(address, mapped)
+			continue
 		}
 		next := *mapped
 		next.SQL = change.definition

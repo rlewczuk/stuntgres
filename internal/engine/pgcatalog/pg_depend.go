@@ -62,7 +62,7 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			}
 		case *catalog.Cast:
 			for _, dependency := range catalog.CastDependencies(d) {
-				add(d.Address(), dependency, 'n')
+				add(d.Address(), dependency, catalog.CastDependencyKind(d))
 			}
 		case *catalog.OperatorClass:
 			if !catalog.OperatorClassSeeded(d) {
@@ -99,6 +99,26 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			}
 		case *catalog.Procedure:
 			add(d.Address(), d.Namespace(), 'n')
+			add(d.Address(), catalog.RangeConstructorOwner(d), 'i')
+			if constructor := d.RangeConstructor; constructor != nil {
+				if err := catalog.ValidateRangeConstructor(view, d); err != nil {
+					return nil, err
+				}
+				add(d.Address(), catalog.RangeConstructorOwner(d), 'n')
+				switch constructor.Form {
+				case catalog.RangeConstructorTwo, catalog.RangeConstructorThree:
+					definition, _ := constructor.Type.RangeDefinition()
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(definition.Subtype.Type.ID())}, 'n')
+				case catalog.MultirangeConstructorOne:
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(constructor.Type.RangeType().ID())}, 'n')
+				case catalog.MultirangeConstructorMany:
+					array, ok := view.LookupArray(constructor.Type.RangeType())
+					if !ok {
+						return nil, fmt.Errorf("missing generated constructor array dependency")
+					}
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}, 'n')
+				}
+			}
 			for address := range catalog.OwnedAggregateDependencies(d) {
 				add(d.Address(), address, 'n')
 			}
@@ -163,6 +183,13 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				add(d.Address(), d.OwningRelation, 'i')
 			} else {
 				add(d.Address(), d.Namespace(), 'n')
+				for _, dependency := range catalog.RangeDependencies(d) {
+					kind := byte('n')
+					if d.SQLType.IsMultirange() {
+						kind = 'i'
+					}
+					add(d.Address(), dependency, kind)
+				}
 				if d.SQLType.IsDomain() {
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}, 'n')
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Collation.ID)}, 'n')

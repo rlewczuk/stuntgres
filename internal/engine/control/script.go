@@ -153,6 +153,15 @@ func (s *dumpScript) addDeclarationEdges() error {
 		id := d.Address().ObjectID
 		s.domainNodes[id] = d
 		s.Graph[dump.Event{OID: id}] = nil
+		for _, dependency := range catalog.RangeDependencies(d) {
+			predecessor, err := (Resolver{}).Predecessor(s.CatalogView, dependency, d.Address())
+			if err != nil {
+				return err
+			}
+			if predecessor != 0 {
+				s.Graph[dump.Event{OID: id}] = append(s.Graph[dump.Event{OID: id}], dump.Event{OID: predecessor})
+			}
+		}
 		if d.SQLType.IsDomain() {
 			predecessor, err := Resolver{}.Predecessor(s.CatalogView, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}, d.Address())
 			if err != nil {

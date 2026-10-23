@@ -41,8 +41,13 @@ func ClassReplayReferences(view catalog.Read, node expr.Expr, visit func(ids.Obj
 // Remap captured relation identities recursively without rendering or reparsing
 // array text. Payloads are copied only on the first affected element.
 func RemapClassDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
-	if value.IsNull() {
+	if value.IsNull() || !value.Type().ContainsRegclass() {
 		return value, nil
+	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.MapRange(value.Type(), sqltype.RangeMapIdentity, func(leaf sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
+			return RemapClassDatum(leaf, destination)
+		})
 	}
 	if value.Type().BaseType().IsComposite() {
 		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
@@ -57,15 +62,7 @@ func RemapClassDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sq
 	if value.Type().BaseType().ID() != sqltype.Regclass {
 		return value, nil
 	}
-	physical, err := value.BaseValue()
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	text, err := physical.Text()
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	oid, err := strconv.ParseUint(text, 10, 32)
+	oid, err := value.ClassOID()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -73,7 +70,7 @@ func RemapClassDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sq
 	if target == ids.OID(oid) {
 		return value, nil
 	}
-	physical = sqltype.String(value.Type().BaseType(), strconv.FormatUint(uint64(target), 10))
+	physical := sqltype.String(value.Type().BaseType(), strconv.FormatUint(uint64(target), 10))
 	if value.Type().IsDomain() {
 		return value.Type().Wrap(physical)
 	}

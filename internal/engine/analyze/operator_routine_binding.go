@@ -53,7 +53,7 @@ func comparisonFormalID(d *sqltype.Descriptor) sqltype.ID {
 		return 2277 // Released ANYARRAY declaration after actual capability admission.
 	}
 	id := d.ID()
-	if formal := rangeRoutineFormalID(id); formal != 0 {
+	if formal := rangeRoutineFormalID(d); formal != 0 {
 		return formal
 	}
 	if id == sqltype.Regclass || id == sqltype.Regtype || id == sqltype.Regrole || sqltype.IsRoutineAlias(id) || sqltype.IsOperatorAlias(id) || sqltype.IsRegObjectAlias(id) || sqltype.IsRegTS(id) {
@@ -62,15 +62,13 @@ func comparisonFormalID(d *sqltype.Descriptor) sqltype.ID {
 	return id
 }
 
-// Normalize only the stock physical providers admitted by existing range
-// authority. Other operands remain scalar subtypes, not released-only ranges.
-func rangeRoutineFormalID(id sqltype.ID) sqltype.ID {
-	switch id {
-	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange,
-		sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange:
-		return 3831 // ANYRANGE
-	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
-		return 4537 // ANYMULTIRANGE
+// Formal range identities follow admitted descriptor families, not allocated OIDs.
+func rangeRoutineFormalID(d *sqltype.Descriptor) sqltype.ID {
+	if d.IsRange() {
+		return 3831
+	}
+	if d.IsMultirange() {
+		return 4537
 	}
 	return 0
 }

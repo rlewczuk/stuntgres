@@ -27,7 +27,7 @@ func TestRangeOperatorComparisonAdmission(t *testing.T) {
 				t.Fatal(id, err)
 			}
 			input := "empty"
-			if isMultirange(id) {
+			if pair[0].BaseType().IsMultirange() {
 				input = "{}"
 			}
 			a := inspectUnitInput(t, pair[0], input)

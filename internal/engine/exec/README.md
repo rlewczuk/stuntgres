@@ -149,6 +149,12 @@ outside engine and publication locks. Conditional planning keeps every analyzed
 dependency and authorization even when it removes a branch; held parameters are
 reconsidered on every execution, never stored as planning facts.
 
+`StrictRoutineArguments` maps expression children to actual nullable call
+formals for both permission admission and parameter-NULL folding. Expanded
+generated multirange constructor members form one non-NULL variadic array:
+a NULL member must reach the constructor's `22004` check, while an explicit
+NULL VARIADIC array and the strict single-range overload retain NULL results.
+
 ## Invariants
 
 - **No mutexes.** The package adds no lock. Lock order, modes and waits belong to

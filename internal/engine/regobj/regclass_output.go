@@ -26,6 +26,9 @@ func CaptureClassOutputValue(rows *exec.FinalRows, catalog catalog.Read, path []
 	if value.IsNull() || !value.Type().ContainsRegclass() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return CaptureClassOutputValue(rows, catalog, path, leaf) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := CaptureClassOutputValue(rows, catalog, path, value.CompositeField(i)); err != nil {

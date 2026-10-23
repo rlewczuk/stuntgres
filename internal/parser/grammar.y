@@ -183,6 +183,8 @@ package parser
  alterView *AlterView
  enumLabels []EnumLabel
  alterEnum *AlterEnum
+ rangeOptions []RangeOption
+ rangeOption RangeOption
  alterIndex *AlterIndex
  indexOptions []IndexOption
  indexOption IndexOption
@@ -566,7 +568,9 @@ package parser
 %type <enumLabels> enum_labels enum_label_list
 %type <columns> composite_members composite_member_list
 %type <col> composite_member
-%type <tok> enum_word
+%type <tok> enum_word range_word generic_word_without_frame generic_word_base_without_vacuum_frame
+%type <rangeOptions> range_options
+%type <rangeOption> range_option
 %type <tok> enum_placement_word
 %type <alterEnum> enum_placement
 %type <tok> check_function_head
@@ -1511,11 +1515,21 @@ create: create_table { $$=$1 }
  * reductions cannot steal another CREATE declaration's continuation. */
 create_enum: CREATE TYPE relation_name AS enum_word '(' enum_labels ')' {
  $$=&CreateEnum{Name:$3,Labels:$7,Pos:$1.pos}
+}
+ | CREATE TYPE relation_name AS range_word '(' range_options ')' {
+ $$=&CreateRange{Name:$3,Options:$7,Pos:$1.pos}
 } ;
-enum_word: generic_word {
+enum_word: generic_word_without_frame {
  if $1.keyword==nil || $1.text!="enum" {sqllex.(*lexer).failAt("0A000","CREATE TYPE syntax is unsupported",$1.pos.Offset);return 1}
  $$=$1
 } ;
+range_word: FRAME_UNIT {
+ if $1.text!="range" {sqllex.(*lexer).failAt("0A000","CREATE TYPE syntax is unsupported",$1.pos.Offset);return 1}
+ $$=$1
+} ;
+range_options: range_option {$$=[]RangeOption{$1}}
+ | range_options ',' range_option {$$=append($1,$3)} ;
+range_option: col_label '=' type {$$=RangeOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3}} ;
 enum_labels: /* empty */ {$$=nil} | enum_label_list {$$=$1} ;
 enum_label_list: STRING {$$=[]EnumLabel{{Text:$1.text,Pos:$1.pos}}}
  | enum_label_list ',' STRING {$$=append($1,EnumLabel{Text:$3.text,Pos:$3.pos})} ;
@@ -3195,7 +3209,11 @@ generic_word_without_exists: generic_word_base | WITH ;
  * that fallback compete with the empty legacy VACUUM option prefix. */
 generic_statement_word: generic_word_base_without_vacuum | WITH | EXISTS ;
 generic_word_base: generic_word_base_without_vacuum | VACUUM ;
-generic_word_base_without_vacuum: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
+/* The RANGE declaration has its own frame-unit token frontier; ENUM keeps
+ * generic unsupported-word diagnostics without accepting a range body. */
+generic_word_without_frame: generic_word_base_without_vacuum_frame | VACUUM | WITH | EXISTS ;
+generic_word_base_without_vacuum: generic_word_base_without_vacuum_frame | FRAME_UNIT ;
+generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | TRIGGER
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
@@ -3216,7 +3234,7 @@ generic_word_base_without_vacuum: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
  | membership_keyword
  | SIMILAR
- | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | WITHIN | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START
+ | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | WITHIN | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_EDGE | FRAME_START
  | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE
  | PRIMARY ;

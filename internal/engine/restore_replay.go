@@ -53,7 +53,7 @@ func operationReplayOrZero(op *session.Operation) restoreReplay {
 // admitted Restore statement. restoreRun.execute clears defaultReplay,
 // partitionAttach and commentAuthority after execution; tableDestination
 // and insertAuthority stay set until the next statement's prepare.
-func prepareRestoreReplayFlags(_ *restoreRun, op *session.Operation, stmt parser.Statement) error {
+func prepareRestoreReplayFlags(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
 	replay := operationReplay(op)
 	replay.tableDestination = restoreTableDestination(stmt)
 	_, replay.insertAuthority = stmt.(*parser.Insert)
@@ -71,7 +71,7 @@ func prepareRestoreReplayFlags(_ *restoreRun, op *session.Operation, stmt parser
 // trusted importer provenance (the tableDestination flag).
 func restoreTableDestination(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
-	case *parser.CreateTable, *parser.CreateDomain, *parser.CreateEnum, *parser.CreateComposite,
+	case *parser.CreateTable, *parser.CreateDomain, *parser.CreateRange, *parser.CreateEnum, *parser.CreateComposite,
 		*parser.CreateTrigger, *parser.CreatePolicy, *parser.CreateRule, *parser.CreateSequence, *parser.CreateView,
 		*parser.CreateIndex, *parser.CreateCollation, *parser.CreateConversion, *parser.AlterConversion,
 		*parser.CreateOperator, *parser.AlterOperator, *parser.CreateExtension, *parser.AlterRoutine:

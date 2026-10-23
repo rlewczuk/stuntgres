@@ -35,6 +35,9 @@ func (d *Descriptor) ContainsRegclass() bool {
 		return false
 	}
 	physical := d.BaseType()
+	if r := physical.RangeType(); r != nil {
+		return r.rangeSubtype.ContainsRegclass()
+	}
 	if physical.IsArray() {
 		return physical.element.ContainsRegclass()
 	}
@@ -52,7 +55,7 @@ func Array(id ID, name string, element *Descriptor) (*Descriptor, error) {
 	if element != nil && element.BaseType().ID() == PgSnapshot {
 		return nil, fmt.Errorf("invalid array descriptor")
 	}
-	if id == 0 || id == Unknown || name == "" || !element.Concrete() || element.BaseType().ID() == Macaddr || element.BaseType().ID() == Macaddr8 || IsOperatorAlias(element.BaseType().ID()) || IsRegTS(element.BaseType().ID()) || IsNetwork(element.BaseType().ID()) || IsTransactionIdentifier(element.BaseType().ID()) && element.ID() != Xid || !element.IsDomain() && !element.IsEnum() && !element.IsComposite() && !StoredScalarCastType(element.ID()) && element.ID() != Regclass {
+	if id == 0 || id == Unknown || name == "" || !element.Concrete() || element.BaseType().ID() == Macaddr || element.BaseType().ID() == Macaddr8 || IsOperatorAlias(element.BaseType().ID()) || IsRegTS(element.BaseType().ID()) || IsNetwork(element.BaseType().ID()) || IsTransactionIdentifier(element.BaseType().ID()) && element.ID() != Xid || !element.IsDomain() && !element.IsEnum() && !element.IsComposite() && !element.IsRange() && !element.IsMultirange() && !StoredScalarCastType(element.ID()) && element.ID() != Regclass {
 		return nil, fmt.Errorf("invalid array descriptor")
 	}
 	return &Descriptor{id: id, name: name, sql: element.SQLName() + "[]", database: strings.ToUpper(name), element: element}, nil

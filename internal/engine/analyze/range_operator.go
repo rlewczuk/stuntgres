@@ -112,7 +112,7 @@ func (b *Binder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, error) {
 	}
 	var formal [2]sqltype.ID
 	for i, typ := range [2]*sqltype.Descriptor{lt, rt} {
-		formal[i] = rangeRoutineFormalID(typ.ID())
+		formal[i] = rangeRoutineFormalID(typ)
 		if formal[i] == 0 {
 			formal[i] = 2283 // ANYELEMENT, only after genuine range-plan selection.
 		}

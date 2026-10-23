@@ -44,10 +44,10 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 	if d.IsComposite() {
 		return d.binaryComposite(ctx, p, env)
 	}
-	if isRange(d.id) {
+	if d.IsRange() {
 		return d.binaryRange(ctx, p, env)
 	}
-	if isMultirange(d.id) {
+	if d.IsMultirange() {
 		return d.binaryMultirange(ctx, p, env)
 	}
 	if d.IsEnum() {
@@ -229,10 +229,10 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 	if d.IsComposite() {
 		return d.appendBinaryComposite(ctx, dst, v, env)
 	}
-	if isRange(d.id) {
+	if d.IsRange() {
 		return d.appendBinaryRange(ctx, dst, v.rangeDatum, env)
 	}
-	if isMultirange(d.id) {
+	if d.IsMultirange() {
 		return d.appendBinaryMultirange(ctx, dst, v, env)
 	}
 	if d.IsEnum() {

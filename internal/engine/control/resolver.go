@@ -51,6 +51,12 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		return address.ObjectID, nil
 	}
 	if cast, ok := object.(*catalog.Cast); ok {
+		if cast.GeneratedRange != (ids.ObjectAddress{}) {
+			if err := (catalog.CastProvider{}).Validate(view, cast); err != nil {
+				return 0, err
+			}
+			return predecessor(view, cast.GeneratedRange, consumer)
+		}
 		return cast.OID, nil
 	}
 	if extension, ok := object.(*catalog.Extension); ok {
@@ -97,6 +103,9 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		return operator.Address().ObjectID, nil
 	}
 	if proc, ok := object.(*catalog.Procedure); ok {
+		if owner := catalog.RangeConstructorOwner(proc); owner != (ids.ObjectAddress{}) {
+			return predecessor(view, owner, consumer)
+		}
 		if proc.Foreign != nil {
 			if _, err := fdw.DumpProcedure(view, address, proc.Signature); err != nil {
 				return 0, err
@@ -118,6 +127,9 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 	if typ, ok := object.(*catalog.Type); ok {
 		if typ.SQLType.IsArray() {
 			return predecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.Element().ID())}, consumer)
+		}
+		if typ.SQLType.IsMultirange() && typ.SQLType.IsUserDefined() {
+			return predecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.RangeType().ID())}, consumer)
 		}
 		if typ.Extension != (ids.ObjectAddress{}) {
 			return predecessor(view, typ.Extension, consumer)

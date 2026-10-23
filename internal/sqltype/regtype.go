@@ -30,6 +30,9 @@ func (d *Descriptor) ContainsRegtype() bool {
 		return false
 	}
 	physical := d.BaseType()
+	if r := physical.RangeType(); r != nil {
+		return r.rangeSubtype.ContainsRegtype()
+	}
 	if physical.IsArray() {
 		return physical.element.ContainsRegtype()
 	}

@@ -85,7 +85,7 @@ func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.Language == captured.Language && current.PLHandler == captured.PLHandler &&
 		slices.Equal(current.DeclarationDependencies, captured.DeclarationDependencies) &&
 		current.Conversion == captured.Conversion && current.SQL == captured.SQL && current.SQLBody == captured.SQLBody &&
-		current.SQLDefaults == captured.SQLDefaults && current.Extension == captured.Extension &&
+		current.SQLDefaults == captured.SQLDefaults && current.RangeConstructor == captured.RangeConstructor && current.Extension == captured.Extension &&
 		current.AccessMethod == captured.AccessMethod && current.Dictionary == captured.Dictionary &&
 		current.Foreign == captured.Foreign && sameRoutineBody(current.Body, captured.Body) && sameAggregateDefinition(current.Aggregate, captured.Aggregate)
 }

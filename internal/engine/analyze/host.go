@@ -91,6 +91,7 @@ type Host interface {
 	EmitWarning(diagnostic sqlstate.Error)
 	EmitNotice(diagnostic sqlstate.Error)
 	ReplayInsertAuthority() bool
+	ReplayConstructorCall(parser.FunctionExpr) bool
 	ReplayDomainCell(b *Binding, s *parser.Insert, row, column int) (expr.Expr, bool, error)
 
 	// Upward.

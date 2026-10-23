@@ -50,6 +50,7 @@ type Procedure struct {
 	SQL                                       *proc.Definition
 	Language                                  ids.ObjectAddress
 	PLHandler                                 PLHandler
+	RangeConstructor                          *RangeConstructor
 	// DeclarationDependencies order replay only; PL source is not an eager SQL
 	// body dependency manifest and these addresses do not create pg_depend edges.
 	DeclarationDependencies []ids.ObjectAddress

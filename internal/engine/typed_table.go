@@ -107,7 +107,8 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		if !typ.SQLType.IsComposite() || typ.OwningRelation == (ids.ObjectAddress{}) {
 			continue
 		}
-		if err := scope.acquireSequence(stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), typ.OwningRelation), mode, true); err != nil {
+		resource := typ.OwningRelation
+		if err := scope.acquireSequence(stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), resource), mode, true); err != nil {
 			return err
 		}
 		// A wait may admit a different definition at the same address. Keep
@@ -115,7 +116,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		// neither a new generation nor a same-name source can be adopted.
 		e := stage.owner
 		e.mu.Lock()
-		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(typ.OwningRelation) == stage.Base.Get(typ.OwningRelation)
+		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(resource) == stage.Base.Get(resource)
 		e.mu.Unlock()
 		if !valid {
 			return catalog.Conflict{}

@@ -74,6 +74,9 @@ func CaptureProcOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return CaptureProcOutputValue(rows, view, path, leaf) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := CaptureProcOutputValue(rows, view, path, value.CompositeField(i)); err != nil {

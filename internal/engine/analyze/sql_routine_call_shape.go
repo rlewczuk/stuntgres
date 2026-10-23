@@ -49,6 +49,9 @@ func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 		defaults = int(d.Builtin.Defaults)
 		variadic = sqltype.ID(d.Builtin.Variadic)
 	}
+	if d.RangeConstructor != nil {
+		variadic = sqltype.ID(d.RangeConstructor.Variadic())
+	}
 	n := len(raw.Args)
 	if raw.Variadic {
 		if variadic == 0 || n != len(declared) {

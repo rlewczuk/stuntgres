@@ -44,6 +44,9 @@ func CaptureTextSearchOutputValue(rows *exec.FinalRows, view catalog.Read, path 
 	if value.IsNull() || !value.Type().ContainsRegTS() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return CaptureTextSearchOutputValue(rows, view, path, leaf) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := CaptureTextSearchOutputValue(rows, view, path, value.CompositeField(i)); err != nil {

@@ -139,7 +139,7 @@ func literalWithACLAt(ctx context.Context, view catalog.Read, reader catalog.Def
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
-	if ExactFloat4Dump(ctx) && NeedsFloat4RawReplay(n.Value) || n.Value.RequiresCircleConstructorReplay() && (u.Type.IsArray() || u.Type.IsComposite()) {
+	if ContainsCustomRange(u.Type) || ExactFloat4Dump(ctx) && NeedsFloat4RawReplay(n.Value) || n.Value.RequiresCircleConstructorReplay() && (u.Type.IsArray() || u.Type.IsComposite()) {
 		return constructorLiteral(ctx, view, reader, n, aclOutput, bounded)
 	}
 	if !n.Value.IsNull() && u.Type.ID() == sqltype.ACLItemArray && n.Value.ArrayRank() == 1 && n.Value.ArrayDimension(0) == (sqltype.ArrayDimension{Lower: 1, Length: 0}) {

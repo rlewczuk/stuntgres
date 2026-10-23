@@ -47,6 +47,9 @@ func CaptureRoleOutputValue(rows *exec.FinalRows, output RoleOutput, value sqlty
 	if value.IsNull() || !value.Type().ContainsRegrole() {
 		return nil
 	}
+	if value.Type().BaseType().RangeType() != nil {
+		return value.VisitRangeEndpoints(func(leaf sqltype.Value) error { return CaptureRoleOutputValue(rows, output, leaf) })
+	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
 			if err := CaptureRoleOutputValue(rows, output, value.CompositeField(i)); err != nil {

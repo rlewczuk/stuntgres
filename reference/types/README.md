@@ -6,8 +6,8 @@ conversions); network types (INET/CIDR values, operators, mask, formatting and
 subnet functions; MACADDR, MACADDR8); domains (CREATE/ALTER DOMAIN defaults,
 nullability, CHECK and identity lifecycle); composite types (declarations, field
 expressions, ALTER TYPE attributes); enums (values, ALTER TYPE, support
-functions); integer, numeric, date, timestamp and timestamptz ranges and their
-multiranges (operators, inspection, `multirange`/`unnest`); text search types and
+functions); integer, numeric, date, timestamp and timestamptz ranges, custom range
+definitions and their multiranges (operators, inspection, `multirange`/`unnest`); text search types and
 operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`); ACL values
 (`aclitem`, `makeaclitem`, `acldefault`, `aclexplode`); TID; UUID (values,
 `gen_random_uuid`/`uuidv4`/`uuidv7`, extraction); BOOLEAN diagnostics and
@@ -69,6 +69,38 @@ these are shared across families:
   nullability, a non-nil one declared nullability) and maps multirange type names
   to lib/pq's blank names. `rangeConsumeHeld` also serves INET and UUID stored-row
   tests.
+- `range_type_helpers_test.go`: custom family scenarios assert raw custom-OID
+  transport independently of type-name spelling and share one backend callback.
+- `range_type_constructor*_test.go`: generated two/three-bound and
+  zero/single/variadic companion constructors, current routine metadata and
+  internal ownership, atomic routine-name collision, actual comparator errors,
+  raw FLOAT4 endpoint payloads and symbolic alias endpoint identity. Shared
+  SQL checks also consume native same/fresh-engine Restore and actual dump SQL
+  replayed against PostgreSQL; raw32 uses the existing xid/real binary casts.
+  Custom-family cast admission is identified by the actual range definition;
+  it does not widen existing builtin-range explicit-cast gates or diagnostics.
+  The pg_operator polymorphic identity scenario shares custom-range CREATE,
+  storage and containment success assertions across both backends.
+- `range_type_*remedy*`, companion ACL, schema retirement, recipe-collision,
+  alias-ordering, ownership and generated-cast scenarios cover the full family
+  lifecycle. Companion grants reject independently; real type-use checks and
+  internal Effective-right tests prove delegation rather than a fabricated
+  privilege-inquiry builtin. Explicit unsupported ACLs reject Dump before output;
+  baseline family replacement is a separate real roundtrip.
+  Alias collision fixtures match both TEMP namespace allocations, assert actual
+  object identities and preserve finite bounds and multirange ordering.
+  Dangling-numeric witnesses derive their sentinels from the source catalog:
+  unrelated namespace collisions must retain feasible noncolliding endpoints;
+  only a genuinely impossible destination assignment rejects atomically. Routine
+  owner scenarios alter each generated signature independently, retain the other
+  four owners, and require zero-output Dump rejection without losing authority,
+  dependencies or readers; restoring the original owner recovers roundtrip.
+  Select the shared scenarios with
+  `make check RUN='^TestReferenceRangeType(CompanionACL|SchemaRetirement|RestoreRecipeCollisions|AliasOrdering|AliasNumericAnchor|UnrelatedCollisionFeasible|ConstructorOwnerPortability|Ownership|GeneratedCast)'`,
+  then repeat with `REFERENCE=1`. Ordinary symbolic and large-numeric
+  emitted streams replay on pinned PostgreSQL, not hand-written substitutes.
+  The unsatisfiable numeric stream proves actual PG source validity and native
+  atomic rejection, not unconditional portability across PG allocator frontiers.
 - `range_control_helpers_test.go`: `rangeControlCycle`, the native control cycle
   (same/fresh-Driver Dump/Reset/Restore, PostgreSQL replay of the emitted SQL,
   deterministic redump, failed staged replacement, retained readers) used by the
@@ -215,6 +247,9 @@ Family selector: `RUN='^TestReferenceTypeLifecycle'`.
 - TSRANGE: `RUN='^TestReferenceTimestampRange'`
 - TSTZRANGE: `RUN='^TestReferenceTimestamptzRange'`
 - Multiranges: `RUN='^TestReferenceMultirange'`
+- Custom range definitions and companions: `RUN='^TestReferenceRangeType'`
+- Custom family constructors and exact endpoint replay:
+  `RUN='^TestReferenceRangeType(Constructors|ConstructorDiagnostics|ConstructorFloat4|ConstructorAliases)$'`
 - Range operators: `RUN='^TestReferenceRangeOperator'`
 - <a id="range-inspection-selected-proof"></a>Range inspection: `RUN='^TestReferenceRangeInspect'`
 - `multirange(anyrange)`, `unnest(anymultirange)`: `RUN='^TestReferenceRangeMore'`

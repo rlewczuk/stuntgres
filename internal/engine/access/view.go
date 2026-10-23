@@ -295,6 +295,15 @@ func (v View) Effective(env Environment, ref ids.ObjectRef, grantOptions bool) (
 	if err != nil {
 		return 0, err
 	}
+	if typ, ok := d.(*catalog.Type); ok {
+		authority, err := catalog.TypeUsageAuthority(v.Catalog, typ)
+		if err != nil {
+			return 0, err
+		}
+		if authority != typ {
+			return v.Effective(env, v.Ref(authority.Address()), grantOptions)
+		}
+	}
 	owner, acl, columns := DescriptorACL(d)
 	if err := v.Roles.ValidatePrincipal(v.State.CurrentUser); err != nil {
 		return 0, err

@@ -78,6 +78,15 @@ func StageDropRoutine(h DDLHost, auth ddl.Authority, s *parser.DropRoutine) erro
 		if err != nil {
 			return err
 		}
+		if owner := catalog.RangeConstructorOwner(d); owner != (ids.ObjectAddress{}) {
+			typeObject, err := h.DependencyObject(auth, owner)
+			if err != nil {
+				return err
+			}
+			diagnostic := sqlError("2BP01", "cannot drop "+object+" because "+typeObject+" requires it").(*sqlstate.Error)
+			diagnostic.Hint = "You can drop " + typeObject + " instead."
+			return diagnostic
+		}
 		if d.Seeded() {
 			return sqlError("2BP01", "cannot drop "+object+" because it is required by the database system")
 		}

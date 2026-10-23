@@ -587,6 +587,18 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return child(r.Else, n.Otherwise)
 		}
 	case parser.FunctionExpr:
+		if n, ok := bound.(plan.RangeConstructorExpr); ok {
+			if !r.StoredSQLRoutine {
+				return fmt.Errorf("missing normalized constructor syntax")
+			}
+			if err := n.ValidateStoredProvider(); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
+			return protocol(expr.CaptureFunction, r.Args)
+		}
 		if n, ok := bound.(plan.SQLRoutineExpr); ok {
 			if !r.StoredSQLRoutine {
 				return fmt.Errorf("stuntgres: missing normalized SQL routine syntax")

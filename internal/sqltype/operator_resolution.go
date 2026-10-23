@@ -19,9 +19,9 @@ func operatorImplicitInputWithCoercion(source *Descriptor, target ID, can func(*
 	case 3500:
 		return source.IsEnum()
 	case 3831, 5080:
-		return isRange(source.ID())
+		return source.IsRange()
 	case 4537, 4538:
-		return isMultirange(source.ID())
+		return source.IsMultirange()
 	case 2249:
 		return source.IsComposite() || source.IsDeferredRecord()
 	}

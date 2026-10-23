@@ -305,7 +305,7 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 		return t.BaseType().IsEnum()
 	}
 	if c.gist && c.input == 3831 {
-		return isRange(t.BaseType().id)
+		return t.BaseType().IsRange()
 	}
 	return c.AcceptsID(t.BaseType().id)
 }

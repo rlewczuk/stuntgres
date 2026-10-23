@@ -240,6 +240,7 @@ func (d *Descriptor) binaryRange(ctx context.Context, p []byte, env InputEnviron
 		if datum.flags&rangeUpperUnbounded != 0 {
 			datum.flags &^= rangeUpperInclusive
 		}
+		lower, upper := Null(d.rangeSubtype), Null(d.rangeSubtype)
 		for _, side := range []bool{true, false} {
 			flag := rangeUpperUnbounded
 			if side {
@@ -260,9 +261,17 @@ func (d *Descriptor) binaryRange(ctx context.Context, p []byte, env InputEnviron
 			if err != nil {
 				return Value{}, 0, err
 			}
+			if d.customRange != nil {
+				if side {
+					lower = value
+				} else {
+					upper = value
+				}
+				continue
+			}
 			bound := rangeBound{magnitude: value.integer}
 			if d.rangeSubtype.id == Numeric {
-				bound = rangeBound{value.text, value.exponent, value.scale, value.negative, value.special}
+				bound = rangeBound{coefficient: value.text, magnitude: value.exponent, scale: value.scale, negative: value.negative, special: value.special}
 			}
 			if side {
 				datum.lower = bound
@@ -271,7 +280,13 @@ func (d *Descriptor) binaryRange(ctx context.Context, p []byte, env InputEnviron
 			}
 		}
 		var err error
-		datum, err = d.canonicalRange(datum, false)
+		if d.customRange != nil {
+			var value Value
+			value, err = d.rangeFromTypedBounds(ctx, lower, upper, datum.flags, false)
+			datum = value.rangeDatum
+		} else {
+			datum, err = d.canonicalRange(ctx, datum, false)
+		}
 		if err != nil {
 			return Value{}, 0, err
 		}
@@ -297,6 +312,12 @@ func (d *Descriptor) appendBinaryRange(ctx context.Context, dst []byte, x rangeD
 		v := Value{typ: d.rangeSubtype, integer: bound.magnitude}
 		if d.rangeSubtype.id == Numeric {
 			v = bound.numericValue(d.rangeSubtype)
+		}
+		if d.customRange != nil {
+			if bound.value == nil || bound.value.typ != d.rangeSubtype {
+				return dst, fmt.Errorf("foreign custom range endpoint")
+			}
+			v = *bound.value
 		}
 		var err error
 		dst, err = appendBinaryField(ctx, dst, v, env)
@@ -344,8 +365,8 @@ func (d *Descriptor) binaryMultirange(ctx context.Context, p []byte, env InputEn
 	return Value{typ: d, multirange: &multirangePayload{members}}, r.at, nil
 }
 func (d *Descriptor) appendBinaryMultirange(ctx context.Context, dst []byte, v Value, env OutputEnvironment) ([]byte, error) {
-	if !v.validMultirange() {
-		return dst, fmt.Errorf("invalid multirange payload")
+	if err := v.validateMultirange(ctx); err != nil {
+		return dst, err
 	}
 	dst = binary32(dst, uint32(len(v.multirange.members)))
 	for _, member := range v.multirange.members {

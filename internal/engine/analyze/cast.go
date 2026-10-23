@@ -176,7 +176,7 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 	}
 	if raw != nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 		ns := view.Get(p.Namespace()).Name()
-		frozen := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns}, {Text: p.Name()}}}, Args: rawArgs, Pos: pos, StoredSQLRoutine: p.SQL != nil}
+		frozen := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns}, {Text: p.Name()}}}, Args: rawArgs, Pos: pos, StoredSQLRoutine: p.SQL != nil || p.RangeConstructor != nil}
 		if b.Stored.Syntax == nil {
 			b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 		}

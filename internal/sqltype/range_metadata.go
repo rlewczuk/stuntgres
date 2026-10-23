@@ -1,7 +1,7 @@
 package sqltype
 
-// RangeMetadata links an executable builtin range to its released catalog
-// identities. Companion and routine identities do not grant execution authority.
+// RangeMetadata links an executable range to its catalog identities. Companion
+// and routine identities alone do not grant execution authority.
 // All fields are scalar value copies; the range descriptor owns admission.
 type RangeMetadata struct {
 	Type, Subtype, Multitype, Collation, Subclass, Canonical, Subdiff uint32
@@ -10,6 +10,13 @@ type RangeMetadata struct {
 func (d *Descriptor) RangeMetadata() (RangeMetadata, bool) {
 	if !d.Concrete() || d.IsDomain() || d.rangeSubtype == nil {
 		return RangeMetadata{}, false
+	}
+	if definition, ok := d.RangeDefinition(); ok {
+		m := d.multirangeCompanion
+		if m == nil || m.multirangeRange != d || !m.Concrete() {
+			return RangeMetadata{}, false
+		}
+		return RangeMetadata{Type: uint32(d.id), Subtype: uint32(d.rangeSubtype.id), Multitype: uint32(m.id), Collation: definition.Subtype.Collation.ID, Subclass: definition.Class.OID(), Subdiff: definition.Diff}, true
 	}
 	var fact RangeMetadata
 	switch d.id {

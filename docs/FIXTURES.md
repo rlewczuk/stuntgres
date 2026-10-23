@@ -59,6 +59,53 @@ can also be replayed on PostgreSQL.
   comments (JSON fields `schema`, `name`, `populated`, `rows`). Native Restore
   reloads them; PostgreSQL ignores them, leaving views unpopulated until
   `REFRESH`.
+- Custom range declarations include their selected subtype class, collation,
+  optional diff and generated multirange name. Restore rebuilds destination-owned
+  family descriptors and endpoint values rather than retaining source captures.
+  Their type-owned constructors are recreated by the type declaration, not
+  independently dumped as functions. Recursive constructor SQL preserves exact
+  FLOAT4 payloads and symbolic catalog-reference endpoints through the existing
+  raw32 cast bootstrap and reference remappers.
+  Restore syntax admission recognizes these emitted two-part constructor names
+  in the current staged catalog only. Ordinary overload resolution must still
+  select a validated type-owned constructor; SQL overloads and forged namespaces
+  gain no replay execution authority. Recursive parameter rejection precedes
+  strict-NULL evaluation, and failed admission leaves the target unchanged.
+  Static recipe shapes remain independently admitted: constructor names such as
+  `left` and `right` supplement, rather than shadow, those shape checks.
+  The constructor-only selected-winner restriction applies to supplemental
+  written replay values, not incumbent stored/default/SQL/PL body calls.
+- Custom range families include the range, multirange and both array types.
+  Multirange USAGE follows its owning range after array delegation; independent
+  companion GRANT/REVOKE is rejected. Ownership changes move all four types, not
+  the bootstrap-owned generated functions. Dropping either family schema follows
+  the same canonical family dependency closure, including external columns.
+  Generated range-to-multirange casts have three INTERNAL dependencies and are
+  reconstructed by CREATE TYPE, never emitted as independent CREATE CAST.
+  A range owner need not own or have CREATE in either family schema. As with
+  domains, the dump records the captured owner, creates under privileged replay
+  authority, then transfers the exact fresh range through ordinary ALTER TYPE
+  OWNER. Restore admits only the immediate same-kind/name/namespace/target-owner
+  pair; it does not grant schema privileges or admit arbitrary owner changes.
+- Colliding imports retain target TEMP identities. Actual alias-range bound and
+  member constraints activate only genuinely affected endpoint components;
+  unrelated uncollided identities retain their originals. Endpoint choices and
+  ordinary collisions share one complete, demand-driven capacity plan. It stops
+  acquiring allocator outputs as soon as a complete assignment exists, without
+  consuming speculative high identities or exhausting future ordinary DDL.
+  Replacement reservations use an operation-local cursor of the same central
+  allocator. Failed/canceled candidate planning or validation does not issue
+  those identities or exhaust the live target. The cursor publishes with the
+  catalog only after final fences, including intervening ordinary OID issuance;
+  no live allocator is rewound or recycled.
+  Stored companion recipes preserve their actual per-datum interval topology,
+  independent of written member order; separate carrier elements do not acquire
+  cross-element order. Destination subtype providers certify bounds and
+  normalization outside the catalog lock before publication. Only genuinely
+  unsatisfiable endpoint/ordinary capacity constraints reject atomically:
+  dangling numeric identities stay fixed and target TEMP objects never move.
+  Explicit unsupported namespace/type ACLs still reject Dump before output;
+  this family delegation does not expand ACL serialization.
 
 ## Restore
 

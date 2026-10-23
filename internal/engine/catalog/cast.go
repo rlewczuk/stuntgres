@@ -18,6 +18,7 @@ type Cast struct {
 	Function              ids.ObjectAddress
 	InputCast, ResultCast ids.ObjectAddress
 	Context, Method       string
+	GeneratedRange        ids.ObjectAddress // Canonical range owner; zero for ordinary user casts.
 }
 
 func (d *Cast) Address() ids.ObjectAddress {
@@ -73,6 +74,13 @@ func CastDependencies(d *Cast) []ids.ObjectAddress {
 		}
 	}
 	return out
+}
+
+func CastDependencyKind(d *Cast) byte {
+	if d.GeneratedRange != (ids.ObjectAddress{}) {
+		return 'i'
+	}
+	return 'n'
 }
 
 type CastProvider struct{}
@@ -134,6 +142,19 @@ func (CastProvider) Validate(v Read, descriptor Descriptor) error {
 		}
 		if len(words) > 1 && inputs[1] != sqltype.Int4 || len(words) > 2 && inputs[2] != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid cast auxiliary arguments")
+		}
+	}
+	if d.GeneratedRange != (ids.ObjectAddress{}) {
+		owner, ok := v.Type(d.GeneratedRange)
+		procedure, present := v.Procedure(d.Function)
+		if !ok || owner.SQLType != source || !source.IsRange() || source.MultirangeType() != target || target.RangeType() != source ||
+			d.GeneratedRange != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Source)}) ||
+			d.Context != "e" || d.Method != "f" || d.InputCast != (ids.ObjectAddress{}) || d.ResultCast != (ids.ObjectAddress{}) ||
+			!present || procedure.RangeConstructor == nil || procedure.RangeConstructor.Form != MultirangeConstructorOne || procedure.RangeConstructor.Type != target {
+			return fmt.Errorf("stuntgres: invalid generated range cast")
+		}
+		if err := ValidateRangeConstructor(v, procedure); err != nil {
+			return err
 		}
 	}
 	if selected, ok := v.Cast(d.Source, d.Target); !ok || selected != d {

@@ -560,13 +560,11 @@ native string/pq byte carriers without inventing casts. BIT/VARBIT coercion is
 likewise exercised through typed columns with a real BIT result, not forbidden
 BIT/VARBIT casts or BIT-to-TEXT conversion.
 
-Native custom `CREATE TYPE operator_range AS RANGE(subtype=integer)` remains
-the existing parser boundary:0A000, `CREATE TYPE syntax is unsupported`,
-Position31 at RANGE; direct fails execute and new Prepare fails prepare.
-PostgreSQL performs real custom-range creation/execution in its explicit phase.
-Both backends still create and execute a genuine enum and exercise builtin
-range containment through typed columns, with the complete admitted catalog
-unchanged. No custom-range DDL or scalar cast provider was added.
+Custom `CREATE TYPE operator_range AS RANGE(subtype=integer)` is now exercised
+through the same successful creation/execution body on both backends by the
+PG18-DDL-RANGE-TYPE feature. The former native parser-boundary negative is
+obsolete. Both backends retain the genuine enum and builtin typed containment
+checks; the independent scalar-cast admission controls remain unchanged.
 
 The same root failure output independently showed both backends render
 zero REGOPERATOR as **`0`**, not `-`. Exhaustive commutator/negator expectations
