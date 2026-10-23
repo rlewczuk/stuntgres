@@ -634,9 +634,21 @@ produce raw bytes616263/5c7834313432 rather than INOUT's4142. Explicit/assignmen
 binary edges and implicit function/INOUT edges cannot satisfy binary-only
 support admission. After DROP/INOUT replacement, initialized adapters retain
 their meaning; strict/no-init direct, prepared, held, stored and empty-input
-execution instead fails42P13 with the actual aggregate identity. Native/fresh
-Restore and unchanged native SQL replay on PostgreSQL preserve both declarations
-and the exact final cast state.
+execution instead fails42P13 with the actual aggregate identity. Each absent/inout
+final has serialized complete owners: native setup, five direct/fresh/SAME-held
+success cases, the SAME-held42P13 transition, and same-attachment
+Dump/Reset/Restore/full final assertions share one continuous normal30s context.
+Fresh-native replay owns a distinct Driver, raw Restore and wrapped sqlmw checks;
+actual PostgreSQL replay executes the unchanged emitted SQL, separately from
+the independent original PostgreSQL setup/held lifecycle. Each owner finishes
+cleanup before the next shared-database reset.
+
+Owner-explicit final checks retain initialized table, empty/NULL, stored-view
+and parameter cases, strict table/empty/stored failures, current INOUT conversion,
+fresh42883/42804 refusals and callable/aggregate publication counts0. Metadata
+prefilters every cab_scope procedure before joins, preserving both bytes AND
+seed, order, multiplicity, all seven fields and actual aggregate/support OID
+edges. Each replay resolves its own seed identity for the full42P13 diagnostic.
 
 ```sh
 make check RUN='^TestReferenceCastDefinition(AggregateBinary|NestedConstructorReplay)$'
@@ -648,12 +660,33 @@ binary adapters with real polymorphic `array_append` specialization. Existing
 OID→REAL word mappings produce array elements1/2/NULL, before and after DROP
 or an assignment-only INOUT replacement; current ordinary conversion instead
 produces1065353216. The initialized aggregate, its concrete REAL[] signature,
-stored view and remapped native owners keep the admitted meaning. Fresh
-declarations still fail42883 against the current ineligible catalog. Actual
-unchanged native dump SQL is replayed on PostgreSQL with the final cast bag.
-No CIRCLE[] codec or new common-type category is enabled for this witness.
+stored view and remapped native owners keep the admitted meaning. Each final
+state has four serialized, complete fixture owners: the native lifecycle keeps
+the same held statement before/after DROP or replacement and then performs
+Dump/Reset/Restore on that same attachment; fresh-native replay restores those
+exact bytes with its own context; actual PostgreSQL replay executes the unchanged
+stream; independent PostgreSQL lifecycle repeats the original setup and held
+transition. Every owner retains the normal30s budget, and each fixture finishes
+cleanup before another PostgreSQL-resetting fixture starts.
+
+Owner-explicit checks repeat values, saved view, empty/NULL input and metadata
+directly and freshly prepared at every boundary. Metadata filters all matching
+owning procedures before joins, preserving actual support identity378, concrete
+REAL[] state/result, nonstrict false and initial text`{}` without deduplication
+or truncation. Fresh declarations still fail at execute with full42883
+diagnostics, followed by count0 publication/health checks. No CIRCLE[] codec or
+new common-type category is enabled for this witness.
 
 ```sh
 make check RUN='^TestReferenceCastDefinitionAggregatePolymorphicBinary$'
 make check RUN='^TestReferenceCastDefinitionAggregatePolymorphicBinary$' REFERENCE=1
+```
+
+Selected neighboring/shared-consumer proof (real pinned PostgreSQL first, then
+native and selected race; finalcheck does not supply race coverage):
+
+```sh
+make check RUN='^TestReference(CastDefinitionAggregate(Binary|PolymorphicBinary)|CreateAggregatePolymorphicSupport|CastDefinitionFeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReference(CastDefinitionAggregate(Binary|PolymorphicBinary)|CreateAggregatePolymorphicSupport|CastDefinitionFeatureSmoke)$'
+make check RUN='^TestReference(CastDefinitionAggregate(Binary|PolymorphicBinary)|CreateAggregatePolymorphicSupport|CastDefinitionFeatureSmoke)$' RACE=1
 ```
