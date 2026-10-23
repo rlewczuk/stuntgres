@@ -28,13 +28,16 @@ racecheck:
 	go run ./internal/sqltype/unicode16/generate -source ./internal/sqltype/unicode16/data -output ./internal/sqltype/unicode16/tables_generated.go -case-output ./internal/sqltype/unicode16/case_tables_generated.go -assigned-output ./internal/sqltype/unicode16/assigned_tables_generated.go -regex-output ./internal/sqltype/unicode16/regex_tables_generated.go
 	go test -count=1 -timeout=0 -race ./...
 
-# Post-integration gates: startup benchmarks, socket-free quick-mode race suite, deps.
+# Post-integration gates: startup benchmarks, deps.
 finalcheck:
 	go generate ./internal/parser
 	go run ./internal/sqltype/unicode16/generate -source ./internal/sqltype/unicode16/data -output ./internal/sqltype/unicode16/tables_generated.go -case-output ./internal/sqltype/unicode16/case_tables_generated.go -assigned-output ./internal/sqltype/unicode16/assigned_tables_generated.go -regex-output ./internal/sqltype/unicode16/regex_tables_generated.go
 	go test -timeout=0 -run '^$$' -bench '^BenchmarkOpenDatabase$$' -benchmem -count=5 .
 	go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' . ./internal/... ./cmd/...
-# go test -count=1 -timeout=0 -race -tags noservertests ./...
+
+# Race check suite. This is very slow test, DO NOT run it unless explicitly instructed to do so.
+race:
+	go test -count=1 -timeout=0 -race -tags noservertests ./...
 
 
 # Human-only complete real PostgreSQL reference suite. Agents MUST NEVER call this
