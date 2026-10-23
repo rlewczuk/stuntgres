@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"iter"
-
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -26,101 +24,20 @@ func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, b
 	return catalog.DefinitionTypeAt(a.Catalog, a.definition, id)
 }
 
-type stageDefinitionReader struct{ stage *CatalogStage }
-
-func (r stageDefinitionReader) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
-	if _, removed := r.stage.Removal(address); removed {
-		return nil, false
-	}
-	if descriptor, exists := r.stage.Find(address); exists {
-		return descriptor, true
-	}
-	return r.stage.Base.Descriptor(address)
-}
-func (r stageDefinitionReader) Lookup(key ids.NameKey) ids.ObjectAddress {
-	return r.stage.LookupName(key)
-}
-func (r stageDefinitionReader) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
-	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
-		for address := range r.stage.Base.Descriptors() {
-			if descriptor, exists := r.Descriptor(address); exists {
-				if !yield(address, descriptor) {
-					return
-				}
-			}
-		}
-		for address, descriptor := range r.stage.Descriptors() {
-			if _, original := r.stage.Base.Find(address); original {
-				continue
-			}
-			if _, removed := r.stage.Removal(address); removed {
-				continue
-			}
-			if !yield(address, descriptor) {
-				return
-			}
-		}
-	}
+// stageDefinitionReader is the definition reader of a catalog stage: its
+// candidate's definitions plus the stage's own index layouts.
+type stageDefinitionReader struct {
+	candidateDefinitions
+	stage *CatalogStage
 }
 
-func (r stageDefinitionReader) ProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
-	return func(yield func(*catalog.Procedure) bool) {
-		for _, address := range r.stage.Base.State().ProceduresNamed(namespace, name) {
-			if _, overridden := r.stage.Find(address); overridden {
-				continue
-			}
-			descriptor, present := r.Descriptor(address)
-			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
-				if !yield(d) {
-					return
-				}
-			}
-		}
-		for address, descriptor := range r.stage.Descriptors() {
-			if _, removed := r.stage.Removal(address); removed {
-				continue
-			}
-			if d, ok := descriptor.(*catalog.Procedure); ok && d.Namespace() == namespace && d.Name() == name {
-				if !yield(d) {
-					return
-				}
-			}
-		}
+// stageDefinitions returns stage's definition reader. Construction never
+// dereferences stage; reading through the reader of a nil stage panics.
+func stageDefinitions(stage *CatalogStage) stageDefinitionReader {
+	if stage == nil {
+		return stageDefinitionReader{}
 	}
-}
-
-func (r stageDefinitionReader) HasDynamicProcedureName(name string) bool {
-	count := 0
-	if index := r.stage.Base.State().ProcedureNames(); index != nil {
-		count = index.DynamicNames[name]
-	}
-	if count == 0 {
-		for address, descriptor := range r.stage.Descriptors() {
-			if d, ok := descriptor.(*catalog.Procedure); ok && d.DynamicCallable() && d.Name() == name {
-				if _, removed := r.stage.Removal(address); !removed {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	for address := range r.stage.Removals() {
-		if d, ok := r.stage.Base.Procedure(address); ok && d.DynamicCallable() && d.Name() == name {
-			count--
-		}
-	}
-	for address, descriptor := range r.stage.Descriptors() {
-		if _, removed := r.stage.Removal(address); removed {
-			continue
-		}
-		if old, ok := r.stage.Base.Procedure(address); ok && old.DynamicCallable() && old.Name() == name {
-			count--
-		}
-		if d, ok := descriptor.(*catalog.Procedure); ok && d.DynamicCallable() && d.Name() == name {
-			count++
-		}
-	}
-	return count > 0
+	return stageDefinitionReader{candidateDefinitions{&stage.Candidate}, stage}
 }
 
 func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {

@@ -35,7 +35,7 @@ func (p *dropProvider) DefinitionInput() catalog.DefinitionReader {
 		return p.prepared
 	}
 	if p.stage != nil {
-		return stageDefinitionReader{stage: p.stage}
+		return stageDefinitions(p.stage)
 	}
 	return nil
 }

@@ -78,7 +78,7 @@ func TestAccessMethodDescriptor(t *testing.T) {
 	if err := candidate.Create(canceled); err != nil {
 		t.Fatal(err)
 	}
-	if !accessMethodStageCurrent(candidate, view) {
+	if !candidate.accessMethodsCurrent(view) {
 		t.Fatal("unchanged handler rejected")
 	}
 	handler, _ := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 330})
@@ -86,7 +86,7 @@ func TestAccessMethodDescriptor(t *testing.T) {
 	changed.ObjectRevision++
 	changedState := catalog.CloneState(view.State())
 	changedState.SetDescriptor(changed.Address(), &changed)
-	if accessMethodStageCurrent(candidate, view.WithState(changedState)) {
+	if candidate.accessMethodsCurrent(view.WithState(changedState)) {
 		t.Fatal("handler changed after private admission without conflict")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

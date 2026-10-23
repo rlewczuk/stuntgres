@@ -187,7 +187,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}()
 	originalDefinition := op.Definition
 	if scope.inheritance.alter != nil {
-		op.Definition = stageDefinitionReader{scope.inheritance.alter.stage}
+		op.Definition = stageDefinitions(scope.inheritance.alter.stage)
 		auth.definition = op.Definition
 	}
 	defer func() { op.Definition = originalDefinition }()
@@ -410,7 +410,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 						next = prepared.Next
 					}
 				} else {
-					next, err = table.UsingIndexNotNullCandidate(op, auth.Catalog, stageDefinitionReader{stage}, next, captured)
+					next, err = table.UsingIndexNotNullCandidate(op, auth.Catalog, stageDefinitions(stage), next, captured)
 					if err == nil {
 						err = scope.inheritancePlan().OnlyCreatedConstraint(before, next)
 					}

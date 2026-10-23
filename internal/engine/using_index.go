@@ -28,7 +28,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 // Row nullability is validated by the existing final effective-row ALTER scan.
 // The caller holds nothing.
 func (e *Engine) stageUsingIndex(op *session.Operation, stage *CatalogStage, parent *catalog.Relation, captured index.UsingIndexAttachment) (*catalog.Relation, error) {
-	prepared, err := e.prepareUsingIndexMetadata(op, e.stageRead(stage), stageDefinitionReader{stage}, parent, captured)
+	prepared, err := e.prepareUsingIndexMetadata(op, e.stageRead(stage), stageDefinitions(stage), parent, captured)
 	if err != nil {
 		return nil, err
 	}

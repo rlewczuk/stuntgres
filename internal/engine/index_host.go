@@ -26,7 +26,7 @@ func (h ddlHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
 	return regobj.ACLItemOutput{Owner: owner, Roles: h.e.roles.read(owner, view, h.e.operationRolesLocked(h.op))}
 }
 
-func (h ddlHost) DefinitionReader() catalog.DefinitionReader { return stageDefinitionReader{h.stage} }
+func (h ddlHost) DefinitionReader() catalog.DefinitionReader { return stageDefinitions(h.stage) }
 
 func (h ddlHost) ValidityTarget() index.ValidityTarget {
 	return stageDropProvider(context.Background(), h.stage, nil, nil, nil)

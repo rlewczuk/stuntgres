@@ -45,7 +45,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			err := e.markStageSubclassHistoryLocked(stage)
+			err := stage.markSubclassHistoryLocked(e.catalog.revisionLocked, stage.Replace)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -83,7 +83,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err := e.markStageSubclassHistoryLocked(stage)
+	err := stage.markSubclassHistoryLocked(e.catalog.revisionLocked, stage.Replace)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

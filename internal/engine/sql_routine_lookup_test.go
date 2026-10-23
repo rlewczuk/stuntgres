@@ -27,7 +27,7 @@ func (r *sqlRoutineLookupReader) Descriptors() iter.Seq2[ids.ObjectAddress, cata
 func TestSQLRoutineStagedLookup(t *testing.T) {
 	e := New()
 	emptyStage := e.BeginCatalogStage(e.CatalogRead())
-	emptyReader := stageDefinitionReader{stage: emptyStage}
+	emptyReader := stageDefinitions(emptyStage)
 	if emptyReader.HasDynamicProcedureName("abs") {
 		t.Fatal("empty SQL index promoted builtin")
 	}
@@ -47,7 +47,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	added := current.MustProcedure(current.State().ProceduresNamed(namespace, "routine_unit_added")[0])
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	reader := &sqlRoutineLookupReader{stageDefinitionReader: stageDefinitionReader{stage: stage}}
+	reader := &sqlRoutineLookupReader{stageDefinitionReader: stageDefinitions(stage)}
 	check := func(namespace ids.ObjectAddress, name string, want ...*catalog.Procedure) {
 		t.Helper()
 		found := make(map[ids.ObjectAddress]*catalog.Procedure)

@@ -561,7 +561,7 @@ func TestPartitionConstraintsVirtualIndexHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.mu.Lock()
-	err := f.e.markStageIndexHistoryLocked(stage)
+	err := stage.markIndexHistoryLocked(f.e.catalog.revisionLocked, stage.Replace)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

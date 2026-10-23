@@ -42,7 +42,7 @@ func (h ddlHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName,
 	if err != nil {
 		return nil, nil, sqltype.Usage{}, err
 	}
-	reader := stageDefinitionReader{h.stage}
+	reader := stageDefinitions(h.stage)
 	previous := h.op.Definition
 	h.op.Definition = reader
 	defer func() { h.op.Definition = previous }()
@@ -80,7 +80,7 @@ func (h ddlHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sql
 		return nil
 	}
 	previous := h.op.Definition
-	h.op.Definition = stageDefinitionReader{h.stage}
+	h.op.Definition = stageDefinitions(h.stage)
 	defer func() { h.op.Definition = previous }()
 	auth := ddlAuthorityOf(a)
 	auth.definition = h.op.Definition
@@ -98,7 +98,7 @@ func (h ddlHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw []pa
 		return nil
 	}
 	previous := h.op.Definition
-	h.op.Definition = stageDefinitionReader{h.stage}
+	h.op.Definition = stageDefinitions(h.stage)
 	defer func() { h.op.Definition = previous }()
 	auth := ddlAuthorityOf(a)
 	auth.definition = h.op.Definition

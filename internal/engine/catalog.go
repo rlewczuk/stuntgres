@@ -52,6 +52,18 @@ type ChangeSet struct {
 	Replacement bool
 }
 
+// catalogStageChanges lists a stage's changed definitions in address order and
+// its namespace changes.
+func catalogStageChanges(s *CatalogStage) ChangeSet {
+	changes := ChangeSet{Definitions: s.changedAddresses()}
+	for _, a := range changes.Definitions {
+		if a.ClassID == ids.NamespaceClassID {
+			changes.Namespaces = append(changes.Namespaces, a)
+		}
+	}
+	return changes
+}
+
 type catalogLifecycle uint8
 
 const (
@@ -417,11 +429,11 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		e.mu.Unlock()
 		return nil, err
 	}
-	if err := e.markStageIndexHistoryLocked(s); err != nil {
+	if err := s.markIndexHistoryLocked(e.catalog.revisionLocked, s.Replace); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
-	if err := e.markStageSubclassHistoryLocked(s); err != nil {
+	if err := s.markSubclassHistoryLocked(e.catalog.revisionLocked, s.Replace); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -522,27 +534,13 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		if !accessMethodStageCurrent(s, e.catalog.read(current)) {
+		if !s.accessMethodsCurrent(e.catalog.read(current)) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		for _, base := range s.domainBases {
-			observed := base
-			if s.Get(base.Address()) == base {
-				observed = s.Base.Get(base.Address())
-			}
-			if current.Get(base.Address()) != observed {
-				e.mu.Unlock()
-				return ChangeSet{}, catalog.Conflict{}
-			}
-			if ns, ok := base.(*catalog.Namespace); ok && s.terminalCleanup && ns.Temporary != (ids.SessionToken{}) {
-				for address, d := range current.Descriptors() {
-					if _, removed := s.Removal(address); d.Namespace() == ns.Address() && (!removed || d != s.Base.Get(address)) {
-						e.mu.Unlock()
-						return ChangeSet{}, catalog.Conflict{}
-					}
-				}
-			}
+		if !s.domainBasesCurrent(current, s.domainBases, s.terminalCleanup) {
+			e.mu.Unlock()
+			return ChangeSet{}, catalog.Conflict{}
 		}
 		if err := s.validateLikeSources(e.catalog.read(current)); err != nil {
 			e.mu.Unlock()
@@ -554,71 +552,9 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				return ChangeSet{}, catalog.Conflict{}
 			}
 		}
-		for _, d := range s.Descriptors() {
-			ns := d.Namespace()
-			if ns != (ids.ObjectAddress{}) && s.Get(ns) == nil && current.Get(ns) != s.Base.Get(ns) {
-				e.mu.Unlock()
-				return ChangeSet{}, catalog.Conflict{}
-			}
-			// A namespace move still relies on source lookup authority. Fence
-			// that original namespace as well as the destination, without
-			// republishing it or observing unrelated namespace changes.
-			if old := s.Base.Get(d.Address()); old != nil {
-				source := old.Namespace()
-				if source != ns && source != (ids.ObjectAddress{}) && s.Get(source) == nil && current.Get(source) != s.Base.Get(source) {
-					e.mu.Unlock()
-					return ChangeSet{}, catalog.Conflict{}
-				}
-			}
-		}
-		for a := range s.Removals() {
-			if a.ClassID == ids.NamespaceClassID {
-				for address, d := range current.Descriptors() {
-					if _, removed := s.Removal(address); d.Namespace() == a && (!removed || d != s.Base.Get(address)) {
-						e.mu.Unlock()
-						return ChangeSet{}, catalog.Conflict{}
-					}
-				}
-			}
-			// A newly attached MV was not in the validated retirement closure.
-			// Recheck its live immutable x authority at the final publication fence.
-			if a.ClassID == ids.ExtensionClassID {
-				for address, descriptor := range current.Descriptors() {
-					if descriptor == s.Base.Get(address) {
-						continue
-					}
-					if relation, ok := descriptor.(*catalog.Relation); ok && view.MaterializedExtensionDepends(relation, a) {
-						e.mu.Unlock()
-						return ChangeSet{}, catalog.Conflict{}
-					}
-				}
-			}
-		}
-		for a := range s.Descriptors() {
-			if current.Get(a) != s.Base.Get(a) {
-				e.mu.Unlock()
-				return ChangeSet{}, catalog.Conflict{}
-			}
-		}
-		for a := range s.Removals() {
-			if current.Get(a) != s.Base.Get(a) {
-				e.mu.Unlock()
-				return ChangeSet{}, catalog.Conflict{}
-			}
-		}
-		for k, observed := range s.Touched() {
-			if current.NameAddress(k) != observed {
-				e.mu.Unlock()
-				return ChangeSet{}, catalog.Conflict{}
-			}
-		}
-		for a, removal := range s.Removals() {
-			observed := removal.Descriptor
-			d := current.Get(a)
-			if removal.Ref.Domain() != e.catalog.Domain || removal.Ref.Epoch != current.Epoch() || removal.Ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
-				e.mu.Unlock()
-				return ChangeSet{}, catalog.Conflict{}
-			}
+		if !s.descriptorsCurrent(current, e.catalog.Domain) || !extensionMaterializedViewsCurrent(s, current) {
+			e.mu.Unlock()
+			return ChangeSet{}, catalog.Conflict{}
 		}
 		if !e.storageReadsValidLocked(s) {
 			e.mu.Unlock()
@@ -684,32 +620,15 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			disclosure = &auth
 		}
 		e.mu.Unlock()
-		next := catalog.CloneState(current)
-		s.ApplyDefaultACLs(current, next)
-		operators := catalog.OperatorIndexEdit{Index: current.OperatorNames()}
-		procedures := catalog.ProcedureIndexEdit{Index: current.ProcedureNames()}
+		next := s.applyTo(current)
 		relations := make(map[ids.ObjectAddress]*storage.Relation, len(currentStorage)+s.DescriptorCount())
 		for a, v := range currentStorage {
 			relations[a] = v
 		}
-		for a, removal := range s.Removals() {
-			d := removal.Descriptor
-			operators.Replace(current.Get(a), s.Get(a))
-			procedures.Replace(current.Get(a), s.Get(a))
-			next.RemoveDescriptor(a)
-			next.RemoveDumpPriority(a)
-			next.UnbindName(catalog.DescriptorNameKey(d))
+		for a := range s.Removals() {
 			delete(relations, a)
 		}
-		for k := range s.OldNames() {
-			next.UnbindName(k)
-		}
 		for a, d := range s.Descriptors() {
-			if _, removed := s.Removal(a); !removed {
-				operators.Replace(current.Get(a), d)
-				procedures.Replace(current.Get(a), d)
-			}
-			next.SetDescriptor(a, d)
 			if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind.Stored() && relations[a] == nil {
 				if initial := s.initialTables[a]; initial != nil {
 					relations[a] = initial
@@ -724,11 +643,6 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if replacement := s.materializedOrZero().Replacement; replacement != nil {
 			relations[replacement.Original.Address()] = replacement.Storage
 		}
-		for k, a := range s.Names() {
-			next.BindName(k, a)
-		}
-		next.SetOperatorNames(operators.Index)
-		next.SetProcedureNames(procedures.Index)
 		if err := catalogDependencyPreflight(current, next, s.sequence.IdentityDependencyList(), s.sequence.IdentityOriginalMap()); err != nil {
 			return ChangeSet{}, err
 		}
@@ -1066,6 +980,29 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		return changes, nil
 	}
 }
+
+// extensionMaterializedViewsCurrent rechecks every removed extension at the
+// final publication fence. A newly attached MV was not in the validated
+// retirement closure, so its live immutable x authority must still be absent.
+// The root calls it under Engine.mu, right after the candidate's descriptor
+// fences; catalog cannot read materialized-view payloads.
+func extensionMaterializedViewsCurrent(s *CatalogStage, current *catalog.State) bool {
+	for a := range s.Removals() {
+		if a.ClassID != ids.ExtensionClassID {
+			continue
+		}
+		for address, descriptor := range current.Descriptors() {
+			if descriptor == s.Base.Get(address) {
+				continue
+			}
+			if relation, ok := descriptor.(*catalog.Relation); ok && view.MaterializedExtensionDepends(relation, a) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 	if s != nil && s.owner == e && s.lifecycle != catalogPublished {
 		s.lifecycle = catalogDiscarded
