@@ -183,4 +183,3 @@ same held consumer omits a domain after PUBLIC USAGE revocation and includes it
 after direct type USAGE without schema USAGE. Typed empty NULL/nil predicates
 and full42703/Position8 missing-column diagnostics finish the scenario.
 These are proof commands and expected observations, not a passing-check claim.
-

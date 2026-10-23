@@ -4,6 +4,15 @@ Feature notes, newest first. Add a brief entry at the top for consumer-visible
 changes; do not write change notes anywhere else. Entries below the marker were
 moved verbatim from README.md in their original order.
 
+## MAC address operators and functions
+
+`macaddr` and `macaddr8` support fixed-width `~`, `&`, `|` and three-octet-prefix
+`trunc`. `macaddr8_set7bit` sets the modified EUI-64 bit after expanding six-octet
+inputs, including typed `macaddr` arguments. Result types, strict NULLs and
+overload diagnostics follow PostgreSQL 18.6; stored expressions survive native
+logical replay. General cross-MAC casts, XOR/shifts and binary codecs remain
+outside this change. See the [MAC contract](internal/sqltype/README.md#mac-address-operations).
+
 ## Path openness and measurements
 
 Added `isclosed(path)`, `isopen(path)`, `pclose(path)`, `popen(path)`,

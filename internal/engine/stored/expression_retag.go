@@ -753,8 +753,10 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 			if n.Right != nil {
 				rt = n.Right.ResultUsage().Type
 			}
-			n.Provider, n.Bits, n.Network = sqltype.Bitwise{}, sqltype.BitStringBitwise{}, sqltype.NetworkBitwise{}
-			if info.Usage.Type.ID() == sqltype.Inet {
+			n.Provider, n.Bits, n.Network, n.MAC = sqltype.Bitwise{}, sqltype.BitStringBitwise{}, sqltype.NetworkBitwise{}, sqltype.MACBitwise{}
+			if info.Usage.Type.ID() == sqltype.Macaddr || info.Usage.Type.ID() == sqltype.Macaddr8 {
+				n.MAC, err = sqltype.BindMACBitwise(n.Operator, n.Left.ResultUsage().Type, rt)
+			} else if info.Usage.Type.ID() == sqltype.Inet {
 				n.Network, err = sqltype.BindNetworkBitwise(n.Operator, n.Left.ResultUsage().Type, rt)
 			} else if info.Usage.Type.ID() == sqltype.Bit {
 				n.Bits, err = sqltype.BindBitStringBitwise(n.Operator, n.Left.ResultUsage().Type, rt)

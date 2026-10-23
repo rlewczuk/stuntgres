@@ -223,7 +223,7 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		return ok && e.Plan.Equal(o.Plan) && (checkDefinitionEquality || e.Mode == o.Mode) && same(e.Child, o.Child)
 	case plan.BitwiseExpr:
 		o, ok := other.(plan.BitwiseExpr)
-		return ok && e.Provider == o.Provider && e.Bits == o.Bits && e.Network == o.Network && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
+		return ok && e.Provider == o.Provider && e.Bits == o.Bits && e.Network == o.Network && e.MAC == o.MAC && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
 	case plan.SelectedOperatorExpr:
 		o, ok := other.(plan.SelectedOperatorExpr)
 		return ok && e.Ref == o.Ref && same(e.Provider, o.Provider)

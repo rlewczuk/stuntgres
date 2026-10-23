@@ -22,7 +22,7 @@ func bindMath(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if b.DefaultConsumer() && !selectedLogPower(name) {
+	if b.DefaultConsumer() && !selectedLogPower(name) && name != "trunc" {
 		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	if name == "width_bucket" && len(raw.Args) == 2 {
@@ -37,6 +37,25 @@ func bindMath(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	}
 	if !visible {
 		return nil, DirectResolutionError(b, raw, args, unknown, false)
+	}
+	if name == "trunc" && len(args) == 1 && !unknown[0] && !raw.Variadic {
+		typ := args[0].ResultUsage().Type.BaseType()
+		if typ.ID() == sqltype.Macaddr || typ.ID() == sqltype.Macaddr8 {
+			if err := ValidateCallSyntax(b, raw); err != nil {
+				return nil, err
+			}
+			if err := CallDecorationError(raw); err != nil {
+				return nil, err
+			}
+			arg, err := b.CoerceArgument(Argument{Expression: args[0], Raw: raw.Args[0], Usage: args[0].ResultUsage()}, CoercionRequest{Intent: ConditionalArgument, Target: typ.Usage(), Label: name})
+			if err != nil {
+				return nil, err
+			}
+			return bindMACUnary(b, raw, name, arg)
+		}
+	}
+	if b.DefaultConsumer() && !selectedLogPower(name) {
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	prepared := PrepareMath(name)
 	var types NumericTypes
@@ -61,6 +80,16 @@ func bindMath(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	signature, resolution := SelectMath(prepared, name, raw.Variadic, args, unknown, types)
 	if resolution != Resolved {
 		return nil, DirectResolutionError(b, raw, args, unknown, resolution == Ambiguous)
+	}
+	// Trunc shares ordinary scalar admission with its MAC overloads; numeric
+	// calls must not silently discard decorations admitted by that route.
+	if name == "trunc" {
+		if err := ValidateCallSyntax(b, raw); err != nil {
+			return nil, err
+		}
+		if err := CallDecorationError(raw); err != nil {
+			return nil, err
+		}
 	}
 	if selectedLogPower(name) {
 		if err := mathModifiers(raw, name); err != nil {

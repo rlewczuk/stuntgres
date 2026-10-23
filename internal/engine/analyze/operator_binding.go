@@ -157,7 +157,29 @@ func (b *Binder) selectCatalogOperator(set operatorCandidateSet, raw parser.Oper
 	for i, d := range candidates {
 		signatures[i] = sqltype.OperatorInputs{Left: sqltype.ID(d.Left), Right: sqltype.ID(d.Right)}
 	}
+	// The selected MAC bitwise family has two equally viable same-width
+	// signatures for known mixed widths in PostgreSQL. Model that ranking
+	// fact only here; it grants no general cross-MAC coercion or execution.
+	mixedMAC := false
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if !unary && (name == "&" || name == "|") && left != nil && right != nil {
+		l, r := left.BaseType().ID(), right.BaseType().ID()
+		if l != r && (l == sqltype.Macaddr || l == sqltype.Macaddr8) && (r == sqltype.Macaddr || r == sqltype.Macaddr8) {
+			six, eight := false, false
+			for _, signature := range signatures {
+				six = six || signature.Left == sqltype.Macaddr && signature.Right == sqltype.Macaddr
+				eight = eight || signature.Left == sqltype.Macaddr8 && signature.Right == sqltype.Macaddr8
+			}
+			mixedMAC = six && eight
+		}
+	}
 	selected, err := sqltype.ResolveOperatorWithCoercion(signatures, left, right, unary, func(source *sqltype.Descriptor, target sqltype.ID) bool {
+		if mixedMAC {
+			id := source.BaseType().ID()
+			if (id == sqltype.Macaddr || id == sqltype.Macaddr8) && (target == sqltype.Macaddr || target == sqltype.Macaddr8) {
+				return true
+			}
+		}
 		typ, ok := set.catalog.LookupType(target)
 		return ok && catalog.CanCoerce(set.catalog, source.Usage(), typ.Usage(), sqltype.Implicit) == nil
 	})

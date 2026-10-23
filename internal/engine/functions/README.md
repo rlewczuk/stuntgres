@@ -242,6 +242,21 @@ publication and lock-manager tickets stay in the engine.
   lifts set calls into stages, so `RegexpSet.Eval` is an invariant failure.
 - **pgcrypto**: `sqltype` owns the plans and kernels. Plans retain no password,
   salt, entropy, key or IV.
+- **MAC operations**: `trunc` keeps one registry owner in `math_bind.go`;
+  exact one-argument typed MACADDR/MACADDR8 calls delegate to `MACUnary` using
+  the already analyzed child. Numeric/unknown selection stays with the existing
+  math owner, and numeric defaults remain excluded. Resolved numeric trunc
+  also rejects decorations admitted by the shared ordinary scalar grammar.
+  Only `macaddr8_set7bit` adds a registry name. Its function-owned six-to-eight
+  expansion retains source829 while selecting sole formal/result774 and
+  routine4125, not a general cast. Helpers use genuine NetworkRoutineProvider
+  declarations; symbolic MAC operators use OperatorRoutineProvider.
+  Rebuild/retag binds fresh source/result descriptors. Stored validation
+  checks the selected operation, provider and routine identity; rendering emits
+  the original typed source in `pg_catalog.macaddr8_set7bit`, without a
+  cross-width CAST. Catalog lifetime/provenance remains with existing admission
+  and stored-renderer owners. See [kernels](../../sqltype/README.md#mac-address-operations)
+  and [public proof](../../../reference/types/README.md#mac-address-operations).
 - **unaccent**: `unaccent.rules` (PostgreSQL REL_18_0) is embedded and compiled
   once into `StockUnaccent`, used by `extension.UnaccentProvider`.
 - **dmetaphone licence**: Single Metaphone retains its complete release
@@ -290,6 +305,7 @@ make check RUN='^Test(CatalogInquiry|TransactionInquiry|AdvisoryNode|BlockingInq
 make check RUN='^Test(ACLValues|ACLNodes|ACLValueEvaluates|ObjectACLEvaluates|AccessInquiryEvaluates)'  # ACL functions
 make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
+make check RUN='^TestMACOperationsProviderLifecycle$'  # fixed-width MAC function protocol
 ```
 
 For any other family, select its prefix alone (for example `^TestPgcrypto`,

@@ -11,6 +11,7 @@ type BitwiseExpr struct {
 	Provider    sqltype.Bitwise
 	Bits        sqltype.BitStringBitwise
 	Network     sqltype.NetworkBitwise
+	MAC         sqltype.MACBitwise
 	Operator    sqltype.BitwiseOperator
 	Namespace   string
 }
@@ -21,6 +22,9 @@ func (e BitwiseExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if e.Right == nil {
+		if e.Usage.Type.ID() == sqltype.Macaddr || e.Usage.Type.ID() == sqltype.Macaddr8 {
+			return e.MAC.Unary(ctx.FunctionContext(), a)
+		}
 		if e.Usage.Type.ID() == sqltype.Inet {
 			return e.Network.Unary(ctx.FunctionContext(), a)
 		}
@@ -32,6 +36,9 @@ func (e BitwiseExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	b, err := e.Right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
+	}
+	if e.Usage.Type.ID() == sqltype.Macaddr || e.Usage.Type.ID() == sqltype.Macaddr8 {
+		return e.MAC.Binary(ctx.FunctionContext(), a, b)
 	}
 	if e.Usage.Type.ID() == sqltype.Inet {
 		return e.Network.Binary(ctx.FunctionContext(), a, b)

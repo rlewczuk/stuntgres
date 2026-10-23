@@ -131,6 +131,9 @@ COPY test in reference/dml.
 - INET operators, mask, formatting, subnet: `RUN='^TestReferenceINET(Operator|Mask|Format|Subnet)'`
 - MACADDR: `RUN='^TestReferenceMACADDR[A-Z]'`
 - MACADDR8: `RUN='^TestReferenceMACADDR8'`
+- <a id="mac-address-operations"></a>MAC bitwise operators, truncation and modified EUI-64:
+  `RUN='^TestReferenceMACOperations'`. See the
+  [MAC contract](../../internal/sqltype/README.md#mac-address-operations).
 - Domains (all): `RUN='^TestReferenceDomain'`
 - Domain defaults: `RUN='^TestReferenceDomainDefault'`
 - Domain CHECK: `RUN='^TestReferenceDomainCheck'`

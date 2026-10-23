@@ -423,19 +423,24 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 				return "", fmt.Errorf("stuntgres: invalid default bitwise right usage")
 			}
 		}
-		if u.Type.ID() == sqltype.Inet {
+		if u.Type.ID() == sqltype.Macaddr || u.Type.ID() == sqltype.Macaddr8 {
+			provider, err := sqltype.BindMACBitwise(n.Operator, u.Type, rightType)
+			if err != nil || provider != n.MAC || n.Provider != (sqltype.Bitwise{}) || n.Bits != (sqltype.BitStringBitwise{}) || n.Network != (sqltype.NetworkBitwise{}) {
+				return "", fmt.Errorf("stuntgres: invalid default MAC bitwise binding")
+			}
+		} else if u.Type.ID() == sqltype.Inet {
 			provider, err := sqltype.BindNetworkBitwise(n.Operator, u.Type, rightType)
-			if err != nil || provider != n.Network || n.Provider != (sqltype.Bitwise{}) || n.Bits != (sqltype.BitStringBitwise{}) {
+			if err != nil || provider != n.Network || n.Provider != (sqltype.Bitwise{}) || n.Bits != (sqltype.BitStringBitwise{}) || n.MAC != (sqltype.MACBitwise{}) {
 				return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
 			}
 		} else if u.Type.ID() == sqltype.Bit {
 			provider, err := sqltype.BindBitStringBitwise(n.Operator, u.Type, rightType)
-			if err != nil || provider != n.Bits || n.Provider != (sqltype.Bitwise{}) || n.Network != (sqltype.NetworkBitwise{}) {
+			if err != nil || provider != n.Bits || n.Provider != (sqltype.Bitwise{}) || n.Network != (sqltype.NetworkBitwise{}) || n.MAC != (sqltype.MACBitwise{}) {
 				return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
 			}
 		} else {
 			provider, err := sqltype.BindBitwise(n.Operator, u.Type, rightType)
-			if err != nil || provider != n.Provider || n.Bits != (sqltype.BitStringBitwise{}) || n.Network != (sqltype.NetworkBitwise{}) {
+			if err != nil || provider != n.Provider || n.Bits != (sqltype.BitStringBitwise{}) || n.Network != (sqltype.NetworkBitwise{}) || n.MAC != (sqltype.MACBitwise{}) {
 				return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
 			}
 		}

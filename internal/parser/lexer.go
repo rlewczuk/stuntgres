@@ -1301,6 +1301,15 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
+	// MAC helper calls (including trunc's existing numeric owner) use the
+	// ordinary scalar envelope for DEFAULTs and failure-only decorations.
+	if (token.code == IDENT || token.code == SELECTED_FUNC || token.code == CHECK_FUNC) && (strings.EqualFold(token.lexeme.text, "trunc") || strings.EqualFold(token.lexeme.text, "macaddr8_set7bit")) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = TX_TIME_FUNC
+		}
+	}
 	// Installed Metaphone and Soundex scalars reuse the full scalar-call grammar,
 	// including positional-prefix VARIADIC rejection at signature resolution.
 	// Do not classify bare column/alias names or widen ordinary call grammar.

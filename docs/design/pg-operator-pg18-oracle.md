@@ -15,6 +15,24 @@ No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
 
+### MAC fixed-width bitwise admission
+
+The six MAC bitwise records3147–3149 and3368–3370 belong to the independent
+supported inventory. Their fifteen-field rows follow
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and [REL_18_6 pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat),
+not native catalog output. Every row has namespace11, owner10, false merge/hash
+flags and zero commutator, negator, restriction and join references. NOT rows
+3147/3368 have prefix kind `l`, left0 and right/result829/774 respectively,
+with routines3144/4120. Binary AND/OR rows3148/3149 and3369/3370 retain
+same-width operands/results829 and774, with routines3145/3146 and4121/4122.
+The released AND/OR declarations have no commutators despite their algebra.
+
+The all-family alias inventory contains the same six identities. Native
+capture/relationship units consume the independently specified metadata bag
+without filtering or projection exceptions. These records do not imply general
+cross-MAC casts or additional operator capabilities.
+
 ### Selected text-search algebra admission
 
 PG18-FTS-OPS adds exactly seven released records3633,3680,3681,3682,3693,3694

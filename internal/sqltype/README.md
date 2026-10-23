@@ -137,6 +137,31 @@ singleton evaluates self-distance. Traversal checks cancellation without tempora
 point values, coordinate copies or text roundtrips. Open-path area returns NULL
 before coordinate arithmetic.
 
+### MAC address operations
+
+`mac_operators.go` binds immutable descriptor-owned `MACBitwise` and `MACUnary`
+providers over the existing inline MACADDR (48-bit) and MACADDR8 (64-bit)
+payloads. `~`, `&` and `|` preserve the selected type and width; NOT masks the
+unused high sixteen bits of MACADDR. `trunc` preserves exactly the first three
+octets and clears the remaining three or five. Providers validate captured
+descriptor identity and non-NULL payloads before strict typed-NULL handling,
+check cancellation and perform successful evaluation without allocation.
+
+`macaddr8_set7bit` sets first-octet mask0x02, without toggling or changing any
+other bit. A six-octet MACADDR source expands with FF:FE insertion first:
+`00:34:56:ab:cd:ef` becomes `02:34:56:ff:fe:ab:cd:ef`. This source829-to-result774
+operation belongs only to the function provider; `PlanCoercion` does not gain
+general cross-MAC casts. Unknown six-octet MACADDR8 input uses its existing
+parser expansion. Rebinding constructs providers from remapped descriptors,
+never stale pointers or formatted/reparsed values.
+
+The analyzer selects the known width for an unknown operator argument and
+reports mixed MACADDR/MACADDR8 AND/OR as ambiguous (42725), including typed NULLs.
+XOR/shifts, general cross-MAC conversions, arrays and binary codecs are not
+provided by these kernels; scalar operators also grant no default MACADDR8
+ordering/grouping/index authority. Public SQL/API coverage is owned by
+[`reference/types`](../../reference/types/README.md#mac-address-operations).
+
 ## Testing
 
 Units here call codec, value and plan functions directly; public SQL and wire
@@ -158,6 +183,7 @@ Selectors (add `RACE=1` for cancellation and concurrency units; several also
 match engine tests of the same mechanism):
 
 - Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryConversion|GeometryMeasure|EarthCubeChecks|NetworkSubnet)'`
+- MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`

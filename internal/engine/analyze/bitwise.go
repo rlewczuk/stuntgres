@@ -101,8 +101,27 @@ func (b *Binder) finishBitwise(raw parser.OperatorExpr, left, right ComparisonOp
 	}
 	bitSignature := bitStringType(lt) || bitStringType(rt)
 	networkSignature := lt != nil && sqltype.IsNetwork(lt.ID()) || rt != nil && sqltype.IsNetwork(rt.ID())
+	macType := func(t *sqltype.Descriptor) bool {
+		return t != nil && (t.ID() == sqltype.Macaddr || t.ID() == sqltype.Macaddr8)
+	}
+	macSignature := macType(lt) || macType(rt)
 	target, rightTarget := lt, lt
-	if networkSignature {
+	if macSignature {
+		if op != sqltype.BitwiseNot && op != sqltype.BitwiseAnd && op != sqltype.BitwiseOr ||
+			lt != nil && !macType(lt) || rt != nil && !macType(rt) {
+			return nil, missing()
+		}
+		if lt != nil && rt != nil && lt != rt {
+			return nil, ambiguous()
+		}
+		if target == nil {
+			target = rt
+		}
+		rightTarget = target
+		if op == sqltype.BitwiseNot {
+			rightTarget = nil
+		}
+	} else if networkSignature {
 		if op != sqltype.BitwiseNot && op != sqltype.BitwiseAnd && op != sqltype.BitwiseOr ||
 			lt != nil && !sqltype.IsNetwork(lt.ID()) || rt != nil && !sqltype.IsNetwork(rt.ID()) {
 			return nil, missing()
@@ -217,7 +236,10 @@ func (b *Binder) finishBitwise(raw parser.OperatorExpr, left, right ComparisonOp
 	var provider sqltype.Bitwise
 	var bits sqltype.BitStringBitwise
 	var network sqltype.NetworkBitwise
-	if networkSignature {
+	var mac sqltype.MACBitwise
+	if macSignature {
+		mac, err = sqltype.BindMACBitwise(op, target, rightTarget)
+	} else if networkSignature {
 		network, err = sqltype.BindNetworkBitwise(op, target, rightTarget)
 	} else if bitSignature {
 		bits, err = sqltype.BindBitStringBitwise(op, target, rightTarget)
@@ -243,7 +265,7 @@ func (b *Binder) finishBitwise(raw parser.OperatorExpr, left, right ComparisonOp
 	}
 	return plan.BitwiseExpr{
 		Info: selectedInfo,
-		Left: l, Right: r, Provider: provider, Bits: bits, Network: network,
+		Left: l, Right: r, Provider: provider, Bits: bits, Network: network, MAC: mac,
 		Operator: op, Namespace: namespace,
 	}, nil
 }
