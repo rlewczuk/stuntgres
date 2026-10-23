@@ -35,3 +35,43 @@ func TestGeometryConversionCBoxLiteralTransport(t *testing.T) {
 		}
 	}
 }
+
+func TestGeometryMeasurePathLiteralTransport(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		id    sqltype.ID
+		input string
+		want  string
+		null  string
+	}{
+		{sqltype.Path, "[(0,0),(3,4)]", "CAST('[(0,0),(3,4)]' AS PATH)", "CAST(NULL AS PATH)"},
+		{sqltype.Lseg, "[(0,0),(3,4)]", "CAST('[(0,0),(3,4)]' AS LSEG)", "CAST(NULL AS LSEG)"},
+		{sqltype.Polygon, "((0,0))", "CAST('((0,0))' AS POLYGON)", "CAST(NULL AS POLYGON)"},
+	} {
+		var descriptor *sqltype.Descriptor
+		for _, d := range sqltype.Builtins() {
+			if d.ID() == tc.id {
+				descriptor = d
+			}
+		}
+		t.Run(descriptor.SQLName(), func(t *testing.T) {
+			value, err := descriptor.Input(ctx, tc.input, -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, literalCase := range []struct {
+				value sqltype.Value
+				want  string
+			}{
+				{value, tc.want},
+				{sqltype.Null(descriptor), tc.null},
+			} {
+				literal := plan.LiteralExpr{Info: expr.Info{Usage: descriptor.Usage()}, Value: literalCase.value}
+				got, err := ConstantLiteral(ctx, literal)
+				if err != nil || got != literalCase.want {
+					t.Fatal("measurement transport lost formal identity", got, err)
+				}
+			}
+		})
+	}
+}

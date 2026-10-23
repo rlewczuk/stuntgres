@@ -255,3 +255,141 @@ func TestGeometryMeasureBoxLineCancellation(t *testing.T) {
 		}
 	}
 }
+
+func TestGeometryMeasurePathAuthority(t *testing.T) {
+	types, foreign := testTypes(), testTypes()
+	for op := IsClosedPath; op <= NPointsPolygon; op++ {
+		inputs := [2]Usage{types[op.Formal(0)].Usage()}
+		plan := measureUnitPlan(t, types, op)
+		if _, err := BindGeometryMeasure(op, foreign[op.ResultID()].Usage(), inputs); err == nil {
+			t.Fatal("foreign result admitted", op)
+		}
+		if _, err := BindGeometryMeasure(op, types[op.ResultID()].Usage(), [2]Usage{foreign[op.Formal(0)].Usage()}); err == nil {
+			t.Fatal("foreign formal admitted", op)
+		}
+		if _, err := plan.Evaluate(context.Background(), [2]Value{Null(foreign[op.Formal(0)])}); err == nil {
+			t.Fatal("foreign NULL admitted", op)
+		}
+		got, err := plan.Evaluate(context.Background(), [2]Value{Null(types[op.Formal(0)])})
+		if err != nil || !got.IsNull() || got.Type() != types[op.ResultID()] {
+			t.Fatal("strict typed NULL", op, got, err)
+		}
+		got, err = plan.Evaluate(context.Background(), [2]Value{{typ: types[op.Formal(0)]}})
+		if err == nil || got != (Value{}) {
+			t.Fatal("missing payload silently accepted", op, got, err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		got, err = plan.Evaluate(ctx, [2]Value{})
+		if !errors.Is(err, context.Canceled) || got != (Value{}) {
+			t.Fatal("canceled evaluation published", op, got, err)
+		}
+	}
+}
+
+func TestGeometryMeasurePathClosureBits(t *testing.T) {
+	types := testTypes()
+	points := [][2]float64{
+		{math.Copysign(0, -1), math.SmallestNonzeroFloat64},
+		{math.Float64frombits(0xfff8000000000001), math.Float64frombits(0x7ff8000000001234)},
+		{math.Copysign(0, -1), math.SmallestNonzeroFloat64},
+	}
+	wantBits := [][2]uint64{
+		{0x8000000000000000, 1},
+		{0xfff8000000000001, 0x7ff8000000001234},
+		{0x8000000000000000, 1},
+	}
+	for _, closed := range []bool{false, true} {
+		source := Value{typ: types[Path], path: &pathPayload{closed: closed, points: points}}
+		for _, op := range []GeometryMeasure{ClosePath, OpenPath} {
+			plan := measureUnitPlan(t, types, op)
+			got, err := plan.Evaluate(context.Background(), [2]Value{source})
+			wantClosed := op == ClosePath
+			if err != nil || got.Type() != types[Path] || got.path.closed != wantClosed || source.path.closed != closed {
+				t.Fatal("closure/source authority", op, got, err)
+			}
+			if len(got.path.points) != len(points) || &got.path.points[0] != &source.path.points[0] {
+				t.Fatal("closure copied immutable points")
+			}
+			if (got.path == source.path) != (closed == wantClosed) {
+				t.Fatal("idempotent conversion did not reuse original header")
+			}
+			for i, point := range got.path.points {
+				for axis := range point {
+					if math.Float64bits(point[axis]) != wantBits[i][axis] {
+						t.Fatal("coordinate bits changed", i, axis)
+					}
+				}
+			}
+			again, err := plan.Evaluate(context.Background(), [2]Value{got})
+			if err != nil || again.path != got.path {
+				t.Fatal("repeated conversion allocated header", err)
+			}
+		}
+	}
+}
+
+func TestGeometryMeasurePathLengthKernel(t *testing.T) {
+	types := testTypes()
+	for _, tc := range []struct {
+		op    GeometryMeasure
+		input string
+		want  float64
+	}{
+		{LengthPath, "[(0,0),(4,0),(0,3)]", 9},
+		{LengthPath, "((0,0),(4,0),(0,3))", 12},
+		{LengthPath, "[(NaN,Infinity)]", 0},
+		{LengthPath, "((NaN,Infinity))", math.NaN()},
+		{LengthLseg, "[(3,4),(0,0)]", 5},
+		{LengthLseg, "[(0,0),(Infinity,NaN)]", math.Inf(1)},
+		{LengthLseg, "[(0,0),(5e-324,0)]", math.SmallestNonzeroFloat64},
+	} {
+		v := circleUnitInput(t, types[tc.op.Formal(0)], tc.input)
+		got, err := measureUnitPlan(t, types, tc.op).Evaluate(context.Background(), [2]Value{v})
+		if err != nil || got.Type() != types[Float8] || !(got.floating == tc.want || math.IsNaN(got.floating) && math.IsNaN(tc.want)) {
+			t.Fatal(tc, got, err)
+		}
+	}
+	for _, tc := range []struct {
+		op    GeometryMeasure
+		input string
+	}{
+		{LengthLseg, "[(-1e308,0),(1e308,0)]"},
+		{LengthLseg, "[(0,0),(1.3e308,1.3e308)]"},
+		{LengthPath, "[(0,0),(1e308,0),(0,0)]"},
+	} {
+		v := circleUnitInput(t, types[tc.op.Formal(0)], tc.input)
+		got, err := measureUnitPlan(t, types, tc.op).Evaluate(context.Background(), [2]Value{v})
+		circleUnitError(t, err, "22003", "value out of range: overflow")
+		if got != (Value{}) {
+			t.Fatal("arithmetic failure published partial length")
+		}
+	}
+}
+
+func TestGeometryMeasurePathLengthOrderCancellation(t *testing.T) {
+	types := testTypes()
+	plan := measureUnitPlan(t, types, LengthPath)
+	points := [][2]float64{{-1e308, 0}, {0, 0}, {1e308, 0}}
+	// Closed traversal must evaluate last->first before the cancelable adjacent
+	// loop. Open traversal instead reaches cancellation before any segment.
+	for _, closed := range []bool{false, true} {
+		v := Value{typ: types[Path], path: &pathPayload{closed: closed, points: points}}
+		ctx := &measureCancelContext{Context: context.Background(), remaining: 1}
+		got, err := plan.Evaluate(ctx, [2]Value{v})
+		if closed {
+			circleUnitError(t, err, "22003", "value out of range: overflow")
+		} else if !errors.Is(err, context.Canceled) {
+			t.Fatal("open loop did not observe cancellation", err)
+		}
+		if got != (Value{}) || v.path.closed != closed || v.path.points[0][0] != -1e308 {
+			t.Fatal("failure published or mutated source")
+		}
+	}
+	v := circleUnitInput(t, types[Path], "[(0,0),(1,0),(2,0),(3,0),(4,0)]")
+	ctx := &measureCancelContext{Context: context.Background(), remaining: 3}
+	got, err := plan.Evaluate(ctx, [2]Value{v})
+	if !errors.Is(err, context.Canceled) || got != (Value{}) || ctx.remaining != 0 {
+		t.Fatal("mid-loop cancellation/partial publication", got, err)
+	}
+}

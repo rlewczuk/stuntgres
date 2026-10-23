@@ -616,6 +616,7 @@ package parser
 %type <tok> role_selection_target role_selection_assignment
 %type <tok> cast_function
 %type <expr> string_function
+%type <expr> check_function_call
 %type <tok> string_word normalization_form normalized_form trim_direction
 %type <row> trim_arguments trim_list
 %type <settingName> setting_name set_name local_setting_name
@@ -2274,7 +2275,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | INDEX_SUBQUERY_OPEN query_values ')' { $$=IndexSubqueryExpr{Pos:$1.pos} }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
  | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} }
- | check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
+ | check_function_call { $$=$1 }
  | transaction_time_call { $$=$1 }
  | EXTRACT '(' extract_field FROM scalar ')' { if !selectedScalarChild(sqllex,$5,$6) {return 1};$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"extract",Pos:$1.pos}}},Args:[]Expr{LiteralExpr{Value:Value{Kind:StringValue,Text:$3.text,Pos:$3.pos}},$5},Syntax:SQLFunctionSyntax,Pos:$1.pos} }
  | OVERLAY '(' scalar PLACING scalar FROM scalar ')' { if !selectedScalarChild(sqllex,$3,$4) || !selectedScalarChild(sqllex,$5,$6) || !selectedScalarChild(sqllex,$7,$8) {return 1};$$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7}) }
@@ -2288,9 +2289,14 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | SUBSTRING '(' scalar SIMILAR scalar ESCAPE scalar ')' { if !selectedScalarChild(sqllex,$3,$4) || !selectedScalarChild(sqllex,$5,$6) || !selectedScalarChild(sqllex,$7,$8) {return 1};$$=binarySQLCall("substring",$1.pos,[]Expr{$3,$5,$7}) }
  | SUBSTRING '(' scalar FOR scalar ')' { if !selectedScalarChild(sqllex,$3,$4) || !selectedScalarChild(sqllex,$5,$6) {return 1};$$=binarySQLCall("substring",$1.pos,[]Expr{$3,binarySubstringStart(),binarySubstringCount($5)}) }
  | SUBSTRING '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"substring",Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
- | name '.' check_function_head function_args ')' { l:=sqllex.(*lexer);if restriction:=l.generationRestriction;restriction!=nil && restriction.Pos==$3.pos {restriction.Pos=$1.pos};$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos} } ;
+ ;
 /* Only an actual scalar/index call can enter the failure-only argument context. */
 check_function_head: CHECK_FUNC '(' {$$=$1;sqllex.(*lexer).formatCallHead($1)} ;
+/* Ordinary scalar calls retain their own admission/position handling while
+ * carrying OVER to resolution for scalar-versus-window diagnostics. */
+check_function_call: check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
+ | name '.' check_function_head function_args ')' { l:=sqllex.(*lexer);if restriction:=l.generationRestriction;restriction!=nil && restriction.Pos==$3.pos {restriction.Pos=$1.pos};$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos} }
+ | check_function_call over_clause {call:=$1.(FunctionExpr);if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call} ;
 /* Selected ordinary time and enum calls carry failure-only modifiers to resolution.
  * ORDER requires an argument; argument-free ORDER remains a syntax error. */
 transaction_time_head: TX_TIME_FUNC '(' { sqllex.(*lexer).formatCallHead($1);$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }

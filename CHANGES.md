@@ -4,6 +4,16 @@ Feature notes, newest first. Add a brief entry at the top for consumer-visible
 changes; do not write change notes anywhere else. Entries below the marker were
 moved verbatim from README.md in their original order.
 
+## Path openness and measurements
+
+Added `isclosed(path)`, `isopen(path)`, `pclose(path)`, `popen(path)`,
+`length(lseg/path)` and `npoints(path/polygon)`. Closure helpers preserve
+coordinates and point counts; lengths use checked ordered arithmetic.
+Existing open-path `area` remains NULL. Stored consumers and native logical
+Dump/Restore retain the selected overloads and result types.
+See [type contracts](internal/sqltype/README.md) and
+[dual-mode proof](reference/types/README.md#testing).
+
 ## Domain constraints — change note
 
 `information_schema.domain_constraints` exposes the released eight-column view:

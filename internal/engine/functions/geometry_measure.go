@@ -92,9 +92,7 @@ func (e GeometryMeasure) SameGroup(other expr.Expr, same func(expr.Expr, expr.Ex
 	return true
 }
 func (e GeometryMeasure) Render() (expr.Rendering, error) {
-	children := e.Children()
-	spec := callRendering("GeometryMeasure "+e.Plan.Operation().Name()+" namespace "+e.Namespace, children, e.Plan.Operation().Name(), children)
-	// Overloaded literal and NULL arguments must keep their selected formal.
+	spec := callRendering("GeometryMeasure "+e.Plan.Operation().Name()+" namespace "+e.Namespace, e.Children(), e.Plan.Operation().Name(), e.Children())
 	transportArgs(spec.Args, expr.TransportLiteral)
 	spec.Namespace = e.Namespace
 	spec.Replay.QuoteNamespace = true

@@ -74,8 +74,11 @@ import it.
   ROW fields and array elements never inherit it. Nested rank-one constructor
   arrays retain their own bounds through closed qualified `array_fill`/`array_cat`
   SQL; non-one-based multidimensional nested arrays need their own bounded INSERT
-  target. Captured BOX, CIRCLE and PATH literals keep explicit type annotations,
-  because a quoted display alone could reselect a typename input shortcut on replay.
+  target. Captured BOX, CIRCLE, LSEG, PATH and POLYGON literals retain explicit
+  type annotations, including NULLs. Stored query rendering uses
+  `ConstantLiteral` rather than scalar provider rendering; a quoted display alone
+  could reselect a typename input shortcut, select `length(text)` instead of
+  `length(lseg)`, or lose the `npoints(path)`/`npoints(polygon)` overload on replay.
 - **Search-path visibility of named objects** (`namespace_visibility.go`,
   `visibility_inquiry.go`): `NamedObjectVisible`, `CollationCandidate`,
   `SelectCollation`, `VisibleCollation`, and `VisibilityInquiry`, which answers
@@ -166,9 +169,9 @@ no SQLSTATE-family rule or cause-unwrapping decides recovery.
 ## Testing
 
 Package units (captured-input retargeting, notice routing, address lookup cuts,
-collation selection, CBOX literal transport) run without an engine. Unit tests
-that need an `Engine` stay in `internal/engine` (`TestObjectAddress*`,
-`TestCommentInquiry*`, `TestVisibilityInquiry*`, `TestRegTS*`,
+collation selection, CBOX and path-measurement literal transport) run without an
+engine. Unit tests that need an `Engine` stay in `internal/engine`
+(`TestObjectAddress*`, `TestCommentInquiry*`, `TestVisibilityInquiry*`, `TestRegTS*`,
 `TestRegOperator*`, `TestRegrole*`, `TestRegclass*`, `TestACLItem*`,
 `TestRegObjectAlias*`). Public scenarios live in
 [reference/type_resolution](../../../reference/type_resolution/README.md#testing)
@@ -179,6 +182,7 @@ groups of every reg\* family passing. Add `REFERENCE=1` for the oracle.
 
 ```sh
 make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|VisibilityInquiryCollation|GeometryConversionCBox)'
+make check RUN='^TestGeometryMeasurePathLiteralTransport$'
 make check RUN='^TestReferenceReg(class|type|role|Proc|Operator|TS|Collation|Namespace|Object)'
 make check RUN='^TestReference(ObjectAddress|ACLItem)'
 ```

@@ -52,8 +52,8 @@ func TestGeometryMeasureGroupIdentity(t *testing.T) {
 	}
 }
 
-func TestGeometryMeasureBoxLineProviderLifecycle(t *testing.T) {
-	for op := sqltype.WidthBox; op <= sqltype.SlopePoints; op++ {
+func TestGeometryMeasureProviderLifecycle(t *testing.T) {
+	for op := sqltype.WidthBox; op <= sqltype.NPointsPolygon; op++ {
 		t.Run(op.Name(), func(t *testing.T) {
 			order := []int{}
 			makeNode := func() GeometryMeasure {
@@ -62,6 +62,12 @@ func TestGeometryMeasureBoxLineProviderLifecycle(t *testing.T) {
 				for i := range op.Arity() {
 					d := types[op.Formal(i)]
 					text := "(4,6),(1,2)"
+					switch op.Formal(i) {
+					case sqltype.Path:
+						text = "[(0,0),(3,4)]"
+					case sqltype.Polygon:
+						text = "((0,0),(3,4),(0,0))"
+					}
 					if op == sqltype.SlopePoints {
 						text = "(0,0)"
 						if i == 1 {

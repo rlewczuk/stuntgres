@@ -7,7 +7,6 @@ import (
 )
 
 func bindGeometryMeasure(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var small [2]Argument
 	operands := small[:0]
 	if len(raw.Args) <= len(small) {
@@ -22,6 +21,12 @@ func bindGeometryMeasure(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		}
 		operands[i] = arg
 	}
+	return FinishGeometryMeasure(b, raw, operands)
+}
+
+// FinishGeometryMeasure reuses analyzed operands, including shared-name length.
+func FinishGeometryMeasure(b Binder, raw parser.FunctionExpr, operands []Argument) (expr.Expr, error) {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if err := ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
@@ -40,12 +45,12 @@ func bindGeometryMeasure(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		}
 		return nil, NotedResolutionError(b, raw.Name, raw.Pos, names, ambiguous)
 	}
-	if !visible || raw.Star || len(raw.ArgNames) != 0 || raw.Variadic {
+	if !visible || raw.Star || len(raw.ArgNames) != 0 {
 		return missing(false)
 	}
 	var selected sqltype.GeometryMeasure
 	matches, best := 0, -1
-	for op := sqltype.AreaBox; op <= sqltype.SlopePoints; op++ {
+	for op := sqltype.AreaBox; op <= sqltype.NPointsPolygon; op++ {
 		if op.Name() != name || op.Arity() != len(operands) {
 			continue
 		}

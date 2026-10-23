@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-// GeometryMeasure names the ten selected unary and binary measurements.
+// GeometryMeasure names the selected unary and binary measurements and path helpers.
 // Radius retains its existing CirclePlan owner.
 type GeometryMeasure uint8
 
@@ -21,6 +21,14 @@ const (
 	HeightBox
 	DiagonalBox
 	SlopePoints
+	IsClosedPath
+	IsOpenPath
+	ClosePath
+	OpenPath
+	LengthLseg
+	LengthPath
+	NPointsPath
+	NPointsPolygon
 )
 
 var geometryMeasures = [...]struct {
@@ -39,6 +47,14 @@ var geometryMeasures = [...]struct {
 	{"height", [2]ID{Box}, Float8, 1},
 	{"diagonal", [2]ID{Box}, Lseg, 1},
 	{"slope", [2]ID{Point, Point}, Float8, 2},
+	{"isclosed", [2]ID{Path}, Bool, 1},
+	{"isopen", [2]ID{Path}, Bool, 1},
+	{"pclose", [2]ID{Path}, Path, 1},
+	{"popen", [2]ID{Path}, Path, 1},
+	{"length", [2]ID{Lseg}, Float8, 1},
+	{"length", [2]ID{Path}, Float8, 1},
+	{"npoints", [2]ID{Path}, Int4, 1},
+	{"npoints", [2]ID{Polygon}, Int4, 1},
 }
 
 func (op GeometryMeasure) Name() string {
@@ -67,6 +83,24 @@ func BindGeometryMeasure(op GeometryMeasure, result Usage, inputs [2]Usage) (Geo
 		return GeometryMeasurePlan{}, fmt.Errorf("invalid geometry measurement result")
 	}
 	owner := geometryConversionOwner(result.Type)
+	if input := inputs[0].Type; input != nil {
+		var scalar *Descriptor
+		switch result.Type.id {
+		case Bool:
+			if input.id == Path && input.geometryPoint != nil {
+				scalar = input.geometryPoint.pointBoolean
+			}
+		case Int4:
+			if input.id == Path {
+				scalar = input.pathInt
+			} else if input.id == Polygon {
+				scalar = input.polygonInt
+			}
+		}
+		if scalar != nil && result.Type == scalar {
+			owner = geometryConversionOwner(input)
+		}
+	}
 	if owner == nil || op.Arity() == 1 && inputs[1] != (Usage{}) {
 		return GeometryMeasurePlan{}, fmt.Errorf("invalid geometry measurement authority or arity")
 	}
@@ -103,6 +137,61 @@ func (p GeometryMeasurePlan) Evaluate(ctx context.Context, values [2]Value) (Val
 	var n float64
 	var err error
 	switch p.operation {
+	case IsClosedPath, IsOpenPath, ClosePath, OpenPath, LengthPath, NPointsPath:
+		if a.path == nil || len(a.path.points) == 0 {
+			return Value{}, fmt.Errorf("missing PATH payload")
+		}
+		switch p.operation {
+		case IsClosedPath, IsOpenPath:
+			closed := a.path.closed
+			if p.operation == IsOpenPath {
+				closed = !closed
+			}
+			return Value{typ: p.result, boolean: closed}, nil
+		case NPointsPath:
+			return Value{typ: p.result, integer: int64(len(a.path.points))}, nil
+		case ClosePath, OpenPath:
+			closed := p.operation == ClosePath
+			if a.path.closed == closed {
+				return a, nil
+			}
+			// Published coordinates are immutable; only the closure header changes.
+			return Value{typ: p.result, path: &pathPayload{closed: closed, points: a.path.points}}, nil
+		case LengthPath:
+			points := a.path.points
+			if a.path.closed {
+				last, first := points[len(points)-1], points[0]
+				n, err = geometryDistance(last[0], last[1], first[0], first[1])
+				if err != nil {
+					return Value{}, err
+				}
+			}
+			for i := range len(points) - 1 {
+				if err := ctx.Err(); err != nil {
+					return Value{}, err
+				}
+				a, b := points[i], points[i+1]
+				distance, e := geometryDistance(a[0], a[1], b[0], b[1])
+				if e != nil {
+					return Value{}, e
+				}
+				n, err = checkedFloatingBinary(ArithmeticAdd, Float8, n, distance)
+				if err != nil {
+					return Value{}, err
+				}
+			}
+		}
+	case NPointsPolygon:
+		if a.polygon == nil || len(a.polygon.points) == 0 {
+			return Value{}, fmt.Errorf("missing POLYGON payload")
+		}
+		return Value{typ: p.result, integer: int64(len(a.polygon.points))}, nil
+	case LengthLseg:
+		if a.geometry == nil {
+			return Value{}, fmt.Errorf("missing LSEG payload")
+		}
+		c := a.geometry.coordinates
+		n, err = geometryDistance(c[0], c[1], c[2], c[3])
 	case WidthBox, HeightBox, DiagonalBox:
 		if a.geometry == nil {
 			return Value{}, fmt.Errorf("missing BOX payload")

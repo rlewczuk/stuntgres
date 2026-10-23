@@ -113,6 +113,30 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   global regex registry or program cache) and runs under the checked
   budget/cancellation authority.
 
+### Geometry measurements and path helpers
+
+`GeometryMeasurePlan` owns eighteen measurement/path-helper operations; radius
+remains in `CirclePlan`. Formal `Usage` and same-catalog authority are validated
+before strict NULL handling. PATH flags use the canonical POINT-associated BOOL,
+PATH counts its `pathInt`, and POLYGON counts its `polygonInt`; equal type IDs do
+not authorize foreign descriptor generations.
+
+`isclosed/isopen(path)` read the separate closure bit, not endpoint equality.
+`npoints(path/polygon)` counts stored vertices, including duplicates.
+`pclose/popen(path)` replace only the immutable header when closure changes,
+sharing coordinates without changing their bits, order or count; matching closure
+returns the original value. Flags return BOOL, counts INT4, closure helpers PATH,
+and `length(path/lseg)` FLOAT8, including strict typed NULL results.
+
+PATH length starts at zero, visits the closing last-to-first edge first when
+closed, then adjacent stored segments using checked sequential addition.
+Distances use checked X/Y subtraction and the scaled hypot kernel; Infinity wins
+over NaN after subtraction and representable subnormals are retained. LSEG uses
+its ordered endpoints. An open singleton does no coordinate arithmetic; a closed
+singleton evaluates self-distance. Traversal checks cancellation without temporary
+point values, coordinate copies or text roundtrips. Open-path area returns NULL
+before coordinate arithmetic.
+
 ## Testing
 
 Units here call codec, value and plan functions directly; public SQL and wire

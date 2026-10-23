@@ -128,6 +128,12 @@ func BindString(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, err
 // substring route reuses its transformed operands.
 func FinishString(b Binder, raw parser.FunctionExpr, visible bool, operands []Argument) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if visible && name == "length" && len(operands) == 1 && operands[0].Usage.Type != nil {
+		id := operands[0].Usage.Type.BaseType().ID()
+		if id == sqltype.Path || id == sqltype.Lseg {
+			return FinishGeometryMeasure(b, raw, operands)
+		}
+	}
 	if (name == "lower" || name == "upper") && len(operands) == 1 && sqltype.IsRangeInspectType(operands[0].Usage.Type) {
 		return FinishRangeInspect(b, raw, visible, operands)
 	}
@@ -156,6 +162,11 @@ func FinishString(b Binder, raw parser.FunctionExpr, visible bool, operands []Ar
 		}
 		SupplyBinaryTypes(b, BinaryArgumentDemand(name, family, operands, true), &binaryTypes)
 		if BinaryArgumentsViable(name, family, operands, &binaryTypes) {
+			if raw.Window != nil {
+				if err := CallDecorationError(raw); err != nil {
+					return nil, err
+				}
+			}
 			if b.DefaultConsumer() && !bitCandidate {
 				return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 			}
@@ -199,7 +210,7 @@ func FinishString(b Binder, raw parser.FunctionExpr, visible bool, operands []Ar
 		}
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	if name == "parse_ident" || textInspection {
+	if name == "parse_ident" || textInspection || raw.Window != nil {
 		if err := CallDecorationError(raw); err != nil {
 			return nil, err
 		}

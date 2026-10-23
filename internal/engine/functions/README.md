@@ -253,6 +253,18 @@ publication and lock-manager tickets stay in the engine.
   modified source under clause 4(b), or satisfy another applicable license
   condition. This does not relicense the distinct NC permission or imply
   copyright-holder endorsement.
+- **Geometry measurements**: `GeometryMeasure` retains fixed operands and selected
+  routine/formal/result authority for eighteen signatures, with radius remaining
+  in `Circle`. Binding probes every formal without evaluation and coerces only
+  the winner. Shared-name `length` stays string-owned and sends analyzed PATH/LSEG
+  operands through `FinishGeometryMeasure`, preserving text/binary/unknown
+  selection. Matching scalar VARIADIC syntax does not declare a variadic overload;
+  scalar decorations are rejected after viable selection. Rebuild, substitution,
+  grouping, capture and stored validation retain the selected provider.
+  Provider rendering uses the established literal transport; captured query AST
+  literals instead pass through `regobj.ConstantLiteral`, whose explicit LSEG and
+  POLYGON annotations preserve geometric length and point-count overloads on
+  logical replay.
 
 ## Testing
 
@@ -277,6 +289,7 @@ make check RUN='^Test(Composite(Arity|Counted|Leaf|Named|Providerless|Retained|S
 make check RUN='^Test(CatalogInquiry|TransactionInquiry|AdvisoryNode|BlockingInquiry|SequenceCall)'  # runtime-capability nodes
 make check RUN='^Test(ACLValues|ACLNodes|ACLValueEvaluates|ObjectACLEvaluates|AccessInquiryEvaluates)'  # ACL functions
 make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
+make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
 ```
 
 For any other family, select its prefix alone (for example `^TestPgcrypto`,

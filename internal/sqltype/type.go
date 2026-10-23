@@ -143,6 +143,7 @@ type Descriptor struct {
 	pointBoolean, pointFloat        *Descriptor
 	polygonBoolean, polygonPoint    *Descriptor
 	polygonInt                      *Descriptor
+	pathInt                         *Descriptor
 	ftsBoolean, ftsDistance         *Descriptor
 	lookupOnly                      bool
 	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
@@ -336,6 +337,9 @@ func Builtins() []*Descriptor {
 	for _, d := range types {
 		if d.id == Box || d.id == Lseg || d.id == Line || d.id == Path {
 			d.geometryPoint = geometryPoint
+		}
+		if d.id == Path {
+			d.pathInt = integer
 		}
 		if IsNetwork(d.id) {
 			d.networkCIDR, d.networkMasklen = networkCIDR, integer

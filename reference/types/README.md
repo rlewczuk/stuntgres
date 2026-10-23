@@ -50,6 +50,11 @@ these are shared across families:
   deterministic redump, failed staged replacement, retained readers) used by the
   date, timestamp and timestamptz range, RangeInspect, RangeMore and
   RangeOperator (`operatorControlCycle`) controls.
+- `geometry_measure_helpers_test.go`: shared measurement scenarios check raw
+  cells and metadata before normalization, with explicit per-column nullability
+  provenance. The GeometryMeasure, GeometryMeasureBoxLine and
+  GeometryMeasurePath families share these helpers; path-specific helpers live in
+  `geometry_measure_path_helpers_test.go`.
 
 Client quirks:
 
@@ -95,6 +100,20 @@ Rules:
   inventories in reference/catalogs: rerun `^TestReferencePGType`,
   `^TestReferencePGOperator`, `^TestReferencePGOpclass` and, for extension types,
   `^TestReferenceAvailableExtensionsFiltering$`.
+
+Path measurement scenarios cover all eight `isclosed/isopen/pclose/popen(path)`,
+`length(path/lseg)` and `npoints(path/polygon)` signatures. Closing/reopening a
+triangle preserves coordinates and counts while lengths change 9→12→9 and areas
+NULL→6→NULL. Coverage includes strict NULL and degenerate/nonfinite inputs,
+diagnostics, direct/prepared/same-held calls, BOOL/INT4/PATH/FLOAT8 metadata before
+Next (including empty/all-NULL results), and retained text/bytea/bit/varbit length
+selection. Fixed-signature scalar VARIADIC syntax remains callable; scalar OVER
+reaches the function diagnostic rather than a parser error.
+
+Stored default/generated/CHECK/view/SQL-wrapper consumers and native controls
+exercise same/fresh-Driver Restore, actual dump SQL replay on PostgreSQL and new
+writes after replacement. Literal and typed-NULL calls retain all eight selected
+overloads, including FLOAT8 LSEG length and unambiguous POLYGON point counts.
 
 Add `REFERENCE=1` for the oracle. The range-family prefixes also run their binary
 COPY test in reference/dml.
