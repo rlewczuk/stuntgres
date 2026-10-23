@@ -10,10 +10,10 @@ import (
 	"testing"
 )
 
-// These guards inspect real owner/catalog/registry roots. SQL eligibility and
+// These guards inspect real owner and catalog roots. SQL eligibility and
 // PostgreSQL's physical role-object wait belong to the shared reference cases.
 func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
-	for _, dependency := range []string{"schema", "policy", "registered"} {
+	for _, dependency := range []string{"schema", "policy"} {
 		for _, carrier := range []string{"ordinary", "clone", "promotion", "savepoint", "prepared"} {
 			t.Run(dependency+"/"+carrier, func(t *testing.T) {
 				e := New()
@@ -82,10 +82,6 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					if len(policies) != 1 || policies[0].OID == 0 || len(policies[0].Roles) != 1 || policies[0].Roles[0].Ref != role.Ref {
 						t.Fatal("peer policy lost its actual identity or selector", policies)
 					}
-				case "registered":
-					if err := e.SetRoleReferences(context.Background(), "retirement guard", []authorization.PrincipalRef{role.Ref}); err != nil {
-						t.Fatal(err)
-					}
 				}
 				base, roles, frontier := e.catalog.state, e.roles.published, e.visibility.CommitSeq()
 				var err error
@@ -117,17 +113,14 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 						err = end
 					}
 				}
-				if err == nil || dependency != "registered" && !errors.Is(err, ids.ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("invalid retirement candidate published", err)
 				}
-				if e.catalog.state != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || address != (ids.ObjectAddress{}) && e.catalog.state.Get(address) != descriptor {
+				if e.catalog.state != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.catalog.state.Get(address) != descriptor {
 					t.Fatal("rejected retirement changed committed peer roots or publication frontier")
 				}
 				if current, ok := e.Roles().Lookup("retired"); !ok || current.Ref != role.Ref {
 					t.Fatal("rejected retirement orphaned the canonical peer principal")
-				}
-				if dependency == "registered" && !reflect.DeepEqual(e.roles.references[roleReferenceOwner{database: e.catalog.owner(), feature: "retirement guard"}], []authorization.PrincipalRef{role.Ref}) {
-					t.Fatal("rejected retirement changed registered principal dependencies")
 				}
 				if carrier == "prepared" {
 					if e.prepared["retirement_guard"] != prepared || prepared.claimed {

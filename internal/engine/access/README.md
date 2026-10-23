@@ -111,9 +111,9 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
   `operationAuthorization`), role publication (`roleStore`) and the catalog
   authority fences.
 - The lock windows, staging and publication of role DDL, GRANT/REVOKE,
-  ALTER DEFAULT PRIVILEGES and the ownership statements, and
-  `SetRoleReferences`. Their decisions are in [`role`](../role/README.md),
-  which calls this package over the captured `View`.
+  ALTER DEFAULT PRIVILEGES and the ownership statements. Their decisions are
+  in [`role`](../role/README.md), which calls this package over the captured
+  `View`.
 - Search path resolution (functions over `AuthorizationView`) and
   `temporaryNamespace` and RLS configuration. The binding and rule-program
   `row_security` walkers, which call `access` for each object, are

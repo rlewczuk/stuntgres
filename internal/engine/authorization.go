@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/access"
@@ -33,22 +32,6 @@ func (e *Engine) ResolveLogin(name string) (authorization.PrincipalRef, error) {
 		return authorization.PrincipalRef{}, role.LoginError(name)
 	}
 	return d.Ref, nil
-}
-
-// SetRoleReferences publishes copied persistent dependencies owned by another
-// internal feature. An empty payload unregisters that feature's references.
-func (e *Engine) SetRoleReferences(ctx context.Context, feature string, refs []authorization.PrincipalRef) error {
-	if feature == "" {
-		return fmt.Errorf("stuntgres: empty role reference owner")
-	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	for _, ref := range refs {
-		if _, err := (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).Descriptor(ref); err != nil {
-			return err
-		}
-	}
-	return e.roles.setReferencesLocked(ctx, e.catalog.owner(), feature, refs)
 }
 
 // The binding walkers in analyze check through the view's entry points.

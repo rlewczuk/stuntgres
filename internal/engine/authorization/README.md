@@ -75,9 +75,9 @@ and ACL DDL decisions are in [`role`](../role/README.md).
 ## What stays in the engine
 
 - **Publication:** `roleStore` (`role_store.go`) holds the domain, the
-  committed record with the current `Root` and its revision headroom,
-  principal allocation and other features' role references. Cancellation
-  fences, journals and savepoints stay with the transaction code.
+  committed record with the current `Root` and its revision headroom, and
+  principal allocation. Cancellation fences, journals and savepoints stay
+  with the transaction code.
 - **Pairing:** each `Read` is captured together with its exact `catalog.Read`;
   a stamp reads that captured pair, not later engine state. There is no cached
   ACL decision.

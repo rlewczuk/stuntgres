@@ -117,9 +117,6 @@ func PlanDropRoles(h Host, auth ddl.Authority, s *parser.DropRole) (DropRolesPla
 				dependencies = append(dependencies, access.RoleDependency{Kind: 'a', Description: "privileges for membership of role " + member.Name + " in role " + granted.Name})
 			}
 		}
-		for _, feature := range h.ReferencingFeatures(ref) {
-			dependencies = append(dependencies, access.RoleDependency{Kind: 'a', Description: "privileges for " + feature})
-		}
 		if len(dependencies) > 0 {
 			sort.Slice(dependencies, func(i, j int) bool {
 				a, b := dependencies[i], dependencies[j]

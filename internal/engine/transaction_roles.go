@@ -53,7 +53,7 @@ func (e *Engine) touchOperationIdentityLocked(op *session.Operation) {
 // catalog validated against the current committed root. Shared-role retirement
 // must also reject dependencies in the other registered databases.
 func (e *Engine) roleRetirementPreflightLocked(c *session.Journal, state *catalog.State) error {
-	if err := role.RetirementPreflightLocked(c, e.catalog.owner(), &e.roles.domain, state, e.roles.referencingFeatures); err != nil {
+	if err := role.RetirementPreflightLocked(c, e.catalog.owner(), &e.roles.domain, state); err != nil {
 		return err
 	}
 	for ref := range c.RetiredRoles {

@@ -1,9 +1,7 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -12,9 +10,8 @@ import (
 )
 
 // roleStore owns the engine's role state: the principal domain, the ACL
-// authority, the committed role publication, the principal allocator and the
-// registry of role references owned by other internal features. It has no
-// mutex. Engine.mu guards every field, and mutating methods carry the Locked
+// authority, the committed role publication and the principal allocator. It
+// has no mutex. Engine.mu guards every field, and mutating methods carry the Locked
 // suffix.
 //
 // Cluster runtimes share one pointer-stable store:
@@ -27,12 +24,6 @@ type roleStore struct {
 	aclAuthority  sqltype.ACLAuthority
 	published     *access.RoleRecord
 	nextPrincipal uint64
-	references    map[roleReferenceOwner][]authorization.PrincipalRef
-}
-
-type roleReferenceOwner struct {
-	database *catalog.Owner
-	feature  string
 }
 
 // initialize seeds the predefined roles and the principal allocator. It runs
@@ -64,43 +55,4 @@ func (s *roleStore) principalCandidateLocked() (authorization.PrincipalRef, erro
 // store backs, and root belongs to this store's domain.
 func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *access.RoleRecord) authorization.Read {
 	return access.RoleRead(owner, &s.domain, view, root)
-}
-
-// setReferencesLocked replaces one feature's copied role references and
-// advances the committed role revision. An empty payload unregisters the
-// feature. The registry map is copied, never mutated in place; nothing
-// changes on revision exhaustion or cancellation.
-func (s *roleStore) setReferencesLocked(ctx context.Context, database *catalog.Owner, feature string, refs []authorization.PrincipalRef) error {
-	if s.published.Revision == ^uint64(0) {
-		return fmt.Errorf("stuntgres: authorization revision exhausted")
-	}
-	key := roleReferenceOwner{database: database, feature: feature}
-	next := make(map[roleReferenceOwner][]authorization.PrincipalRef, len(s.references)+1)
-	for key, payload := range s.references {
-		next[key] = payload
-	}
-	if len(refs) == 0 {
-		delete(next, key)
-	} else {
-		next[key] = append([]authorization.PrincipalRef(nil), refs...)
-	}
-	roles := s.published.Advance()
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	s.references = next
-	s.published = roles
-	return nil
-}
-
-// referencingFeatures returns, in no particular order, the features whose
-// registered references include ref.
-func (s *roleStore) referencingFeatures(ref authorization.PrincipalRef) []string {
-	var features []string
-	for feature, refs := range s.references {
-		if slices.Contains(refs, ref) {
-			features = append(features, feature.feature)
-		}
-	}
-	return features
 }

@@ -44,10 +44,6 @@ func (h ddlHost) GrantParameter(a ddl.Authority, key string) (*catalog.Parameter
 	return role.GrantParameterDescriptorLocked(h.e.settings, ddlAuthorityOf(a).Catalog, key, &h.e.roles.domain, h.e.catalog.allocateOIDLocked, h.e.catalog.revisionLocked)
 }
 
-func (h ddlHost) ReferencingFeatures(ref authorization.PrincipalRef) []string {
-	return h.e.roles.referencingFeatures(ref)
-}
-
 func (h ddlHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []access.RoleDependency {
 	var result []access.RoleDependency
 	for _, target := range h.e.cluster.targets {

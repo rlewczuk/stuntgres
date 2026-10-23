@@ -34,8 +34,6 @@ type Host interface {
 	// GrantParameter returns the parameter's ACL identity, or an unpublished
 	// baseline identity when it has none.
 	GrantParameter(auth ddl.Authority, key string) (*catalog.Parameter, error)
-	// ReferencingFeatures names the registered features that reference role.
-	ReferencingFeatures(role authorization.PrincipalRef) []string
 	// OtherDatabaseDependencies captures local-object dependencies in other
 	// registered databases; shared database descriptors are already in Catalog.
 	OtherDatabaseDependencies(role authorization.PrincipalRef) []access.RoleDependency

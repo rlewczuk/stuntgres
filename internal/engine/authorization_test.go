@@ -639,9 +639,7 @@ func TestAuthorizationStampRetainsRolePublication(t *testing.T) {
 	stamp := held.Stamp()
 	oldPublication := e.roles.published
 	oldEdges := held.Roles.Memberships()
-	if err := e.SetRoleReferences(context.Background(), "stamp fixture", []authorization.PrincipalRef{op.RoleState().CurrentUser}); err != nil {
-		t.Fatal(err)
-	}
+	roleExecute(t, e, op, "CREATE ROLE stamp_peer")
 	fresh, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)

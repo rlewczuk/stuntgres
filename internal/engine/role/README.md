@@ -20,7 +20,7 @@ library, and never the engine, `analyze`'s binder or another upper feature.
 
 - **Hosts** (`host.go`): `Host` serves the decisions made outside a catalog
   stage (`AccessView`, `SearchNamespaces`, relation, argument type and
-  parameter lookups, the features referencing a role and the DROP ROLE
+  parameter lookups, other databases' role dependencies and the DROP ROLE
   dependency text); `StageHost` is `ddl.Host` plus `AddDomainBase`,
   `RemoveObject` and `OwnerStage` for REASSIGN and DROP OWNED staging. The
   engine's `ddlHost` implements both (`role_host.go`); for `Host` it has no
@@ -76,8 +76,8 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   relation through the engine's locked ref), checks kind, schema USAGE and
   ownership and returns the commented descriptor with a new revision.
 - **Role retirement** (`retirement.go`): `RetirementPreflightLocked`, the
-  final-publication check that no default ACL, descriptor, membership edge
-  or registered feature (a callback) still references a retired role.
+  final-publication check that no default ACL, descriptor or membership edge
+  still references a retired role.
 - **Stage interfaces** (`stage.go`): `OwnerStage` (`ddl.Stage` plus the base
   catalog and cascade revisions) and `OwnedCleanupStage` (removals, default
   ACL records and the role candidate). The engine's `*CatalogStage`
@@ -110,8 +110,8 @@ library, and never the engine, `analyze`'s binder or another upper feature.
 ## What stays in the engine
 
 `Engine.mu` and its unlock/relock windows, lock waits, `AuthorizationView`
-capture, `roleStore` publication and `installOperationRolesLocked`,
-`SetRoleReferences`, the host adapter (`role_host.go`) and the
+capture, `roleStore` publication and `installOperationRolesLocked`, the host
+adapter (`role_host.go`) and the
 `*CatalogStage` adapters (`owned_stage.go`), the `ParameterProvider`
 registration, the `roleRetirementPreflightLocked` adapter, and the
 orchestration: `stageCommentLocked` (the locked-relation check, capture, the

@@ -1,13 +1,7 @@
 package engine
 
 import (
-	"context"
-	"errors"
-	"slices"
 	"testing"
-
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 )
 
 func TestRoleStoreReadRequiresOwnCatalogAndRoot(t *testing.T) {
@@ -24,45 +18,5 @@ func TestRoleStoreReadRequiresOwnCatalogAndRoot(t *testing.T) {
 	}
 	if e.roles.read(e.catalog.owner(), view, other.roles.published).BelongsTo(&e.roles.domain) {
 		t.Fatal("root of another domain accepted")
-	}
-}
-
-func TestRoleStoreSetReferencesFailuresLeaveStateUnchanged(t *testing.T) {
-	e := New()
-	ref := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
-	if err := e.roles.setReferencesLocked(context.Background(), e.catalog.owner(), "kept", []authorization.PrincipalRef{ref}); err != nil {
-		t.Fatal(err)
-	}
-	published, references := e.roles.published, e.roles.references
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := e.roles.setReferencesLocked(ctx, e.catalog.owner(), "kept", nil); !errors.Is(err, context.Canceled) {
-		t.Fatalf("canceled update: %v", err)
-	}
-	e.roles.published = &access.RoleRecord{Root: published.Root, Revision: ^uint64(0)}
-	exhausted := e.roles.published
-	if err := e.roles.setReferencesLocked(context.Background(), e.catalog.owner(), "kept", nil); err == nil || err.Error() != "stuntgres: authorization revision exhausted" {
-		t.Fatalf("exhausted update: %v", err)
-	}
-	if e.roles.published != exhausted || len(references) != 1 || len(e.roles.references[roleReferenceOwner{database: e.catalog.owner(), feature: "kept"}]) != 1 {
-		t.Fatal("failed update changed the store")
-	}
-	e.roles.published = published
-	if err := e.roles.setReferencesLocked(context.Background(), e.catalog.owner(), "added", []authorization.PrincipalRef{ref}); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := references[roleReferenceOwner{database: e.catalog.owner(), feature: "added"}]; ok {
-		t.Fatal("update mutated the previous registry map")
-	}
-	if e.roles.published.Revision != published.Revision+1 {
-		t.Fatalf("revision %d after %d", e.roles.published.Revision, published.Revision)
-	}
-	got := e.roles.referencingFeatures(ref)
-	slices.Sort(got)
-	if !slices.Equal(got, []string{"added", "kept"}) {
-		t.Fatalf("referencing features %v", got)
-	}
-	if got := e.roles.referencingFeatures(e.roles.domain.Principal(authorization.LastPredefinedRoleID)); len(got) != 0 {
-		t.Fatalf("unreferenced role reported by %v", got)
 	}
 }

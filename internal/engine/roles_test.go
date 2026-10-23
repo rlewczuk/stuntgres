@@ -241,25 +241,19 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 	}
 }
 
-func TestRolePersistentReferencesAndIdentityGuards(t *testing.T) {
+func TestRoleDropIdentityGuards(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE ROLE dependent")
 	d, _ := e.Roles().Lookup("dependent")
-	payload := []authorization.PrincipalRef{d.Ref}
-	if err := e.SetRoleReferences(context.Background(), "feature payload", payload); err != nil {
-		t.Fatal(err)
-	}
-	payload[0] = authorization.PrincipalRef{}
+	roleExecute(t, e, op, "CREATE SCHEMA held AUTHORIZATION dependent")
 	before := e.roles.published
-	roleError(t, e, op, "DROP ROLE dependent", "2BP01", `role "dependent" cannot be dropped because some objects depend on it`, "privileges for feature payload")
+	roleError(t, e, op, "DROP ROLE dependent", "2BP01", `role "dependent" cannot be dropped because some objects depend on it`, "owner of schema held")
 	if e.roles.published != before {
-		t.Fatal("persistent dependency failure mutated roles")
+		t.Fatal("dependency failure mutated roles")
 	}
-	if err := e.SetRoleReferences(context.Background(), "feature payload", nil); err != nil {
-		t.Fatal(err)
-	}
+	roleExecute(t, e, op, "DROP SCHEMA held")
 	op.Session.Mu.Lock()
 	op.Session.Authorization.State.SessionUser = d.Ref
 	op.Session.Mu.Unlock()
@@ -271,9 +265,6 @@ func TestRolePersistentReferencesAndIdentityGuards(t *testing.T) {
 	roleExecute(t, e, op, "DROP ROLE dependent")
 	if err := grantMembership(t, e, authorization.Membership{Role: d.Ref}); err == nil {
 		t.Fatal("stale membership endpoints")
-	}
-	if err := e.SetRoleReferences(context.Background(), "feature payload", []authorization.PrincipalRef{d.Ref}); err == nil {
-		t.Fatal("stale persistent reference")
 	}
 }
 

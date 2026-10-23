@@ -425,39 +425,26 @@ func TestDatabaseCreateSharedAuthority(t *testing.T) {
 			t.Fatal("reverse publication not visible", current, err)
 		}
 	}
-	// External feature labels are database-local even though role authority is
-	// shared. Removing A's references must not erase B's retirement dependency.
+	// Role authority is shared, so an object in another database keeps the
+	// role alive until that object is gone.
 	dependent := roleAttributeCreate(t, left, admin, "shared_dependency", false, parser.RoleOptions{})
-	for _, target := range []*Engine{left, right} {
-		if err := target.SetRoleReferences(context.Background(), "same_feature", []authorization.PrincipalRef{dependent.Ref}); err != nil {
-			t.Fatal(err)
-		}
-	}
+	roleExecute(t, left, admin, "CREATE SCHEMA shared_dependency_schema AUTHORIZATION shared_dependency")
 	drop := &parser.DropRole{Names: []string{dependent.Name}}
-	for _, unregister := range []*Engine{nil, left} {
-		if unregister != nil {
-			if err := unregister.SetRoleReferences(context.Background(), "same_feature", nil); err != nil {
-				t.Fatal(err)
-			}
-		}
-		_, err := right.Execute(otherAdmin, drop, 0, nil)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
-			t.Fatal("role retirement did not retain the other database's dependency", err)
-		}
-		if _, err := right.Roles().Descriptor(dependent.Ref); err != nil {
-			t.Fatal("failed retirement removed the shared role", err)
-		}
+	_, err = right.Execute(otherAdmin, drop, 0, nil)
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || diagnostic.Detail != "1 object in database authority_left" {
+		t.Fatal("role retirement did not retain the other database's dependency", err)
 	}
-	if err := right.SetRoleReferences(context.Background(), "same_feature", nil); err != nil {
-		t.Fatal(err)
+	if _, err := right.Roles().Descriptor(dependent.Ref); err != nil {
+		t.Fatal("failed retirement removed the shared role", err)
 	}
+	roleExecute(t, left, admin, "DROP SCHEMA shared_dependency_schema")
 	if _, err := right.Execute(otherAdmin, drop, 0, nil); err != nil {
-		t.Fatal("role remained dependent after both registrations were removed", err)
+		t.Fatal("role remained dependent after the other database's object was dropped", err)
 	}
 	for _, target := range []*Engine{e, left, right} {
 		if _, ok := target.Roles().Lookup(dependent.Name); ok {
-			t.Fatal("role retirement was not shared after final unregister")
+			t.Fatal("role retirement was not shared")
 		}
 	}
 }
