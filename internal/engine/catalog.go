@@ -1183,31 +1183,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes); err != nil {
 			return ChangeSet{}, err
 		}
-		if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), e.catalog.read(next)); err != nil {
+		nextRevision, err := e.replacementACLsLocked(next)
+		if err != nil {
 			return ChangeSet{}, err
 		}
-		nextRevision := e.catalog.nextRevision
-		for _, d := range next.Descriptors() {
-			if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
-				return ChangeSet{}, err
-			}
-			nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
-		}
-		if e.catalog.state.Epoch() == ids.CatalogEpoch(math.MaxUint64) {
-			return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
-		}
-		var imported uint64
-		for _, relation := range relations {
-			imported += uint64(len(relation.Versions))
-		}
-		if imported > ^uint64(0)-e.storage.RowFrontier() {
-			return ChangeSet{}, fmt.Errorf("stuntgres: row identity exhausted")
-		}
-		if imported > ^uint64(0)-e.storage.VersionFrontier() {
-			return ChangeSet{}, fmt.Errorf("stuntgres: version identity exhausted")
-		}
-		if e.visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
-			return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
+		if err := e.replacementCapacityLocked(relations); err != nil {
+			return ChangeSet{}, err
 		}
 		if hasHierarchy {
 			candidate := e.catalog.read(next)
@@ -1226,24 +1207,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
-		e.storage.SetFrontierLocked(nextRow, nextVersion)
-		e.storage.ReplaceIndexRootsLocked(roots)
-		e.visibility.AdvanceCommitSeqLocked()
-		next.SetEpoch(e.catalog.state.Epoch() + 1)
-		e.catalog.state = next
-		e.storage.ReplaceRelationsLocked(relations)
-		e.databaseFrozenXID = 0
-		e.vacuumProgress = nil
-		for _, store := range relations {
-			e.initializeMaintenanceLocked(store)
-		}
-		e.updateDatabaseMaintenanceLocked()
-		e.exclusions.ResetLocked()
-		e.storage.ReplaceSequencesLocked(sequences)
-		e.clearPersistentSequenceMemoryLocked()
-		e.catalog.nextRevision = nextRevision
-		e.fenceSerializableLocked()
-		e.visibility.RetireCommitTimestampsLocked()
+		e.installReplacementLocked(next, relations, sequences, roots, nextRow, nextVersion, nextRevision)
 		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -1262,10 +1226,6 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	var imported uint64
-	for _, relation := range relations {
-		imported += uint64(len(relation.Versions))
-	}
 	e.replacementMu.Lock()
 	defer e.replacementMu.Unlock()
 	e.mu.Lock()
@@ -1279,17 +1239,8 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return ChangeSet{}, err
 	}
-	if e.catalog.state.Epoch() == ids.CatalogEpoch(math.MaxUint64) {
-		return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
-	}
-	if imported > ^uint64(0)-e.storage.RowFrontier() {
-		return ChangeSet{}, fmt.Errorf("stuntgres: row identity exhausted")
-	}
-	if imported > ^uint64(0)-e.storage.VersionFrontier() {
-		return ChangeSet{}, fmt.Errorf("stuntgres: version identity exhausted")
-	}
-	if e.visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
-		return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
+	if err := e.replacementCapacityLocked(relations); err != nil {
+		return ChangeSet{}, err
 	}
 	replacement.State().SetACLItemImport(e.aclItemImporter(source, sourceRoles, targetRoles, source.importTargets))
 	defer func() { replacement.State().SetACLItemImport(nil) }()
@@ -1300,15 +1251,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err = e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), e.catalog.read(next)); err != nil {
+	nextRevision, err := e.replacementACLsLocked(next)
+	if err != nil {
 		return ChangeSet{}, err
-	}
-	nextRevision := e.catalog.nextRevision
-	for _, d := range next.Descriptors() {
-		if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
-			return ChangeSet{}, err
-		}
-		nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
 	}
 	prepared, err := e.prepareForeignIndexStorage(ctx, next, relations, indexes)
 	if err != nil {
@@ -1334,8 +1279,55 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.storage.SetFrontierLocked(prepared.NextRow, prepared.NextVersion)
-	e.storage.ReplaceIndexRootsLocked(prepared.Roots)
+	e.installReplacementLocked(next, relations, sequences, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision)
+	return nil
+}
+
+// replacementACLsLocked validates the default ACLs and every descriptor ACL of
+// a replacement catalog and returns the revision frontier it needs.
+func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevision, error) {
+	if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), e.catalog.read(next)); err != nil {
+		return 0, err
+	}
+	nextRevision := e.catalog.nextRevision
+	for _, d := range next.Descriptors() {
+		if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
+			return 0, err
+		}
+		nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
+	}
+	return nextRevision, nil
+}
+
+// replacementCapacityLocked checks that installing relations' rows fits the
+// catalog epoch, the row and version identities and the commit sequence.
+func (e *Engine) replacementCapacityLocked(relations map[ids.ObjectAddress]*storage.Relation) error {
+	if e.catalog.state.Epoch() == ids.CatalogEpoch(math.MaxUint64) {
+		return fmt.Errorf("stuntgres: catalog epoch exhausted")
+	}
+	var imported uint64
+	for _, relation := range relations {
+		imported += uint64(len(relation.Versions))
+	}
+	if imported > ^uint64(0)-e.storage.RowFrontier() {
+		return fmt.Errorf("stuntgres: row identity exhausted")
+	}
+	if imported > ^uint64(0)-e.storage.VersionFrontier() {
+		return fmt.Errorf("stuntgres: version identity exhausted")
+	}
+	if e.visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
+		return fmt.Errorf("stuntgres: commit sequence exhausted")
+	}
+	return nil
+}
+
+// installReplacementLocked installs a validated replacement generation: its
+// catalog, rows, index roots and sequences publish at one boundary, and the
+// row, version, commit and serializable frontiers move past the old catalog.
+// The caller holds replacementMu and mu.
+func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision) {
+	e.storage.SetFrontierLocked(nextRow, nextVersion)
+	e.storage.ReplaceIndexRootsLocked(roots)
 	e.visibility.AdvanceCommitSeqLocked()
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
@@ -1352,7 +1344,6 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	e.catalog.nextRevision = nextRevision
 	e.fenceSerializableLocked()
 	e.visibility.RetireCommitTimestampsLocked()
-	return nil
 }
 
 func (e *Engine) RegisterCatalogProvider(p catalog.Provider) error {
