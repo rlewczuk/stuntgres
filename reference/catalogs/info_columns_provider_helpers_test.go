@@ -67,6 +67,7 @@ func icProviderInventory(c *icCase) {
 		"information_schema.column_column_usage": colcuColumns,
 		"information_schema.constraint_column_usage": ccuColumns,
 		"information_schema.domain_constraints":      dcColumns,
+		"information_schema.domains":                 idmColumns,
 		"information_schema.enabled_roles":           strings.Fields("role_name"),
 		"information_schema.key_column_usage":        kcuColumns,
 		"information_schema.routine_sequence_usage":  rsuColumns,

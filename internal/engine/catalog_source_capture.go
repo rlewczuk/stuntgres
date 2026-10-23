@@ -58,12 +58,15 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case 12014, 12007, 12008:
 		in.Roles = scope.inquiry.commentRoles
 		unlockBefore = true
-	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID, pgcatalog.KeyColumnUsageOID, pgcatalog.InfoRoutineSequenceUsageOID, pgcatalog.InfoCharacterSetsOID, pgcatalog.ConstraintColumnUsageOID, pgcatalog.InfoEnabledRolesOID, pgcatalog.InfoViewTableUsageOID, pgcatalog.InfoColumnColumnUsageOID, pgcatalog.InfoDomainConstraintsOID, pgcatalog.InfoSequencesOID, pgcatalog.InfoRoleColumnGrantsOID, pgcatalog.InfoColumnsOID:
+	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID, pgcatalog.KeyColumnUsageOID, pgcatalog.InfoRoutineSequenceUsageOID, pgcatalog.InfoCharacterSetsOID, pgcatalog.ConstraintColumnUsageOID, pgcatalog.InfoEnabledRolesOID, pgcatalog.InfoViewTableUsageOID, pgcatalog.InfoColumnColumnUsageOID, pgcatalog.InfoDomainConstraintsOID, pgcatalog.InfoSequencesOID, pgcatalog.InfoRoleColumnGrantsOID, pgcatalog.InfoColumnsOID, pgcatalog.InfoDomainsOID:
 		in.Catalog, in.Roles = scope.inquiry.commentCatalog, scope.inquiry.deparseAuth.Roles
 		runtime.auth, runtime.database = scope.inquiry.deparseAuth, scope.op.Session.DatabaseName
 		runtime.temporary = catalogSourceTemporaryOwner(scope.inquiry.deparseAuth)
 		if oid == pgcatalog.InfoColumnsOID {
 			runtime.presentation = stored.Presentation{Deparse: true, Path: scope.inquiry.deparsePath, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings}
+		}
+		if oid == pgcatalog.InfoDomainsOID {
+			in.TypeNamePath = scope.inquiry.deparsePath
 		}
 	case ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID, pgcatalog.UserMappingsOID:
 		auth, err := e.authorizationLocked(scope.op)

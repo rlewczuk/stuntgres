@@ -215,6 +215,7 @@ Retained eager-row ownership is asserted only on native cursors.
 See [producer ownership](../../internal/engine/pgcatalog/README.md#information-schema-sequence-definitions).
 
 - Sequence definitions: `RUN='^TestReferenceInfoSequences'`
+- Domain definitions: `RUN='^TestReferenceInfoDomains'`
 
 ### Column grant metadata
 

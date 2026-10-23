@@ -21,6 +21,9 @@ type Input struct {
 	Ref     ids.ObjectRef
 	Source  *catalog.Relation
 	Runtime Runtime
+	// TypeNamePath is the immutable effective lookup path paired with this
+	// statement capture. Domains requires it for format_type-compatible names.
+	TypeNamePath []ids.ObjectAddress
 }
 
 // Producer builds the rows of one system relation from a captured Input.

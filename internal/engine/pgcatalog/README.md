@@ -5,7 +5,7 @@ the producer-backed `information_schema` views (`table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
-`sequences`, `role_column_grants`, `columns`). Each
+`sequences`, `role_column_grants`, `columns`, `domains`). Each
 producer is a pure function from a captured catalog, a paired role read and a
 narrow runtime capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -30,6 +30,7 @@ type Input struct {
     Ref     ids.ObjectRef
     Source  *catalog.Relation
     Runtime Runtime
+    TypeNamePath []ids.ObjectAddress
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -256,6 +257,22 @@ and foreign capability inspects registered interfaces without callbacks or
 write binding. Successful empty captures remain typed, nonnil sources;
 cancellation, stale authority and display errors discard every partial row.
 
+## Domain definitions
+
+`info_domains.go` projects genuine concrete domain descriptors through the
+ordinary PUBLIC-readable catalog source and its 27 nullable logical-domain
+columns. One paired catalog/role/session capture supplies enabled owner or
+effective domain USAGE visibility, immediate base identity and typmod,
+creation-time copied default text, and the domain's collation. Schema USAGE,
+search paths and base-type visibility add no row filters. The immutable
+effective type-name path from that same inquiry controls qualification of
+nonspecial base names and array element names; parser-special spellings stay
+stable. Predefined domains use the same authority as user domains; constraints
+neither multiply rows nor add columns. Fresh held executions capture current
+definitions, privileges and naming paths; returned rows retain their original
+values and descriptor generations.
+Malformed source/base/collation authority and cancellation return no prefix.
+
 ## Testing
 
 Package units here run without an engine. Producer behavior tests need an
@@ -277,6 +294,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`
 - Column metadata producer units: `RUN='^TestInfoColumns'`
 - Column metadata public scenarios: `RUN='^TestReferenceInfoColumns'`
+- Domain-definition producer units: `RUN='^TestInfoDomains'`
+- Domain-definition public scenarios: `RUN='^TestReferenceInfoDomains'`
 
 ### Domain constraints
 
