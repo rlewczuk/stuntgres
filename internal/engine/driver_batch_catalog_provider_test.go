@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/session"
 )
 
 func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
@@ -74,8 +75,8 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			// CREATE of one index on a private parent captures committed storage
 			// absence, not REINDEX TABLE's committed membership-set authority.
 			absence := false
-			for _, f := range catalogFencesOf[storageReadFence](c) {
-				if f.address == ct && f.storage == nil {
+			for _, f := range catalogFencesOf[session.StorageReadFence](c) {
+				if f.Address() == ct && f.Matches(nil) {
 					absence = true
 				}
 			}

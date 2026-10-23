@@ -13,78 +13,6 @@ import (
 	"stuntgres/internal/engine/view"
 )
 
-// catalogIndexFence records the committed indexes of parent, so publication
-// fails when an index of parent was created or dropped.
-type catalogIndexFence struct {
-	parent  ids.ObjectAddress
-	indexes map[ids.ObjectAddress]bool
-}
-
-func newCatalogIndexFence(committed *catalog.State, parent ids.ObjectAddress) catalogIndexFence {
-	f := catalogIndexFence{parent: parent, indexes: map[ids.ObjectAddress]bool{}}
-	for a, d := range committed.Descriptors() {
-		r, ok := d.(*catalog.Relation)
-		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == parent {
-			f.indexes[a] = true
-		}
-	}
-	return f
-}
-
-func (catalogIndexFence) Kind() session.FenceKind { return fenceIndexSet }
-
-func (f catalogIndexFence) current(committed *catalog.State, _ map[ids.ObjectAddress]*storage.Relation) error {
-	count := 0
-	for a, d := range committed.Descriptors() {
-		r, ok := d.(*catalog.Relation)
-		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == f.parent {
-			if !f.indexes[a] {
-				return catalog.Conflict{}
-			}
-			count++
-		}
-	}
-	if count != len(f.indexes) {
-		return catalog.Conflict{}
-	}
-	return nil
-}
-
-// catalogNamespaceFence records the committed members of a removed namespace,
-// so publication fails when a member changed or was added.
-type catalogNamespaceFence struct {
-	namespace ids.ObjectAddress
-	members   map[ids.ObjectAddress]catalog.Descriptor
-}
-
-func newCatalogNamespaceFence(committed *catalog.State, namespace ids.ObjectAddress) catalogNamespaceFence {
-	f := catalogNamespaceFence{namespace: namespace, members: map[ids.ObjectAddress]catalog.Descriptor{}}
-	for a, d := range committed.Descriptors() {
-		if d.Namespace() == namespace {
-			f.members[a] = d
-		}
-	}
-	return f
-}
-
-func (catalogNamespaceFence) Kind() session.FenceKind { return fenceNamespace }
-
-func (f catalogNamespaceFence) current(committed *catalog.State, _ map[ids.ObjectAddress]*storage.Relation) error {
-	count := 0
-	for a, d := range committed.Descriptors() {
-		if d.Namespace() == f.namespace {
-			if f.members[a] != d {
-				return catalog.Conflict{}
-			}
-			count++
-		}
-	}
-	if count != len(f.members) {
-		return catalog.Conflict{}
-	}
-	return nil
-}
-
 func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalog.State {
 	if s.authSession != nil && s.authSession.Transactions.RetainsTransaction() {
 		return e.privateCatalogLocked(s.authSession.Transactions.Catalog).State()
@@ -97,6 +25,14 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *stora
 	}
 	return e.storage.Relations[a]
 }
+func (e *Engine) storageReadsValidLocked(stage *CatalogStage) bool {
+	for _, read := range stage.storageReads {
+		if current := e.stageStorageLocked(stage, read.Address()); current == nil || !read.Matches(current) {
+			return false
+		}
+	}
+	return true
+}
 func (e *Engine) catalogReadPreflightLocked(c *session.Journal) error {
 	for _, fence := range typedef.DomainJournalOf(c.Domain).ValidationFences() {
 		if !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
@@ -108,7 +44,7 @@ func (e *Engine) catalogReadPreflightLocked(c *session.Journal) error {
 			return catalog.Conflict{}
 		}
 	}
-	return e.catalogFencesCurrentLocked(c, fenceStorageRead, fenceIndexSet, fenceNamespace)
+	return e.catalogFencesCurrentLocked(c, session.FenceStorageRead, session.FenceIndexSet, session.FenceNamespace)
 }
 
 // Capture committed predecessor fences while checking the exact private roots
@@ -125,9 +61,9 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			return err
 		}
 	}
-	capture := journalCapture{journal: c, candidate: &s.Candidate, committed: e.catalog.state, current: current}
+	capture := session.JournalCapture{Journal: c, Candidate: &s.Candidate, Committed: e.catalog.state, Current: current}
 	if s.databasePredecessor != nil {
-		if err := capture.observeDatabase(e.catalog.owner().DatabaseAddress(), s.databaseAuthority, s.databasePredecessor); err != nil {
+		if err := capture.ObserveDatabase(e.catalog.owner().DatabaseAddress(), s.databaseAuthority, s.databasePredecessor); err != nil {
 			return err
 		}
 		if authority != nil {
@@ -135,7 +71,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			authority.databasePredecessor = s.databasePredecessor
 		}
 	}
-	if err := capture.observeCandidate(); err != nil {
+	if err := capture.ObserveCandidate(); err != nil {
 		return err
 	}
 	domainBases := s.domainBases
@@ -158,25 +94,25 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 				}
 			}
 		}
-		if err := capture.observeBase(source.Address()); err != nil {
+		if err := capture.ObserveBase(source.Address()); err != nil {
 			return err
 		}
 	}
 	for _, sources := range [][]catalog.Descriptor{s.tableOrZero().LikeSources, domainBases} {
 		for _, d := range sources {
-			if err := capture.observeBase(d.Address()); err != nil {
+			if err := capture.ObserveBase(d.Address()); err != nil {
 				return err
 			}
 		}
 	}
 	stageIndexes := s.indexesOrZero()
 	for a, d := range stageIndexes.Parents {
-		if err := capture.observe(a, d); err != nil {
+		if err := capture.Observe(a, d); err != nil {
 			return err
 		}
 	}
 	for a, d := range stageIndexes.Rebuilds {
-		if err := capture.observe(a, d); err != nil {
+		if err := capture.Observe(a, d); err != nil {
 			return err
 		}
 		if index.JournalIndexesOrZero(c).Rebuilds == nil {
@@ -184,14 +120,14 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		}
 		index.JournalIndexes(c).Rebuilds[a] = d
 	}
-	if err := capture.fenceNames(maps.Keys(stageIndexes.Sets)); err != nil {
+	if err := capture.FenceNames(maps.Keys(stageIndexes.Sets)); err != nil {
 		return err
 	}
 	captureStorage := func(a ids.ObjectAddress) {
-		c.AddFence(newStorageReadFence(a, e.storage.Relations[a]))
+		c.AddFence(session.NewStorageReadFence(a, e.storage.Relations[a]))
 	}
 	for _, f := range s.storageReads {
-		captureStorage(f.address)
+		captureStorage(f.Address())
 	}
 	for _, d := range stageIndexes.Parents {
 		captureStorage(d.Address())

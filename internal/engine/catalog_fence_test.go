@@ -36,16 +36,16 @@ func TestCatalogFencesCheckKindsInCallOrder(t *testing.T) {
 	var seen []string
 	c := session.NewJournal()
 	for _, f := range []orderProbeFence{
-		{kind: fenceNamespace, name: "namespace"},
-		{kind: fenceStorageRead, name: "read-1"},
+		{kind: session.FenceNamespace, name: "namespace"},
+		{kind: session.FenceStorageRead, name: "read-1"},
 		{kind: fenceTruncateGraph, name: "truncate"},
-		{kind: fenceIndexSet, name: "index"},
-		{kind: fenceStorageRead, name: "read-2"},
+		{kind: session.FenceIndexSet, name: "index"},
+		{kind: session.FenceStorageRead, name: "read-2"},
 	} {
 		f.seen = &seen
 		c.AddFence(f)
 	}
-	if err := (&Engine{}).catalogFencesCurrentLocked(c, fenceStorageRead, fenceIndexSet, fenceNamespace); err != nil {
+	if err := (&Engine{}).catalogFencesCurrentLocked(c, session.FenceStorageRead, session.FenceIndexSet, session.FenceNamespace); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"read-1", "read-2", "index", "namespace"}
@@ -67,9 +67,9 @@ func TestCatalogFencesStopAtFirstFailure(t *testing.T) {
 	var seen []string
 	first, second := errors.New("first"), errors.New("second")
 	c := session.NewJournal()
-	c.AddFence(orderProbeFence{kind: fenceIndexSet, name: "index", err: second, seen: &seen})
-	c.AddFence(orderProbeFence{kind: fenceStorageRead, name: "read", err: first, seen: &seen})
-	if err := (&Engine{}).catalogFencesCurrentLocked(c, fenceStorageRead, fenceIndexSet); !errors.Is(err, first) {
+	c.AddFence(orderProbeFence{kind: session.FenceIndexSet, name: "index", err: second, seen: &seen})
+	c.AddFence(orderProbeFence{kind: session.FenceStorageRead, name: "read", err: first, seen: &seen})
+	if err := (&Engine{}).catalogFencesCurrentLocked(c, session.FenceStorageRead, session.FenceIndexSet); !errors.Is(err, first) {
 		t.Fatalf("got %v, want the earlier kind's error", err)
 	}
 	if len(seen) != 1 || seen[0] != "read" {

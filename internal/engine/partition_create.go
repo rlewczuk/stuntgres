@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
@@ -56,7 +57,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			if storage == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			stage.storageReads = append(stage.storageReads, newStorageReadFence(ref.Address, storage))
+			stage.storageReads = append(stage.storageReads, session.NewStorageReadFence(ref.Address, storage))
 		}
 		// Constraint validation must include writers completed before the
 		// hierarchy lock grant, without advancing the active utility pair.

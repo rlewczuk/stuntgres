@@ -117,3 +117,54 @@ func (c *Journal) ObserveCreationACL(base *catalog.State, view catalog.Read, own
 	}
 	return catalog.CreationDefaultACL(view, owner, schema, class)
 }
+
+// RecordCandidateDefaults records the default ACLs candidate read, unless c
+// changed them, and then candidate's default ACL changes against base.
+func (c *Journal) RecordCandidateDefaults(base *catalog.State, candidate *catalog.Candidate) {
+	for key, record := range candidate.DefaultReads() {
+		if _, private := c.DefaultACLs[key]; private {
+			continue
+		}
+		if c.DefaultReads == nil {
+			c.DefaultReads = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
+		}
+		if _, exists := c.DefaultReads[key]; !exists {
+			c.DefaultReads[key] = record
+		}
+	}
+	for key, record := range candidate.DefaultACLs() {
+		c.RecordDefaultACL(base, key, record)
+	}
+}
+
+// MergeCandidate records candidate's changes and removals against base after
+// checking that base still holds, for each of them, the descriptor observed
+// holds, or c's original where c already changed it. On a conflict it
+// records nothing.
+func (c *Journal) MergeCandidate(base, observed *catalog.State, candidate *catalog.Candidate) error {
+	for a := range candidate.Descriptors() {
+		if !c.mergeObserved(base, observed, a) {
+			return catalog.Conflict{}
+		}
+	}
+	for a := range candidate.Removals() {
+		if !c.mergeObserved(base, observed, a) {
+			return catalog.Conflict{}
+		}
+	}
+	for a, d := range candidate.Descriptors() {
+		c.RecordDescriptor(base, a, d)
+	}
+	for a := range candidate.Removals() {
+		c.RecordDescriptor(base, a, nil)
+	}
+	return nil
+}
+
+func (c *Journal) mergeObserved(base, observed *catalog.State, a ids.ObjectAddress) bool {
+	expected := observed.Get(a)
+	if original, private := c.Originals[a]; private {
+		expected = original
+	}
+	return base.Get(a) == expected
+}

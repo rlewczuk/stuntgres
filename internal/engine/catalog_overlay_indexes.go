@@ -87,7 +87,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		snapshot := *store
 		snapshot.IndexSource = store.IndexIdentity()
 		captures = append(captures, catalogOverlayIndex{index: idx, parent: parent, store: snapshot})
-		c.AddFence(newStorageReadFence(parent.Address(), e.storage.Relations[parent.Address()]))
+		c.AddFence(session.NewStorageReadFence(parent.Address(), e.storage.Relations[parent.Address()]))
 	}
 	e.mu.Unlock()
 	for i := range captures {

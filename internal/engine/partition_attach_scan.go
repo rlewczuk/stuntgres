@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/session"
 )
 
 // lockPartitionAttachChild is the partition.AttachFrontier callback of the
@@ -36,7 +37,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 		if storage == nil {
 			return ids.ErrCatalogReplaced
 		}
-		stage.storageReads = append(stage.storageReads, newStorageReadFence(d.Address(), storage))
+		stage.storageReads = append(stage.storageReads, session.NewStorageReadFence(d.Address(), storage))
 		return nil
 	}
 	if err := partition.PhysicalDescendants(view, candidate, capture); err != nil {

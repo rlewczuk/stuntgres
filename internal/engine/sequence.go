@@ -434,7 +434,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	if err := mergeCandidate(changes, e.catalog.state, auth.Catalog.State(), &checkStage.Candidate); err != nil {
+	if err := changes.MergeCandidate(e.catalog.state, auth.Catalog.State(), &checkStage.Candidate); err != nil {
 		return Result{}, err
 	}
 	cascade := checkStage.dropCascadeNames

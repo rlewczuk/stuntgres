@@ -3,10 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
 )
 
 // catalogFence is one feature's commit precondition in the transaction
@@ -20,24 +17,13 @@ type catalogFence interface {
 	currentLocked(e *Engine, c *session.Journal) error
 }
 
-// committedFence is a fence over the committed catalog and storage alone.
-type committedFence interface {
-	session.Fence
-	// current reports whether the fence still holds against the committed
-	// catalog and storage relations. Caller holds Engine.mu.
-	current(committed *catalog.State, relations map[ids.ObjectAddress]*storage.Relation) error
-}
-
-// The fence kinds fix where catalogPreflightLocked checks a fence. The kinds
-// run at the positions and in the order listed there, so the first error a
+// The root fence kinds follow the session kinds. catalogPreflightLocked checks
+// every kind at a fixed position and in a fixed order, so the first error a
 // commit reports does not depend on how fences are stored.
 const (
-	fenceStorageRead        session.FenceKind = iota // storageReadFence
-	fenceIndexSet                                    // catalogIndexFence
-	fenceNamespace                                   // catalogNamespaceFence
-	fenceExtensionAuthority                          // extensionAuthorityFence
-	fenceTruncateGraph                               // truncateGraphFence
-	fenceMaterializedSource                          // materializedSourceFence
+	fenceExtensionAuthority = session.FenceRootKinds + iota // extensionAuthorityFence
+	fenceTruncateGraph                                      // truncateGraphFence
+	fenceMaterializedSource                                 // materializedSourceFence
 )
 
 // catalogFencesCurrentLocked checks the fences of each kind in turn, each kind
@@ -50,8 +36,8 @@ func (e *Engine) catalogFencesCurrentLocked(c *session.Journal, kinds ...session
 			}
 			var err error
 			switch fence := f.(type) {
-			case committedFence:
-				err = fence.current(e.catalog.state, e.storage.Relations)
+			case session.CommittedFence:
+				err = fence.Current(e.catalog.state, e.storage.Relations)
 			case catalogFence:
 				err = fence.currentLocked(e, c)
 			default:

@@ -85,7 +85,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 }
 
 func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session.Journal) {
-	recordCandidateDefaults(changes, e.catalog.state, &stage.Candidate)
+	changes.RecordCandidateDefaults(e.catalog.state, &stage.Candidate)
 	for a, rowShape := range stage.rowShapes {
 		shape, exists := changes.Storage[a]
 		if !exists {

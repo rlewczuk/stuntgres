@@ -89,7 +89,7 @@ type CatalogStage struct {
 	owner *Engine
 	catalog.Candidate
 	rowShapes           map[ids.ObjectAddress]catalogRowShape
-	storageReads        []storageReadFence
+	storageReads        []session.StorageReadFence
 	sequence            *sequence.Stage
 	typed               *typedef.TypedStage
 	lifecycle           catalogLifecycle
