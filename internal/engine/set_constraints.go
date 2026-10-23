@@ -15,6 +15,10 @@ import (
 )
 
 func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]bool) error {
+	return s.checkExclusionCommandEvents(all, selected, false)
+}
+
+func (s *StatementScope) checkExclusionCommandEvents(all bool, selected map[ids.OID]bool, bounded bool) error {
 	if !s.indexesOrZero().ExclusionStarted {
 		s.indexes().ExclusionModes = ownerExtensionOrZero(s.owner).exclusionModes
 	}
@@ -24,6 +28,19 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 	remaining := make([]index.ExclusionEvent, 0, len(s.indexesOrZero().ExclusionModes.Events))
 	e := s.engine()
 	for _, event := range s.indexesOrZero().ExclusionModes.Events {
+		if bounded {
+			owned := false
+			for _, effect := range s.foreignActionsOrZero().Transitions {
+				if effect.Command == s.effectCommand && effect.Relation == event.Parent.Address && effect.Next.Row == event.Row && effect.Next.Version == event.Version {
+					owned = true
+					break
+				}
+			}
+			if !owned {
+				remaining = append(remaining, event)
+				continue
+			}
+		}
 		e.mu.Lock()
 		view := e.privateCatalogLocked(s.owner.Catalog)
 		parent, live := view.Relation(event.Parent.Address)

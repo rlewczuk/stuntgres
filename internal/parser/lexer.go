@@ -774,6 +774,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = PL_CONSTANT
 			case "alias":
 				token.code = PL_ALIAS
+			case "exception":
+				token.code = PL_EXCEPTION
+			case "raise":
+				token.code = PL_RAISE
+			case "sqlstate":
+				if l.previousToken == WHEN || l.previousToken == OR {
+					token.code = PL_SQLSTATE
+				}
 			}
 			if l.previousToken == '%' {
 				switch token.lexeme.text {

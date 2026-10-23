@@ -65,9 +65,11 @@ type ForeignActionAdmission struct {
 }
 
 type ForeignActionTransition struct {
-	Relation  ids.ObjectAddress
-	Old, Next storage.RowVersion
-	Owner     authorization.PrincipalRef // zero means the initiating statement's actor
+	Relation             ids.ObjectAddress
+	Old, Next            storage.RowVersion
+	Owner                authorization.PrincipalRef // zero means the initiating statement's actor
+	Command              uint64                     // zero is the root statement; child SQL commands are distinct
+	ActionsDone, Checked bool
 }
 
 func ForeignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []sqltype.Value) bool {
@@ -88,6 +90,7 @@ type ForeignActionScope struct {
 	Settling       bool
 	ExclusionAdded bool // a new event admitted while settling actions
 	Jobs           []ForeignKeyJob
+	Command        uint64 // the bounded command whose pending events are being completed
 }
 
 type ForeignActionPlan struct {

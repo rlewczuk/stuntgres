@@ -7,6 +7,44 @@ native Dump/Restore and the wire protocol. Subsystem logic lives in layered
 subpackages ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SPLIT.md) §3) that never
 import the root and reach it through the hosts below.
 
+## Procedural exception boundaries
+
+`plpgsql_checkpoint.go` binds unnamed owner marks to the exact admitted statement,
+capturing pending stage rows/deletions and transactional effect roots as well as
+the owner savepoint. Row/value payloads remain immutable and shared; mutable maps,
+event progress and append prefixes are owned by the checkpoint. Initializers run
+before the boundary. Success releases it; failure restores effects before matching
+and runs the handler outside the failed mark. Provider callbacks run unlocked,
+cleanup ignores cancellation, and failed cleanup prevents further handler execution
+while preserving the originating diagnostic and secondary failure.
+PL and SQL context decoration uses `sqlstate.WithDiagnostic`: the decorated
+primary diagnostic is visible through `errors.As`, while the original cause,
+fatal cleanup classification and secondary failure remain traversable across calls.
+
+Accepted write events retain their actual predecessor/successor and command token.
+`sql_command_effects.go` completes only the active nested SQL command's pending
+constraint obligations and causal referential actions; probes still see the full
+private view. Root completion drains its remaining events without replaying actions.
+Only relations with incoming/outgoing FK or exclusion obligations retain accepted
+transitions. Row-at-a-time writers reuse relevance captured by each existing
+physical write binding, including routed insertion groups; alternating destinations
+do not repeat catalog discovery. Reuse requires the exact reference, parent and
+immutable catalog root. Other lanes retain an allocation-free command value.
+Unrelated DML does not allocate the effect queue. NOT VALID FKs still enforce new
+writes, and exclusion-only transitions retain bounded command/version ownership.
+Neither command completion nor protected rollback publishes rows, rotates snapshots,
+rewinds identities or owns `Finish`. DO uses that same root publication path.
+Nested utility completion flags are lexical scratch, saved and restored separately
+from the root's publication outcome. A successful SET helper cannot suppress the
+surviving writes of its SELECT or DO caller.
+Queues with no referential work advance bookkeeping without adding a cancellation
+phase ahead of the root's final publication fence. Procedural diagnostic provenance
+uses the actual planner-to-executor handoff, not whether eager execution returned
+an error before exposing rows.
+PL lexical expressions use the existing closed-immutable folding policy before
+that handoff; PL-local, parameter, row, domain and volatile demand barriers remain.
+
+
 ## Cluster and logical database ownership
 
 Each exact Driver DSN owns one `databaseCluster`: a pointer-stable metadata mutex,

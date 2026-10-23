@@ -66,3 +66,25 @@ make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRec
 make check RUN='^TestPLpgSQL(ParserFullConsumption|FormalSlots|FrameLifetime|FrameInputCollation|CheckedCallCollation|RowAssignment|CompositeAssignmentAtomicity|DiagnosticIdentity|ProcedureReturn|HandlerAuthority|RemapOnce|DepthUnwind|LocalUsageReplacement|LocalUsageEquivalence|FormalNamespaceCompiler|FormalNamespaceValidation)$' RACE=1
 make check RUN='^TestSQLRoutineDumpEventsUseResolver$'
 ```
+
+### PL/pgSQL exception blocks
+
+The exception family reuses `plpgsqlScenario`, value/complete-diagnostic helpers
+and the shared fixture. It covers protected rollback, matching/rethrow, intrinsic
+scope, exact diagnostics, transaction/DO visibility, held/replay lifetimes and
+command-owned immediate constraint completion. SQL DML helpers are called from
+existing procedural assignment expressions.
+`UtilityPublication` independently exercises direct/prepared SELECT and DO with a
+SET helper inside the handler: protected put2 disappears, put1/put3/put4 commit,
+and a peer sees exactly `[1,3,4]`. Each invocation has its own scenario.
+`CallDiagnostics` asserts complete portable records through called PL and an
+explicitly non-inline SQL wrapper at assignment, RETURN and initializer sites,
+using direct and fresh-prepared routes. The SQL wrapper exercises its actual
+statement-2 diagnostic boundary, not SQL-function inlining.
+Native supplements exercise fatal modification cleanup across called PL and SQL
+wrappers, completion-flag unwind and installed-root cancellation fences, forged
+handler queries, and retained per-destination relevance with catalog invalidation.
+
+Family selector: `RUN='^TestReferencePLpgSQLException'`; add `REFERENCE=1` for
+the pinned oracle. Supplemental parser/program/checkpoint/participant/command
+units use `RUN='^TestPLException'` with `RACE=1`.

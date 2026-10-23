@@ -2,8 +2,12 @@ package proc
 
 import (
 	"fmt"
+	"maps"
+	"reflect"
+	"slices"
 	"strconv"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // ValidateDefinition checks slot bounds and exact parser/block associations.
@@ -13,6 +17,11 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 	if p == nil || d == nil || d.Kind != PLpgSQLBody || d.PL != p || p.Syntax == nil || p.Syntax != d.PLSyntax || p.Root == nil || p.Root.Syntax != nil || len(p.Root.Statements) != 1 || p.Root.Statements[0].Block == nil || p.FormalCount != len(d.Formals) || len(p.Variables) < p.FormalCount || p.Function != d.Name {
 		return invalid()
 	}
+	outer := p.Root.Statements[0]
+	if p.Root.Label != p.Function || len(p.Root.Declarations) != 0 || len(p.Root.Handlers) != 0 || p.Root.HandlerScope != nil || outer.Syntax != nil || outer.Query != nil || outer.Target.Slot != 0 || len(outer.Target.Fields) != 0 {
+		return invalid()
+	}
+	bindings := p.FormalCount
 	for i, formal := range d.Formals {
 		variable := p.Variables[i]
 		positional := "$" + strconv.Itoa(i+1)
@@ -21,14 +30,58 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			return invalid()
 		}
 		if formal.Name != "" {
+			bindings++
 			named, exists := p.Root.Bindings[formal.Name]
 			if !exists || named != i || formal.Name == positional {
 				return invalid()
 			}
 		}
 	}
+	if len(p.Root.Bindings) != bindings {
+		return invalid()
+	}
 	slot := p.FormalCount
 	var walk func(*PLBlock, *parser.PLBlock, []*PLBlock) error
+	walkStatements := func(instructions []PLInstruction, statements []parser.PLStatement, scopes []*PLBlock) error {
+		if len(instructions) != len(statements) {
+			return invalid()
+		}
+		for i, instruction := range instructions {
+			statement := &statements[i]
+			if instruction.Syntax != statement {
+				return invalid()
+			}
+			switch {
+			case statement.Block != nil:
+				if instruction.Query != nil || statement.Rethrow || statement.Return || statement.Target != nil || statement.Expression != nil {
+					return invalid()
+				}
+				if err := walk(instruction.Block, statement.Block, scopes); err != nil {
+					return err
+				}
+			case statement.Rethrow:
+				if statement.Return || statement.Target != nil || statement.Expression != nil || instruction.Block != nil || instruction.Query != nil || instruction.Target.Slot != 0 || len(instruction.Target.Fields) != 0 {
+					return invalid()
+				}
+			default:
+				if instruction.Block != nil || (instruction.Query == nil) != (statement.Expression == nil) {
+					return invalid()
+				}
+				if !validPLExpressionQuery(instruction.Query, statement.Expression) {
+					return invalid()
+				}
+				if !statement.Return {
+					target, err := p.ResolveTarget(statement.Target, scopes)
+					if err != nil || target.Slot != instruction.Target.Slot || !slices.Equal(target.Fields, instruction.Target.Fields) || p.Variables[target.Slot].Constant {
+						return invalid()
+					}
+				} else if instruction.Target.Slot != 0 || len(instruction.Target.Fields) != 0 {
+					return invalid()
+				}
+			}
+		}
+		return nil
+	}
 	walk = func(block *PLBlock, raw *parser.PLBlock, scopes []*PLBlock) error {
 		if block == nil || raw == nil || block.Syntax != raw || block.Label != raw.Label.Text || len(block.Statements) != len(raw.Statements) {
 			return invalid()
@@ -67,7 +120,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			if variable.InheritInputCollation != inherit {
 				return invalid()
 			}
-			if initializer.Query != nil && (len(initializer.Query.Targets) != 1 || initializer.Query.Pos != decl.Default.SourcePosition() || initializer.Scope == nil) {
+			if !reflect.DeepEqual(initializer.Expression, decl.Default) || !validPLExpressionQuery(initializer.Query, decl.Default) || initializer.Query != nil && initializer.Scope == nil {
 				return invalid()
 			}
 			visible.Bindings[decl.Name.Text] = slot
@@ -77,28 +130,50 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		if initial != len(block.Declarations) {
 			return invalid()
 		}
-		for i, instruction := range block.Statements {
-			statement := &raw.Statements[i]
-			if instruction.Syntax != statement {
+		if !maps.Equal(visible.Bindings, block.Bindings) {
+			return invalid()
+		}
+		if err := walkStatements(block.Statements, raw.Statements, scopes); err != nil {
+			return err
+		}
+		if len(block.Handlers) != len(raw.Handlers) {
+			return invalid()
+		}
+		if len(raw.Handlers) == 0 {
+			if block.HandlerScope != nil {
 				return invalid()
 			}
-			if statement.Block != nil {
-				if instruction.Query != nil {
+			return nil
+		}
+		scope := block.HandlerScope
+		if scope == nil || scope.Syntax != nil || scope.Label != "" || len(scope.Bindings) != 2 || len(scope.Declarations) != 0 || len(scope.Statements) != 0 || len(scope.Handlers) != 0 || scope.HandlerScope != nil {
+			return invalid()
+		}
+		for _, name := range []string{"sqlstate", "sqlerrm"} {
+			if slot >= len(p.Variables) {
+				return invalid()
+			}
+			v := p.Variables[slot]
+			bound, found := scope.Bindings[name]
+			if !found || bound != slot || v.Name != name || !v.Constant || v.Record || v.NotNull || v.InheritInputCollation || !v.Usage.Valid() || v.Usage.Type.ID() != sqltype.Text {
+				return invalid()
+			}
+			slot++
+		}
+		handlerScopes := append(scopes, scope)
+		for i, handler := range block.Handlers {
+			rawHandler := &raw.Handlers[i]
+			if handler.Syntax != rawHandler || len(handler.Conditions) != len(rawHandler.Conditions) || len(handler.Conditions) == 0 {
+				return invalid()
+			}
+			for j, condition := range handler.Conditions {
+				want, err := compilePLCondition(rawHandler.Conditions[j])
+				if err != nil || condition.Others != want.Others || !slices.Equal(condition.Codes, want.Codes) {
 					return invalid()
 				}
-				if err := walk(instruction.Block, statement.Block, scopes); err != nil {
-					return err
-				}
-			} else {
-				if instruction.Block != nil || (instruction.Query == nil) != (statement.Expression == nil) {
-					return invalid()
-				}
-				if instruction.Query != nil && (len(instruction.Query.Targets) != 1 || instruction.Query.Pos != statement.Expression.SourcePosition()) {
-					return invalid()
-				}
-				if !statement.Return && (instruction.Target.Slot < 0 || instruction.Target.Slot >= len(p.Variables) || p.Variables[instruction.Target.Slot].Constant) {
-					return invalid()
-				}
+			}
+			if err := walkStatements(handler.Statements, rawHandler.Statements, handlerScopes); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -110,4 +185,11 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		return invalid()
 	}
 	return nil
+}
+
+// Compiler-created expression SELECTs own no query clauses beyond their one
+// parser-owned target. Compare the whole shape so new SELECT fields cannot
+// silently become unchecked executable structure.
+func validPLExpressionQuery(query *parser.Select, expression parser.Expr) bool {
+	return reflect.DeepEqual(query, plExpressionQuery(expression))
 }

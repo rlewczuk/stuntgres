@@ -125,6 +125,18 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *StatementDescription, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef) (value sqltype.Value, err error) {
 	restore := s.activateSQLRoutine(d.SQL.Inputs, read)
 	defer func() { err = restore(err) }()
+	if s.effectSerial == ^uint64(0) {
+		return value, fmt.Errorf("stuntgres: SQL command identity exhausted")
+	}
+	previousCommand := s.effectCommand
+	s.effectSerial++
+	s.effectCommand = s.effectSerial
+	defer func() {
+		if err == nil {
+			err = s.completeCommandEffects(false, true)
+		}
+		s.effectCommand = previousCommand
+	}()
 	s.sqlRoutine.definition, s.sqlRoutine.terminal = d.SQL, terminal
 	s.sqlRoutine.name = d.Name()
 	s.sqlRoutine.inputCollation = inputCollation

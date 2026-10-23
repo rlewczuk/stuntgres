@@ -227,48 +227,49 @@ type StatementScope struct {
 	// Borrowed only during this statement's admission/execution. Admission
 	// refreshes this coherent snapshot serially before publishing parallel reads;
 	// it is neither prepared-plan state nor a cached permission decision.
-	routineAuth           AuthorizationView
-	stage                 WriteStage
-	notificationActions   []session.NotificationAction
-	notificationEvents    []session.Notification
-	view                  *visibility.View
-	finished              bool
-	message               bool
-	messageEnded          bool
-	messageResult         error
-	result                error
-	worked                bool
-	completed             bool
-	sessionCompleted      bool // Successful session utilities have no private stage to merge.
-	controlOutcome        controlOutcome
-	replacementRead       bool
-	ticket                *lock.Ticket
-	multiEvents           []lock.MultiEvent
-	querySources          []exec.Leaf
-	queryLockAdmission    analyze.LockAdmission
-	queryLocks            *exec.LockContext
-	txRef                 ids.TxRef
-	command               ids.CommandID
-	ownWrites             map[ids.ObjectAddress][]storage.RowVersion
-	ownDeletes            map[ids.ObjectAddress]*visibility.PrivateDeletes
-	Expected              *StatementDescription
-	admissionWaited       bool
-	implicit              bool
-	input                 sqltype.InputEnvironment
-	routinePrograms       []commandRoutineProgram // Consumed command graphs; same admission lease as exec.Authority.
-	statementStart        time.Time
-	transactionStart      time.Time
-	lease                 session.StatementLease // identity for session-layer state; never copied on purpose
-	output                sqltype.OutputEnvironment
-	initialParameters     []sqltype.Usage
-	activeSQLRoutineDepth int                         // Root invocation owner; never saved/reset as lexical scratch.
-	quoteCaptures         *exec.QuoteCaptureCandidate // sealed before executor/source publication
-	catalog               *session.Journal
-	largeObjectRead       catalog.Read // Immutable active-query READ view, saved/restored by SQL body activation.
-	catalogAuthority      *catalogAuthority
-	projectedRoots        bool
-	foreignActionAuth     *AuthorizationView
-	identity              exec.IdentitySnapshot
+	routineAuth                 AuthorizationView
+	stage                       WriteStage
+	notificationActions         []session.NotificationAction
+	notificationEvents          []session.Notification
+	view                        *visibility.View
+	finished                    bool
+	message                     bool
+	messageEnded                bool
+	messageResult               error
+	result                      error
+	worked                      bool
+	completed                   bool
+	sessionCompleted            bool // Successful session utilities have no private stage to merge.
+	controlOutcome              controlOutcome
+	replacementRead             bool
+	ticket                      *lock.Ticket
+	multiEvents                 []lock.MultiEvent
+	querySources                []exec.Leaf
+	queryLockAdmission          analyze.LockAdmission
+	queryLocks                  *exec.LockContext
+	txRef                       ids.TxRef
+	command                     ids.CommandID
+	ownWrites                   map[ids.ObjectAddress][]storage.RowVersion
+	ownDeletes                  map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Expected                    *StatementDescription
+	admissionWaited             bool
+	implicit                    bool
+	input                       sqltype.InputEnvironment
+	routinePrograms             []commandRoutineProgram // Consumed command graphs; same admission lease as exec.Authority.
+	statementStart              time.Time
+	transactionStart            time.Time
+	lease                       session.StatementLease // identity for session-layer state; never copied on purpose
+	output                      sqltype.OutputEnvironment
+	initialParameters           []sqltype.Usage
+	activeSQLRoutineDepth       int                         // Root invocation owner; never saved/reset as lexical scratch.
+	effectCommand, effectSerial uint64                      // admission-private command event ownership; never rewound
+	quoteCaptures               *exec.QuoteCaptureCandidate // sealed before executor/source publication
+	catalog                     *session.Journal
+	largeObjectRead             catalog.Read // Immutable active-query READ view, saved/restored by SQL body activation.
+	catalogAuthority            *catalogAuthority
+	projectedRoots              bool
+	foreignActionAuth           *AuthorizationView
+	identity                    exec.IdentitySnapshot
 	// Feature state lives in slots. Groups that every statement writes are
 	// values. A pointer slot xSlot stays nil until its first write through
 	// x(); reads use xOrZero(), which never allocates, so nil means all zero.

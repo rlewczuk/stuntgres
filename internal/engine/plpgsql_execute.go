@@ -76,7 +76,36 @@ func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, b
 			return sqltype.Value{}, false, plRuntimeError(err, read, d, initializer.Expression, "during statement block local variable initialization", false)
 		}
 	}
-	for _, instruction := range block.Statements {
+	if len(block.Handlers) == 0 {
+		return s.executePLStatements(d, f, block.Statements, read)
+	}
+	checkpoint, err := s.beginPLException()
+	if err != nil {
+		return sqltype.Value{}, false, err
+	}
+	value, returned, bodyErr := s.executePLStatements(d, f, block.Statements, read)
+	if err := s.endPLException(checkpoint, bodyErr != nil, bodyErr); err != nil {
+		return sqltype.Value{}, false, err
+	}
+	if bodyErr == nil {
+		return value, returned, nil
+	}
+	var cleanup *plExceptionCleanupError
+	var diagnostic *sqlstate.Error
+	if errors.As(bodyErr, &cleanup) || !errors.As(bodyErr, &diagnostic) {
+		return sqltype.Value{}, false, bodyErr
+	}
+	handler := block.MatchException(diagnostic)
+	if handler == nil {
+		return sqltype.Value{}, false, bodyErr
+	}
+	previous := f.EnterHandler(block.HandlerScope, diagnostic)
+	defer f.LeaveHandler(block.HandlerScope, previous)
+	return s.executePLStatements(d, f, handler.Statements, read)
+}
+
+func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFrame, statements []proc.PLInstruction, read catalog.Read) (sqltype.Value, bool, error) {
+	for _, instruction := range statements {
 		if err := s.op.Context().Err(); err != nil {
 			return sqltype.Value{}, false, err
 		}
@@ -88,6 +117,15 @@ func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, b
 			continue
 		}
 		statement := instruction.Syntax
+		if statement.Rethrow {
+			if diagnostic := f.HandledError(); diagnostic != nil {
+				return sqltype.Value{}, false, diagnostic
+			}
+			diagnostic := sqlError("0Z002", "RAISE without parameters cannot be used outside an exception handler").(*sqlstate.Error)
+			line := strings.Count(d.SQL.Source[:statement.Pos.Offset], "\n") + 1
+			diagnostic.Context = fmt.Sprintf("PL/pgSQL function %s line %d at RAISE", plRoutineDiagnosticIdentity(read, d), line)
+			return sqltype.Value{}, false, diagnostic
+		}
 		if statement.Return {
 			if statement.Expression == nil {
 				return sqltype.Value{}, true, nil
@@ -110,12 +148,27 @@ func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, b
 		if err != nil {
 			var diagnostic *sqlstate.Error
 			var domainError *plCompositeDomainError
-			if !errors.As(err, &domainError) && errors.As(err, &diagnostic) && strings.HasPrefix(diagnostic.Context, "SQL function ") {
+			if !expressionError && !errors.As(err, &domainError) && errors.As(err, &diagnostic) && strings.HasPrefix(diagnostic.Context, "SQL function ") {
 				copy := *diagnostic
 				start := statement.Pos.Offset
 				end := parser.ExpressionStart(statement.Expression).Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.Expression))
 				copy.Context += "\nPL/pgSQL assignment \"" + strings.TrimSpace(d.SQL.Source[start:end]) + "\""
-				err = &copy
+				err = sqlstate.WithDiagnostic(err, &copy)
+			}
+			if expressionError && errors.As(err, &diagnostic) {
+				copy := *diagnostic
+				start := statement.Pos.Offset
+				end := parser.ExpressionStart(statement.Expression).Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.Expression))
+				assignment := strings.TrimSpace(d.SQL.Source[start:end])
+				if n, parseErr := strconv.Atoi(copy.Position); parseErr == nil {
+					copy.InternalPosition = strconv.Itoa(n - statement.Pos.Character + 1)
+					copy.InternalQuery, copy.Position = assignment, ""
+				}
+				var planning *plExpressionPlanningError
+				if errors.As(err, &planning) && copy.Context == "" && copy.Code == "22012" {
+					copy.Context = "PL/pgSQL assignment \"" + assignment + "\""
+				}
+				err = sqlstate.WithDiagnostic(err, &copy)
 			}
 			return sqltype.Value{}, false, plRuntimeError(err, read, d, statement.Expression, "at assignment", expressionError)
 		}
@@ -123,19 +176,27 @@ func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, b
 	return sqltype.Value{}, false, nil
 }
 
+type plExpressionPlanningError struct{ error }
+
+func (e *plExpressionPlanningError) Unwrap() error { return e.error }
+
 func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read) (value sqltype.Value, err error) {
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	s.sqlRoutine.lexical = f
+	s.sqlRoutine.plPlanning = true
 	s.sqlRoutine.scalar = false
 	if err = s.acquireRelation(statement, true); err != nil {
-		return value, err
+		return value, &plExpressionPlanningError{err}
 	}
 	result, err := s.engine().executeStatement(s, statement, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, f.Values[:f.Program.FormalCount])
 		return nil
 	})
 	if err != nil {
+		if s.sqlRoutine.plPlanning {
+			return value, &plExpressionPlanningError{err}
+		}
 		return value, err
 	}
 	if result.Rows == nil {
@@ -338,6 +399,9 @@ func (s *StatementScope) assignPLField(current sqltype.Value, path []string, val
 }
 
 func plRoutineDiagnosticIdentity(read catalog.Read, d *catalog.Procedure) string {
+	if d.Name() == "inline_code_block" && d.Address().ObjectID == 0 {
+		return "inline_code_block"
+	}
 	var text strings.Builder
 	text.WriteString(catalog.DependencyIdentifier(d.Name()))
 	text.WriteByte('(')
@@ -366,7 +430,8 @@ func plRuntimeError(err error, read catalog.Read, d *catalog.Procedure, raw pars
 			copy.Position = ""
 		}
 	}
-	if expression && copy.Context == "" && (copy.Code == "55000" || copy.Code == "42703" || copy.Code == "22012" || copy.Code == "21000") {
+	var planning *plExpressionPlanningError
+	if expression && copy.Context == "" && (copy.Code == "21000" || errors.As(err, &planning) && (copy.Code == "55000" || copy.Code == "42703" && copy.InternalPosition == "" || copy.Code == "22012")) {
 		copy.Context = "PL/pgSQL expression \"" + source + "\""
 	}
 	line := strings.Count(d.SQL.Source[:offset], "\n") + 1
@@ -375,5 +440,5 @@ func plRuntimeError(err error, read catalog.Read, d *catalog.Procedure, raw pars
 		copy.Context += "\n"
 	}
 	copy.Context += context
-	return &copy
+	return sqlstate.WithDiagnostic(err, &copy)
 }

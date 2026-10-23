@@ -104,6 +104,9 @@ implement its slots, so either import would form a cycle.
 - **Copy-on-write.** A statement writes a `Clone` and installs it; savepoint
   marks keep older journals. `Clone` copies the maps, clones each non-nil slot
   and shares fences (immutable once recorded) in recording order.
+- **Unnamed procedural marks.** The chronological owner savepoint stack includes
+  internal exception marks for participant replay; SQL name lookup skips them.
+  Statement-local stage/effect restoration remains engine orchestration.
 - **Slot rules.** A nil slot means "none". Owners store and recover a slot with
   one checked helper each and never store a typed nil. A slot owner that writes
   in place (the index journal) deep-copies in `Clone`; typedef slots are

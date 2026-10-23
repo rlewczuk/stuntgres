@@ -32,6 +32,17 @@ type PLBlock struct {
 	Bindings     map[string]int
 	Declarations []PLInitializer
 	Statements   []PLInstruction
+	HandlerScope *PLBlock
+	Handlers     []PLHandler
+}
+type PLCondition struct {
+	Codes  []string
+	Others bool
+}
+type PLHandler struct {
+	Syntax     *parser.PLHandler
+	Conditions []PLCondition
+	Statements []PLInstruction
 }
 type PLInitializer struct {
 	Slot       int
@@ -67,6 +78,55 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 		}
 	}
 	var compile func(*parser.PLBlock, []*PLBlock) (*PLBlock, error)
+	compileStatements := func(raw []parser.PLStatement, scopes []*PLBlock) ([]PLInstruction, error) {
+		var instructions []PLInstruction
+		for i := range raw {
+			statement := &raw[i]
+			instruction := PLInstruction{Syntax: statement, Query: plExpressionQuery(statement.Expression)}
+			switch {
+			case statement.Block != nil:
+				child, err := compile(statement.Block, scopes)
+				if err != nil {
+					return nil, err
+				}
+				instruction.Block = child
+			case statement.Rethrow:
+			case statement.Return:
+				message, code := "", "42804"
+				switch {
+				case procedure && statement.Expression != nil:
+					message, code = "RETURN cannot have a parameter in a procedure", "42601"
+				case len(definition.OutputFormals) > 0 && statement.Expression != nil:
+					message = "RETURN cannot have a parameter in function with OUT parameters"
+				case definition.Void() && statement.Expression != nil:
+					message = "RETURN cannot have a parameter in function returning void"
+				case !procedure && !definition.Void() && len(definition.OutputFormals) == 0 && statement.Expression == nil:
+					message, code = "missing expression at or near \";\"", "42601"
+				}
+				if message != "" {
+					pos := statement.Pos
+					if statement.Expression != nil {
+						pos = statement.Expression.SourcePosition()
+					} else {
+						pos.Offset += 6
+						pos.Character += 6
+					}
+					return nil, parser.PLPositionError(code, message, pos)
+				}
+			default:
+				target, err := p.ResolveTarget(statement.Target, scopes)
+				if err != nil {
+					return nil, err
+				}
+				if p.Variables[target.Slot].Constant {
+					return nil, parser.PLPositionError("22005", fmt.Sprintf("variable %q is declared CONSTANT", p.Variables[target.Slot].Name), statement.Pos)
+				}
+				instruction.Target = target
+			}
+			instructions = append(instructions, instruction)
+		}
+		return instructions, nil
+	}
 	compile = func(raw *parser.PLBlock, scopes []*PLBlock) (*PLBlock, error) {
 		block := &PLBlock{Syntax: raw, Label: raw.Label.Text, Bindings: make(map[string]int)}
 		scopes = append(scopes, block)
@@ -119,50 +179,41 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 			block.Bindings[decl.Name.Text] = slot
 			block.Declarations = append(block.Declarations, PLInitializer{Slot: slot, Expression: decl.Default, Query: plExpressionQuery(decl.Default), Scope: initializerScope})
 		}
-		for i := range raw.Statements {
-			statement := raw.Statements[i]
-			instruction := PLInstruction{Syntax: &raw.Statements[i], Query: plExpressionQuery(statement.Expression)}
-			if statement.Block != nil {
-				child, err := compile(statement.Block, scopes)
-				if err != nil {
-					return nil, err
-				}
-				instruction.Block = child
-			} else if statement.Return {
-				message, code := "", "42804"
-				switch {
-				case procedure && statement.Expression != nil:
-					message = "RETURN cannot have a parameter in a procedure"
-					code = "42601"
-				case len(definition.OutputFormals) > 0 && statement.Expression != nil:
-					message = "RETURN cannot have a parameter in function with OUT parameters"
-				case definition.Void() && statement.Expression != nil:
-					message = "RETURN cannot have a parameter in function returning void"
-				case !procedure && !definition.Void() && len(definition.OutputFormals) == 0 && statement.Expression == nil:
-					message = "missing expression at or near \";\""
-					code = "42601"
-				}
-				if message != "" {
-					pos := statement.Pos
-					if statement.Expression != nil {
-						pos = statement.Expression.SourcePosition()
-					} else {
-						pos.Offset += 6
-						pos.Character += 6
-					}
-					return nil, parser.PLPositionError(code, message, pos)
-				}
-			} else {
-				target, err := p.ResolveTarget(statement.Target, scopes)
-				if err != nil {
-					return nil, err
-				}
-				if p.Variables[target.Slot].Constant {
-					return nil, parser.PLPositionError("22005", fmt.Sprintf("variable %q is declared CONSTANT", p.Variables[target.Slot].Name), statement.Pos)
-				}
-				instruction.Target = target
+		var err error
+		block.Statements, err = compileStatements(raw.Statements, scopes)
+		if err != nil {
+			return nil, err
+		}
+		if len(raw.Handlers) != 0 {
+			usage, record, err := resolve(parser.PLType{Type: parser.TypeName{Name: "text"}})
+			if err != nil {
+				return nil, err
 			}
-			block.Statements = append(block.Statements, instruction)
+			if record {
+				return nil, fmt.Errorf("stuntgres: exception intrinsic requires TEXT")
+			}
+			block.HandlerScope = &PLBlock{Bindings: make(map[string]int, 2)}
+			for _, name := range []string{"sqlstate", "sqlerrm"} {
+				block.HandlerScope.Bindings[name] = len(p.Variables)
+				p.Variables = append(p.Variables, PLVariable{Name: name, Usage: usage, Constant: true})
+			}
+			handlerScopes := append(scopes, block.HandlerScope)
+			for i := range raw.Handlers {
+				rawHandler := &raw.Handlers[i]
+				handler := PLHandler{Syntax: rawHandler}
+				for _, rawCondition := range rawHandler.Conditions {
+					condition, err := compilePLCondition(rawCondition)
+					if err != nil {
+						return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: fmt.Sprintf("unrecognized exception condition %q", rawCondition.Name.Text), Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line %d", definition.Name, strings.Count(definition.Source[:rawCondition.Pos.Offset], "\n")+1)}
+					}
+					handler.Conditions = append(handler.Conditions, condition)
+				}
+				handler.Statements, err = compileStatements(rawHandler.Statements, handlerScopes)
+				if err != nil {
+					return nil, err
+				}
+				block.Handlers = append(block.Handlers, handler)
+			}
 		}
 		return block, nil
 	}
@@ -228,6 +279,7 @@ type PLFrame struct {
 	Values         []sqltype.Value
 	Scopes         []*PLBlock
 	InputCollation sqltype.CollationRef
+	handled        *sqlstate.Error
 }
 
 func NewPLFrame(p *PLProgram, d *Definition, input *Frame, collation sqltype.CollationRef) *PLFrame {
@@ -253,8 +305,27 @@ func (f *PLFrame) Close() {
 	clear(f.Values)
 	f.Values = nil
 	f.Scopes = nil
+	f.handled = nil
 	f.InputCollation = sqltype.CollationRef{}
 }
+
+// EnterHandler installs invocation-private intrinsic values and returns the
+// diagnostic restored by LeaveHandler. Nested blocks never mutate the program.
+func (f *PLFrame) EnterHandler(scope *PLBlock, diagnostic *sqlstate.Error) *sqlstate.Error {
+	previous := f.handled
+	f.handled = diagnostic
+	f.Enter(scope)
+	f.Values[scope.Bindings["sqlstate"]] = sqltype.String(f.Program.Variables[scope.Bindings["sqlstate"]].Usage.Type, diagnostic.Code)
+	f.Values[scope.Bindings["sqlerrm"]] = sqltype.String(f.Program.Variables[scope.Bindings["sqlerrm"]].Usage.Type, diagnostic.Message)
+	return previous
+}
+func (f *PLFrame) LeaveHandler(scope *PLBlock, previous *sqlstate.Error) {
+	f.Values[scope.Bindings["sqlstate"]] = sqltype.Value{}
+	f.Values[scope.Bindings["sqlerrm"]] = sqltype.Value{}
+	f.Leave(scope)
+	f.handled = previous
+}
+func (f *PLFrame) HandledError() *sqlstate.Error { return f.handled }
 
 // Usage is invocation-private metadata; published declaration Usages stay immutable.
 func (f *PLFrame) Usage(slot int) sqltype.Usage {

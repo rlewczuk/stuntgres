@@ -88,8 +88,10 @@ type-parser or typmod exception never becomes a recoverable delimiter error.
 Diagnostic presentation may unwrap to copy fields but keeps the outer origin.
 
 `ParsePLpgSQL` uses a private lexer/goyacc entry and ordinary SQL expression
-grammar, preserving positions and fully parsing unreachable syntax. Contextual
-PL keywords do not change SQL parsing or configured prewalk behavior.
+grammar, preserving positions and fully parsing unreachable syntax, including
+ordered exception handlers and the bare-rethrow discriminator. SQLSTATE literals
+are checked at parse time. Contextual PL keywords do not change SQL parsing,
+quoted identifiers or configured prewalk behavior.
 
 ## Testing
 
@@ -109,6 +111,7 @@ feature prefix.
 - Typed literals and operators: `RUN='^Test(GeometryConversionCLiteralSyntax|INETSubnetParser)$'`
 - Database creation: `RUN='^TestCreateDatabase'`
 - PL block syntax and full consumption: `RUN='^TestPLpgSQLParserFullConsumption$'`
+- Exception syntax and handler full consumption: `RUN='^TestPLExceptionParsing$'`
 
 **Benchmarks.** Compare scratch-receiver changes with the unchanged
 `parser_scratch_bench_test.go` harness before and after:

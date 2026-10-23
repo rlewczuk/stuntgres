@@ -37,7 +37,7 @@ func (context RoutineBodyContext) Annotate(err error) error {
 			phase = "statement 1"
 		}
 		copy.Context = fmt.Sprintf(`SQL function "%s" %s`, context.Outer.Name(), phase)
-		return &copy
+		return sqlstate.WithDiagnostic(err, &copy)
 	}
 	return err
 }
@@ -148,5 +148,5 @@ func SQLRoutineStatementContext(err error, name string, statement int) error {
 		copy.Context += "\n"
 	}
 	copy.Context += context
-	return &copy
+	return sqlstate.WithDiagnostic(err, &copy)
 }

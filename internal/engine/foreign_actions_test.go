@@ -154,8 +154,12 @@ func TestForeignActionsAdmission(t *testing.T) {
 	value, _ := sqltype.Integer(job.Child.Columns[0].Usage.Type, 2)
 	replacement := [1][]sqltype.Value{{value}}
 	predecessor := [1]storage.RowVersion{old}
+	before := len(scope.foreignActionsOrZero().Transitions)
 	if err = dml.ReplaceRows(scope.writeHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err == nil {
 		t.Fatal("FK address alone authorized a child replacement")
+	}
+	if len(scope.foreignActionsOrZero().Transitions) != before {
+		t.Fatal("rejected child replacement recorded an accepted transition")
 	}
 	if err = scope.admitForeignAction(ref, job, false); err != nil {
 		t.Fatal(err)
@@ -177,8 +181,14 @@ func TestForeignActionsAdmission(t *testing.T) {
 	scope.foreignActionAuth = nil
 	scope.foreignActions().Settling = false
 	next := scope.stage.rows[ref.Address][0]
-	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(scope.foreignActionsOrZero().Transitions) != 1 || scope.foreignActionsOrZero().Transitions[0].Old.Version != old.Version || scope.foreignActionsOrZero().Transitions[0].Next.Version != next.Version {
-		t.Fatal("physical lineage was not recorded", old, next, scope.foreignActionsOrZero().Transitions)
+	var childEvents []dml.ForeignActionTransition
+	for _, event := range scope.foreignActionsOrZero().Transitions {
+		if event.Relation == ref.Address {
+			childEvents = append(childEvents, event)
+		}
+	}
+	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(childEvents) != 1 || childEvents[0].Old.Version != old.Version || childEvents[0].Next.Version != next.Version || childEvents[0].Owner != job.Child.Owner {
+		t.Fatal("physical child lineage was not recorded", old, next, childEvents)
 	}
 	if scope.lockedRef != named || scope.lockedStorage != stored || scope.lockedDescriptor != descriptor {
 		t.Fatal("child action spoofed initiating admission")

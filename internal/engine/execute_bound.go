@@ -42,10 +42,10 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot plan.Node
 	_, deleting := stmt.(*parser.Delete)
-	if ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite {
+	if ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite || scope.sqlRoutine.lexical != nil {
 		// Plan closed immutable recipes before executor startup, retaining
-		// imported-parameter, row, domain and volatile demand barriers. The
-		// private folded graph is also the graph retained by live portals.
+		// imported-parameter, PL-local, row, domain and volatile demand barriers.
+		// The private folded graph is also the graph retained by live portals.
 		evaluation.PlanStaticOperators = true
 	}
 	routineAuth := auth
@@ -437,6 +437,9 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 }
 
 func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (Result, error) {
+	// Planning/folding and execution can both fail before eager rows are
+	// returned. Preserve the real phase for procedural error decoration.
+	scope.sqlRoutine.plPlanning = false
 	previousRLSCommand := scope.rlsCommand
 	scope.rlsCommand = execution
 	defer func() { scope.rlsCommand = previousRLSCommand }()

@@ -65,6 +65,8 @@ type sqlRoutineScratch struct {
 	foreignCursor        *sqlCursor
 	presentation         *presentationCaches // Swapped as a unit: a nested body starts with empty caches.
 	identity             exec.IdentitySnapshot
+	completed            bool // Nested utility outcome, not root row publication.
+	sessionCompleted     bool
 }
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
@@ -82,6 +84,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		presentation: s.presentationSlot, identity: s.identity,
 		largeObjectRead: s.largeObjectRead,
 		rlsDataRefs:     s.rlsDataRefs,
+		completed:       s.completed, sessionCompleted: s.sessionCompleted,
 	}
 }
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
@@ -103,6 +106,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.presentationSlot, s.identity = c.presentation, c.identity
 	s.largeObjectRead = c.largeObjectRead
 	s.rlsDataRefs = c.rlsDataRefs
+	s.completed, s.sessionCompleted = c.completed, c.sessionCompleted
 }
 
 func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectRead catalog.Read) func(error) error {
@@ -143,6 +147,7 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 // sqlRoutineDemand is the internal SQL routine result demand of a statement.
 type sqlRoutineDemand struct {
 	lexical        *proc.PLFrame
+	plPlanning     bool // PL diagnostic provenance; cleared at the real executor handoff.
 	scalar         bool // Internal single-row SELECT demand, never public finalization.
 	rewrite        bool // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
 	result         sqltype.Usage

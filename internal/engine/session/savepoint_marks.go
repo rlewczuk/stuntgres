@@ -16,6 +16,7 @@ import (
 // generator counters or snapshots. The outer block keeps the same ticket.
 type SavepointMark struct {
 	Name                string
+	Internal            bool   // unnamed procedural boundary, never SQL name lookup
 	Serial              uint64 // the owner's savepointSerial at capture; names foreign savepoints
 	Writes              map[ids.ObjectAddress][]storage.RowVersion
 	Deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes

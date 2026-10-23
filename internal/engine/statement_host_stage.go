@@ -198,13 +198,16 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 			w.rows[ref.Address] = visibility.MergePrivateRows(w.rows[ref.Address], versions, true)
 		}
 		w.replacing = true
+		relevant := s.foreignEffectRelevant(ref, e.privateCatalogLocked(s.owner.Catalog))
 		for i, next := range versions {
 			mode := batch.ActionMode
 			if mode == 0 {
 				mode = modes[i]
 			}
 			s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: ref, Row: old[i].Row}, old[i].Version}, Mode: mode, Successor: next.Version})
-			s.recordForeignActionReplacement(ref, old[i], next)
+			if relevant {
+				s.recordForeignEffect(ref, old[i], next)
+			}
 		}
 	}
 	return false, nil
@@ -308,6 +311,11 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	} else {
 		w.rows[ref.Address] = append(w.rows[ref.Address], versions...)
 	}
+	if s.foreignEffectRelevant(ref, e.privateCatalogLocked(s.owner.Catalog)) {
+		for _, next := range versions {
+			s.recordForeignEffect(ref, storage.RowVersion{}, next)
+		}
+	}
 	return false, nil
 }
 
@@ -379,6 +387,9 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 		w.rows = make(map[ids.ObjectAddress][]storage.RowVersion)
 	}
 	w.rows[ref.Address] = append(w.rows[ref.Address], version)
+	if s.foreignEffectRelevant(ref, catalog) {
+		s.recordForeignEffect(ref, storage.RowVersion{}, version)
+	}
 	return true, false, nil
 }
 

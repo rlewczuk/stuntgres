@@ -19,6 +19,7 @@ type statementMutation struct {
 	statement parser.Statement
 	mutationTarget
 	dml.Command
+	effectAdmission foreignEffectAdmission
 }
 
 // mutationTarget is the admitted, locked command target. It stays in the

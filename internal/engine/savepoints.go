@@ -102,7 +102,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		stack = slices.Grow(t.Savepoints, 1)
 	} else {
 		for i := len(t.Savepoints) - 1; i >= 0; i-- {
-			if t.Savepoints[i].Name == control.Name.Text {
+			if !t.Savepoints[i].Internal && t.Savepoints[i].Name == control.Name.Text {
 				position = i
 				break
 			}

@@ -2,11 +2,9 @@ package dml
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -50,96 +48,72 @@ func PrepareForeignActions(h FinishHost) ([]ForeignKeyJob, Authority, error) {
 
 // SettleForeignActions runs the referential actions of the statement's staged
 // parent transitions, including the transitions the actions themselves stage,
-// as the referencing tables' owners. Finish calls it after the first
-// exclusion event check.
+// as the referencing tables' owners. Command completion calls it after the
+// first owned exclusion-event check.
 func SettleForeignActions(h FinishHost) error {
-	rows, deletes := h.Staged()
-	if len(rows) == 0 && len(deletes) == 0 {
+	scope := h.ForeignActions(false)
+	if scope == nil {
+		return nil
+	}
+	pending := false
+	for _, event := range scope.Transitions {
+		if event.Command == scope.Command && !event.Checked {
+			pending = true
+			break
+		}
+	}
+	if !pending {
 		return nil
 	}
 	jobs, auth, err := PrepareForeignActions(h)
 	if err != nil {
 		return err
 	}
+	scope.Jobs = jobs
 	if len(jobs) == 0 {
-		// An empty job list needs no slot: nil reads as no jobs.
-		if slot := h.ForeignActions(false); slot != nil {
-			slot.Jobs = jobs
+		// No RI work means no new execution/cancellation phase. Preserve the
+		// root's existing final publication fence while consuming bookkeeping.
+		for i := range scope.Transitions {
+			if scope.Transitions[i].Command == scope.Command {
+				scope.Transitions[i].ActionsDone = true
+			}
 		}
 		return nil
 	}
-	scope := h.ForeignActions(true)
-	scope.Jobs = jobs
-	view := auth.Access().Catalog
-	// Borrow the initiating predecessor/successor images before any action merge.
-	for a, staged := range rows {
-		ref := view.Domain().Ref(view.Epoch(), a)
-		image, err := h.ForeignKeyRows(ref, ids.ObjectAddress{})
-		if err != nil {
-			return err
-		}
-		for _, next := range staged {
-			if index.UniqueRowDeleted(next.Row, deletes[a]) {
-				continue
-			}
-			old, ok := image.Previous(next.Row)
-			if ok {
-				scope.Transitions = append(scope.Transitions, ForeignActionTransition{Relation: a, Old: old, Next: next})
-			} else if next.Base != 0 {
-				return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
-			}
-		}
-	}
-	for a, root := range deletes {
-		if root == nil {
-			continue
-		}
-		ref := view.Domain().Ref(view.Epoch(), a)
-		image, err := h.ForeignKeyRows(ref, ids.ObjectAddress{})
-		if err != nil {
-			return err
-		}
-		for id := range root.Rows {
-			old, ok := image.Previous(id)
-			if !ok {
-				for _, row := range image.Staged {
-					if row.Row == id {
-						old, ok = row, true
-						break
-					}
-				}
-			}
-			if ok {
-				scope.Transitions = append(scope.Transitions, ForeignActionTransition{Relation: a, Old: old})
-			}
-		}
-	}
+	previousSettling := scope.Settling
 	scope.Settling = true
-	defer func() { scope.Settling = false; h.SwapForeignActionAuthority(nil) }()
+	defer func() { scope.Settling = previousSettling }()
+	// RI actions append further events; the loop intentionally observes growth.
 	for at := 0; at < len(scope.Transitions); at++ {
 		event := scope.Transitions[at]
+		if event.Command != scope.Command || event.ActionsDone {
+			continue
+		}
 		if err = h.Context().Err(); err != nil {
 			return err
 		}
-		for i := range jobs {
-			job := &jobs[i]
-			if job.Parent.Address() != event.Relation {
-				continue
-			}
-			action := job.Definition.DeleteAction
-			if event.Next.Row != 0 {
-				if ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
+		if event.Old.Row != 0 {
+			for i := range jobs {
+				job := &jobs[i]
+				if job.Parent.Address() != event.Relation {
 					continue
 				}
-				action = job.Definition.UpdateAction
-			}
-			if action == parser.ForeignKeyNoAction {
-				continue
-			}
-			if err = applyForeignAction(h, auth, job, event, action); err != nil {
-				return err
+				action := job.Definition.DeleteAction
+				if event.Next.Row != 0 {
+					if ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
+						continue
+					}
+					action = job.Definition.UpdateAction
+				}
+				if action == parser.ForeignKeyNoAction {
+					continue
+				}
+				if err = applyForeignAction(h, auth, job, event, action); err != nil {
+					return err
+				}
 			}
 		}
+		scope.Transitions[at].ActionsDone = true
 	}
 	return nil
 }

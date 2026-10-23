@@ -35,13 +35,26 @@ type PLStatement struct {
 	Target     Expr
 	Expression Expr
 	Return     bool
+	Rethrow    bool
 	Pos        Position
 }
 type PLBlock struct {
 	Label        Identifier
 	Declarations []PLDeclaration
 	Statements   []PLStatement
+	Handlers     []PLHandler
 	Pos          Position
+}
+
+type PLCondition struct {
+	Name Identifier
+	Code string
+	Pos  Position
+}
+type PLHandler struct {
+	Conditions []PLCondition
+	Statements []PLStatement
+	Pos        Position
 }
 
 // ParsePLpgSQL uses the ordinary scanner and expression grammar. The private
@@ -127,4 +140,16 @@ func plCopiedType(raw TypeName, row bool) PLType {
 		parts = append(parts, Identifier{Text: raw.Name, Pos: raw.Pos})
 	}
 	return PLType{Copy: ObjectName{Parts: parts}, Row: row}
+}
+
+func validPLSQLState(code string) bool {
+	if len(code) != 5 {
+		return false
+	}
+	for i := range code {
+		if !(code[i] >= '0' && code[i] <= '9' || code[i] >= 'A' && code[i] <= 'Z') {
+			return false
+		}
+	}
+	return true
 }

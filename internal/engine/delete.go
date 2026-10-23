@@ -148,6 +148,9 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 		w.deletes[candidate.Ref.Address] = root
 	}
 	root.Rows[candidate.Row] = candidate
+	if s.foreignEffectRelevant(candidate.Ref, e.privateCatalogLocked(s.owner.Catalog)) {
+		s.recordForeignEffect(candidate.Ref, original, storage.RowVersion{})
+	}
 	s.projectExclusionDeletionLocked(e, candidate)
 	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: candidate.Ref, Row: original.Row}, original.Version}, Mode: lock.MultiUpdateAction})
 	return nil

@@ -54,6 +54,10 @@ package parser
  plDeclaration PLDeclaration
  plStatements []PLStatement
  plStatement PLStatement
+ plHandlers []PLHandler
+ plHandler PLHandler
+ plConditions []PLCondition
+ plCondition PLCondition
  plType PLType
  plIdentifier Identifier
  constraints []ColumnConstraint
@@ -217,7 +221,7 @@ package parser
 /* Private bounded replay entry for destination-context INSERT cells. */
 %token <tok> INSERT_SCALAR_VALUES
 %token <tok> TYPE_INPUT
-%token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN
+%token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN PL_EXCEPTION PL_RAISE PL_SQLSTATE
 %token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
@@ -473,6 +477,10 @@ package parser
 %type <plDeclaration> pl_declaration
 %type <plStatements> pl_statements
 %type <plStatement> pl_statement
+%type <plHandlers> pl_exceptions pl_handlers
+%type <plHandler> pl_handler
+%type <plConditions> pl_conditions
+%type <plCondition> pl_condition
 %type <plType> pl_type
 %type <plIdentifier> pl_label pl_end_label
 %type <desc> pl_constant
@@ -1582,7 +1590,13 @@ pl_label: /* empty */ {$$=Identifier{}}
  | PL_LABEL_OPEN pl_name PL_LABEL_CLOSE {$$=Identifier{Text:$2.text,Pos:$2.pos}} ;
 pl_end_label: /* empty */ {$$=Identifier{}}
  | pl_name {$$=Identifier{Text:$1.text,Pos:$1.pos}} ;
-pl_block: pl_label pl_declarations BEGIN pl_statements END pl_end_label {$$=sqllex.(*lexer).plBlock($1,$2,$4,$6,$3.pos);if sqllex.(*lexer).err!=nil{return 1}} ;
+pl_block: pl_label pl_declarations BEGIN pl_statements pl_exceptions END pl_end_label {$$=sqllex.(*lexer).plBlock($1,$2,$4,$7,$3.pos);$$.Handlers=$5;if sqllex.(*lexer).err!=nil{return 1}} ;
+pl_exceptions: /* empty */ {$$=nil} | PL_EXCEPTION pl_handlers {$$=$2} ;
+pl_handlers: pl_handler {$$=[]PLHandler{$1}} | pl_handlers pl_handler {$$=append($1,$2)} ;
+pl_handler: WHEN pl_conditions THEN pl_statements {$$=PLHandler{Conditions:$2,Statements:$4,Pos:$1.pos}} ;
+pl_conditions: pl_condition {$$=[]PLCondition{$1}} | pl_conditions OR pl_condition {$$=append($1,$3)} ;
+pl_condition: pl_name {$$=PLCondition{Name:Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos}}
+ | PL_SQLSTATE STRING {$$=PLCondition{Code:$2.text,Pos:$2.pos};if !validPLSQLState($2.text){sqllex.(*lexer).failAt("42601","invalid SQLSTATE code at or near \""+$2.raw+"\"",$2.pos.Offset);return 1}} ;
 pl_declarations: /* empty */ {$$=nil}
  | DECLARE pl_declaration_list {$$=$2} ;
 pl_declaration_list: /* empty */ {$$=nil}
@@ -1601,7 +1615,8 @@ pl_statements: /* empty */ {$$=nil}
 pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_target PL_ASSIGN pl_expression {$$=PLStatement{Target:$1,Expression:$3,Pos:$1.SourcePosition()}}
  | pl_target '=' pl_expression {$$=PLStatement{Target:$1,Expression:$3,Pos:$1.SourcePosition()}}
- | PL_RETURN pl_return_value {$$=PLStatement{Return:true,Expression:$2,Pos:$1.pos}} ;
+ | PL_RETURN pl_return_value {$$=PLStatement{Return:true,Expression:$2,Pos:$1.pos}}
+ | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}} ;
 pl_return_value: /* empty */ {$$=nil} | pl_expression {$$=$1} ;
 pl_expression: pl_expression_start scalar_projection { sqllex.(*lexer).plExpression=false; $$=$2 } ;
 pl_expression_start: /* empty */ { sqllex.(*lexer).plExpression=true } ;

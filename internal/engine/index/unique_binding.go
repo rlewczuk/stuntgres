@@ -23,14 +23,15 @@ type UniqueBoundKey struct {
 }
 
 type UniqueWriteBinding struct {
-	Ref       ids.ObjectRef
-	Parent    *catalog.Relation
-	Catalog   *catalog.State
-	Keys      []UniqueBoundKey
-	KeySlots  []int
-	TypeName  func(sqltype.ID) string
-	Insertion []InsertionBinding
-	Checked   bool
+	Ref                       ids.ObjectRef
+	Parent                    *catalog.Relation
+	Catalog                   *catalog.State
+	Keys                      []UniqueBoundKey
+	KeySlots                  []int
+	TypeName                  func(sqltype.ID) string
+	Insertion                 []InsertionBinding
+	Checked                   bool
+	ConstraintEffectsRelevant bool // FK/exclusion obligations under Ref/Parent/Catalog authority.
 }
 
 func (b *UniqueBoundKey) Load(row []sqltype.Value, evaluation *exec.Context) ([]sqltype.Value, error) {
@@ -109,12 +110,27 @@ func SameRelationRowShape(a, b *catalog.Relation) bool {
 // consumed programs and the write authority.
 func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view catalog.Read) (*UniqueWriteBinding, error) {
 	var err error
-	b := &UniqueWriteBinding{Ref: ref, Parent: parent, Catalog: view.State()}
+	b := &UniqueWriteBinding{Ref: ref, Parent: parent, Catalog: view.State(),
+		ConstraintEffectsRelevant: len(parent.Constraints.ForeignKeys) != 0 || len(parent.Constraints.Exclusion) != 0}
 	var indexes []*catalog.Relation
 	var checkedNonunique []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		idx, ok := descriptor.(*catalog.Relation)
-		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Parent != parent.Address() || !idx.SQLIndex.Live {
+		if !ok {
+			continue
+		}
+		// Reuse this admission's descriptor walk for incoming FK relevance.
+		// NOT VALID still enforces new writes; standalone unique indexes may
+		// support the referenced key, independently of Unique constraints.
+		if !b.ConstraintEffectsRelevant {
+			for _, constraint := range idx.Constraints.ForeignKeys {
+				if constraint.Target == parent.Address() {
+					b.ConstraintEffectsRelevant = true
+					break
+				}
+			}
+		}
+		if idx.SQLIndex == nil || idx.SQLIndex.Parent != parent.Address() || !idx.SQLIndex.Live {
 			continue
 		}
 		if idx.SQLIndex.Ready && idx.SQLIndex.RequiresInsertionOutput() {

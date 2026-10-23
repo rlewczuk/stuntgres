@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// statementHost implements dml.FinishHost: the FK runtime that Finish runs.
+// statementHost implements dml.FinishHost for root and nested-command completion.
 // The authorities it hands out are *AuthorizationView. The row, grant and
 // admission bodies stay StatementScope methods because ALTER TABLE, CREATE
 // TABLE and the write stage use them too.
@@ -45,7 +45,31 @@ func (h *statementHost) ForeignKeyJobs() ([]dml.ForeignKeyJob, map[ids.ObjectRef
 	}
 	auth.Catalog = e.privateCatalogLocked(s.foreignKeyChanges())
 	auth.Recapture(auth.Catalog)
-	jobs, modes, err := dml.ForeignKeyReach(auth.Catalog, s.stage.rows, s.stage.deletes)
+	rows, deletes := s.stage.rows, s.stage.deletes
+	if s.effectCommand != 0 {
+		rows = nil
+		deletes = nil
+		var present [1]storage.RowVersion
+		var deleted visibility.PrivateDeletes
+		for _, event := range s.foreignActionsOrZero().Transitions {
+			if event.Command != s.effectCommand || event.Checked {
+				continue
+			}
+			if event.Next.Row != 0 {
+				if rows == nil {
+					rows = make(map[ids.ObjectAddress][]storage.RowVersion)
+				}
+				// Reachability uses relation presence/direction, not row contents.
+				rows[event.Relation] = present[:]
+			} else {
+				if deletes == nil {
+					deletes = make(map[ids.ObjectAddress]*visibility.PrivateDeletes)
+				}
+				deletes[event.Relation] = &deleted
+			}
+		}
+	}
+	jobs, modes, err := dml.ForeignKeyReach(auth.Catalog, rows, deletes)
 	return jobs, modes, &auth, err
 }
 

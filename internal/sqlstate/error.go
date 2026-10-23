@@ -29,3 +29,26 @@ type Error struct {
 func (e *Error) Error() string { return "stuntgres: " + e.Message }
 
 func (e *Error) SQLState() string { return e.Code }
+
+// WithDiagnostic replaces the visible diagnostic without discarding the
+// originating error's identity, classifications or secondary failures.
+// errors.As sees the decorated diagnostic first; the cause stays traversable.
+func WithDiagnostic(cause error, diagnostic *Error) error {
+	return &diagnosticError{diagnostic: diagnostic, cause: cause}
+}
+
+type diagnosticError struct {
+	diagnostic *Error
+	cause      error
+}
+
+func (e *diagnosticError) Error() string    { return e.diagnostic.Error() }
+func (e *diagnosticError) SQLState() string { return e.diagnostic.Code }
+func (e *diagnosticError) Unwrap() error    { return e.cause }
+func (e *diagnosticError) As(target any) bool {
+	if diagnostic, ok := target.(**Error); ok {
+		*diagnostic = e.diagnostic
+		return true
+	}
+	return false
+}

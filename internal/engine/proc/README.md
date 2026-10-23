@@ -72,10 +72,17 @@ Frozen engine syntax marks selected SQL calls only after binding; that marker
 cannot authorize a call or replace its checked occurrence reference.
 
 PL definitions retain a distinct body kind, complete positioned syntax and a
-checked immutable `PLProgram`. Fixed slots identify all formals then locals;
-aliases share their original constrained slot. Initializer namespaces retain
-declaration-order visibility. `PLFrame` owns values/scopes only; closing it
-cannot mutate the program, caller arguments or already returned immutable values.
+checked immutable `PLProgram`. Fixed slots identify all formals, locals and
+handler-local constant TEXT intrinsics; aliases share their original constrained
+slot. Initializer namespaces retain declaration-order visibility. Ordered handler
+conditions and bodies are checked against the positioned syntax, including
+unreachable branches. The released error-condition inventory preserves aliases.
+Every initializer, body and handler expression query must match the compiler's
+complete synthetic single-target SELECT, including its parser expression and
+position; extra query clauses are not a checked expression program.
+`PLFrame` owns values/scopes and the active handled diagnostic, restoring the
+previous diagnostic on nested handler exit. Closing it cannot mutate the program,
+caller arguments or already returned immutable values.
 Replacement preserves complete local Usages, including typmods and once-mapped collation capabilities.
 Private effective Usages inherit checked call collation for formals/ordinary
 locals and their lexical `%TYPE` copies; column `%TYPE` stays fixed to its source.
@@ -97,4 +104,5 @@ SQL bodies, review) and [reference/operators](../../../reference/operators/READM
 ```sh
 make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'
 make check RUN='^TestReferenceRoutine(Core|SQLBodies|Review|Parameters)'
+make check RACE=1 RUN='^TestPLException(Matcher|ProgramValidation)$'
 ```

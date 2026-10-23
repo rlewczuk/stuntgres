@@ -128,9 +128,13 @@ Package-internal helpers keep lower-case names.
   eligibility. RI NOT NULL/CHECK Detail under FORCE stays owner-visible only in
   the validated child-owner settlement context; FK key disclosure keeps its own
   RLS privacy checks.
-- The FK runtime runs only from Finish, with the caller holding nothing; all its
-  waits go through `GrantForeignKey`. Each FK job costs one heap row image, and
-  `ActingAs` copies the authority once per job or action, never per row.
+- The FK runtime runs from root or bounded nested-command completion, with the
+  caller holding nothing; all waits go through `GrantForeignKey`. Accepted
+  predecessor/successor events retain command ownership and independent action/
+  check progress. Settlement follows newly appended causal events to a fixed
+  point; completed actions are not replayed. Candidate checks use owned final
+  child versions and parent old images, while probes retain full private
+  visibility. `ActingAs` copies authority once per job/action, never per row.
 
 ## What stays in the engine
 
@@ -142,10 +146,11 @@ Package-internal helpers keep lower-case names.
   `FoldDefault`, `copyIO` and COPY TO output.
 - Host windows: row lock waits, `LatestRow` with its lock and epoch checks, and
   the authority capture behind `RowDiagnosticDetail`.
-- FK order in Finish: exclusion events, `SettleForeignActions`, exclusion events
-  again when an action added one, then `CheckForeignKeys` unless the statement
-  only projected catalog roots. The FK row and grant bodies and internal action
-  admission are shared with ALTER TABLE and CREATE TABLE.
+- Shared command-completion order: due exclusion events, `SettleForeignActions`,
+  exclusion events again when an action added one, then `CheckForeignKeys`
+  unless only catalog roots were projected. The engine selects command ownership
+  and root publication; the FK row/grant bodies and action admission are shared
+  with ALTER TABLE and CREATE TABLE.
 - TRUNCATE execution and `truncateGraphFence` (fence kind order in
   `catalog_fence.go`).
 

@@ -3,6 +3,8 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -171,17 +173,63 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 		return err
 	}
 	s.foreignActions().Admissions[ref.Address].Mutated = true
-	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Owner: s.foreignActionsOrZero().Admissions[ref.Address].Relation.Owner})
 	return nil
 }
 
-func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, next storage.RowVersion) {
-	if !s.foreignActionsOrZero().Settling {
-		return
+// Row-at-a-time writers retain relevance in their existing physical relation
+// binding (including each routed insertion group). Lanes without that binding
+// use this allocation-free command value. Exact catalog changes invalidate both.
+type foreignEffectAdmission struct {
+	ref      ids.ObjectRef
+	catalog  *catalog.State
+	relevant bool
+}
+
+func (s *StatementScope) foreignEffectRelevant(ref ids.ObjectRef, view catalog.Read) bool {
+	if binding := s.UniqueBinding; binding != nil && binding.Ref == ref && binding.Catalog == view.State() {
+		if parent, ok := view.Relation(ref.Address); ok && binding.Parent == parent {
+			return binding.ConstraintEffectsRelevant
+		}
 	}
-	admission := s.foreignActionsOrZero().Admissions[ref.Address]
-	admission.Mutated = true
-	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: admission.Relation.Owner})
+	if admission := s.foreignActionsOrZero().Admissions[ref.Address]; admission != nil && admission.Ref == ref {
+		return true
+	}
+	cached := &s.effectAdmission
+	if cached.ref == ref && cached.catalog == view.State() {
+		return cached.relevant
+	}
+	*cached = foreignEffectAdmission{ref: ref, catalog: view.State()}
+	if relation, ok := view.Relation(ref.Address); ok {
+		if len(relation.Constraints.ForeignKeys) != 0 || len(relation.Constraints.Exclusion) != 0 {
+			cached.relevant = true
+			return true
+		}
+	}
+	// Incoming FKs can use standalone unique indexes; constraint validity does
+	// not disable enforcement on new writes. Use current catalog authority.
+	for _, descriptor := range view.Descriptors() {
+		if child, ok := descriptor.(*catalog.Relation); ok {
+			for _, constraint := range child.Constraints.ForeignKeys {
+				if constraint.Target == ref.Address {
+					cached.relevant = true
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s *StatementScope) recordForeignEffect(ref ids.ObjectRef, old, next storage.RowVersion) {
+	var owner authorization.PrincipalRef
+	if s.foreignActionsOrZero().Settling {
+		admission := s.foreignActionsOrZero().Admissions[ref.Address]
+		if admission != nil {
+			admission.Mutated = true
+			owner = admission.Relation.Owner
+		}
+	}
+	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: owner, Command: s.effectCommand})
 }
 
 // foreignActions returns the statement's foreignActions slot, allocating it on first use.

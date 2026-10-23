@@ -120,6 +120,13 @@ pending passes; asks its context source for a context per comparison),
 `ProjectionLocked` copy and replaces slices and maps, so an installed
 projection never changes.
 
+`BuildUniqueWriteBinding` also captures `ConstraintEffectsRelevant` for incoming
+and outgoing FKs or exclusion obligations, using its existing descriptor walk.
+FK validity does not disable new-write enforcement, and incoming references may
+use standalone unique indexes. This classification belongs to the binding's
+exact `Ref`/`Parent`/`Catalog` authority. Existing per-leaf insertion groups retain
+it across routed rows; a changed reference, parent or catalog root requires rebind.
+
 ## State slots and registries
 
 - **Registries.** `WaitRegistry` (CONCURRENTLY build waits) and

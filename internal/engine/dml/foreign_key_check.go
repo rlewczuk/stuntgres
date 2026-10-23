@@ -14,14 +14,22 @@ import (
 // SettleForeignActions) after the actions: every newly written child row needs
 // a parent, and every changed or deleted parent key must leave no referencing
 // child. A child or parent that an action mutated reports as its owner.
-// Finish calls it last, after the actions and their exclusion events.
-func CheckForeignKeys(h FinishHost) error {
-	rows, deletes := h.Staged()
-	if len(rows) == 0 && len(deletes) == 0 {
+// Command completion calls it last, after actions and their exclusion events.
+func CheckForeignKeys(h FinishHost) (err error) {
+	slot := h.ForeignActions(false)
+	if slot == nil {
 		return nil
 	}
-	slot := h.ForeignActions(false)
-	if slot == nil || len(slot.Jobs) == 0 {
+	defer func() {
+		if err == nil {
+			for i := range slot.Transitions {
+				if slot.Transitions[i].Command == slot.Command {
+					slot.Transitions[i].Checked = true
+				}
+			}
+		}
+	}()
+	if len(slot.Jobs) == 0 {
 		return nil
 	}
 	jobs := slot.Jobs
@@ -56,7 +64,15 @@ func CheckForeignKeys(h FinishHost) error {
 		}
 		// Child checks only newly written final rows, not unaffected old rows.
 		staged := h.PrivateRows(childRef.Address)
-		for _, row := range staged.Staged {
+		for _, event := range slot.Transitions {
+			if event.Command != slot.Command || event.Checked || event.Relation != childRef.Address || event.Next.Row == 0 {
+				continue
+			}
+			row := event.Next
+			final, _, found := storage.RowByID(staged.Staged, row.Row, -1)
+			if !found || final.Version != row.Version {
+				continue
+			}
 			if root := staged.StagedDeletes; root != nil {
 				if _, deleted := root.Rows[row.Row]; deleted {
 					continue
@@ -114,33 +130,15 @@ func CheckForeignKeys(h FinishHost) error {
 				return false, table.ForeignKeyDiagnostic(h.Context(), parentAuth.Access(), parentAuth, job.Child, job.Parent, f, old.Values, true, false, output)
 			})
 		}
-		for _, row := range parentRows.Staged {
-			old, ok := parentRows.Previous(row.Row)
-			if ok {
-				if ForeignActionSameKey(job.Comparisons, old.Values, row.Values) {
-					continue
-				}
-				if err := checkOld(old); err != nil {
-					return err
-				}
-			} else if row.Base != 0 {
-				return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
+		for _, event := range slot.Transitions {
+			if event.Command != slot.Command || event.Checked || event.Relation != parentRef.Address || event.Old.Row == 0 {
+				continue
 			}
-		}
-		if parentRows.CurrentDeletes != nil {
-			for _, rows := range [][]storage.RowVersion{parentRows.Committed, parentRows.Own} {
-				for _, old := range rows {
-					if _, deleted := parentRows.CurrentDeletes.Rows[old.Row]; !deleted {
-						continue
-					}
-					previous, ok := parentRows.Previous(old.Row)
-					if !ok || previous.Version != old.Version {
-						continue
-					}
-					if err := checkOld(old); err != nil {
-						return err
-					}
-				}
+			if event.Next.Row != 0 && ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
+				continue
+			}
+			if err := checkOld(event.Old); err != nil {
+				return err
 			}
 		}
 	}

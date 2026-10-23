@@ -52,8 +52,5 @@ func (e *Engine) executeDO(s *StatementScope, raw *parser.Do, count int) (Result
 	}
 	defer s.leaveSQLRoutine()
 	_, err = s.invokePLRoutine(d, &proc.Frame{}, read, sqltype.CollationRef{})
-	if err == nil {
-		s.completed = true
-	}
 	return Result{}, err
 }
