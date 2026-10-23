@@ -2,7 +2,8 @@
 
 Row producers for the system relations: the `pg_catalog` tables and views and
 the `information_schema` views `table_privileges`, `data_type_privileges`,
-`user_mappings`, `key_column_usage`, `routine_sequence_usage` and `character_sets`.
+`user_mappings`, `key_column_usage`, `constraint_column_usage`,
+`routine_sequence_usage` and `character_sets`.
 Each producer is a pure function from a captured catalog, a paired role read
 and a narrow runtime capability to rows. The package sits at L5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
@@ -263,6 +264,31 @@ make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$' REFERENCE=1
 ```
 
 
+
+`constraint_column_usage.go` projects seven genuine nullable `sql_identifier`
+values from captured actual CHECK, NOT NULL, primary/unique and FK descriptors.
+The engine pairs catalog/role/session authority and validates exact source
+identity before projection. CHECK uses existing `ExpressionReferences`, never a
+second AST walker or expression execution. Only ordinary/partitioned projected
+tables and live admitted attributes contribute. FKs resolve target addresses
+and referenced vectors but retain the child constraint's namespace/name.
+
+Owner-role inheritance on the projected table is the sole visibility predicate;
+ACL grants, schema USAGE, child ownership and peer-TEMP status add no filter.
+Capture-local owner memoization avoids repeating role traversal for composites
+and shared targets. CHECK and NOT NULL have independent branch DISTINCT keys;
+the key branch preserves constraint occurrences and identical FK tuples, while
+repeated attributes within one vector emit once. No supporting-index ordering,
+global DISTINCT, population registry, future admission or extra columns are
+introduced. Success returns nonnil empty rows; cancellation or invalid
+capture/dependencies return nil rows and the original error, never a prefix.
+
+```sh
+make check RUN='^TestInfoConstraintColumnUsage(Producer|Capture|Cancellation)$'
+make check RUN='^TestInfoConstraintColumnUsage(Capture|Cancellation)$' RACE=1
+make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$'
+make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$' REFERENCE=1
+```
 
 `info_routine_sequence_usage.go` reads direct stored SQLBody relation references
 from the captured procedure descriptors, resolves only real sequences in the

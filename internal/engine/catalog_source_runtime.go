@@ -123,6 +123,13 @@ func (r engineCatalogRuntime) ValidateCapture(view catalog.Read, roles authoriza
 		if _, err := a.Object(ref); err != nil {
 			return err
 		}
+	case pgcatalog.ConstraintColumnUsageOID:
+		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
+			return fmt.Errorf("stuntgres: invalid constraint_column_usage capture")
+		}
+		if _, err := a.Object(ref); err != nil {
+			return err
+		}
 	case pgcatalog.InfoRoutineSequenceUsageOID:
 		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
 			return fmt.Errorf("stuntgres: invalid routine_sequence_usage capture")

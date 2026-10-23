@@ -413,6 +413,27 @@ This adds no encoding configuration, invented collations or adjacent views.
 See [native contract](docs/DIALECT.md#information-schema-character-sets) and
 [selected proof and smoke](reference/catalogs/README.md#information-schema-character-sets).
 
+## Information-schema constraint column usage — change note
+
+`information_schema.constraint_column_usage` exposes seven nullable
+`sql_identifier` columns as NAME results. Actual admitted CHECK, NOT NULL,
+primary, unique and foreign-key constraints supply relationships; FKs describe
+the referenced table/columns while retaining the child constraint's namespace.
+Duplicate constraint occurrences remain a bag, including identical FK tuples.
+Visibility requires an enabled projected-table owner role, not table/column
+ACLs; qualifying peer-TEMP relationships are included. Existing DDL,
+transactions and logical controls update the view without a second registry.
+No ordinal or unique-constraint-ID columns or future constraint admission are
+added. Native CREATE/ALTER CHECK references to `tableoid` retain the existing
+42703 admission boundary; PostgreSQL supports that system-column dependency.
+See [native contract](docs/DIALECT.md#information-schema-constraint-column-usage)
+and [selected proof and smoke](reference/catalogs/README.md#information-schema-constraint-column-usage).
+
+```sh
+make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$'
+make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$' REFERENCE=1
+```
+
 ## LIST partition definitions — change note
 
 Single-key `PARTITION BY LIST` supports typed `IN` values, NULL ownership,

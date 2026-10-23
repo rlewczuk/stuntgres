@@ -1395,6 +1395,42 @@ catalog name remains populated. The ordinary seeded C configuration always
 has a match; the no-match boundary is covered with an immutable package fixture.
 See [selected proof and smoke](../reference/catalogs/README.md#information-schema-character-sets).
 
+## Information-schema constraint column usage
+
+`information_schema.constraint_column_usage` has exactly seven ordered nullable
+`information_schema.sql_identifier` domain columns over NAME: `table_catalog`,
+`table_schema`, `table_name`, `column_name`, `constraint_catalog`,
+`constraint_schema`, `constraint_name`. Both catalogs are `current_database()`.
+Real relationships have seven non-NULL identities; absent or invisible objects
+produce zero rows, never NULL placeholders. There are no ordinal, referenced-key
+position, child-table identity or unique-constraint-ID columns.
+
+Actual admitted CHECK dependencies, NOT NULL constraints and primary/unique
+members describe constrained columns. FKs instead describe referenced target
+columns, with the child constraint's schema/name. CHECK reference repetition
+collapses; separate key constraints preserve multiplicity, even for identical
+seven-field FK tuples from different children. Dropped attributes, constant
+CHECKs, physical-only NOT NULL proofs, domain constraints, standalone indexes,
+INCLUDE payloads, exclusions and unconstrained fields supply no independent rows.
+Only ordinary and partitioned projected tables participate.
+
+Visibility is enabled projected-table owner-role inheritance: owner, inherited
+owner and superuser qualify. SET-only membership does not until SET ROLE changes
+the effective principal. Table/column SELECT, INSERT, UPDATE, REFERENCES and
+PUBLIC ACLs are not substitutes; schema USAGE, search path, RLS and FK child
+ownership add no gate. Unlike `key_column_usage`, qualifying peer-TEMP metadata
+is included. The view itself is PUBLIC-readable; invisible metadata is a
+successful empty result, not a table permission error.
+
+Held statements recapture current catalog and role authority. Existing
+rename/move/drop/add, transaction and Dump/Reset/Restore owners update rows;
+retained native Rows keep their original complete bag. This view does not expand
+CHECK admission: native CREATE/ALTER CHECK expressions referring to `tableoid`
+still fail with42703, whereas PostgreSQL exposes that system-column dependency.
+No analyzer/parser or adjacent information-schema view is added. Existing native
+index-CASCADE notice delivery remains unchanged.
+See [selected checks and smoke](../reference/catalogs/README.md#information-schema-constraint-column-usage).
+
 ## Foreign metadata and scans
 
 SQL/MED wrapper/server/user-mapping/foreign-table metadata, ordered column/table

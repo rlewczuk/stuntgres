@@ -648,6 +648,67 @@ make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$'
 make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$' REFERENCE=1
 ```
 
+### Information-schema constraint column usage
+
+The ten `TestReferenceInfoConstraintColumnUsage` definitions prescribe exactly
+seven nullable identifier-domain/NAME fields, logical domain/base/row/array
+identity, populated/empty/NULL metadata and exact bags. CHECK/NOT NULL/p/u rows
+describe constrained columns; FKs describe target columns and child constraint
+namespaces. Reversed vectors, sparse attributes, INCLUDE/standalone-index and
+exclusion negatives, partitions, repeated CHECK references and identical FK
+tuples are independent witnesses, not parity-derived expectations.
+
+Visibility asserts enabled projected-owner roles, owner ACL revocation,
+inheritance/SET transitions, each table/column grant's failure to substitute for
+ownership, independent FK target/child owners, private schemas, RLS/search path,
+and both physical sessions' TEMP metadata. Lifecycle and transaction cases check
+held recapture, rename/move/drop/add, isolated rollback/commit, failed multi-action
+ALTER atomicity and preserved unrelated same-name constraints/data. Complete
+English diagnostics include42703 positions8/17, separate42501 table denial,
+23505 atomic replacement and native ordinary cancellation. Shared SQL supplies
+PostgreSQL outcomes; native-only phases assert retained Rows and public
+Dump/Reset/Restore recomputation/failed-restore atomicity.
+
+SystemColumns records a capability boundary rather than extending CHECK syntax:
+PostgreSQL's repeated `tableoid` CHECK dependency contributes one `tableoid` row
+beside its user column, follows rename and disappears on DROP. Native CREATE
+and ALTER ADD CHECK reject that unadmitted reference with42703 and leave actual
+catalog objects, data and baseline usage unchanged.
+
+Run selected proof in both modes with external900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceInfoConstraintColumnUsage(Rows|Metadata|Identity|Visibility|Lifecycle|Transactions|Diagnostics|NativeControls|FeatureSmoke|SystemColumns)$'
+make check RUN='^TestReferenceInfoConstraintColumnUsage(Rows|Metadata|Identity|Visibility|Lifecycle|Transactions|Diagnostics|NativeControls|FeatureSmoke|SystemColumns)$' REFERENCE=1
+make check RUN='^TestInfoConstraintColumnUsage(Producer|Capture|Cancellation)$'
+make check RUN='^TestInfoConstraintColumnUsage(Capture|Cancellation)$' RACE=1
+make check RUN='^TestReferencePGTypeAdmission$'
+make check RUN='^TestReferencePGTypeAdmission$' REFERENCE=1
+```
+
+Permanent feature smoke checks seven exact rows: parent a/b UNIQUE and FK,
+child x/y CHECK and child x named NOT NULL. An ACL-only reader sees zero; role
+reset restores seven. FK removal leaves five and re-addition restores seven;
+direct and held reads check metadata throughout. Native replay preserves bags.
+Expected result is exit zero with quiet package summaries:
+
+```sh
+make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$'
+make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$' REFERENCE=1
+```
+
+Actual standalone smoke is additional root-owned execution, not another
+permanent native-only SQL test. From the repository root, write a public Go API
+program using an independent Driver, opaque DSN and pinned physical connection
+to a fresh owned throwaway directory and run
+`go run /tmp/stuntgres-ccu-feature-smoke/main.go` with an external900-second
+deadline. It must assert exact bags and NAME metadata before printing phases
+`initial rows=7`, `held initial rows=7`, `ACL reader direct rows=0`,
+`ACL reader held rows=0`, `owner restored rows=7`, `FK dropped rows=5`,
+`FK readded rows=7`. Record actual exit/stdout/stderr, then remove only that
+owned temporary source. No permanent smoke scaffold, synthetic PostgreSQL native
+control counterpart or claimed unexecuted observation is involved.
+
 ### Routine sequence usage
 
 The seven `TestReferenceInfoRoutineSequenceUsage` definitions prescribe the exact
