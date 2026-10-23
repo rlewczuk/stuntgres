@@ -457,7 +457,7 @@ func namedJSONCall(b CallTypeContext, raw parser.FunctionExpr, args []Argument, 
 		if !valid {
 			return nil, nil, false
 		}
-		return namedInputs(args, declared, slots[:len(args)])
+		return namedInputs(b, args, declared, slots[:len(args)])
 	}
 	if name == "json_populate_record" || name == "json_populate_recordset" {
 		return namedJSONRecord(b, raw, args, declared)
@@ -466,14 +466,14 @@ func namedJSONCall(b CallTypeContext, raw parser.FunctionExpr, args []Argument, 
 		if !raw.Variadic || len(args) != 2 || len(declared) != 2 || !jsonExtractLabels(raw) {
 			return nil, nil, false
 		}
-		return namedInputs(args, declared, []int{0, 1})
+		return namedInputs(b, args, declared, []int{0, 1})
 	}
 	if len(args) == 1 && jsonNamedCount(raw) == 0 {
 		definition, resolution := JSONFunctionCall(name, true, 1, 0)
-		if resolution != Resolved || !declaredTypes(declared, []sqltype.ID{definition.Input}) || ResolveJSONArgument(args[0].Usage, declared[0]) != Resolved {
+		if resolution != Resolved || !declaredTypes(declared, []sqltype.ID{definition.Input}) {
 			return nil, nil, false
 		}
-		return namedInputs(args, declared, []int{0})
+		return namedInputs(b, args, declared, []int{0})
 	}
 	return nil, nil, false
 }

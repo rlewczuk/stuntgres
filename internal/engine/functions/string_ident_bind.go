@@ -59,15 +59,8 @@ func selectStringIdent(raw parser.FunctionExpr, visible bool, args []Argument, t
 }
 
 func namedStringIdent(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
-	selected, resolution := selectStringIdent(raw, true, args, StringTargets{Boolean: b.Type(sqltype.Bool).Usage()})
-	if resolution != Resolved || !declaredTypes(declared, []sqltype.ID{sqltype.Text, sqltype.Bool}) {
+	if raw.Variadic || !declaredTypes(declared, []sqltype.ID{sqltype.Text, sqltype.Bool}) {
 		return nil, nil, false
 	}
-	var slots [2]int
-	for i := range args {
-		if !selected.Textual[i] {
-			slots[i] = 1
-		}
-	}
-	return namedInputs(args, declared, slots[:len(args)])
+	return fixedNamedInputs(b, raw, args, declared, []string{"str", "strict"}, 1)
 }

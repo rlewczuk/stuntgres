@@ -12,6 +12,7 @@ type CallTypeContext interface {
 	Type(sqltype.ID) *sqltype.Descriptor
 	ArrayType(*sqltype.Descriptor) (*sqltype.Descriptor, bool)
 	CommonUsage([]sqltype.Usage) sqltype.Usage
+	CanCoerce(sqltype.Usage, sqltype.Usage, sqltype.CoercionContext) bool
 }
 
 // CallShape tests one already-checked declaration against analyzed arguments.
@@ -20,13 +21,13 @@ type CallTypeContext interface {
 // The selected family still owns all argument coercion and diagnostics.
 type CallShape func(CallTypeContext, parser.FunctionExpr, []Argument, []sqltype.Usage, []sqltype.Usage) bool
 
-func knownCallEdges(operands []Argument, targets []sqltype.Usage) bool {
+func knownCallEdges(b CallTypeContext, operands []Argument, targets []sqltype.Usage) bool {
 	for i, o := range operands {
 		if o.Usage.Type != nil && !o.Usage.CatalogNullUsage() {
 			if targets[i].Type == nil {
 				return false
 			}
-			if _, err := sqltype.PlanCoercion(o.Usage, targets[i], sqltype.Implicit); err != nil {
+			if !b.CanCoerce(o.Usage, targets[i], sqltype.Implicit) {
 				return false
 			}
 		}
@@ -70,5 +71,5 @@ func compatibleArrayTargets(b CallTypeContext, operands []Argument, arrays []boo
 			targets[i] = result
 		}
 	}
-	return result, knownCallEdges(operands, targets)
+	return result, knownCallEdges(b, operands, targets)
 }

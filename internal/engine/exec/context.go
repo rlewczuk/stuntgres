@@ -22,6 +22,8 @@ type Context struct {
 	EvalFrame
 	EvalStatement
 	EvalAdmission
+	castElement sqltype.Value
+	caseTest    sqltype.Value
 }
 
 // EvalFrame is the current row frame: scope/frame numbers, the current and old

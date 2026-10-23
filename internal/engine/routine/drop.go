@@ -49,6 +49,26 @@ func dropRoutineNoun(kind string) string {
 	return "function"
 }
 
+// writtenRoutineTypeName preserves the parsed utility spelling, including
+// PostgreSQL's internal qualification of SQL type aliases.
+func writtenRoutineTypeName(raw parser.TypeName) string {
+	var name strings.Builder
+	if raw.System {
+		name.WriteString("pg_catalog.")
+		name.WriteString(raw.Name)
+	} else {
+		if raw.Schema != nil {
+			name.WriteString(catalog.DependencyIdentifier(raw.Schema.Text))
+			name.WriteByte('.')
+		}
+		name.WriteString(catalog.DependencyIdentifier(raw.Name))
+	}
+	for range raw.ArrayBounds {
+		name.WriteString("[]")
+	}
+	return name.String()
+}
+
 func dropRoutineArguments(h DDLHost, auth ddl.Authority, target parser.GrantRoutineTarget) (catalog.ProcedureSignature, string, string, error) {
 	view := h.AccessView(auth).Catalog
 	path, err := auth.ReferencePath()
@@ -82,21 +102,7 @@ func dropRoutineArguments(h DDLHost, auth ddl.Authority, target parser.GrantRout
 		} else {
 			canonical.WriteString(typ.SQLType.DiagnosticName())
 		}
-		// SQL aliases in PostgreSQL's utility notice retain their parser's
-		// qualified internal spelling, unlike canonical error signatures.
-		if argument.Type.System {
-			written.WriteString("pg_catalog.")
-			written.WriteString(argument.Type.Name)
-		} else {
-			if argument.Type.Schema != nil {
-				written.WriteString(catalog.DependencyIdentifier(argument.Type.Schema.Text))
-				written.WriteByte('.')
-			}
-			written.WriteString(catalog.DependencyIdentifier(argument.Type.Name))
-		}
-		for range argument.Type.ArrayBounds {
-			written.WriteString("[]")
-		}
+		written.WriteString(writtenRoutineTypeName(argument.Type))
 	}
 	return catalog.ProcedureSignature(signature.String()), canonical.String(), written.String(), nil
 }

@@ -104,6 +104,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"access method", isDumpAccessMethod, collectAccessMethodDump},
 	{"operator family", isDumpOperatorFamily, collectOperatorFamilyDump},
 	{"operator", isDumpOperator, collectOperatorDump},
+	{"cast", isDumpCast, collectCastDump},
 	{"procedure", isDumpProcedure, collectProcedureDump},
 	{"text search", isDumpTextSearch, collectTextSearchDump},
 	{"extension", isDumpExtension, collectExtensionDump},

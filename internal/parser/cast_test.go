@@ -63,3 +63,64 @@ func TestCastParserBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCastDefinitionUtilitySyntax(t *testing.T) {
+	for _, tc := range []struct {
+		suffix, method, context string
+		specified               bool
+		arity                   int
+	}{
+		{"WITH FUNCTION s.convert", "f", "e", false, 0},
+		{"WITH FUNCTION s.convert()", "f", "e", true, 0},
+		{"WITH FUNCTION s.convert(integer,integer,boolean) AS IMPLICIT", "f", "i", true, 3},
+		{"WITH INOUT AS ASSIGNMENT", "i", "a", false, 0},
+		{"WITHOUT FUNCTION", "b", "e", false, 0},
+	} {
+		query := `CREATE CAST (s."Source"[] AS integer[]) ` + tc.suffix
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(query, statements, err)
+		}
+		cast := statements[0].(*CreateCast)
+		if cast.Source.Schema == nil || cast.Source.Schema.Text != "s" || cast.Source.Name != "Source" || !cast.Source.Quoted || len(cast.Source.ArrayBounds) != 1 {
+			t.Fatal("source spelling lost", cast)
+		}
+		if !cast.Target.System || cast.Target.Name != "int4" || len(cast.Target.ArrayBounds) != 1 || cast.Method != tc.method || cast.Context != tc.context {
+			t.Fatal("target alias or method/context lost", cast)
+		}
+		if cast.Function.SignatureSpecified != tc.specified || len(cast.Function.Arguments) != tc.arity {
+			t.Fatal("omitted and explicit signatures confused", cast)
+		}
+		if tc.arity != 0 && (!cast.Function.Arguments[0].Type.System || cast.Function.Arguments[0].Type.Name != "int4" || cast.Function.Arguments[2].Type.Name != "bool") {
+			t.Fatal("signature aliases not normalized", cast.Function)
+		}
+	}
+	for _, tc := range []struct {
+		query    string
+		ifExists bool
+		mode     DropMode
+	}{
+		{`DROP CAST (s."Source" AS integer)`, false, DropRestrict},
+		{`DROP CAST IF EXISTS (s."Source" AS integer) RESTRICT`, true, DropRestrict},
+		{`DROP CAST IF EXISTS (s."Source" AS integer) CASCADE`, true, DropCascade},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(tc.query, statements, err)
+		}
+		cast := statements[0].(*DropCast)
+		if cast.IfExists != tc.ifExists || cast.Mode != tc.mode || !cast.Target.System || cast.Target.Name != "int4" {
+			t.Fatal(cast)
+		}
+	}
+	for _, query := range []string{
+		`CREATE CAST (s."Source" AS integer) WITH FUNCTION f(integer,)`,
+		`CREATE CAST (s."Source" AS integer) WITH FUNCTION f(integer) AS IMPLICIT trailing`,
+		`CREATE CAST (s."Source" AS integer) WITH INOUT; SELECT )`,
+		`DROP CAST (s."Source" AS integer) CASCADE trailing`,
+	} {
+		if statements, err := Parse(query); err == nil || statements != nil {
+			t.Fatal("accepted malformed whole CAST input", query, statements, err)
+		}
+	}
+}

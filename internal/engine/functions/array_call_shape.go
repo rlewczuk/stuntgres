@@ -21,7 +21,7 @@ func probeArrayInput(b CallTypeContext, raw parser.FunctionExpr, operands []Argu
 	var ok bool
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	targets[0], ok = arrayInputTarget(operands[0].Usage, ArrayRandomFunction(name) == 0)
-	return ok && knownCallEdges(operands, targets)
+	return ok && knownCallEdges(b, operands, targets)
 }
 
 func probeArrayTransform(b CallTypeContext, raw parser.FunctionExpr, operands []Argument, declared, targets []sqltype.Usage) bool {
@@ -33,7 +33,7 @@ func probeArrayTransform(b CallTypeContext, raw parser.FunctionExpr, operands []
 	}
 	if kind == ArrayFill {
 		targets[0] = operands[0].Usage
-		return knownCallEdges(operands, targets)
+		return knownCallEdges(b, operands, targets)
 	}
 	return probeArrayInput(b, raw, operands, declared, targets)
 }
@@ -45,7 +45,7 @@ func probeArraySearch(b CallTypeContext, raw parser.FunctionExpr, operands []Arg
 	}
 	arrays := [3]bool{true, false, false}
 	_, ok := compatibleArrayTargets(b, operands[:n], arrays[:n], targets[:n], false)
-	return ok && knownCallEdges(operands, targets)
+	return ok && knownCallEdges(b, operands, targets)
 }
 
 func probeThresholdBucket(b CallTypeContext, raw parser.FunctionExpr, operands []Argument, declared, targets []sqltype.Usage) bool {

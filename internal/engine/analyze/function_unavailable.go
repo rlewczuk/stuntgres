@@ -33,14 +33,14 @@ func (b *Binder) unavailableFunctionError(raw parser.FunctionExpr, visible bool)
 		}
 	}
 	for _, identity := range identities {
-		if unavailableSignatureMatches(identity.Signature, routine.IdentityDefaults(identity.ID), operands, b.Type) {
+		if b.unavailableSignatureMatches(identity.Signature, routine.IdentityDefaults(identity.ID), operands) {
 			return expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 		}
 	}
 	return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }
 
-func unavailableSignatureMatches(signature catalog.ProcedureSignature, defaults uint8, operands []ComparisonOperand, typ func(sqltype.ID) *sqltype.Descriptor) bool {
+func (b *Binder) unavailableSignatureMatches(signature catalog.ProcedureSignature, defaults uint8, operands []ComparisonOperand) bool {
 	if signature == "" {
 		return len(operands) == 0
 	}
@@ -57,12 +57,12 @@ func unavailableSignatureMatches(signature catalog.ProcedureSignature, defaults 
 		if err != nil {
 			return false
 		}
-		target := typ(sqltype.ID(id))
+		target := b.Type(sqltype.ID(id))
 		if target == nil || !target.Concrete() {
 			return false
 		}
 		if operands[i].descriptor() != nil {
-			if _, err := sqltype.PlanCoercion(operands[i].Node.ResultUsage(), target.Usage(), sqltype.Implicit); err != nil {
+			if err := catalog.CanCoerce(b.BindingCatalog(), operands[i].Node.ResultUsage(), target.Usage(), sqltype.Implicit); err != nil {
 				return false
 			}
 		}

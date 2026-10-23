@@ -283,9 +283,9 @@ func PlannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 	case plan.CaseExpr:
 		v := children(n.Test, n.Otherwise)
 		for _, arm := range n.Arms {
-			v = merge(v, children(arm.Condition, arm.Result))
+			v = merge(v, children(arm.Condition, arm.Test, arm.Result))
 			if n.Test != nil {
-				v = session(v, arm.TestPlan.SessionDependent() || arm.Equality.SessionDependent())
+				v = session(v, arm.Equality.SessionDependent())
 			}
 		}
 		return v

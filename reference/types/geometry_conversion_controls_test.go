@@ -14,16 +14,12 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func geometryConversionControlChecks(b fixture.Backend, arrayPlaceholder bool) []fixture.Step {
-	var arrayRadius any = float64(-1)
-	if arrayPlaceholder {
-		arrayRadius = nil
-	}
+func geometryConversionControlChecks(b fixture.Backend) []fixture.Step {
 	return []fixture.Step{
 		geometryConversionSelect(b, "SELECT id,c,radius(c) AS r FROM geom_conversion_control ORDER BY id", []string{"id", "c", "r"}, []string{"INT4", "CIRCLE", "FLOAT8"}, [][]any{{int64(1), "<(0,0),-1>", float64(-1)}, {int64(2), "<(2,3),-Infinity>", math.Inf(-1)}, {int64(3), nil, nil}, {int64(4), "<(3,4),5>", float64(5)}, {int64(5), "<(0.10000000000000002,5e-324),-1.0000000000000002>", float64(-1.0000000000000002)}}),
 		geometryConversionSelect(b, "SELECT b,l FROM geom_conversion_view WHERE id=1", []string{"b", "l"}, []string{"BOX", "LINE"}, [][]any{{"(-0.7071067811865475,-0.7071067811865475),(0.7071067811865475,0.7071067811865475)", "{2,-1,1}"}}),
 		fixture.Select("SELECT radius(d) AS r,radius((v).c) AS member FROM geom_conversion_carrier", []string{"r", "member"}, []string{"FLOAT8", "FLOAT8"}, [][]any{{float64(-1), float64(-1)}}),
-		fixture.Select("SELECT radius((a[1]).c) AS r FROM geom_conversion_carrier", []string{"r"}, []string{"FLOAT8"}, [][]any{{arrayRadius}}),
+		fixture.Select("SELECT radius((a[1]).c) AS r FROM geom_conversion_carrier", []string{"r"}, []string{"FLOAT8"}, [][]any{{float64(-1)}}),
 		fixture.Select("SELECT radius(c) AS r FROM geom_conversion_materialized", []string{"r"}, []string{"FLOAT8"}, [][]any{{float64(-1)}}),
 	}
 }
@@ -57,7 +53,7 @@ func TestReferenceGeometryConversionControls(t *testing.T) {
 		run(fixture.Exec("INSERT INTO geom_conversion_control VALUES(1,circle(point '(0,0)',-1)),(2,circle(point '(2,3)','-Infinity'::float8)),(3,NULL),(4,circle(box '(6,8),(0,0)')),(5,circle(point '(0.10000000000000002,5e-324)','-1.0000000000000002'::float8))", 5))
 		run(fixture.Exec("INSERT INTO geom_conversion_carrier VALUES(circle(point '(0,0)',-1)::geom_conversion_circle,ROW(circle(point '(0,0)',-1))::geom_conversion_record,ARRAY[ROW(circle(point '(0,0)',-1))::geom_conversion_record])", 1))
 		verify := func(run func(fixture.Step), backend fixture.Backend) {
-			for _, s := range geometryConversionControlChecks(backend, false) {
+			for _, s := range geometryConversionControlChecks(backend) {
 				run(s)
 				run(fixture.Prepared(s))
 			}
@@ -169,7 +165,7 @@ func TestReferenceGeometryConversionControls(t *testing.T) {
 			// native snapshot preservation (already checked above).
 			pgRun(fixture.MaterializedViewUnpopulated("geom_conversion_materialized"))
 			pgRun(fixture.Exec("REFRESH MATERIALIZED VIEW geom_conversion_materialized", 0))
-			for _, s := range geometryConversionControlChecks(pg, true) {
+			for _, s := range geometryConversionControlChecks(pg) {
 				pgRun(s)
 				pgRun(fixture.Prepared(s))
 			}

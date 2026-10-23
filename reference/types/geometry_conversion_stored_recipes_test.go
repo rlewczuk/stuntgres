@@ -9,11 +9,8 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func geometryConversionRecipeSelect(b fixture.Backend, source string, placeholder bool) fixture.Step {
+func geometryConversionRecipeSelect(b fixture.Backend, source string) fixture.Step {
 	row := []any{"[1:2]", "<(1,2),-1>", "<(3,4),-2>", float64(-1), float64(-2)}
-	if placeholder {
-		row = []any{nil, nil, nil, nil, nil}
-	}
 	return geometryConversionSelect(b, "SELECT array_dims(a) AS dims,(a[1]).c AS first,(a[2]).c AS second,radius((a[1]).c) AS r1,radius((a[2]).c) AS r2 FROM "+source, []string{"dims", "first", "second", "r1", "r2"}, []string{"TEXT", "CIRCLE", "CIRCLE", "FLOAT8", "FLOAT8"}, [][]any{row})
 }
 
@@ -29,20 +26,20 @@ func TestReferenceGeometryConversionStoredRecipes(t *testing.T) {
 		probe := func(run func(fixture.Step), backend fixture.Backend) {
 			run(fixture.Exec("BEGIN", 0))
 			run(fixture.Exec("INSERT INTO geom_recipe_table(id) VALUES(80)", 1))
-			s := geometryConversionRecipeSelect(backend, "geom_recipe_table WHERE id=80", false)
+			s := geometryConversionRecipeSelect(backend, "geom_recipe_table WHERE id=80")
 			run(s)
 			run(fixture.Prepared(s))
 			run(fixture.Exec("ROLLBACK", 0))
 		}
-		verify := func(run func(fixture.Step), backend fixture.Backend, placeholder bool) {
+		verify := func(run func(fixture.Step), backend fixture.Backend) {
 			for _, source := range []string{"geom_recipe_table WHERE id=1", "geom_recipe_view", "geom_recipe_snapshot"} {
-				s := geometryConversionRecipeSelect(backend, source, placeholder && source == "geom_recipe_table WHERE id=1")
+				s := geometryConversionRecipeSelect(backend, source)
 				run(s)
 				run(fixture.Prepared(s))
 			}
 			probe(run, backend)
 		}
-		verify(run, b, false)
+		verify(run, b)
 		if b.PG {
 			return
 		}
@@ -56,12 +53,12 @@ func TestReferenceGeometryConversionStoredRecipes(t *testing.T) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
-		verify(run, b, false) // Persisted materialized data is read without REFRESH.
+		verify(run, b) // Persisted materialized data is read without REFRESH.
 		target := fixture.NewFixture(t, false, true)
 		if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
-		verify(func(s fixture.Step) { fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, s) }, b, false)
+		verify(func(s fixture.Step) { fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, s) }, b)
 		if p.Postgres != nil {
 			defer func() {
 				if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
@@ -78,9 +75,9 @@ func TestReferenceGeometryConversionStoredRecipes(t *testing.T) {
 			pgRun := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, s) }
 			pgRun(fixture.MaterializedViewUnpopulated("geom_recipe_snapshot"))
 			pgRun(fixture.Exec("REFRESH MATERIALIZED VIEW geom_recipe_snapshot", 0))
-			// The view/default/materialized definitions construct actual arrays;
-			// only the preexisting table row uses native metadata plus SQL NULL.
-			verify(pgRun, pg, true)
+			// Portable constructor SQL preserves persisted rows as well as
+			// view/default definitions; REFRESH uses the same real payload.
+			verify(pgRun, pg)
 		}
 	})
 }

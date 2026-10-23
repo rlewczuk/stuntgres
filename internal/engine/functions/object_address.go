@@ -280,5 +280,5 @@ func namedObjectAddress(b CallTypeContext, raw parser.FunctionExpr, args []Argum
 	if !declaredTypes(declared, types[:]) {
 		return nil, nil, false
 	}
-	return fixedNamedInputs(raw, args, declared, labels[:], 3)
+	return fixedNamedInputs(b, raw, args, declared, labels[:], 3)
 }

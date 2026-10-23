@@ -27,8 +27,10 @@ SQL function calls use one callable selector. SQL formals and provider-owned
 pure `NamedCall` shapes map supplied types in written order before labeled path
 masking; positional identity masking remains unchanged. Only the winning SQL
 call receives checked hidden defaults and a validated input assembly. Actuals
-use Implicit conversion; `BindRoutineDefault` uses Assignment conversion without
-the table-default volatility whitelist or a formal/parameter namespace.
+use Implicit conversion; `BindRoutineDefault` selects Assignment conversion through
+the same catalog-aware seam, without the table-default volatility whitelist or a
+formal/parameter namespace. Declared context refusal precedes generic string IO;
+domain/collation normalization and the exact storage destination remain separate.
 Defaults resolve against the legitimate staged namespace before their new
 declaration is published; other staged objects remain visible. Body validation
 then sees the declaration, preserving existing self-recursion behavior.
@@ -51,6 +53,31 @@ selected target. Literal capture therefore follows the real bound shape, and
 later overloads cannot reinterpret that stored typename call during replay.
 Nonstored source syntax and the strict capture mismatch checks remain unchanged.
 
+Simple CASE binds its saved test through a lexical `plan.CaseTestExpr` for each
+equality, retaining the actual winning conversion tree in `CaseBranch.Test`.
+The original test expression is not embedded in those trees or rebound at
+execution. Their properties and dependencies participate in the same visitors
+as ordinary conditional operands. COALESCE, NULLIF, GREATEST/LEAST and CASE
+result arms already retain `CoerceConditional` trees; post-selection fixed
+fallbacks remain catalog-free.
+
+Boolean consumers (including all six IS TRUE/FALSE/UNKNOWN forms) infer only
+unknown inputs as BOOL, then select Assignment conversion of known sources through
+`CoerceSelected`. Known parameters keep their source contracts; selected nonstrict
+routines receive typed NULL and retain their normal properties and dependencies.
+Only genuine type refusal becomes the enclosing construct's 42804 diagnostic;
+routine/provider failures remain authoritative. Set-return rejection follows the
+selected conversion, without walking every logical-chain prefix again.
+The canonical opaque catalog ANYARRAY result (`CatalogNullUsage`) receives that
+same construct diagnostic before concrete cast selection; it is not a coercible
+BOOL or an unknown input. Producer errors still propagate before this check,
+and ordinary concrete conversions retain their selected assignment semantics.
+
+Explicit cast declarations are selected before the existing unsupported-target
+capability guard. This admits declared conversions to existing codec-backed
+targets (including range/multirange) without enabling undeclared fixed-provider
+casts or extending the native target whitelist. Target resolution still precedes
+source binding; source errors can now precede that legacy capability diagnostic.
 
 Standard SQL/JSON query syntax dispatches to the functions binder. Unlike
 constructor RETURNING, its result conversion stays in the query node's ON ERROR
@@ -190,8 +217,10 @@ Private seam proof: `make check RUN='^TestSQLJSONDefaultShape$'`.
   `DiagnosticTypeName`. Array element names recurse through the same captured
   catalog/reference path as scalar user types, omitting namespace qualification
   only when actual visibility permits it. Descriptor persistence names are not
-  diagnostic visibility authority. Unary formatting and ambiguity behavior
-  retain the existing operator-error contract.
+  diagnostic visibility authority. CASE and COALESCE common-type mismatches use
+  this same visible-name formatter without changing category-first selection or
+  operand error precedence. Unary formatting and ambiguity behavior retain the
+  existing operator-error contract.
 - **Row-lock admission** (`lock_admission.go`): `LockAdmission`, computed
   by `NewLockAdmission` from a statement's syntax before binding (the row
   marks of each SELECT level, the locked table occurrences as
@@ -304,6 +333,44 @@ moved them to `view` (`ValidateQueryJoinExecution`,
 `view.CheckRowMarks` checks them). Since 12e the engine names these types directly
 (`analyze.Binding`, `analyze.Binder`, ...); no aliases remain.
 
+### Catalog-aware coercion
+
+`cast.go` uses `catalog.SelectCoercion` to select direct declared pairs before
+fallback and constructs only the winning routine/IO/relabel expression.
+Domain/base and unknown-input rules stay separate. `catalog.CanCoerce` is the
+effect-free authority shared with callable/operator probes and detached routine
+support selection; it neither binds routines nor checks EXECUTE, infers
+parameters or captures losing-candidate dependencies.
+Common-category/preferred precedence is unchanged.
+`sqltype.SelectCommonUsage` remains the single domain/type/typmod fold for
+common-expression and anycompatible inference. The analyzer supplies pure
+catalog-aware implicit feasibility; catalog-free callers pass nil to retain
+fixed coercion selection.
+The existing common callable selector also handles builtin-only names when user
+pairs exist; concrete formal usages are candidate-local shape inputs, never
+replacement ranking operands. Winning arguments are converted once before the
+existing selected-argument/reentry provider path.
+
+Stored routine syntax retains the selected function and synthetic arguments;
+stored IO/relabel syntax retains its method without a cast-row dependency.
+Prepared captures separately record relevant pair identity/absence for private
+analysis invalidation. Array mapping evaluates the source once in a scoped
+element frame and retains shape/lower bounds.
+Exact usage identity bypasses declared-edge lookup and prepared absence capture;
+different typmods and genuine absent pairs still retain normal invalidation.
+Shared argument coercion accepts already-bound operands without raw syntax,
+retaining their source position, usage and properties through fixed conversion
+instead of rebinding or skipping the conversion.
+
+Quantified comparisons erase a named ROW constructor's outer cast only at that
+structural occurrence. The normalization writer and reader both key a CastExpr
+by its own `Pos`, not its `SourcePosition` (which names the child for postfix
+casts). The retained constructor remains the source association for already
+coerced comparison fields; capture still requires normalized ROW syntax and
+keeps member/expansion usages and dependencies. Whole-value and unused-CTE
+occurrences retain their own logical type identities. This does not change
+declared scalar or array cast recipes or their prepared pair observations.
+
 ## Testing
 
 Owned ordinary aggregate binding retains one ordered argument vector and the
@@ -348,6 +415,38 @@ selection are documented in
 ```sh
 make check RUN='^TestCreateAggregateStoredSyntaxCastOwnership$'
 ```
+Cast consumer proof: select `TestReferenceCastDefinition` in both modes,
+including `BuiltinInvariance` and `RawCompositeArrayBounds`; the owning
+[reference README](../../../reference/operators/README.md#cast-definitions)
+lists exact selectors and expected smoke observations.
+
+Stored constructor regression proof (unchanged public definitions):
+
+```sh
+make check RUN='^TestReferenceComparisonStoredConstructor(Lifecycle|Replay|Dependencies)?$'
+make check RUN='^TestReferenceComparisonStoredConstructor(Lifecycle|Replay|Dependencies)?$' REFERENCE=1
+```
+
+Expected witnesses: row/single/domain quantified values survive stored-view
+capture; held lifecycle reads survive removal of only the erased outer type;
+replay preserves correlation, expansion, typmod and enum semantics with identical
+native redump bytes and actual native dump replay on PostgreSQL. Dependency
+cases retain enum/nested members and independent whole-value/unused-CTE types.
+
+For conditional diagnostic and binary fixture remedies, select:
+
+```sh
+make check RUN='^TestReferenceCastDefinition(ContextPrecedence|BinarySafety|CapabilityBoundary)$'
+make check RUN='^TestReferenceCastDefinition(ContextPrecedence|BinarySafety|CapabilityBoundary)$' REFERENCE=1
+```
+
+Expected witnesses: CASE/COALESCE category mismatches name visible `cast_src`
+without `public.` qualification; FLOAT8 `1` through binary MONEY then XID8
+retains word `4607182418800017408`; binary LINE `{1,2,3}` produces the ordinary
+CIRCLE value `<(1,2),3>` with CIRCLE metadata. PATH/CUBE capability admission
+uses raw catalog NAME/INT2/BOOL/CHAR projections to assert both physical
+descriptors are `-1`/false/`d`, without depending on unrelated projection casts.
+
 
 Catalog-first shared operator diagnostics retain the existing public array
 type/visibility expectations and FTS diagnostic fields. Root selects both modes:

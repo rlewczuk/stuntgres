@@ -229,6 +229,15 @@ the current aggregate owner across SQL-program phases without impersonating
 that owner inside the SQL body. Cancellation and existing effect ownership
 remain on the ordinary execution path.
 
+Declared implicit-binary SFUNC and first-seed conversions capture the physical
+datum operation. TEXT-to-BYTEA therefore retains literal bytes (including a
+backslash-x prefix), not BYTEA input decoding, after the original cast disappears
+or becomes INOUT. Provider remapping preserves that operation with destination
+descriptors. At actual aggregate executor startup, strict/no-init providers check
+the live direct implicit-binary compatibility once, before reading any input.
+An absent/nonbinary replacement raises42P13 with the current aggregate identity,
+even for empty input; this guard never selects a replacement seed conversion.
+
 The provider also retains effective ordinary-input collation independently of
 its state/result usage. Remapping derives that reference from an actual mapped
 typed input, preserving full private formal checks. Only quoted aggregate SQL

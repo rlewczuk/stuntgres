@@ -133,5 +133,5 @@ func namedPgrowlocks(b CallTypeContext, raw parser.FunctionExpr, args []Argument
 	if raw.Variadic || len(args) != 1 || !pgrowlocksNamed(raw) || !declaredTypes(declared, []sqltype.ID{sqltype.Text}) {
 		return nil, nil, false
 	}
-	return namedInputs(args, declared, []int{0})
+	return namedInputs(b, args, declared, []int{0})
 }

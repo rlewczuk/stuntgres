@@ -18,6 +18,7 @@ import (
 // SetDescriptor stores d at a.
 func (s *State) SetDescriptor(a ids.ObjectAddress, d Descriptor) {
 	old, _ := s.findDescriptor(a)
+	s.updateCastIndex(old, d)
 	oldKey, hadDefault := descriptorDefaultKey(old)
 	newKey, hasDefault := descriptorDefaultKey(d)
 	if hadDefault && (!hasDefault || oldKey != newKey) {
@@ -34,6 +35,7 @@ func (s *State) SetDescriptor(a ids.ObjectAddress, d Descriptor) {
 // RemoveDescriptor deletes the descriptor at a.
 func (s *State) RemoveDescriptor(a ids.ObjectAddress) {
 	old, _ := s.findDescriptor(a)
+	s.updateCastIndex(old, nil)
 	if key, ok := descriptorDefaultKey(old); ok {
 		s.dropName(key)
 	}
@@ -51,6 +53,7 @@ func (s *State) ResetDescriptors() {
 	s.mustNotBulkLoad()
 	s.descriptors = util.PersistentMap[ids.ObjectAddress, Descriptor]{}
 	s.procedureNames = nil
+	s.castPairs = nil
 }
 
 // ResetMaps gives s empty descriptor and name maps and iterates the previous
@@ -61,5 +64,6 @@ func (s *State) ResetMaps() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	s.descriptors = util.PersistentMap[ids.ObjectAddress, Descriptor]{}
 	s.names = util.PersistentMap[ids.NameKey, ids.ObjectAddress]{}
 	s.procedureNames = nil
+	s.castPairs = nil
 	return previous.All()
 }

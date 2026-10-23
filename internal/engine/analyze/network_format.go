@@ -1,6 +1,7 @@
 package analyze
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -38,7 +39,7 @@ func (b *Binder) bindNetworkFormat(raw parser.FunctionExpr) (expr.Expr, error) {
 		for i, arg := range operands {
 			if kind == sqltype.NetworkSetMasklen && i == 1 {
 				if arg.Usage.Type != nil {
-					if _, err := sqltype.PlanCoercion(arg.Usage, b.Type(sqltype.Int4).Usage(), sqltype.Implicit); err != nil {
+					if err := catalog.CanCoerce(b.BindingCatalog(), arg.Usage, b.Type(sqltype.Int4).Usage(), sqltype.Implicit); err != nil {
 						valid = false
 					}
 				}

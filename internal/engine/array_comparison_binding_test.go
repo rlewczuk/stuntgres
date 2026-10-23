@@ -105,15 +105,15 @@ func TestArrayCompareCommonType(t *testing.T) {
 		return analyze.ComparisonOperand{Node: plan.ParameterExpr{Info: b.Info(b.Type(id).Usage(), parser.Position{}, expr.Properties{}), Number: 1}}
 	}
 	unknown := analyze.ComparisonOperand{Node: plan.ParameterExpr{Number: 1}}
-	common, err := analyze.CommonExpressionUsage([]analyze.ComparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.Type(sqltype.Text).Usage(), "")
+	common, err := analyze.CommonExpressionUsage(b.BindingCatalog(), []analyze.ComparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.Type(sqltype.Text).Usage(), "")
 	if err != nil || common.Type.ID() != 20 || len(b.Params.Parameters) != 0 {
 		t.Fatal(common, err, b.Params.Parameters)
 	}
-	common, err = analyze.CommonExpressionUsage([]analyze.ComparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "")
+	common, err = analyze.CommonExpressionUsage(b.BindingCatalog(), []analyze.ComparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "")
 	if err != nil || common.Type != nil {
 		t.Fatal("category mismatch must silently decline batching", common, err)
 	}
-	_, err = analyze.CommonExpressionUsage([]analyze.ComparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "ARRAY")
+	_, err = analyze.CommonExpressionUsage(b.BindingCatalog(), []analyze.ComparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "ARRAY")
 	state(t, err, "42804")
 	// Lexical frame identity, not dependence flags, distinguishes Vars.
 	local := plan.ColumnExpr{Info: b.Info(b.Type(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Frame: b.FrameID()}

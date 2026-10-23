@@ -35,6 +35,10 @@ func CommonTypePreferred(t *Descriptor) bool {
 // reports category compatibility, not whether every input can be coerced to the
 // result. Callers own domain preservation and subsequent conversion checks.
 func CommonTypeCandidate(candidate, next *Descriptor) (*Descriptor, bool) {
+	return commonTypeCandidateWithCoercion(candidate, next, nil)
+}
+
+func commonTypeCandidateWithCoercion(candidate, next *Descriptor, can func(*Descriptor, ID) bool) (*Descriptor, bool) {
 	if candidate == next {
 		return candidate, true
 	}
@@ -42,6 +46,12 @@ func CommonTypeCandidate(candidate, next *Descriptor) (*Descriptor, bool) {
 		return candidate, false
 	}
 	if !CommonTypePreferred(candidate) {
+		if can != nil {
+			if can(candidate, next.ID()) && !can(next, candidate.ID()) {
+				return next, true
+			}
+			return candidate, true
+		}
 		_, forward := PlanCoercion(candidate.Usage(), next.Usage(), Implicit)
 		_, reverse := PlanCoercion(next.Usage(), candidate.Usage(), Implicit)
 		if forward == nil && reverse != nil {
@@ -59,8 +69,9 @@ type CommonUsageMismatch struct {
 }
 
 // SelectCommonUsage is the shared domain/type/typmod fold. An absent Type is
-// an unknown analysis operand, not a runtime NULL datum.
-func SelectCommonUsage(count int, usage func(int) Usage, text Usage) (Usage, CommonUsageMismatch) {
+// an unknown analysis operand, not a runtime NULL datum. A nil can uses fixed
+// coercions; otherwise can supplies pure implicit-coercion feasibility.
+func SelectCommonUsage(count int, usage func(int) Usage, text Usage, can func(*Descriptor, ID) bool) (Usage, CommonUsageMismatch) {
 	var domain *Descriptor
 	allDomain := count > 0
 	for i := range count {
@@ -99,7 +110,7 @@ func SelectCommonUsage(count int, usage func(int) Usage, text Usage) (Usage, Com
 		if u.Type == candidate.Type {
 			continue
 		}
-		chosen, compatible := CommonTypeCandidate(candidate.Type, u.Type)
+		chosen, compatible := commonTypeCandidateWithCoercion(candidate.Type, u.Type, can)
 		if !compatible {
 			return Usage{}, CommonUsageMismatch{Left: candidate.Type, Right: u.Type, Index: i}
 		}

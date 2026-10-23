@@ -94,6 +94,17 @@ or the engine. Step 14 of the split moves it here; see
   Concrete support formal/result usages retain the caller's derived collation
   rather than resetting to descriptor defaults, so detached destination
   specialization agrees with exact private-frame usage validation.
+  Retained owners also supply historical binary feasibility to polymorphic
+  common-type and argument-edge probes before conversion planning; an owner
+  without a recipe uses fixed compatibility only, never later live casts.
+  Fresh CREATE passes no retained owner and uses current catalog feasibility.
+  SFUNC formals and strict/no-initial-value seeds require the catalog's direct
+  implicit-binary authority. Declared edges retain immutable binary recipes;
+  detached validation accepts the original supported representation after its
+  cast row is dropped or replaced, without admitting function/INOUT adapters.
+  Execution captures real datum adapters rather than using IO or blind retags.
+  Strict/no-init executor startup separately checks current binary feasibility,
+  including empty input; Prepare does not execute that check.
 - **Dumps** (`operator_dump.go`, `function_dump.go`, `aggregate_dump.go`): what
   native Dump writes for user operators, SQL routines and ordinary aggregates,
   including formal/state types, actual support, checked default and body edges.
@@ -174,6 +185,29 @@ capture: the Collect entries `collectOperatorDump` and
 The Emit entry `emitDumpOperatorLinks`, the `control.Presenter` and
 `control.Resolver` adapters and the script calls are in `control` (step 30).
 
+### Cast DDL
+
+`cast.go` stages ordinary CREATE/DROP CAST, with endpoint authority, exact versus
+omitted function signatures, normal/nonset and binary signature-adapter checks,
+domain notices and binary physical/category validation. CREATE does not require
+routine ownership/EXECUTE or evaluate the routine. Casts depend on endpoints,
+function and selected signature adapters, not an invented cast owner. Publication,
+DROP closure and read-only/autocommit policies remain the shared DDL path.
+The shared expression-dependency retirement path admits cast roots and dependent
+cast edges, validates their authentic predecessor through the cast provider, and
+records ordinary catalog removals. Candidate and published removals retire both
+the directed pair index and its name binding; RESTRICT discovers blockers before
+retirement, while CASCADE removes dependent casts without removing their surviving
+function providers. Retained immutable catalog views keep the old definition.
+
+CAST descriptors also use the shared ownerless ACL-validation path: structural
+publication validation belongs to the cast provider, while ownership and USAGE
+checks belong to the real endpoint types. Owner errors use search-path-visible
+type names; DROP IF EXISTS notices retain parsed type spelling and normalized
+system aliases (for example `pg_catalog.int4`), like routine deletion notices.
+Prepare is quiet even in an explicit read-only transaction; Execute performs
+the existing read-only check before the explicit-transaction DDL boundary.
+
 ## Testing
 
 Ordinary aggregate declaration, authorization, catalog/dependency and actual
@@ -186,6 +220,34 @@ the structural transition/remap units under:
 make check RUN='^(TestCreateAggregate|TestSelectCommonUsage)'
 ```
 
+`TestCreateAggregateDetachedDeclaredCastSupport` exercises real `array_append`
+specialization with catalog-owned enum/array descriptors and one-way INOUT
+casts. Implicit A→B selects B[]/B→B[]; implicit B→A selects A[]/A→A[].
+Assignment-only and explicit-only edges refuse implicit specialization in
+both directions, and the released pseudo declaration remains unchanged.
+This pure unit does not admit nonbinary SFUNC execution or issue SQL:
+
+```sh
+make check RUN='^TestCreateAggregateDetachedDeclaredCastSupport$'
+```
+Retained binary-definition and malformed-recipe units include real polymorphic
+`array_append`, concrete BYTEACAT, absent/replaced/reverse live edges and
+descriptor-generation remapping. A nil historical recipe cannot borrow a
+later declared edge:
+
+```sh
+make check RUN='^TestCreateAggregateRetained(Polymorphic)?BinaryDefinition$'
+```
+
+Public direct/prepared/held/stored, same/fresh-owner native Restore and unchanged
+dump-SQL PostgreSQL replay are owned by the cast-definition family:
+
+```sh
+make check RUN='^TestReferenceCastDefinitionAggregate(Binary|PolymorphicBinary)$'
+make check RUN='^TestReferenceCastDefinitionAggregate(Binary|PolymorphicBinary)$' REFERENCE=1
+```
+
+
 The seventeen REL_18_6 geometric conversion declarations retain fixed OIDs, exact
 input/result signatures, strict immutable parallel-safe function attributes and
 the dedicated `GeometryConversionRoutineProvider` association. No lookup-only
@@ -194,6 +256,10 @@ adjacent constructor or operator becomes executable.
 ```sh
 make check RUN='^TestGeometryConversionDeclarations$'
 ```
+
+Selected cast DDL/runtime coverage:
+`make check RUN='^TestReferenceCastDefinition(Grammar|Notices|Signatures|SignatureAdapters|Authority|Dependencies|FunctionAndContexts|UtilityPolicies)$'`
+and the same selector with `REFERENCE=1`.
 
 
 POINT's ten released operator identities (eight predicates plus deprecated
@@ -325,15 +391,18 @@ make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluati
 The shared complete contract and bounded selected groups are in
 [reference/operators](../../../reference/operators/README.md#routine-parameter-binding).
 
-Input-origin wrappers do not change utility IF EXISTS semantics. Routine and
-operator DROP inspect the existing SQL diagnostic authority for their unchanged
-suppression codes, emit the existing complete notice, and return every
-unsuppressed error with its outer provenance/identity intact. This is semantic
-error handling, not fresh-input recoverability classification.
+Input-origin wrappers do not change utility IF EXISTS semantics. Routine,
+operator and cast DROP inspect the existing SQL diagnostic authority for their
+unchanged suppression codes, emit the existing complete notice, and return every
+unsuppressed error with its outer provenance/identity intact. DROP CAST suppresses
+only missing endpoint types (`42704`) or schemas (`3F000`) during endpoint
+resolution; preparation remains quiet and domain warnings are unchanged. This is
+semantic error handling, not fresh-input recoverability classification.
 
 ```sh
 make check RUN='^TestReferenceRoutineDrop(Diagnostics|AuthorityAndAdmission|Atomicity)$'
 make check RUN='^TestReferenceUserOperator(EdgeDiagnostics|DiagnosticsAtomicity)$'
+make check RUN='^TestReferenceCastDefinitionNotices$'
 ```
 
 Run both reference groups again with `REFERENCE=1`; external900-second deadlines.

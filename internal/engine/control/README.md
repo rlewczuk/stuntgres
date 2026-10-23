@@ -213,6 +213,13 @@ truthful pre-output Dump rejection, not silent permission reset.
 The aggregate persistence scenario replays the actual unchanged emitted bytes
 on PostgreSQL and twice through native Restore. Its TEMP scenario records real
 namespace/sequence allocator collisions and retained identity after each Restore.
+Retained aggregate binary recipes request the same real per-consumer CAST
+windows used by frozen expressions. Their endpoint/support prerequisites precede
+CREATE AGGREGATE; the window closes afterward and the authentic final absent or
+replacement cast state is preserved. Stored calls use the retained aggregate
+declaration rather than inventing a permanent compatibility cast or deferring
+aggregate validation globally. Strict/no-init execution may then honestly fail
+its live startup compatibility check while the declaration remains dumpable.
 
 ```sh
 make check RUN='^TestReferenceCreateAggregate(Persistence|TemporaryRemap)$'
@@ -264,3 +271,90 @@ make check RACE=1 RUN='^TestReferenceControl|^TestControlTransactions|^TestResto
 Changes to the Collect or Emit tables, the sections or the script also need a dump,
 restore and re-dump comparison against a `master` baseline (see 18b and
 18c in [ENGINE-SPLIT-dump.md](../../../docs/ENGINE-SPLIT-dump.md)).
+
+Cast-feature rendering adds real qualified declarations and raw32-preserving
+SQL only where required. Ordinary FLOAT4 values, including subnormals, signed
+zero, infinities and canonical quiet NaN, keep their existing canonical literals
+and dump shape. Only noncanonical NaN words need raw bootstrap; the recursive
+`regobj.NeedsFloat4RawReplay` predicate also gates literal rendering and bounded
+composite-array INSERT targets. Detection uses visible physical rows (excluding
+generated cells) and retained literal expressions, not merely column types.
+Genuine frozen cast expressions retain their selected recipes even for finite
+values. `cast.go` shares catalog dependency ownership for graph ordering. Dump
+uses the final exact binary xid→real edge or ordinary temporary CREATE/DROP
+around raw recipes/data and preserves a conflicting final edge.
+Qualified raw-bit SQL uses the actual catalog identity `pg_catalog.float4`,
+including scalar leaves and direct arrays: `real` is an unqualified SQL keyword
+alias, not a type named `pg_catalog.real`.
+Raw word-array input names the existing concrete catalog identity
+`pg_catalog._xid` and uses its shared executable array codec. This does not admit
+transaction-ID array columns or expand the bracket type annotation surface.
+Table composite-array replay uses existing INSERT target slices to retain bounds;
+Restore has no hidden raw-datum decoder or cast-registration bypass.
+Select `TestReferenceCastDefinition(Persistence|ReplayPhases|ReplayConflicts|RawFloat4Persistence|RawCompositeArrayBounds|Atomicity)`
+in both native and `REFERENCE=1` modes after changes.
+Canonical float dump regressions additionally select
+`^TestReference(FloatControlSnapshots|FloatMigratedSmoke|FloatExactOutputText|FloatingArithmeticControlsSmoke)$`
+in both modes, preserving their existing expected SQL and dump→redump equality.
+`^TestFloat4NeedsRawReplay$` independently exercises the scalar boundary and
+canonical codec roundtrip, including domain wrappers and signed/signaling NaNs.
+`cast_replay.go` derives ordinary-SQL windows only after default deferral and
+invalid/inherited CHECK phases are settled. `cast_consumer.go` identifies the
+actual emitted statement: deferred defaults and CHECKs each own their windows,
+not a union over the earlier CREATE event. Independently altered members with
+conflicting historical recipes move to the existing SET DEFAULT/ADD CHECK SQL
+phases without changing validity. Cast declarations are excluded from the
+generic early declaration chain so a final pair can follow a post-data window.
+The default-deferral eligibility also includes a retained, validated standard
+SQL routine whose exact reference is in the default's captured dependencies.
+This breaks the genuine table → default routine → same table declaration cycle
+by emitting CREATE TABLE, CREATE FUNCTION, then ALTER TABLE SET DEFAULT.
+The routine retains its real volatility; neither deferral nor Restore evaluates
+the default. Existing rows replay with explicit values. The default's routine
+and type prerequisites move to its actual DEFAULT event, while NOT VALID table
+and domain checks retain their post-data events and final pair windows.
+Original methods, selected routines, signature adapters and contexts are kept.
+Retained CASE templates use ordinary simple CASE syntax (one test evaluation)
+under the selected implicit edge. Omitted routine defaults belong to their
+declaration, not the call's written arguments; standard-body SELECT queries are
+direct consumers too. Source-column virtual/transitive grafts are not walked.
+Actual final conflicting rows are installed once after all windows for their
+pair; no helper survives. Immutable element/CASE nodes remain the sole execution
+authority, not a second capture registry.
+Foreign defaults use the same requirement collector and cast windows.
+Inline foreign members bind in their real CREATE FOREIGN TABLE; independent
+late attributes bind in the existing post-rules foreign-default section, not
+a fabricated graph DEFAULT event. Conflicting foreign default epochs defer
+only their affected members, without changing ordinary global deferral. Final
+cast rows needed after those windows retain graph dependency order but emit
+once at the end of that section. No provider callback/default evaluation is
+introduced.
+
+Selected integration proof (run each also with `REFERENCE=1`):
+
+```sh
+make check RUN='^TestReferenceCastDefinitionForeignDefaults$'
+make check RUN='^TestReferenceFDWImport(DefaultPersistence|Persistence)$'
+make check RUN='^TestReferenceCastDefinitionPersistence$'
+```
+
+The new witness independently expects old/fresh ordinary default values 1/2,
+foreign per-attribute dependencies on cast_old/cast_new (including conflicting
+epochs in one declaration), and one final implicit function cast to cast_new.
+It uses the existing portable FDW metadata fixture with NO HANDLER and
+NO VALIDATOR. Native Dump/Reset/Restore and actual emitted SQL replay on
+PostgreSQL repeat the same independently specified catalog/value assertions;
+the scenario performs no remote scan.
+
+Generated-column epoch conflicts use explicit seeds for the existing
+`table.PrepareGenerationPlaceholders` component planner, not a second traversal
+or catalog authority. SET EXPRESSION windows are per attribute; the collector
+rebuilds only affected CREATE dependencies using `tableDumpPredecessors`.
+Recursive historical CHECKs use the existing real ADD executor after every
+affected declaration and before affected rows; local leaf CHECKs use ONLY.
+The generated replay witness uses scalar xid input and existing array
+constructors: the old binary xid→float4 recipe preserves word `0000002a`,
+while the new INOUT recipe produces numeric 42, word `42280000`. Both retain
+lower bound zero, their NULL element and stored-generation flags. The final
+catalog contains one explicit INOUT row with function OID zero; no
+`pg_catalog.float4(integer)` provider or immutable SQL routine syntax is needed.

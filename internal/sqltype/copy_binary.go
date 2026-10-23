@@ -103,7 +103,7 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		v.oid, v.integer = binary.BigEndian.Uint32(p), 1
 		v.text = strconv.FormatUint(uint64(v.oid), 10)
 	case Float4:
-		v.floating = float64(math.Float32frombits(binary.BigEndian.Uint32(p)))
+		v = float4FromBits(d, binary.BigEndian.Uint32(p))
 	case Float8:
 		v.floating = math.Float64frombits(binary.BigEndian.Uint64(p))
 	case Circle:
@@ -272,10 +272,13 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 	case Oid, Xid, Cid, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary:
 		return binary32(dst, v.oid), nil
 	case Regclass:
+		if v.integer == 1 {
+			return binary32(dst, v.oid), nil
+		}
 		n, err := strconv.ParseUint(v.text, 10, 32)
 		return binary32(dst, uint32(n)), err
 	case Float4:
-		return binary32(dst, math.Float32bits(float32(v.floating))), nil
+		return binary32(dst, v.float4Bits()), nil
 	case Float8:
 		return binary64(dst, math.Float64bits(v.floating)), nil
 	case Circle:

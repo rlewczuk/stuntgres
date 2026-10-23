@@ -78,6 +78,9 @@ func (b *Binder) likeOperand(o ComparisonOperand, target *sqltype.Descriptor) (e
 	if u.Collation.ID != 0 && node.ResultUsage().Collation.ID != 0 {
 		u.Collation = node.ResultUsage().Collation
 	}
+	if selected, handled, selectionErr := b.declaredCoercion(node, u, sqltype.Implicit, node.SourcePosition(), o.raw); handled {
+		return selected, selectionErr
+	}
 	coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), u, sqltype.Implicit)
 	if err != nil {
 		return nil, err

@@ -135,6 +135,9 @@ func (b *Binder) assignCompositeMember(node expr.Expr, target sqltype.Usage, mod
 		}
 		return plan.RowExpr{Info: b.Info(target, row.Pos, props), Fields: fields}, nil
 	}
+	if selected, handled, selectionErr := b.declaredCoercion(node, target, mode, pos, nil); handled {
+		return selected, selectionErr
+	}
 	coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), target, mode)
 	if err != nil {
 		return node, err

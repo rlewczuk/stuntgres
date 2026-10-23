@@ -17,6 +17,11 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 	base := target
 	base.SubID = 0
 	if d, ok := read.Find(base); ok {
+		if cast, ok := d.(*catalog.Cast); ok {
+			source := read.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(cast.Source)})
+			target := read.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(cast.Target)})
+			return "cast from " + catalog.TypeDiagnosticNameAt(read, source, path) + " to " + catalog.TypeDiagnosticNameAt(read, target, path)
+		}
 		if description, family := regobj.OperatorFamilyDescription(read, d, path); family {
 			return description
 		}

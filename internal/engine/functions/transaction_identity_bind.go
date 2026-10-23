@@ -118,8 +118,5 @@ func namedTransactionIdentity(b CallTypeContext, raw parser.FunctionExpr, args [
 	if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "pg_get_multixact_members" || raw.Variadic || len(args) != 1 || !transactionMembersNamed(raw) || !declaredTypes(declared, []sqltype.ID{sqltype.Xid}) {
 		return nil, nil, false
 	}
-	if args[0].Usage.Type != nil && args[0].Usage.Type.BaseType() != b.Type(sqltype.Xid) {
-		return nil, nil, false
-	}
-	return namedInputs(args, declared, []int{0})
+	return namedInputs(b, args, declared, []int{0})
 }

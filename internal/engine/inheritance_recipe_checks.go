@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -42,11 +44,16 @@ func (e *Engine) captureRestoredGeneration(op *session.Operation, raw *parser.Al
 	return table.CaptureRestoredGeneration(auth.Catalog, ref, raw)
 }
 
-func (e *Engine) restoreInheritedCheck(op *session.Operation, raw *parser.AlterTable, repairs []table.RestoredGenerationRecipe) error {
+// restoreCheck admits real valid CHECK additions in the private restore stage.
+// ONLY local additions cannot propagate to descendants or merge inherited checks.
+// Recursive generation replay retains connected repair authority. Fresh
+// recursive declarations require absent names throughout the affected closure.
+// Binding, ownership, row validation and publication belong to ordinary ALTER.
+func (e *Engine) restoreCheck(op *session.Operation, raw *parser.AlterTable, repairs []table.RestoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
-	if err := table.RestoredInheritedCheckShape(raw); err != nil {
+	if err := table.RestoredCheckShape(raw); err != nil {
 		return err
 	}
 	e.mu.Lock()
@@ -58,16 +65,73 @@ func (e *Engine) restoreInheritedCheck(op *session.Operation, raw *parser.AlterT
 	if !partitionConstraintReplayImport(e, op, auth) {
 		return sqlError("0A000", table.RestoreInheritedCheckBoundary)
 	}
+	ref, err := e.resolveRelationReference(auth, raw.Name, false)
+	if err != nil {
+		return err
+	}
+	target, ok := auth.Catalog.Relation(ref.Address)
+	if !ok || target.RelationKind != catalog.TableRelation || target.Partition != nil || target.Membership != nil {
+		return sqlError("0A000", table.RestoreInheritedCheckBoundary)
+	}
+	namespace, exists := auth.Catalog.Namespace(target.Namespace())
+	if !exists || namespace.Temporary != (ids.SessionToken{}) {
+		return sqlError("0A000", table.RestoreInheritedCheckBoundary)
+	}
+	inherited := catalog.InheritanceParticipant(auth.Catalog, target)
+	if raw.Only {
+		if !inherited || !raw.Actions[0].Check.NoInherit && catalog.InheritanceHasChildren(auth.Catalog, target.Address()) {
+			return sqlError("0A000", table.RestoreInheritedCheckBoundary)
+		}
+		for _, check := range target.Constraints.Check {
+			if check.Name == raw.Actions[0].Check.Name.Text {
+				// An existing inherited CHECK must not be merged into a local
+				// declaration merely to authorize a historical replay window.
+				return sqlError("0A000", table.RestoreInheritedCheckBoundary)
+			}
+		}
+		return table.ValidateInheritance(auth.Catalog, target)
+	}
+	if !inherited {
+		return nil
+	}
+	connectedRepair := false
+	for _, repair := range repairs {
+		if table.InheritedRecipeConnected(auth.Catalog, target.Address(), repair.Ref.Address) {
+			connectedRepair = true
+			break
+		}
+	}
+	if !connectedRepair && !raw.Actions[0].Check.NoInherit && catalog.InheritanceHasChildren(auth.Catalog, target.Address()) {
+		// Reuse the real propagation closure, but admit only new definitions.
+		// No existing local or inherited CHECK can be merged by this path.
+		for _, member := range table.InheritanceAlterOrder(auth.Catalog, target) {
+			if err := op.Context().Err(); err != nil {
+				return err
+			}
+			namespace, exists := auth.Catalog.Namespace(member.Namespace())
+			if member.RelationKind != catalog.TableRelation || member.Partition != nil || member.Membership != nil || !exists || namespace.Temporary != (ids.SessionToken{}) {
+				return sqlError("0A000", table.RestoreInheritedCheckBoundary)
+			}
+			if err := relationProvider.Validate(auth.Catalog, member); err != nil {
+				return err
+			}
+			if err := table.ValidateInheritance(auth.Catalog, member); err != nil {
+				return err
+			}
+			for _, check := range member.Constraints.Check {
+				if check.Name == raw.Actions[0].Check.Name.Text {
+					return sqlError("0A000", table.RestoreInheritedCheckBoundary)
+				}
+			}
+		}
+		return nil
+	}
 	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
 	if !actor.Superuser {
 		return sqlError("0A000", table.RestoreInheritedCheckBoundary)
-	}
-	ref, err := e.resolveRelationReference(auth, raw.Name, false)
-	if err != nil {
-		return err
 	}
 	return table.InheritedCheckRecipe(auth.Catalog, relationProvider, ref, repairs)
 }

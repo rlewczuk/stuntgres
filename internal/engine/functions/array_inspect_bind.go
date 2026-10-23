@@ -32,7 +32,7 @@ func bindArrayInspect(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	var ok bool
 	targets[0], ok = arrayInputTarget(operands[0].Usage, true)
 	targets[1] = b.Type(sqltype.Int4).Usage()
-	if !ok || !knownCallEdges(operands, targets[:len(operands)]) {
+	if !ok || !knownCallEdges(b, operands, targets[:len(operands)]) {
 		return signature()
 	}
 	if err := CallDecorationError(raw); err != nil {

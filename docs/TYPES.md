@@ -150,10 +150,10 @@ datums; ordinary text/binary input still rejects negative radii. Negative circle
 replay through a closed qualified constructor expression, never invalid circle
 text. Supported domain/composite carriers retain their type checks and identity.
 Existing array carriers containing negative constructor circles retain exact
-dimensions, bounds and typed leaves through native destination-owned snapshot
-metadata and a SQL NULL placeholder. That private metadata is not PostgreSQL
-array reconstruction; PostgreSQL sees the placeholder. Scalar/domain/composite
-constructor SQL remains replayable on PostgreSQL. Native materialized snapshots
+dimensions, bounds and typed leaves through recursive SQL constructors and
+bounded INSERT targets. These emitted statements replay on PostgreSQL as well
+as native Restore; only authentic stored domain NULLs require private snapshot
+metadata. Native materialized snapshots
 retain their captured values; emitted PostgreSQL definitions start WITH NO DATA
 and require REFRESH to recompute them.
 `box` of a negative circle can expose inverted raw corners: native replay keeps

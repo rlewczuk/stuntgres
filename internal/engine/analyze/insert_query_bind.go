@@ -141,8 +141,8 @@ func bindInsertSource(out *Binding, binder *Binder, auth Authority, s *parser.In
 	return nil
 }
 
-func CommonValuesUsage(nodes [][]expr.Expr, raw [][]parser.Expr, column int, text sqltype.Usage) (sqltype.Usage, error) {
-	return selectCommonUsage(len(nodes), func(i int) ComparisonOperand {
+func CommonValuesUsage(view catalog.Read, nodes [][]expr.Expr, raw [][]parser.Expr, column int, text sqltype.Usage) (sqltype.Usage, error) {
+	return selectCommonUsage(view, len(nodes), func(i int) ComparisonOperand {
 		operand := ComparisonOperand{Node: nodes[i][column]}
 		if raw != nil {
 			operand.raw = raw[i][column]
@@ -213,7 +213,7 @@ func (b *Binder) BindValues(source *parser.ValuesQuery, identityDiscard bool) (*
 	schema := make([]catalog.Column, width)
 	projection := make([]expr.Expr, width)
 	for j := range width {
-		common, err := CommonValuesUsage(nodes, rawRows, j, b.Type(sqltype.Text).Usage())
+		common, err := CommonValuesUsage(b.BindingCatalog(), nodes, rawRows, j, b.Type(sqltype.Text).Usage())
 		if err != nil {
 			return nil, err
 		}

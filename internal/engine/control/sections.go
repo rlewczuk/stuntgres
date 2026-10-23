@@ -169,8 +169,20 @@ func emitDumpForeignDefaults(_ context.Context, s *dumpScript, w *dumpWriter) er
 	if err := w.forceOwner("postgres"); err != nil {
 		return err
 	}
-	if err := emitDumpLines(w, s.foreignDefaultStatements); err != nil {
-		return err
+	for _, statement := range s.foreignDefaultStatements {
+		if err := s.emitCastConsumer(w, statement.Site, "postgres", func() error { return w.emit(statement.SQL) }); err != nil {
+			return err
+		}
+	}
+	// The authentic final rows remain ordinary CREATE CAST declarations,
+	// ordered by their original dependency graph, exactly once after the
+	// last historical foreign DEFAULT window.
+	for _, event := range s.eventOrder {
+		if event.Phase == dump.Declaration && s.lateForeignCasts[event.OID] {
+			if err := emitDumpDeclaration(w.ctx, s, w, event); err != nil {
+				return err
+			}
+		}
 	}
 	if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
 		return err

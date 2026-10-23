@@ -74,6 +74,7 @@ type PreparedCaptures struct {
 	SequenceConstants []sequence.Constant
 	RegclassConcat    bool
 	RegtypeConstants  []RegtypeConstant
+	Casts             map[catalog.CastPair]*catalog.Cast
 }
 
 // ResolverInputs holds the statement input resolvers captured from the

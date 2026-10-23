@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -20,6 +21,35 @@ func CoercionProperties(child expr.Expr, plan sqltype.CoercionPlan) expr.Propert
 		properties.Volatility = expr.Stable
 	}
 	return properties
+}
+
+// coerceAssignmentForConstruct retains the selected conversion and its real
+// routine/provider errors. Only a type-level refusal gets the enclosing
+// construct's diagnostic; a provider failure is not a coercion refusal.
+func (b *Binder) coerceAssignmentForConstruct(node expr.Expr, target sqltype.Usage, construct string, raw parser.Expr) (expr.Expr, error) {
+	// The canonical opaque catalog carrier is a valid expression result, not
+	// a concrete coercion input. Reject it before entering cast selection.
+	if node.ResultUsage().CatalogNullUsage() {
+		return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type %s, not type %s", construct, b.DiagnosticTypeName(target.Type), b.DiagnosticTypeName(node.ResultUsage().Type)), parser.ExpressionStart(raw))
+	}
+	pos := raw.SourcePosition()
+	// Stored syntax keys name the cast owner rather than its postfix operand.
+	// Normalize already selected inner conversions before wrapping that owner.
+	if cast, ok := raw.(parser.CastExpr); ok {
+		pos = cast.Pos
+	}
+	syntax := raw
+	if b.Params.NoParameters || b.Consumer.frozenDefinition {
+		syntax = b.NormalizeStoredExpression(raw)
+	}
+	converted, err := b.CoerceSelected(node, target, sqltype.Assignment, pos, syntax)
+	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42804" {
+		refusal := catalog.CanCoerce(b.BindingCatalog(), node.ResultUsage(), target, sqltype.Assignment)
+		if diagnostic, ok := refusal.(*sqlstate.Error); ok && diagnostic.Code == "42804" {
+			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type %s, not type %s", construct, b.DiagnosticTypeName(target.Type), b.DiagnosticTypeName(node.ResultUsage().Type)), parser.ExpressionStart(raw))
+		}
+	}
+	return converted, err
 }
 
 // DomainCoercionInput strips the COLLATE annotations above child when it is

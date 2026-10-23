@@ -161,8 +161,16 @@ func PlanJSONReturning(source, target Usage) (CoercionPlan, error) {
 	return p, nil
 }
 
-// Rebind preserves special SQL/JSON conversion admission across generations.
+// Rebind preserves admitted binary and SQL/JSON conversion operations across
+// descriptor generations without consulting a later catalog edge.
 func (p CoercionPlan) Rebind(source, target Usage, mode CoercionContext) (CoercionPlan, error) {
+	if p.binary.method != binaryCoercionNone {
+		next, err := PlanDeclaredBinaryCoercion(source, target)
+		if err == nil && next.binary.method != p.binary.method {
+			err = fmt.Errorf("binary coercion representation changed")
+		}
+		return next, err
+	}
 	if p.jsonReturning {
 		return PlanJSONReturning(source, target)
 	}

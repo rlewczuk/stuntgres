@@ -82,6 +82,24 @@ pending-grant decision they call live here.
   recipe/owner/FK repair records, and `PhysicalNotNullDumpDependencies`
   (`physical_not_null_dump_graph.go`), the dump graph edges of moved
   physical NOT NULL providers over a `dump.Resolver`.
+  The root also admits a qualified single named valid ADD CHECK for a permanent
+  ordinary table outside the inheritance graph when historical cast recipes
+  require separate replay statements. This remains real ALTER TABLE with
+  normal binding, ownership, row validation and cancellation.
+  Fresh local `ALTER TABLE ONLY ... ADD CHECK` replay on an inheritance
+  participant is also admitted when it is `NO INHERIT` or has no descendants.
+  The original flag is preserved; existing or inherited constraint names cannot
+  be merged into local definitions. A fresh recursive ADD CHECK on a parent with
+  descendants is also admitted only after verifying permanent ordinary targets
+  and absent names across the real propagation closure. Existing connected
+  generation-repair authority takes precedence; unrelated repairs do not block
+  this ordinary path. Both paths use real ALTER propagation and validation,
+  not a replay marker, and never promote NOT VALID constraints.
+  `PrepareGenerationPlaceholders(view, tables, seeds)` reuses the existing
+  inheritance-component planner for explicitly identified historical generated
+  recipe conflicts as well as differing inherited recipes. Nil seeds preserve
+  ordinary captured-inheritance selection; each selected component restores its
+  real generation expressions before CHECKs and data.
 - **Restore repair cores** (24d.3; `*_restore*.go`,
   `inheritance_recipe_restore.go`, `inheritance_retired_remap.go`,
   `default_replay.go`): the decisions inside the root Restore hooks, over a
@@ -104,6 +122,9 @@ pending-grant decision they call live here.
   `RestoredPhysicalForeignKeyProvider` hold a role record, not an
   authorization view. Root-only validators come in as arguments
   (`catalog.Provider`, `*ids.Domain`).
+  Retained selected-cast DEFAULTs can replay as independent ALTER statements
+  on ordinary and foreign tables. This admission does not change global
+  deferral or evaluate a default; normal binding and provider validation apply.
 - **Inheritance** (`inheritance_*.go`, `typed_inheritance.go`): the recursion
   plan record `InheritanceAlterPlan` (the root holder
   `inheritanceAlterState` adds the stage, journal and prepared nodes),

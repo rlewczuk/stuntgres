@@ -50,6 +50,14 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	if n.PresenceOnly {
 		return OpenNode(ctx, state, n.Child)
 	}
+	evaluation := state.Evaluation(ctx)
+	for _, call := range n.Calls {
+		if provider, ok := call.Provider.(*TransitionAggregate); ok {
+			if err := provider.Start(&evaluation); err != nil {
+				return Stage{}, err
+			}
+		}
+	}
 	child, err := OpenNode(ctx, state, n.Child)
 	if err != nil {
 		return Stage{}, err
@@ -102,7 +110,6 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	if directWidth > 0 {
 		directValues = make([]sqltype.Value, 2+directWidth)
 	}
-	evaluation := state.Evaluation(ctx)
 	output := evaluation.Output
 	presentation := evaluation.Presentation()
 	output.Regclass, output.Regtype, output.Regproc = presentation, presentation, presentation

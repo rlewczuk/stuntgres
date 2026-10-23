@@ -8,11 +8,8 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func geometryConversionShapeCheck(relation string, placeholder bool) fixture.Step {
+func geometryConversionShapeCheck(relation string) fixture.Step {
 	row := []any{"[-2:-1][3:4]", int64(4), float64(-1), float64(1), float64(1), float64(-2)}
-	if placeholder {
-		row = []any{nil, nil, nil, nil, nil, nil}
-	}
 	return fixture.Select("SELECT array_dims(a) AS dims,cardinality(a) AS n,radius((a[-2][3]).c) AS first,radius((a[-2][4]).c) AS second,radius((a[-1][3]).c) AS third,radius((a[-1][4]).c) AS last FROM "+relation, []string{"dims", "n", "first", "second", "third", "last"}, []string{"TEXT", "INT4", "FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8"}, [][]any{row})
 }
 
@@ -33,7 +30,7 @@ func TestReferenceGeometryConversionCarrierShape(t *testing.T) {
 			run(fixture.Exec("CREATE MATERIALIZED VIEW geom_conversion_shape_snapshot AS SELECT a FROM geom_conversion_shape", 1))
 			verify := func(run func(fixture.Step)) {
 				for _, relation := range []string{"geom_conversion_shape", "geom_conversion_shape_snapshot"} {
-					s := geometryConversionShapeCheck(relation, false)
+					s := geometryConversionShapeCheck(relation)
 					run(s)
 					run(fixture.Prepared(s))
 				}
@@ -73,12 +70,12 @@ func TestReferenceGeometryConversionCarrierShape(t *testing.T) {
 					t.Fatal(err)
 				}
 				pgRun := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, s) }
-				// Private native array metadata is ignored by PostgreSQL. SQL
-				// explicitly contains a NULL cell, not a promise of array replay.
-				pgRun(geometryConversionShapeCheck("geom_conversion_shape", true))
+				// Deep constructor SQL preserves the real table payload and
+				// bounds; PostgreSQL still has no native snapshot-control API.
+				pgRun(geometryConversionShapeCheck("geom_conversion_shape"))
 				pgRun(fixture.MaterializedViewUnpopulated("geom_conversion_shape_snapshot"))
 				pgRun(fixture.Exec("REFRESH MATERIALIZED VIEW geom_conversion_shape_snapshot", 0))
-				pgRun(geometryConversionShapeCheck("geom_conversion_shape_snapshot", true))
+				pgRun(geometryConversionShapeCheck("geom_conversion_shape_snapshot"))
 			}
 		})
 	}

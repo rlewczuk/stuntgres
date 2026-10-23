@@ -44,6 +44,9 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		}
 		return address.ObjectID, nil
 	}
+	if cast, ok := object.(*catalog.Cast); ok {
+		return cast.OID, nil
+	}
 	if extension, ok := object.(*catalog.Extension); ok {
 		namespace, ok := view.Namespace(extension.TargetNamespace)
 		if !ok || namespace.Temporary != (ids.SessionToken{}) {

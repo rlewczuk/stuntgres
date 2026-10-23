@@ -5663,19 +5663,38 @@ See [catalog contract](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferencePGSequenceFeatureSmoke$'`,
 and the same command with `REFERENCE=1`.
 
-**Cast catalog change note:** `pg_catalog.pg_cast` is readonly relation2605 with
-six known NOT NULL fields: four OIDs (`oid`, `castsource`, `casttarget`, `castfunc`)
-and two internal CHARs (`castcontext`, `castmethod`). The coercion implementation
-owner publishes exactly69 complete-context numeric/MONEY/OID/temporal/
-character/BOOL/typmod/JSON edges with exact fixed type/function identities and
-stable local generated row IDs. This is not a complete conversion inventory:
-automatic string I/O, domain/base conversions and ordinary identities have no
-rows, and partial NAME/REGCLASS/BIT/internal-CHAR providers remain omitted.
-No new cast execution or CREATE/DROP CAST is added. Native Dump omits virtual
-rows; Reset/Restore reconstruct them while retained results remain usable.
-See [bounded owner metadata and omissions](docs/design/PG18-CAT-PG-CAST.md).
-Feature smoke: `make check RUN='^TestReferencePGCastFeatureSmoke$'`,
-and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
+**Cast definition and catalog change note:** `CREATE CAST` registers directional
+function, INOUT or binary conversions with independently enforced explicit,
+assignment and implicit contexts. Function casts invoke the actual selected SQL
+routine, including nonstrict NULL, target typmod and explicit-context arguments;
+losing overload probes do not execute or bind conversion routines. `DROP CAST`
+supports IF EXISTS, RESTRICT and CASCADE through the ordinary dependency owner.
+Creators own either endpoint and need USAGE on both; binary declarations also
+require superuser and compatible PostgreSQL layout/category facts.
+
+`pg_catalog.pg_cast` remains readonly relation2605 with six known NOT NULL fields,
+and combines the73 protected fixed provider rows with immutable user declarations.
+User rows retain stable local OIDs, context/method and actual routine identity;
+IO and binary rows have function0. Automatic string IO, domain/base conversions
+and ordinary identities do not acquire artificial rows. Native binary execution
+supports proven scalar-word/byte/geometry mappings, not arbitrary PostgreSQL heap
+layouts; unsupported representations fail explicitly before publication.
+FLOAT4 raw32 payloads, including signaling NaNs, survive binary conversion,
+transport and native Dump/Restore. Replay uses real qualified CREATE/DROP CAST
+and exact XID words, not a decoder or a hidden restoration opcode.
+
+Stored expressions retain selected routine/IO/relabel meaning after DROP CAST.
+Native held statements reanalyze relevant cast changes (unrelated DDL does not
+retarget them); PostgreSQL can retain an already cached executable cast choice.
+Existing aggregate support functions also admit declared implicit binary edges
+and retain their real datum adapters after DROP CAST. Strict aggregates without
+INITCOND recheck live binary compatibility at execution startup; removing that
+compatibility raises42P13, including for held calls and empty input.
+Constructor replay preserves independent nested array bounds and NULL composite
+identity through ordinary table and captured materialized-view restoration.
+See [cast design and boundaries](docs/design/PG18-CAT-PG-CAST.md).
+Feature smoke: `make check RUN='^TestReferenceCastDefinitionFeatureSmoke$'`
+and the same command with `REFERENCE=1` for pinned PostgreSQL18.6.
 
 **Installed-extension catalog change note:** `pg_catalog.pg_extension` is readonly
 relation3079 with eight exact OID/NAME/BOOL/TEXT/OID[]/TEXT[] fields, known native

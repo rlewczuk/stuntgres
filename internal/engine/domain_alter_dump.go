@@ -11,9 +11,12 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// A historical cast recipe may require a valid CHECK after CREATE DOMAIN.
+// Admission preserves its validity flag; ordinary ALTER owns binding and
+// validation against existing rows before the private stage can be published.
 func restoreDomainAlter(raw *parser.AlterDomain) error {
-	if raw == nil || raw.Action != parser.DomainAddCheck || raw.Check == nil || !raw.Check.NotValid || raw.Check.NoInherit || raw.Check.Name.Text == "" || raw.Constraint != raw.Check.Name || raw.IfExists || raw.Mode != 0 || len(raw.Name.Parts) != 2 || raw.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(raw.Name.Parts[0].Text, "pg_temp_") {
-		return sqlError("0A000", "restore accepts only qualified named NOT VALID domain CHECK additions")
+	if raw == nil || raw.Action != parser.DomainAddCheck || raw.Check == nil || raw.Check.NoInherit || raw.Check.Name.Text == "" || raw.Constraint != raw.Check.Name || raw.IfExists || raw.Mode != 0 || len(raw.Name.Parts) != 2 || raw.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(raw.Name.Parts[0].Text, "pg_temp_") {
+		return sqlError("0A000", "restore accepts only qualified named domain CHECK additions")
 	}
 	return dump.RestoreScalar(raw.Check.Expression, true)
 }

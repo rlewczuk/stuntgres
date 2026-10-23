@@ -2130,6 +2130,10 @@ type CastExpr struct {
 	Syntax   CastSyntax
 	Callee   string
 	Pos      Position
+	// FrozenMethod retains stored IO/relabel semantics without a pg_cast dependency.
+	// It is never set by SQL parsing.
+	FrozenMethod  string
+	FrozenContext string
 }
 
 func (CastExpr) expression() {}

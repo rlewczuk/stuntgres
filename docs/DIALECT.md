@@ -500,6 +500,53 @@ ACLs remain unsupported by Dump, which rejects them before output rather than
 silently dropping permissions. This does not add prerequisite SQL-routine ACL
 serialization. See [selected proof](../reference/aggregates/README.md#create-aggregate-contract).
 
+## Cast declarations and native representations
+
+CREATE CAST supports real function, INOUT and WITHOUT FUNCTION declarations,
+with explicit-only (default), assignment or implicit admission. Cast identity is
+the ordered endpoint pair: no cast schema, owner or ACL is invented. Ownership
+of either endpoint and USAGE on both are required; binary declarations also
+require superuser and PostgreSQL physical/category checks. Domain declarations
+warn and remain catalog objects but do not override domain/base coercion.
+
+Function casts execute their selected real routine with the source evaluated
+once, target typmod/-1 and explicit-context flag. Nonstrict functions receive
+NULL; EXECUTE and own-write/rollback semantics remain ordinary routine semantics.
+INOUT invokes descriptor output/input in the current statement environments.
+Declared context refusal blocks generic IO fallback; unknown literals still
+enter through target input. ARRAY constructor children bind element conversions
+before an array-level declaration can apply; typed arrays retain their separate
+whole-array/elementwise path. No arbitrary transitive cast search is introduced.
+
+Native binary casts deliberately support proven word, byte and ordered-geometry
+families, not a PostgreSQL heap ABI emulator. Equal PostgreSQL size/alignment
+alone is insufficient: unsupported representation pairs fail0A000 before
+publication; genuinely malformed payloads fail0A000 atomically at evaluation.
+FLOAT4 raw32 words, including signaling NaNs, remain exact through relabel,
+binary transport and native persistence. Ordinary arithmetic creates fresh bits.
+
+Existing aggregate SFUNC and strict-seed admission accepts only direct implicit
+binary compatibility, not assignment/explicit edges or function/INOUT conversion.
+Initialized aggregates retain the admitted physical adapter after DROP/replacement.
+Strict aggregates without INITCOND additionally recheck current binary feasibility
+at executor startup, including held/stored calls and empty input; loss of that
+compatibility raises42P13 without choosing a replacement conversion.
+
+Constructor replay preserves distinct bounds inside composite/array carriers.
+A non-one-based multidimensional constructor still needs its own bounded INSERT
+target; a nested value without such a destination cannot be dumped through this
+recipe. Closed snapshot SQL admits only the generated array-fill/concatenation
+forms with genuine builtin providers, not custom functions sharing their names.
+
+Stored expressions keep selected routine/IO/relabel meaning after DROP CAST;
+native held analysis instead notices changes to relevant pairs (including an
+observed absence), not every DDL publication. PostgreSQL may keep the already
+cached executable choice; the lifecycle reference scenario asserts native77
+and PostgreSQL41 independently after the relevant edge is recreated.
+Qualified dump declarations and real xid→real bootstrap CREATE/DROP statements
+preserve raw32 leaves and the final cast catalog; Restore uses isolated ordinary
+DDL and publishes only after complete validation/cancellation checks.
+
 ## Scalar SQL routines
 
 SQL-language `CREATE FUNCTION` accepts named/anonymous IN, OUT, INOUT and

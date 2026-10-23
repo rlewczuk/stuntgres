@@ -78,6 +78,24 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 				owned.Definition.Functions[i] = address(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}).ObjectID
 			}
 			owned.Definition.TransitionType = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: owned.Definition.TransitionType}).ObjectID
+			if d.Aggregate.BinaryRecipe != nil {
+				original := d.Aggregate.BinaryRecipe
+				var recipe *catalog.AggregateBinaryRecipe
+				for i, old := range original.Casts {
+					next := old
+					next.Source = sqltype.ID(address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Source)}).ObjectID)
+					next.Target = sqltype.ID(address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Target)}).ObjectID)
+					if next != old {
+						if recipe == nil {
+							recipe = &catalog.AggregateBinaryRecipe{Casts: append([]catalog.Cast(nil), original.Casts...)}
+						}
+						recipe.Casts[i] = next
+					}
+				}
+				if recipe != nil {
+					owned.BinaryRecipe = recipe
+				}
+			}
 			n.Aggregate = &owned
 			n.Result = owned.Definition.TransitionType
 			if n.Signature != "" {

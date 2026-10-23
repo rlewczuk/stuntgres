@@ -69,14 +69,14 @@ func TestSelectCommonUsage(t *testing.T) {
 		{"unknown_modifier", []Usage{modified, {}}, types[VarChar].Usage()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, mismatch := SelectCommonUsage(len(tc.inputs), func(i int) Usage { return tc.inputs[i] }, types[Text].Usage())
+			got, mismatch := SelectCommonUsage(len(tc.inputs), func(i int) Usage { return tc.inputs[i] }, types[Text].Usage(), nil)
 			if mismatch.Left != nil || got != tc.want {
 				t.Fatalf("common=%v/%v want=%v", got, mismatch, tc.want)
 			}
 		})
 	}
 	inputs := []Usage{types[Int4].Usage(), types[Int8].Usage(), types[Bool].Usage()}
-	got, mismatch := SelectCommonUsage(len(inputs), func(i int) Usage { return inputs[i] }, types[Text].Usage())
+	got, mismatch := SelectCommonUsage(len(inputs), func(i int) Usage { return inputs[i] }, types[Text].Usage(), nil)
 	if got != (Usage{}) || mismatch.Left == nil || mismatch.Index != 2 || mismatch.Left != types[Int8] || mismatch.Right != types[Bool] {
 		t.Fatalf("lost diagnostic evidence: %v/%v", got, mismatch)
 	}

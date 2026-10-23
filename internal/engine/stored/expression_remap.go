@@ -410,6 +410,7 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		n.Test, n.Otherwise = child(n.Test), child(n.Otherwise)
 		n.Arms = append([]plan.CaseBranch(nil), n.Arms...)
 		for i := range n.Arms {
+			n.Arms[i].Test = child(n.Arms[i].Test)
 			n.Arms[i].Condition, n.Arms[i].Result = child(n.Arms[i].Condition), child(n.Arms[i].Result)
 		}
 		next = n
@@ -936,7 +937,7 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 			return invalid()
 		}
 	}
-	formals, result, err := routine.AggregateSupportTypes(read, nil, p.Support, p.Inputs)
+	formals, result, err := routine.AggregateSupportTypes(read, nil, p.Support, p.Aggregate.Aggregate, p.Inputs)
 	if err != nil || result.Type != p.Usage.Type || len(formals) != len(p.Formals) {
 		return invalid()
 	}

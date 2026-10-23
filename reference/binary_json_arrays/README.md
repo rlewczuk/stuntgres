@@ -400,8 +400,10 @@ remains ordinary `context.Canceled`; PostgreSQL uses real `pg_cancel_backend`
 and independently expected57014 diagnostics. No sleeps, retries, skips, larger
 inputs, production hooks or increased deadlines provide admission.
 
-Only `TestReferenceJSONBConcatDeleteCancellation` uses this local gate; all
-other `BinaryConversionActiveCancel`/sleep-helper consumers are unchanged.
+`TestReferenceJSONBConcatDeleteCancellation` uses its local gate;
+`TestReferenceBinaryConversionActiveCancellation` and
+`TestReferenceJSONElementsCancellation` reuse `outputGateCancel`. Other
+`BinaryConversionActiveCancel`/sleep-helper consumers are unchanged.
 After editing this definition, run oracle-first and then native proof:
 
 ```sh
@@ -625,6 +627,38 @@ source. Volatile/unsafe residuals remain post-expansion: the fresh-prepared/dire
 two-source-row sequence witness consumes exactly three values, not six or one.
 This uses the existing function-source eligibility boundaries, not a change to
 ordinary Boolean evaluation.
+
+Cancellation keeps the original nine source rows and 32MiB nested-string payload.
+The shared SELECT/INSERT body uses the existing `outputGateCancel` public
+advisory-transaction lock seam instead of sampling a finite
+`JSONElementsPlan.Open` frame. SELECT materializes real expansion output before
+the output-dependent gate; INSERT's CHECK consumes the actual expanded value,
+with ordered insertion requiring the earlier small-output grant as well.
+The holder keeps the large-output wait observable until cancellation, without
+sleeps, workload inflation or a larger observation window. This proves active
+SQL cancellation **after JSON expansion**, not interruption inside the finite
+scanner; `TestJSONElementsBindingsAndCancellation` independently checks canceled
+Open/Next and that no partial cursor escapes.
+The helper requires the exact worker request, matching holder grant and blocker,
+then bounded cancellation/join, no cursor/result publication, and no remaining
+worker or holder requests/grants. PostgreSQL independently requires 57014;
+native requires ordinary `context.Canceled`. The sentinel survives, and the
+same owner and preheld SELECT/INSERT recover on small inputs.
+
+Focused cancellation proof and smoke (external deadline 900 seconds each):
+
+```sh
+make check RUN='^TestReferenceJSONElementsCancellation$' REFERENCE=1
+make check RUN='^TestReferenceJSONElementsCancellation$'
+make check RUN='^TestReferenceJSONElementsCancellation$' RACE=1
+make check RUN='^TestJSONElementsBindingsAndCancellation$'
+make check RUN='^TestJSONElementsBindingsAndCancellation$' RACE=1
+```
+
+Expected observations: both JSON and TEXT variants admit the real SELECT and
+ordered INSERT at their output-derived lock, cancel with the independent errors
+above, preserve only sentinel `(0,99)`, release the locks and recover with sum 9
+and nine inserted rows using the same held statements.
 
 Selected commands (external deadline 900 seconds each):
 

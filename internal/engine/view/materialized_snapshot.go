@@ -142,11 +142,32 @@ func ParseMaterializedSnapshot(ctx context.Context, rows string) ([]parser.State
 
 // MaterializedSnapshotInsert checks that statement is a plain INSERT into
 // record's materialized view d: DEFAULT VALUES only for zero columns, every
-// row as wide as d, and every cell a closed snapshot scalar.
+// row as wide as d, and every cell a closed snapshot scalar. Constructor bounds
+// may name all columns in destination order, with closed integer slices only.
 func MaterializedSnapshotInsert(record MaterializedSnapshot, d *catalog.Relation, statement parser.Statement) (*parser.Insert, error) {
 	s, ok := statement.(*parser.Insert)
-	if !ok || s.Source != nil || len(s.Targets) != 0 || s.Override != 0 || len(s.Name.Parts) != 2 || s.Name.Parts[0].Text != record.Schema || s.Name.Parts[1].Text != record.Name {
+	if !ok || s.Source != nil || s.Override != 0 || len(s.With) != 0 || s.Alias.Text != "" || s.Conflict != nil || s.Returning != nil || len(s.Name.Parts) != 2 || s.Name.Parts[0].Text != record.Schema || s.Name.Parts[1].Text != record.Name {
 		return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot row statement")
+	}
+	if len(s.Targets) != 0 {
+		if s.DefaultValues || len(s.Targets) != len(d.Columns) {
+			return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot targets")
+		}
+		bounded := false
+		for i, target := range s.Targets {
+			if target.Name != d.Columns[i].Name || len(target.Steps) > 6 {
+				return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot targets")
+			}
+			for _, step := range target.Steps {
+				if step.Field != nil || step.Subscript == nil || !step.Subscript.Slice || !materializedSnapshotInteger(step.Subscript.Lower) || !materializedSnapshotInteger(step.Subscript.Upper) {
+					return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot bounds")
+				}
+				bounded = true
+			}
+		}
+		if !bounded {
+			return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot targets")
+		}
 	}
 	if s.DefaultValues {
 		if len(d.Columns) != 0 {
@@ -165,6 +186,17 @@ func MaterializedSnapshotInsert(record MaterializedSnapshot, d *catalog.Relation
 		}
 	}
 	return s, nil
+}
+
+func materializedSnapshotInteger(raw parser.Expr) bool {
+	switch r := raw.(type) {
+	case parser.LiteralExpr:
+		return r.Value.Kind == parser.IntegerValue
+	case parser.OperatorExpr:
+		return len(r.Name.Parts) == 1 && (r.Name.Parts[0].Text == "-" || r.Name.Parts[0].Text == "+") && len(r.Args) == 1 && materializedSnapshotInteger(r.Args[0])
+	default:
+		return false
+	}
 }
 
 // The payload admits only closed canonical codec forms, not Restore's wider
@@ -218,6 +250,41 @@ func MaterializedSnapshotScalar(raw parser.Expr) error {
 		if functions.CircleConstructorReplay(r) {
 			return nil
 		}
+		if materializedSnapshotArrayCall(r, "array_fill", 3) {
+			if !materializedSnapshotArraySeed(r) {
+				return invalid()
+			}
+			return MaterializedSnapshotScalar(r.Args[0])
+		}
+		if materializedSnapshotArrayCall(r, "array_cat", 2) {
+			seed, ok := r.Args[0].(parser.FunctionExpr)
+			if !ok || !materializedSnapshotArraySeed(seed) {
+				return invalid()
+			}
+			tail, ok := r.Args[1].(parser.CastExpr)
+			if !ok || tail.TypeName.Schema == nil || tail.TypeName.Setof || len(tail.TypeName.Modifiers) != 0 || len(tail.TypeName.ArrayBounds) != 1 || tail.TypeName.ArrayBounds[0] != 0 {
+				return invalid()
+			}
+			elements, ok := tail.Child.(parser.ArrayExpr)
+			if !ok || len(elements.Elements) == 0 {
+				return invalid()
+			}
+			// Syntax grants no callable or type authority. The destination's
+			// normal binder selects the real providers and checks both operands,
+			// then exact snapshot evaluation preserves their usages and bounds.
+			if err := MaterializedSnapshotScalar(seed.Args[0]); err != nil {
+				return err
+			}
+			for _, child := range elements.Elements {
+				if _, nested := child.(parser.ArrayExpr); nested {
+					return invalid()
+				}
+				if err := MaterializedSnapshotScalar(child); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		// Preserve the existing exact TIMETZ endpoint codec below.
 		if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || r.Name.Parts[1].Text != "timezone" || len(r.Args) != 2 || r.Variadic {
 			return invalid()
@@ -231,4 +298,35 @@ func MaterializedSnapshotScalar(raw parser.Expr) error {
 	default:
 		return invalid()
 	}
+}
+
+// These are the two rank-one forms emitted by regobj's constructor codec, not
+// a list of arbitrary functions safe to execute during snapshot import.
+func materializedSnapshotArrayCall(r parser.FunctionExpr, name string, arity int) bool {
+	return len(r.Name.Parts) == 2 && r.Name.Parts[0].Text == "pg_catalog" && r.Name.Parts[1].Text == name && len(r.Args) == arity &&
+		len(r.ArgNames) == 0 && !r.Variadic && !r.ResolutionOnly && !r.CompositeCandidate && !r.StoredSQLRoutine &&
+		r.Syntax == parser.OrdinaryFunctionSyntax && r.StringSyntax == 0 && r.Window == nil && !r.Star && !r.Distinct && !r.All &&
+		len(r.Order) == 0 && r.Filter == nil && !r.Within && len(r.ColumnDefinitions) == 0
+}
+
+func materializedSnapshotArraySeed(r parser.FunctionExpr) bool {
+	if !materializedSnapshotArrayCall(r, "array_fill", 3) {
+		return false
+	}
+	dimensions, ok := r.Args[1].(parser.ArrayExpr)
+	if !ok || len(dimensions.Elements) != 1 {
+		return false
+	}
+	length, ok := dimensions.Elements[0].(parser.LiteralExpr)
+	if !ok || length.Value.Kind != parser.IntegerValue || length.Value.Integer != 1 {
+		return false
+	}
+	bounds, ok := r.Args[2].(parser.ArrayExpr)
+	if !ok || len(bounds.Elements) != 1 {
+		return false
+	}
+	// The parser folds the emitter's signed numeric literal, including the
+	// int32 minimum. Expressions over bounds are not part of this codec.
+	value, ok := bounds.Elements[0].(parser.LiteralExpr)
+	return ok && value.Value.Kind == parser.IntegerValue && value.Value.Integer >= -2147483648 && value.Value.Integer <= 2147483647
 }

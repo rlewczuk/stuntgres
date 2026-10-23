@@ -90,5 +90,5 @@ func namedObjectACL(b CallTypeContext, raw parser.FunctionExpr, args []Argument,
 	if len(args) != 3 || !declaredTypes(declared, objectACLTypes[:]) {
 		return nil, nil, false
 	}
-	return fixedNamedInputs(raw, args, declared, objectACLLabels[:], 3)
+	return fixedNamedInputs(b, raw, args, declared, objectACLLabels[:], 3)
 }

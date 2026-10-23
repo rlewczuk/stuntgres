@@ -125,7 +125,7 @@ func (b *Binder) operatorCandidates(name parser.ObjectName, unary bool) (operato
 				}
 			}
 		}
-		if !custom {
+		if !custom && !view.HasCasts() {
 			return operatorCandidateSet{catalog: view, available: available}, nil
 		}
 		// Even a masked custom descriptor requires ordered signature masking below.
@@ -148,7 +148,7 @@ func (b *Binder) operatorCandidates(name parser.ObjectName, unary bool) (operato
 			custom = custom || !routine.OperatorSeeded(d)
 		}
 	}
-	return operatorCandidateSet{catalog: view, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
+	return operatorCandidateSet{catalog: view, descriptors: candidates, hasCustom: custom || view.HasCasts(), available: len(candidates) != 0}, nil
 }
 
 func (b *Binder) selectCatalogOperator(set operatorCandidateSet, raw parser.OperatorExpr, left, right *sqltype.Descriptor, unary bool) (*catalog.Operator, error) {
@@ -157,7 +157,10 @@ func (b *Binder) selectCatalogOperator(set operatorCandidateSet, raw parser.Oper
 	for i, d := range candidates {
 		signatures[i] = sqltype.OperatorInputs{Left: sqltype.ID(d.Left), Right: sqltype.ID(d.Right)}
 	}
-	selected, err := sqltype.ResolveOperator(signatures, left, right, unary)
+	selected, err := sqltype.ResolveOperatorWithCoercion(signatures, left, right, unary, func(source *sqltype.Descriptor, target sqltype.ID) bool {
+		typ, ok := set.catalog.LookupType(target)
+		return ok && catalog.CanCoerce(set.catalog, source.Usage(), typ.Usage(), sqltype.Implicit) == nil
+	})
 	diagnosticLeft := left
 	if unary {
 		diagnosticLeft = right

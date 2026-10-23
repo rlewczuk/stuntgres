@@ -672,6 +672,14 @@ func (b *Binder) assignOutput(bound expr.Expr, target catalog.Column) (expr.Expr
 	if err != nil {
 		return nil, err
 	}
+	if selected, handled, selectionErr := b.declaredCoercion(input, info.Usage, sqltype.Assignment, input.SourcePosition(), nil); handled {
+		if selectionErr != nil {
+			d := expr.ErrorAt("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.DiagnosticTypeName(target.Usage.Type), b.DiagnosticTypeName(bound.ResultUsage().Type)), bound.SourcePosition()).(*sqlstate.Error)
+			d.Hint = "You will need to rewrite or cast the expression."
+			return nil, d
+		}
+		return RestoreDomainCastCollations(annotations, selected), nil
+	}
 	coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 	if err != nil {
 		d := expr.ErrorAt("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.DiagnosticTypeName(target.Usage.Type), b.DiagnosticTypeName(bound.ResultUsage().Type)), bound.SourcePosition())

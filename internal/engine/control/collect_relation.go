@@ -275,7 +275,7 @@ func collectTableDump(_ context.Context, c *dumpCollection, a ids.ObjectAddress,
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	oid := r.Address().ObjectID
-	edges, err := c.tableDumpPredecessors(r)
+	edges, err := c.tableDumpPredecessors(r, nil)
 	if err != nil {
 		return err
 	}
@@ -325,7 +325,7 @@ type tableDumpEdges struct {
 // parents, partition bounds, checks, defaults and generations, in that
 // order. Ordinary defaults may enable global deferral; eligible foreign
 // defaults always replay after declarations without changing that decision.
-func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEdges, error) {
+func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation, replay *table.DumpRelation) (tableDumpEdges, error) {
 	var predecessors []ids.OID
 	if r.Inheritance != nil {
 		for _, edge := range r.Inheritance.Parents {
@@ -342,7 +342,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 		return tableDumpEdges{}, err
 	}
 	for _, check := range r.Constraints.Check {
-		if check.NotValid || c.source.RecipePlan[r.Address()] != nil && c.source.RecipePlan[r.Address()].DeferredChecks[check.Name] {
+		if check.NotValid || replay != nil && replay.DeferredChecks[check.Name] || c.source.RecipePlan[r.Address()] != nil && c.source.RecipePlan[r.Address()].DeferredChecks[check.Name] {
 			continue
 		}
 		add := func(address ids.ObjectAddress) error {
@@ -367,7 +367,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 	var deferredPredecessors []ids.OID
 	var deferredDefinitions map[int32]bool
 	for attribute, definition := range r.ColumnMeta.Defaults {
-		eligible := table.DefaultReplayDeferrable(definition)
+		eligible := table.DefaultReplayDeferrable(definition) || replay != nil && replay.DeferredDefinitions[attribute]
 		if eligible {
 			if deferredDefinitions == nil {
 				deferredDefinitions = make(map[int32]bool)
@@ -408,7 +408,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 		}
 	}
 	for _, definition := range r.ColumnMeta.Generations {
-		if c.source.RecipePlan[r.Address()] != nil {
+		if c.source.RecipePlan[r.Address()] != nil || replay != nil && replay.RecipePlaceholders {
 			continue
 		}
 		for _, dependency := range definition.Dependencies {

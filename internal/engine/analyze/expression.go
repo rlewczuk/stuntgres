@@ -57,6 +57,7 @@ type Binder struct {
 	Dependencies []catalog.ExpressionDependency
 	// Identity of the actual missing-call diagnostic, not a SQLSTATE heuristic.
 	unresolvedCallable error
+	normalizingSyntax  map[StoredExpressionSyntaxKey]bool
 
 	Target   targetContext
 	Params   parameterState
@@ -952,15 +953,12 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 	if b.Clause.FunctionProjection.matches(raw) && b.Clause.FunctionProjection.Operand == nil && node.ResultUsage().Type != nil && node.ResultUsage().Type.Concrete() && node.ResultUsage().Type.BaseType().IsComposite() {
 		b.Clause.FunctionProjection.Operand = node
 	}
-	if policy.booleanConstruct != "" && node.ResultUsage().Type.IsDomain() && node.ResultUsage().Type.BaseType().ID() == sqltype.Bool {
+	if policy.booleanConstruct != "" && node.ResultUsage().Type.ID() != sqltype.Bool {
 		var err error
-		node, err = b.CoerceConditional(ComparisonOperand{Node: node}, b.Type(sqltype.Bool).Usage(), policy.booleanConstruct)
+		node, err = b.coerceAssignmentForConstruct(node, b.Type(sqltype.Bool).Usage(), policy.booleanConstruct, raw)
 		if err != nil {
 			return nil, err
 		}
-	}
-	if policy.booleanConstruct != "" && node.ResultUsage().Type.ID() != sqltype.Bool {
-		return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
 	}
 	// Logical children already passed this policy independently. Do not walk
 	// every prefix again when binding a long AND/OR chain.
@@ -992,6 +990,19 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 		}
 		if err != nil {
 			return nil, err
+		}
+		if selected, handled, selectionErr := b.declaredCoercion(input, info.Usage, policy.Mode, raw.SourcePosition(), raw); handled {
+			if selectionErr != nil {
+				if diagnostic, ok := selectionErr.(*sqlstate.Error); ok && diagnostic.Code == "42804" && policy.Column != "" {
+					copy := *diagnostic
+					copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", policy.Column, b.DiagnosticTypeName(policy.Expected.Type), b.DiagnosticTypeName(node.ResultUsage().Type))
+					copy.Hint = "You will need to rewrite or cast the expression."
+					copy.Position = strconv.Itoa(parser.ExpressionStart(raw).Character)
+					return node, &copy
+				}
+				return node, selectionErr
+			}
+			return RestoreDomainCastCollations(annotations, selected), nil
 		}
 		coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, policy.Mode)
 		if err != nil {
@@ -1122,9 +1133,6 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		return b.bindRegclassCast(raw.Child, raw.Pos)
 	}
 	unsupportedTarget := !target.Type.IsUserDefined() && !target.Type.IsDomain() && !target.Type.IsDeferredRecord() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
-	if unsupportedTarget && !b.Consumer.DatetimeZoneOperands {
-		return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
-	}
 	if err := b.CaptureTypeDiagnosticInput(target.Type); err != nil {
 		return nil, err
 	}
@@ -1195,6 +1203,41 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		return nil, err
 	}
 	target = info.Usage
+	if raw.FrozenMethod != "" {
+		if raw.FrozenMethod == "i" && info.Property.Volatility < expr.Stable {
+			info.Property.Volatility = expr.Stable
+		}
+		n, err := plan.NewDatumCast(info, child, raw.FrozenMethod, sqltype.Explicit)
+		n.Context = raw.FrozenContext
+		return RestoreDomainCastCollations(annotations, n), err
+	}
+	if selected, handled, selectionErr := b.declaredCoercion(child, target, sqltype.Explicit, raw.Pos, raw.Child); handled {
+		if n, ok := selected.(plan.DatumCastExpr); ok && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			frozen := raw
+			frozen.FrozenMethod = n.Method
+			frozen.FrozenContext = n.Context
+			key := StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.Pos}
+			if lowered, ok := b.Stored.Syntax[key]; ok {
+				frozen.Child = lowered
+			}
+			if b.Stored.Syntax == nil {
+				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+			}
+			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.Pos}] = frozen
+		}
+		if _, ok := selected.(plan.CoercionExpr); ok && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			key := StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.Pos}
+			if lowered, ok := b.Stored.Syntax[key]; ok {
+				frozen := raw
+				frozen.Child = lowered
+				b.Stored.Syntax[key] = frozen
+			}
+		}
+		return RestoreDomainCastCollations(annotations, selected), selectionErr
+	}
+	if unsupportedTarget && !b.Consumer.DatetimeZoneOperands {
+		return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
+	}
 	coercionPlan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
 		if sqltype.IsFTS(source.Type.BaseType().ID()) || sqltype.IsFTS(target.Type.BaseType().ID()) || source.Type.BaseType().ID() == sqltype.Box || source.Type.BaseType().ID() == sqltype.Point || source.Type.BaseType().ID() == sqltype.Line || source.Type.BaseType().ID() == sqltype.Lseg || target.Type.BaseType().ID() == sqltype.Box || target.Type.BaseType().ID() == sqltype.Point || target.Type.BaseType().ID() == sqltype.Line || target.Type.BaseType().ID() == sqltype.Lseg {
@@ -1640,6 +1683,15 @@ func (b *Binder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequ
 
 func (b *Binder) CoerceArgument(argument functions.Argument, request functions.CoercionRequest) (expr.Expr, error) {
 	operand := ComparisonOperand{Node: argument.Expression, raw: argument.Raw}
+	// Already-bound operands need not have syntax (for example, an operator
+	// supplied through a private slot). Retain their own source position.
+	var pos parser.Position
+	if argument.Expression != nil {
+		pos = argument.Expression.SourcePosition()
+	}
+	if argument.Raw != nil {
+		pos = argument.Raw.SourcePosition()
+	}
 	switch request.Intent {
 	case functions.FinalizeArgument:
 		return b.finalizeOperand(operand, request.Target.Type)
@@ -1669,6 +1721,9 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 		info, err := b.coercionInfo(b.Info(request.Target, node.SourcePosition(), node.Properties()), node)
 		if err != nil {
 			return nil, err
+		}
+		if selected, handled, selectionErr := b.declaredCoercion(node, info.Usage, sqltype.Implicit, pos, argument.Raw); handled {
+			return selected, selectionErr
 		}
 		coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), info.Usage, sqltype.Implicit)
 		if err != nil {
@@ -1719,7 +1774,7 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 		if request.PreserveProperties {
 			properties = node.Properties()
 		}
-		return plan.CoercionExpr{Info: b.Info(request.Target, argument.Raw.SourcePosition(), properties), Child: node, Plan: request.Plan, Mode: sqltype.Implicit}, nil
+		return plan.CoercionExpr{Info: b.Info(request.Target, pos, properties), Child: node, Plan: request.Plan, Mode: sqltype.Implicit}, nil
 	case functions.AssignmentFormalArgument:
 		if !b.Clause.SelectedCallArguments || argument.Expression == nil || argument.Usage.Type == nil {
 			return b.Bind(argument.Raw, ExpressionPolicy{Context: AssignmentContext, Expected: request.Target, Mode: sqltype.Implicit})
@@ -1744,6 +1799,9 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 	if argument.Usage == request.Target {
 		return node, nil
 	}
+	if selected, handled, selectionErr := b.declaredCoercion(node, request.Target, sqltype.Implicit, pos, argument.Raw); handled {
+		return selected, selectionErr
+	}
 	coercionPlan := request.Plan
 	var err error
 	if !request.Planned {
@@ -1756,9 +1814,8 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 	if !request.PreserveProperties {
 		properties = CoercionProperties(node, coercionPlan)
 	}
-	pos := node.SourcePosition()
-	if request.AtRaw {
-		pos = argument.Raw.SourcePosition()
+	if !request.AtRaw {
+		pos = node.SourcePosition()
 	}
 	info := b.Info(request.Target, pos, properties)
 	switch {
@@ -2043,6 +2100,9 @@ func (b *Binder) finishArithmetic(raw parser.OperatorExpr, left, right Compariso
 			return nil, err
 		}
 		if source != target {
+			if selected, handled, selectionErr := b.declaredCoercion(n, target.Usage(), sqltype.Implicit, n.SourcePosition(), o.raw); handled {
+				return selected, selectionErr
+			}
 			coercionPlan, err := sqltype.PlanCoercion(n.ResultUsage(), target.Usage(), sqltype.Implicit)
 			if err != nil {
 				return nil, err

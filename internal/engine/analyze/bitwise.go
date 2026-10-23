@@ -182,6 +182,9 @@ func (b *Binder) finishBitwise(raw parser.OperatorExpr, left, right ComparisonOp
 			return nil, err
 		}
 		if n.ResultUsage() != t.Usage() {
+			if selected, handled, selectionErr := b.declaredCoercion(n, t.Usage(), sqltype.Implicit, n.SourcePosition(), o.raw); handled {
+				return selected, selectionErr
+			}
 			coercionPlan, err := sqltype.PlanCoercion(n.ResultUsage(), t.Usage(), sqltype.Implicit)
 			if err != nil {
 				return nil, err

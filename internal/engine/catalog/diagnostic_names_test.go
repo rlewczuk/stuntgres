@@ -87,3 +87,31 @@ func TestTypeDiagnosticNameAtQualifiesHiddenTypes(t *testing.T) {
 		}
 	}
 }
+
+func TestTypeDiagnosticNameAtBuiltinSQLSpelling(t *testing.T) {
+	state := NewState(1)
+	for _, typ := range sqltype.Builtins() {
+		d := &Type{SQLType: typ}
+		state.SetDescriptor(d.Address(), d)
+		state.BindName(DescriptorNameKey(d), d.Address())
+	}
+	view := Read{state: state}
+	for _, tc := range []struct {
+		id   sqltype.ID
+		want string
+	}{
+		{sqltype.Int4, "integer"},
+		{sqltype.Float4, "real"},
+		{sqltype.Float8, "double precision"},
+		{sqltype.Bool, "boolean"},
+		{sqltype.VarChar, "character varying"},
+		{sqltype.Timestamp, "timestamp without time zone"},
+	} {
+		typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(tc.id)})
+		for _, path := range [][]ids.ObjectAddress{nil, {}, {{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}} {
+			if got := TypeDiagnosticNameAt(view, typ, path); got != tc.want {
+				t.Errorf("type %d path %v: got %s, want %s", tc.id, path, got, tc.want)
+			}
+		}
+	}
+}

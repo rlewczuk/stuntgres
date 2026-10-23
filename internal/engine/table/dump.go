@@ -76,6 +76,10 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 		row := version.Values
 		line.Reset()
 		var replayCells []typedef.DomainReplayCell
+		boundedConstructor := false
+		for _, value := range row {
+			boundedConstructor = boundedConstructor || !typedef.ContainsStoredDomainNull(value) && regobj.ConstructorArrayTargetBounds(value) != ""
+		}
 		if len(t.Columns) == 0 {
 			if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil {
 				return err
@@ -85,13 +89,16 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 		line.WriteString("INSERT INTO " + qualified)
 		// Hierarchy reconstruction can place inherited columns before local
 		// columns added earlier. Address captured values by name, not replay slot.
-		if t.Descriptor.Membership != nil || t.Descriptor.Inheritance != nil {
+		if boundedConstructor || t.Descriptor.Membership != nil || t.Descriptor.Inheritance != nil {
 			line.WriteString(" (")
 			for i, column := range t.Columns {
 				if i != 0 {
 					line.WriteString(", ")
 				}
 				line.WriteString(catalog.QuoteIdentifier(column.Name))
+				if boundedConstructor && !typedef.ContainsStoredDomainNull(row[i]) {
+					line.WriteString(regobj.ConstructorArrayTargetBounds(row[i]))
+				}
 			}
 			line.WriteString(")")
 		}
@@ -111,7 +118,7 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 			var err error
 			destination := t.Columns[i].Usage.Type
 			base := destination.BaseType().ID()
-			if typedef.ContainsStoredDomainNull(v) || v.RequiresCircleArrayReplay() {
+			if typedef.ContainsStoredDomainNull(v) {
 				node, captureErr := captureDomainReplayNode(ctx, catalogView, t.Columns[i].Usage, v)
 				if captureErr != nil {
 					return captureErr
@@ -124,7 +131,11 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 				// non-contextual stored expressions keep regobj.Literal.
 				literal, err = destination.SQLLiteral(ctx, v)
 			} else {
-				literal, err = regobj.Literal(ctx, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.Columns[i].Usage}, Value: v})
+				literalContext := ctx
+				if boundedConstructor && regobj.ConstructorArrayTargetBounds(v) != "" {
+					literalContext = regobj.ConstructorBoundedInputContext(ctx)
+				}
+				literal, err = regobj.Literal(literalContext, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.Columns[i].Usage}, Value: v})
 			}
 			if err != nil {
 				return err

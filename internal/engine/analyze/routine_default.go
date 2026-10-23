@@ -1,10 +1,7 @@
 package analyze
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -26,12 +23,11 @@ func (b *Binder) BindRoutineDefault(raw parser.Expr, usage sqltype.Usage) (expr.
 		if failure != nil {
 			return nil, failure
 		}
-		coercion, failure := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
+		converted, failure := b.coerceAssignmentForConstruct(input, info.Usage, "DEFAULT", raw)
 		if failure != nil {
-			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of DEFAULT must be type %s, not type %s", usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
+			return nil, failure
 		}
-		info.Property = CoercionProperties(input, coercion)
-		node = RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercion, Mode: sqltype.Assignment})
+		node = RestoreDomainCastCollations(annotations, converted)
 	}
 	return StorageDestination(node, usage, parser.ExpressionStart(raw))
 }

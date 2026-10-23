@@ -15,6 +15,31 @@ type RoutineInput struct {
 	Expanded     bool
 }
 
+// AssembleArguments closes a selected call shape once, before publication.
+// Execution and stored refresh validate this projection rather than rebuilding
+// it or falling back to declaration order.
+func (n SQLRoutineExpr) AssembleArguments() (SQLRoutineExpr, error) {
+	n.ChildSlots = make([]int, len(n.Args))
+	for i := range n.ChildSlots {
+		n.ChildSlots[i] = -1
+	}
+	for slot, source := range n.InputMap {
+		if source.Start < 0 || source.Count < 1 || source.Start > len(n.Args)-source.Count {
+			return SQLRoutineExpr{}, fmt.Errorf("invalid SQL routine input source")
+		}
+		for i := source.Start; i < source.Start+source.Count; i++ {
+			if n.ChildSlots[i] != -1 {
+				return SQLRoutineExpr{}, fmt.Errorf("duplicate SQL routine child consumption")
+			}
+			n.ChildSlots[i] = slot
+		}
+	}
+	if err := n.ValidateArguments(n.Args); err != nil {
+		return SQLRoutineExpr{}, err
+	}
+	return n, nil
+}
+
 func (n SQLRoutineExpr) ValidateArguments(children []expr.Expr) error {
 	if n.Procedure == nil || n.Procedure.SQL == nil || n.WrittenCount < 0 || n.WrittenCount > len(children) || len(n.InputMap) != len(n.Procedure.SQL.Inputs) || len(n.ArgNames) != 0 && len(n.ArgNames) != n.WrittenCount {
 		return fmt.Errorf("invalid SQL routine input assembly")

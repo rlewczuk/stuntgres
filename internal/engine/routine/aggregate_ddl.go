@@ -99,8 +99,33 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	if function.Builtin != nil && function.Builtin.ReturnsSet {
 		return sqlError("42804", "function "+diagnosticName+" returns a set")
 	}
+	view := h.AccessView(auth).Catalog
+	var recipe *catalog.AggregateBinaryRecipe
+	capture := func(source, target sqltype.Usage) bool {
+		address, ok := catalog.ImplicitBinaryCast(view, source.Type.ID(), target.Type.ID())
+		if !ok {
+			return false
+		}
+		if address.ObjectID != 0 && !sqltype.BinaryCoercible(source.Type, target.Type) {
+			edge, found := view.Get(address).(*catalog.Cast)
+			if !found {
+				return false
+			}
+			if recipe == nil {
+				recipe = &catalog.AggregateBinaryRecipe{}
+			}
+			for _, old := range recipe.Casts {
+				if old.Pair() == edge.Pair() {
+					return true
+				}
+			}
+			recipe.Casts = append(recipe.Casts, *edge)
+		}
+		_, err := catalog.AggregateConversion(recipe, source, target)
+		return err == nil
+	}
 	for i, u := range inputs {
-		if !sqltype.BinaryCoercible(u.Type, formals[i].Type) {
+		if !capture(u, formals[i]) {
 			return sqlError("42804", "function "+diagnosticName+" requires run-time type coercion")
 		}
 	}
@@ -113,7 +138,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, function.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return err
 	}
-	if function.Strict && !definition.HasInitial && (len(inputs) == 1 || !sqltype.BinaryCoercible(inputs[1].Type, inputs[0].Type)) {
+	if function.Strict && !definition.HasInitial && (len(inputs) == 1 || !capture(inputs[1], inputs[0])) {
 		return sqlError("42P13", "must not omit initial value when transition function is strict and transition type is not compatible with input type")
 	}
 	if definition.HasInitial {
@@ -136,6 +161,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	}
 	definition.Function, definition.Functions[0], definition.TransitionType = oid, function.Address().ObjectID, d.Result
 	d.Aggregate.Definition = *definition
+	d.Aggregate.BinaryRecipe = recipe
 	d.ACL = h.CreationACL(d.Owner, d.Namespace(), authorization.DefaultRoutines)
 	if err = h.Context().Err(); err != nil {
 		return err

@@ -120,8 +120,9 @@ in polygon loops. `circle(point,float8)` creates legitimate negative-radius
 datums without relaxing text22P02 or binary22P03 input checks. Existing circle
 consumers accept those datums. Negative CIRCLE `SQLLiteral` uses a closed,
 qualified constructor with exact coordinate/radius spelling. Composite replay
-uses typed members; negative-containing existing array carriers require native
-destination-owned exact dimensions/elements transport, not invalid circle text.
+uses typed members; negative-containing existing array carriers use recursive
+typed SQL constructors and bounded INSERT targets to preserve rank and bounds,
+not invalid circle text or a native-only NULL placeholder.
 Known TEXT-to-CIRCLE typename input uses the existing viaIO representation only
 in Explicit context, including normal domain recursion and generation Rebind.
 It calls ordinary circleInput, retaining negative text rejection; no implicit,
@@ -244,6 +245,93 @@ filters and subscript bounds cannot overwrite an enclosing current category.
 Mixed zoned/nonzoned comparisons are mutable; bare bindings and same-zone
 comparisons are not blanket mutable.
 
+### Catalog-aware operator viability
+
+`ResolveOperatorWithCoercion(candidates, left, right, unary, can)` shares the
+existing ranking body with `ResolveOperator`. The optional pure
+`can(source *Descriptor, target ID) bool` predicate supplies concrete implicit
+feasibility from the caller's captured catalog; it is neither stored nor invoked
+for value evaluation. Exact/domain matches, polymorphic shape and identity,
+categories, preferred types and unknown-position ordering remain unchanged.
+Compatible-polymorphic common selection uses the same predicate in both
+directions, as do final leaf checks and unknown-assume-known viability.
+`ResolveOperator` keeps the original fixed-provider behavior with a nil predicate.
+
+### Binary datum conversions
+
+`PlanBinaryCoercion(source, target)` captures exact descriptor pointers and one
+immutable native representation mapping. `Apply(ctx, value)` checks cancellation
+and source ownership, including typed NULL, and returns the captured target.
+It does not consult a catalog, dispatch a routine, use text input/output, use
+wire send/receive as memory layout, or weaken `Retag`'s logical-identity checks.
+Core owns CREATE CAST permissions, PostgreSQL physical/category validation,
+context selection, dependencies and atomic publication.
+
+`PlanDeclaredBinaryCoercion` carries that same physical operation in an ordinary
+`CoercionPlan` after catalog authorization, including source-domain projection.
+Its `Rebind` preserves the selected representation family under descriptor-owner
+remapping; it does not fall back to ordinary IO or select a current cast.
+`TestAggregateBinaryConversionRebind` checks real bytes, typed NULL, cancellation
+and rejection of foreign source owners and changed physical operations.
+
+```sh
+make check RUN='^TestAggregateBinaryConversionRebind$'
+```
+
+Supported families are:
+
+- One inline 32-bit word: INT4, FLOAT4, DATE, OID, XID, CID and executable REG*
+  aliases. DATE translates native int64 infinity sentinels to PostgreSQL's
+  int32 sentinels; finite days retain the 2000-01-01 epoch. Alias words retain
+  numeric identity without name lookup. Binary-created REGCLASS renders its
+  canonical decimal spelling lazily, avoiding a string allocation per cast.
+- One inline 64-bit word: INT8, FLOAT8, MONEY, TIME, TIMESTAMP, TIMESTAMPTZ and
+  XID8. MONEY retains minor units and temporal datums retain microseconds and
+  sentinels without timezone or epoch conversion.
+- TEXT/VARCHAR/BPCHAR/JSON/CITEXT/BYTEA share immutable octets. Binary JSON is
+  raw text, not JSON parsing; BPCHAR is neither trimmed nor padded, CITEXT is
+  not folded, and BYTEA escape/hex syntax is not decoded.
+- BIT/VARBIT share canonical bits; INET/CIDR retain family, prefix and address
+  without masking; BOX/LSEG share ordered immutable point pairs without BOX
+  input normalization; LINE/CIRCLE map their three binary64 fields directly,
+  including signed negative radii. This is not circle input/receive: ordinary
+  negative-radius input remains invalid, and stored negative datums use the
+  existing constructor replay.
+
+Scalar words and byte-family mappings allocate no per-value byte buffer or
+payload copy. CIRCLE to LINE creates the ordinary immutable geometry payload;
+other point-pair/LINE mappings reuse existing immutable payloads where possible.
+Unsupported structured ABI cross-families (including JSONB/BYTEA, NUMERIC/text,
+POINT/INTERVAL/ACLITEM, PATH/POLYGON/CUBE and structured text-search/node values)
+return native `0A000: binary cast representation is not supported` at planning.
+Admitted mappings whose target cannot represent the payload (invalid temporal
+range, BYTEA to invalid UTF8/NUL text, CIDR host bits or geometric invariants)
+return native `0A000: binary cast value is not representable in embedded mode`.
+These are explicit native boundaries, not PostgreSQL receiver/input errors.
+BOOL/internal CHAR general SQL capability remains unchanged.
+
+`Float4FromBits` and `Value.Float4Bits` expose exact IEEE binary32 authority,
+including signaling NaNs, NaN payloads, subnormals and signed zero. Widened
+`floating` remains presentation/arithmetic state; an inline raw32 marker owns
+binary-created words. Copies, Retag/import, array/composite leaves, binary
+transport, SameDatum and SamePayload retain those words. Ordinary constructors
+and genuine arithmetic/conversion results derive their own rounded words and
+never inherit stale raw authority. SQL equality/grouping keep their existing
+NaN and zero semantics. Ordinary SQLLiteral output remains unchanged; core's
+recursive stored-literal/Dump renderer uses Float4Bits and real staged SQL
+binary-cast bootstrap declarations rather than lossy NaN text.
+
+`InputSessionDependent` and `OutputSessionDependent` classify the actual codec
+procedures for both fixed coercions and catalog-declared INOUT casts.
+PostgreSQL REL_18_6 declares enum, record, range, multirange and array input/output
+STABLE even with immutable member codecs. Domain input/output delegate to the
+invoked base codec here, not a synthetic call to `domain_in`; existing domain
+checks remain independently enforced. Pure XID output plus REAL input does not
+acquire STABLE volatility merely because the conversion uses text; scalar
+temporal, floating output and other existing classifications remain unchanged.
+Release authority:
+[`pg_proc.dat` IO procedure declarations](https://github.com/postgres/postgres/blob/REL_18_6/src/include/catalog/pg_proc.dat).
+
 
 ## Testing
 
@@ -254,6 +342,30 @@ constructor literal units:
 make check RUN='^(TestGeometryConversion(Kernel|LineErrors)|TestCircleConstructorReplay)$'
 ```
 
+Binary datum and raw32 supplemental units exercise actual word/byte/coordinate
+results, all scalar family pairs, temporal epoch/infinity translation, descriptor
+provenance, NULL, precise capability/payload boundaries, cancellation, raw32
+transport/reownership/nested leaves, fresh arithmetic and allocation budgets:
+
+```sh
+make check RUN='^TestCastDefinition(BinaryDatum|BinaryPayload|BinaryAllocations|Float4RawBits)$'
+make check RUN='^TestCastDefinition(BinaryDatum|BinaryPayload|Float4RawBits)$' RACE=1
+make check RUN='^TestCastDefinition(NegativeCircleBinary|IODescriptorVolatility)$'
+make check RUN='^TestCastDefinition(NegativeCircleBinary|IODescriptorVolatility)$' RACE=1
+make check RUN='^TestReferenceCastDefinition(IOTypmod|IOVolatility|NegativeCircleBinary|CapabilityBoundary)$'
+make check RUN='^TestReferenceCastDefinition(IOTypmod|IOVolatility|NegativeCircleBinary|CapabilityBoundary)$' REFERENCE=1
+make check RUN='^TestReferenceCastDefinition(BinarySafety|CapabilityBoundary|RawFloat4Persistence|FeatureSmoke)$'
+make check RUN='^TestReferenceCastDefinition(BinarySafety|CapabilityBoundary|RawFloat4Persistence|FeatureSmoke)$' REFERENCE=1
+```
+
+Public cast SQL and native Dump/Restore witnesses live in `reference/operators`
+and must pass both native and pinned PostgreSQL modes before integration. These
+units do not replace those selected proofs or root's whole-project quickcheck.
+
+`make check RUN='^TestCastDefinitionOperatorCoercion$'` supplements public
+operator/implicit-cast coverage with direct-edge selection and ambiguity,
+exact/domain/unary precedence, one/both unknowns, polymorphic identity and
+category rejection, compatible common direction and unchanged fixed admission.
 
 Shared operator preferred-type and conditional/comparison regression proofs:
 

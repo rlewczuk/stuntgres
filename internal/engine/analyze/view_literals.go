@@ -431,6 +431,12 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		if coercion, ok := bound.(plan.CoercionExpr); ok && coercion.Mode == sqltype.Explicit {
 			bound = coercion.Child
 		}
+		if coercion, ok := bound.(plan.DatumCastExpr); ok {
+			bound = coercion.Child
+		}
+		if coercion, ok := bound.(plan.ArrayCastExpr); ok {
+			bound = coercion.Child
+		}
 		bound = RestoreDomainCastCollations(annotations, bound)
 		return child(r.Child, bound)
 	case parser.RegclassExpr:

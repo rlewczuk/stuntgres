@@ -16,6 +16,9 @@ func SameDatum(a, b Value) bool {
 	if a.null || b.null {
 		return a.null == b.null
 	}
+	if a.typ.BaseType().IsCitext() {
+		return a.text == b.text
+	}
 	if a.typ.BaseType().IsEnum() {
 		d := a.typ.BaseType()
 		_, present := d.enum.ranks[a.integer]
@@ -118,7 +121,7 @@ func SameDatum(a, b Value) bool {
 	case Timetz:
 		return a.integer == b.integer && a.west == b.west
 	case Float4:
-		return math.Float32bits(float32(a.floating)) == math.Float32bits(float32(b.floating))
+		return a.float4Bits() == b.float4Bits()
 	case Float8:
 		return math.Float64bits(a.floating) == math.Float64bits(b.floating)
 	case Numeric:
@@ -126,7 +129,12 @@ func SameDatum(a, b Value) bool {
 			a.negative == b.negative && a.special == b.special
 	case Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary:
 		return a.integer == 1 && b.integer == 1 && a.oid == b.oid
-	case Bit, VarBit, Text, VarChar, BPChar, Name, Bytea, Regclass, Char, JSON:
+	case Regclass:
+		if a.integer == 1 || b.integer == 1 {
+			return a.integer == 1 && b.integer == 1 && a.oid == b.oid
+		}
+		return a.text == b.text
+	case Bit, VarBit, Text, VarChar, BPChar, Name, Bytea, Char, JSON:
 		return a.text == b.text
 	case UUID:
 		return a.uuid == b.uuid

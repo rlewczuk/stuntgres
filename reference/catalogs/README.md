@@ -4400,3 +4400,16 @@ These selected proofs require independent pinned18.0 confirmation of GiST
 inet_ops10017/network_ops3550/input869/nondefault and
 range_ops10078/family3919/input3831/default. No native-derived golden is used.
 
+
+### Dynamic cast rows
+
+Cast declarations add user rows to the73 protected fixed provider facts in the
+same six-column pg_cast projection; IO/binary function0 and directed contexts
+remain independently checked. Schema-less builtin-endpoint declarations require
+pair-owned cleanup rather than only public-schema reset.
+
+```sh
+make check RUN='^TestReferencePGCast(Shape|Metadata|CoercionClosure|Exclusions|Controls|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestReferencePGCast(Shape|Metadata|CoercionClosure|Exclusions|Controls|Diagnostics|FeatureSmoke)$' REFERENCE=1
+```
+

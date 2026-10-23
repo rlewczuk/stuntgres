@@ -105,8 +105,5 @@ func namedCommitTimestamp(b CallTypeContext, raw parser.FunctionExpr, args []Arg
 	if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "pg_xact_commit_timestamp_origin" || raw.Variadic || len(args) != 1 || !commitTimestampNamed(raw) || !declaredTypes(declared, []sqltype.ID{sqltype.Xid}) {
 		return nil, nil, false
 	}
-	if args[0].Usage.Type != nil && args[0].Usage.Type.BaseType() != b.Type(sqltype.Xid) {
-		return nil, nil, false
-	}
-	return namedInputs(args, declared, []int{0})
+	return namedInputs(b, args, declared, []int{0})
 }

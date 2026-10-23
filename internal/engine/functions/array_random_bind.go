@@ -31,7 +31,7 @@ func bindArrayRandom(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	targets[0], ok = arrayInputTarget(operands[0].Usage, false)
 	targets[1] = b.Type(sqltype.Int4).Usage()
 	targets[0].Collation = operands[0].Usage.Collation
-	if !ok || !knownCallEdges(operands, targets[:len(operands)]) {
+	if !ok || !knownCallEdges(b, operands, targets[:len(operands)]) {
 		return signature()
 	}
 	if err := CallDecorationError(raw); err != nil {

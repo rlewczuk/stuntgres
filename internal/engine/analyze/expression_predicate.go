@@ -47,30 +47,13 @@ func (b *Binder) bindPredicate(raw parser.PredicateExpr, context ExpressionConte
 	case parser.IsNull, parser.IsNotNull:
 		return b.nullTest(raw.Left, raw.Pos, raw.Kind == parser.IsNotNull, false, context)
 	case parser.IsTrue, parser.IsNotTrue, parser.IsFalse, parser.IsNotFalse, parser.IsUnknown, parser.IsNotUnknown:
-		child, err := b.Bind(raw.Left, ExpressionPolicy{Context: context, operand: true})
+		names := [...]string{"IS TRUE", "IS NOT TRUE", "IS FALSE", "IS NOT FALSE", "IS UNKNOWN", "IS NOT UNKNOWN"}
+		index := int(raw.Kind - parser.IsTrue)
+		child, err := b.BindBoolean(raw.Left, context, names[index])
 		if err != nil {
 			return nil, err
 		}
 		boolUsage := b.Type(sqltype.Bool).Usage()
-		if unknownOperand(raw.Left, child) {
-			child, err = b.contextualOperand(raw.Left, child, boolUsage, context)
-			if err != nil {
-				return nil, err
-			}
-		}
-		names := [...]string{"IS TRUE", "IS NOT TRUE", "IS FALSE", "IS NOT FALSE", "IS UNKNOWN", "IS NOT UNKNOWN"}
-		index := int(raw.Kind - parser.IsTrue)
-		if child.ResultUsage().Type != boolUsage.Type {
-			coercionPlan, err := sqltype.PlanCoercion(child.ResultUsage(), boolUsage, sqltype.Implicit)
-			if err != nil {
-				return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", names[index], b.DiagnosticTypeName(child.ResultUsage().Type)), parser.ExpressionStart(raw.Left))
-			}
-			info, err := b.coercionInfo(b.Info(boolUsage, child.SourcePosition(), CoercionProperties(child, coercionPlan)), child)
-			if err != nil {
-				return nil, err
-			}
-			child = plan.CoercionExpr{Info: info, Child: child, Plan: coercionPlan, Mode: sqltype.Implicit}
-		}
 		truth := [...]plan.Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown}
 		return plan.TruthTestExpr{Info: b.Info(boolUsage, raw.Pos, child.Properties()), Child: child, Truth: truth[index], Not: index%2 == 1}, nil
 	case parser.IsDistinct, parser.IsNotDistinct:

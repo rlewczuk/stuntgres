@@ -381,9 +381,9 @@ definition text: the precise constructor leaf retains center
 `CarrierShape` checks nonuniform two-dimensional composite arrays with bounds
 `[-2:-1][3:4]` and exact indexed radii through same/fresh native restoration,
 including a populated materialized snapshot read before any refresh.
-Private native array metadata corresponds to explicit SQL NULL placeholders on
-PostgreSQL; tests assert that boundary. PostgreSQL materialized definitions are
-explicitly checked unpopulated before REFRESH verifies their constructor recipe.
+Typed constructor SQL now preserves those real table values and bounds on
+PostgreSQL as well. Materialized definitions remain explicitly unpopulated
+there until REFRESH reproduces the preserved source-table payload.
 Raw native inverted BOX persistence does not promise that PostgreSQL's ordinary
 BOX text input retains inversion; stored conversion views recompute it.
 `Resolution` checks domain relabels/typed NULL, visible SQL competition and exact

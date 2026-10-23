@@ -132,6 +132,10 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "DROP CONVERSION"
 	case *parser.CreateAggregate:
 		return "CREATE AGGREGATE"
+	case *parser.CreateCast:
+		return "CREATE CAST"
+	case *parser.DropCast:
+		return "DROP CAST"
 	case *parser.CreateFunction:
 		if stmt.(*parser.CreateFunction).Procedure {
 			return "CREATE PROCEDURE"
@@ -228,7 +232,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
-	case *parser.CreateFunction, *parser.CreateAggregate, *parser.DropRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
+	case *parser.CreateCast, *parser.DropCast, *parser.CreateFunction, *parser.CreateAggregate, *parser.DropRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
 		return true
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
 		return true

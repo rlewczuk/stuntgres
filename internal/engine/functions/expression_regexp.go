@@ -329,7 +329,7 @@ func namedRegexp(b CallTypeContext, raw parser.FunctionExpr, args []Argument, de
 	}
 	flags, probe := RegexpReplaceSelection(raw, args)
 	if probe != nil {
-		flags = RegexpReplaceFlags(probe.Usage, b.Type(sqltype.Int4).Usage())
+		flags = !b.CanCoerce(probe.Usage, b.Type(sqltype.Int4).Usage(), sqltype.Implicit)
 	}
 	labels, types, _, valid := RegexpSignature(raw.Name.Parts[len(raw.Name.Parts)-1].Text, len(args), flags)
 	if !valid || !declaredTypes(declared, types[:len(args)]) {
@@ -343,5 +343,5 @@ func namedRegexp(b CallTypeContext, raw parser.FunctionExpr, args []Argument, de
 	for i := range args {
 		slots[i] = int(written[i])
 	}
-	return namedInputs(args, declared, slots[:len(args)])
+	return namedInputs(b, args, declared, slots[:len(args)])
 }

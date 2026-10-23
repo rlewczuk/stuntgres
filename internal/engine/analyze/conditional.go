@@ -15,17 +15,20 @@ import (
 // release candidate order; unknown remains analysis state, never runtime data.
 // An empty label requests PostgreSQL's nonthrowing common-type probe: a category
 // mismatch returns an empty Usage, so IN can retain ordinary pairwise resolution.
-func CommonExpressionUsage(operands []ComparisonOperand, text sqltype.Usage, label string) (sqltype.Usage, error) {
-	return selectCommonUsage(len(operands), func(i int) ComparisonOperand { return operands[i] }, text, label, (*sqltype.Descriptor).DiagnosticName)
+func CommonExpressionUsage(view catalog.Read, operands []ComparisonOperand, text sqltype.Usage, label string) (sqltype.Usage, error) {
+	return selectCommonUsage(view, len(operands), func(i int) ComparisonOperand { return operands[i] }, text, label, (*sqltype.Descriptor).DiagnosticName)
 }
-func selectCommonUsage(count int, operand func(int) ComparisonOperand, text sqltype.Usage, label string, typeName func(*sqltype.Descriptor) string) (sqltype.Usage, error) {
+func selectCommonUsage(view catalog.Read, count int, operand func(int) ComparisonOperand, text sqltype.Usage, label string, typeName func(*sqltype.Descriptor) string) (sqltype.Usage, error) {
 	common, mismatch := sqltype.SelectCommonUsage(count, func(i int) sqltype.Usage {
 		o := operand(i)
 		if o.descriptor() == nil {
 			return sqltype.Usage{}
 		}
 		return o.Node.ResultUsage()
-	}, text)
+	}, text, func(source *sqltype.Descriptor, targetID sqltype.ID) bool {
+		target, ok := view.LookupType(targetID)
+		return ok && catalog.CanCoerce(view, source.Usage(), target.Usage(), sqltype.Implicit) == nil
+	})
 	if mismatch.Left == nil || label == "" {
 		return common, nil
 	}
@@ -54,6 +57,9 @@ func (b *Binder) CoerceConditional(o ComparisonOperand, target sqltype.Usage, la
 	info, err := b.coercionInfo(b.Info(target.Type.Usage(), node.SourcePosition(), expr.Properties{}), input)
 	if err != nil {
 		return nil, err
+	}
+	if selected, handled, selectionErr := b.declaredCoercion(input, info.Usage, sqltype.Implicit, input.SourcePosition(), o.raw); handled {
+		return RestoreDomainCastCollations(annotations, selected), selectionErr
 	}
 	coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Implicit)
 	if err != nil {
@@ -122,7 +128,7 @@ func (b *Binder) bindConditional(raw parser.ConditionalExpr) (expr.Expr, error) 
 		}
 		usage = args[0].ResultUsage()
 	} else {
-		usage, err = CommonExpressionUsage(operands, b.Type(sqltype.Text).Usage(), raw.Kind.String())
+		usage, err = selectCommonUsage(b.BindingCatalog(), len(operands), func(i int) ComparisonOperand { return operands[i] }, b.Type(sqltype.Text).Usage(), raw.Kind.String(), b.DiagnosticTypeName)
 		if err != nil {
 			return nil, err
 		}
@@ -156,12 +162,6 @@ func (b *Binder) bindConditional(raw parser.ConditionalExpr) (expr.Expr, error) 
 	return plan.ConditionalExpr{Info: info, Kind: raw.Kind, MissingOrdering: missingOrdering, Args: args, Comparison: comparison}, nil
 }
 
-// CASE compares the once-saved test datum through an implicit CaseTestExpr.
-// Its type and selected capability survive, but explicit derivation does not.
-type implicitComparisonOperand struct{ expr.Expr }
-
-func (implicitComparisonOperand) ExplicitCollation() parser.Position { return parser.Position{} }
-
 func (b *Binder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 	oldGuard, oldRegexp := b.Clause.StringSetGuard, b.Clause.RegexpClause
 	b.Clause.StringSetGuard, b.Clause.RegexpClause = "CASE", "CASE"
@@ -192,11 +192,15 @@ func (b *Binder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 			if e != nil {
 				return nil, e
 			}
-			var view expr.Expr
-			view, arms[i].Condition, arms[i].Equality, arms[i].Routine, err = b.conditionalEquality(ComparisonOperand{Node: implicitComparisonOperand{test}, raw: raw.Test}, o, arm.Pos)
+			input := plan.CaseTestExpr{Info: b.Info(test.ResultUsage(), test.SourcePosition(), expr.Properties{})}
+			arms[i].Test, arms[i].Condition, arms[i].Equality, arms[i].Routine, err = b.conditionalEquality(ComparisonOperand{Node: input}, o, arm.Pos)
 			if err == nil {
-				arms[i].TestUsage = view.ResultUsage()
-				arms[i].TestPlan, err = sqltype.PlanCoercion(test.ResultUsage(), view.ResultUsage(), sqltype.Implicit)
+				arms[i].TestUsage = arms[i].Test.ResultUsage()
+				if selected, selectionErr := catalog.SelectCoercion(b.BindingCatalog(), test.ResultUsage().BaseUsage(), arms[i].TestUsage.BaseUsage(), sqltype.Implicit); selectionErr != nil {
+					return nil, selectionErr
+				} else if selected != nil {
+					arms[i].TestContext = selected.Context
+				}
 			}
 		}
 		if err != nil {
@@ -215,7 +219,7 @@ func (b *Binder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	usage, err := CommonExpressionUsage(outputs, b.Type(sqltype.Text).Usage(), "CASE")
+	usage, err := selectCommonUsage(b.BindingCatalog(), len(outputs), func(i int) ComparisonOperand { return outputs[i] }, b.Type(sqltype.Text).Usage(), "CASE", b.DiagnosticTypeName)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +239,10 @@ func (b *Binder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 		}
 		properties = expr.MergeProperties(properties, arms[i].Condition.Properties())
 		properties = expr.MergeProperties(properties, arms[i].Result.Properties())
-		if test != nil && (arms[i].TestPlan.SessionDependent() || arms[i].Equality.SessionDependent()) {
+		if test != nil {
+			properties = expr.MergeProperties(properties, arms[i].Test.Properties())
+		}
+		if test != nil && arms[i].Equality.SessionDependent() {
 			properties = expr.MergeProperties(properties, expr.Properties{Volatility: expr.Stable})
 		}
 	}

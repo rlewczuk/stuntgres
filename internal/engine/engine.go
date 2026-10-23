@@ -125,6 +125,9 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.AccessMethodProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(catalog.CastProvider{}); err != nil {
+		return nil, err
+	}
 	for _, class := range []ids.OID{ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID} {
 		if err := e.RegisterCatalogProvider(catalog.ForeignCatalogProvider{class}); err != nil {
 			return nil, err
@@ -264,7 +267,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateFunction, *parser.CreateAggregate, *parser.DropRoutine:
+	case *parser.CreateFunction, *parser.CreateAggregate, *parser.DropRoutine, *parser.CreateCast, *parser.DropCast:
 		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return StatementDescription{}, nil

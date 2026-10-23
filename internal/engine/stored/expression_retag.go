@@ -600,6 +600,7 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 		var arms []plan.CaseBranch
 		for i, old := range n.Arms {
 			arm := old
+			arm.Test = child(arm.Test)
 			arm.Condition, arm.Result = child(arm.Condition), child(arm.Result)
 			if arm.Routine != nil && view.State() != nil {
 				current, ok := view.Procedure(arm.Routine.Address())
@@ -619,10 +620,7 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 						return nil, false, err
 					}
 				}
-				arm.TestPlan, err = sqltype.PlanCoercion(n.Test.ResultUsage(), arm.TestUsage, sqltype.Implicit)
-				if err == nil {
-					arm.Equality, err = sqltype.BindComparison(arm.TestUsage.Type, arm.Condition.ResultUsage().Type, ref, conflict)
-				}
+				arm.Equality, err = sqltype.BindComparison(arm.TestUsage.Type, arm.Condition.ResultUsage().Type, ref, conflict)
 			}
 			if changed && arms == nil {
 				arms = append([]plan.CaseBranch(nil), n.Arms...)
@@ -638,6 +636,9 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 			n.Arms = arms
 		}
 		n.Info = info
+		if err := n.ValidateStoredProvider(); err != nil {
+			return nil, false, err
+		}
 		rebound = n
 	case plan.ConditionalExpr:
 		ref, conflict := n.Comparison.InputCollation()

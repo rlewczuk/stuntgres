@@ -450,3 +450,210 @@ make check RUN='^TestReferenceUserOperatorFeatureSmoke$' REFERENCE=1
 These commands are required proof, not a claim that an implementer ran them.
 
 
+### Cast definitions
+
+`cast_definition*_test.go` is the cohesive cast-definition family in this
+existing package: actual directional cast declarations, execution, authority,
+dependencies, held/stored semantics and native persistence. The private
+`castDefinitionSource`, `castDefinitionScore`, `castDefinitionEdge`,
+`castDefinitionCleanup`, `castDefinitionFrozenReplayChecks` and
+`castDefinitionReplaySQL` fixtures stay with their callers; no exported fixture
+or additional package/TestMain is needed. The existing `fixture.Main` owns both
+backends.
+
+Root's initial PostgreSQL18.6 discovery passed in round4; the original eight
+files retain their completed definitions. New review scenarios require their
+own oracle discovery and removal of any temporary discovery filters.
+Those historical observations do not establish current native success.
+Completed implementation requires fresh selected proof in both modes.
+
+Round 1 PostgreSQL18.6 observations supply exact assignment positions31/28,
+missing-cast positions18/25, procedure42809, ambiguity hint, routine statement
+context, dependency Details, trailing-token position57 and the `pg_catalog.int4`
+missing-cast notice. Empty diagnostic fields remain assertions.
+The fixture resets `public` with ordinary CREATE SCHEMA, losing initdb's PUBLIC
+USAGE grant. Authority cases explicitly GRANT schema USAGE to their reader,
+then independently vary type ownership/USAGE and function EXECUTE. They do not
+require an adjacent schema-privilege inquiry builtin or change schema ownership.
+
+The [REL_18_6 catalog](https://github.com/postgres/postgres/blob/REL_18_6/src/include/catalog/pg_cast.dat)
+protects BOX→LSEG, PATH↔POLYGON and all INT2/INT4/INT8↔BYTEA pairs.
+The tests instead declare absent LSEG→BOX (both endpoint orders), PATH→CUBE
+(equal-layout ABI declaration only, never executed), and XID→BYTEA with a real
+TEXT→BYTEA result adapter. Protected rows are never dropped.
+Test-owned builtin-endpoint casts register pair cleanup before CREATE, first
+asserting absence to avoid claiming preexisting objects. Cleanup drops pairs
+separately with fresh bounded contexts even after failed assertions; dependent
+casts precede adapter roots. Actual native-dump PostgreSQL replay also removes
+schema-less pairs before the next backend phase.
+
+Round 1 observed a held cast query retain41 after DROP/recreate returning77.
+PreparedLifecycle independently expects PG41 versus native77 at that boundary,
+then fresh SQL77; stored expressions retain41 on both. Held fallback has explicit
+backend expectations rather than parity alone. ARRAY constructor element binding
+independently rejects xid→real before a scalar declaration even when an
+array-level INOUT row exists. Common categories still reject enum/integer
+CASE and COALESCE before implicit edge selection.
+
+`BuiltinInvariance` checks direct/prepared builtin values, FILTER and missing
+signatures before/after an unrelated cast, then actual implicit conversion and
+nonstrict NULL into `abs`. `RawCompositeArrayBounds` independently expects
+rank2 bounds[0,-2] and distinct exact signaling/quiet NaN leaves before and after
+native replay and actual emitted PostgreSQL SQL replay. These two new scenarios
+require root oracle discovery/proof; source reasoning is not observed evidence.
+
+`Persistence` also covers a view retaining enum INOUT after its declaration is
+dropped, and a typed enum[] view retaining its original function/NULL99 and
+lower bound0 after a conflicting function cast is recreated. The actual native
+dump bytes must replay those old meanings on PostgreSQL while preserving pair
+absence and the final new function row. These added assertions require fresh
+root native and PostgreSQL proof.
+
+`RawFloat4Persistence` asserts exact scalar, array and composite raw words via
+the public REAL→XID binary edge, including qNaN2143289345 and sNaN2139095041.
+Those same expected decimal words survive native Restore, held/prepared reads
+and actual native-dump SQL replay on PostgreSQL in all four final cast modes.
+The redundant SQL `float4send` check is omitted: that routine provider is not a
+cast-definition prerequisite; binary send codec units remain separate coverage.
+
+`ReplayConflicts` reads generated REAL leaves through an independently declared
+REAL→XID binary edge: historical binary XID42 has raw word42, whereas the final
+INOUT conversion produces REAL42 with raw word1109917696 (`0x42280000`).
+Both arrays retain lower bound0, typed NULL leaves and stored-generation `s`
+metadata, including fresh inserts after actual replay. Each backend asserts
+these constants independently. Both schema-less cast pairs register ownership
+cleanup before declaration.
+
+`ReplayPhases` and `ReplayConflicts` replay unchanged native-produced SQL on a
+borrowed PostgreSQL owner, reset `public` before and after that phase on the
+same owner, and remove owned schema-less pairs. Step rows/statements close
+before reset and the owner returns before the independent PostgreSQL setup.
+Failure-only diagnostics identify the exact `ReplayConflicts` SQL statement.
+These fixture remedies require fresh selected proof, not inferred success:
+
+```sh
+make check RUN='^TestReferenceCastDefinition(RawFloat4Persistence|ReplayPhases|ReplayConflicts)$' REFERENCE=1
+make check RUN='^TestReferenceCastDefinition(RawFloat4Persistence|ReplayPhases|ReplayConflicts)$'
+```
+
+
+`CaseBinding` exercises saved simple-CASE input with a real implicit enum cast:
+one source call, one conversion per reached equality, conversion before each
+WHEN call, no evaluation of later matched-away arms, nonstrict NULL99, nested
+saved-input frames, and an INOUT test conversion. `CaseErrorOrder` independently
+expects a failing left conversion to precede a sequence-writing WHEN operand;
+the sequence remains uncalled even though sequence effects would not roll back.
+Both cover direct and prepared execution. These effect/error expectations are
+oracle candidates until the root records pinned PostgreSQL observations.
+
+```sh
+make check RUN='^TestReferenceCastDefinitionCase(Binding|ErrorOrder)$' REFERENCE=1
+make check RUN='^TestReferenceCastDefinitionCase(Binding|ErrorOrder)$'
+```
+
+
+
+Root discovery selector (external900-second deadline):
+
+```sh
+make check RUN='^TestReferenceCastDefinition(FunctionAndContexts|Signatures|IO|FeatureSmoke|BinarySafety|CapabilityBoundary|ContextPrecedence|PreparedLifecycle|StoredSemantics|Dependencies|Authority|Atomicity|Persistence|RawFloat4Persistence|RawCompositeArrayBounds|BuiltinInvariance|Grammar|Notices|SignatureAdapters|Cancellation|UtilityPolicies)$' REFERENCE=1
+```
+
+Run the identical selector without `REFERENCE=1`, then repeat both completed
+definitions after remedies and before review. External deadline900 seconds.
+Feature smoke:
+
+```sh
+make check RUN='^TestReferenceCastDefinitionFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceCastDefinitionFeatureSmoke$'
+```
+
+Expected smoke: red41/blue42/NULL99 through one held statement, typmod/explicit
+flag values, actual enum IO, failing multirow rollback, exact qNaN/sNaN words,
+literal backslash bytes, and context-aware routine binding. These are required
+observations, not passing evidence. Whole-project quickcheck remains separate.
+
+`TestReferenceCastDefinitionForeignDefaults` uses the portable metadata-only
+`fdw_meta` wrapper (`NO HANDLER NO VALIDATOR`) and `fdw_server`; no remote scans
+or provider identities are needed. Old/fresh simple-CASE defaults retain their
+actual selected routine dependencies in inline and late foreign declarations,
+including different epochs on two attributes of one declaration. Ordinary
+defaults independently execute to 1/2, while the final implicit cast returns 77.
+The native phase performs Dump/Reset/Restore and, when PostgreSQL is enabled,
+executes the unchanged emitted SQL there and repeats those same catalog/value
+assertions. Actual catalog queries require exactly the final cast and expected
+routines, with no surviving replay helpers. Wrapper/schema and same-session
+authorization cleanup runs before and after replay, leaving the later independent
+PostgreSQL setup clean.
+
+```sh
+make check RUN='^TestReferenceCastDefinitionForeignDefaults$'
+make check RUN='^TestReferenceCastDefinitionForeignDefaults$' REFERENCE=1
+```
+
+The metadata-only foreign case constructs `fixture.NewScenario` directly and
+shares one SQL/assertion body across backends. Only ordinary wrapper/server
+DDL is needed: it registers no native foreign provider and issues no remote
+queries. PostgreSQL borrowed owners clean global wrapper/schema state with
+fresh bounded contexts before closing, including native-emitted SQL replay
+before the later independent PostgreSQL setup. Native teardown closes its
+borrowed owner and uses public Reset with a fresh bounded context rather than
+enabling unsupported schema-CASCADE dependency combinations.
+
+Whole-family selected proof after migration (unchanged public test names;
+external deadline900 seconds per command):
+
+```sh
+make check RUN='^TestReferenceCastDefinition'
+make check RUN='^TestReferenceCastDefinition' REFERENCE=1
+```
+
+These commands include the foreign-default and review scenarios alongside the
+original family. They are required proof, not recorded passing results.
+
+The review regressions independently assert INOUT unconstrained input followed
+by contextual scalar/array sizing (`re`/`é`, assignment `22001` and atomicity),
+released enum/composite/range/multirange IO volatility (`42P17`) with immutable
+XID→REAL controls, assignment-context Boolean constructs and routine defaults,
+and exact signed LINE→CIRCLE payloads. Direct/fresh/held paths, NULL, retained
+meaning after cast replacement, native Restore and actual native SQL replay on
+PostgreSQL are exercised by the five named review definitions. Their
+MERGE assertions preserve lib/pq's exported affected-count zero while checking
+the actual mutations independently.
+
+`TestReferenceCastDefinitionNestedConstructorReplay` independently checks outer
+array bounds0:0/1 and nested bounds-2:-2/1, negative radii-3/-7, NULL composite
+versus ROW(NULL circle), and captured snapshot id1 versus updated table id2.
+Same-owner and fresh-owner native Restore read the captured rows before REFRESH;
+unchanged emitted SQL on PostgreSQL preserves table values and the initially
+unpopulated view definition, then REFRESH derives the real updated rows.
+
+`TestReferenceCastDefinitionAggregateBinary` uses real byteacat support with
+TEXT input and BYTEA state. Initialized transitions and strict first-value seeds
+produce raw bytes616263/5c7834313432 rather than INOUT's4142. Explicit/assignment
+binary edges and implicit function/INOUT edges cannot satisfy binary-only
+support admission. After DROP/INOUT replacement, initialized adapters retain
+their meaning; strict/no-init direct, prepared, held, stored and empty-input
+execution instead fails42P13 with the actual aggregate identity. Native/fresh
+Restore and unchanged native SQL replay on PostgreSQL preserve both declarations
+and the exact final cast state.
+
+```sh
+make check RUN='^TestReferenceCastDefinition(AggregateBinary|NestedConstructorReplay)$'
+make check RUN='^TestReferenceCastDefinition(AggregateBinary|NestedConstructorReplay)$' REFERENCE=1
+```
+
+`TestReferenceCastDefinitionAggregatePolymorphicBinary` composes historical
+binary adapters with real polymorphic `array_append` specialization. Existing
+OID→REAL word mappings produce array elements1/2/NULL, before and after DROP
+or an assignment-only INOUT replacement; current ordinary conversion instead
+produces1065353216. The initialized aggregate, its concrete REAL[] signature,
+stored view and remapped native owners keep the admitted meaning. Fresh
+declarations still fail42883 against the current ineligible catalog. Actual
+unchanged native dump SQL is replayed on PostgreSQL with the final cast bag.
+No CIRCLE[] codec or new common-type category is enabled for this witness.
+
+```sh
+make check RUN='^TestReferenceCastDefinitionAggregatePolymorphicBinary$'
+make check RUN='^TestReferenceCastDefinitionAggregatePolymorphicBinary$' REFERENCE=1
+```

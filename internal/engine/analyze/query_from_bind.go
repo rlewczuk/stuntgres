@@ -609,7 +609,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 					join.Predicate = plan.LogicalExpr{Info: b.Info(b.Type(sqltype.Bool).Usage(), pos, expr.Properties{RowDependent: true}), Op: parser.LogicalAnd, Left: join.Predicate, Right: eq}
 				}
 				operands := []ComparisonOperand{{Node: le}, {Node: re}}
-				usage, err := CommonExpressionUsage(operands, b.Type(sqltype.Text).Usage(), "JOIN/USING")
+				usage, err := CommonExpressionUsage(b.BindingCatalog(), operands, b.Type(sqltype.Text).Usage(), "JOIN/USING")
 				if err != nil {
 					return nil, QueryNamespace{}, err
 				}

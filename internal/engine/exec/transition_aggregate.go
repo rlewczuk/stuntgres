@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -38,6 +39,22 @@ func (p *TransitionAggregate) InitWithContext(ctx context.Context, evaluation ex
 		return nil, fmt.Errorf("stuntgres: transition aggregate has no execution context")
 	}
 	return p.initialize(ctx, evaluation.FunctionInput())
+}
+
+// Start checks live strict-seed feasibility once at executor startup, not at
+// Prepare, per group, or when the first non-NULL row arrives.
+func (p *TransitionAggregate) Start(c *Context) error {
+	if !p.Support.Strict || p.Aggregate.Aggregate.Definition.HasInitial {
+		return nil
+	}
+	auth, _, err := RoutineAdmissionAuthority(c)
+	if err != nil {
+		return err
+	}
+	if _, compatible := catalog.ImplicitBinaryCast(auth.Catalog, p.Inputs[1].Type.ID(), p.Usage.Type.ID()); !compatible {
+		return expr.ErrorAt("42P13", fmt.Sprintf("aggregate %d needs to have compatible input type and transition type", p.Aggregate.Address().ObjectID), parser.Position{})
+	}
+	return nil
 }
 func (p *TransitionAggregate) initialize(ctx context.Context, input sqltype.InputEnvironment) (any, error) {
 	if err := ctx.Err(); err != nil {
@@ -214,7 +231,7 @@ func (p *TransitionAggregate) Remap(r functions.ProviderRemap) (functions.Aggreg
 		if err != nil {
 			return nil, err
 		}
-		next.Conversions[i], err = sqltype.PlanCoercion(next.Inputs[i], next.Formals[i], sqltype.Implicit)
+		next.Conversions[i], err = p.Conversions[i].Rebind(next.Inputs[i], next.Formals[i], sqltype.Implicit)
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +249,7 @@ func (p *TransitionAggregate) Remap(r functions.ProviderRemap) (functions.Aggreg
 		}
 	}
 	if next.Support.Strict && !next.Aggregate.Aggregate.Definition.HasInitial {
-		next.SeedConversion, err = sqltype.PlanCoercion(next.Inputs[1], next.Usage, sqltype.Implicit)
+		next.SeedConversion, err = p.SeedConversion.Rebind(next.Inputs[1], next.Usage, sqltype.Implicit)
 		if err != nil {
 			return nil, err
 		}

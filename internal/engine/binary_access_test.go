@@ -195,7 +195,8 @@ func bitAccessBindingProperties(t *testing.T) {
 				t.Fatal(err)
 			}
 			props := expr.Properties{Volatility: expr.Stable, RowDependent: true, StageDependent: true, DomainDependent: true}
-			source := plan.LiteralExpr{Info: expr.Info{Usage: usage, Property: props}, Value: value}
+			pos := parser.Position{Character: 17}
+			source := plan.LiteralExpr{Info: expr.Info{Usage: usage, Pos: pos, Property: props}, Value: value}
 			operands := []functions.Argument{{Expression: source, Usage: usage}}
 			for i := 1; i < len(raw.Args); i++ {
 				u := b.Type(sqltype.Int4).Usage()
@@ -211,8 +212,8 @@ func bitAccessBindingProperties(t *testing.T) {
 			if err := binary.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			if node.Properties() != props || node.ResultUsage().Typmod != -1 || source.ResultUsage() != usage || binary.Args[0].ResultUsage().Typmod != -1 {
-				t.Fatal("width/dependency propagation", name, family, node.Properties())
+			if node.Properties() != props || node.ResultUsage().Typmod != -1 || source.ResultUsage() != usage || binary.Args[0].ResultUsage().Typmod != -1 || binary.Args[0].SourcePosition() != pos {
+				t.Fatal("width/dependency/source propagation", name, family, node.Properties())
 			}
 		}
 	}

@@ -19,9 +19,14 @@ func TestReferenceJSONElementsCancellation(t *testing.T) {
 		for _, f := range []string{"json_array_elements", "json_array_elements_text"} {
 			t.Run(f, func(t *testing.T) {
 				dest := "jelements_cancel_" + f
-				run(fixture.Exec("CREATE TABLE "+dest+"(id int,v "+jsonElementsType(f)+")", 0))
+				run(fixture.Exec("CREATE TABLE "+dest+"(id int,v "+jsonElementsType(f)+",CHECK(pg_advisory_xact_lock(CASE WHEN length(v::text)>2 THEN 67108864::bigint ELSE 2::bigint END) IS NOT NULL))", 0))
 				run(fixture.Exec("INSERT INTO "+dest+" VALUES(0,'99')", 1))
-				readSQL := "SELECT sum(length(e.value::text)) AS n FROM jelements_active s," + f + "(s.j) e"
+				// Persist admission after actual expansion, not during a finite
+				// provider frame that a parent stack sample can miss. The INSERT
+				// CHECK gates its actual output and the SELECT materializes it.
+				readSQL := "WITH expanded AS MATERIALIZED (SELECT e.value AS v FROM jelements_active s," + f + "(s.j) e), " +
+					"gated AS MATERIALIZED (SELECT v,pg_advisory_xact_lock(CASE WHEN length(v::text)>2 THEN 67108864::bigint ELSE 2::bigint END) AS gate FROM expanded) " +
+					"SELECT sum(length(v::text)) AS n FROM gated"
 				writeSQL := "INSERT INTO " + dest + " SELECT s.id,e.value FROM jelements_active s," + f + "(s.j) e ORDER BY s.id"
 				read, err := c.PrepareContext(p.Ctx, readSQL)
 				if err != nil {
@@ -73,11 +78,9 @@ func TestReferenceJSONElementsCancellation(t *testing.T) {
 				}
 				for _, writing := range []bool{false, true} {
 					run(fixture.Prepared(fixture.Exec("UPDATE jelements_active SET j=$1 WHERE id>1", 8, large)))
-					q := readSQL
-					if writing {
-						q = writeSQL
-					}
-					fixture.BinaryConversionActiveCancel(t, p, b, c, q, "sqltype.JSONElementsPlan.Open", func(ctx context.Context) fixture.RelationOutcome {
+					// Ordered INSERT must retain its earlier small-output grant
+					// while waiting on the large-output holder.
+					outputGateCancel(t, p, b, c, writing, func(ctx context.Context) fixture.RelationOutcome {
 						if writing {
 							result, err := write.ExecContext(ctx)
 							return fixture.RelationOutcome{Result: result, Err: err}

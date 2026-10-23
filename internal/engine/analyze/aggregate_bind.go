@@ -212,6 +212,9 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 			}
 		}
 		return true
+	case plan.CaseTestExpr:
+		_, ok := other.(plan.CaseTestExpr)
+		return ok
 	case plan.CollationExpr:
 		o, ok := other.(plan.CollationExpr)
 		return ok && same(e.Child, o.Child)
@@ -263,7 +266,7 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		}
 		for i, arm := range e.Arms {
 			otherArm := o.Arms[i]
-			if !arm.TestPlan.Equal(otherArm.TestPlan) || !arm.Equality.Equal(otherArm.Equality) || arm.TestUsage != otherArm.TestUsage || !same(arm.Condition, otherArm.Condition) || !same(arm.Result, otherArm.Result) {
+			if !same(arm.Test, otherArm.Test) || arm.TestContext != otherArm.TestContext || !arm.Equality.Equal(otherArm.Equality) || arm.TestUsage != otherArm.TestUsage || !same(arm.Condition, otherArm.Condition) || !same(arm.Result, otherArm.Result) {
 				return false
 			}
 		}
@@ -547,6 +550,7 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		e.Arms = append([]plan.CaseBranch(nil), e.Arms...)
 		for i := range e.Arms {
 			e.Arms[i].Condition = rewrite(e.Arms[i].Condition)
+			e.Arms[i].Test = rewrite(e.Arms[i].Test)
 			e.Arms[i].Result = rewrite(e.Arms[i].Result)
 		}
 		e.Otherwise = rewrite(e.Otherwise)
@@ -713,6 +717,7 @@ func AggregateOccurrence(bound expr.Expr) *plan.AggregateExpr {
 	case plan.CaseExpr:
 		walk(e.Test)
 		for _, arm := range e.Arms {
+			walk(arm.Test)
 			walk(arm.Condition)
 			walk(arm.Result)
 		}

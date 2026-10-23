@@ -18,8 +18,31 @@ func (r ScalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) e
 		// actual provider owns the selected routine and immutable body.
 		return r.recordStoredRoutine(view, selected.Provider)
 	}
+	if expression, ok := node.(plan.ArrayCastExpr); ok {
+		// The element template is executed but is not emitted as standalone
+		// SQL. Its lexical input belongs to the enclosing array conversion;
+		// its selected routines still need the consumer's original manifest.
+		var failure error
+		plan.WalkExpression(expression.Element, func(child expr.Expr) {
+			if failure == nil {
+				failure = r.recordStoredRoutine(view, child)
+			}
+		})
+		if failure != nil {
+			return failure
+		}
+	}
 	if expression, ok := node.(plan.CaseExpr); ok && expression.Test != nil {
 		for _, arm := range expression.Arms {
+			var failure error
+			plan.WalkExpression(arm.Test, func(child expr.Expr) {
+				if failure == nil {
+					failure = r.recordStoredRoutine(view, child)
+				}
+			})
+			if failure != nil {
+				return failure
+			}
 			if arm.Routine != nil {
 				if err := r.recordStoredRoutineDescriptor(view, arm.Routine); err != nil {
 					return err

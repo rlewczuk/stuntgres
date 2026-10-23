@@ -98,6 +98,30 @@ func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Rea
 	return dump.Statement{Owner: owner.Name, SQL: prefix + "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
 }
 
+// DomainCheckDumpStatement emits one retained CHECK at its replay window.
+// Valid checks run ordinary ALTER validation; NOT VALID stays NOT VALID.
+func DomainCheckDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, domain *catalog.Type, check catalog.DomainCheckConstraint) (string, error) {
+	qualified, err := p.TypeDeclaration(view, nil, domain.SQLType.Usage())
+	if err != nil {
+		return "", err
+	}
+	expression, err := p.DomainCheck(ctx, view, domain.SQLType.DomainBase(), check.Expression)
+	if err != nil {
+		return "", err
+	}
+	var text strings.Builder
+	writeDomainCheckDump(&text, qualified, expression, check)
+	return text.String(), nil
+}
+
+func writeDomainCheckDump(text *strings.Builder, qualified, expression string, check catalog.DomainCheckConstraint) {
+	text.WriteString("ALTER DOMAIN " + qualified + " ADD CONSTRAINT " + catalog.Identifier(check.Name) + " CHECK (" + expression + ")")
+	if check.NotValid {
+		text.WriteString(" NOT VALID")
+	}
+	text.WriteString(";\n")
+}
+
 func DomainInvalidDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, domain *catalog.Type) (string, error) {
 	qualified, err := p.TypeDeclaration(view, nil, domain.SQLType.Usage())
 	if err != nil {
@@ -113,7 +137,7 @@ func DomainInvalidDumpStatement(ctx context.Context, p dump.Presenter, view cata
 		if err != nil {
 			return "", err
 		}
-		text.WriteString("ALTER DOMAIN " + qualified + " ADD CONSTRAINT " + catalog.Identifier(check.Name) + " CHECK (" + expression + ") NOT VALID;\n")
+		writeDomainCheckDump(&text, qualified, expression, check)
 	}
 	return text.String(), nil
 }

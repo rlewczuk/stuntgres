@@ -28,6 +28,7 @@ type preparedAnalysis struct {
 	targets         map[parser.Statement]ids.ObjectRef
 	sources         map[*parser.TableReference]analyze.PreparedSource
 	dependencies    []catalog.ExpressionDependency
+	casts           map[catalog.CastPair]*catalog.Cast
 	needsReanalysis bool // A granted definition evolved after this attempt resolved names.
 }
 
@@ -74,6 +75,12 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.Catalog.Epoch() || analysis.session != auth.session.SessionToken || analysis.private != auth.session.Transactions.Catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(analysis.path, path) {
 		return false
 	}
+	for pair, observed := range analysis.casts {
+		current, _ := auth.Catalog.Cast(pair.Source, pair.Target)
+		if current != observed {
+			return false
+		}
+	}
 	for _, dep := range analysis.dependencies {
 		d := auth.Catalog.Get(dep.Ref.Address)
 		if d == nil || dep.Ref.Domain() != e.catalog.Domain || dep.Ref.Epoch != auth.Catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.Revision {
@@ -106,6 +113,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		target = view.ViewWriteOf(b.ViewWrite).Logical.Ref
 	}
 	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.prepared.epoch, session: s.op.Session.SessionToken, private: s.prepared.private, path: s.prepared.path, namespace: s.prepared.namespace, target: target, needsReanalysis: s.prepared.changedDuringAdmission}
+	cell.casts = b.Prepared.Casts
 	seen := make(map[ids.ObjectRef]bool)
 	var visit func(ids.ObjectRef) error
 	visit = func(ref ids.ObjectRef) error {

@@ -16,6 +16,8 @@ import (
 type Binder interface {
 	ArgumentAnalyzer
 	ArgumentCoercer
+	// CanCoerce is an effect-free catalog-aware feasibility probe.
+	CanCoerce(sqltype.Usage, sqltype.Usage, sqltype.CoercionContext) bool
 
 	// Type returns the binding catalog's descriptor for a builtin type.
 	Type(sqltype.ID) *sqltype.Descriptor

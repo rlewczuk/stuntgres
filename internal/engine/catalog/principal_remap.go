@@ -51,9 +51,9 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 	}
 	for addr, d := range state.Descriptors() {
 		switch d := d.(type) {
-		case *Database, *AccessMethod, *TSTemplate, *OperatorFamilyOperator, *OperatorFamilySupport:
-			// Attachment authority is local. Global access methods, templates
-			// and family members have no principals. Object/handler references
+		case *Database, *AccessMethod, *TSTemplate, *OperatorFamilyOperator, *OperatorFamilySupport, *Cast:
+			// Attachment authority is local. Global access methods, templates,
+			// family members and casts have no principals. Object references
 			// use the separate address remapper, not a fabricated owner.
 		case *Extension:
 			n := *d

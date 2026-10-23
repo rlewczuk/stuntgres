@@ -249,9 +249,9 @@ func partitionInfoArguments(raw parser.FunctionExpr) bool {
 
 // Applicability shares the binder's formal labels, without analyzing children
 // or resolving a competing routine a second time.
-func namedPartitionInfo(_ CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+func namedPartitionInfo(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
 	if len(args) != 1 || !partitionInfoArguments(raw) || !declaredTypes(declared, []sqltype.ID{sqltype.Regclass}) {
 		return nil, nil, false
 	}
-	return namedInputs(args, declared, []int{0})
+	return namedInputs(b, args, declared, []int{0})
 }

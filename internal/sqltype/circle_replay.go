@@ -28,27 +28,6 @@ func (v Value) RequiresCircleConstructorReplay() bool {
 	return false
 }
 
-// RequiresCircleArrayReplay is the narrow native-control boundary: ordinary
-// scalar/domain/composite circles use constructor SQL, but arrays containing
-// such values require the existing exact dimensions-and-elements transport.
-func (v Value) RequiresCircleArrayReplay() bool {
-	if v.typ == nil || v.null {
-		return false
-	}
-	d := v.typ.BaseType()
-	if d.IsArray() {
-		return v.RequiresCircleConstructorReplay()
-	}
-	if d.IsComposite() {
-		for i := range v.CompositeLen() {
-			if v.CompositeField(i).RequiresCircleArrayReplay() {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func circleConstructorLiteral(v circleDatum) string {
 	// Use exact coordinate spelling, not environment-rounded display. These
 	// components cannot contain SQL quoting metacharacters.

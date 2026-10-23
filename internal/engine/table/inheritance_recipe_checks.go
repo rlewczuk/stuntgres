@@ -10,13 +10,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Declarations use compatible typed NULL recipes only inside the dump/import
-// dependency stage. Every actual physical recipe is restored before CHECK/data.
-// This permits nonlocal children of parents whose captured recipes now differ.
-func prepareGenerationPlaceholders(view catalog.Read, tables []DumpRelation) {
+// PrepareGenerationPlaceholders selects compatible typed NULL declarations
+// inside the dump/import dependency stage. Explicit seeds identify tables whose
+// generated recipes need distinct historical cast windows; the same existing
+// inheritance-component walk covers both those and differing inherited recipes.
+// Every actual physical recipe is restored before CHECK/data.
+func PrepareGenerationPlaceholders(view catalog.Read, tables []DumpRelation, seeds map[ids.ObjectAddress]bool) {
 	hasSeed := false
 	for i := range tables {
-		if tables[i].needsGenerationPlaceholders() {
+		if tables[i].needsGenerationPlaceholders() || seeds[tables[i].Descriptor.Address()] {
 			hasSeed = true
 			break
 		}
@@ -51,7 +53,7 @@ func prepareGenerationPlaceholders(view catalog.Read, tables []DumpRelation) {
 		}
 	}
 	for i := range tables {
-		if tables[i].RecipePlaceholders || !tables[i].needsGenerationPlaceholders() {
+		if tables[i].RecipePlaceholders || !tables[i].needsGenerationPlaceholders() && !seeds[tables[i].Descriptor.Address()] {
 			continue
 		}
 		component = nil
@@ -200,7 +202,12 @@ func (t *DumpRelation) EmitInheritedGenerations(ctx context.Context, view catalo
 	return nil
 }
 
-func (t *DumpRelation) EmitInheritedChecks(ctx context.Context, view catalog.Read, emit func(string) error) error {
+func (t *DumpRelation) EmitInheritedChecks(ctx context.Context, view catalog.Read, only bool, emit func(string) error) error {
+	prefix := "ALTER TABLE "
+	if only {
+		prefix += "ONLY "
+	}
+	prefix += catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name) + " ADD CONSTRAINT "
 	for _, check := range OrderedChecks(t.Descriptor) {
 		if !t.DeferredChecks[check.Name] || !DumpCheckDeclaration(view, t.Descriptor, check) {
 			continue
@@ -213,7 +220,7 @@ func (t *DumpRelation) EmitInheritedChecks(ctx context.Context, view catalog.Rea
 		if check.NoInherit {
 			suffix = " NO INHERIT"
 		}
-		if err := emit("ALTER TABLE " + catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(check.Name) + " CHECK (" + text + ")" + suffix + ";\n"); err != nil {
+		if err := emit(prefix + catalog.QuoteIdentifier(check.Name) + " CHECK (" + text + ")" + suffix + ";\n"); err != nil {
 			return err
 		}
 	}
@@ -304,7 +311,7 @@ func CapturedGenerationReplayPlan(view catalog.Read) (map[ids.ObjectAddress]*Dum
 		}
 		tables = append(tables, captured)
 	}
-	prepareGenerationPlaceholders(view, tables)
+	PrepareGenerationPlaceholders(view, tables, nil)
 	var selected map[ids.ObjectAddress]*DumpRelation
 	for i := range tables {
 		if tables[i].RecipePlaceholders {

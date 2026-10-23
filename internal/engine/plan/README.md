@@ -110,6 +110,22 @@ their whole `Eval` to the runtime.
 - **Evaluation order and errors.** Node `Eval` keeps the engine's
   evaluation order, errors, SQLSTATEs and positions; the prologue order
   above is part of the contract.
+- **Saved simple CASE input.** `CaseExpr.Test` is evaluated once. Each reached
+  branch retains its own selected `CaseBranch.Test` conversion tree over a
+  lexical `CaseTestExpr`; that conversion runs before the branch's WHEN operand.
+  The ordinary cast nodes retain function, IO, domain, NULL and ACL semantics.
+  Runtime input frames save and restore across nested CASE and failures; they
+  are not SQL parameters or cached callback results. Walkers include these
+  templates so effects, dependencies and remapping cannot disappear.
+  Constant/join optimizers may use `FixedCaseTest` only when the retained tree
+  already is a fixed conversion; they never recreate a substitute for a user
+  recipe. Stored simple CASE keeps its original syntax and retained recipe
+  requirements rather than duplicating the source expression.
+  Function-cast calls also retain the ordinary selected routine input assembly:
+  all supplied/synthetic arguments are written operands, with validated formal
+  slots and inverse child slots. Normal calls and cast calls share assembly
+  closure and validation. Provider volatility comes from the captured procedure;
+  this does not expand the accepted SQL routine attribute set.
 - **Value copies.** The runtime's `Eval*` methods take nodes by value
   (about 300 bytes each); keep new hot paths on scalar arguments, like
   `FrameValue`.
@@ -129,10 +145,36 @@ legality, aggregate binding, defaults, `table.ValidateGenerationPlan`); the inst
 `analyze`) and `bindExtensionPaths`. The engine names the types here directly; no aliases
 remain.
 
+`DatumCastExpr` retains selected strict IO/binary semantics and separately planned
+target sizing; it performs no live pair lookup. INOUT calls target input with
+typmod `-1`, then applies sizing in the retained explicit/assignment context.
+The same sizing tail handles binary casts and NULLs; Rebuild removes obsolete
+sizing when the target becomes unconstrained. SQL function casts use the real
+`SQLRoutineExpr`, not that strict wrapper. `ArrayCastExpr` maps a selected element
+expression through an execution-owned scoped element frame while preserving the
+source array's dimensions/lower bounds and one source evaluation. Binding
+projects both outer usages' typmods and collations onto the element conversion.
+Declared IO casts derive intrinsic volatility from the source output and target
+input codecs, using the same session-dependence authority as fixed coercions.
+Enum, composite, range, multirange and array IO are STABLE under the released
+procedure declarations; domain codecs delegate to their bases. XID→REAL IO
+remains immutable. Rebuilding a retained cast merges child effects and reapplies
+that intrinsic classification.
+
 ## Testing
 
-The package has no unit tests of its own: its types are exercised through the
-engine. Prologue seam (engine-owned):
+Pure codec-plan units cover contextual IO/binary sizing, multibyte boundaries,
+NULL, retained Rebuild, custom descriptor IO volatility and generation admission:
+
+```sh
+make check RUN='^TestCastDefinition(IOTypmodSizing|IODescriptorVolatility)$'
+make check RUN='^TestCastDefinition(IOTypmodSizing|IODescriptorVolatility)$' RACE=1
+make check RUN='^TestReferenceCastDefinition(IOTypmod|IOVolatility)$'
+make check RUN='^TestReferenceCastDefinition(IOTypmod|IOVolatility)$' REFERENCE=1
+```
+
+Public SQL/replay witnesses live in `reference/operators`; these units do not
+replace selected dual-mode proof. Prologue seam (engine-owned):
 
 ```sh
 make check RUN='^TestNodeRuntimePrologue$'

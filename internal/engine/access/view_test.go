@@ -66,6 +66,21 @@ func (e countingEnvironment) ReferencePath() ([]ids.ObjectAddress, error) {
 	return nil, nil
 }
 
+func TestCastDefinitionOwnerlessACL(t *testing.T) {
+	f := newAccessFixture(t)
+	roles := f.view(t, "postgres").Roles
+	cast := &catalog.Cast{OID: 30001, ObjectRevision: 1, Source: 28, Target: 700, Method: "b", Context: "e"}
+	if err := ValidateACL(roles, cast); err != nil {
+		t.Fatal("cast has no principal or ACL to validate:", err)
+	}
+	// This exemption is about the descriptor kind, not a general permission
+	// to publish zero owners. Endpoint/routine authority remains independent.
+	ownerlessSchema := &catalog.Namespace{ObjectAddress: f.public.Address(), ObjectRevision: 1, ObjectName: "public"}
+	if err := ValidateACL(roles, ownerlessSchema); err == nil {
+		t.Fatal("ordinary owner-bearing descriptor accepted a zero owner")
+	}
+}
+
 func TestViewRejectsForeignOrStaleObjects(t *testing.T) {
 	f := newAccessFixture(t)
 	other := newAccessFixture(t)

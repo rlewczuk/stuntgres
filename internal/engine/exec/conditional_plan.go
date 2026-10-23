@@ -111,6 +111,12 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 		var arms []plan.CaseBranch
 		for i, old := range e.Arms {
 			arm := old
+			if arm.Test != nil {
+				arm.Test, err = child(arm.Test)
+				if err != nil {
+					return nil, false, err
+				}
+			}
 			arm.Condition, err = child(arm.Condition)
 			if err != nil {
 				return nil, false, err
@@ -120,10 +126,15 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 				if e.Test == nil {
 					known, match, err = plan.LiteralSearchedCaseMatch(arm.Condition)
 				} else if test, ok := e.Test.(plan.LiteralExpr); ok {
-					known = true
+					// Only an already-retained fixed recipe is safe to execute
+					// here. User routines and IO retain their execution frontier.
+					fixed, safe := plan.FixedCaseTest(arm.Test)
+					known = safe && !fixed.ChecksDomain()
 					var view sqltype.Value
-					view, err = arm.TestPlan.Apply(c.Context, test.Value, c.Input, c.Output)
-					if err == nil && !view.IsNull() && !condition.Value.IsNull() {
+					if known {
+						view, err = fixed.Apply(c.Context, test.Value, c.Input, c.Output)
+					}
+					if known && err == nil && !view.IsNull() && !condition.Value.IsNull() {
 						if err := AdmitCaseEquality(c, arm); err != nil {
 							return nil, false, err
 						}

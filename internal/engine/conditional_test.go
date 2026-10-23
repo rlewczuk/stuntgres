@@ -54,10 +54,6 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coercionPlan, err := sqltype.PlanCoercion(integer.Usage(), integer.Usage(), sqltype.Implicit)
-	if err != nil {
-		t.Fatal(err)
-	}
 	info := expr.Info{Usage: integer.Usage()}
 	searched := plan.CaseExpr{Info: info, Arms: []plan.CaseBranch{{Condition: spy(0, sqltype.Boolean(boolean, true)), Result: spy(1, value)}, {Condition: spy(2, sqltype.Boolean(boolean, true)), Result: spy(3, other)}}, Otherwise: spy(4, other)}
 	got, err := searched.Eval(ctx)
@@ -65,7 +61,7 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	simple := plan.CaseExpr{Info: info, Test: spy(0, value), Arms: []plan.CaseBranch{{Condition: spy(1, other), Result: spy(2, other), TestPlan: coercionPlan, TestUsage: integer.Usage(), Equality: comparison}, {Condition: spy(3, value), Result: spy(4, value), TestPlan: coercionPlan, TestUsage: integer.Usage(), Equality: comparison}}, Otherwise: plan.LiteralExpr{Info: info, Value: other}}
+	simple := plan.CaseExpr{Info: info, Test: spy(0, value), Arms: []plan.CaseBranch{{Condition: spy(1, other), Result: spy(2, other), Test: plan.CaseTestExpr{Info: info}, TestUsage: integer.Usage(), Equality: comparison}, {Condition: spy(3, value), Result: spy(4, value), Test: plan.CaseTestExpr{Info: info}, TestUsage: integer.Usage(), Equality: comparison}}, Otherwise: plan.LiteralExpr{Info: info, Value: other}}
 	got, err = simple.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 1, 1} {
 		t.Fatal(got, calls, err)

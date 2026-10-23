@@ -395,6 +395,8 @@ type Value struct {
 	west            int32
 	oid             uint32
 	floating        float64
+	float4Raw       uint32 // Authoritative binary-created REAL word; floating is presentation/arithmetic.
+	float4RawValid  bool
 	boolean         bool
 	text            string
 	exponent, scale int64
@@ -629,6 +631,9 @@ func (v Value) Text() (string, error) {
 			return "", err
 		}
 		return strconv.FormatUint(uint64(id), 10), nil
+	}
+	if v.typ.id == Regclass && v.integer == 1 && v.text == "" {
+		return strconv.FormatUint(uint64(v.oid), 10), nil
 	}
 	return v.text, nil
 }
@@ -1155,13 +1160,16 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return env.Regproc.FormatRegproc(id)
 	case Regclass:
 		if env.Regclass != nil {
+			if v.integer == 1 {
+				return env.Regclass.FormatRegclass(v.oid)
+			}
 			n, err := strconv.ParseUint(v.text, 10, 32)
 			if err != nil {
 				return "", err
 			}
 			return env.Regclass.FormatRegclass(uint32(n))
 		}
-		return v.text, nil
+		return v.Text()
 	case Text, BPChar, VarChar, Name, JSON:
 		return v.text, nil
 	case JSONB:
@@ -1379,7 +1387,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'", nil
-	case Text, BPChar, VarChar, Name, Regclass, JSON:
+	case Regclass:
+		text, err := v.Text()
+		if err != nil {
+			return "", err
+		}
+		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	case Text, BPChar, VarChar, Name, JSON:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case JSONB, JSONPath:
 		text, err := d.Output(ctx, v)
@@ -1447,6 +1461,7 @@ type CoercionPlan struct {
 	context                      CoercionContext
 	logicalSource, logicalTarget *Descriptor
 	element                      *CoercionPlan
+	binary                       BinaryCoercionPlan
 	jsonEncoding                 string
 	jsonUnique                   bool
 	// jsonReturning owns a constructor output conversion, not an enclosing assignment.
@@ -2065,6 +2080,9 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	return p, failure("42804", "incompatible source and destination types")
 }
 func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnvironment, output OutputEnvironment) (Value, error) {
+	if p.binary.method != binaryCoercionNone {
+		return p.binary.Apply(ctx, v)
+	}
 	if input.ExactSnapshot {
 		return p.applyExactSnapshot(ctx, v, input, output)
 	}

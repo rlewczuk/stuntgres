@@ -2,6 +2,7 @@ package pgcatalog
 
 import (
 	"fmt"
+	catalogdata "stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -26,16 +27,24 @@ func capturePGCast(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	count := sqltype.CastMetadataCount()
+	facts := make([]sqltype.CastMetadata, 0, count)
+	for i := range count {
+		fact, _ := sqltype.CastMetadataAt(i)
+		facts = append(facts, fact)
+	}
+	for _, descriptor := range catalog.Descriptors() {
+		if d, ok := descriptor.(*catalogdata.Cast); ok {
+			facts = append(facts, sqltype.CastMetadata{OID: uint32(d.OID), Source: d.Source, Target: d.Target, Function: uint32(d.Function.ObjectID), Context: d.Context[0], Method: d.Method[0]})
+		}
+	}
+	count = len(facts)
 	rows := make([][]sqltype.Value, count)
 	values := make([]sqltype.Value, count*6)
 	for i := range count {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		fact, ok := sqltype.CastMetadataAt(i)
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing cast owner metadata")
-		}
+		fact := facts[i]
 		from, sourceOK := catalog.LookupType(fact.Source)
 		to, targetOK := catalog.LookupType(fact.Target)
 		if !sourceOK || !targetOK || from.ID() != fact.Source || to.ID() != fact.Target {

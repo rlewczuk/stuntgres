@@ -77,6 +77,9 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
   default conversions), `MixedDumpStatements` (domains, enums and composite
   types in captured graph order, reserving implicit array names as it goes)
   and `DomainInvalidDumpStatement` (the post-data NOT VALID domain CHECKs).
+  `DomainCheckDumpStatement` renders one retained CHECK in a historical cast
+  replay window, preserving its valid/NOT VALID state. Valid additions use the
+  ordinary ALTER DOMAIN binder and row-validation path during private Restore.
   They produce `dump.Statement` records and are pure functions of the
   captured view: type and column declarations and the domain DEFAULT and
   CHECK text come from the caller's `dump.Presenter`, so the package never
@@ -169,12 +172,12 @@ domain default and CHECK validators and `stored.ReownScalarTypes`. It never
 reached the binder; it sits in `stored` because it renders stored domain
 recipes through `stored.ScalarRenderer`.
 
-The existing native captured-cell record also transports negative constructor
-CIRCLE leaves beneath already-supported array carriers. Its wire shape remains
-unchanged: exact dimensions plus recursive typed elements. The engine admits
-new provenance only after closed constructor binding/evaluation and only for an
-affected array-containing cell; ordinary payloads and scalar negative sidecars
-remain rejected. Authentic domain-null provenance retains its original rules.
+The native captured-cell record requires authentic domain-NULL provenance.
+Its wire shape remains unchanged: exact dimensions plus recursive typed elements.
+Negative constructor CIRCLE leaves may occur in such an authenticated mixed
+carrier, but do not authorize a captured-cell record themselves. Circle-only
+payloads replay through portable constructor SQL; scalar negative sidecars and
+unrelated captured cells remain rejected.
 
 ## Testing
 

@@ -7,7 +7,9 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
@@ -183,5 +185,102 @@ func TestCreateAggregateTransitionFrameRemap(t *testing.T) {
 				t.Fatal("source parameter generation mutated")
 			}
 		})
+	}
+}
+
+func TestCreateAggregatePolymorphicTransitionRemap(t *testing.T) {
+	build := func(oid ids.OID) (catalog.Read, *catalog.Procedure) {
+		state := catalog.NewState(1)
+		for _, typ := range sqltype.Builtins() {
+			d := &catalog.Type{SQLType: typ, Array: typ.AssociatedArray()}
+			state.SetDescriptor(d.Address(), d)
+		}
+		procedures := routine.BuiltinProcedures(authorization.PrincipalRef{})
+		for i := range procedures {
+			state.SetDescriptor(procedures[i].Address(), &procedures[i])
+		}
+		aggregate := &catalog.Procedure{
+			ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid},
+			ObjectName:    "remapped_polymorphic", Signature: "26", RoutineKind: catalog.AggregateRoutine, Result: 1021,
+			Aggregate: &catalog.OwnedAggregate{
+				Definition:   catalog.AggregateDefinition{Function: oid, Kind: "n", Functions: [8]ids.OID{378}, TransitionType: 1021, HasInitial: true, Initial: "{}", FinalModify: "r", MovingFinalModify: "r"},
+				BinaryRecipe: &catalog.AggregateBinaryRecipe{Casts: []catalog.Cast{{OID: 91000, ObjectRevision: 1, Source: sqltype.Oid, Target: sqltype.Float4, Method: "b", Context: "i"}}},
+			},
+		}
+		state.SetDescriptor(aggregate.Address(), aggregate)
+		return catalog.NewRead(nil, state), aggregate
+	}
+	old, aggregate := build(91001)
+	next, destination := build(92001)
+	array, _ := old.LookupType(1021)
+	oid, _ := old.LookupType(sqltype.Oid)
+	real, _ := old.LookupType(sqltype.Float4)
+	support, _ := old.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 378})
+	inputs := []sqltype.Usage{array.Usage(), oid.Usage()}
+	formals := []sqltype.Usage{array.Usage(), real.Usage()}
+	call := functions.ArrayTransform{
+		Info: expr.Info{Usage: array.Usage(), RoutineReference: support},
+		Kind: functions.ArrayAppend, Namespace: "pg_catalog", Slots: [3]uint8{0, 1},
+		Args: []expr.Expr{
+			plan.ParameterExpr{Info: expr.Info{Usage: formals[0], Property: expr.Properties{ParameterDependent: true}}, Number: 1},
+			plan.ParameterExpr{Info: expr.Info{Usage: formals[1], Property: expr.Properties{ParameterDependent: true}}, Number: 2},
+		},
+	}
+	provider := &exec.TransitionAggregate{Aggregate: aggregate, Support: support, Usage: array.Usage(), Inputs: inputs, Formals: formals, Call: call, Conversions: make([]sqltype.CoercionPlan, 2)}
+	for i := range inputs {
+		var err error
+		provider.Conversions[i], err = catalog.AggregateConversion(aggregate.Aggregate.BinaryRecipe, inputs[i], formals[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	mapper := &ViewQueryRemapper{Catalog: next, Type: func(source *sqltype.Descriptor) *sqltype.Descriptor {
+		target, _ := next.LookupType(source.ID())
+		return target
+	}, addressMapper: func(source ids.ObjectAddress) ids.ObjectAddress {
+		if source == aggregate.Address() {
+			return destination.Address()
+		}
+		return source
+	}}
+	var slot functions.AggregateProvider = provider
+	if err := mapper.provider(&slot, provider, nil); err != nil {
+		t.Fatal("actual historical polymorphic provider remap", err)
+	}
+	mapped := slot.(*exec.TransitionAggregate)
+	newArray, _ := next.LookupType(1021)
+	newOID, _ := next.LookupType(sqltype.Oid)
+	newReal, _ := next.LookupType(sqltype.Float4)
+	newSupport, _ := next.Procedure(support.Address())
+	if mapped.Aggregate != destination || mapped.Support != newSupport || mapped.Usage != newArray.Usage() || mapped.Inputs[1] != newOID.Usage() || mapped.Formals[0] != newArray.Usage() || mapped.Formals[1] != newReal.Usage() {
+		t.Fatal("transition remap retained foreign declaration or frame ownership")
+	}
+	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
+	state, err := mapped.InitWithContext(context.Background(), evaluation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"1065353216", "1073741824", ""} {
+		value := sqltype.Null(newOID)
+		if text != "" {
+			value, err = newOID.Input(context.Background(), text, -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := mapped.Advance(context.Background(), state, []sqltype.Value{value}, evaluation); err != nil {
+			t.Fatal("remapped actual array_append transition", err)
+		}
+	}
+	value, err := mapped.Finalize(context.Background(), state)
+	if err != nil || value.Type() != newArray || value.ArrayLen() != 3 || !value.ArrayElement(2).IsNull() {
+		t.Fatal("remapped transition result ownership/NULL", value, err)
+	}
+	for i, want := range []string{"1", "2"} {
+		element := value.ArrayElement(i)
+		text, err := newReal.Output(context.Background(), element)
+		if err != nil || element.Type() != newReal || text != want {
+			t.Fatal("historical binary adapter lost in provider remap", i, text, err)
+		}
 	}
 }

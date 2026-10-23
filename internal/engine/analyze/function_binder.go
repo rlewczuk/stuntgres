@@ -65,7 +65,7 @@ func (b *Binder) CommonUsage(usages []sqltype.Usage) sqltype.Usage {
 	operand := func(i int) ComparisonOperand {
 		return ComparisonOperand{Node: plan.LiteralExpr{Info: expr.Info{Usage: usages[i]}}}
 	}
-	common, _ := selectCommonUsage(len(usages), operand, b.Type(sqltype.Text).Usage(), "", b.DiagnosticTypeName)
+	common, _ := selectCommonUsage(b.BindingCatalog(), len(usages), operand, b.Type(sqltype.Text).Usage(), "", b.DiagnosticTypeName)
 	return common
 }
 
@@ -264,7 +264,7 @@ func withinGroupOrder(keys []functions.AggregateSortKey) []plan.SortKey {
 func (b *Binder) CollationName(id uint32) string { return b.collationName(id) }
 
 func (b *Binder) CommonArgumentUsage(operands []functions.Argument, label string) (sqltype.Usage, error) {
-	return selectCommonUsage(len(operands), func(i int) ComparisonOperand {
+	return selectCommonUsage(b.BindingCatalog(), len(operands), func(i int) ComparisonOperand {
 		return ComparisonOperand{Node: operands[i].Expression, raw: operands[i].Raw}
 	}, b.Type(sqltype.Text).Usage(), label, (*sqltype.Descriptor).DiagnosticName)
 }

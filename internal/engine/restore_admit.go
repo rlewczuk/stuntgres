@@ -59,7 +59,7 @@ func restoreAdmitReplayed[T parser.Statement](replay func(*restoreRun, *session.
 // restoreAdmitSchemaObject admits the schema-level object DDL.
 func restoreAdmitSchemaObject(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
 	switch stmt.(type) {
-	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
+	case *parser.CreateCast, *parser.DropCast, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
 		return control.Admitted, nil
 	}
 	return control.NotHandled, nil
@@ -229,14 +229,15 @@ func admitRestoreAlterIndex(_ *restoreRun, _ *session.Operation, s *parser.Alter
 	return nil
 }
 
-// admitRestoreAlterTable admits a physical constructor, row-security
-// actions, an inherited CHECK repair or the restorable constraint forms.
+// admitRestoreAlterTable admits a physical constructor, row-security actions,
+// a valid CHECK (with inherited repair authority where needed), or the
+// restorable constraint forms.
 func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.AlterTable) error {
 	if r.cur.physicalConstructor != nil || access.RowSecurityActions(s.Actions) {
 		return nil
 	}
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.AddCheck && s.Actions[0].Check != nil && !s.Actions[0].Check.NotValid {
-		return r.stage.restoreInheritedCheck(op, s, r.generationRepairs)
+		return r.stage.restoreCheck(op, s, r.generationRepairs)
 	}
 	return table.RestoreAlterConstraints(s)
 }

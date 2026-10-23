@@ -89,6 +89,12 @@ var dumpPhaseEmitters = [...]dumpPhaseEmitter{
 // emitDumpEvents writes every ordered event through its phase's entry.
 func emitDumpEvents(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 	for _, event := range s.eventOrder {
+		if event.Phase == dump.Declaration && s.lateForeignCasts[event.OID] {
+			continue
+		}
+		if err := s.openCastWindow(w, castConsumer{Event: event}); err != nil {
+			return err
+		}
 		entry := dumpPhaseEmitters[event.Phase]
 		if entry.owner != nil {
 			if err := w.setOwner(entry.owner(s, event)); err != nil {
@@ -99,6 +105,9 @@ func emitDumpEvents(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 			if err := entry.emit(ctx, s, w, event); err != nil {
 				return err
 			}
+		}
+		if err := s.closeCastWindow(w, castConsumer{Event: event}); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -158,7 +167,21 @@ func emitDumpInvalidIndex(ctx context.Context, s *dumpScript, w *dumpWriter, eve
 
 func emitDumpDefaults(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.EmitDeferredDefaults(ctx, s.OriginalCatalog, w.emit)
+	for _, attribute := range t.Attributes {
+		definition, exists := t.Defaults[attribute]
+		if !exists || !t.DeferredDefinitions[attribute] {
+			continue
+		}
+		member := t
+		member.Defaults = map[int32]catalog.ColumnDefault{attribute: definition}
+		site := castConsumer{Event: event, Attribute: attribute}
+		if err := s.emitCastConsumer(w, site, t.Owner, func() error {
+			return member.EmitDeferredDefaults(ctx, s.OriginalCatalog, w.emit)
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func emitDumpRows(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
@@ -168,17 +191,75 @@ func emitDumpRows(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.
 
 func emitDumpInvalidConstraints(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.EmitInvalidConstraints(ctx, s.OriginalCatalog, w.emit)
+	// Non-CHECK constraints have no scalar recipe windows.
+	descriptor := *t.Descriptor
+	descriptor.Constraints.Check = nil
+	base := t
+	base.Descriptor = &descriptor
+	if err := base.EmitInvalidConstraints(ctx, s.OriginalCatalog, w.emit); err != nil {
+		return err
+	}
+	for _, check := range table.OrderedChecks(t.Descriptor) {
+		if !check.NotValid || !table.DumpCheckDeclaration(s.OriginalCatalog, t.Descriptor, check) {
+			continue
+		}
+		member := t
+		d := *t.Descriptor
+		d.Constraints.Check = []catalog.CheckConstraint{check}
+		d.Constraints.ForeignKeys = nil
+		member.Descriptor = &d
+		member.NotNullConstraints = nil
+		if err := s.emitCastConsumer(w, castConsumer{Event: event, Check: check.Name}, dumpInvalidConstraintOwner(s, event), func() error {
+			return member.EmitInvalidConstraints(ctx, s.OriginalCatalog, w.emit)
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func emitDumpInheritanceRecipes(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.EmitInheritedGenerations(ctx, s.OriginalCatalog, w.emit)
+	for _, attribute := range t.Attributes {
+		generation, exists := t.Descriptor.ColumnMeta.Generations[attribute]
+		if !exists {
+			continue
+		}
+		member := t
+		d := *t.Descriptor
+		d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{attribute: generation}
+		member.Descriptor = &d
+		if err := s.emitCastConsumer(w, castConsumer{Event: event, Attribute: attribute}, t.Owner, func() error {
+			return member.EmitInheritedGenerations(ctx, s.OriginalCatalog, w.emit)
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func emitDumpInheritanceChecks(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.EmitInheritedChecks(ctx, s.OriginalCatalog, w.emit)
+	for _, check := range table.OrderedChecks(t.Descriptor) {
+		if !t.DeferredChecks[check.Name] || !table.DumpCheckDeclaration(s.OriginalCatalog, t.Descriptor, check) {
+			continue
+		}
+		member := t
+		d := *t.Descriptor
+		d.Constraints.Check = []catalog.CheckConstraint{check}
+		member.Descriptor = &d
+		owner := t.Owner
+		if t.RecipePlaceholders {
+			owner = "postgres"
+		}
+		if err := s.emitCastConsumer(w, castConsumer{Event: event, Check: check.Name}, owner, func() error {
+			only := !t.RecipePlaceholders && catalog.InheritanceParticipant(s.OriginalCatalog, t.Descriptor) && (check.NoInherit || !catalog.InheritanceHasChildren(s.OriginalCatalog, t.Descriptor.Address()))
+			return member.EmitInheritedChecks(ctx, s.OriginalCatalog, only, w.emit)
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func emitDumpInheritedForeignKeys(_ context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
@@ -195,17 +276,24 @@ func emitDumpRetiredConstraints(_ context.Context, s *dumpScript, w *dumpWriter,
 }
 
 func emitDumpDomainChecks(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
-	text, err := typedef.DomainInvalidDumpStatement(ctx, Presenter{}, s.CatalogView, s.domainNodes[event.OID])
-	if err != nil {
-		return err
+	domain := s.domainNodes[event.OID]
+	for _, check := range domain.DomainChecks {
+		if !check.NotValid && !s.deferredDomainChecks[event.OID][check.Name] {
+			continue
+		}
+		text, err := typedef.DomainCheckDumpStatement(ctx, Presenter{}, s.CatalogView, domain, check)
+		if err != nil {
+			return err
+		}
+		// A domain owner need not have schema USAGE. Retain the existing
+		// bootstrap replay authority, without transferring ownership.
+		if err := s.emitCastConsumer(w, castConsumer{Event: event, Check: check.Name}, "postgres", func() error {
+			return w.emit(text)
+		}); err != nil {
+			return err
+		}
 	}
-	// A domain may legally be owned by a role without USAGE on its
-	// schema. Replay only this post-data declaration as the existing
-	// bootstrap authority; do not transfer ownership or invent ACLs.
-	if err := w.setOwner("postgres"); err != nil {
-		return err
-	}
-	return w.emit(text)
+	return nil
 }
 
 func emitDumpOperatorLinks(_ context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {

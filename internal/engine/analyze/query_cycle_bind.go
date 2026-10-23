@@ -28,7 +28,7 @@ func (b *Binder) bindCycleMarks(raw *parser.CycleClause) (*plan.CycleRecipe, err
 			typedConstants[i] = operands[i].Node.ResultUsage()
 		}
 	}
-	common, err := selectCommonUsage(2, func(i int) ComparisonOperand { return operands[i] }, b.Type(sqltype.Text).Usage(), "CYCLE", b.recursiveTypeName)
+	common, err := selectCommonUsage(b.BindingCatalog(), 2, func(i int) ComparisonOperand { return operands[i] }, b.Type(sqltype.Text).Usage(), "CYCLE", b.recursiveTypeName)
 	if err != nil {
 		return nil, err
 	}

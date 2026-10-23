@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -33,7 +34,7 @@ func TestSQLRoutineUnknownCategorySelection(t *testing.T) {
 					}
 					candidates[i].Inputs = []sqltype.Usage{types[tc.inputs[j][0]].Usage(), types[tc.inputs[j][1]].Usage()}
 				}
-				got := analyze.SelectSQLCallables(candidates, []analyze.ComparisonOperand{{}, {}}, nil)
+				got := analyze.SelectSQLCallables(catalog.Read{}, candidates, []analyze.ComparisonOperand{{}, {}}, nil)
 				if len(got) != tc.want {
 					t.Fatalf("reverse=%v: got %d candidates, want %d", reverse, len(got), tc.want)
 				}

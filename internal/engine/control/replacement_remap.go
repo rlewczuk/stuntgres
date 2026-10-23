@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/sqltype"
 )
 
 // RemapReplacementIdentities moves the candidate's colliding imported
@@ -78,6 +79,20 @@ func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddr
 		if target != a || n.Wrapper != r.Wrapper || n.Server != r.Server || n.Handler != r.Handler || n.Validator != r.Validator || n.ObjectName != r.ObjectName {
 			d = &n
 		}
+	case *catalog.Cast:
+		n := *r
+		n.OID = target.ObjectID
+		for _, field := range []*ids.ObjectAddress{&n.Function, &n.InputCast, &n.ResultCast} {
+			if mapped, ok := mapping[*field]; ok {
+				*field = mapped
+			}
+		}
+		for _, field := range []*sqltype.ID{&n.Source, &n.Target} {
+			if mapped, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(*field)}]; ok {
+				*field = sqltype.ID(mapped.ObjectID)
+			}
+		}
+		d = &n
 	case *catalog.Namespace:
 		if target == a && d == current.State().Get(a) && stored.DependPinned(current, nil, a) {
 			// Preflight retained this exact immutable namespace authority.

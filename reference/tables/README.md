@@ -227,6 +227,7 @@ also covers shared-provider inline edges, sparse source attnums, immutable
 definitions, deterministic final repairs, authority reset and zero-output errors.
 There is no temporary oracle-discovery filter.
 
+
 These are required proof selections, not recorded passing results. The actual
 standalone public-API smoke is supplied as the temporary session artifact
 `fdw-import-smoke.go`; run its resolved absolute path with `go run`. It imports

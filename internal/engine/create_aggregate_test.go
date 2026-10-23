@@ -130,7 +130,7 @@ func TestCreateAggregateDetachedPolymorphicSupport(t *testing.T) {
 	if !ok {
 		t.Fatal("missing integer")
 	}
-	formals, result, err := routine.AggregateSupportTypes(read, nil, support, []sqltype.Usage{array.Usage(), integer.Usage()})
+	formals, result, err := routine.AggregateSupportTypes(read, nil, support, nil, []sqltype.Usage{array.Usage(), integer.Usage()})
 	if err != nil || len(formals) != 2 || formals[0].Type != array || formals[1].Type != integer || result.Type != array {
 		t.Fatalf("concrete specialization=%v/%v/%v", formals, result, err)
 	}

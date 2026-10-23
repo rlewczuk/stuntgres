@@ -47,7 +47,7 @@ func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Exp
 	}
 	if !explicit {
 		var err error
-		selected, err = CommonExpressionUsage(operands, b.Type(sqltype.Text).Usage(), "ARRAY")
+		selected, err = CommonExpressionUsage(b.BindingCatalog(), operands, b.Type(sqltype.Text).Usage(), "ARRAY")
 		if err != nil {
 			return nil, err
 		}
@@ -81,8 +81,19 @@ func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Exp
 				var info expr.Info
 				info, err = b.coercionInfo(b.Info(childUsage, node.SourcePosition(), input.Properties()), input)
 				if err == nil {
+					if selected, handled, selectionErr := b.declaredCoercion(input, info.Usage, sqltype.Explicit, o.raw.SourcePosition(), o.raw); handled {
+						if selectionErr != nil {
+							return nil, selectionErr
+						}
+						elements[i] = RestoreDomainCastCollations(annotations, selected)
+						properties = expr.MergeProperties(properties, selected.Properties())
+						continue
+					}
 					var coercionPlan sqltype.CoercionPlan
 					coercionPlan, err = sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Explicit)
+					if err != nil {
+						return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(input.ResultUsage().Type), b.DiagnosticTypeName(info.Usage.Type)), o.raw.SourcePosition())
+					}
 					if err == nil {
 						info.Property = CoercionProperties(input, coercionPlan)
 						node = RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Explicit, SyntheticConstructorElement: true})
@@ -125,6 +136,9 @@ func (b *Binder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.BoundArray
 		}
 		if node.ResultUsage().Type == b.Type(sqltype.Int4) {
 			return node, nil
+		}
+		if selected, handled, selectionErr := b.declaredCoercion(node, b.Type(sqltype.Int4).Usage(), sqltype.Assignment, node.SourcePosition(), raw); handled {
+			return selected, selectionErr
 		}
 		coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), b.Type(sqltype.Int4).Usage(), sqltype.Assignment)
 		if err != nil {

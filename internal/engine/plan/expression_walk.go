@@ -112,6 +112,7 @@ func ExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 	case CaseExpr:
 		walk(e.Test)
 		for _, arm := range e.Arms {
+			walk(arm.Test)
 			walk(arm.Condition)
 			walk(arm.Result)
 		}

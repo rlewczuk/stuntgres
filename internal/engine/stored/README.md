@@ -22,6 +22,25 @@ raw type spelling or an enclosing cast. Raw view capture retains all query
 children/options and RETURNING usage. Generic reconstruction remints executable
 query/default plans after descriptor generations change.
 
+Simple CASE arms retain their selected test conversion as a typed lexical-input
+template. Stored remapping and generation refresh include that template and its
+real routine dependencies; they never reconstruct a fixed coercion from endpoint
+types. Rendering keeps ordinary simple CASE SQL so the source is evaluated once.
+Dump's actual statement-local cast windows restore each selected implicit recipe
+while that SQL binds, including a dropped/replaced function edge. Omitted routine
+defaults remain declaration-owned and are not written call operands.
+Array-cast element templates likewise contribute their selected routine and SQL
+body provider references to DEFAULT/CHECK manifests, even though rendering emits
+only the ordinary array CAST syntax. Both lexical template forms are captured
+without rendering their placeholders as standalone SQL; subsequent planning
+uses the original consumer manifest and ordinary EXECUTE admission.
+
+Selected datum casts render literal inputs with their source type before applying
+the target cast or contextual assignment. A bare quoted value/NULL must not
+become target-codec input on replay: LINE→CIRCLE, for example, retains LINE
+construction before its binary conversion. This preserves the selected recipe,
+not a materialized result or a relaxation of the target's input rules.
+
 `RoutineProgram` owns checked SQL-standard actions. `RoutineDefaults` owns a
 separate immutable input-indexed declaration recipe and its source-domain/epoch
 manifest, never evaluated values. Default dependencies are hard even for quoted
@@ -287,8 +306,14 @@ private parameter Infos retain explicitness and indeterminate conflict origins.
 sources, including rejection of a same-type/different-collation forged frame.
 
 ```sh
-make check RUN='^TestCreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap)$'
+make check RUN='^TestCreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)$'
 ```
+
+`TestCreateAggregatePolymorphicTransitionRemap` exercises the actual provider and
+private-expression remappers into a distinct descriptor generation and aggregate
+identity, without a live originating cast. The remapped `array_append` executes
+captured OID→REAL binary adapters to1/2/NULL; aggregate, support, input, formal and
+result ownership all belong to the destination.
 
 Actual unchanged emitted SQL, typed enum/array support, two Restores and real
 retained TEMP collision proof are selected in

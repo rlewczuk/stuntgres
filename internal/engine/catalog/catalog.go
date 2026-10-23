@@ -160,6 +160,7 @@ type State struct {
 	bulk                *stateBulk
 	operatorNames       *OperatorNameIndex
 	procedureNames      *ProcedureNameIndex
+	castPairs           map[CastPair]*Cast
 	defaultACLs         map[DefaultACLKey]*DefaultACLRecord
 	// Sparse replay identity provenance for collision-remapped declarations.
 	// Absent entries use their current OID; dependencies remain the order authority.
@@ -249,6 +250,7 @@ func CloneState(s *State) *State {
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
 	n.procedureNames = s.procedureNames
+	n.castPairs = s.castPairs
 	if len(s.dumpPriorities) != 0 {
 		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))
 		for address, priority := range s.dumpPriorities {

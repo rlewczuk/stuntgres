@@ -95,18 +95,8 @@ func (g Grouping) check(v Value) error {
 			return err
 		}
 	}
-	if !v.null && v.typ.BaseType().id == Regclass {
-		if len(v.text) == 0 || len(v.text) > 1 && v.text[0] == '0' {
-			return fmt.Errorf("invalid canonical regclass grouping value")
-		}
-		for i := range len(v.text) {
-			if v.text[i] < '0' || v.text[i] > '9' {
-				return fmt.Errorf("invalid canonical regclass grouping value")
-			}
-		}
-		if _, err := strconv.ParseUint(v.text, 10, 32); err != nil {
-			return fmt.Errorf("invalid canonical regclass grouping value")
-		}
+	if !v.null && v.typ.BaseType().id == Regclass && v.integer != 1 {
+		return fmt.Errorf("invalid canonical regclass grouping value")
 	}
 	return nil
 }
@@ -165,13 +155,13 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 		return groupingTextEqual(ctx, a.text, b.text)
 	}
 	switch a.typ.BaseType().id {
-	case Xid, Cid, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary:
+	case Xid, Cid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary:
 		return a.oid == b.oid, ctx.Err()
 	case Xid8:
 		return a.integer == b.integer, ctx.Err()
 	case Text, VarChar, Name:
 		return g.usage.Collation.EqualText(ctx, a.text, b.text)
-	case Bytea, Regclass, Char:
+	case Bytea, Char:
 		return groupingTextEqual(ctx, a.text, b.text)
 	case BPChar:
 		return g.usage.Collation.EqualText(ctx, strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " "))
@@ -295,7 +285,12 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 				return 0, err
 			}
 		}
-	case Text, VarChar, BPChar, Name, Bytea, Regclass, Char:
+	case Regclass:
+		var buffer [10]byte
+		for _, b := range strconv.AppendUint(buffer[:0], uint64(v.oid), 10) {
+			byteHash(b)
+		}
+	case Text, VarChar, BPChar, Name, Bytea, Char:
 		s := v.text
 		if v.typ.id == BPChar {
 			s = strings.TrimRight(s, " ")

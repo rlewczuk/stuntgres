@@ -90,7 +90,7 @@ func (b *Binder) bindSetArms(s *parser.Select, leftQuery, rightQuery *plan.Query
 	regclass := false
 	for i := range width {
 		operands := []ComparisonOperand{setOperand(left, i), setOperand(right, i)}
-		common, err := selectCommonUsage(len(operands), func(i int) ComparisonOperand { return operands[i] }, b.Type(sqltype.Text).Usage(), operation, b.DiagnosticTypeName)
+		common, err := selectCommonUsage(b.BindingCatalog(), len(operands), func(i int) ComparisonOperand { return operands[i] }, b.Type(sqltype.Text).Usage(), operation, b.DiagnosticTypeName)
 		if err != nil {
 			return nil, err
 		}
@@ -112,6 +112,17 @@ func (b *Binder) bindSetArms(s *parser.Select, leftQuery, rightQuery *plan.Query
 		}
 		common = info.Usage
 		for side, node := range [2]expr.Expr{l, r} {
+			if selected, handled, selectionErr := b.declaredCoercion(node, common, sqltype.Implicit, node.SourcePosition(), nil); handled {
+				if selectionErr != nil {
+					return nil, selectionErr
+				}
+				if side == 0 {
+					n.LeftExpressions[i] = selected
+				} else {
+					n.RightExpressions[i] = selected
+				}
+				continue
+			}
 			coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), common, sqltype.Implicit)
 			if err != nil {
 				return nil, err

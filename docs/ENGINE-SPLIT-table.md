@@ -1457,7 +1457,7 @@ was `sqlError` alone.
   (methods `Admits`, `Holds`, `Pairs`, `Advance`). Group B, split into a
   shape check before authorization and a decision after resolution:
   `RestoredGenerationShape`/`PairRestoredGeneration`,
-  `CaptureRestoredGeneration`, `RestoredInheritedCheckShape`/`InheritedCheckRecipe`,
+  `CaptureRestoredGeneration`, `RestoredCheckShape`/`InheritedCheckRecipe`,
   `CloseRestoredRecipes`, `RestoredNotNullShape`/`PairRestoredNotNull`,
   `CaptureInheritedOwner`, `InheritedOwnerShape`/`InheritedOwnerDirective`/`InheritedOwnerTarget`,
   `InheritedForeignKeyShape`/`CaptureInheritedForeignKey`,

@@ -189,10 +189,11 @@ func FullJoinCondition(c *exec.Context, join *plan.JoinNode, bound expr.Expr, ne
 				}
 				match = truth == plan.True
 			} else {
-				if arm.TestPlan.ChecksDomain() {
+				fixed, safe := plan.FixedCaseTest(arm.Test)
+				if !safe || fixed.ChecksDomain() {
 					return FullJoinFacts{}, nil
 				}
-				view, err := arm.TestPlan.Apply(c.Context, test, c.Input, c.Output)
+				view, err := fixed.Apply(c.Context, test, c.Input, c.Output)
 				if err != nil {
 					return FullJoinFacts{}, err
 				}

@@ -243,14 +243,20 @@ func (e DatetimeMake) CaptureOperand(written int) (expr.Expr, error) {
 func namedDatetimeMake(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	labels, types, count, result := DatetimeMakeSignature(name)
-	prepared := PrepareDatetimeMake(name, true, raw.Variadic, args, raw.ArgNames, &labels, &types, count, result)
-	selected := ResolveDatetimeMake(prepared, args, TemporalTypesFor(b, prepared.Demand))
-	if selected.Resolution != Resolved || !declaredTypes(declared, types[:selected.Count]) {
+	if raw.Variadic || result == 0 {
 		return nil, nil, false
 	}
-	var slots [7]int
-	for i := range args {
-		slots[i] = int(selected.WrittenSlots[i])
+	required := count
+	if name == "make_interval" {
+		required = 0
+	} else if name == "make_timestamptz" {
+		required = 6
+		if len(declared) == 6 {
+			count = 6
+		}
 	}
-	return namedInputs(args, declared, slots[:len(args)])
+	if !declaredTypes(declared, types[:count]) {
+		return nil, nil, false
+	}
+	return fixedNamedInputs(b, raw, args, declared, labels[:count], required)
 }

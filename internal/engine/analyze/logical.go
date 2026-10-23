@@ -9,8 +9,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Boolean context resolves only unknown inputs. A known parameter's type is
-// preserved just like a column's type, rather than assignment-coerced to BOOL.
+// Boolean context infers unknown inputs as BOOL, but binds known parameters in
+// their original type before selecting an assignment conversion to BOOL.
 func (b *Binder) BindBoolean(raw parser.Expr, context ExpressionContext, construct string) (expr.Expr, error) {
 	u := b.Type(sqltype.Bool).Usage()
 	if p, ok := raw.(parser.ParameterExpr); ok {

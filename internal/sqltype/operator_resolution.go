@@ -3,10 +3,11 @@ package sqltype
 // OperatorInputs is an ordered declared signature. Left zero denotes prefix.
 type OperatorInputs struct{ Left, Right ID }
 
-func operatorImplicitInput(source *Descriptor, target ID) bool {
+func operatorImplicitInputWithCoercion(source *Descriptor, target ID, can func(*Descriptor, ID) bool) bool {
 	if source == nil {
 		return true
 	}
+	original := source
 	source = source.BaseType()
 	switch target {
 	case 2277, 5078:
@@ -24,6 +25,9 @@ func operatorImplicitInput(source *Descriptor, target ID) bool {
 	case 2249:
 		return source.IsComposite() || source.IsDeferredRecord()
 	}
+	if can != nil {
+		return can(original, target)
+	}
 	return equalityImplicit(source.ID(), target)
 }
 
@@ -31,6 +35,10 @@ func operatorImplicitInput(source *Descriptor, target ID) bool {
 // signature. Unknowns add no constraints; generic result instantiation remains
 // the binder's responsibility.
 func operatorImplicitInputs(left, right *Descriptor, declared OperatorInputs, unary bool) bool {
+	return operatorImplicitInputsWithCoercion(left, right, declared, unary, nil)
+}
+
+func operatorImplicitInputsWithCoercion(left, right *Descriptor, declared OperatorInputs, unary bool, can func(*Descriptor, ID) bool) bool {
 	sources := [2]*Descriptor{left, right}
 	targets := [2]ID{declared.Left, declared.Right}
 	var element, array, rangeType, multirange *Descriptor
@@ -41,7 +49,7 @@ func operatorImplicitInputs(left, right *Descriptor, declared OperatorInputs, un
 			continue
 		}
 		target := targets[i]
-		if !operatorImplicitInput(source, target) {
+		if !operatorImplicitInputWithCoercion(source, target, can) {
 			return false
 		}
 		base := source.BaseType()
@@ -97,12 +105,18 @@ func operatorImplicitInputs(left, right *Descriptor, declared OperatorInputs, un
 	// Identical domains were preserved above; differing leaves follow the
 	// same base-domain common selection as ordinary expression binding.
 	first, second := compatible[0].BaseType(), compatible[1].BaseType()
-	chosen, ok := CommonTypeCandidate(first, second)
+	chosen, ok := commonTypeCandidateWithCoercion(first, second, can)
 	if !ok {
 		return false
 	}
 	for _, source := range compatible {
 		if source == chosen {
+			continue
+		}
+		if can != nil {
+			if !can(source, chosen.ID()) {
+				return false
+			}
 			continue
 		}
 		if _, err := PlanCoercion(source.Usage(), chosen.Usage(), Implicit); err != nil {
@@ -124,6 +138,15 @@ func operatorSameType(known **Descriptor, actual *Descriptor) bool {
 // Candidate collection owns search-path masking; this function owns §10.2 type
 // selection. Unknown input is nil. Only direct implicit conversions are viable.
 func ResolveOperator(candidates []OperatorInputs, left, right *Descriptor, unary bool) (int, error) {
+	return ResolveOperatorWithCoercion(candidates, left, right, unary, nil)
+}
+
+// ResolveOperatorWithCoercion uses the same operator ranking and polymorphic
+// identity/shape rules as ResolveOperator. The optional pure predicate replaces
+// concrete implicit feasibility only; it must not bind, evaluate or invoke a
+// conversion. Catalog-aware callers retain descriptor lookup and edge authority.
+// A nil predicate selects the existing fixed providers.
+func ResolveOperatorWithCoercion(candidates []OperatorInputs, left, right *Descriptor, unary bool, can func(source *Descriptor, target ID) bool) (int, error) {
 	sources := [2]*Descriptor{left, right}
 	if unary {
 		sources = [2]*Descriptor{nil, right}
@@ -180,7 +203,7 @@ func ResolveOperator(candidates []OperatorInputs, left, right *Descriptor, unary
 		if unary != (s.Left == 0) {
 			continue
 		}
-		if operatorImplicitInputs(left, right, s, unary) {
+		if operatorImplicitInputsWithCoercion(left, right, s, unary, can) {
 			active = append(active, i)
 		}
 	}
@@ -296,7 +319,7 @@ func ResolveOperator(candidates []OperatorInputs, left, right *Descriptor, unary
 		chosen := -1
 		for _, i := range active {
 			s := candidates[i]
-			if operatorImplicitInputs(known, known, s, false) {
+			if operatorImplicitInputsWithCoercion(known, known, s, false, can) {
 				if chosen >= 0 {
 					return -1, failure("42725", "operator is not unique")
 				}

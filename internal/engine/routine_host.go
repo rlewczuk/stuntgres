@@ -59,7 +59,7 @@ func (h ddlHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName,
 		}
 		return selected.Procedure, formals, sqltype.Usage{}, nil
 	}
-	formals, result, err := routine.AggregateSupportTypes(v.Catalog, reader, selected.Procedure, inputs)
+	formals, result, err := routine.AggregateSupportTypes(v.Catalog, reader, selected.Procedure, nil, inputs)
 	return selected.Procedure, formals, result, err
 }
 

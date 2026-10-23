@@ -234,9 +234,5 @@ func namedJSONRecord(b CallTypeContext, raw parser.FunctionExpr, args []Argument
 	if !valid {
 		return nil, nil, false
 	}
-	inputs, targets, valid := namedInputs(args, declared, slots[:2])
-	if !valid || !probeJSONRecordCall(b, raw, args, inputs, targets) {
-		return nil, nil, false
-	}
-	return inputs, targets, true
+	return namedInputs(b, args, declared, slots[:2])
 }

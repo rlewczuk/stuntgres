@@ -71,7 +71,7 @@ func GenerationImmutable(node expr.Expr) bool {
 			return false
 		}
 		for _, arm := range n.Arms {
-			if !both(arm.Condition, arm.Result) || n.Test != nil && (arm.TestPlan.SessionDependent() || arm.Equality.SessionDependent()) {
+			if !both(arm.Condition, arm.Result) || !one(arm.Test) || n.Test != nil && arm.Equality.SessionDependent() {
 				return false
 			}
 		}
@@ -167,7 +167,7 @@ func GenerationHasTableOID(node expr.Expr) bool {
 			return true
 		}
 		for _, arm := range n.Arms {
-			if both(arm.Condition, arm.Result) {
+			if both(arm.Condition, arm.Result) || one(arm.Test) {
 				return true
 			}
 		}

@@ -94,6 +94,13 @@ func LiteralWithACL(ctx context.Context, view catalog.Read, n plan.LiteralExpr, 
 }
 
 func LiteralWithACLAt(ctx context.Context, view catalog.Read, reader catalog.DefinitionReader, n plan.LiteralExpr, aclOutput sqltype.ACLItemFormatter) (string, error) {
+	bounded, _ := ctx.Value(constructorBoundsKey{}).(bool)
+	return literalWithACLAt(ctx, view, reader, n, aclOutput, bounded)
+}
+
+// Bounded input authority addresses this value only. Domain unwrapping keeps
+// that address; container members always start without it.
+func literalWithACLAt(ctx context.Context, view catalog.Read, reader catalog.DefinitionReader, n plan.LiteralExpr, aclOutput sqltype.ACLItemFormatter, bounded bool) (string, error) {
 	u := n.ResultUsage()
 	if n.Value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
@@ -120,18 +127,20 @@ func LiteralWithACLAt(ctx context.Context, view catalog.Read, reader catalog.Def
 		}
 		n.Usage = u.BaseUsage()
 		n.Value = value
-		literal, err := LiteralWithACLAt(ctx, view, reader, n, aclOutput)
+		literal, err := literalWithACLAt(ctx, view, reader, n, aclOutput, bounded)
 		if err != nil {
 			return "", err
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
+	if ExactFloat4Dump(ctx) && NeedsFloat4RawReplay(n.Value) || n.Value.RequiresCircleConstructorReplay() && (u.Type.IsArray() || u.Type.IsComposite()) {
+		return constructorLiteral(ctx, view, reader, n, aclOutput, bounded)
+	}
 	if !n.Value.IsNull() && u.Type.ID() == sqltype.ACLItemArray && n.Value.ArrayRank() == 1 && n.Value.ArrayDimension(0) == (sqltype.ArrayDimension{Lower: 1, Length: 0}) {
 		return `pg_catalog.acldefault('c'::"char",0::oid)`, nil
 	}
-	// Composite text cannot reconstruct empty ACL shape or constructor-only
-	// negative circles. Retain typed member expressions and domain wrappers.
-	if !n.Value.IsNull() && u.Type.IsComposite() && (ContainsEmptyACL(n.Value) || n.Value.RequiresCircleConstructorReplay()) {
+	// Composite text cannot reconstruct empty ACL shape.
+	if !n.Value.IsNull() && u.Type.IsComposite() && ContainsEmptyACL(n.Value) {
 		declaration, err := TypeDeclarationAt(view, reader, u)
 		if err != nil {
 			return "", err
@@ -140,7 +149,7 @@ func LiteralWithACLAt(ctx context.Context, view catalog.Read, reader catalog.Def
 		for i := range parts {
 			member := n.Value.CompositeField(i)
 			literal := plan.LiteralExpr{Info: expr.Info{Usage: u.Type.CompositeMember(i).Usage}, Value: member}
-			parts[i], err = LiteralWithACLAt(ctx, view, reader, literal, aclOutput)
+			parts[i], err = literalWithACLAt(ctx, view, reader, literal, aclOutput, false)
 			if err != nil {
 				return "", err
 			}

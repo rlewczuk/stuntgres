@@ -72,8 +72,14 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	case plan.SubqueryExpr:
 		pairs, ordering = expression.Comparisons, expression.Ordering
 	case plan.CaseExpr:
-		if expression.Test != nil && !RandomLiteralNull(expression.Test) {
+		if expression.Test != nil {
 			for _, arm := range expression.Arms {
+				// A nonstrict selected test conversion can turn a saved NULL
+				// into a non-NULL equality operand. Only a retained fixed
+				// recipe preserves the old literal-NULL admission shortcut.
+				if _, fixed := plan.FixedCaseTest(arm.Test); fixed && RandomLiteralNull(expression.Test) {
+					continue
+				}
 				if err := AdmitCaseEquality(c, arm); err != nil {
 					return err
 				}

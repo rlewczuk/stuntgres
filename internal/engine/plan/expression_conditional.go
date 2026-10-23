@@ -11,10 +11,11 @@ import (
 type CaseBranch struct {
 	Condition, Result expr.Expr
 	// Simple CASE compares a coerced view of its one saved test value.
-	TestPlan  sqltype.CoercionPlan
-	Equality  sqltype.Comparison
-	TestUsage sqltype.Usage
-	Routine   *catalog.Procedure // Selected equality declaration, never captured permission.
+	Test        expr.Expr
+	Equality    sqltype.Comparison
+	TestUsage   sqltype.Usage
+	TestContext string             // Original declared context; CASE itself always uses implicit coercion.
+	Routine     *catalog.Procedure // Selected equality declaration, never captured permission.
 }
 
 type CaseExpr struct {
@@ -40,16 +41,19 @@ func (e CaseExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 	}
 	for _, arm := range e.Arms {
+		var view sqltype.Value
+		if e.Test != nil {
+			view, err = EvalCaseTest(ctx, arm.Test, test)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+		}
 		condition, err := arm.Condition.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		match := false
 		if e.Test != nil {
-			view, err := arm.TestPlan.Apply(ctx.FunctionContext(), test, ctx.FunctionInput(), ctx.FunctionOutput())
-			if err != nil {
-				return sqltype.Value{}, err
-			}
 			if !view.IsNull() && !condition.IsNull() {
 				equal, err := arm.Equality.EqualValues(ctx.FunctionContext(), view, condition, ctx.FunctionInput())
 				if err != nil {

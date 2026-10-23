@@ -75,13 +75,18 @@ type DropRoutine struct {
 
 func (*DropRoutine) statement() {}
 
-// DROP notices retain PostgreSQL's alias-normalized TypeName syntax, unlike
-// canonical catalog signature diagnostics. Reuse the regtype syntax authority.
+// Routine and cast utility notices retain PostgreSQL's alias-normalized
+// TypeName syntax, unlike canonical catalog signature diagnostics.
+func routineUtilityTarget(target GrantRoutineTarget) GrantRoutineTarget {
+	for i := range target.Arguments {
+		target.Arguments[i].Type = standaloneType(target.Arguments[i].Type)
+	}
+	return target
+}
+
 func dropRoutineTargets(targets []GrantRoutineTarget) []GrantRoutineTarget {
 	for i := range targets {
-		for j := range targets[i].Arguments {
-			targets[i].Arguments[j].Type = standaloneType(targets[i].Arguments[j].Type)
-		}
+		targets[i] = routineUtilityTarget(targets[i])
 	}
 	return targets
 }

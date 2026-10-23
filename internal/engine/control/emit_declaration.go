@@ -17,12 +17,27 @@ import (
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // emitDumpDeclaration writes one declaration event. A captured statement
 // wins, then an index, a view or extension, and finally a table.
 func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	oid := event.OID
+	if s.rawFloat4 {
+		if final, ok := s.CatalogView.Cast(sqltype.Xid, sqltype.Float4); ok && final.Method != "b" && final.OID == oid {
+			return nil
+		}
+		if final, ok := s.CatalogView.Cast(sqltype.Xid, sqltype.Float4); ok && final.Method == "b" && final.OID == oid && s.rawHelper {
+			if err := w.setOwner("postgres"); err != nil {
+				return err
+			}
+			if err := w.emit("DROP CAST (pg_catalog.xid AS pg_catalog.float4);\n"); err != nil {
+				return err
+			}
+			s.rawHelper = false
+		}
+	}
 	if declaration, exists := s.declarations[oid]; exists {
 		return emitDumpStatement(s, w, oid, declaration)
 	}

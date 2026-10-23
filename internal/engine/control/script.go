@@ -22,6 +22,10 @@ import (
 // the capture's graph and its deferral decision; nothing reads the engine.
 type dumpScript struct {
 	*Capture
+	rawFloat4                   bool
+	rawHelper, rawFinalDeferred bool
+	castWindows                 map[castConsumer][]castReplay
+	deferredDomainChecks        map[ids.OID]map[string]bool
 
 	policyGroups, ruleGroups, securityGroups  []dump.Group
 	domainNodes                               map[ids.OID]*catalog.Type
@@ -36,7 +40,8 @@ type dumpScript struct {
 	declarations                              map[ids.OID]dump.Statement
 	operatorLinks                             map[ids.OID]string
 	largeObjectRecords                        []largeObjectDump
-	foreignDefaultStatements                  []string
+	foreignDefaultStatements                  []foreignDefaultStatement
+	lateForeignCasts                          map[ids.OID]bool
 }
 
 // buildDumpScript renders the captured groups and statements and orders
@@ -51,6 +56,12 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if s.securityGroups, err = stored.RowSecurityDumpGroups(ctx, s.CatalogView, s.DomainRoles); err != nil {
+		return nil, err
+	}
+	if err := s.separateCastConsumers(); err != nil {
+		return nil, err
+	}
+	if err := s.separateForeignCastConsumers(ctx); err != nil {
 		return nil, err
 	}
 	if err := s.addDeclarationEdges(); err != nil {
@@ -100,7 +111,10 @@ func (s *dumpScript) renderForeignDefaults(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			s.foreignDefaultStatements = append(s.foreignDefaultStatements, "ALTER FOREIGN TABLE "+qualified+" ALTER COLUMN "+catalog.QuoteIdentifier(column.Name)+" SET DEFAULT "+text+";\n")
+			s.foreignDefaultStatements = append(s.foreignDefaultStatements, foreignDefaultStatement{
+				Site: castConsumer{Event: dump.Event{OID: event.OID}, Attribute: attribute, ForeignDefault: true},
+				SQL:  "ALTER FOREIGN TABLE " + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(column.Name) + " SET DEFAULT " + text + ";\n",
+			})
 		}
 	}
 	return nil
@@ -148,7 +162,7 @@ func (s *dumpScript) addDeclarationEdges() error {
 				}
 			}
 			for _, check := range d.DomainChecks {
-				if check.NotValid {
+				if check.NotValid || s.deferredDomainChecks[id][check.Name] {
 					continue
 				}
 				for _, dependency := range check.Dependencies {
@@ -175,6 +189,9 @@ func (s *dumpScript) addDeclarationEdges() error {
 	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
 	routine.OperatorDumpEvents(s.CatalogView, s.Operators, s.Graph)
 	if err := routine.RoutineDumpEvents(Resolver{}, s.CatalogView, s.OwnedRoutines, s.Graph); err != nil {
+		return err
+	}
+	if err := s.castEvents(); err != nil {
 		return err
 	}
 	for event, predecessors := range s.Graph {
@@ -263,11 +280,31 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		}
 	}
 	viewOrder := dump.DeclarationIDs(declarationOrder)
-	if err := partition.DumpEvents(ctx, Resolver{}, s.OriginalCatalog, s.Graph, dump.DeclarationEvents(viewOrder), s.Tables, s.IndexIndices, s.ConstraintReplay, s.DeferDefaults); err != nil {
+	// Cast rows are ordered by their real consumers, not the generic early
+	// declaration chain. A historical recipe used by a deferred DEFAULT or
+	// NOT VALID CHECK must finish before its conflicting final row exists.
+	phaseDeclarations := make([]dump.Event, 0, len(viewOrder))
+	for _, oid := range viewOrder {
+		if _, cast := s.CatalogView.Descriptor(ids.ObjectAddress{ClassID: ids.CastClassID, ObjectID: oid}); !cast {
+			phaseDeclarations = append(phaseDeclarations, dump.Event{OID: oid})
+		}
+	}
+	if err := partition.DumpEvents(ctx, Resolver{}, s.OriginalCatalog, s.Graph, phaseDeclarations, s.Tables, s.IndexIndices, s.ConstraintReplay, s.DeferDefaults); err != nil {
+		return nil, err
+	}
+	if err := s.addSeparatedCheckEvents(); err != nil {
 		return nil, err
 	}
 	s.invalidReplay = partition.InvalidDumpEvents(s.OriginalCatalog, s.Graph, s.IndexIndices)
 	if err := regobj.DomainInvalidDumpEvents(ctx, Resolver{}, s.CatalogView, s.Graph, s.domainNodes); err != nil {
+		return nil, err
+	}
+	if err := s.addSeparatedDomainCheckEvents(); err != nil {
+		return nil, err
+	}
+	// Deferral, inherited recipes and invalid-check phases are now final.
+	// Attach windows to the events that actually emit each expression.
+	if err := s.prepareCastWindows(); err != nil {
 		return nil, err
 	}
 	routine.NormalizeOperatorDumpPredecessors(s.CatalogView, s.Graph)
@@ -281,7 +318,24 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 // declarations and the operators' deferred link statements.
 func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID) error {
 	var err error
-	if s.declarations, err = typedef.MixedDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, viewOrder, s.domainNodes, s.Composites); err != nil {
+	// Omit only checks with their own later real ALTER declaration. The
+	// catalog and retained runtime domain metadata remain untouched.
+	domains := make(map[ids.OID]*catalog.Type, len(s.domainNodes))
+	for oid, domain := range s.domainNodes {
+		domains[oid] = domain
+		if len(s.deferredDomainChecks[oid]) == 0 {
+			continue
+		}
+		copy := *domain
+		copy.DomainChecks = nil
+		for _, check := range domain.DomainChecks {
+			if !s.deferredDomainChecks[oid][check.Name] {
+				copy.DomainChecks = append(copy.DomainChecks, check)
+			}
+		}
+		domains[oid] = &copy
+	}
+	if s.declarations, err = typedef.MixedDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, viewOrder, domains, s.Composites); err != nil {
 		return err
 	}
 	for oid, statement := range s.ForeignDeclarations {
@@ -303,6 +357,9 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 			return err
 		}
 		s.declarations[method.Address().ObjectID] = dump.Statement{Owner: "postgres", SQL: text + "\n"}
+	}
+	if err := s.castDeclarations(); err != nil {
+		return err
 	}
 	if err := index.OperatorFamilyDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, s.OperatorFamilies, s.declarations); err != nil {
 		return err

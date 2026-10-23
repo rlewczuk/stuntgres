@@ -99,7 +99,7 @@ func FinishArrayTransform(b Binder, raw parser.FunctionExpr, kind ArrayTransform
 		}
 	}
 	// Probe every known edge before importing any unknown literal or parameter.
-	if !knownCallEdges(formal[:len(operands)], targets[:len(operands)]) {
+	if !knownCallEdges(b, formal[:len(operands)], targets[:len(operands)]) {
 		return signature()
 	}
 	if kind != ArrayFill {

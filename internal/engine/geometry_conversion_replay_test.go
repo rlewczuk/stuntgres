@@ -3,6 +3,8 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -45,11 +47,20 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	record := func(column string, node *typedef.DomainReplayNode) typedef.DomainReplayRecord {
 		return typedef.DomainReplayRecord{Schema: "public", Table: "conversion_replay_array", Cells: []typedef.DomainReplayCell{{Column: column, Value: node}}}
 	}
-	capture, err := e.captureDomainReplay(scope, source, record("a", &array), auth, relation)
-	if err != nil {
-		t.Fatal("authentic negative constructor array rejected", err)
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	c.Input.ExactSnapshot = true
+	c.Input.DomainChecks = &c
+	usage := relation.Columns[0].Usage
+	value, provenance, err := restoreDomainReplayNode(&c, e, op, auth, usage, &array)
+	if err != nil || provenance != 0 {
+		t.Fatal("constructor reconstruction", provenance, err)
 	}
-	value := capture.cells[0].Value
+	if _, err := e.captureDomainReplay(scope, source, record("a", &array), auth, relation); err == nil {
+		t.Fatal("constructor-only array acquired private domain NULL provenance")
+	}
+	if bounds := regobj.ConstructorArrayTargetBounds(value); bounds != "[-2:-1][3:4]" {
+		t.Fatal("constructor target bounds", bounds)
+	}
 	if value.ArrayRank() != 2 || value.ArrayDimension(0).Lower != -2 || value.ArrayDimension(1).Lower != 3 || value.ArrayLen() != 4 {
 		t.Fatal("shape lost", value)
 	}

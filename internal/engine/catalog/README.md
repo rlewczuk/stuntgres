@@ -224,6 +224,11 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   use the separate typed address remapper. Unknown descriptor kinds still fail.
   `TestAccessMethodPrincipalRemap` covers builtin/custom methods alongside a real
   owning family: `make check RUN='^TestAccessMethodPrincipalRemap$'`.
+  Cast descriptors, like operator-family members, are ownerless: principal
+  remapping retains them without inventing an owner or ACL. Their endpoint,
+  routine and adapter identities are handled by the control address remapper.
+  Shared dependency type labels use PostgreSQL SQL spellings (`integer`, not
+  `int4`) for builtin aliases and path-sensitive qualification for custom types.
 - **reg\* alias references** (`alias_references.go`): `AliasAddress` and the
   walkers `WalkAliasReferences(At)` and `WalkAliasDependencies(At)` visit the
   existing objects a reg* value names, for dependency recording and replay.
@@ -281,7 +286,28 @@ definitions, extension implementations). Those register through the same
 `Provider` registry. The engine names the moved declarations directly
 (`catalog.Relation`, `catalog.Read`, ...); step 5f removed the aliases.
 
+### Cast pairs
+
+`cast.go` owns immutable class2605 declarations and the ordered-pair index.
+No owner/ACL/namespace is attached. Snapshot clones share unchanged indexes;
+candidate overlays, removals, Reset and replacement remaps retain COW isolation.
+`CastDependencies` is the common pg_depend/DROP/dump authority, including binary
+signature adapters. Fixed sqltype facts remain protected virtual rows rather
+than mutable descriptors. Pair reads allocate nothing.
+
+`cast_coercion.go` owns the effect-free `SelectCoercion` and `CanCoerce`
+authority shared by analyzer and routine feasibility probes. Declared direct
+pairs take precedence, and a context-ineligible pair blocks generic fallback;
+there is no transitive graph search. Domain/base and array recursion retain
+outer typmod/collation on element usages. Refusals use shared SQLSTATE errors
+without source positions. Binding and semantic IR construction stay in
+`analyze`/`plan`.
+
 ## Testing
+
+Cast identity/COW supplements:
+`make check RUN='^TestCastDefinition(PairIndex|CandidateIsolation)$' RACE=1`.
+
 
 Follow the [shared testing guide](../../../docs/TESTING.md). Run from the
 repository root.
@@ -289,8 +315,20 @@ repository root.
 Owned aggregate procedure/state/support dependencies publish atomically with the
 derived dynamic-name membership. Native replay remaps actual owning identities,
 including collisions with retained TEMP namespace/sequence IDs; it never adopts
-a same-spelled retained object. Declaration/payload/cancellation fences and the
-complete public metadata/dependency/replay selectors are in
+a same-spelled retained object. Declaration/payload/cancellation fences remain unchanged.
+
+Declared implicit-binary aggregate adapters retain immutable
+`AggregateBinaryRecipe` evidence independently of the originating cast row.
+`AggregateConversion` captures supported physical datum operations from that
+evidence, retaining fixed builtin/domain binary behavior for other inputs.
+`AggregateCanCoerce` supplies the same admitted edges to retained polymorphic
+specialization, with catalog-free fixed feasibility as fallback. An explicitly
+retained owner with no recipe is fixed-only; it cannot borrow current cast rows.
+Dropping/replacing the origin does not invalidate a declaration or select a new
+conversion. Strict/no-init live compatibility is an executor-start condition,
+not detached descriptor validity or a hard dependency on the old cast object.
+
+The complete public metadata/dependency/replay selectors are in
 [reference/aggregates](../../../reference/aggregates/README.md#create-aggregate-contract):
 
 ```sh

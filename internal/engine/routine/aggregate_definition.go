@@ -43,17 +43,44 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 	arguments := make([]sqltype.Usage, len(inputs)+1)
 	arguments[0] = state.Usage()
 	copy(arguments[1:], inputs)
-	formals, result, err := AggregateSupportTypes(v, nil, support, arguments)
+	formals, result, err := AggregateSupportTypes(v, nil, support, d.Aggregate, arguments)
 	if err != nil || result.Type != state {
 		return invalid()
 	}
 	for i, input := range arguments {
-		if !sqltype.BinaryCoercible(input.Type, formals[i].Type) {
+		if _, err := catalog.AggregateConversion(d.Aggregate.BinaryRecipe, input, formals[i]); err != nil {
 			return invalid()
 		}
 	}
-	if support.Strict && !a.HasInitial && (len(inputs) == 0 || !sqltype.BinaryCoercible(inputs[0].Type, state)) {
-		return invalid()
+	if support.Strict && !a.HasInitial {
+		if len(inputs) == 0 {
+			return invalid()
+		}
+		if _, err := catalog.AggregateConversion(d.Aggregate.BinaryRecipe, inputs[0], state.Usage()); err != nil {
+			return invalid()
+		}
+	}
+	if recipe := d.Aggregate.BinaryRecipe; recipe != nil {
+		if len(recipe.Casts) == 0 {
+			return invalid()
+		}
+		for i, edge := range recipe.Casts {
+			if edge.OID == 0 || edge.ObjectRevision == 0 || edge.Source == edge.Target || edge.Method != "b" || edge.Context != "i" || edge.Function != (ids.ObjectAddress{}) || edge.InputCast != (ids.ObjectAddress{}) || edge.ResultCast != (ids.ObjectAddress{}) {
+				return invalid()
+			}
+			for _, old := range recipe.Casts[:i] {
+				if old.Pair() == edge.Pair() {
+					return invalid()
+				}
+			}
+			used := support.Strict && !a.HasInitial && len(inputs) > 0 && edge.Source == inputs[0].BaseUsage().Type.ID() && edge.Target == state.ID()
+			for j, input := range arguments {
+				used = used || edge.Source == input.BaseUsage().Type.ID() && edge.Target == formals[j].Type.ID()
+			}
+			if !used {
+				return invalid()
+			}
+		}
 	}
 	return nil
 }
@@ -84,10 +111,11 @@ func aggregateSignature(v catalog.Read, reader catalog.DefinitionReader, signatu
 	return inputs, nil
 }
 
-// AggregateSupportTypes specializes one actual selected declaration. Ranking
-// remains the analyzer's job; detached validation uses the same pure family
-// target/result authority without manufacturing a binder or executable body.
-func AggregateSupportTypes(v catalog.Read, reader catalog.DefinitionReader, support *catalog.Procedure, inputs []sqltype.Usage) ([]sqltype.Usage, sqltype.Usage, error) {
+// AggregateSupportTypes specializes one actual selected support declaration.
+// A nil retained owner selects against the current catalog for CREATE. A retained
+// owner uses only its admitted recipe and fixed coercions, including when its
+// recipe is nil. No executable body or conversion is built by the type probe.
+func AggregateSupportTypes(v catalog.Read, reader catalog.DefinitionReader, support *catalog.Procedure, retained *catalog.OwnedAggregate, inputs []sqltype.Usage) ([]sqltype.Usage, sqltype.Usage, error) {
 	invalid := func() ([]sqltype.Usage, sqltype.Usage, error) {
 		return nil, sqltype.Usage{}, fmt.Errorf("stuntgres: invalid aggregate support specialization")
 	}
@@ -108,7 +136,7 @@ func AggregateSupportTypes(v catalog.Read, reader catalog.DefinitionReader, supp
 		result = aggregateSupportCollations(declared, result, inputs)
 		return declared, result, nil
 	}
-	context := aggregateCallTypes{view: v, reader: reader}
+	context := aggregateCallTypes{view: v, reader: reader, retained: retained}
 	operands := make([]functions.Argument, len(inputs))
 	for i, input := range inputs {
 		operands[i].Usage = input
@@ -173,8 +201,9 @@ func aggregateSupportCollations(formals []sqltype.Usage, result sqltype.Usage, i
 }
 
 type aggregateCallTypes struct {
-	view   catalog.Read
-	reader catalog.DefinitionReader
+	view     catalog.Read
+	reader   catalog.DefinitionReader
+	retained *catalog.OwnedAggregate
 }
 
 func (c aggregateCallTypes) Type(id sqltype.ID) *sqltype.Descriptor {
@@ -187,6 +216,16 @@ func (c aggregateCallTypes) ArrayType(element *sqltype.Descriptor) (*sqltype.Des
 }
 
 func (c aggregateCallTypes) CommonUsage(usages []sqltype.Usage) sqltype.Usage {
-	result, _ := sqltype.SelectCommonUsage(len(usages), func(i int) sqltype.Usage { return usages[i] }, c.Type(sqltype.Text).Usage())
+	result, _ := sqltype.SelectCommonUsage(len(usages), func(i int) sqltype.Usage { return usages[i] }, c.Type(sqltype.Text).Usage(), func(source *sqltype.Descriptor, target sqltype.ID) bool {
+		typ := c.Type(target)
+		return typ != nil && c.CanCoerce(source.Usage(), typ.Usage(), sqltype.Implicit)
+	})
 	return result
+}
+
+func (c aggregateCallTypes) CanCoerce(source, target sqltype.Usage, mode sqltype.CoercionContext) bool {
+	if c.retained != nil {
+		return catalog.AggregateCanCoerce(c.retained.BinaryRecipe, source, target, mode)
+	}
+	return catalog.CanCoerce(c.view, source, target, mode) == nil
 }

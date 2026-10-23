@@ -3,6 +3,7 @@ package analyze
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -267,7 +268,7 @@ func (b *Binder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
 	var syntax parser.Expr
 	batched := false
 	if len(nonvar) > 2 {
-		common, err := CommonExpressionUsage(nonvar, b.Type(sqltype.Text).Usage(), "")
+		common, err := CommonExpressionUsage(b.BindingCatalog(), nonvar, b.Type(sqltype.Text).Usage(), "")
 		if err != nil {
 			return nil, err
 		}
@@ -280,7 +281,7 @@ func (b *Binder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
 				if item.descriptor() == nil {
 					continue
 				}
-				if _, err := sqltype.PlanCoercion(item.Node.ResultUsage(), common, sqltype.Implicit); err != nil {
+				if err := catalog.CanCoerce(b.BindingCatalog(), item.Node.ResultUsage(), common, sqltype.Implicit); err != nil {
 					feasible = false
 					break
 				}

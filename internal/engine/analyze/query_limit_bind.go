@@ -52,6 +52,12 @@ func (b *Binder) bindQueryBound(raw parser.Expr, clause string, literalClause Vi
 		return nil, err
 	}
 	usage := b.Type(sqltype.Int8).Usage()
+	if selected, handled, selectionErr := b.declaredCoercion(bound, usage, sqltype.Assignment, bound.SourcePosition(), raw); handled {
+		if selectionErr != nil {
+			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type bigint, not type %s", clause, bound.ResultUsage().Type.DiagnosticName()), bound.SourcePosition())
+		}
+		bound = selected
+	}
 	if bound.ResultUsage() != usage {
 		coercionPlan, err := sqltype.PlanCoercion(bound.ResultUsage(), usage, sqltype.Assignment)
 		if err != nil {

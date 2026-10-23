@@ -54,7 +54,7 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 	c.Input.DomainChecks = &c
 	u := relation.Columns[0].Usage
 	value, provenance, err := restoreDomainReplayNode(&c, e, op, auth, u, &mixed)
-	if err != nil || provenance != domainReplayDomainNull|domainReplayNegativeCircle {
+	if err != nil || provenance != domainReplayDomainNull {
 		t.Fatal("mixed reconstruction provenance", provenance, err)
 	}
 	capture, err := e.captureDomainReplay(scope, source, record, auth, relation)
@@ -82,4 +82,53 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 	check("reconstruction")
 	value = capture.cells[0].Value
 	check("admitted exact cell")
+}
+
+func TestGeometryConversionMixedReplayBoundedRow(t *testing.T) {
+	e := New().restoreStage()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.conversion_row_required AS integer NOT NULL"))
+	domainUnitTable(t, e, op, "CREATE TABLE public.conversion_row_leaf(c circle)")
+	relation := domainUnitTable(t, e, op, "CREATE TABLE public.conversion_row_destination(v public.conversion_row_required[],a public.conversion_row_leaf[])")
+	auth, err := operationAuthorization(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := []string{"public", "conversion_row_required"}
+	elements := []typedef.DomainReplayNode{{Kind: "domain_null", Type: &identity}}
+	dimensions := []typedef.DomainReplayDimension{{Lower: -4, Length: 1}}
+	array := typedef.DomainReplayNode{Kind: "array", Dimensions: &dimensions, Elements: &elements}
+	record := typedef.DomainReplayRecord{Schema: "public", Table: "conversion_row_destination", Cells: []typedef.DomainReplayCell{{Column: "v", Value: &array}}}
+	input, _ := op.Session.Settings.Presentation()
+	input.ExactSnapshot = true
+	values := ` VALUES(NULL,CAST(ARRAY[ROW(pg_catalog.circle('(1,2)'::pg_catalog.point,'-1'::pg_catalog.float8))::public.conversion_row_leaf,ROW(pg_catalog.circle('(3,4)'::pg_catalog.point,'-2'::pg_catalog.float8))::public.conversion_row_leaf] AS public.conversion_row_leaf[]))`
+	source := statement(t, "INSERT INTO public.conversion_row_destination(v,a[-2:-1])"+values).(*parser.Insert)
+	rows, err := e.importMaterializedSnapshotRow(op.Context(), op, auth, relation, source, input, &record)
+	if err != nil {
+		t.Fatal("unrelated constructor bounds rejected authentic replay", err)
+	}
+	if len(rows) != 1 || len(rows[0]) != 2 {
+		t.Fatal("mixed row shape", rows)
+	}
+	domainArray, circles := rows[0][0], rows[0][1]
+	if domainArray.ArrayDimension(0).Lower != -4 || domainArray.ArrayLen() != 1 || !domainArray.ArrayElement(0).IsNull() || domainArray.ArrayElement(0).Type() != relation.Columns[0].Usage.Type.Element() {
+		t.Fatal("captured domain NULL shape or identity lost")
+	}
+	if circles.ArrayRank() != 1 || circles.ArrayDimension(0).Lower != -2 || circles.ArrayLen() != 2 {
+		t.Fatal("ordinary bounded constructor shape lost")
+	}
+	for i, want := range []string{"<(1,2),-1>", "<(3,4),-2>"} {
+		circle := circles.ArrayElement(i).CompositeField(0)
+		got, err := circle.Type().Output(op.Context(), circle)
+		if err != nil || got != want {
+			t.Fatal("ordinary constructor leaf", i, got, err)
+		}
+	}
+	for _, targets := range []string{"v[-4:-4],a[-2:-1]", "v,a[-2:-2]", "v,a[-2:0]"} {
+		source := statement(t, "INSERT INTO public.conversion_row_destination("+targets+")"+values).(*parser.Insert)
+		if _, err := e.importMaterializedSnapshotRow(op.Context(), op, auth, relation, source, input, &record); err == nil {
+			t.Fatal("partial captured target or changed constructor shape admitted", targets)
+		}
+	}
 }

@@ -50,7 +50,7 @@ func bindIntegerIndexSupport(b Binder, raw parser.FunctionExpr) (expr.Expr, erro
 		}
 		targets[i] = b.Type(formals[i]).Usage()
 	}
-	if !knownCallEdges(operands[:arity], targets[:arity]) {
+	if !knownCallEdges(b, operands[:arity], targets[:arity]) {
 		return nil, b.CallSignatureError(raw)
 	}
 	if err := CallDecorationError(raw); err != nil {

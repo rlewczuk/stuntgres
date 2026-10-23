@@ -131,6 +131,9 @@ func (r Deparser) Literal(ctx context.Context, n plan.LiteralExpr) (string, erro
 		}
 		return "NULL::" + typ, nil
 	}
+	if regobj.ExactFloat4Dump(ctx) && regobj.ContainsFloat4(u.Type) {
+		return regobj.Literal(ctx, r.View, n)
+	}
 	if v.Type().BaseType().ID() == sqltype.Path {
 		// Use the same exact persistence route as row dumps, not NaN-canonical
 		// SQL display. PATH coordinate text contains no quoting metacharacters.

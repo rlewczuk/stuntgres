@@ -4,9 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -91,5 +94,198 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 		if err := view.MaterializedSnapshotScalar(raw); (err == nil) != sample.valid {
 			t.Fatal("snapshot concatenation boundary", sample.sql, err)
 		}
+	}
+}
+
+func TestMaterializedViewSnapshotConstructorTargets(t *testing.T) {
+	record := view.MaterializedSnapshot{Schema: "public", Name: "snapshot"}
+	d := &catalog.Relation{Columns: []catalog.Column{{Name: "a"}, {Name: "b"}}}
+	for _, sample := range []struct {
+		sql   string
+		valid bool
+	}{
+		{`INSERT INTO public.snapshot VALUES (NULL, NULL)`, true},
+		{`INSERT INTO public.snapshot (a[-2:-1][3:4], b) VALUES (ARRAY[ARRAY[1,2],ARRAY[3,4]], NULL)`, true},
+		{`INSERT INTO public.snapshot (a, b[0:1]) VALUES (NULL, ARRAY[1,2])`, true},
+		{`INSERT INTO public.snapshot (b[-2:-1], a) VALUES (ARRAY[1,2], NULL)`, false},
+		{`INSERT INTO public.snapshot (a[-2:-1], a) VALUES (ARRAY[1,2], NULL)`, false},
+		{`INSERT INTO public.snapshot (a[-2:-1]) VALUES (ARRAY[1,2])`, false},
+		{`INSERT INTO public.snapshot (a, b) VALUES (NULL, NULL)`, false},
+		{`INSERT INTO public.snapshot (a[-2], b) VALUES (1, NULL)`, false},
+		{`INSERT INTO public.snapshot (a[:-1], b) VALUES (ARRAY[1,2], NULL)`, false},
+		{`INSERT INTO public.snapshot (a[-2:], b) VALUES (ARRAY[1,2], NULL)`, false},
+		{`INSERT INTO public.snapshot (a[lower('x'):1], b) VALUES (ARRAY[1,2], NULL)`, false},
+		{`INSERT INTO public.snapshot (a[missing_column:1], b) VALUES (ARRAY[1,2], NULL)`, false},
+		{`INSERT INTO public.snapshot (a[-2:-1], b) VALUES (lower('x'), NULL)`, false},
+		{`INSERT INTO public.snapshot (a[-2:-1], b) VALUES (ARRAY[1,2], NULL) RETURNING a`, false},
+		{`INSERT INTO public.snapshot (a[-2:-1], b) VALUES (ARRAY[1,2], NULL) ON CONFLICT DO NOTHING`, false},
+		{`INSERT INTO public.other (a[-2:-1], b) VALUES (ARRAY[1,2], NULL)`, false},
+	} {
+		statements, err := parser.Parse(sample.sql)
+		if err != nil {
+			t.Fatal(sample.sql, err)
+		}
+		if _, err := view.MaterializedSnapshotInsert(record, d, statements[0]); (err == nil) != sample.valid {
+			t.Fatal("snapshot constructor target boundary", sample.sql, err)
+		}
+	}
+}
+
+// Exercise the closed snapshot transport and destination-owned evaluation
+// together: recognizing a function name alone must never authorize its children.
+func TestMaterializedViewSnapshotNestedConstructors(t *testing.T) {
+	e := New().restoreStage()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_leaf(c circle)")
+	relation := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_nested(v public.snapshot_leaf[])")
+	holder := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_holder(v public.snapshot_nested)")
+	auth, err := operationAuthorization(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := op.Session.Settings.Presentation()
+	input.ExactSnapshot = true
+	record := view.MaterializedSnapshot{Schema: "public", Name: "snapshot_nested"}
+	leaf := `ROW(pg_catalog.circle('(1,2)'::pg_catalog.point,'-3'::pg_catalog.float8))::public.snapshot_leaf`
+	seed := `pg_catalog.array_fill(` + leaf + `, ARRAY[1], ARRAY[-2])`
+	cat := `pg_catalog.array_cat(` + seed + `, CAST(ARRAY[NULL::public.snapshot_leaf,ROW(NULL::circle)::public.snapshot_leaf] AS public.snapshot_leaf[]))`
+	importValue := func(text string) ([][]sqltype.Value, error) {
+		t.Helper()
+		statements, err := parser.Parse("INSERT INTO public.snapshot_nested VALUES(" + text + ")")
+		if err != nil {
+			return nil, err
+		}
+		insert, err := view.MaterializedSnapshotInsert(record, relation, statements[0])
+		if err != nil {
+			return nil, err
+		}
+		return e.importMaterializedSnapshotRow(op.Context(), op, auth, relation, insert, input, nil)
+	}
+	for _, sample := range []struct {
+		text   string
+		length int
+	}{{seed, 1}, {cat, 3}} {
+		rows, err := importValue(sample.text)
+		if err != nil || len(rows) != 1 || len(rows[0]) != 1 {
+			t.Fatal("closed constructor import", rows, err)
+		}
+		value := rows[0][0]
+		if value.Type() != relation.Columns[0].Usage.Type || value.ArrayRank() != 1 || value.ArrayDimension(0) != (sqltype.ArrayDimension{Lower: -2, Length: int32(sample.length)}) {
+			t.Fatal("closed constructor destination shape", value)
+		}
+		circle := value.ArrayElement(0).CompositeField(0)
+		text, err := circle.Type().Output(op.Context(), circle)
+		if err != nil || text != "<(1,2),-3>" {
+			t.Fatal("closed constructor payload", text, err)
+		}
+		if sample.length == 3 && (!value.ArrayElement(1).IsNull() || value.ArrayElement(2).IsNull() || !value.ArrayElement(2).CompositeField(0).IsNull()) {
+			t.Fatal("NULL composite confused with ROW(NULL)")
+		}
+	}
+	for _, text := range []string{
+		`array_fill(` + leaf + `, ARRAY[1], ARRAY[-2])`,
+		`public.array_fill(` + leaf + `, ARRAY[1], ARRAY[-2])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[1])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[2], ARRAY[-2])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[1,1], ARRAY[-2,3])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[1], ARRAY[2147483648])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[1], ARRAY[-2147483649])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[1], ARRAY[$1])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[1], ARRAY[missing_column])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[1], ARRAY[pg_catalog.abs(-2)])`,
+		`pg_catalog.array_fill(lower('x'), ARRAY[1], ARRAY[-2])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[1], VARIADIC ARRAY[-2])`,
+		`pg_catalog.array_fill(` + leaf + `, ARRAY[1], array_lower => ARRAY[-2])`,
+		seed + ` FILTER (WHERE true)`,
+		seed + ` OVER ()`,
+		`pg_catalog.array_cat(` + seed + `, ARRAY[` + leaf + `])`,
+		`pg_catalog.array_cat(` + seed + `, CAST(ARRAY[] AS public.snapshot_leaf[]))`,
+		`pg_catalog.array_cat(` + seed + `, CAST(ARRAY[` + leaf + `] AS snapshot_leaf[]))`,
+		`pg_catalog.array_cat(` + seed + `, CAST(ARRAY[1] AS pg_catalog.int4[]))`,
+		`pg_catalog.array_cat(` + seed + `, CAST(ARRAY[missing_column] AS public.snapshot_leaf[]))`,
+		`pg_catalog.array_cat(` + seed + `, ` + seed + `)`,
+	} {
+		if _, err := importValue(text); err == nil {
+			t.Fatal("noncanonical or unbound snapshot constructor admitted", text)
+		}
+	}
+	// Failed imports do not poison the statement owner or later valid imports.
+	if _, err := importValue(cat); err != nil {
+		t.Fatal("closed import after refusal", err)
+	}
+	// Direct rank-two bounded targets remain supported. Without its own target,
+	// this exact value must be refused rather than silently rebased.
+	source := statement(t, `INSERT INTO public.snapshot_nested(v[-2:-1][3:3]) VALUES(CAST(ARRAY[ARRAY[`+leaf+`],ARRAY[`+leaf+`]] AS public.snapshot_leaf[]))`)
+	insert, err := view.MaterializedSnapshotInsert(record, relation, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := e.importMaterializedSnapshotRow(op.Context(), op, auth, relation, insert, input, nil)
+	if err != nil {
+		t.Fatal("direct rank-two target", err)
+	}
+	value := rows[0][0]
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: relation.Columns[0].Usage}, Value: value}
+	if _, err := regobj.Literal(op.Context(), auth.Catalog, literal); err == nil {
+		t.Fatal("non-one-based rank-two constructor escaped without its target")
+	}
+	if _, err := regobj.Literal(regobj.ConstructorBoundedInputContext(op.Context()), auth.Catalog, literal); err != nil {
+		t.Fatal("direct rank-two bounded literal refused", err)
+	}
+	wrapped, err := sqltype.CompositeValue(holder.Columns[0].Usage.Type, []sqltype.Value{value})
+	if err != nil {
+		t.Fatal(err)
+	}
+	literal = plan.LiteralExpr{Info: expr.Info{Usage: holder.Columns[0].Usage}, Value: wrapped}
+	if _, err := regobj.Literal(regobj.ConstructorBoundedInputContext(op.Context()), auth.Catalog, literal); err == nil {
+		t.Fatal("outer authority leaked into a nested rank-two constructor")
+	}
+}
+
+func TestMaterializedViewSnapshotConstructorProviders(t *testing.T) {
+	for _, sample := range []struct {
+		name       string
+		definition string
+		value      string
+	}{
+		{"fill", `CREATE FUNCTION pg_catalog.array_fill(integer,integer[],integer[]) RETURNS integer[] LANGUAGE SQL AS $$SELECT ARRAY[$1]$$`, `pg_catalog.array_fill(7,ARRAY[1],ARRAY[-2])`},
+		{"cat", `CREATE FUNCTION pg_catalog.array_cat(integer[],integer[]) RETURNS integer[] LANGUAGE SQL AS $$SELECT $1$$`, `pg_catalog.array_cat(pg_catalog.array_fill(7,ARRAY[1],ARRAY[-2]),CAST(ARRAY[8] AS pg_catalog.int4[]))`},
+	} {
+		t.Run(sample.name, func(t *testing.T) {
+			e := New().restoreStage()
+			op, done := roleOperation(t, e, "postgres")
+			defer done()
+			relation := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_provider(v integer[])")
+			auth, err := operationAuthorization(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			declaration := statement(t, sample.definition).(*parser.CreateFunction)
+			e.mu.Lock()
+			stage := e.BeginCatalogStage(auth.Catalog)
+			err = routine.StageCreateFunction(ddlHost{e: e, op: op, stage: stage}, auth, declaration, sqltype.InputEnvironment{})
+			e.mu.Unlock()
+			if err != nil {
+				t.Fatal("private callable declaration", err)
+			}
+			domainUnitPublish(t, e, stage)
+			auth, err = operationAuthorization(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := view.MaterializedSnapshot{Schema: "public", Name: "snapshot_provider"}
+			source := statement(t, "INSERT INTO public.snapshot_provider VALUES("+sample.value+")")
+			insert, err := view.MaterializedSnapshotInsert(record, relation, source)
+			if err != nil {
+				t.Fatal("canonical codec syntax rejected before provider selection", err)
+			}
+			input, _ := op.Session.Settings.Presentation()
+			input.ExactSnapshot = true
+			_, err = e.importMaterializedSnapshotRow(op.Context(), op, auth, relation, insert, input, nil)
+			if err == nil || err.Error() != "stuntgres: invalid materialized view snapshot constructor provider" {
+				t.Fatal("same-named SQL callable gained codec authority", err)
+			}
+		})
 	}
 }

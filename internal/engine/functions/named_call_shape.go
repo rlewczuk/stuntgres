@@ -53,7 +53,7 @@ func declaredTypes(declared []sqltype.Usage, types []sqltype.ID) bool {
 	return true
 }
 
-func namedInputs(operands []Argument, declared []sqltype.Usage, slots []int) ([]sqltype.Usage, []sqltype.Usage, bool) {
+func namedInputs(b CallTypeContext, operands []Argument, declared []sqltype.Usage, slots []int) ([]sqltype.Usage, []sqltype.Usage, bool) {
 	storage := make([]sqltype.Usage, 2*len(slots))
 	inputs, targets := storage[:len(slots):len(slots)], storage[len(slots):]
 	for i, slot := range slots {
@@ -65,13 +65,13 @@ func namedInputs(operands []Argument, declared []sqltype.Usage, slots []int) ([]
 			targets[i] = operands[i].Usage
 		}
 	}
-	return inputs, targets, knownCallEdges(operands, targets)
+	return inputs, targets, knownCallEdges(b, operands, targets)
 }
 
-func fixedNamedInputs(raw parser.FunctionExpr, operands []Argument, declared []sqltype.Usage, labels []string, required int) ([]sqltype.Usage, []sqltype.Usage, bool) {
+func fixedNamedInputs(b CallTypeContext, raw parser.FunctionExpr, operands []Argument, declared []sqltype.Usage, labels []string, required int) ([]sqltype.Usage, []sqltype.Usage, bool) {
 	slots, ok := namedSlots(raw, labels, required)
 	if !ok {
 		return nil, nil, false
 	}
-	return namedInputs(operands, declared, slots[:len(raw.Args)])
+	return namedInputs(b, operands, declared, slots[:len(raw.Args)])
 }

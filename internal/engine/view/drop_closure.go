@@ -152,6 +152,13 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 						break
 					}
 				}
+			case *catalog.Cast:
+				for _, dependency := range catalog.CastDependencies(d) {
+					if dependency == target {
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+						break
+					}
+				}
 			case *catalog.OperatorClass, *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 				for _, dependency := range catalog.OperatorFamilyDependencies(base, d) {
 					if dependency.Address == target {

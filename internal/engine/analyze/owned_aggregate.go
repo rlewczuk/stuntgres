@@ -70,7 +70,7 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 			inputs[i+1].Collation = inputInfo.Usage.Collation
 		}
 	}
-	formals, result, err := routine.AggregateSupportTypes(b.BindingCatalog(), b.DefinitionReader(), support, inputs)
+	formals, result, err := routine.AggregateSupportTypes(b.BindingCatalog(), b.DefinitionReader(), support, d.Aggregate, inputs)
 	if err != nil || result.Type != state.Type {
 		return nil, fmt.Errorf("stuntgres: invalid aggregate support signature")
 	}
@@ -83,7 +83,7 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 		parameters = make([]expr.Expr, len(inputs))
 	}
 	for i, u := range inputs {
-		provider.Conversions[i], err = sqltype.PlanCoercion(u, formals[i], sqltype.Implicit)
+		provider.Conversions[i], err = catalog.AggregateConversion(d.Aggregate.BinaryRecipe, u, formals[i])
 		if err != nil {
 			return nil, err
 		}
@@ -98,7 +98,7 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 		}
 	}
 	if support.Strict && !d.Aggregate.Definition.HasInitial {
-		provider.SeedConversion, err = sqltype.PlanCoercion(inputs[1], state, sqltype.Implicit)
+		provider.SeedConversion, err = catalog.AggregateConversion(d.Aggregate.BinaryRecipe, inputs[1], state)
 		if err != nil {
 			return nil, err
 		}

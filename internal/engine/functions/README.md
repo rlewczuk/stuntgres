@@ -146,8 +146,9 @@ supplies omitted trailing defaults and positional variadic expansion; expanded
 Polymorphic target substitution is never an exact concrete signature match.
 
 Scalar, aggregate and window registry entries may expose a pure `ProbeCall` through
-`CallShape`. Its `CallTypeContext` exposes only existing type, array-association
-and common-type authority. It receives already-analyzed arguments plus separate
+`CallShape`. Its `CallTypeContext` exposes existing type, array-association,
+common-type authority and an effect-free `CanCoerce` method backed by
+`catalog.CanCoerce`. It receives already-analyzed arguments plus separate
 declared-input and resolved-target vectors. Family applicability reuses the
 provider's pure target-selection helpers: no speculative Bind, parameter
 inference, value conversion, dependency capture, provider construction or Eval.
@@ -735,6 +736,11 @@ Ranking inputs and resolved applicability targets remain separate and in written
 order. Array-sort probes temporarily use formal order before projecting targets
 back; executable argument syntax never changes order. Concrete named candidates
 are probed too. No hook binds, coerces, evaluates or captures a losing call.
+Named formal feasibility uses the same `catalog.CanCoerce` authority through
+the binding context after label-to-slot mapping, including concrete scalar inputs. Assignment-only and
+explicit-only edges do not admit function arguments. Candidate probes preserve
+the original operands and mapped declaration identities for ranking; no
+positional-formal substitution is applied before named mapping.
 Builtin-only calls retain their original provider gateway; a common-resolver
 no-match or ambiguity is never retried through a provider fallback.
 `json_strip_nulls` now has its checked declaration/identity association for this
@@ -1249,8 +1255,9 @@ embedded here and compiled once into `StockUnaccent`, which
 `bindInstalledText` keeps the order of the old engine binder:
 - unaccent rejects decorations as a missing signature; `daitch_mokotoff`
   reports them with 42809 after argument finalization.
-- No implicit coercion to TEXT has a cast routine, so the operand's TEXT
-  coercion carries no routine identity.
+- Fixed builtin implicit coercions to TEXT carry no cast routine identity.
+  A selected user function cast is instead an actual routine expression and
+  retains its normal stored/admission dependencies.
 
 Installed pgcrypto calls reuse this package's SQL-usage overload selection,
 formal coercion hooks and reconstructible `Pgcrypto` carrier. `PgcryptoMembers`

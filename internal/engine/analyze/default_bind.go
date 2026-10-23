@@ -34,6 +34,12 @@ func (b *Binder) BindDefault(raw parser.Expr, column catalog.Column) (expr.Expr,
 		if err != nil {
 			return nil, err
 		}
+		if selected, handled, selectionErr := b.declaredCoercion(input, info.Usage, sqltype.Assignment, raw.SourcePosition(), raw); handled {
+			if selectionErr != nil {
+				return nil, selectionErr
+			}
+			return StorageDestination(RestoreDomainCastCollations(annotations, selected), column.Usage, parser.Position{})
+		}
 		coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42804" {

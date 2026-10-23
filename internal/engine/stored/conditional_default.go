@@ -34,6 +34,9 @@ func (r ScalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 	}
 	switch e := node.(type) {
 	case plan.CaseExpr:
+		if err := e.ValidateStoredProvider(); err != nil {
+			return "", err
+		}
 		if len(e.Arms) == 0 || e.Otherwise == nil {
 			return "", fmt.Errorf("stuntgres: invalid stored CASE")
 		}
@@ -59,10 +62,6 @@ func (r ScalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 					return "", fmt.Errorf("stuntgres: invalid stored CASE condition")
 				}
 			} else {
-				plan, err := sqltype.PlanCoercion(e.Test.ResultUsage(), arm.TestUsage, sqltype.Implicit)
-				if err != nil || plan != arm.TestPlan {
-					return "", fmt.Errorf("stuntgres: invalid stored CASE test coercion")
-				}
 				ref, conflict := arm.Equality.InputCollation()
 				comparison, err := sqltype.BindComparison(arm.TestUsage.Type, arm.Condition.ResultUsage().Type, ref, conflict)
 				if err != nil || !comparison.Equal(arm.Equality) {

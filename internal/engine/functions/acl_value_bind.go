@@ -146,5 +146,5 @@ func namedACLValue(b CallTypeContext, raw parser.FunctionExpr, args []Argument, 
 	if !valid || raw.Name.Parts[len(raw.Name.Parts)-1].Text != ACLExplode.Name() || raw.Variadic || len(args) != 1 || !declaredTypes(declared, ACLExplode.types()) {
 		return nil, nil, false
 	}
-	return namedInputs(args, declared, []int{0})
+	return namedInputs(b, args, declared, []int{0})
 }

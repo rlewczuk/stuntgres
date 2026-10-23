@@ -118,6 +118,24 @@ func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.
 		candidate.Inputs, candidate.Targets, valid = family.NamedCall(b, raw, operands, candidate.NamedDeclaration)
 		return valid
 	}
+	// Concrete formals admit catalog edges before a polymorphic family's shape
+	// probe. Probe sees the selected formal usage, but ranking retains the
+	// original operands and declarations. No expression is constructed here.
+	var small [8]functions.Argument
+	probe := small[:min(len(operands), len(small))]
+	if len(operands) > len(small) {
+		probe = make([]functions.Argument, len(operands))
+	}
+	copy(probe, operands)
+	for i, formal := range candidate.Inputs {
+		if formal.Type != nil && formal.Type.Concrete() && probe[i].Usage.Type != nil {
+			if !b.CanCoerce(probe[i].Usage, formal, sqltype.Implicit) {
+				return false
+			}
+			probe[i].Usage = formal
+		}
+	}
+	operands = probe
 	name := candidate.Procedure.Name()
 	if candidate.Procedure.RoutineKind == catalog.WindowRoutine {
 		if family, ok := functions.LookupWindowFunction(name); ok && family.ProbeCall != nil {
@@ -201,7 +219,7 @@ func (b *Binder) sqlCallableAssumesKnown(raw parser.FunctionExpr, operands []fun
 			target = candidate.Targets[i]
 		}
 		if target.Type != nil && target.Type.Concrete() {
-			if _, err := sqltype.PlanCoercion(operand.Usage, target, sqltype.Implicit); err != nil {
+			if err := catalog.CanCoerce(b.BindingCatalog(), operand.Usage, target, sqltype.Implicit); err != nil {
 				return false
 			}
 		}

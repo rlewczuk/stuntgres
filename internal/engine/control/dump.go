@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/sqltype"
 )
 
 // Schema is one ordinary namespace Dump creates.
@@ -78,15 +79,45 @@ type Capture struct {
 // takes over capture: it sorts and completes it in place. Dump reads no engine
 // state; it renders against the capture's catalog and role reads only.
 func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
-	ctx = regobj.ACLItemOutputContext(ctx, capture.ACLOutput)
+	// Enable exact literal rendering, but bootstrap only if an emitted value
+	// actually needs raw replay. Declared REAL columns alone require no helper.
+	ctx = regobj.Float4DumpContext(regobj.ACLItemOutputContext(ctx, capture.ACLOutput))
 	script, err := buildDumpScript(ctx, capture)
 	if err != nil {
 		return err
 	}
 	w := &dumpWriter{ctx: ctx, dst: dst}
+	if script.rawFloat4 {
+		final, exists := capture.CatalogView.Cast(sqltype.Xid, sqltype.Float4)
+		if !exists || final.Method != "b" || script.rawFinalDeferred {
+			if err := w.forceOwner("postgres"); err != nil {
+				return err
+			}
+			if err := w.emit("CREATE CAST (pg_catalog.xid AS pg_catalog.float4) WITHOUT FUNCTION;\n"); err != nil {
+				return err
+			}
+			script.rawHelper = true
+		}
+	}
 	for _, section := range dumpSections {
 		if err := section.emit(ctx, script, w); err != nil {
 			return err
+		}
+	}
+	if script.rawFloat4 {
+		final, exists := capture.CatalogView.Cast(sqltype.Xid, sqltype.Float4)
+		if script.rawHelper {
+			if err := w.forceOwner("postgres"); err != nil {
+				return err
+			}
+			if err := w.emit("DROP CAST (pg_catalog.xid AS pg_catalog.float4);\n"); err != nil {
+				return err
+			}
+			if exists && final.Method != "b" {
+				if err := w.emit(script.declarations[final.OID].SQL); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return ctx.Err()

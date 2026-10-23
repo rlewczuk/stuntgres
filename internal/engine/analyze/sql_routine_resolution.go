@@ -58,7 +58,7 @@ func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, erro
 func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExpr) (sqlCallableSelection, bool, error) {
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if !b.hasDynamicProcedureName(name) {
+	if !b.hasDynamicProcedureName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -97,7 +97,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			}
 		}
 	}
-	if !hasSQL {
+	if !hasSQL && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	issue := functions.FunctionLabels(raw)
@@ -185,7 +185,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			}
 		}
 		assumed := false
-		candidates = SelectSQLCallables(candidates, operands, func(candidate SQLCallable, known *sqltype.Descriptor) bool {
+		candidates = SelectSQLCallables(b.BindingCatalog(), candidates, operands, func(candidate SQLCallable, known *sqltype.Descriptor) bool {
 			if !assumed {
 				for i, o := range operands {
 					if o.descriptor() == nil {
@@ -202,10 +202,14 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		selection.SQLCallable = candidates[0]
 	}
 	selection.args = make([]expr.Expr, len(operands))
-	selection.properties = expr.Properties{Volatility: expr.Volatile}
+	selection.properties = expr.Properties{Volatility: selection.Procedure.Volatility}
 	for i, o := range operands {
-		if selection.Procedure.DynamicCallable() {
-			selection.args[i], err = b.CoerceConditional(o, selection.Inputs[i], "function")
+		target := selection.Inputs[i]
+		if selection.Targets != nil {
+			target = selection.Targets[i]
+		}
+		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || o.descriptor() != nil) {
+			selection.args[i], err = b.CoerceConditional(o, target, "function")
 			if err != nil {
 				return selection, true, err
 			}
@@ -219,7 +223,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	return selection, true, nil
 }
 
-func SelectSQLCallables(candidates []SQLCallable, operands []ComparisonOperand, assumeKnown func(SQLCallable, *sqltype.Descriptor) bool) []SQLCallable {
+func SelectSQLCallables(view catalog.Read, candidates []SQLCallable, operands []ComparisonOperand, assumeKnown func(SQLCallable, *sqltype.Descriptor) bool) []SQLCallable {
 	viable := candidates[:0]
 	for _, candidate := range candidates {
 		valid := true
@@ -229,7 +233,7 @@ func SelectSQLCallables(candidates []SQLCallable, operands []ComparisonOperand, 
 				target = candidate.Targets[i]
 			}
 			if o.descriptor() != nil && target.Type != nil && target.Type.Concrete() {
-				if _, err := sqltype.PlanCoercion(o.Node.ResultUsage(), target, sqltype.Implicit); err != nil {
+				if err := catalog.CanCoerce(view, o.Node.ResultUsage(), target, sqltype.Implicit); err != nil {
 					valid = false
 					break
 				}
@@ -360,7 +364,7 @@ func SelectSQLCallables(candidates []SQLCallable, operands []ComparisonOperand, 
 				} else {
 					for i, o := range operands {
 						if o.descriptor() == nil {
-							if _, err := sqltype.PlanCoercion(known.Usage(), candidate.Inputs[i], sqltype.Implicit); err != nil {
+							if err := catalog.CanCoerce(view, known.Usage(), candidate.Inputs[i], sqltype.Implicit); err != nil {
 								valid = false
 								break
 							}
@@ -461,16 +465,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			info.Property = expr.MergeProperties(info.Property, node.Properties())
 		}
 		node := plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: args, WrittenCount: len(raw.Args), ArgNames: raw.ArgNames, Variadic: raw.Variadic, InputMap: assembly}
-		node.ChildSlots = make([]int, len(args))
-		for slot, source := range assembly {
-			for i := source.Start; i < source.Start+source.Count; i++ {
-				node.ChildSlots[i] = slot
-			}
-		}
-		if err := node.ValidateArguments(args); err != nil {
-			return nil, err
-		}
-		return node, nil
+		return node.AssembleArguments()
 	}
 	previous, previousSyntax, previousArguments := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments
 	previousReentry, previousCallee := b.Clause.selectedCallReentry, b.Clause.selectedWindowCallee

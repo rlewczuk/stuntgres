@@ -92,7 +92,7 @@ func (n SQLRoutineExpr) ValidateStoredProvider() error {
 	if _, err := n.Rebuild(n.Info, n.Args); err != nil {
 		return err
 	}
-	want := expr.Properties{Volatility: expr.Volatile}
+	want := expr.Properties{Volatility: n.Procedure.Volatility}
 	for _, arg := range n.Args {
 		want = expr.MergeProperties(want, arg.Properties())
 	}
@@ -102,7 +102,7 @@ func (n SQLRoutineExpr) ValidateStoredProvider() error {
 	return nil
 }
 
-func (SQLRoutineExpr) IntrinsicVolatility() expr.Volatility { return expr.Volatile }
+func (n SQLRoutineExpr) IntrinsicVolatility() expr.Volatility { return n.Procedure.Volatility }
 
 func (SQLRoutineExpr) PlanningFold() expr.Fold { return expr.FoldNever }
 

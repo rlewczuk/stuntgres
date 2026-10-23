@@ -1085,3 +1085,4 @@ domains supply the user-defined TypeClassID remapping witnesses. Temporary
 domain creation remains an adjacent native 0A000 boundary, even in an already
 initialized namespace; the path scenario asserts that boundary natively and
 uses PostgreSQL-only temporary-domain setup for additional oracle context.
+

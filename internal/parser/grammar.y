@@ -449,6 +449,8 @@ package parser
 %type <stmt> create_collation alter_collation drop_collation
 %type <stmt> create_conversion alter_conversion drop_conversion
 %type <stmt> create_function create_aggregate drop_routine
+%type <stmt> create_cast drop_cast
+%type <tok> cast_context
 %type <tok> returns_word
 %type <routineParameters> function_arguments function_declaration_argument_list
 %type <routineParameter> function_declaration_argument
@@ -822,6 +824,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | alter_conversion | drop_conversion
  | alter_operator | drop_operator
  | drop_routine
+ | create_cast | drop_cast
  | alter_operator_family | drop_operator_family
  | alter_operator_class | drop_operator_class
  | drop_access_method
@@ -1553,6 +1556,22 @@ access_method_kind: INDEX {$$=$1} | TABLE {$$=$1} ;
 create_access_method: CREATE ACCESS method_word name TYPE access_method_kind FDW_HANDLER relation_name {$$=&CreateAccessMethod{Name:Identifier{Text:$4.text,Pos:$4.pos},MethodKind:$6.text,Handler:$8,Pos:$1.pos}} ;
 drop_access_method: DROP ACCESS method_word name drop_mode {$$=&DropAccessMethod{Name:Identifier{Text:$4.text,Pos:$4.pos},Mode:$5,Pos:$1.pos}}
  | DROP ACCESS method_word IF EXISTS name drop_mode {$$=&DropAccessMethod{Name:Identifier{Text:$6.text,Pos:$6.pos},IfExists:true,Mode:$7,Pos:$1.pos}} ;
+create_cast: CREATE CAST '(' declared_type AS declared_type ')' WITH FUNCTION grant_routine cast_context {
+ $$=&CreateCast{Source:standaloneType($4),Target:standaloneType($6),Function:routineUtilityTarget($10),Method:"f",Context:$11.text,Pos:$1.pos}
+} | CREATE CAST '(' declared_type AS declared_type ')' WITH INOUT_ARG cast_context {
+ $$=&CreateCast{Source:standaloneType($4),Target:standaloneType($6),Method:"i",Context:$10.text,Pos:$1.pos}
+} | CREATE CAST '(' declared_type AS declared_type ')' WITHOUT FUNCTION cast_context {
+ $$=&CreateCast{Source:standaloneType($4),Target:standaloneType($6),Method:"b",Context:$10.text,Pos:$1.pos}
+} ;
+cast_context: /* empty */ {$$=lexeme{text:"e"}}
+ | AS KW_U {
+ if $2.text=="assignment" {$$=lexeme{text:"a"}} else if $2.text=="implicit" {$$=lexeme{text:"i"}} else {sqllex.(*lexer).syntax($2);return 1}
+} ;
+drop_cast: DROP CAST '(' declared_type AS declared_type ')' drop_mode {
+ $$=&DropCast{Source:standaloneType($4),Target:standaloneType($6),Mode:$8,Pos:$1.pos}
+} | DROP CAST IF EXISTS '(' declared_type AS declared_type ')' drop_mode {
+ $$=&DropCast{Source:standaloneType($6),Target:standaloneType($8),Mode:$10,IfExists:true,Pos:$1.pos}
+} ;
 family_word: KW_U {if $1.text!="family" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 search_word: name {if $1.text!="search" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 create_operator_family: CREATE OPERATOR family_word relation_name USING name {$$=&CreateOperatorFamily{Name:$4,Method:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}} ;

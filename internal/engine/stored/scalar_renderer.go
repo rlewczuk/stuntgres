@@ -319,6 +319,48 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 			return "(" + text + " COLLATE " + name + ")", nil
 		}
 		return "", fmt.Errorf("stuntgres: invalid default collation")
+	case plan.DatumCastExpr:
+		if err := n.ValidateStoredProvider(); err != nil {
+			return "", err
+		}
+		child, err := r.SQL(ctx, view, n.Child)
+		if err != nil {
+			return "", err
+		}
+		// A literal's ordinary SQL may be an untyped quoted value or NULL.
+		// Preserve the selected source codec instead of letting the enclosing
+		// target cast reinterpret that text as its own input.
+		if _, literal := n.Child.(plan.LiteralExpr); literal {
+			source, err := regobj.TypeDeclarationAt(view, r.Definition, n.Child.ResultUsage())
+			if err != nil {
+				return "", err
+			}
+			child = "CAST(" + child + " AS " + source + ")"
+		}
+		if n.Mode != sqltype.Explicit {
+			return child, nil
+		}
+		declaration, err := regobj.TypeDeclarationAt(view, r.Definition, u)
+		if err != nil {
+			return "", err
+		}
+		return "CAST(" + child + " AS " + declaration + ")", nil
+	case plan.ArrayCastExpr:
+		if err := n.ValidateStoredProvider(); err != nil {
+			return "", err
+		}
+		child, err := r.SQL(ctx, view, n.Child)
+		if err != nil {
+			return "", err
+		}
+		if n.Mode != sqltype.Explicit {
+			return child, nil
+		}
+		declaration, err := regobj.TypeDeclarationAt(view, r.Definition, u)
+		if err != nil {
+			return "", err
+		}
+		return "CAST(" + child + " AS " + declaration + ")", nil
 	case plan.CoercionExpr:
 		if n.Child == nil {
 			return "", fmt.Errorf("stuntgres: missing default coercion child")

@@ -37,7 +37,7 @@ func collectForeignDump(_ context.Context, c *dumpCollection, a ids.ObjectAddres
 }
 
 func collectForeignRelationDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress, r *catalog.Relation, _ relationDumpContext) error {
-	edges, err := c.tableDumpPredecessors(r)
+	edges, err := c.tableDumpPredecessors(r, nil)
 	if err != nil {
 		return err
 	}

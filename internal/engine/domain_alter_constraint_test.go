@@ -220,7 +220,7 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 		valid bool
 	}{
 		{"ALTER DOMAIN public.d ADD CONSTRAINT positive CHECK(VALUE>0) NOT VALID", true},
-		{"ALTER DOMAIN public.d ADD CONSTRAINT positive CHECK(VALUE>0)", false},
+		{"ALTER DOMAIN public.d ADD CONSTRAINT positive CHECK(VALUE>0)", true},
 		{"ALTER DOMAIN public.d ADD CONSTRAINT positive CHECK(VALUE>0) NO INHERIT NOT VALID", false},
 		{"ALTER DOMAIN d ADD CONSTRAINT positive CHECK(VALUE>0) NOT VALID", false},
 		{"ALTER DOMAIN pg_temp.d ADD CONSTRAINT positive CHECK(VALUE>0) NOT VALID", false},
@@ -228,6 +228,7 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 		{"ALTER DOMAIN public.d DROP CONSTRAINT positive", false},
 		{"ALTER DOMAIN public.d VALIDATE CONSTRAINT positive", false},
 		{"ALTER DOMAIN public.d ADD CONSTRAINT positive CHECK($1>0) NOT VALID", false},
+		{"ALTER DOMAIN public.d ADD CONSTRAINT positive CHECK($1>0)", false},
 	} {
 		raw := statement(t, tc.sql).(*parser.AlterDomain)
 		if err := restoreDomainAlter(raw); (err == nil) != tc.valid {

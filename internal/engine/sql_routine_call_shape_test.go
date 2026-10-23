@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -300,6 +301,63 @@ func TestSQLRoutineNamedProviderShapes(t *testing.T) {
 			}
 			if !found {
 				t.Fatal("missing checked declaration")
+			}
+		})
+	}
+}
+
+func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
+	for _, mode := range []string{"e", "a", "i"} {
+		t.Run(mode, func(t *testing.T) {
+			e := New()
+			for i, target := range []sqltype.ID{sqltype.Int4, sqltype.Float8, sqltype.Text, sqltype.Bool, sqltype.JSON, sqltype.Interval} {
+				cast := &catalog.Cast{OID: ids.OID(90000 + i), ObjectRevision: 1, Source: sqltype.Xid, Target: target, Context: mode, Method: "i"}
+				e.catalog.state.SetDescriptor(cast.Address(), cast)
+			}
+			auth := catalogAuthorization(e, e.CatalogRead())
+			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+			b.Query.Auth = &auth
+			namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+			for _, tc := range []struct {
+				name, signature string
+				labels          []string
+				targets         []sqltype.ID
+			}{
+				{"make_time", "23,23,701", []string{"sec", "hour", "min"}, []sqltype.ID{sqltype.Float8, sqltype.Int4, sqltype.Int4}},
+				{"parse_ident", "25,16", []string{"strict", "str"}, []sqltype.ID{sqltype.Bool, sqltype.Text}},
+				{"json_strip_nulls", "114,16", []string{"strip_in_arrays", "target"}, []sqltype.ID{sqltype.Bool, sqltype.JSON}},
+				{"uuidv7", "1186", []string{"shift"}, []sqltype.ID{sqltype.Interval}},
+			} {
+				raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Args: make([]parser.Expr, len(tc.labels)), ArgNames: make([]parser.Identifier, len(tc.labels))}
+				args := make([]functions.Argument, len(tc.labels))
+				for i, label := range tc.labels {
+					raw.ArgNames[i].Text = label
+					args[i].Usage = b.Type(sqltype.Xid).Usage()
+				}
+				found := false
+				for d := range auth.definitionProceduresNamed(namespace, tc.name) {
+					if string(d.Signature) != tc.signature {
+						continue
+					}
+					found = true
+					candidate, ok := analyze.SQLCallableShape(auth.Catalog, auth.definition, d, raw)
+					if !ok {
+						t.Fatal("missing checked named shape", tc.name)
+					}
+					if got := b.ProbeSQLCallable(raw, args, &candidate); got != (mode == "i") {
+						t.Fatal("named catalog admission", tc.name, mode, got)
+					}
+					if mode == "i" {
+						for i, target := range tc.targets {
+							if candidate.Inputs[i].Type.ID() != target || candidate.Targets[i].Type.ID() != target || args[i].Usage.Type.ID() != sqltype.Xid {
+								t.Fatal("named probe changed ranking or original operands", tc.name, i)
+							}
+						}
+					}
+				}
+				if !found || len(b.Params.Parameters) != 0 {
+					t.Fatal("missing provider or probe inferred parameters", tc.name)
+				}
 			}
 		})
 	}

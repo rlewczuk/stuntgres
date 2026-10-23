@@ -3,7 +3,6 @@ package analyze
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -57,14 +56,14 @@ func (b *Binder) bindExtensionUpdatePaths(raw parser.FunctionExpr) (expr.Expr, e
 		return nil, err
 	}
 	if arg.ResultUsage() != target {
-		coercionPlan, failure := sqltype.PlanCoercion(arg.ResultUsage(), target, sqltype.Implicit)
+		converted, failure := b.CoerceSelected(arg, target, sqltype.Implicit, raw.Args[0].SourcePosition(), raw.Args[0])
 		if failure != nil {
 			if diagnostic, ok := failure.(*sqlstate.Error); ok && (diagnostic.Code == "42804" || diagnostic.Code == "42846") {
 				return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 			}
 			return nil, failure
 		}
-		arg = plan.CoercionExpr{Info: b.Info(target, raw.Args[0].SourcePosition(), CoercionProperties(arg, coercionPlan)), Child: arg, Plan: coercionPlan, Mode: sqltype.Implicit}
+		arg = converted
 	}
 	if raw.Star {
 		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)

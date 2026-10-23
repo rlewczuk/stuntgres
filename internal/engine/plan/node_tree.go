@@ -166,6 +166,16 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case ConditionalExpr:
 		fmt.Fprintf(out, "Conditional %d", n.Kind)
 		err = args(n.Args)
+	case CaseTestExpr:
+		out.WriteString("CaseTest")
+	case DatumCastExpr:
+		fmt.Fprintf(out, "DatumCast %s %s %d", n.Method, n.Context, n.Mode)
+		err = child(n.Child)
+	case ArrayCastExpr:
+		fmt.Fprintf(out, "ArrayCast %s %d", n.Context, n.Mode)
+		err = pair(n.Child, n.Element)
+	case ArrayCastElementExpr:
+		out.WriteString("ArrayCastElement")
 	case CaseExpr:
 		if n.Test == nil {
 			out.WriteString("Case searched")
@@ -178,6 +188,9 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 				return err
 			}
 			err = pair(arm.Condition, arm.Result)
+			if err == nil && arm.Test != nil {
+				err = child(arm.Test)
+			}
 		}
 		if err == nil {
 			err = child(n.Otherwise)

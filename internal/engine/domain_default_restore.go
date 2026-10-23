@@ -26,14 +26,11 @@ type domainReplayCapture struct {
 }
 
 // Provenance is accumulated only after destination-owned reconstruction.
-// Negative-circle provenance authorizes only an affected array carrier cell;
-// it never grants a general scalar sidecar or negative text-input exception.
+// Only an authentic domain NULL admits private cell replay; constructor-only
+// circles use portable SQL and cannot independently authorize a sidecar.
 type domainReplayProvenance uint8
 
-const (
-	domainReplayDomainNull domainReplayProvenance = 1 << iota
-	domainReplayNegativeCircle
-)
+const domainReplayDomainNull domainReplayProvenance = 1
 
 func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, auth AuthorizationView, u sqltype.Usage, n *typedef.DomainReplayNode) (sqltype.Value, domainReplayProvenance, error) {
 	bad := func() (sqltype.Value, domainReplayProvenance, error) {
@@ -181,9 +178,6 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, 
 	if value.IsNull() || value.Type() != u.Type {
 		return bad()
 	}
-	if value.RequiresCircleConstructorReplay() {
-		return value, domainReplayNegativeCircle, nil
-	}
 	return value, 0, nil
 }
 
@@ -220,11 +214,6 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 		if err := analyze.BindInsertTargets(relation, s.Targets, slots); err != nil {
 			return nil, err
 		}
-		for _, target := range s.Targets {
-			if len(target.Steps) != 0 {
-				return nil, fmt.Errorf("stuntgres: native replay does not accept partial targets")
-			}
-		}
 	}
 	c := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
@@ -247,6 +236,9 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 		if position < 0 {
 			return nil, fmt.Errorf("stuntgres: missing native replay column target")
 		}
+		if len(s.Targets) != 0 && len(s.Targets[position].Steps) != 0 {
+			return nil, fmt.Errorf("stuntgres: native replay does not accept partial captured targets")
+		}
 		if _, duplicate := capture.cells[position]; duplicate {
 			return nil, fmt.Errorf("stuntgres: duplicate native replay cell")
 		}
@@ -262,9 +254,8 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 		if err != nil {
 			return nil, err
 		}
-		admitted := count&domainReplayDomainNull != 0 || count&domainReplayNegativeCircle != 0 && value.RequiresCircleArrayReplay()
-		if !admitted || value.Type() != usage.Type {
-			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted domain NULL or constructor array")
+		if count&domainReplayDomainNull == 0 || value.Type() != usage.Type {
+			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted domain NULL")
 		}
 		capture.cells[position] = plan.LiteralExpr{Info: expr.Info{Usage: usage, Pos: raw.SourcePosition()}, Value: value}
 	}

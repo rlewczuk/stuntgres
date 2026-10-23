@@ -64,6 +64,16 @@ feature. Only the upper features, `stored` and the engine import it; never
   `typedef`, because it walks `ClassReplayReferences` and `regobj` imports
   `typedef`).
 - **Type declarations and literals** (`catalog_literal.go`):
+  Deep constructor literals reuse `float4_dump.go` for exact raw FLOAT4 and
+  negative-circle leaves. Actual values gate recursive typed ROW/ARRAY SQL;
+  ordinary canonical values retain text literals. `ConstructorArrayTargetBounds`
+  and `ConstructorBoundedInputContext` preserve non-one-based array dimensions
+  through ordinary INSERT targets without native-only circle sidecars. That
+  authority addresses only the literal's root array (through domain wrappers);
+  recursive ROW fields and array elements never inherit it. Nested rank-one
+  constructor arrays retain their own bounds through closed qualified
+  `array_fill`/`array_cat` SQL. Non-one-based multidimensional constructor arrays
+  still require their own bounded INSERT target; nesting cannot borrow one.
   `TypeDeclaration(At)`, `ColumnDeclaration`, `Literal`,
   `LiteralWithACL(At)`, `ConstantLiteral`.
 - **Search-path visibility of named objects** (`namespace_visibility.go`,
@@ -168,6 +178,8 @@ make check RUN='^TestVisibilityInquiryCollationSelection$'
 make check RUN='^(TestCapturedInputsRetargetOnlyTheirSinks|TestRoutineInputParameterAndLiteralCopies|TestTypeInputNoticesFollowTheCurrentHost|TestAddressLookupNamespaceAndNoticeCuts)$'
 make check RUN='^TestReference(Reg|ACLItem|ObjectAddress|FormatRegclass|SequenceRegclass|ArrayRegclass|RLSPolicyRegtype|SQLCursorRegtype|UpdateReturningCapturedRegclass|PGDependRegclass|PartitionConstraintsRegclass)'
 make check RUN='DumpRoundTrip|NativeControls'
+make check RUN='^TestReferenceCastDefinitionNestedConstructorReplay$'
+make check RUN='^TestMaterializedViewSnapshot(NestedConstructors|ConstructorProviders)$'
 make check RUN='^TestReference(ObjectAddress|Comment|CollationVersion|VisibilityInquiry|RegCollationVisibility|CheckReviewScalarComment|DeparseConstraintsReviewProviderVisibility)'
 ```
 

@@ -307,7 +307,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		if err := provider.owner.catalog.Provider(ref.Address.ClassID).Validate(provider.base, d); err != nil {
 			return err
 		}
-	case *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary:
+	case *catalog.Cast, *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary:
 		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Seeded() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}

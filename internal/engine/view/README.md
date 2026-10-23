@@ -257,9 +257,29 @@ stored-source bridges and the CREATE VIEW collation check (27i, done). See
 
 Materialized snapshot scalars admit the closed qualified negative-circle codec
 through the ordinary typed binder, never arbitrary function execution. Typed
-composite ROW members remain under a destination-owned qualified cast. Existing
-array carriers reuse table capture plus exact dimensions/elements transport;
-negative provenance is granted only after ordinary constructor evaluation.
+composite ROW members remain under a destination-owned qualified cast. Nested
+rank-one arrays admit exactly the emitted qualified three-positional-argument
+`array_fill` singleton seed and two-positional-argument `array_cat` seed plus
+nonempty qualified typed ARRAY tail. Seed length is one, lower bounds are closed
+signed int32 integers, and every element is recursively closed. Named,
+VARIADIC, aggregate/window decorations, arbitrary calls and malformed shapes
+remain rejected; ordinary destination binding, genuine provider authorization
+and exact evaluation still apply. Before coercion preflight or evaluation,
+snapshot import requires newly admitted array calls to retain the genuine
+`ArrayTransform` fill/concatenate provider and builtin array-family identity;
+same-named `pg_catalog` SQL overloads do not acquire codec authority. Existing
+outer array carriers reuse the typed deep constructor serializer and bounded
+INSERT targets, whose authority is
+consumed at that exact array, not inherited into composite members or nested
+arrays. Snapshot import accepts only a full destination-ordered column list
+with closed integer slice bounds, then applies the existing array assignment
+target against a typed NULL. Actual constructor-requiring values must retain
+their rank and every dimension length; partial or truncating carriers are
+rejected. Only authentic stored domain NULLs authorize private cell transport;
+their captured shapes do not need SQL slice targets.
+In mixed rows, only unrelated ordinary constructor columns may carry SQL bounds:
+the replay receiver still rejects any slice on a captured NULL placeholder and
+retains exact target, owner, column, type and domain-NULL provenance checks.
 Native snapshots preserve captured values without REFRESH. PostgreSQL ignores
 native snapshot comments, so emitted WITH NO DATA definitions require REFRESH;
 this is recomputation, not PostgreSQL restoration of native captured rows.
@@ -272,6 +292,24 @@ stays in the root package, naming the moved code as `view.X`; `view_host_test.go
 (`TestViewHostSeam`) pins the host seam and `drop_reader_test.go`
 (`TestDropReaderSeam`) the `DropReader` seam. `TestViewTargetAdmission`
 covers the target-admission entry.
+`TestMaterializedViewSnapshotConstructorTargets` covers the closed target
+grammar and destination ordering; the public
+`TestReferenceGeometryConversionCarrierShape` covers exact two-dimensional
+non-one-based negative-circle arrays across same-root and fresh-root Restore,
+including reading the captured materialized rows before REFRESH.
+`TestGeometryConversionMixedReplayBoundedRow` exercises an authentic domain-NULL
+array beside an ordinary bounded negative-circle constructor, and rejects
+captured-slot slicing and constructor truncation or expansion.
+`TestMaterializedViewSnapshotNestedConstructors` exercises closed seed/tail
+admission through actual private destination binding/evaluation, including exact
+lower bounds, negative-circle payloads, NULL composite versus ROW(NULL), malformed
+dimensions, named/variadic/decorated calls and nonclosed children. Public
+`TestReferenceCastDefinitionNestedConstructorReplay` covers one/many elements in
+outer arrays and scalar composites, exact stale native snapshots before REFRESH,
+fresh-owner Restore and unchanged emitted SQL on PostgreSQL.
+`TestMaterializedViewSnapshotConstructorProviders` stages actual exact-signature
+`pg_catalog` SQL overloads and verifies private snapshot import rejects them
+before evaluation despite their canonical call spelling.
 
 ```sh
 make check RUN='^Test(BindingSlots|ViewWriteSlot|ViewTargetAdmission|Rule|View|Materialized|Polic|RLS|RowSecurity)'

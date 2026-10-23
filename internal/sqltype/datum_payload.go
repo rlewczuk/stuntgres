@@ -17,6 +17,20 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 	if v.null || other.null {
 		return v.null == other.null, nil
 	}
+	if v.typ != nil && other.typ != nil && v.typ.BaseType().id == Regclass && other.typ.BaseType().id == Regclass && v.integer == 1 && other.integer == 1 {
+		// Canonical decimal text is optional for inline numeric identities.
+		v.text, other.text = "", ""
+	}
+	if v.typ != nil && other.typ != nil && v.typ.BaseType().id == Float4 && other.typ.BaseType().id == Float4 {
+		if v.float4Bits() != other.float4Bits() {
+			return false, nil
+		}
+		// A raw word and an ordinary computed value with that word are the
+		// same payload, regardless of sidecar provenance or widened NaN bits.
+		v.floating, other.floating = 0, 0
+		v.float4Raw, other.float4Raw = 0, 0
+		v.float4RawValid, other.float4RawValid = false, false
+	}
 	v.typ, other.typ = nil, nil
 	if math.Float64bits(v.floating) != math.Float64bits(other.floating) {
 		return false, nil

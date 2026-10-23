@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Diagnostic name helpers shared by the engine and access.
@@ -62,6 +63,17 @@ func TypeDiagnosticNameAt(view Read, d *Type, path []ids.ObjectAddress) string {
 		if ok {
 			return TypeDiagnosticNameAt(view, element.(*Type), path) + "[]"
 		}
+	}
+	// PostgreSQL format_type uses SQL spellings for these builtin types,
+	// independently of namespace visibility, rather than quoting catalog names
+	// such as int4. Other types still follow the ordinary visible-name rule.
+	switch d.SQLType.ID() {
+	case sqltype.Bool, sqltype.Int2, sqltype.Int4, sqltype.Int8,
+		sqltype.Float4, sqltype.Float8, sqltype.Numeric,
+		sqltype.BPChar, sqltype.VarChar, sqltype.Bit, sqltype.VarBit,
+		sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz,
+		sqltype.Interval:
+		return d.SQLType.DiagnosticName()
 	}
 	name := DependencyIdentifier(d.Name())
 	if path == nil {

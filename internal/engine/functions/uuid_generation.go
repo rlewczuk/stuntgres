@@ -327,8 +327,8 @@ func (e UUIDGeneration) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bo
 }
 
 func namedUUIDGeneration(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
-	if !UUIDGenerationShape(raw, true) || len(args) != 1 || !declaredTypes(declared, []sqltype.ID{sqltype.Interval}) || !UUIDShiftCompatible(args[0].Usage, declared[0]) {
+	if !UUIDGenerationShape(raw, true) || len(args) != 1 || !declaredTypes(declared, []sqltype.ID{sqltype.Interval}) {
 		return nil, nil, false
 	}
-	return namedInputs(args, declared, []int{0})
+	return namedInputs(b, args, declared, []int{0})
 }

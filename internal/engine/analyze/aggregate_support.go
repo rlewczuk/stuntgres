@@ -74,7 +74,7 @@ func (b *Binder) SelectAggregateSupport(view catalog.Read, reader catalog.Defini
 	if len(exact) > 0 {
 		candidates = exact
 	} else {
-		candidates = SelectSQLCallables(candidates, operands, nil)
+		candidates = SelectSQLCallables(view, candidates, operands, nil)
 	}
 	if len(candidates) != 1 {
 		code, message := "42883", "function "+catalog.ObjectNameText(name)+"("+strings.Join(names, ", ")+") does not exist"

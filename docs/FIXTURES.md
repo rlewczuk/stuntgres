@@ -332,9 +332,12 @@ validates admitted expressions through the ordinary binder/providers; replay
 does not add new public casts, defaults or expression capabilities. Invalid
 expressions and failed imports preserve old data/catalogs and held cursors.
 
-Domain CHECK validity is persistent state. Dump places valid own CHECKs inline
-in CREATE DOMAIN, then emits each invalid own CHECK as a qualified named
+Domain CHECK validity is persistent state. Dump normally places valid own CHECKs
+inline in CREATE DOMAIN, then emits each invalid own CHECK as a qualified named
 `ALTER DOMAIN ... ADD CONSTRAINT ... CHECK (...) NOT VALID` after stored data.
+When independently altered CHECKs retain conflicting historical cast recipes,
+affected valid checks also use ordinary named ADD CHECK, retaining validity and
+normal validation; they are never weakened to NOT VALID.
 This narrow post-data phase uses the existing `postgres` replay authority, not
 the domain owner's session authorization: a domain can legally be owned by a
 role with no USAGE on its schema. The declaration's real owner remains intact.
@@ -635,3 +638,56 @@ make check RUN='^TestReferenceRegtype'
 make check REFERENCE=1 RUN='^TestReferenceRegtype'
 ```
 
+
+## Cast declarations and exact FLOAT4 replay
+
+User cast pairs are persistent catalog state, rendered as qualified ordinary
+CREATE CAST after endpoint/routine dependencies. Fixed virtual provider rows are
+not serialized. Restore admits both CREATE and DROP CAST through its isolated
+ordinary DDL path, then validates/remaps final descriptors before publication.
+
+FLOAT4 datum words, including signaling NaNs, use exact XID-word SQL rather than
+text NaN input. If the final xid→real edge is binary, its real declaration
+precedes consumers. Otherwise replay creates a temporary binary edge, emits
+stored recipes and rows, drops it, then recreates the final conflicting
+function/INOUT edge (or leaves the pair absent). No helper remains in the final
+catalog, and failed/canceled replacement cannot change live state.
+Direct REAL[] uses typed XID[] text carrying original dimensions/lower bounds;
+composite arrays with nondefault bounds use ordinary per-row INSERT target
+slices with exact ROW/ARRAY leaf expressions, not an unbounded ARRAY rebase.
+
+```sh
+make check RUN='^TestReferenceCastDefinition(Persistence|ReplayPhases|ReplayConflicts|RawFloat4Persistence|RawCompositeArrayBounds|Atomicity|Cancellation)$'
+make check RUN='^TestReferenceCastDefinition(Persistence|ReplayPhases|ReplayConflicts|RawFloat4Persistence|RawCompositeArrayBounds|Atomicity|Cancellation)$' REFERENCE=1
+```
+
+Frozen IO/binary, typed-array function and simple-CASE test recipes also use
+ordinary-SQL cast windows when the original edge was dropped or replaced.
+Windows surround the actual emitted declaration, deferred SET DEFAULT, or
+individual ADD CHECK after graph phase decisions, not an earlier collection
+event. Independently altered defaults/checks can therefore preserve different
+recipes for the same pair without simultaneous conflicting declarations.
+Methods, routine signatures/adapters and original contexts survive; the authentic
+final cast is installed once after all historical windows. No temporary row
+survives replacement. Omitted routine argument defaults bind in their own
+declaration; they do not create false conflicts in later calls.
+`ReplayPhases` covers a self-table-dependent default, post-data table/domain
+NOT VALID checks and a SQL-standard routine's retained IO. `ReplayConflicts`
+covers historical array defaults, valid table/domain CHECKs, unchanged validity,
+nondefault bounds, nonstrict NULLs and simple CASE versus a fresh replacement
+edge. Both replay the actual native-emitted SQL on PostgreSQL when enabled and
+require late-invalid/canceled native replacement to preserve installed state.
+Local checks on an inherited leaf use real ALTER TABLE ONLY, keeping conislocal,
+coninhcount and the original connoinherit flag intact. NO INHERIT checks never
+propagate; inheritable local checks use the same bounded leaf path, not recursive
+replay or a synthesized inherited constraint.
+An inheritable CHECK owned by a parent with descendants instead uses the existing
+real recursive ADD CHECK executor. All affected declarations precede it and all
+affected rows follow it; replay requires a fresh constraint name throughout the
+closure, preserving inherited counts/locality through normal propagation rather
+than introducing a second inheritance reconstruction mechanism.
+Independently added generated columns with different retained cast epochs reuse
+the existing typed-NULL declaration placeholders and genuine SET EXPRESSION
+recipe replay. Each attribute owns its own window before CHECKs/data; the existing
+inheritance-component planner supplies connected placeholders when necessary.
+Stored/generated identity, kind and values remain ordinary catalog state.

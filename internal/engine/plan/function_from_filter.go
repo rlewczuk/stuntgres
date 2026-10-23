@@ -218,6 +218,9 @@ func JoinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 			if err := child(arm.Condition); err != nil {
 				return 0, err
 			}
+			if err := child(arm.Test); err != nil {
+				return 0, err
+			}
 			if err := child(arm.Result); err != nil {
 				return 0, err
 			}

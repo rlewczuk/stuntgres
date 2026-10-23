@@ -116,12 +116,12 @@ func CaptureRestoredGeneration(view catalog.Read, ref ids.ObjectRef, raw *parser
 	return RestoredGenerationRecipe{Ref: ref, Attribute: attribute, Generation: generation.OID, Usage: tbl.Columns[slot].Usage, Kind: generation.Kind}, nil
 }
 
-// RestoredInheritedCheckShape checks the shape of an inherited-recipe CHECK:
-// ALTER TABLE schema.table ADD CONSTRAINT name CHECK (...), valid, with a
-// restorable scalar expression.
-func RestoredInheritedCheckShape(raw *parser.AlterTable) error {
+// RestoredCheckShape checks a named, qualified valid CHECK addition with a
+// restorable scalar expression. The root separately admits guarded fresh local
+// or recursive checks, or enforces connected generation-repair authority.
+func RestoredCheckShape(raw *parser.AlterTable) error {
 	reject := func() error { return sqlError("0A000", RestoreInheritedCheckBoundary) }
-	if raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 {
+	if raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 {
 		return reject()
 	}
 	action := raw.Actions[0]
