@@ -17,7 +17,7 @@ import (
 // mutex. Engine.mu guards every field, and mutating methods carry the Locked
 // suffix.
 //
-// Engine holds the store by value and never replaces it whole:
+// Cluster runtimes share one pointer-stable store:
 // catalog.Owner.Principals, catalog.Owner.ACLAuthority and
 // Root.Reprovenance keep pointers to its domain and ACL authority.
 // Transaction overlays of the role publication live in session.Journal, not
@@ -27,7 +27,12 @@ type roleStore struct {
 	aclAuthority  sqltype.ACLAuthority
 	published     *access.RoleRecord
 	nextPrincipal uint64
-	references    map[string][]authorization.PrincipalRef
+	references    map[roleReferenceOwner][]authorization.PrincipalRef
+}
+
+type roleReferenceOwner struct {
+	database *catalog.Owner
+	feature  string
 }
 
 // initialize seeds the predefined roles and the principal allocator. It runs
@@ -65,18 +70,19 @@ func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *access.R
 // advances the committed role revision. An empty payload unregisters the
 // feature. The registry map is copied, never mutated in place; nothing
 // changes on revision exhaustion or cancellation.
-func (s *roleStore) setReferencesLocked(ctx context.Context, feature string, refs []authorization.PrincipalRef) error {
+func (s *roleStore) setReferencesLocked(ctx context.Context, database *catalog.Owner, feature string, refs []authorization.PrincipalRef) error {
 	if s.published.Revision == ^uint64(0) {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	next := make(map[string][]authorization.PrincipalRef, len(s.references)+1)
+	key := roleReferenceOwner{database: database, feature: feature}
+	next := make(map[roleReferenceOwner][]authorization.PrincipalRef, len(s.references)+1)
 	for key, payload := range s.references {
 		next[key] = payload
 	}
 	if len(refs) == 0 {
-		delete(next, feature)
+		delete(next, key)
 	} else {
-		next[feature] = append([]authorization.PrincipalRef(nil), refs...)
+		next[key] = append([]authorization.PrincipalRef(nil), refs...)
 	}
 	roles := s.published.Advance()
 	if err := ctx.Err(); err != nil {
@@ -93,7 +99,7 @@ func (s *roleStore) referencingFeatures(ref authorization.PrincipalRef) []string
 	var features []string
 	for feature, refs := range s.references {
 		if slices.Contains(refs, ref) {
-			features = append(features, feature)
+			features = append(features, feature.feature)
 		}
 	}
 	return features

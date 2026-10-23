@@ -61,6 +61,8 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		}
 	case *parser.ForeignDDL:
 		base = ForeignDDLTag(s)
+	case *parser.CreateDatabaseStmt:
+		base = "CREATE DATABASE"
 	case *parser.CreateTablespace:
 		base = "CREATE TABLESPACE"
 	case *parser.Load:

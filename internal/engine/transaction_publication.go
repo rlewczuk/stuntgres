@@ -439,6 +439,10 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			remoteSettled = true
 			goto publicationFence
 		}
+		var databaseRoots map[*Engine]*catalog.State
+		if c != nil {
+			databaseRoots = e.databaseProjectionLocked(nextCatalog)
+		}
 		// No callback, allocation or failure remains after this point.
 		e.notifications.InstallLocked(notifications)
 		if c != nil {
@@ -532,6 +536,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.storage.ReplaceSequencesLocked(nextSequences)
 			e.storage.ReplaceRelationsLocked(nextStorage)
 			e.catalog.state = nextCatalog
+			installDatabaseProjectionLocked(databaseRoots)
 			e.catalog.nextRevision = nextRevision
 			if c.Roles != nil {
 				e.roles.published = c.Roles

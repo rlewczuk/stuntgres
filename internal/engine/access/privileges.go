@@ -26,7 +26,7 @@ func DatabaseRights(ctx context.Context, view catalog.Read, roles authorization.
 	if err != nil {
 		return 0, err
 	}
-	db := view.MustDatabase(catalog.CurrentDatabaseAddress)
+	db := view.MustDatabase(view.Owner().DatabaseAddress())
 	// Avoid materializing a default ACL merely to inspect its ordinary rights.
 	rights := authorization.ACLRights(db.ACL, db.Owner, principals, authorization.DatabasePrivileges, false)
 	if !db.ACL.Explicit {

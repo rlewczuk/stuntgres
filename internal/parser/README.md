@@ -72,6 +72,11 @@ Scratch reuse is an allocation optimization, not a parsed-result cache.
   comma in operator-family member lists.
 - COPY keeps its complete WHERE expression and ordered positioned options;
   COPY TO WHERE fails at the WHERE token during parsing.
+- CREATE DATABASE retains the decoded name and ordered `DatabaseOption`
+  occurrences with one-based character positions. DEFAULT differs from quoted
+  `'default'`, and numeric values differ from strings. Optional WITH/equals never
+  erase duplicates. Complete-input parsing is effect-free; execution owns
+  option semantics, permissions and transaction admission.
 
 ### Input-origin markers
 
@@ -98,6 +103,7 @@ feature prefix.
 - Access methods and operator families: `RUN='^Test(AccessMethodGrammar|OperatorFamilyParser)$'`
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`
 - Typed literals and operators: `RUN='^Test(GeometryConversionCLiteralSyntax|INETSubnetParser)$'`
+- Database creation: `RUN='^TestCreateDatabase'`
 
 **Benchmarks.** Compare scratch-receiver changes with the unchanged
 `parser_scratch_bench_test.go` harness before and after:

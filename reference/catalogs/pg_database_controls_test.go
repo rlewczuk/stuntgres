@@ -27,7 +27,7 @@ func TestReferencePGDatabaseControls(t *testing.T) {
 		if err := b.DB.QueryRowContext(p.Ctx, "SELECT current_database()").Scan(&name); err != nil {
 			t.Fatal(err)
 		}
-		want := []any{int64(16383), name, int64(10), int64(6), "c", nil, nil, false, nil, nil, nil, nil, "C", "C", nil, nil, nil, nil}
+		want := []any{int64(16383), name, int64(10), int64(6), "c", false, true, false, int64(-1), nil, nil, nil, "C", "C", nil, nil, nil, nil}
 		// The logical horizon is real and may advance across replacement.
 		// Keep every other cell/metadata exact, but validate this dynamic XID
 		// independently rather than copying a runtime value into a golden row.

@@ -306,7 +306,7 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *session.
 		derived.Execution = &preparedBoundaryExpression{Expr: derived.Execution, barrier: func() {
 			// Assert the blocking callback is outside every metadata mutex, including
 			// the detached origin and finishing attachment. Never wait under a lock.
-			for _, lock := range []*sync.Mutex{&e.mu, &origin.Mu, &origin.Transactions.Mu, &finisher.Mu, &finisher.Transactions.Mu} {
+			for _, lock := range []*sync.Mutex{e.mu, &origin.Mu, &origin.Transactions.Mu, &finisher.Mu, &finisher.Transactions.Mu} {
 				if !lock.TryLock() {
 					t.Error("publication expression executed under metadata mutex")
 					close(arrived)

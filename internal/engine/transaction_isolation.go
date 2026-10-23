@@ -228,6 +228,12 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	t := s.owner
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
+	if _, ok := stmt.(*parser.CreateDatabaseStmt); ok {
+		if t.InBlock() {
+			return sqlError("25001", "CREATE DATABASE cannot run inside a transaction block")
+		}
+		return nil
+	}
 	if _, ok := stmt.(*parser.CreateTablespace); ok {
 		if t.InBlock() {
 			return sqlError("25001", "CREATE TABLESPACE cannot run inside a transaction block")

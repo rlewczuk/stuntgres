@@ -67,6 +67,9 @@ whose oracle loads the legacy OpenSSL provider
   default (repair registered before mutation, under its own bounded context).
   PostgreSQL-only catalog GRANT/REVOKE phases restore catalog ACLs on success
   and failure.
+  Register `RoleReferenceCleanup`, then `DatabaseReferenceCleanup`, then the
+  scenario, appending names before creation attempts. Teardown closes selected
+  pools and workers before standalone PostgreSQL DROP DATABASE, then role cleanup.
 - Pristine builtin expectations (`TestReferencePGNamespaceBuiltins` and the
   first-use TEMP transaction witness) read the oracle through `fixture.DSN` with
   the database path `/postgres`, read-only, never the reset fixture's rebuilt
@@ -114,6 +117,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Namespaces, schemas, `search_path`: `RUN='^TestReferencePGNamespace'`, `RUN='^TestReferenceSchema'`
 - Databases and role settings: `RUN='^TestReferencePGDatabase'`, `RUN='^TestReferencePGDBRoleSetting'`
 - Role views: `RUN='^TestReferencePGRoles'`, `RUN='^TestReferencePGUser'`, `RUN='^TestReferencePGGroup'`
+- Database creation, selection and targeted controls: `RUN='^TestReferenceDatabaseCreate'`
 - ACL catalogs and `pg_get_acl`: `RUN='^TestReferencePGDefaultACL'`, `RUN='^TestReferencePGParameterACL'`, `RUN='^TestReferenceObjectACL'`
 - Comments: `RUN='^TestReferencePGDescription'`, `RUN='^TestReferencePGShDescription'`, `RUN='^TestReferenceComment'`
 - Dependencies: `RUN='^TestReferencePGDepend'`

@@ -102,6 +102,7 @@ type Pair struct {
 	MemoryRecord, PostgresRecord *Recorder
 	Ctx                          context.Context
 	NativeConnector              *stuntgres.Connector
+	NativeDSN                    string
 }
 
 func NewPair(t *testing.T) *Pair {
@@ -177,7 +178,8 @@ func newFixture(t *testing.T, withPostgres, nativeRaw bool, configure func(*stun
 			t.Fatal(err)
 		}
 	}
-	connector, err := nativeDriver.OpenConnector("reference/" + t.Name())
+	p.NativeDSN = "reference/" + t.Name()
+	connector, err := nativeDriver.OpenConnector(p.NativeDSN)
 	if err != nil {
 		t.Fatal(err)
 	}

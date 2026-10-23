@@ -39,7 +39,7 @@ func TablespaceDatabase(view catalog.Read, oid uint32, result *sqltype.Descripto
 		}
 	}
 	if ids.OID(oid) == catalog.DefaultTablespaceOID {
-		descriptor, ok := view.Database(catalog.CurrentDatabaseAddress)
+		descriptor, ok := view.Database(view.Owner().DatabaseAddress())
 		if !ok || descriptor == nil {
 			return sqltype.Value{}, false, nil, fmt.Errorf("stuntgres: missing tablespace database authority")
 		}

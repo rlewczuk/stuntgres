@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -45,6 +46,31 @@ func (h ddlHost) GrantParameter(a ddl.Authority, key string) (*catalog.Parameter
 
 func (h ddlHost) ReferencingFeatures(ref authorization.PrincipalRef) []string {
 	return h.e.roles.referencingFeatures(ref)
+}
+
+func (h ddlHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []access.RoleDependency {
+	var result []access.RoleDependency
+	for _, target := range h.e.cluster.targets {
+		if target == h.e {
+			continue
+		}
+		var dependencies []access.RoleDependency
+		for address, descriptor := range target.catalog.state.Descriptors() {
+			if address.ClassID != ids.DatabaseClassID {
+				access.DescriptorRoleDependencies(descriptor, ref, &dependencies)
+			}
+		}
+		view := target.catalog.read(target.catalog.state)
+		access.DefaultRoleDependencies(view, target.roles.read(target.catalog.owner(), view, target.roles.published), ref, &dependencies)
+		if len(dependencies) != 0 {
+			kind := "objects"
+			if len(dependencies) == 1 {
+				kind = "object"
+			}
+			result = append(result, access.RoleDependency{Kind: 'a', Description: fmt.Sprintf("%d %s in database %s", len(dependencies), kind, target.databaseName)})
+		}
+	}
+	return result
 }
 
 func (h ddlHost) DescribeRoleDependency(a ddl.Authority, dep access.RoleDependency) string {

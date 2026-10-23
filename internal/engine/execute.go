@@ -39,6 +39,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
+	case *parser.CreateDatabaseStmt:
+		return e.executeCreateDatabase(scope, stmt.(*parser.CreateDatabaseStmt), count)
 	case *parser.CreateTablespace:
 		return e.executeCreateTablespace(op, stmt.(*parser.CreateTablespace), count)
 	case *parser.Load:

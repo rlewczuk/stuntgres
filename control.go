@@ -8,9 +8,9 @@ import (
 	"stuntgres/internal/engine"
 )
 
-// withEngine releases the borrowed connection before performing I/O. The engine
-// identity is owned by Driver and outlives the borrowed connection.
-func withEngine(ctx context.Context, db *sql.DB, fn func(*engine.Engine) error) error {
+// withDatabaseTarget captures the immutable selected runtime and releases its
+// borrower before I/O. Driver owns the target for the cluster's lifetime.
+func withDatabaseTarget(ctx context.Context, db *sql.DB, fn func(*engine.Engine) error) error {
 	if db == nil {
 		return errors.New("stuntgres: nil database")
 	}
@@ -60,7 +60,7 @@ type IndexState struct {
 // return ordinary control errors. Like Reset, it requires an unwrapped native pool.
 func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexState, error) {
 	var state IndexState
-	err := withEngine(ctx, db, func(e *engine.Engine) error {
+	err := withDatabaseTarget(ctx, db, func(e *engine.Engine) error {
 		ready, valid, live, older, writers, err := e.InspectIndex(ctx, schema, name)
 		state = IndexState{Ready: ready, Valid: valid, Live: live, WaitingForOlderSnapshots: older, WaitingForWriters: writers}
 		return err
@@ -97,7 +97,7 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // Live temporary typed tables attached to persistent standalone types likewise
 // prevent replacement rather than retargeting their source by name or numeric OID.
 func Reset(ctx context.Context, db *sql.DB) error {
-	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
+	return withDatabaseTarget(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
 }
 
 // Dump writes a consistent PostgreSQL-compatible persistent SQL snapshot,
@@ -156,7 +156,7 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
 	}
-	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Dump(ctx, dst) })
+	return withDatabaseTarget(ctx, db, func(e *engine.Engine) error { return e.Dump(ctx, dst) })
 }
 
 // Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
@@ -228,5 +228,5 @@ func Restore(ctx context.Context, db *sql.DB, src io.Reader) error {
 	if src == nil {
 		return errors.New("stuntgres: nil restore reader")
 	}
-	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Restore(ctx, src) })
+	return withDatabaseTarget(ctx, db, func(e *engine.Engine) error { return e.Restore(ctx, src) })
 }

@@ -46,7 +46,10 @@ func ValidateRoutineDescriptor(view catalog.Read, roles authorization.Read, capt
 // against the principal domain of view's own engine, which is what the
 // engine's committed role root would check.
 func ValidateStoredRoutineDescriptor(view catalog.Read, captured *catalog.Procedure) (*catalog.Procedure, error) {
-	if _, ok := view.Database(catalog.CurrentDatabaseAddress); !ok || view.Owner() == nil || captured.Owner.ID() == 0 || captured.Owner != view.Owner().Principals.Principal(captured.Owner.ID()) {
+	if view.Owner() == nil {
+		return nil, fmt.Errorf("stuntgres: foreign or zero principal")
+	}
+	if _, ok := view.Database(view.Owner().DatabaseAddress()); !ok || captured.Owner.ID() == 0 || captured.Owner != view.Owner().Principals.Principal(captured.Owner.ID()) {
 		return nil, fmt.Errorf("stuntgres: foreign or zero principal")
 	}
 	return currentRoutineDeclaration(view, captured)

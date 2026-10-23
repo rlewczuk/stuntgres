@@ -13,6 +13,8 @@ func ModifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.ForeignDDL:
 		return ForeignDDLTag(stmt.(*parser.ForeignDDL))
+	case *parser.CreateDatabaseStmt:
+		return "CREATE DATABASE"
 	case *parser.CreateTablespace:
 		return "CREATE TABLESPACE"
 	case *parser.Truncate:
@@ -222,6 +224,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return false
 	}
 	switch stmt.(type) {
+	case *parser.CreateDatabaseStmt:
+		return true
 	case *parser.CreateTablespace:
 		return true
 	case *parser.AlterOwner, *parser.ReassignOwned, *parser.DropOwned:

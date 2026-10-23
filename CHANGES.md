@@ -33,6 +33,23 @@ Identity sequences and other sessions' TEMP sequences are excluded. Held
 prepared reads refresh after option, ACL and lifecycle changes; declared options
 remain independent of current sequence values.
 
+## Logical database creation
+
+`CREATE DATABASE` registers real logical databases within an exact opaque DSN's
+cluster, sharing roles while isolating objects and data. New databases copy a
+retained real UTF8/C builtin seed, not application tables. Default connectors
+keep their original DSN-derived attachment. Use `OpenDatabaseConnector(key, name)`
+or a copied `Connector.WithDatabase(name)` for explicit selection; connecting
+never creates missing names. Native Reset/Dump/Restore affect only the selected
+database while preserving registrations, database authority and shared roles.
+Database registration preserves stored-definition identities, so subsequent DDL
+in selected and existing targets cannot collide with newly registered databases.
+Option recognition preserves quoted case, and CREATE/selector diagnostics retain
+decoded names. Invalid locale providers and connection limits report their
+PostgreSQL value errors before authorization or unsupported-capability errors.
+See [selection](docs/DRIVER.md#selecting-a-logical-database) and
+[engine ownership](internal/engine/README.md#cluster-and-logical-database-ownership).
+
 ## Domain constraints — change note
 
 `information_schema.domain_constraints` exposes the released eight-column view:

@@ -19,7 +19,7 @@ type catalogAuthority struct {
 
 // Caller holds Engine.mu; never derive entry authority from a later live view.
 func (v AuthorizationView) catalogAuthorityLocked(ref ids.ObjectRef, descriptor catalog.Descriptor) *catalogAuthority {
-	return &catalogAuthority{session: v.session, authorization: v.Revision, roles: v.RoleRecord.Revision, ref: ref, descriptor: descriptor, databaseAuthority: v.Catalog.Get(catalog.CurrentDatabaseAddress), databasePredecessor: v.DatabasePredecessor}
+	return &catalogAuthority{session: v.session, authorization: v.Revision, roles: v.RoleRecord.Revision, ref: ref, descriptor: descriptor, databaseAuthority: v.Catalog.Get(v.Owner.DatabaseAddress()), databasePredecessor: v.DatabasePredecessor}
 }
 
 // Statement authority expires at successful Finish, never at outer Commit.
@@ -33,14 +33,14 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *session
 		return catalog.Conflict{}
 	}
 	if a.databasePredecessor != nil {
-		if e.catalog.state.Get(catalog.CurrentDatabaseAddress) != a.databasePredecessor {
+		if e.catalog.state.Get(e.catalog.DatabaseAddress()) != a.databasePredecessor {
 			return catalog.Conflict{}
 		}
 		if c != nil {
-			if original, ok := c.Originals[catalog.CurrentDatabaseAddress]; ok && original != a.databasePredecessor {
+			if original, ok := c.Originals[e.catalog.DatabaseAddress()]; ok && original != a.databasePredecessor {
 				return catalog.Conflict{}
 			}
-			c.Originals[catalog.CurrentDatabaseAddress] = a.databasePredecessor
+			c.Originals[e.catalog.DatabaseAddress()] = a.databasePredecessor
 		}
 	}
 	for _, observed := range a.observations {

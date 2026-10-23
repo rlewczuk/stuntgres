@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 )
@@ -48,8 +49,17 @@ func (e *Engine) touchOperationIdentityLocked(op *session.Operation) {
 	}
 }
 
-// roleRetirementPreflightLocked runs role.RetirementPreflightLocked over
-// the engine's catalog owner, principal domain and registered features.
+// Called only at final publication under Engine.mu, with the prepared combined
+// catalog validated against the current committed root. Shared-role retirement
+// must also reject dependencies in the other registered databases.
 func (e *Engine) roleRetirementPreflightLocked(c *session.Journal, state *catalog.State) error {
-	return role.RetirementPreflightLocked(c, e.catalog.owner(), &e.roles.domain, state, e.roles.referencingFeatures)
+	if err := role.RetirementPreflightLocked(c, e.catalog.owner(), &e.roles.domain, state, e.roles.referencingFeatures); err != nil {
+		return err
+	}
+	for ref := range c.RetiredRoles {
+		if len((ddlHost{e: e}).OtherDatabaseDependencies(ref)) != 0 {
+			return ids.ErrCatalogReplaced
+		}
+	}
+	return nil
 }

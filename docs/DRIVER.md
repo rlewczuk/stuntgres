@@ -7,13 +7,14 @@ controls are in [FIXTURES.md](FIXTURES.md).
 ## Opening databases
 
 - `stuntgres.NewDriver()` returns a Driver that owns independent in-memory
-  databases. `NewDriverWithConfig(DriverConfig{TrackCommitTimestamp: true})` fixes
+  clusters. `NewDriverWithConfig(DriverConfig{TrackCommitTimestamp: true})` fixes
   startup settings for every database on that Driver (the zero value leaves commit
   timestamps off; `SET track_commit_timestamp` fails with 55P02).
-- `d.OpenConnector(name)` opens a database by an **exact opaque name** (not a
-  connection string). Identical names on one Driver share data; different names
-  or Drivers are isolated. Databases live as long as the Driver, even after every
-  pool closes; nothing persists across process exit. Use `sql.OpenDB(connector)`.
+- `d.OpenConnector(name)` opens a cluster's default database by an **exact opaque
+  key** (not a connection string). Identical keys on one Driver share the cluster;
+  different keys or Drivers are isolated. Clusters live as long as the Driver,
+  even after every pool closes; nothing persists across process exit.
+  Use `sql.OpenDB(connector)`.
 - Importing the package registers one default Driver as `sql.Open("stuntgres", name)`.
   It cannot be configured, so use `NewDriver` when registering settings or foreign
   data wrappers, or when tests need isolation.
@@ -25,6 +26,43 @@ controls are in [FIXTURES.md](FIXTURES.md).
 - Configuration (`RegisterSetting`, `RegisterForeignDataWrapper`,
   `RegisterForeignValidator`) must happen before the Driver's first connector;
   the registry then freezes.
+
+
+### Selecting a logical database
+
+SQL `CREATE DATABASE` registers a database in the selected cluster. Roles and
+database owner/ACL metadata are shared; objects, data and physical-session
+resources belong to the selected database. Default connectors retain the original
+attachment and its UTF8-validated, DSN-derived NAME (at most 63 complete UTF8
+bytes); clipped display-name collisions never merge distinct opaque keys.
+
+`d.OpenDatabaseConnector(key, database)` selects an existing database as the
+bootstrap principal. To combine selection with a trusted role or notice handler,
+copy an existing connector:
+
+```go
+base, err := d.OpenConnectorAs("opaque cluster key", "app_owner")
+if err != nil {
+    return err
+}
+selected := base.(*stuntgres.Connector).WithDatabase("app_database")
+db := sql.OpenDB(selected)
+defer db.Close()
+```
+
+`WithDatabase` preserves role and notice configuration without retargeting the
+original connector or live sessions. Every physical Connect resolves the selector
+and checks current LOGIN, cluster-wide role connection limits and database
+CONNECT. Names are exact decoded names, not SQL-quoted, URL-decoded or trimmed.
+Explicit empty is not the default; missing names fail with FATAL 3D000 and are
+never created by connecting. CONNECT revocation does not disconnect admitted
+sessions; SET ROLE does not re-admit them.
+
+Reset/Dump/Restore and InspectIndex capture the selected database before releasing
+the borrower. Controls require an unwrapped native pool and affect only that
+database, preserving registrations, owners/ACLs, shared roles and other targets.
+Dump excludes cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
+The engine owns the [database and template contract](../internal/engine/README.md#cluster-and-logical-database-ownership).
 
 ## Physical sessions and pooling
 

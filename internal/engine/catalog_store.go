@@ -71,6 +71,9 @@ func (s *catalogStore) allocateOIDLocked() (ids.OID, error) {
 		if _, ok := s.state.Find(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}); ok {
 			continue
 		}
+		if _, ok := s.state.Find(ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: n}); ok {
+			continue
+		}
 		usedRule := false
 		for _, descriptor := range s.state.Descriptors() {
 			if catalog.DefinitionOIDUsed(descriptor, n) {

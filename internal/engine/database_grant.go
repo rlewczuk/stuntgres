@@ -13,6 +13,9 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
+	if s.Kind != "database" || len(s.Relations) == 0 || len(s.Schemas) != 0 {
+		return Result{}, sqlError("0A000", "statement is not supported")
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	op := scope.op
@@ -20,16 +23,29 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err != nil {
 		return Result{}, err
 	}
-	next, warnings, err := role.PlanDatabaseGrant(op.Context(), v.View, s, e.databaseName, e.catalog.revisionLocked)
-	for _, warning := range warnings {
-		op.EmitNotice(session.LevelWarning, warning)
+	var changes *session.Journal
+	for i := range s.Relations {
+		statement := *s
+		statement.Relations = s.Relations[i : i+1]
+		next, warnings, err := role.PlanDatabaseGrant(op.Context(), v.View, &statement, e.catalog.revisionLocked)
+		for _, warning := range warnings {
+			op.EmitNotice(session.LevelWarning, warning)
+		}
+		if err != nil {
+			return Result{}, err
+		}
+		if next == nil {
+			continue
+		}
+		if changes == nil {
+			changes = scope.owner.Catalog.Clone()
+		}
+		e.catalogChangeLocked(changes, next.Address(), next)
 	}
-	if err != nil || next == nil {
-		return Result{}, err
+	if changes == nil {
+		return Result{}, nil
 	}
-	changes := scope.owner.Catalog.Clone()
-	e.catalogChangeLocked(changes, next.Address(), next)
 	scope.catalog = changes
-	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: next.Address()}, e.catalog.state.Get(next.Address()))
+	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: v.Owner.DatabaseAddress()}, e.catalog.state.Get(v.Owner.DatabaseAddress()))
 	return Result{}, nil
 }

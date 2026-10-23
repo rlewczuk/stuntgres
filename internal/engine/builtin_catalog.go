@@ -137,7 +137,8 @@ var builtinSeedNames = &seedNames{}
 // number of names builds its own map instead.
 func (e *Engine) finishSeed() {
 	state := e.catalog.state
-	database := catalog.DescriptorNameKey(state.Get(catalog.CurrentDatabaseAddress))
+	address := e.catalog.owner().DatabaseAddress()
+	database := catalog.DescriptorNameKey(state.Get(address))
 	shared := builtinSeedNames
 	shared.once.Do(func() {
 		shared.names = util.PersistentMapFrom(func(yield func(ids.NameKey, ids.ObjectAddress) bool) {
@@ -148,11 +149,11 @@ func (e *Engine) finishSeed() {
 			}
 		})
 	})
-	if bound, ok := state.LookupName(database); !ok || bound != catalog.CurrentDatabaseAddress || state.NameCount() != shared.names.Len()+1 {
+	if bound, ok := state.LookupName(database); !ok || bound != address || state.NameCount() != shared.names.Len()+1 {
 		state.EndBulkLoad()
 		return
 	}
-	state.EndBulkLoadWithNames(shared.names.Set(database, catalog.CurrentDatabaseAddress))
+	state.EndBulkLoadWithNames(shared.names.Set(database, address))
 }
 
 // builtinCatalogValidation memoizes provider validation of the built-in seed.
@@ -172,9 +173,10 @@ func (e *Engine) validateSeed() error {
 	if builtinCatalogValidation.err != nil {
 		return builtinCatalogValidation.err
 	}
-	database := e.catalog.state.Get(catalog.CurrentDatabaseAddress)
+	address := e.catalog.owner().DatabaseAddress()
+	database := e.catalog.state.Get(address)
 	return e.validateCatalogDescriptors(func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
-		yield(catalog.CurrentDatabaseAddress, database)
+		yield(address, database)
 	})
 }
 

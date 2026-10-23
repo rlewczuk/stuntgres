@@ -5,7 +5,6 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -57,7 +56,7 @@ func StageUpdate(host Host, auth ddl.Authority, view access.View, s *parser.Alte
 		if !control.Trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to update extension "%s"`, old.Name()))
 		}
-		rights, err := view.Effective(auth, view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
+		rights, err := view.Effective(auth, view.Owner.Domain.Ref(view.Catalog.Epoch(), view.Owner.DatabaseAddress()), false)
 		if err != nil {
 			return nil, err
 		}

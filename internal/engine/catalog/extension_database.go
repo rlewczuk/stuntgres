@@ -15,6 +15,7 @@ type Database struct {
 	ObjectName     string
 	Owner          authorization.PrincipalRef
 	ACL            authorization.ACLValue
+	FrozenXID      uint64
 }
 
 func (d *Database) Address() ids.ObjectAddress { return d.ObjectAddress }
@@ -33,8 +34,8 @@ func (DatabaseProvider) ClassID() ids.OID { return ids.DatabaseClassID }
 
 func (DatabaseProvider) Validate(v Read, d Descriptor) error {
 	db, ok := d.(*Database)
-	if !ok || db.Address() != CurrentDatabaseAddress || db.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != db.Address() || db.Namespace() != (ids.ObjectAddress{}) {
-		return fmt.Errorf("stuntgres: invalid current database descriptor")
+	if !ok || db.Address().ClassID != ids.DatabaseClassID || db.Address().ObjectID == 0 || db.Address().SubID != 0 || db.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != db.Address() || db.Namespace() != (ids.ObjectAddress{}) {
+		return fmt.Errorf("stuntgres: invalid database descriptor")
 	}
 	return nil
 }

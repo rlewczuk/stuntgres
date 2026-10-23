@@ -250,7 +250,7 @@ func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
 // views that the view's catalog owner does not back, stale epochs, unpaired
 // role reads and descriptors whose owner is not a live principal.
 func (v View) Object(ref ids.ObjectRef) (catalog.Descriptor, error) {
-	if v.Owner == nil || v.Catalog.Owner() != v.Owner || v.Catalog.State() == nil || !v.Roles.BelongsTo(v.Owner.Principals) || v.Roles != RoleRead(v.Owner, v.Owner.Principals, v.Catalog, v.RoleRecord) || v.PairedCatalog != v.Catalog || v.Roles.DatabaseOwner() != v.Catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.Owner.Domain || ref.Epoch != v.Catalog.Epoch() {
+	if v.Owner == nil || v.Catalog.Owner() != v.Owner || v.Catalog.State() == nil || !v.Roles.BelongsTo(v.Owner.Principals) || v.Roles != RoleRead(v.Owner, v.Owner.Principals, v.Catalog, v.RoleRecord) || v.PairedCatalog != v.Catalog || v.Roles.DatabaseOwner() != v.Catalog.MustDatabase(v.Owner.DatabaseAddress()).Owner || ref.Domain() != v.Owner.Domain || ref.Epoch != v.Catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.Catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -340,7 +340,7 @@ func (v View) Effective(env Environment, ref ids.ObjectRef, grantOptions bool) (
 // Own TEMP namespaces remain usable after revocation, but CREATE is contingent
 // on the current effective role's database TEMP privilege, not authentication.
 func (v View) OwnTemporaryPrivileges(env Environment) (authorization.Privileges, error) {
-	rights, err := v.Effective(env, v.Ref(catalog.CurrentDatabaseAddress), false)
+	rights, err := v.Effective(env, v.Ref(v.Owner.DatabaseAddress()), false)
 	if err != nil {
 		return 0, err
 	}

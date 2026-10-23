@@ -22,10 +22,10 @@ func (r *RoleRecord) Advance() *RoleRecord {
 // owner. It is empty unless view belongs to owner and root belongs to the
 // principals domain.
 func RoleRead(owner *catalog.Owner, principals *authorization.Domain, view catalog.Read, root *RoleRecord) authorization.Read {
-	if view.Owner() != owner || view.State() == nil || root == nil {
+	if owner == nil || view.Owner() != owner || view.State() == nil || root == nil {
 		return authorization.Read{}
 	}
-	database, ok := view.Database(catalog.CurrentDatabaseAddress)
+	database, ok := view.Database(owner.DatabaseAddress())
 	if !ok {
 		return authorization.Read{}
 	}

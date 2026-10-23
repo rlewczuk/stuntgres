@@ -48,7 +48,7 @@ func (e *Engine) SetRoleReferences(ctx context.Context, feature string, refs []a
 			return err
 		}
 	}
-	return e.roles.setReferencesLocked(ctx, feature, refs)
+	return e.roles.setReferencesLocked(ctx, e.catalog.owner(), feature, refs)
 }
 
 // The binding walkers in analyze check through the view's entry points.
@@ -263,7 +263,7 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 		}
 		identity.CurrentUser = operationReplayOrZero(op).materializedOwner
 	}
-	authorization := e.operationAuthority(op, access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.State, Revision: a.Revision})
+	authorization := e.operationAuthority(op, access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(e.catalog.owner().DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
 	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.MissingCurrent = identity.CurrentUser
 	}
@@ -304,6 +304,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		state.SetDescriptor(addr, next)
 	}
 	roles := e.roles.published.Advance()
+	databaseRoots := e.databaseProjectionLocked(state)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -320,6 +321,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		}
 	}
 	e.catalog.state = state
+	installDatabaseProjectionLocked(databaseRoots)
 	e.roles.published = roles
 	return nil
 }

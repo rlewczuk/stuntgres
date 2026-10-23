@@ -6,7 +6,6 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -18,7 +17,7 @@ func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated a
 	if err != nil || rights&authorization.ConnectPrivilege != 0 {
 		return err
 	}
-	db := view.MustDatabase(catalog.CurrentDatabaseAddress)
+	db := view.MustDatabase(view.Owner().DatabaseAddress())
 	diagnostic := sqlError("42501", fmt.Sprintf(`permission denied for database "%s"`, db.Name())).(*sqlstate.Error)
 	diagnostic.Detail = "User does not have CONNECT privilege."
 	return diagnostic

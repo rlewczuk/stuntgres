@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -18,7 +19,7 @@ func (e *Engine) initializeDatabase(name string) {
 		e.databaseName, _ = value.Text()
 	}
 	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	db := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: e.databaseName, Owner: owner}
+	db := &catalog.Database{ObjectAddress: e.catalog.DatabaseAddress(), ObjectRevision: 1, ObjectName: e.databaseName, Owner: owner, FrozenXID: 3}
 	e.catalog.state.SetDescriptor(db.Address(), db)
 	e.catalog.state.BindName(catalog.DescriptorNameKey(db), db.Address())
 }
@@ -26,10 +27,16 @@ func (e *Engine) initializeDatabase(name string) {
 // Attachment identity and ACLs belong to the destination, not portable state.
 // Retain them before replacement principal validation and publication.
 func (e *Engine) retainDatabaseLocked(next *catalog.State) {
-	if old := next.Get(catalog.CurrentDatabaseAddress); old != nil {
-		next.UnbindName(catalog.DescriptorNameKey(old))
+	for address, descriptor := range next.Descriptors() {
+		if address.ClassID == ids.DatabaseClassID {
+			next.UnbindName(catalog.DescriptorNameKey(descriptor))
+			next.RemoveDescriptor(address)
+		}
 	}
-	database := e.catalog.state.Get(catalog.CurrentDatabaseAddress)
-	next.SetDescriptor(catalog.CurrentDatabaseAddress, database)
-	next.BindName(catalog.DescriptorNameKey(database), catalog.CurrentDatabaseAddress)
+	for address, descriptor := range e.catalog.state.Descriptors() {
+		if address.ClassID == ids.DatabaseClassID {
+			next.SetDescriptor(address, descriptor)
+			next.BindName(catalog.DescriptorNameKey(descriptor), address)
+		}
+	}
 }

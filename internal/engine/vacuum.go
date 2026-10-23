@@ -44,7 +44,7 @@ func vacuumAllowed(ctx context.Context, auth AuthorizationView, d *catalog.Relat
 	}
 	var databaseOwner authorization.PrincipalRef
 	if !catalog.SharedRelation(d) {
-		if database, ok := auth.Catalog.Database(catalog.CurrentDatabaseAddress); ok {
+		if database, ok := auth.Catalog.Database(auth.Owner.DatabaseAddress()); ok {
 			databaseOwner = database.Owner
 		}
 	}

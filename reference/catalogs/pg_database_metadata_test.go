@@ -15,23 +15,22 @@ func pgDatabaseFacts(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixtur
 	pgDatabaseCheck(t, p, b, db, s)
 	pgDatabaseCheck(t, p, b, db, fixture.Prepared(s))
 	q = "SELECT datistemplate,datallowconn,datconnlimit,datfrozenxid IS NULL AS no_freeze,datminmxid IS NULL AS no_multixact,dattablespace FROM pg_database WHERE datname=current_database()"
-	want := [][]any{{nil, nil, nil, false, true, nil}}
+	want := [][]any{{false, true, int64(-1), false, true, nil}}
 	if b.PG {
 		want = [][]any{{false, true, int64(-1), false, false, int64(1663)}}
 	}
 	s = fixture.Select(q, []string{"datistemplate", "datallowconn", "datconnlimit", "no_freeze", "no_multixact", "dattablespace"}, []string{"BOOL", "BOOL", "INT4", "BOOL", "BOOL", "OID"}, want)
 	pgDatabaseCheck(t, p, b, db, s)
 	pgDatabaseCheck(t, p, b, fixture.ViewHold(t, p, b, q), s)
-	for _, column := range []string{"datistemplate", "datallowconn", "datconnlimit", "datminmxid", "dattablespace"} {
+	for _, column := range []string{"datminmxid", "dattablespace"} {
 		pgDatabaseCheck(t, p, b, db, fixture.Select("SELECT "+column+" IS NULL AS unavailable FROM pg_database WHERE datname=current_database()", []string{"unavailable"}, []string{"BOOL"}, [][]any{{!b.PG}}))
 	}
-	pgDatabaseCheck(t, p, b, db, fixture.Select("SELECT datfrozenxid::text::bigint>=3 AS valid_freeze FROM pg_database WHERE datname=current_database()", []string{"valid_freeze"}, []string{"BOOL"}, [][]any{{true}}))
-	var equal any
-	var filtered [][]any
-	if b.PG {
-		equal = true
-		filtered = [][]any{{int64(-1)}}
+	for _, column := range []string{"datistemplate", "datallowconn", "datconnlimit"} {
+		pgDatabaseCheck(t, p, b, db, fixture.Select("SELECT "+column+" IS NULL AS unavailable FROM pg_database WHERE datname=current_database()", []string{"unavailable"}, []string{"BOOL"}, [][]any{{false}}))
 	}
+	pgDatabaseCheck(t, p, b, db, fixture.Select("SELECT datfrozenxid::text::bigint>=3 AS valid_freeze FROM pg_database WHERE datname=current_database()", []string{"valid_freeze"}, []string{"BOOL"}, [][]any{{true}}))
+	equal := true
+	filtered := [][]any{{int64(-1)}}
 	pgDatabaseCheck(t, p, b, db, fixture.Select("SELECT datconnlimit=-1 AS unlimited FROM pg_database WHERE datname=current_database()", []string{"unlimited"}, []string{"BOOL"}, [][]any{{equal}}))
 	pgDatabaseCheck(t, p, b, db, fixture.Select("SELECT datconnlimit FROM pg_database WHERE datname=current_database() AND datconnlimit=-1", []string{"datconnlimit"}, []string{"INT4"}, filtered))
 }

@@ -8,6 +8,8 @@ package parser
  rule *CreateRule
  foreignDDL *ForeignDDL
  foreignOptions []ForeignOption
+ databaseOptions []DatabaseOption
+ databaseOption DatabaseOption
  foreignOption ForeignOption
  foreignElements foreignElements
  foreignActions []ForeignTableAction
@@ -497,6 +499,11 @@ package parser
 %type <tok> collation_name_word
 %type <stmt> create_extension drop_extension alter_extension_update
 %type <stmt> create_tablespace
+%type <stmt> create_database
+%type <databaseOptions> database_options database_option_list
+%type <databaseOption> database_option database_option_value
+%type <tok> database_option_name
+%type <desc> database_option_equals
 %type <grantor> tablespace_owner
 %type <tok> tablespace_location
 %type <indexOptions> tablespace_options
@@ -828,6 +835,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | prepare_sql | execute_sql | deallocate_sql | discard
  | create_extension | drop_extension | alter_extension_update
  | create_tablespace
+ | create_database
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
  | alter_operator | drop_operator
@@ -847,6 +855,28 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
 load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
+create_database: CREATE DATABASE name database_options {
+ $$=&CreateDatabaseStmt{Name:$3.text,Options:$4}
+} ;
+database_options: database_option_list {$$=$1}
+ | WITH database_option_list {$$=$2} ;
+database_option_list: /* empty */ {$$=nil}
+ | database_option_list database_option {$$=append($1,$2)} ;
+database_option_name: name {$$=$1}
+ | name LIMIT {if $1.text!="connection" || $1.keyword==nil {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.text="connection_limit"} ;
+database_option_equals: /* empty */ {$$=false}
+ | '=' {$$=true} ;
+database_option: database_option_name database_option_equals database_option_value {
+ $$=$3;$$.Name=$1.text;$$.Position=$1.pos.Character
+} ;
+database_option_value: name {$$=DatabaseOption{Value:$1.text}}
+ | STRING {$$=DatabaseOption{Value:$1.text}}
+ | DEFAULT {$$=DatabaseOption{Default:true}}
+ | TRUE {$$=DatabaseOption{Value:$1.text}}
+ | FALSE {$$=DatabaseOption{Value:$1.text}}
+ | NUMBER {$$=DatabaseOption{Value:$1.text,Numeric:true}}
+ | '-' NUMBER {$$=DatabaseOption{Value:"-"+$2.text,Numeric:true}}
+ | '+' NUMBER {$$=DatabaseOption{Value:"+"+$2.text,Numeric:true}} ;
 create_tablespace: CREATE TABLESPACE name tablespace_owner tablespace_location STRING tablespace_options {
  $$=&CreateTablespace{Name:Identifier{Text:$3.text,Pos:$3.pos},Owner:$4,Location:$6.text,LocationPos:$6.pos,Options:$7,Pos:$1.pos}
 } ;

@@ -109,13 +109,14 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		return nil
 	}
 	if s.databasePredecessor != nil {
-		if current.Get(catalog.CurrentDatabaseAddress) != s.databaseAuthority || e.catalog.state.Get(catalog.CurrentDatabaseAddress) != s.databasePredecessor {
+		database := e.catalog.owner().DatabaseAddress()
+		if current.Get(database) != s.databaseAuthority || e.catalog.state.Get(database) != s.databasePredecessor {
 			return ids.ErrCatalogReplaced
 		}
-		if original, ok := c.Originals[catalog.CurrentDatabaseAddress]; ok && original != s.databasePredecessor {
+		if original, ok := c.Originals[database]; ok && original != s.databasePredecessor {
 			return catalog.Conflict{}
 		}
-		c.Originals[catalog.CurrentDatabaseAddress] = s.databasePredecessor
+		c.Originals[database] = s.databasePredecessor
 		if authority != nil {
 			authority.databaseAuthority = s.databaseAuthority
 			authority.databasePredecessor = s.databasePredecessor

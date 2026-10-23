@@ -77,6 +77,16 @@ production dependency is involved.
   or fixture ownership. Foreign sources use a separate in-process SQL database,
   never fixture internals. Legacy `NewPair(t)` always starts Docker; its notice
   helpers keep caller-specific `reference/` + `t.Name()` DSNs on the pair's Driver.
+- **Database selection.** `DatabaseScenarioPool` selects an exact decoded database
+  name using native `Connector.WithDatabase` or an independently escaped
+  PostgreSQL URL path and trusted fixture login. It returns wrapped SQL and
+  unwrapped control pools plus recorder without Ping, so callers assert startup
+  failures themselves. The native opaque cluster key is never rebuilt from
+  `current_database()`. Register `RoleReferenceCleanup`, then
+  `DatabaseReferenceCleanup`, then the scenario on the same owning `testing.T`;
+  append names before creation attempts. LIFO cleanup closes selected resources
+  before bounded standalone administrative DROP DATABASE, then role removal.
+  Native Driver lifetime owns registrations; there is no native DROP shim.
 - **Plain-method routes.** `Step.NonContext=true` runs proven DB/Tx plain calls
   (Exec/Query/Prepare and the returned Stmt methods) with full assertions; keep a
   separate Context companion and never fabricate its recorder key. `*sql.Conn` has

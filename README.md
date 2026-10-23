@@ -15,12 +15,14 @@ executable serves the same engine over the PostgreSQL wire protocol.
 
 ## Using stuntgres in unit tests
 
-Each `stuntgres.NewDriver()` owns its own databases. `OpenConnector(name)` opens a
-database by an exact opaque name (not a connection URL); identical names on the same
-Driver share data, even after pools close. Importing the package also registers the
-driver for `sql.Open("stuntgres", name)`. Create a fresh Driver per fixture when
-tests must be isolated. See the [driver guide](docs/DRIVER.md) for pooling,
-sessions, transactions, value mapping, errors, notices, COPY and other Go APIs.
+Each `stuntgres.NewDriver()` owns independent in-memory clusters.
+`OpenConnector(name)` opens a cluster's default database by an exact opaque key
+(not a connection URL); identical keys on the same Driver share data, even after
+pools close. SQL `CREATE DATABASE` creates additional databases in that cluster.
+Use `OpenDatabaseConnector(key, database)` to select one by name. Importing the
+package also registers the driver for `sql.Open("stuntgres", key)`. Create a fresh
+Driver per fixture when tests must be isolated. See the [driver guide](docs/DRIVER.md)
+for selection, pooling, sessions, transactions, value mapping, errors and Go APIs.
 
 ### Minimal example: one unit test
 

@@ -213,8 +213,9 @@ func PlanDatabaseOwnership(view access.View, env access.Environment, s *parser.A
 	if err != nil {
 		return OwnerChange{}, err
 	}
-	database := view.Catalog.MustDatabase(catalog.CurrentDatabaseAddress)
-	if len(s.Name.Parts) != 1 || s.Name.Parts[0].Text != database.Name() {
+	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.DatabaseClassID, Name: s.Name.Parts[len(s.Name.Parts)-1].Text})
+	database, ok := view.Catalog.Database(address)
+	if len(s.Name.Parts) != 1 || !ok {
 		return OwnerChange{}, sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, s.Name.Parts[len(s.Name.Parts)-1].Text))
 	}
 	if target == database.Owner {

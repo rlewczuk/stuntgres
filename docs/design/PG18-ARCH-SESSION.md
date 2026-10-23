@@ -167,21 +167,15 @@ The specific DRIVER-SESSION requirement that SET survives same-physical reuse go
 
 ## 5. Initial logical database attachment and native control scope
 
-Proposed selector/API belongs to future DRIVER-DATABASE-SELECTION, not an API change now:
+PG18-CONTROL-DATABASE-CREATE implements the bounded selector/control cutover below.
+Its public selector methods are:
 
 ```go
 func (d *Driver) OpenDatabaseConnector(dsn, database string) (driver.Connector, error)
-type DatabaseSelector struct { Name string; Default bool }
-func (e *Engine) DefaultDatabase() DatabaseTarget
-func (e *Engine) AdmitDatabase(ctx context.Context, selector DatabaseSelector, principal PrincipalRef) (*Admission, error)
-func (a *Admission) Target() DatabaseTarget
-func (a *Admission) Release()
-func (e *Engine) Reset(ctx context.Context, target DatabaseTarget) error
-func (e *Engine) Dump(ctx context.Context, target DatabaseTarget, dst io.Writer) error
-func (e *Engine) Restore(ctx context.Context, target DatabaseTarget, src io.Reader) error
+func (c *Connector) WithDatabase(database string) *Connector
 ```
 
-DSN remains the exact opaque Engine map key; database is an exact decoded name, not libpq/SQL text. Default=true ignores Name and selects stable default identity; explicit empty name is missing name, not default. Logical introduction registers initial default `postgres` and moves existing persistent state unchanged into it. OpenConnector uses Default=true. No role selector is invented: AUTHORIZATION/ROLE-CORE resolves the trusted connection principal through its configured provider **before admission**, independently of mutable session CurrentUser. Zero/foreign/unvalidated principal authority fails ordinary internal errors, never grants exemptions; callers cannot supply exemption booleans.
+DSN remains the exact opaque Engine cluster map key; database is an exact decoded name, not libpq/SQL text. Default selection retains the stable original attachment; explicit empty name is missing, not default. **PG18-CONTROL-DATABASE-CREATE supersedes the proposed initial name `postgres`: preserve the existing DSN-derived UTF8 NAME and persistent state unchanged.** OpenConnector/OpenConnectorAs retain default selection. WithDatabase returns a copy retaining trusted role/notices and resolves the exact name on every physical Connect, never auto-creating it. Roles are one shared cluster authority, independent of mutable session CurrentUser. Internal admission interfaces below remain architectural contracts, not additional public API declarations.
 
 AdmitDatabase resolves the target and makes ordered checks plus slot reservation **one atomic admission decision** against coherent database/authorization state: **ALLOW_CONNECTIONS → CONNECT → applicable connection limit → retain/reserve target+principal**. AUTHORIZATION computes privileges/superuser status from validated PrincipalRef; superusers bypass CONNECT/limit but not ALLOW_CONNECTIONS=false. Rejection transfers no slot. Admission is opaque, noncopyable, Engine-owned and carries exact principal+target; Release is idempotent. StartSession consumes a nonnil same-Engine reservation once, assumes responsibility on valid submission success/failure and initializes principal/default attachments from its retained identity before publication—no re-selection/caller override. Missing providers do not fabricate role support. Nil/foreign/already-consumed reservation fails ordinary internal errors without releasing another slot. Caller releases reservations never submitted; context/initialization failure releases owned reservations once.
 
@@ -193,7 +187,7 @@ Explicit connector retains a name selector and resolves it on each Connect. Rena
 
 ### Native controls
 
-Public `Reset(ctx, db)`, `Dump(ctx, db, dst)` and `Restore(ctx, db, src)` signatures remain unchanged. Replace future withEngine with withDatabaseTarget: Raw captures/retains Engine plus selected stable target before returning borrowed conn. Never retain borrower/session state for external I/O.
+Public `Reset(ctx, db)`, `Dump(ctx, db, dst)` and `Restore(ctx, db, src)` signatures remain unchanged. `withDatabaseTarget` replaces withEngine: Raw captures the selected database-local runtime and stable target before returning the borrowed conn. Internal local control receiver methods need no redundant target parameter when this capture validates provenance. Never retain borrower/session state for external I/O. InspectIndex uses the same selected capture.
 
 | Control scope | Decision |
 |---|---|
@@ -244,7 +238,7 @@ Each row is a future consumer, not another deliverable or a new prerequisite edg
 | PG18-TX-CORE; PG18-ARCH-TX-VISIBILITY | Opaque transaction attachment, visibility/publication/restoration | Real transaction behavior plus LOCAL/temp/cursor/native publication integration owned there |
 | PG18-TX-ADVISORY-SESSION; PG18-ARCH-LOCKING | Session token/release delegation and locking manager | Reentrant counts/rollback retention; A end releases A only, with no scheduling promise here |
 | PG18-ADMIN-SESSION-SIGNAL | Operation cancellation versus terminal request | Cancel preserves healthy session; terminate elects same cleanup runner |
-| PG18-CONTROL-DATABASE-CREATE | Registry/default migration | Existing committed baseline survives in initial postgres; new database identity is distinct |
+| PG18-CONTROL-DATABASE-CREATE | Registry/default migration and bounded explicit selection | Existing committed baseline survives in the original DSN-derived NAME; new database identity is distinct; targeted controls preserve cluster roles and peer databases |
 | PG18-DRIVER-DATABASE-SELECTION | Trusted-principal selector/admission and targeted controls | a/b same DSN isolate tables; ordinary/superuser/disabled/CONNECT-before-limit checks and no leaks; controls affect selected persistent target |
 | PG18-CONTROL-DATABASE-ALTER | Metadata/admission flags | Rename preserves live identity; changed name/flags affect new admission |
 | PG18-CONTROL-DATABASE-SETTINGS | New-session database defaults | New sessions observe changed defaults; live values remain unchanged |

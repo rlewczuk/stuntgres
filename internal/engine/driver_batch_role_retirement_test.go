@@ -126,7 +126,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				if current, ok := e.Roles().Lookup("retired"); !ok || current.Ref != role.Ref {
 					t.Fatal("rejected retirement orphaned the canonical peer principal")
 				}
-				if dependency == "registered" && !reflect.DeepEqual(e.roles.references["retirement guard"], []authorization.PrincipalRef{role.Ref}) {
+				if dependency == "registered" && !reflect.DeepEqual(e.roles.references[roleReferenceOwner{database: e.catalog.owner(), feature: "retirement guard"}], []authorization.PrincipalRef{role.Ref}) {
 					t.Fatal("rejected retirement changed registered principal dependencies")
 				}
 				if carrier == "prepared" {

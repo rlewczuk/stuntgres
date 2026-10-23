@@ -72,7 +72,7 @@ func (e *Engine) restoreStage() *Engine {
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
 	sourceRoles, nextPrincipal := e.roles.published, e.roles.nextPrincipal
-	database := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
+	database := e.catalog.state.MustDatabase(e.catalog.DatabaseAddress())
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
 	if err := stage.InstallForeignDefinitions(e.foreign.Definitions()); err != nil {
@@ -81,6 +81,12 @@ func (e *Engine) restoreStage() *Engine {
 	stage.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef, sourceRoles.Root.Read(authorization.PrincipalRef{}).RoleCount())
 	roles := sourceRoles.Root.Reprovenance(&stage.roles.domain, stage.importTargets)
 	retainedDatabase := *database
+	// The private staging engine has its own principal authority, but retains
+	// the selected database address rather than silently reverting to default.
+	initial := stage.catalog.state.Get(stage.catalog.DatabaseAddress())
+	stage.catalog.state.UnbindName(catalog.DescriptorNameKey(initial))
+	stage.catalog.state.RemoveDescriptor(initial.Address())
+	stage.catalog.Database = database.Address()
 	retainedDatabase.Owner = stage.roles.domain.Principal(database.Owner.ID())
 	retainedDatabase.ACL.Entries = append([]authorization.ACLEntry(nil), database.ACL.Entries...)
 	for i := range retainedDatabase.ACL.Entries {
@@ -90,7 +96,8 @@ func (e *Engine) restoreStage() *Engine {
 			entry.Grantee.Role = stage.roles.domain.Principal(entry.Grantee.Role.ID())
 		}
 	}
-	stage.catalog.state.SetDescriptor(catalog.CurrentDatabaseAddress, &retainedDatabase)
+	stage.catalog.state.SetDescriptor(database.Address(), &retainedDatabase)
+	stage.catalog.state.BindName(catalog.DescriptorNameKey(&retainedDatabase), database.Address())
 	stage.roles.published = &access.RoleRecord{Root: roles, Revision: sourceRoles.Revision}
 	stage.roles.nextPrincipal = nextPrincipal
 	return stage

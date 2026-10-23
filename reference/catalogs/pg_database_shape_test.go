@@ -12,7 +12,7 @@ import (
 
 var pgDatabaseColumns = []string{"oid", "datname", "datdba", "encoding", "datlocprovider", "datistemplate", "datallowconn", "dathasloginevt", "datconnlimit", "datfrozenxid", "datminmxid", "dattablespace", "datcollate", "datctype", "datlocale", "daticurules", "datcollversion", "datacl"}
 var pgDatabaseTypes = []string{"OID", "NAME", "OID", "INT4", "CHAR", "BOOL", "BOOL", "BOOL", "INT4", "XID", "XID", "OID", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "_ACLITEM"}
-var pgDatabaseNullable = []bool{false, false, false, false, false, true, true, false, true, true, true, true, false, false, true, true, true, true}
+var pgDatabaseNullable = []bool{false, false, false, false, false, false, false, false, false, true, true, true, false, false, true, true, true, true}
 
 func pgDatabaseScenario(t *testing.T, f func(*testing.T, *fixture.Pair, fixture.Backend)) {
 	t.Helper()

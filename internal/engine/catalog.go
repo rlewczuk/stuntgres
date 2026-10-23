@@ -140,7 +140,7 @@ func (e *Engine) BeginCatalogStage(base catalog.Read) *CatalogStage {
 // already captured by authorizationLocked; building a stage needs no live read.
 func (s *CatalogStage) authorizeLocked(auth AuthorizationView, session *session.Session) {
 	s.authSession, s.authRevision, s.roleRevision = session, auth.Revision, auth.RoleRecord.Revision
-	s.databaseAuthority = auth.Catalog.Get(catalog.CurrentDatabaseAddress)
+	s.databaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
 	s.databasePredecessor = auth.DatabasePredecessor
 }
 
@@ -903,7 +903,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if fence := s.domainAlter.ValidationFence(); err == nil && fence != nil && !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
 			err = catalog.Conflict{}
 		}
-		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(catalog.CurrentDatabaseAddress) != s.databasePredecessor {
+		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(e.catalog.DatabaseAddress()) != s.databasePredecessor {
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
@@ -977,6 +977,10 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if err == nil && commitRef != (ids.TxRef{}) {
 			err = e.assignTransactionXIDLocked(commitRef)
 		}
+		var databaseRoots map[*Engine]*catalog.State
+		if err == nil {
+			databaseRoots = e.databaseProjectionLocked(next)
+		}
 		if err == nil {
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
@@ -1036,6 +1040,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				e.visibility.SerializableCommittedLocked(s.initialTx, e.visibility.CommitSeq())
 			}
 			e.catalog.state = next
+			installDatabaseProjectionLocked(databaseRoots)
 			e.storage.ReplaceRelationsLocked(relations)
 			index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
 			e.storage.ReplaceIndexRootsLocked(indexRoots)
@@ -1365,6 +1370,9 @@ func (e *Engine) RegisterCatalogProvider(p catalog.Provider) error {
 	id := p.ClassID()
 	if id == 0 {
 		return fmt.Errorf("stuntgres: zero catalog class")
+	}
+	if e.mu == nil {
+		return fmt.Errorf("stuntgres: engine is not initialized")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()

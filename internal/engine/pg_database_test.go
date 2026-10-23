@@ -48,7 +48,7 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	names := [...]string{"oid", "datname", "datdba", "encoding", "datlocprovider", "datistemplate", "datallowconn", "dathasloginevt", "datconnlimit", "datfrozenxid", "datminmxid", "dattablespace", "datcollate", "datctype", "datlocale", "daticurules", "datcollversion", "datacl"}
 	typeIDs := [...]sqltype.ID{26, 19, 26, 23, 18, 16, 16, 16, 23, 28, 28, 26, 25, 25, 25, 25, 25, 1034}
 	collations := [...]uint32{0, 950, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 950, 950, 950, 950, 950, 0}
-	nulls := [...]bool{false, false, false, false, false, true, true, false, true, true, true, true, false, false, true, true, true, true}
+	nulls := [...]bool{false, false, false, false, false, false, false, false, false, true, true, true, false, false, true, true, true, true}
 	for i, column := range d.Columns {
 		typ, ok := view.LookupType(typeIDs[i])
 		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != nulls[i] || !column.NullabilityKnown || column.OriginTable != 1262 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
@@ -79,7 +79,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	rows := pgDatabaseUnitCapture(t, e, view)
 	row := rows.Anonymous[0]
 	for i, value := range row {
-		wantNull := i == 5 || i == 6 || i == 8 || i == 10 || i == 11 || i >= 14 && i <= 17
+		wantNull := i == 10 || i == 11 || i >= 14 && i <= 17
 		if value.Type() != d.Columns[i].Usage.Type || value.IsNull() != wantNull {
 			t.Fatal("concrete carrier/knownness", i, value)
 		}
@@ -103,6 +103,15 @@ func TestPGDatabaseCapture(t *testing.T) {
 	}
 	if got, err := row[7].Boolean(); err != nil || got {
 		t.Fatal("login events", got, err)
+	}
+	if got, err := row[5].Boolean(); err != nil || got {
+		t.Fatal("ordinary database is not a template", got, err)
+	}
+	if got, err := row[6].Boolean(); err != nil || !got {
+		t.Fatal("database admits connections", got, err)
+	}
+	if got, err := row[8].Integer(); err != nil || got != -1 {
+		t.Fatal("unlimited database connections", got, err)
 	}
 	if !row[17].IsNull() || database.ACL.Explicit || len(database.ACL.Entries) != 0 {
 		t.Fatal("absent database ACL baseline", row[17], database.ACL)

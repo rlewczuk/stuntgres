@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"reflect"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -164,7 +165,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
-	if retained != db || retained.Name() != "ext_authority" {
+	if retained.Address() != db.Address() || retained.Name() != "ext_authority" || retained.Owner != db.Owner || !reflect.DeepEqual(retained.ACL, db.ACL) {
 		t.Fatal("replacement overwrote destination database")
 	}
 	revoke := extensionUnitGrant("ext_authority", "ext_db_actor")

@@ -30,28 +30,28 @@ func TestRoleStoreReadRequiresOwnCatalogAndRoot(t *testing.T) {
 func TestRoleStoreSetReferencesFailuresLeaveStateUnchanged(t *testing.T) {
 	e := New()
 	ref := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
-	if err := e.roles.setReferencesLocked(context.Background(), "kept", []authorization.PrincipalRef{ref}); err != nil {
+	if err := e.roles.setReferencesLocked(context.Background(), e.catalog.owner(), "kept", []authorization.PrincipalRef{ref}); err != nil {
 		t.Fatal(err)
 	}
 	published, references := e.roles.published, e.roles.references
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := e.roles.setReferencesLocked(ctx, "kept", nil); !errors.Is(err, context.Canceled) {
+	if err := e.roles.setReferencesLocked(ctx, e.catalog.owner(), "kept", nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled update: %v", err)
 	}
 	e.roles.published = &access.RoleRecord{Root: published.Root, Revision: ^uint64(0)}
 	exhausted := e.roles.published
-	if err := e.roles.setReferencesLocked(context.Background(), "kept", nil); err == nil || err.Error() != "stuntgres: authorization revision exhausted" {
+	if err := e.roles.setReferencesLocked(context.Background(), e.catalog.owner(), "kept", nil); err == nil || err.Error() != "stuntgres: authorization revision exhausted" {
 		t.Fatalf("exhausted update: %v", err)
 	}
-	if e.roles.published != exhausted || len(references) != 1 || len(e.roles.references["kept"]) != 1 {
+	if e.roles.published != exhausted || len(references) != 1 || len(e.roles.references[roleReferenceOwner{database: e.catalog.owner(), feature: "kept"}]) != 1 {
 		t.Fatal("failed update changed the store")
 	}
 	e.roles.published = published
-	if err := e.roles.setReferencesLocked(context.Background(), "added", []authorization.PrincipalRef{ref}); err != nil {
+	if err := e.roles.setReferencesLocked(context.Background(), e.catalog.owner(), "added", []authorization.PrincipalRef{ref}); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := references["added"]; ok {
+	if _, ok := references[roleReferenceOwner{database: e.catalog.owner(), feature: "added"}]; ok {
 		t.Fatal("update mutated the previous registry map")
 	}
 	if e.roles.published.Revision != published.Revision+1 {

@@ -31,7 +31,7 @@ import (
 )
 
 type Engine struct {
-	mu            sync.Mutex
+	mu            *sync.Mutex
 	locks         *lock.Manager
 	analysis      bindingHost                  // Binding host without an operation; immutable after New.
 	notifications session.NotificationRegistry // Engine.mu; committed registrations only.
@@ -49,7 +49,8 @@ type Engine struct {
 	indexWaits        index.WaitRegistry
 	exclusions        index.ExclusionRegistry
 	prepared          map[string]*preparedTransaction
-	roles             roleStore
+	roles             *roleStore
+	cluster           *databaseCluster
 	importTargets     map[authorization.PrincipalRef]authorization.PrincipalRef
 	foreign           fdw.Registry
 	databaseFrozenXID uint64
@@ -88,7 +89,8 @@ func NewWithSettings(definitions []settings.Definition, database string, trackCo
 
 func newEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}}
+	cluster := &databaseCluster{}
+	e := &Engine{mu: &cluster.mu, roles: &cluster.roles, cluster: cluster, catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}}
 	e.analysis = bindingHost{engine: e}
 	e.authority = authorityInputs{domain: e.catalog.Domain, settings: &e.settings, storage: &e.storage}
 	e.mu.Lock()
@@ -239,6 +241,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		return nil, err
 	}
 	e.finishSeed()
+	cluster.defaultTarget, cluster.targets, cluster.nextOID = e, map[string]*Engine{e.databaseName: e}, 16384
 	return e, nil
 }
 func (e *Engine) CatalogRead() catalog.Read {
@@ -272,7 +275,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return StatementDescription{}, nil
-	case *parser.CreateTablespace, *parser.Load, *parser.Vacuum:
+	case *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.Load, *parser.Vacuum:
 		return StatementDescription{}, nil
 	case *parser.Truncate:
 		return StatementDescription{}, nil

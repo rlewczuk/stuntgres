@@ -83,6 +83,7 @@ func (e *Engine) updateDatabaseMaintenanceLocked() {
 		}
 	}
 	e.databaseFrozenXID = next
+	e.publishDatabaseFrozenXIDLocked()
 }
 func (e *Engine) vacuumDatabasePreflightLocked(s *StatementScope) error {
 	s.op.Session.Mu.Lock()
@@ -145,7 +146,7 @@ func (r engineCatalogRuntime) VisitVacuumProgress(ctx context.Context, visit fun
 
 // Database identity comes from the existing descriptor, not an allocator guess.
 func vacuumDatabaseOID(view catalog.Read) ids.OID {
-	database, ok := view.Database(catalog.CurrentDatabaseAddress)
+	database, ok := view.Database(view.Owner().DatabaseAddress())
 	if !ok {
 		return 0
 	}

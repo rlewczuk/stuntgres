@@ -109,6 +109,7 @@ func PlanDropRoles(h Host, auth ddl.Authority, s *parser.DropRole) (DropRolesPla
 			access.DescriptorRoleDependencies(object, ref, &dependencies)
 		}
 		access.DefaultRoleDependencies(view.Catalog, view.Roles, ref, &dependencies)
+		dependencies = append(dependencies, h.OtherDatabaseDependencies(ref)...)
 		for edge := range retained {
 			if edge.Grantor == ref {
 				member, _ := view.Roles.Descriptor(edge.Member)

@@ -38,13 +38,13 @@ func checkSchemaOwner(h Host, auth Authority, d *catalog.Namespace) error {
 // checkDatabaseCreate requires CREATE on the current database, as creating
 // or renaming a schema does.
 func checkDatabaseCreate(view access.View, auth Authority) error {
-	ref := view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress)
+	ref := view.Owner.Domain.Ref(view.Catalog.Epoch(), view.Owner.DatabaseAddress())
 	rights, err := view.Effective(auth, ref, false)
 	if err != nil {
 		return err
 	}
 	if rights&authorization.CreatePrivilege == 0 {
-		database := view.Catalog.MustDatabase(catalog.CurrentDatabaseAddress)
+		database := view.Catalog.MustDatabase(view.Owner.DatabaseAddress())
 		name := database.Name()
 		if name == "" {
 			name = "stuntgres" // The unnamed native Engine's existing database display.

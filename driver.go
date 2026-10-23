@@ -26,8 +26,8 @@ type DriverConfig struct {
 	TrackCommitTimestamp bool
 }
 
-// Driver owns independent databases named by exact, opaque DSN strings.
-// Databases live for the lifetime of their Driver, not their connections.
+// Driver owns independent clusters keyed by exact, opaque DSN strings.
+// Logical databases live for the lifetime of their Driver, not their connections.
 type Driver struct {
 	mu                sync.Mutex
 	engines           map[string]*engine.Engine
@@ -78,12 +78,24 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 	return &Connector{owner: d, engine: e, authenticatedRole: authenticatedRole}, nil
 }
 
+// OpenDatabaseConnector selects an existing logical database below the exact
+// opaque DSN. Selection is revalidated at every physical connection.
+func (d *Driver) OpenDatabaseConnector(dsn, database string) (driver.Connector, error) {
+	c, err := d.OpenConnector(dsn)
+	if err != nil {
+		return nil, err
+	}
+	return c.(*Connector).WithDatabase(database), nil
+}
+
 // Connector configures new physical connections without changing existing ones.
 type Connector struct {
 	owner             *Driver
 	engine            *engine.Engine
 	noticeHandler     func(Error)
 	authenticatedRole string
+	database          string
+	explicitDatabase  bool
 }
 
 // WithNoticeHandler returns an independent configuration. Nil disables delivery.
@@ -91,6 +103,13 @@ type Connector struct {
 func (c *Connector) WithNoticeHandler(handler func(Error)) *Connector {
 	copy := *c
 	copy.noticeHandler = handler
+	return &copy
+}
+
+// WithDatabase returns an independent exact decoded database selector.
+func (c *Connector) WithDatabase(database string) *Connector {
+	copy := *c
+	copy.database, copy.explicitDatabase = database, true
 	return &copy
 }
 
@@ -111,11 +130,19 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	sess, err := c.engine.StartSession(ctx, session.SessionStart{ID: id, Authenticated: principal})
+	target := c.engine
+	if c.explicitDatabase {
+		var err error
+		target, err = target.SelectDatabase(ctx, c.database)
+		if err != nil {
+			return nil, err
+		}
+	}
+	sess, err := target.StartSession(ctx, session.SessionStart{ID: id, Authenticated: principal})
 	if err != nil {
 		return nil, err
 	}
-	native := &conn{engine: c.engine, session: sess, noticeHandler: c.noticeHandler}
+	native := &conn{engine: target, session: sess, noticeHandler: c.noticeHandler}
 	native.cleanup = runtime.AddCleanup(native, cleanupSession, cleanupCapsule{sess})
 	return native, nil
 }

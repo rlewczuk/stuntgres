@@ -5,6 +5,23 @@ import "strings"
 // Statement is the closed set of supported statements.
 type Statement interface{ statement() }
 
+// CreateDatabaseStmt preserves ordered option occurrences for execution-time
+// validation. Preparation is syntax-only and must not resolve these values.
+type CreateDatabaseStmt struct {
+	Name    string
+	Options []DatabaseOption
+}
+
+type DatabaseOption struct {
+	Name     string
+	Value    string
+	Default  bool
+	Numeric  bool
+	Position int // One-based SQL character position of the option name.
+}
+
+func (*CreateDatabaseStmt) statement() {}
+
 // Vacuum retains ordered controls for execution-time validation.
 type Vacuum struct {
 	Options []VacuumOption

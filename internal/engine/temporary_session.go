@@ -85,7 +85,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *sessi
 		return ids.ObjectRef{}, err
 	}
 	if rights&authorization.TemporaryPrivilege == 0 {
-		db := auth.Catalog.MustDatabase(catalog.CurrentDatabaseAddress)
+		db := auth.Catalog.MustDatabase(auth.Owner.DatabaseAddress())
 		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.Name()))
 	}
 	oid, err := e.catalog.allocateOIDLocked()

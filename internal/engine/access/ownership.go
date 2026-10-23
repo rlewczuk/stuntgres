@@ -25,7 +25,7 @@ func OwnershipSuccessor(auth View, target authorization.PrincipalRef) error {
 
 // OwnershipDatabaseCreate checks CREATE on the current database.
 func OwnershipDatabaseCreate(auth View, env Environment) error {
-	return auth.CheckCreate(env, auth.Ref(catalog.CurrentDatabaseAddress))
+	return auth.CheckCreate(env, auth.Ref(auth.Owner.DatabaseAddress()))
 }
 
 // OwnershipEligibility checks that the current user may hand an object to

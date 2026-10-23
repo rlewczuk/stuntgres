@@ -12,12 +12,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// PlanDatabaseGrant decides GRANT or REVOKE on the current database, named
-// database. It returns the new database descriptor, or nil when nothing
-// changes, and the statement's warnings, which are set even when an error
-// follows them. revision allocates the new descriptor revision.
-func PlanDatabaseGrant(ctx context.Context, view access.View, s *parser.ObjectGrant, database string, revision func() (ids.DefinitionRevision, error)) (*catalog.Database, []sqlstate.Error, error) {
-	if s.Kind != "database" || len(s.Relations) == 0 || len(s.Schemas) != 0 {
+// PlanDatabaseGrant decides GRANT or REVOKE on one named database. It returns
+// the new descriptor, or nil when nothing changes, and warnings even when an
+// error follows them. revision allocates the new descriptor revision.
+func PlanDatabaseGrant(ctx context.Context, view access.View, s *parser.ObjectGrant, revision func() (ids.DefinitionRevision, error)) (*catalog.Database, []sqlstate.Error, error) {
+	if s.Kind != "database" || len(s.Relations) != 1 || len(s.Schemas) != 0 {
 		return nil, nil, sqlError("0A000", "statement is not supported")
 	}
 	var requested authorization.Privileges
@@ -30,13 +29,14 @@ func PlanDatabaseGrant(ctx context.Context, view access.View, s *parser.ObjectGr
 		requested |= mask
 		all = all || item.All
 	}
-	for _, name := range s.Relations {
-		if len(name.Parts) != 1 {
-			return nil, nil, sqlError("0A000", "statement is not supported")
-		}
-		if name.Parts[0].Text != database {
-			return nil, nil, sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, name.Parts[0].Text))
-		}
+	name := s.Relations[0]
+	if len(name.Parts) != 1 {
+		return nil, nil, sqlError("0A000", "statement is not supported")
+	}
+	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.DatabaseClassID, Name: name.Parts[0].Text})
+	db, ok := view.Catalog.Database(address)
+	if !ok {
+		return nil, nil, sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, name.Parts[0].Text))
 	}
 	if s.Grantor != nil {
 		grantor, err := authorization.MembershipRole(view.Roles, view.State, *s.Grantor)
@@ -70,7 +70,6 @@ func PlanDatabaseGrant(ctx context.Context, view access.View, s *parser.ObjectGr
 	if err != nil {
 		return nil, nil, err
 	}
-	db := view.Catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
 	source, available, err := authorization.ObjectGrantSource(ctx, db.Owner, db.ACL, authorization.ACLValue{}, principals, actor.Superuser, requested)
 	if err != nil {

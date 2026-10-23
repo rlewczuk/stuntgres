@@ -17,6 +17,9 @@ type Owner struct {
 	Principals   *authorization.Domain
 	ACLAuthority *sqltype.ACLAuthority
 	Providers    map[ids.OID]Provider
+	// Database identifies the selected runtime within its cluster. Zero retains
+	// the bootstrap address for independently constructed catalog fixtures.
+	Database ids.ObjectAddress
 	// Extensions is the registry of extension implementations. Like
 	// providers, it closes when construction ends.
 	Extensions map[string]ExtensionImplementation
@@ -26,4 +29,11 @@ type Owner struct {
 // registry is immutable after construction.
 func (s *Owner) Provider(class ids.OID) Provider {
 	return s.Providers[class]
+}
+
+func (s *Owner) DatabaseAddress() ids.ObjectAddress {
+	if s.Database == (ids.ObjectAddress{}) {
+		return CurrentDatabaseAddress
+	}
+	return s.Database
 }

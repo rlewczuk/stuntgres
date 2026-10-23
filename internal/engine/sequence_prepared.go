@@ -2,7 +2,6 @@ package engine
 
 import (
 	"slices"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
@@ -17,7 +16,7 @@ func journalOf(c *session.Journal) sequence.JournalIdentity {
 }
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequence.Environment, error) {
-	key := sequence.PathKey{Role: auth.State.CurrentUser, Authorization: auth.Revision, Roles: auth.RoleRecord.Revision, Namespace: auth.Catalog.State().NamespaceGeneration(), Epoch: auth.Catalog.Epoch(), Temp: temporaryNamespace(auth), Prefix: auth.pathPrefix, Database: auth.Catalog.Get(catalog.CurrentDatabaseAddress)}
+	key := sequence.PathKey{Role: auth.State.CurrentUser, Authorization: auth.Revision, Roles: auth.RoleRecord.Revision, Namespace: auth.Catalog.State().NamespaceGeneration(), Epoch: auth.Catalog.Epoch(), Temp: temporaryNamespace(auth), Prefix: auth.pathPrefix, Database: auth.Catalog.Get(auth.Owner.DatabaseAddress())}
 	if auth.session != nil && auth.session.Transactions != nil {
 		key.Private = journalOf(auth.session.Transactions.Catalog)
 	}

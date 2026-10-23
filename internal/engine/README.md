@@ -7,6 +7,62 @@ native Dump/Restore and the wire protocol. Subsystem logic lives in layered
 subpackages ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SPLIT.md) §3) that never
 import the root and reach it through the hosts below.
 
+## Cluster and logical database ownership
+
+Each exact Driver DSN owns one `databaseCluster`: a pointer-stable metadata mutex,
+shared `roleStore`/principal domain/ACL authority and database registry with a
+stable default target and monotonic identities. Local Engine runtimes borrow
+that mutex and role authority from birth, but own independent catalog domains,
+storage, visibility, locks, replacement gates and session resources. Equal numeric
+local references never authorize cross-target use. Local database descriptors
+project the shared registry; registration/owner/ACL publication prepares every
+affected root before atomic installation. Retained captures remain immutable,
+and transaction-private authority overlays retain predecessor/savepoint fences.
+Database identity reservation starts at or beyond every runtime's local allocation
+frontier (including unpublished DDL reservations) and skips imported definition OIDs.
+Local object allocation also reserves projected database identities; registering
+a target cannot invalidate stored definitions in an existing or newly copied root.
+
+Creation clones/remints a lazily retained immutable real UTF8/C builtin seed,
+not the application's changing default database. Mutable rows, indexes and
+sequence generators are independent. Copied system owners remain bootstrap
+`postgres`; `public` remains `pg_database_owner`, with PUBLIC USAGE and implicit
+CREATE for the new database owner. New database ACL is NULL/default rather than
+copied from the attachment. The seed is private, not a selectable mutable
+`template1` or a fabricated registry row.
+
+The create executor accepts OWNER, default/`template1` TEMPLATE, default/UTF8
+ENCODING (including numeric 6) and C/POSIX locale options. CREATEDB is the effective
+role's direct attribute (or superuser), with SET ROLE authority required for the
+new owner. Prepare is syntax-only; execution checks read-only/transaction
+admission and publishes one complete target or nothing. Option recognition
+preserves parser-decoded case. Value validation precedes owner and actor checks;
+invalid locale providers return 42P17 before capability checks. Diagnostics
+interpolate decoded names without string-literal escaping. Arbitrary template
+sources (including `template0`), non-C/POSIX locales, provider and physical
+strategy mechanisms return explicit 0A000 rather than succeeding without their
+effects. DROP/RENAME, mutable template administration and database flags/settings
+are not supplied by this create path.
+
+`pg_database` captures every registered target in this cluster, never other DSNs.
+Each row has its own stable identity, owner/ACL and runtime freezing horizon.
+Encoding 6, provider `c`, C/C locales, `datistemplate=false`, `datallowconn=true`
+and `datconnlimit=-1` are represented immutable defaults. Physical placement and
+multixact horizons, ICU locale/rules and collation versions remain typed NULL.
+Fresh/held executions capture current registry authority; returned Rows keep
+their original inventory and types. Named database grants and owner changes
+resolve registered noncurrent targets through that same authority; table access
+remains database-local.
+
+The shared mutex orders short metadata publication before local session registry
+inspection for cluster-wide role limits. Never hold it across external I/O,
+callbacks, relation-lock waits, session teardown or nested replacement: source
+capture and destination install are separate nonnested phases. Role dependencies
+include other targets' persistent objects/default ACLs; external role-reference
+labels remain scoped to their owning database. Native controls capture the
+selected runtime and preserve registry/roles/other targets during replacement.
+
+
 ## Hosts
 
 Each implementation carries a compile-time assertion; root code names
@@ -217,6 +273,7 @@ Add `RACE=1` for lifecycle, cancellation and contention selections.
 
 ```sh
 make check RUN='^TestPreparedRebind'                  # prepared analysis identity
+make check RUN='^TestDatabaseCreate'                   # registry, template, publication, target authority
 make check RUN='^TestSetting'                         # settings registry
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # producers; one catalog: ^TestPG<Name>
 make check RUN='^Test(AlterDropColumnRevisionFrontier|CatalogConcurrentReplacement|AccessMethod|Builtin)'  # catalog writes, seed

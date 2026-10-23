@@ -33,7 +33,7 @@ func captureInfoCharacterSets(in Input) ([][]sqltype.Value, error) {
 			return nil, fmt.Errorf("stuntgres: foreign character_sets identifier domain")
 		}
 	}
-	database, ok := in.Catalog.Database(catalog.CurrentDatabaseAddress)
+	database, ok := in.Catalog.Database(in.Owner.DatabaseAddress())
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing current database descriptor")
 	}

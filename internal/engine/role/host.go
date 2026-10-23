@@ -36,6 +36,9 @@ type Host interface {
 	GrantParameter(auth ddl.Authority, key string) (*catalog.Parameter, error)
 	// ReferencingFeatures names the registered features that reference role.
 	ReferencingFeatures(role authorization.PrincipalRef) []string
+	// OtherDatabaseDependencies captures local-object dependencies in other
+	// registered databases; shared database descriptors are already in Catalog.
+	OtherDatabaseDependencies(role authorization.PrincipalRef) []access.RoleDependency
 	// DescribeRoleDependency renders one DROP ROLE dependency detail line.
 	DescribeRoleDependency(auth ddl.Authority, dep access.RoleDependency) string
 }

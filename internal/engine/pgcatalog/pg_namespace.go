@@ -32,7 +32,7 @@ func capturePGNamespace(in Input) ([][]sqltype.Value, error) {
 			return nil, fmt.Errorf("stuntgres: foreign namespace source type")
 		}
 	}
-	database, ok := view.Database(catalog.CurrentDatabaseAddress)
+	database, ok := view.Database(in.Owner.DatabaseAddress())
 	if !ok || database == nil || !roles.BelongsTo(in.Owner.Principals) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign namespace owner authority")
 	}
