@@ -4,6 +4,15 @@ Feature notes, newest first. Add a brief entry at the top for consumer-visible
 changes; do not write change notes anywhere else. Entries below the marker were
 moved verbatim from README.md in their original order.
 
+## Information-schema column metadata
+
+`information_schema.columns` exposes exact 44-column metadata for visible
+tables, views, partitioned and foreign tables, including genuine catalog
+providers. Defaults, type dimensions, identity/generated definitions and
+structural updatability follow current captured definitions; column privileges
+filter rows without renumbering surviving attributes. Direct and prepared reads
+retain typed empty results and refresh after supported DDL and ACL changes.
+
 ## Installed cube comparisons
 
 Installed `cube` supports `=`, `<>`, `<`, `<=`, `>` and `>=`, their comparison

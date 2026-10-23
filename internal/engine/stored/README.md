@@ -77,6 +77,9 @@ host methods.
   readers (`view_row_marks.go`); `HasPgrowlocksDependency`; view validation and
   view-write shape; `ValidateRules`; and `DependencyObject` (object
   descriptions for DROP and role diagnostics).
+  `ViewWriteShape` and `ViewUpdatabilityShape` share one automatic-admission
+  implementation; only the write route collects execution predicates.
+  Metadata shape inspection neither allocates that vector nor evaluates it.
 
 - **Catalog relation pinning** (`catalog_pinning.go`): bootstrap catalog
   tables stay pinned, while catalog views such as `pg_views` record ordinary

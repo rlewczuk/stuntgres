@@ -5,7 +5,7 @@ the producer-backed `information_schema` views (`table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
-`sequences`, `role_column_grants`). Each
+`sequences`, `role_column_grants`, `columns`). Each
 producer is a pure function from a captured catalog, a paired role read and a
 narrow runtime capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -111,6 +111,7 @@ engine; an empty adapter is not an initialized maintenance capture.
 | `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |
 | `ViewDefinition`, `IndexDefinition` | view and index definition rendering |
+| `ColumnExpression`, `ColumnUpdatable` | captured stored-expression display and metadata-only view/rule/foreign capability |
 | `Pinned`, `OperatorSeeded`, `OperatorDependencies`, `TypeProviderProcedure` | pin decisions, the builtin operator inventory and operator dependencies owned by `routine`, extension type providers |
 | `VisitSequenceDefinitions` | sequence definitions with the statement's journal overlay (`pg_sequence`) |
 
@@ -225,6 +226,31 @@ The producer does not read generators or acquire sequence-value locks. Fresh
 held executions capture current options and permissions; returned eager native
 Rows remain unchanged. Errors and cancellation publish no partial prefix.
 
+## Column metadata
+
+`info_columns.go` owns the 44-column nullable domain projection and validates
+its exact source identity, canonical domain usages and physical base generation
+before enumeration. It reads the paired immutable catalog/role roots and source
+attribute facts, not query results or stored rows. Real r/v/f/p descriptors
+contribute their live positive stable attributes; missing provider attributes,
+dropped columns and other relation kinds do not manufacture rows. Ordinal,
+DTD identifier and column ACL address all use the same stable attribute.
+
+Visibility is enabled ownership or effective SELECT, INSERT, UPDATE or REFERENCES
+on that column, after excluding another physical session's TEMP namespace.
+Schema USAGE, search path, row security and sequence ACLs do not filter metadata.
+Type dimensions use the declared type's immediate domain base exactly once;
+domain-owned NOT NULL is distinct from recursive conversion constraints.
+Actual nondefault collations retain their catalog identities. Display uses the
+captured stored deparser; identity options come from immutable definitions,
+never generators. Metadata reads never evaluate default/generated expressions.
+
+The runtime's updatability capability is structural and ACL-independent:
+view/rule recursion maps frozen attributes to the current captured layout,
+and foreign capability inspects registered interfaces without callbacks or
+write binding. Successful empty captures remain typed, nonnil sources;
+cancellation, stale authority and display errors discard every partial row.
+
 ## Testing
 
 Package units here run without an engine. Producer behavior tests need an
@@ -244,6 +270,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - Transforms: `RUN='^TestReferencePGTransform'`
 - Sequence-definition producer units: `RUN='^TestInfoSequences'`
 - Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`
+- Column metadata producer units: `RUN='^TestInfoColumns'`
+- Column metadata public scenarios: `RUN='^TestReferenceInfoColumns'`
 
 ### Domain constraints
 

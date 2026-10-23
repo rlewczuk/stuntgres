@@ -11,6 +11,17 @@ import (
 // Only admitted, analyzed nodes participate. A scalar subquery is a separate
 // query boundary and must not be mistaken for a top-level aggregate/window.
 func ViewWriteShape(d *catalog.Relation) (*plan.ProjectNode, *plan.SourceNode, []expr.Expr, string) {
+	return viewWriteShape(d, true)
+}
+
+// ViewUpdatabilityShape shares write-shape admission without collecting the
+// execution predicates that a metadata-only caller will never evaluate.
+func ViewUpdatabilityShape(d *catalog.Relation) (*plan.ProjectNode, *plan.SourceNode, string) {
+	project, source, _, reason := viewWriteShape(d, false)
+	return project, source, reason
+}
+
+func viewWriteShape(d *catalog.Relation, collectPredicates bool) (*plan.ProjectNode, *plan.SourceNode, []expr.Expr, string) {
 	q := ViewOf(d).syntax
 	if q.Distinct != nil {
 		return nil, nil, nil, "Views containing DISTINCT are not automatically updatable."
@@ -51,7 +62,9 @@ func ViewWriteShape(d *catalog.Relation) (*plan.ProjectNode, *plan.SourceNode, [
 		case *plan.RowLockNode:
 			node = n.Child
 		case *plan.FilterNode:
-			predicates = append(predicates, n.Predicate)
+			if collectPredicates {
+				predicates = append(predicates, n.Predicate)
+			}
 			node = n.Child
 		case *plan.SourceNode:
 			if hasTargetSet {

@@ -78,6 +78,8 @@ type Runtime interface {
 	IndexReferences(context.Context, catalog.Read, *catalog.IndexDefinition) ([]ids.ObjectAddress, error)
 	PartitionReferences(context.Context, catalog.Read, *catalog.Relation) ([]ids.ObjectAddress, error)
 	ViewDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
+	ColumnExpression(context.Context, catalog.Read, *catalog.Relation, expr.Expr) (string, error)
+	ColumnUpdatable(context.Context, catalog.Read, *catalog.Relation, int32) (bool, error)
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	IndexKey(*catalog.Relation, catalog.IndexKey) (int32, expr.Expr, error)
 	VisitSequenceDefinitions(context.Context, func(catalog.Descriptor) error) error

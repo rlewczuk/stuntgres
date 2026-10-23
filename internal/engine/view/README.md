@@ -61,6 +61,13 @@ imports `view`.
   frozen-occurrence graft: it translates frozen read attributes to live uses once
   per occurrence, keeps required view keys demanded after renames, and still
   prunes unrequested projections.
+- **Column metadata** (`column_updatability.go`): `ColumnUpdatable` computes
+  structural UPDATE plus DELETE capability from the supplied immutable catalog.
+  It unions unconditional INSTEAD rules with automatic capability, maps direct
+  outputs through frozen stable attributes and checks cancellation/recursion.
+  It ignores triggers and caller ACLs, never binds or executes a mutation, and
+  obtains foreign event capabilities through an effect-free callback rather
+  than importing `fdw`.
 - **View records and checks** (`view.go`, `alter.go`, `dependencies.go`,
   `options.go`, `query.go`): creation scope, output-name and collation checks,
   `ValidateViewDefinition`, `ViewDepends`, `TransformViewOptions` and

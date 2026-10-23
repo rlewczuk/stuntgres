@@ -221,3 +221,16 @@ grantees, object classes, mutation atomicity and fresh execution visibility.
 Eager retained rows and native controls are explicit native-only phases.
 
 - Column grants: `RUN='^TestReferenceInfoRoleColumnGrants'`
+
+### Column metadata
+
+`info_columns_helpers_test.go` owns the ordered domain/type vectors, complete
+independent row assembly, raw/descriptor checks and direct/new/held consumers.
+Family-local provider vectors enumerate actual represented fields and stable
+attributes; the common provider/self cases assert complete 44-cell rows.
+Foreign capability uses genuine installed handlers and explicit native public
+interface phases without external scans. Native controls replay actual Dump
+bytes and preserve old eager rows, with explicit ACL rejection tested separately.
+
+- Column metadata: `RUN='^TestReferenceInfoColumns'`
+

@@ -39,6 +39,10 @@ driver import it.
   group record `TruncateGroup` (`GroupTruncate` groups the selected foreign
   tables by server in first-seen order; `SetTransaction` gives a group and
   its tables the server's participant transaction).
+- **Metadata capability** (`updatability.go`): `UpdatableEvents` resolves the
+  captured handler and inspects its actual UPDATE/DELETE interfaces. It does
+  not require write row-identity support or call planning, scan, transaction
+  or modification callbacks; it is safe in an immutable metadata capture.
 - **Transaction participants** (`transaction.go`): `Transaction` is the
   owner's FDW state (`Participant`, `Enlist`, `Retire`, `TakeCleanup`,
   `Commit`, `Pending`, `Savepoint`); `Participant`, `ParticipantKey`,

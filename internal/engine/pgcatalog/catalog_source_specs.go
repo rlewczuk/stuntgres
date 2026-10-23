@@ -777,4 +777,5 @@ var Specs = [...]Spec{
 		{"privilege_type", 13246, true, 950, 0, -1},
 		{"is_grantable", 13256, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing role column grant domain"},
+	{InfoColumnsOID, 13229, "columns", infoColumnsColumns, true, false, false, false, "stuntgres: missing columns domain"},
 }

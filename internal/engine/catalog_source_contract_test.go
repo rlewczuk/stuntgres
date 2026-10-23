@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -18,6 +19,13 @@ import (
 
 func TestCatalogSourceProducerCoverage(t *testing.T) {
 	e := New()
+	definition, err := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "producer_contract_handler"}, Wrapper: &fdwUnitWrapper{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	for _, statement := range []string{
@@ -25,7 +33,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		"CREATE INDEX producer_contract_index ON producer_contract_row(id)",
 		"CREATE VIEW producer_contract_view AS SELECT id FROM producer_contract_row",
 		"CREATE SEQUENCE producer_contract_sequence",
-		"CREATE FOREIGN DATA WRAPPER producer_contract_fdw",
+		"CREATE FOREIGN DATA WRAPPER producer_contract_fdw HANDLER producer_contract_handler",
 		"CREATE SERVER producer_contract_server FOREIGN DATA WRAPPER producer_contract_fdw",
 		"CREATE USER MAPPING FOR CURRENT_USER SERVER producer_contract_server OPTIONS (token 'private')",
 		"CREATE FOREIGN TABLE producer_contract_foreign(id INT) SERVER producer_contract_server",
@@ -106,6 +114,31 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 			ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID:
 			if len(source.Anonymous) == 0 {
 				t.Fatal("real fixture missing from producer", d.Name())
+			}
+		case pgcatalog.InfoColumnsOID:
+			var matches int
+			for _, row := range source.Anonymous {
+				table := infoUserMappingsUnitText(t, row[2])
+				column := infoUserMappingsUnitText(t, row[3])
+				if table == "producer_contract_row" && column == "id" {
+					base, _ := row[4].BaseValue()
+					ordinal, _ := base.Integer()
+					defaultValue, err := row[5].BaseValue()
+					if err != nil {
+						t.Fatal("columns default carrier", err)
+					}
+					expression, err := defaultValue.Text()
+					if err != nil {
+						t.Fatal("columns default text", err)
+					}
+					if ordinal != 1 || expression != "7" {
+						t.Fatal("columns fixture metadata", row)
+					}
+					matches++
+				}
+			}
+			if matches != 1 {
+				t.Fatal("columns fixture missing or duplicated", matches)
 			}
 		case pgcatalog.InfoUserMappingsOID:
 			if len(source.Anonymous) != 1 {
