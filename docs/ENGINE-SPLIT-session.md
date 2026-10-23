@@ -871,7 +871,8 @@ Part B of their feature steps, the public `Engine` facade (`NewWithSettings`,
 the cross-subsystem orchestration (begin, end, publication, preflight, 2PC
 install, notification publication, settings application, prepared
 re-analysis), SQL cursors, protocol portals, the prepared SQL registry,
-`StatementDescription`, the notification listener and the 2PC records.
+`StatementDescription`, the notification lock windows and polling (the
+listener and registry types moved to `session` in 13h) and the 2PC records.
 
 ## Invariants
 
@@ -983,7 +984,10 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
 - [x] 13g — Settings and statement classification moved (linear item 129)
   (`a82279626`, `443bf6b00`, `42c1c25e1`, `530c173c9`, then the docs commit) *(selected unit/`RACE=1` and dual-mode proof
   and quickcheck passed; racecheck/finalcheck skipped at user request)*
-- [ ] 13h — Notification registry and small session decisions (linear item 143)
+- [x] 13h — Notification registry and small session decisions moved (linear
+  item 143) (`c66f9d1ac`, `3a8708f08`, `e5ceb82e7`, `7663fe0ca`, `13a50c6ba`,
+  then the docs commit) *(selected unit/`RACE=1` and dual-mode proof and
+  quickcheck passed; racecheck/finalcheck skipped at user request)*
 
 Outstanding aliases: none. 13e removed the 46 aliases of
 `session_aliases.go` (24 type, 22 constant); the driver and `cmd/stuntgres`
@@ -1091,6 +1095,67 @@ Notes for later steps:
   `update_allocation_test.go` and the presentation tests only renamed
   calls. New unit tests: `TestSettingAccessAllowedCallback` (`session`),
   `TestWriteSetMerges*` (`visibility`).
+- 13h (done, measured at `77a102f14`): the notification listener, its registry
+  and publication, the small decisions and the optional journal bookkeeping
+  moved; root production code 47,625 → 47,253 lines (−372), `session` 3,141 →
+  3,706. Per commit:
+  - `c66f9d1ac`: `session/notification_listener.go`. The root
+    `sessionNotifications` became `NotificationListener`, still held in the
+    root payload; its `engine` and `token` fields became one `Session`
+    back-pointer, so `payloadOf`, `sessionPayload`, `sessionAllocation`,
+    `clearTransaction`, `preparedDefinitionStamp`, `protocolPortalExists` and
+    `retireProtocolPortalsAfter` are clean (`reach`). `Engine.notifications` is
+    a `NotificationRegistry`, a map type that stays nil until the first
+    registration, with `EndLocked`. The root keeps the Notifications resource
+    as `notificationSessionEnd`, a pointer conversion of the listener that
+    checks the token and takes `Engine.mu`.
+  - `3a8708f08`: `session/notification_publication.go`:
+    `NotificationPublication`, `CaptureLocked`, `Prepare`, `UnchangedLocked`
+    and `InstallLocked`. The plan's "the `e.mu` capture, install and poll loops
+    stay root" was read as the lock windows: the root keeps
+    `prepareNotificationPublication` (early return, allocation before the lock,
+    the `Engine.mu` window around `CaptureLocked`, then `Prepare`), the
+    publisher's windows around `UnchangedLocked` and `InstallLocked`, polling
+    and `finishNotificationBoundary`. The root wrappers
+    `notificationPublicationUnchangedLocked` and `installNotificationsLocked`
+    are gone.
+  - `e5ceb82e7`: `session/notification_effects.go`: `NotificationEffects` over
+    a `NotificationStatement` (the scope's operation, owner, actions and
+    events) and a `completing` flag. The plan called it the `preparing` flag;
+    the value is `phase != nil && !phase.preparing`. The check order is
+    unchanged. `TransactionOwner.MergeNotifications` is also used by the
+    statement finish (`transaction_finish.go`), which had the same merge. The
+    root keeps `notificationEffects` as the adapter that builds the statement
+    on the stack.
+  - `7663fe0ca`: `session.FTSInput` (`fts_input.go`; the root file is gone),
+    `TransactionOwner.AssignModes`, `CharacteristicMode` and
+    `TransactionOwner.Characteristic` (`transaction_characteristics.go`; the
+    root keeps `assignModes` for the settings sync and the `owner.Mu` window of
+    `applyCurrentCharacteristic`), `TransactionAuthority` (`session.go`; the
+    root wrapper is gone, its three callers call it) and
+    `TransactionOwner.SerializableWriteSurvives` (`serializable_writes.go`,
+    passed as a method value).
+  - `13a50c6ba` (the optional part): `Journal.PrivateRead`, `RecordDescriptor`,
+    `RecordDefaultACL` and `ObserveCreationACL` (`journal_bookkeeping.go`) over
+    the published base state; the root keeps `privateCatalogLocked`,
+    `catalogChangeLocked`, `defaultACLChangeLocked` and
+    `creationACLChangesLocked` as one-line wrappers, so their call sites are
+    unchanged. `IndexSlot` gained `Forget`.
+  - No new heap escapes (`-gcflags=-m`, compared by message with a master
+    snapshot; the differences are the same sites counted again where a session
+    method is inlined into its root wrapper); the string literals of the root
+    and `session` are unchanged; `session` gained no import.
+  - Tests: none moved or deleted. Adapted to the exported fields:
+    `notification_publication_test.go`, `notification_lifecycle_test.go`,
+    `protocol_mechanism_test.go`, `session_payload_test.go` and
+    `statement_timeout_admission_preservation_test.go`;
+    `TestNotificationEffectsOwnership` gained the foreign-statement,
+    check-order, merge and completion cases. New `session` tests:
+    `TestNotificationRegistryEndLocked`,
+    `TestNotificationPublication(StaleCapture|PrepareAndInstall)`,
+    `TestAssignModesValidation`, `TestCharacteristicModeMapping`,
+    `TestSerializableWriteSurvives` and
+    `TestJournal(PrivateReadAndDescriptors|DefaultACLBookkeeping)`.
 - Part B of the feature steps (14c–17d) and the postponed packages need 13d.
   After the 13c refine their handlers do not name `StatementScope` (it
   stays in the root): each declares a host interface implemented on

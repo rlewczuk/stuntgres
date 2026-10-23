@@ -98,7 +98,11 @@ The session-layer mutexes are exported fields of `session` types
 (`Session.Mu`, `TransactionOwner.Mu` and `Admission`, `SettingsStore.Mu`;
 exported in engine-split 13d.5, moved in 13d.6); their order and ownership
 are unchanged. `NewOperation`, the third `session.Host` method, only
-allocates and takes no lock.
+allocates and takes no lock. The LISTEN/NOTIFY registry and listener fields
+(`session.NotificationRegistry`, `session.NotificationListener`, 13h) belong
+to `Engine.mu`; only root code takes it around their `…Locked` methods, and
+the root `notificationSessionEnd` resource callback takes it to end a
+listener.
 
 Ticket atomics (`AssignedPublicXID`, `OwnershipEnded`, `CompletionState`) are
 readable without `mu`; the engine updates them under `Engine.mu`, which is why

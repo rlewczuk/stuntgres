@@ -29,13 +29,16 @@ so either import would form a cycle.
   `SessionStart`, `EndReason`, `ResourceKind`, `ResourceHandle`,
   `SessionResource`, and the lifecycle (`Acquire`, `AcquireActivity`,
   `RequestEnd`, `WaitEnd`, `Reuse`, `Detach`, `Check`). `ValidateOperation`
-  checks that an operation is live and belongs to the domain.
+  checks that an operation is live and belongs to the domain;
+  `TransactionAuthority` (13h) checks transaction admission authority:
+  domain, a live session and the operation's membership.
 - **Operations** (`session.go`, `setting_admission.go`, `notices.go`,
   `protocol_input_context.go`): `Operation` (contexts, command budgets, lock
   timeouts, notices, the copy-input context, the statement lease and the
   replay and analysis slots), command admission (`Session.AcquireCommand`,
   `RefreshStatementBudget`, `CommandError`, `StatementStart`), notice levels
-  (`NoticeLevel`, `LevelDebug5`…`LevelError`) and emission.
+  (`NoticeLevel`, `LevelDebug5`…`LevelError`) and emission. `FTSInput`
+  (`fts_input.go`, 13h) emits an operation's text-search input notices.
 - **The transaction owner** (`owner.go`, `savepoint_marks.go`,
   `protocol_cycle.go`): `TransactionOwner` with its state, characteristics,
   admission and the journal it holds; `TxState`, `Isolation` (`Stable`), `TxOptions`;
@@ -45,7 +48,14 @@ so either import would form a cycle.
   `IsolationText`). The checked owner handles (`owner_handles.go`):
   `TxOwnerOf` and `PrivateSessionOf` recover the owner and the private
   session from the `ids` owner interfaces, and `TxOwnerAttached` and
-  `TokenAttached` check them before lock registration.
+  `TokenAttached` check them before lock registration. The characteristic
+  decisions (13h, `transaction_characteristics.go`): `AssignModes`
+  validates and installs SET TRANSACTION modes, `CharacteristicMode` and
+  `Characteristic` map the current-characteristic settings to modes and
+  back. `SerializableWriteSurvives` (`serializable_writes.go`) tells
+  rollback which serializable write evidence the owner still holds. The
+  root keeps the `TransactionOwner.Mu` and `Engine.mu` windows and the
+  settings sync.
 - **Settings store** (`settings_store.go`, `savepoint_marks.go`):
   `SettingsStore` (values, typed values, defaults, sparse per-definition
   provider-present provenance, SET LOCAL actions, role setting actions and the
@@ -75,17 +85,35 @@ so either import would form a cycle.
   (`notification_queue.go`, 13f): `NotificationState`, the persistent
   `NotificationFIFO` of `NotificationLink` batches, and the pure helpers
   `AppendNotificationEvents`, `FilterNotificationBatch` and
-  `ScanNotificationPending` (the root listener, `sessionNotifications`, holds
-  the state under `Engine.mu` and does the polling and fanout); the advisory delegate (`advisory.go`),
+  `ScanNotificationPending`; the advisory delegate (`advisory.go`),
   `AuthorizationState` (`authorization.go`), `RandomState` (`random.go`),
   the v7 UUID clock (`uuid_clock.go`), the coupled nontransactional v1 allocator
   (`uuid_v1.go`, `Session.UUIDV1`) and `StatementLease` (`statement_lease.go`).
+- **LISTEN/NOTIFY** (13h): `NotificationListener`
+  (`notification_listener.go`), one session's listener held in the root
+  payload, with its `Session` back-pointer, state, busy, ended and wake
+  fields and the monotonic `Used` hint; `NotificationRegistry`, the
+  engine's committed registrations by session token (nil until the first),
+  with `EndLocked`. Publication (`notification_publication.go`):
+  `CaptureLocked` records the listeners into a `NotificationPublication`,
+  `Prepare` computes the replacement states and registry without the lock,
+  and `UnchangedLocked` and `InstallLocked` check and install them.
+  `NotificationEffects` (`notification_effects.go`) returns a publication's
+  actions and events over a `NotificationStatement`, and
+  `TransactionOwner.MergeNotifications` merges a statement's into the
+  owner's. Every field but `Used` belongs to `Engine.mu`; the root takes it
+  around the `…Locked` methods and keeps polling, the idle-boundary scan,
+  `executeNotification` and the `notificationSessionEnd` resource.
 - **The journal** (`journal.go`): `Journal`, a transaction's private catalog
   overlay (descriptors and name bindings with their originals, default ACLs,
   sequence generators, private relation storage as `StorageChange`, observed
   dependency targets as `DependencyObservation`, the cached private read,
   role overlays, fences and feature slots). `NewJournal`, `Clone` (a nil
-  journal clones to an empty one) and `AddFence`.
+  journal clones to an empty one) and `AddFence`. The bookkeeping (13h,
+  `journal_bookkeeping.go`) over the published base state: `PrivateRead`
+  (cached; a nil journal reads the base), `RecordDescriptor`,
+  `RecordDefaultACL` and `ObserveCreationACL`. The root's `…Locked`
+  wrappers pass the base under `Engine.mu`.
 - **Storage projections** (`storage_projection.go`): `ColumnProjection`
   (`NewColumnProjection`, `Versions`), `ProjectVersions`,
   `ProjectDeletions`, `ProjectPrivateSnapshotRoots` (attaches dense
@@ -100,7 +128,8 @@ so either import would form a cycle.
 - **Journal slots** (`journal_slots.go`): `EnumSlot` and `DomainSlot`
   (implemented by `typedef.EnumJournal` and `typedef.DomainJournal`) and
   `IndexSlot` (implemented by `index.Journal`). Each has an exported marker method
-  and `Clone`.
+  and `Clone`; `IndexSlot` also has `Forget`, which `RecordDescriptor` calls
+  for a removal.
 - **Root slots** (`root_slots.go`): `PayloadSlot` (a session's SQL cursors,
   prepared SQL registry, retained SQL routine analyses, sequence session
   memory and notification listener), `OwnerSlot` (a transaction owner's
@@ -176,13 +205,15 @@ storage and visibility: begin, commit, rollback and CHAIN
 publication, preflight and 2PC (`transaction_publication.go`,
 `transaction_prepared.go`), savepoint capture and restore (`savepoints.go`),
 session start (`session_start.go`), settings application (`setting_apply.go`,
-`discard.go`), notification publication and polling, the owner functions
-that reach the engine (`transactionSessionEnd`, a defined type over the
-owner), the private catalog read and descriptor recording, the fence types
-and their `currentLocked` checks, the root slot
-types (SQL cursors, protocol portals, the prepared SQL registry, the
-notification listener, FDW participants, exclusion state, Restore replay,
-the binding host).
+`discard.go`), the `Engine.mu` windows of notification publication
+(capture, check and install), polling and the idle-boundary scan,
+`executeNotification`, the owner functions that reach the engine
+(`transactionSessionEnd`, a defined type over the owner, and
+`notificationSessionEnd` over the listener), the `…Locked` wrappers of the
+private catalog read and descriptor recording, the fence types and their
+`currentLocked` checks, the root slot types (SQL cursors, protocol portals,
+the prepared SQL registry, FDW participants, exclusion state, Restore
+replay, the binding host).
 
 ## Testing
 
@@ -190,6 +221,9 @@ the binding host).
 make check RUN='^TestJournal'
 make check RUN='^(TestNoticesFilter|TestSettingsLocal(Actions|EndedCleanup))$'
 make check RUN='^TestNotificationQueue'
+make check RUN='^(TestNotificationRegistryEndLocked|TestNotificationPublication(StaleCapture|PrepareAndInstall))$'
+make check RUN='^(TestAssignModesValidation|TestCharacteristicModeMapping|TestSerializableWriteSurvives)$'
+make check RUN='^TestJournal(PrivateReadAndDescriptors|DefaultACLBookkeeping)$'
 make check RUN='^TestSettingAccessAllowedCallback$'
 make check RACE=1 RUN='^TestSessionHost'
 make check RACE=1 RUN='^(TestSessionPayload|TestOwnerExtension|TestExclusionMark|TestOperation(AnalysisSlot|ReplaySlot))'

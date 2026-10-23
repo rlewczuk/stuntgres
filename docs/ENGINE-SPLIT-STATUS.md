@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `984dbed36` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142 and 144). Steps 8–17 were
+Last verified against `master` at `77a102f14` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143 and 144). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -20,8 +20,7 @@ different packages may run in parallel on separate branches; items that
 share a prompt file touch different root files unless their "needs" says
 otherwise.
 
-- **Fourth round, statement and session:** 143 (session 13h), 145 (regobj
-  21e).
+- **Fourth round, statement and session:** 145 (regobj 21e).
 - **Fourth round, catalog, DDL, types, roles and Restore:** 146 (analyze
   12g), 147 (typedef 15f), 148 (control 30g), 149 (role 28e), 150 (ddl
   20e).
@@ -840,8 +839,9 @@ planned sub-step left; only 151 needs it.
   - [x] 23f — Row publication and hash capture
     ([index](ENGINE-SPLIT-index.md)) (`6b8f2d4b3`, `44b0296a0`,
     `107d5c96e`, then the docs commit)
-  - [ ] 13h — Notification registry and small session decisions
-    ([session](ENGINE-SPLIT-session.md))
+  - [x] 13h — Notification registry and small session decisions
+    ([session](ENGINE-SPLIT-session.md)) (`c66f9d1ac`, `3a8708f08`,
+    `e5ceb82e7`, `7663fe0ca`, `13a50c6ba`, then the docs commit)
   - [ ] 11g — Runtime source values ([exec](ENGINE-SPLIT-exec.md))
   - [ ] 21e — Output capture, spelling cache and regtype analysis
     ([regobj](ENGINE-SPLIT-regobj.md))
@@ -2120,8 +2120,21 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      `REFERENCE=1` hash, unique, exclusion, ON CONFLICT, savepoint and
      prepared-transaction selections passed; racecheck/finalcheck skipped at
      user request
-143. [ ] Session 13h: notification registry and small session decisions —
-     [session](ENGINE-SPLIT-session.md) 13h · needs —
+143. [x] Session 13h: notification registry and small session decisions —
+     [session](ENGINE-SPLIT-session.md) 13h · needs — (`c66f9d1ac`,
+     `3a8708f08`, `e5ceb82e7`, `7663fe0ca`, `13a50c6ba`, then the docs commit)
+     · `session.NotificationListener` and `NotificationRegistry` (`EndLocked`,
+     `CaptureLocked`, `Prepare`, `UnchangedLocked`, `InstallLocked`),
+     `NotificationEffects` with `MergeNotifications`, `FTSInput`,
+     `AssignModes`, `CharacteristicMode`/`Characteristic`,
+     `TransactionAuthority`, `SerializableWriteSurvives` and the journal
+     bookkeeping (`PrivateRead`, `RecordDescriptor`, `RecordDefaultACL`,
+     `ObserveCreationACL`, `IndexSlot.Forget`); the `Engine.mu` windows,
+     polling and `notificationSessionEnd` stay root; no aliases · targeted
+     units (also `RACE=1`), quickcheck and the quick and `REFERENCE=1`
+     LISTEN/NOTIFY, transaction characteristic, SERIALIZABLE, DISCARD, FTS
+     notice and default-privilege selections passed; racecheck/finalcheck
+     skipped at user request
 144. [x] Exec 11g: runtime source values — [exec](ENGINE-SPLIT-exec.md) 11g
      · needs — (`ea13f92d6`, `97abd0c6f`, `ab8a2d1b4`, then the docs commit)
      · `exec.PgrowlocksLogicalTID`, `PgrowlocksPrefix`, `PgrowlocksValues`
