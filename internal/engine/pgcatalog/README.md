@@ -3,7 +3,8 @@
 Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` views (`table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
-`constraint_column_usage`, `routine_sequence_usage`, `character_sets`). Each
+`constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
+`character_sets`, `enabled_roles`, `view_table_usage`). Each
 producer is a pure function from a captured catalog, a paired role read and a
 narrow runtime capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -141,6 +142,10 @@ authority, never the recorded `Version`.
 - `constraint_column_usage`: CHECK columns come from `ExpressionReferences`,
   never a second walker; owner-role inheritance on the table is the only
   visibility predicate.
+- `column_column_usage`: generated-column dependencies from the shared
+  `ExpressionReferences` walker over analyzed (not folded) expressions,
+  deduplicated per generation; enabled relation-owner membership is the only
+  visibility predicate, evaluated once per relation.
 - `routine_sequence_usage`: direct stored SQL-body relation references to real
   sequences, validated before duplicate suppression; sequence-owner role
   inheritance is the only visibility predicate.
