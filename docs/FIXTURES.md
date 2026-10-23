@@ -1,159 +1,7 @@
 # Native fixture controls
 
-[README](../README.md) · [Native compatibility limits](DIALECT.md)
-
-## Relation storage options
-
-Dump emits final explicit options after table and accepted materialized-view
-declarations as a qualified owner-context ALTER TABLE SET, preserving base order
-and spelling, then retained TOAST order and spelling.
-Materialized-view option SQL is captured from its descriptor and qualified names
-alongside its owned declaration, including after renames. Declaration event keys
-are not relation lookup keys: the same stream also contains extensions.
-Absent options emit no statement. Restore admits the generated unconditional
-qualified option-only SET shape and uses ordinary validation in its private
-catalog; a late invalid value or cancellation preserves the entire destination.
-Dump remains committed-only and never exposes an open transaction's candidate.
-Native round trips retain logical TOAST intent without creating physical TOAST
-relations. PostgreSQL replay cannot retain that catalog fact on a table with no
-physical TOAST relation; see the [boundary](DIALECT.md#relation-storage-options).
-Materialized-view native snapshots retain contents and population alongside
-options through byte-stable replay. Their emitted schema declaration remains
-`WITH NO DATA`; replaying actual emitted SQL on PostgreSQL preserves metadata,
-but native snapshot comments do not populate PostgreSQL materialized views.
-
-## Raw BOX snapshots
-
-BOX component writes can retain inverted corner pairs. Dump emits those pairs
-in stored order with shortest roundtrip coordinates, independent of
-`extra_float_digits`. Private native Restore INSERT replay preserves their order
-through an operation-local BOX-only input policy shared by literal binding and
-execution-time TEXT coercions. It does not enable general snapshot-coercion
-exceptions, alter session settings, or change ordinary post-Restore BOX input.
-
-Same/fresh-driver replacement preserves raw components, precise finite values,
-signed zero, subnormals, nonfinite coordinates and NULL. Retained result rows
-keep their prior metadata and captured presentation. Failed/canceled/I/O-error
-Restore retains the target state through the existing staged publication path.
-Ordinary PostgreSQL INSERT replay of inverted BOX text normalizes that input;
-native exact replay is not a claim of physical PostgreSQL persistence parity.
-See [selected control proof and smoke](../reference/types/README.md#box-scalar-contract).
-
-## Large-object snapshots
-
-Native Dump captures only committed immutable large-object descriptors under the
-existing engine mutex, then emits outside locks. It writes fixed-OID creation
-under each real named owner, followed by stored sparse chunks and exact raw ACL
-repair. Objects are OID-sorted in a separate class-local list, never conflated
-with numeric relation keys in the declaration graph. Holes are not materialized;
-stored terminal zero bytes establish exact EOF. Empty objects need only creation.
-
-Restore admits only the generated literal create/put SELECT shapes and the exact
-single-object typed `pg_largeobject_metadata.lomacl` repair. The existing ACL
-codec resolves real destination principals and retains NULL/empty/ordered ACL
-state, including original grantors and grant options. This is not ordinary
-catalog UPDATE, arbitrary function SELECT, or ALTER LARGE OBJECT OWNER support.
-Recognized private-stage byte replay can populate the original owner's object
-despite restrictive creation defaults, without changing that owner or granting
-ordinary SQL privileges.
-
-Reset removes persistent large objects. Restore publishes metadata and bytes
-atomically with the rest of the replacement; late errors preserve destination
-state. Live TEMP relations with equal numeric OIDs retain their identities and
-data while restored large objects retain fixed OIDs and bytes.
-See [selected public control proof](../reference/object_grants/README.md#transactional-large-object-byte-storage).
-
-## SQL routine declarations and callers
-
-Native Dump emits genuine SQL `CREATE FUNCTION` and `CREATE PROCEDURE`
-declarations, with ordered function modes/names/defaults, canonical types, current
-owners and actual quoted/standard body forms. Quoted declarations retain original body text.
-Standard declarations emit checked BEGIN ATOMIC commands using current captured
-object names and selected implicit argument usages; they are never converted
-into unchecked strings. Frames, evaluated results, opened executors, data views
-and authorization decisions are not serialized.
-
-All formal and result types precede both forms. Checked declaration-default
-captures also precede declarations even when the body is quoted. Standard body
-relation/type/callee edges precede standard declarations; consumers follow their
-routines. Incidental quoted-body analysis stays soft, preserving the existing
-text-body/table-default cycle and later rebinding to recreated objects.
-
-A dump containing SQL routines includes `SET check_function_bodies = false;`.
-This is PostgreSQL-compatible replay SQL. Native Restore recognizes only its
-exact private replay form, stages declarations/data through existing owners,
-then binds imported quoted bodies before atomic replacement. Standard body
-capture/dependency installation remains immediate; checked capture/type remapping
-is validated before replacement. For quoted bodies, a structured terminal
-missing callable alone may defer binding: legal callee deletion must not prevent
-replaying the surviving quoted caller. Complete parsing and closed formal bounds
-still validate. Width/result and other semantic checks prevented by the missing
-call are deferred until invocation can resolve it; no executable binding or fake
-success result is retained. Ambiguity, missing operators/tables/types, denied
-namespace/type lookup, malformed bodies and resolvable incompatible results still
-abort. Final binding does not add executable-source SELECT ACL checks to CREATE
-or Restore: those remain live invoker checks at execution, as before.
-Missing-call identity recording is orthogonal to builtin-family composite-field
-recovery. Deleted user overloads with builtin-family spellings (including
-`num_nulls`/`num_nonnulls`) retain the same dangling-caller replay contract.
-Specialized family-shape errors are not callable absence merely because their
-SQLSTATE is42883.
-Declaration defaults are never part of quoted-body deferral: missing or invalid
-default captures abort staged replacement.
-Read failures and cancellation leave the target and retained rows unchanged.
-The directive does not add a public live SQL setting or arbitrary script replay;
-function-free dumps retain their existing bytes.
-
-The permanent persistence scenario checks native Dump/Reset/Restore, held rows,
-nested functions, a dynamic view, a callable table default and the body/default
-cycle. With `REFERENCE=1` it also executes the actual emitted stream on pinned
-PostgreSQL18.6 and independently checks its values:
-
-```sh
-make check RUN='^TestReferenceRoutineCorePersistence$'
-make check REFERENCE=1 RUN='^TestReferenceRoutineCorePersistence$'
-make check RUN='^TestReferenceRoutineSQLBodiesPersistence$'
-make check REFERENCE=1 RUN='^TestReferenceRoutineSQLBodiesPersistence$'
-```
-
-Function-parameter persistence additionally checks named reordered/default-gap
-calls, hidden captured defaults, expanded/explicit variadic arrays, scalar
-outputs, domain-array data, and two native replacement rounds. PortablePersistence
-uses a fresh catalog with non-NULL domain elements and plain integer-array NULL
-elements; its unchanged emitted SQL is executed on pinned PostgreSQL with the
-same independent values. Persistence preserves constrained-domain element-NULL
-data through native host-authorized provenance replay, plus shared direct SQL
-assertions; ordinary PostgreSQL SQL does not consume the native provenance
-comment payload. Neither stream nor expected data is rewritten.
-SequenceDefaultPersistence separately preserves regclass-backed default captures
-and exact sequence/table state through two native rounds and unchanged emitted
-PostgreSQL SQL. The checked lifetime mapper handles actual ObjectRefs; datum OID
-projections use the separate address mapper and grant no lifetime authority.
-
-```sh
-make check RUN='^TestReferenceRoutineParameters(DefaultIdentity|WrittenCapturePersistence|VariadicCapturePersistence|Persistence|PortablePersistence|SequenceDefaultPersistence)$'
-make check RUN='^TestReferenceRoutineParameters(DefaultIdentity|WrittenCapturePersistence|VariadicCapturePersistence|Persistence|PortablePersistence|SequenceDefaultPersistence)$' REFERENCE=1
-```
-
-Use an external 900-second deadline for each command. See the
-[routine contract and smoke](../reference/query_core/README.md#scalar-sql-routine-contract).
-
-## Commit timestamp history
-
-Commit history is process-local runtime state, not portable database data.
-Successful Reset or Restore retains startup `track_commit_timestamp`, clears
-retained timestamps and the last-completion cache atomically with replacement,
-and preserves the nonreusing public XID counter. An old known XID then returns
-scalar NULL or a present `(,)` origin record; enabled last completion returns
-the present all-NULL `(,,)` record until a new real write commits. Replacement
-itself is not a SQL transaction commit.
-
-Dump preserves symbolic inquiry expressions in legal defaults/views, not their
-evaluated results or engine/history closures. It exports neither tracking
-configuration nor commit history. Restore's private replay commits are not
-imported into the target's history. Failed/canceled/read-error Restore leaves
-the target's history unchanged, apart from independent concurrent real commits.
-See the [control witness](../reference/locking_transactions/README.md#commit-timestamp-information).
+Three package functions clear, save and replace a database's contents, so a test
+fixture can be built once and reused:
 
 ```go
 func Reset(ctx context.Context, db *sql.DB) error
@@ -161,553 +9,70 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error
 ```
 
-Controls require a **native stuntgres** pool; foreign and middleware-wrapped pools are rejected, with no reflection unwrapping. They are **host-authorized**, independently of a borrowed connection's effective principal. Reset atomically replaces the catalog lifetime with initialized built-in `pg_catalog`, `pg_toast`, `public` and `information_schema` namespace descriptors while retaining database identity, cluster roles, nonreuse counters, live identities/settings and existing pools. Dump captures before external I/O, emits persistent tables/views in creation-address order among objects whose sources are ready, and writes quoted owner-switch directives plus PostgreSQL-compatible CREATE/INSERT SQL, declaration-ordered columns and canonical literals. Explicit relation/column ACLs cannot be serialized and cause a failure before output, rather than silent loss. Dump excludes role creation, passwords, membership and settings; it is not complete `pg_dump` output, COPY, or catalog export.
-
-Dump reconstructs renamed, absent and recreated bootstrap namespaces using ordinary
-DROP/ALTER SCHEMA SQL before user schemas and tables. Retained builtin ACLs must
-equal their canonical bootstrap rights with both grantor and owner-grantee
-transformed to the current owner; arbitrary explicit ACLs remain unsupported and
-are rejected before output. Recreated public is an ordinary namespace with absent
-ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
-their exact legacy bytes.
-
-Ordinary partition detachment exports final standalone relation/constraint/index
-state, including detached virtual subtrees, not a log of the original command.
-Ready/live virtual indexes may legitimately remain invalid despite complete or
-empty coverage; invalid physical indexes remain excluded. Replay classifies each
-virtual tree bottom-up: incomplete/invalid-child coverage uses explicit index
-attachments, complete-invalid coverage uses a real valid child's table
-detach/reattach, and childless invalid coverage uses a collision-safe empty
-DEFAULT that is detached and dropped within the stream. No helper object survives
-successful Restore or PostgreSQL replay. Equivalent older unattached local
-UNIQUE/PRIMARY providers follow reattachment. Physical backings use ADD USING
-INDEX; virtual local definitions use conventional UNIQUE/PRIMARY and the existing
-recursive constraint/index producer. Their generated subordinate names are
-reserved and renamed to captured private identities before terminal final names.
-Consumer identities remain bound to the distinct owned local tree.
-Key declarations and their owning table constraints use the same captured
-private-name projection, with terminal renames restoring the original names;
-deferred local keys do not render an original backing against a renamed owner.
-Initial table membership must not wait for a deferred local key's terminal rename:
-the preserving reattachment precedes that local declaration. Original-name
-REGCLASS row consumers still wait for the completed local declaration and rename.
-Late dependent declarations bind against the captured private spelling before its
-terminal rename; otherwise a default or view could reference a spelling already
-removed. Stored original-name data follows the rename, without aliases or rebinding.
-Deferred virtual-tree terminal names complete as a component-wise schema/name-ordered
-group. Original-name consumers of any member wait for the whole group's tail,
-so reminted root/leaf OIDs cannot move subordinate renames across data/defaults.
-Decoded schema names compare first, then object names; quoted dots never merge components.
-The private allowlist admits qualified unconditional ordinary DETACH, exact
-captured empty DEFAULT teardown, leased ADD USING INDEX on the exact captured
-physical member/index, and exact conventional virtual definition/table/subtree
-origins after the intended plain tree is attached. PRIMARY replay retains existing
-NOT NULL facts. Public hierarchy ADD, general DROP, CONCURRENTLY/FINALIZE and
-hierarchy-FK scripts remain excluded.
-Failed readers, malformed replay, cancellation or final publication fences retain
-destination catalogs, data, logical roots and eager snapshots.
-
-Feature smoke: `make check RUN='^TestReferencePartitionDetachFeatureSmoke$'` and
-the same selector with `REFERENCE=1`; full controls/replay:
-`make check RUN='^TestReferencePartitionDetach(Controls|Replay|ReplayLocal|ReplayVirtual)$'` in both modes.
-
-Pristine public stores owner UC and PUBLIC USAGE, with no stored owner options.
-pg_toast is an actual builtin namespace with NULL ACL, never an ordinary
-CREATE SCHEMA in Dump. Both live and retired TEMP namespace descriptors are
-omitted from portable export/import. Replacement preserves the destination's
-exact real pair and live children, including retained empty metadata, without
-importing source physical-session authority.
-
-Conversion controls serialize real qualified CREATE [DEFAULT] CONVERSION
-definitions, canonical encoding strings and actual registered routine names.
-Pinned seed rename/schema/owner deltas precede user definitions. Legal duplicate
-defaults are replayed through collision-free helper schemas that are removed
-within the stream; no provider tables, library paths or arbitrary function
-definitions are serialized. Canonical unchanged seeds preserve legacy dump
-bytes. Temporary definitions are omitted; live target TEMP and user OID
-collisions use the existing replacement remapping frontier. Failed readers,
-late bad conversion statements, cancellation and captured-principal changes
-leave the destination catalog/data and returned metadata intact.
-Conversion replay is part of the same bounded Restore allowlist, not a generic
-script interpreter. Smoke: `make check RUN='^TestReferenceConversionFeatureSmoke$'`
-and the same command with `REFERENCE=1`.
-
-
-Enum declarations are emitted before dependent domains and relations, with exact
-declaration-order labels, qualified current schema names and owner directives.
-Dependent defaults/CHECKs/views render their captured logical type authority,
-including schema rename. Cross-driver Restore remaps enum owners, descriptors
-and inline ordinal values together, including dependent domains and collisions
-with retained TEMP sequences. Equal label lists never authorize ordinary
-cross-enum casts or prepared-name retargeting. Changed user-type ACLs are refused.
-Read/parse/label/owner/cancellation failures preserve destination catalog/data
-and held eager snapshots. Feature controls:
-`make check RUN='^TestReferenceEnum(Controls|RestoreAtomicity|OwnerAndTemporaryRemapping)$'`
-and the same command with `REFERENCE=1`.
-
-Persistent view definitions are dumped after their relation dependencies, with
-fixed output names, current bound relation identities, frozen column namespace labels, security options and
-owner directives. Views are not evaluated by Dump/Restore and their output is
-never serialized as table rows. Restore binds canonical CREATE VIEW in its
-isolated catalog, remaps every stored source/expression/dependency identity into
-the destination generation, and atomically installs definitions with ordinary
-data. Derived catalog sources initialize normally and are not dumped. Restored
-views remain dynamic; later base writes and dependency checks still apply.
-Failed/canceled imports retain old catalogs, dependencies and held result rows.
-Repeated replacement, trailing outputs, view/column rename, owner/schema changes
-and security options serialize their final canonical CREATE VIEW state, not
-ALTER history. Supported COLLATE identities survive reconstruction and replay.
-Whole Restore may allocate new OIDs, but preserves linked identity relationships
-and dynamic reads. Dump refuses explicit relation/column ACLs rather than
-discarding privileges. Cyclic view definitions are legal catalog state, but
-Dump returns `stuntgres: cyclic view dump dependencies`; repair the definition
-before dumping. These refusals do not narrow ordinary replacement retention.
-Feature roundtrip smoke: `make check RUN='^TestReferenceViewReplaceSmokeCycleReplayControls$'`.
-Dump orders scalar user types, named composites, domains, tables and views through
-one captured persistent provider topology. Composite members depend on their
-child types/owning row relations; tables depend on column types and CHECK providers.
-Views depend on table/view sources and expression providers. An identity-sequence dependency waits for the owning table
-whose inline declaration creates it. A table's own identity CHECK is not a
-self-edge; ordinary standalone sequences remain in the earlier creation prefix.
-Creation addresses break ties between ready objects. Retained TEMP collision
-remapping may move a source OID above its dependent; topology then wins so replay
-remains executable, without promising allocator-relative diagnostic-order parity.
-Captured scalar REGCLASS defaults and fixed early-bound `nextval` defaults may
-close a dependency cycle through their provider. Dump defers only these already
-admitted definitions: it omits them from CREATE TABLE and emits ALTER DEFAULT
-after their providers exist. Restore uses the ordinary default binder and the
-same replay eligibility decision. Required CHECK/generated dependencies are
-never relaxed; cycles that remain fail before SQL is emitted.
-Roundtrip and actual pinned replay:
-`make check RUN='^TestReferencePGDependReviewCapturedReplay$'`;
-the pinned counterpart adds `REFERENCE=1`.
-
-Named composites replay as canonical CREATE TYPE AS declarations, never as
-storage tables. Supported table/view row types are created by their real owner.
-Native replacement remints/reowns reciprocal descriptors, stable member usages,
-nested stored/default values and live REGCLASS/REGTYPE children together, while
-held snapshots remain immutable. Plain domains over rows/composites and mixed
-source-row→named-wrapper→domain→holder/view dependencies replay as ordinary SQL
-on PostgreSQL. Executable composite arrays use the same logical replay path;
-no new harness, physical ABI or constrained-domain feature is implied. Composite controls:
-`make check RUN='^TestReferenceComposite(MixedControls|ControlLifetime)$'`
-and the same command with `REFERENCE=1` (900 seconds each).
-Composite expressions additionally retain occurrence-owned constructor shapes,
-stable field/expansion attributes, genuine dot-builtin markers and exact
-whole-row namespace/source/frame handles. Native definitions emit captured
-expansion members explicitly, never a future widening wildcard; direct whole-row
-sources emit alias.* so a same-named scalar column cannot capture the value.
-Restore reowns capture usages and runtime/retained-analysis trees together.
-Controls exercise two replacement cycles, future writes, held eager output,
-failed/canceled publication and actual emitted SQL replay on pinned PostgreSQL.
-Selected checks (900 seconds each):
-`make check RUN='^TestReferenceCompositeExpr(StoredConsumers|ControlsAndLifetime|ControlRejection)$'`
-and the same selected command with `REFERENCE=1`.
-The two-retained-sequence, second-Dump/Restore regression and independent
-PostgreSQL nested-view consumers run through the same mode-aware definition:
-
-```sh
-make check RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$'
-make check REFERENCE=1 RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$'
+```go
+var seed bytes.Buffer
+if err := stuntgres.Dump(ctx, templateDB, &seed); err != nil {
+    t.Fatal(err)
+}
+// Later, for each test database (same or another Driver):
+if err := stuntgres.Restore(ctx, db, bytes.NewReader(seed.Bytes())); err != nil {
+    t.Fatal(err)
+}
 ```
 
-Joined imports remap every source occurrence, both join children, predicates,
-merged-value coercions and all frame schemas into the destination generation.
-Frozen per-leaf attribute layouts and analyzed ON literals remain attached to
-their logical occurrences; retained TEMP type generations do not change bags,
-merged output types or canonical definition reconstruction.
-Namespace labels/slots, explicit USING keys and attribute IDs are immutable
-metadata without generation-specific type pointers. Full positional aliases
-follow the current physical/visible order after compaction; NATURAL replays its
-frozen USING keys, and merged conversions use the ordinary implicit binder.
-Stored ORDER preserves qualified frozen physical/merged input-slot identity,
-separately frozen output ordinals, and each key's direction and NULL policy.
-Render-private USING aliases preserve synthetic merged usage when needed.
+## Common rules
 
-Stored view literals are serialized from creation-time analyzed values and type
-usages, including temporal precision, typed NULLs and sentinel values. Relative
-spellings such as `DATE 'today'` do not acquire a new value during replay.
-Native remapping replaces concrete catalog type identities without reparsing or
-coercing the captured datum; retained TEMP objects do not alias the old generation.
-Contextual NAME, UUID, BYTEA and NUMERIC literals likewise retain their analyzed
-values and distinct result types through definition reconstruction and native
-Dump/Restore, including NUMERIC display scale. Public direct/prepared coverage,
-including `numeric_scale`, runs in both modes:
+- `db` must be a native stuntgres pool (from `sql.OpenDB` on a stuntgres connector
+  or `sql.Open("stuntgres", ...)`). Foreign and middleware-wrapped pools are
+  rejected. The controls are host-authorized: they do not depend on the role of
+  any borrowed connection.
+- No engine lock is held during reader or writer I/O. Rows already returned to
+  callers stay valid after Reset or Restore.
+- The controls refuse to run while prepared transactions (`PREPARE TRANSACTION`)
+  exist; finish them first.
+- These are logical snapshots of one in-memory database, not `pg_dump` archives,
+  WAL or crash durability.
 
-```sh
-make check RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$'
-make check REFERENCE=1 RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$'
-```
+## Reset
 
-Restore is restricted logical replay, not arbitrary SQL script execution.
-Parameters are recursively rejected. Only the engine's admitted declaration,
-data, owner-directive and sequence-state replay operations are eligible; live
-settings, transaction controls, shared-role mutation and arbitrary expression
-producers remain excluded. Legacy creation/data-only scripts remain
-bootstrap-owned.
+Atomically replaces the catalog with a freshly initialized one: user objects and
+data are removed and the built-in `pg_catalog`, `pg_toast`, `public` and
+`information_schema` namespaces are recreated. Database identity, roles, live
+sessions and their settings, existing pools and non-reusable counters (such as
+transaction IDs) are kept.
 
-Stored expression reconstruction preserves captured type authority and
-structural carriers without evaluating definitions during Dump. Restore
-validates admitted expressions through the ordinary binder/providers; replay
-does not add new public casts, defaults or expression capabilities. Invalid
-expressions and failed imports preserve old data/catalogs and held cursors.
+## Dump
 
-Domain CHECK validity is persistent state. Dump normally places valid own CHECKs
-inline in CREATE DOMAIN, then emits each invalid own CHECK as a qualified named
-`ALTER DOMAIN ... ADD CONSTRAINT ... CHECK (...) NOT VALID` after stored data.
-When independently altered CHECKs retain conflicting historical cast recipes,
-affected valid checks also use ordinary named ADD CHECK, retaining validity and
-normal validation; they are never weakened to NOT VALID.
-This narrow post-data phase uses the existing `postgres` replay authority, not
-the domain owner's session authorization: a domain can legally be owned by a
-role with no USAGE on its schema. The declaration's real owner remains intact.
-No source namespace grant is fabricated, and ordinary ALTER DOMAIN still applies
-normal namespace and ownership admission.
-Cross-owned domain declarations likewise construct under bootstrap authority,
-then immediately restore the real owner with qualified ALTER DOMAIN OWNER TO.
-The stream first records the captured source owner and returns to bootstrap.
-Native Restore admits that OWNER only for the exact constructor-created,
-permanent domain reference and captured target role, under its authenticated
-superuser importer. Any intervening statement expires the pair. This does not
-admit general ALTER OWNER replay, enum ownership replay, or ownership changes to
-existing objects; the inherited-table ownership route remains separate.
-Invalid expression-provider edges belong to that post-data event, not the
-domain's creation event. Satisfying data does not implicitly validate a CHECK;
-old violators, false flags, owners and current new-input rejection survive
-same/fresh Driver replay. Restore admits only this exact domain alteration form,
-with the ordinary scalar eligibility checks; valid ADD, DROP, VALIDATE,
-parameters, temporary destinations and arbitrary domain ALTER remain excluded.
-Failure or cancellation leaves destination roots and retained snapshots intact.
-The emitted logical SQL can be replayed on PostgreSQL; external pg_dump archives,
-pg_restore formats, WAL and physical storage are not native import APIs.
+Captures a consistent committed snapshot before writing, then emits PostgreSQL SQL:
+owner-switching `SET SESSION AUTHORIZATION` directives, `CREATE` statements in
+dependency order, `INSERT`s with canonical literals, and sequence state. The output
+can also be replayed on PostgreSQL.
 
-Referenced roles must already exist in the target engine. Restore captures a private role
-snapshot before input I/O, starts an initialized private catalog, executes through
-the same SQL engine, remaps owners into target principal authority, then atomically
-**replaces** descriptors, storage and epoch, never merges or resets roles/live
-sessions. Missing or dropped/recreated owners and read/parse/execution/cancellation
-errors leave original data untouched. Empty input clears user relations. No target
-locks span external I/O. Private operation-only CREATE destination, INSERT and
-database-local COMMENT bootstrap authority preserve independent schema/table owners
-without grants or session identity changes. COMMENT's private marker covers lookup,
-lock resolution and mutation, is cleared after each statement, and never permits
-ROLE replay. Ordinary post-Restore SQL still enforces USAGE/CREATE and ownership.
-Trusted INSERT permission elevation does not replace identity snapshots:
-defaults and CHECK expressions observe the actual private session's
-`current_user` and `session_user` from named owner directives, both during
-ordinary replay and final owner-remap validation.
+- Not dumped: roles, passwords, memberships, settings, TEMP objects, uncommitted
+  or prepared work, sequence `currval`/`lastval` session state, and commit
+  timestamp history.
+- Dump fails before writing anything when it cannot serialize faithfully, for
+  example explicit relation or column ACLs, invalid indexes, or cyclic view
+  dependencies (`stuntgres: cyclic view dump dependencies`).
+- User-mapping options are written as stored, including credentials.
+- Materialized view contents are carried in `-- stuntgres-matview-v1 <base64>`
+  comments (JSON fields `schema`, `name`, `populated`, `rows`). Native Restore
+  reloads them; PostgreSQL ignores them, leaving views unpopulated until
+  `REFRESH`.
 
-REGROLE row data uses symbolic live role names, recursively through arrays and
-domains, and decimal fallback for unknown OIDs (zero is `-`). Cross-Driver replay
-therefore resolves names to destination role identities, not source allocator
-IDs; roles must be provisioned separately. REGROLE constants are prohibited only
-as non-NULL scalar stored-expression leaves, not as row data or opaque array
-payloads. Dump never creates roles or adds role dependencies.
-Captured opaque REGROLE[] view literals retain their owning type annotation:
-repeated Dump/Restore does not accumulate redundant array casts.
-Regrole replay input failures retain the original full-script character Position;
-native controls add no synthetic Context or unrelated diagnostic fields.
+## Restore
 
-The shared object allocator skips live namespace, relation, view-rule, CHECK,
-NOT NULL and default identities imported by Restore. Replacement does not rewind
-the destination's nonreuse counter. Definition collisions with retained native
-objects are reminted in the private candidate before installation.
-Dump/Restore preserves CHECK casts/names/NO INHERIT, NOT NULL and explicit
-defaults through canonical SQL replay, not raw definition OID directives.
-Restored IDs may differ; current owner/attribute relationships and behavior persist.
-Inherited and partition-member row exports use explicit named INSERT targets
-in captured live-column order, so reconstructed hierarchy declarations cannot
-redirect a stored value into a different column. Replay still uses ordinary
-INSERT binding and CHECK enforcement, not import-only expression admission.
-LIST partition replay serializes normalized frozen typed IN values, not the
-original bound expressions; volatile expressions never run again during Dump,
-routing or Restore. Every list datum uses key0's Usage, including typed NULL,
-and is reowned/remapped alongside RANGE endpoints through the existing scalar,
-enum/domain, collation and symbolic catalog-reference import authority.
-Nested topology and physical rows are emitted once. A leaf-local NO INHERIT
-CHECK can require ordinary CREATE plus private LIST ATTACH; the private replay
-uses real full-row validation rather than a range-endpoint proof or an untrusted
-public ATTACH bypass. Public LIST ATTACH remains unavailable. Overlap,
-occupied-DEFAULT, canceled EOF and I/O failures preserve the destination catalog,
-data and retained snapshots. Successful reset/restore and independent-destination
-replay preserve routing and deterministic redumps, not historical allocator IDs.
-Canonical inheritance declarations place current inherited columns before local
-columns. After an inherited column was added later, this can differ from the
-source's live column order. Named row targets preserve values; reconstructed
-`SELECT *` metadata and CHECK failing-row details follow the reconstructed order.
+Replays a Dump stream into a private catalog, then atomically **replaces** the
+target's contents; it never merges. Empty input clears all user relations.
 
-Persistent user rewrite rules are emitted in a post-data phase after referenced
-relations, views and rows exist. Restoring data therefore does not run their
-ALSO/INSTEAD actions. SQL reconstruction uses captured typed recipes and current
-relation/attribute/type names after rename, including rule conditions and actions;
-it does not evaluate NEW/default/volatile recipes during Dump. View `_RETURN`
-continues to use the existing view-definition representation.
-
-Action-owned WITH retains declaration order, aliases and materialization hints.
-Modifier bodies are rendered from their original typed mutation and frozen child
-presentation, including unused modifiers and renamed target columns. Their
-targets/dependencies/remapping are part of the persistent rule; enclosing live
-statement CTE spools remain execution-private and are never exported.
-
-Restricted Restore admits these rule declarations through the ordinary binder
-and current owner/dependency checks in its isolated candidate. Malformed rules,
-missing references, cancellation or final publication failure preserve the old
-database and eager results. Imported rule identities and nested source/type
-references share collision remapping with retained TEMP definitions; persistent
-rules are exported, session TEMP rules are not. Future prepared writes consume
-the restored definitions rather than replaying fixture history.
-
-Structural unknown-NULL provenance and raw temporal precision survive replay;
-destination sizing remains an executable coercion rather than a deparse-time value.
-Installed supported view options retain presence, lexical value and order through
-logical Dump/Restore; absent security options are not emitted as false defaults.
-Active indexes and inheritance/table/index-partition edges reconstruct pg_class
-publication history during replay. Deleted-only persistent history need not
-survive logical replay, while valid live TEMP descriptors retain identity,
-options and sticky history under the existing dependency fences. Table-member
-bounds retain typed key authority; native structural output intentionally differs
-from PostgreSQL nodeToString. Arbitrary explicit relation ACLs remain outside the
-serializer rather than being silently discarded; serializable baseline replay
-does not promise to preserve unsupported grants.
-The deparse reference matrix supplies independent release strings for admitted
-persisted families/types; these goldens and its generic successful insertion are
-not, by themselves, family behavioral completion. Dedicated consumer fixtures
-create compact/pretty copies from actual returned SQL and require direct/prepared
-accepted, rejected and NULL rows, complete logical error records, and exact old
-row contents after failed INSERT/batch/UPDATE. Positive/negative NUMERIC typmods
-distinguish unsized synthetic annotations from genuine explicit sizing failures.
-Conditional consumers distinguish searched/simple CASE, absent ELSE, short-circuit
-errors, COALESCE/NULLIF/GREATEST/LEAST and integer arithmetic boundaries.
-Comment consumers control object/column/namespace/shared-role contents and retain
-prepared handles across changes. Namespace/shared-role witnesses discover the
-backend's own identities through existing pg_class relnamespace/relowner fields,
-capture and restore prior comments, and drop the owned namespace before session
-reset. They need no new catalog projection or cross-backend allocator parity.
-Random consumers independently replay each backend's seeded same-call effects,
-including strict NULL and failed statements; native/PostgreSQL sample equality
-is deliberately not asserted.
-current_schemas CHECK enforcement tests strict BOOL NULL, not NAME[] comparison.
-Changing effective paths is separately observable through the same held public
-read. Typed TIMESTAMP/TIMESTAMPTZ/TIMETZ AT/LOCAL consumers check result-sensitive
-rows, current session zones, provider errors and unchanged typed row values.
-Both session-resolved UTC abbreviation consumers and fixed IANA Etc/UTC consumers
-are retained. Under UTC-2, PostgreSQL resolves the UTC abbreviation to +02;
-the TIMESTAMP/TIMETZ predicates can therefore reject the same held input.
-Etc/UTC retains the intended fixed-zone conversion. These are distinct runtime
-witnesses, not adapter exceptions or substitutions of one zone for the other.
-Native NULL SYSTEM_USER and PostgreSQL SCRAM identity are independent expectations.
-Native capability exclusions remain explicit rather than being inferred from
-successful expression reconstruction.
-Native replay fixtures keep context-sensitive CHECK objects empty, retain literal
-rows in separate default-only objects, then exercise symbolic definitions through
-caller-held post-Restore DML. Replay uses its existing isolated context, not the
-caller's identity/path. Actor-owned schema setup and CREATE under SET ROLE use
-existing ownership routes rather than adding GRANT or ALTER TABLE OWNER support.
-Changed-type default fixtures require a fresh own definition OID, unchanged
-relation/attribute identity and absent old live lookup; eager original metadata
-remains usable. Actual copied default text produces the expected BIGINT value,
-while failed conversion preserves the old definition, type and complete rows.
-Additional metadata witnesses retain integer boundary constants, typed NULL
-arguments, raw temporal precision and quote/backslash spelling under both
-string settings. Copied sized-numeric defaults retain preassignment values and
-must still fail atomically at execution when assignment overflows.
-Derived pg_constraint/pg_attrdef rows and stateless deparse functions are not dumped.
-Index/view deparse functions likewise have no separate serialized state. Dump
-uses current bound descriptors and canonical replay presentation, not pretty
-strings or view result rows. Restore preserves index keys/unique flags and view
-identities through existing remapping; rediscover destination OIDs rather than
-assuming equality with the source allocator. Held function statements see fresh
-catalogs, while previously returned definition strings remain owned.
-Feature smoke: `make check RUN='^TestReferenceDeparseRelations(NativeControls|PreparedLifecycle|ReconstructionConsumers)$'`;
-oracle: `make check REFERENCE=1 RUN='^TestReferenceDeparseRelations(NativeControls|PreparedLifecycle|ReconstructionConsumers)$'`.
-Failed/canceled Restore leaves data/catalogs and held eager tree/result snapshots intact.
-
-Identity Dump emits current generation and actual sequence names inline, skips
-duplicate sequence creation/AUTO ownership, and restores literal rows with SYSTEM
-override so replay never allocates identity values. Cache reservation high-water and
-last/is_called persist; unused session tails and currval/lastval do not. When direct
-ALTER SEQUENCE has diverged from the column type or persistence, replay first creates
-a valid column-type identity, then applies generated numeric/persistence configuration
-before final setval. Reciprocal ownership is remapped under retained TEMP collisions.
-Malformed configuration/rows/state or canceled imports leave the old database intact.
-CREATE and Dump never evaluate CHECK definitions, including CHECK calls to a
-newly declared identity sequence. Restoring literal SYSTEM rows bypasses identity
-generation, but ordinary CHECK validation can still call nextval; final setval
-restores the captured sequence state. Owner-table collisions with retained TEMP
-sequences preserve this replay ordering through Dump/Restore/redump.
-Feature smoke: `make check RUN='^TestIdentityCheckControlsSmoke$'`.
-
-
-Timezone-aware declarations, precision, frozen defaults, NULLs, BC and infinities
-use the existing canonical SQL replay. TIMESTAMPTZ literals are ISO UTC with an
-explicit +00; TIMETZ literals retain clock and stored fixed offset. Dump is
-independent of source TimeZone/DateStyle and does not serialize session settings.
-Restore preserves target live settings. Old cursors retain their captured
-presentation and metadata after replacement; later invalid temporal input,
-unknown zones, I/O errors or cancellation never publish a partial catalog.
-Supported closed Stable temporal defaults retain their unevaluated expression
-definitions in empty and populated tables: Dump never replaces `AT LOCAL`,
-session-dependent casts, comparisons, CASE or NULLIF with source-session results.
-Restored rows retain their stored values; subsequent omitted/per-cell defaults
-evaluate the restored definition using the destination INSERT's captured settings.
-Explicit values (including NULL) still bypass defaults. Frozen typed literal
-leaves remain canonical values, distinct from session-dependent operations above them.
-This is native logical fixture replay, not PostgreSQL physical backup.
-
-Dump excludes TEMP sequences and records persistent sequence options, owner,
-comment, OWNED BY association and generator high-water/called state. Restore
-installs new persistent generator identities atomically; it does not serialize
-session currval/lastval or unused cache tails. Reset/Restore preserve exact live
-caller-owned TEMP sequences and their physical-session state, while persistent
-prepared analysis retains its separate catalog-epoch fence. Sequence row results
-already returned remain immutable. Native log_cnt is always zero: no controls
-promise physical WAL, crash recovery or cache durability.
-
-The internal native catalog-fixture replacement seam imports only a persistent
-source projection. Repeated self replacement preserves destination live TEMP
-once; foreign or retired source TEMP is never imported or resurrected.
-Destination TEMP identity, builtin type dependencies, generator, local values
-and cache remain exact. Persistent metadata and detached values use coherent
-type identities without mutating retained source catalogs or rows. Public Restore
-still rejects TEMP declarations rather than importing them.
-
-`make check RUN='^TestCatalogOwnersPublicWitness$'` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.
-
-Whole-root control migration removes obsolete SQL helpers without changing these
-public APIs. Cohesive control/retention witnesses run in both modes:
-
-```sh
-make check RUN='^TestReference(Control[A-Za-z0-9_]*|CatalogControlsReleaseLocksDuringIO|DumpRoundTrip|QueryCoreCapturedOwnership|ViewReplaceNativeControls)$'
-make check REFERENCE=1 RUN='^TestReference(Control[A-Za-z0-9_]*|CatalogControlsReleaseLocksDuringIO|DumpRoundTrip|QueryCoreCapturedOwnership|ViewReplaceNativeControls)$'
-```
-
-Native I/O/cancellation/reader/writer errors, repeated owner-bearing replay and
-retained eager cursors use the actual unwrapped public pool. PostgreSQL has no
-host Reset/Restore API: its independent SQL consumer/transaction/cancellation
-phases drain active streams before subsequent commands on the same connection.
-Captured metadata and data remain checked, not merely resource-readiness flags.
-
-Fresh source and recorded phases reuse the complete replay corpora. The source
-phase keeps actual setup/append DB.Exec and EACH failed script's DB.Query
-sentinel/absence check, while retained cursors are opened before replacement.
-Helper I/O gates preserve original reader/writer error identity, cancellation
-and worker joins. Roll back borrowed transactions before returning connections,
-including failure exits; register schema/role teardown immediately after actual
-creation. Do not issue unsupported native cleanup SQL or hide cleanup errors.
-
-
-
-## Stored generated columns
-
-Dump serializes `GENERATED ALWAYS AS (...) STORED` structurally, without evaluating
-generation expressions. Every generated cell is emitted as DEFAULT, never as an
-explicit computed value or identity-override workaround. All-generated rows still
-produce one INSERT each. Restore uses ordinary CREATE/INSERT binding and stored
-computation, retaining generated NULL definitions and subsequent INSERT/UPDATE
-semantics. tableoid references retain their owner ObjectRef; under a retained
-TEMP identity collision, replacement recomputes only owner-dependent generated
-cells against the remapped final owner and validates completed values before
-publication/index installation. Source/TEMP vectors and held eager cursors stay
-immutable. Invalid definitions, explicit generated writes, arithmetic/constraint
-errors, context cancellation and I/O failures preserve the destination catalog
-and data. These are native logical controls, not a PostgreSQL backup/control API.
-Owner-remap validation uses a genuine isolated statement/session, preserving
-Restore's private owner directives and settings. Session, inquiry, random and
-sequence CHECK providers run without the target catalog mutex; their effects
-remain private until successful installation. Replacement admission stays held,
-and changed target catalog/role/TEMP authority fails without retry. A failed
-repair discards private sequence effects as well as repaired cells.
-
-
-## REGTYPE references and row identity
-
-Reset initializes pg_catalog, public and information_schema type namespaces.
-The complete builtin inventory is immutable identity authority, not user objects
-to serialize. Real table/view row types and associated arrays reconstruct through
-their owning CREATE TABLE/VIEW, not artificial CREATE TYPE statements.
-
-Stored REGTYPE constants retain actual TypeClassID dependencies independently
-of their declared datatype. Known numeric constants also retain those edges;
-zero and unknown IDs do not. Ordinary stored data alone adds no drop dependency.
-RESTRICT/CASCADE follows the existing stored-expression/type closure, including
-dependents of an owning relation's row type.
-
-Dump writes actual qualified, quoted scalar referent names and recursively
-qualified `element[]` for reciprocal associated-array REGTYPE constants, rather
-than source OIDs, generated array aliases or search-path-dependent display names.
-Logical replay can remint OIDs and generated names without changing exact logical
-type identity, reciprocal relationships, values, defaults or views. Historical
-generated aliases are not guaranteed; live catalog names and retained snapshots
-remain exact. Explicit named-array domain bases keep dimensions zero: transient
-domain/enum replay-name prediction uses the shared allocator and baseline builtin
-identities to render the alias available at that declaration, not a history recipe.
-Row-type references impose owning-relation topology. Legal default-only cycles
-use deferred ALTER COLUMN SET DEFAULT after referents exist; CHECK/generated
-and view dependencies remain mandatory topology edges.
-Restore parses/binds these real statements in its private catalog, then remaps
-scalar/domain/array/stored leaves with TypeClassID addresses. A same-number
-RelationClassID mapping never retargets a REGTYPE value. Row/array ownership,
-namespace and datatype pointers move together without mutating source snapshots.
-Invalid declarations, bad type input, trailing SQL and cancellation preserve
-destination state through the existing atomic replacement path.
-
-Feature controls run in both modes (900-second deadline per invocation):
-
-```sh
-make check RUN='^TestReferenceRegtype'
-make check REFERENCE=1 RUN='^TestReferenceRegtype'
-```
-
-
-## Cast declarations and exact FLOAT4 replay
-
-User cast pairs are persistent catalog state, rendered as qualified ordinary
-CREATE CAST after endpoint/routine dependencies. Fixed virtual provider rows are
-not serialized. Restore admits both CREATE and DROP CAST through its isolated
-ordinary DDL path, then validates/remaps final descriptors before publication.
-
-FLOAT4 datum words, including signaling NaNs, use exact XID-word SQL rather than
-text NaN input. If the final xid→real edge is binary, its real declaration
-precedes consumers. Otherwise replay creates a temporary binary edge, emits
-stored recipes and rows, drops it, then recreates the final conflicting
-function/INOUT edge (or leaves the pair absent). No helper remains in the final
-catalog, and failed/canceled replacement cannot change live state.
-Direct REAL[] uses typed XID[] text carrying original dimensions/lower bounds;
-composite arrays with nondefault bounds use ordinary per-row INSERT target
-slices with exact ROW/ARRAY leaf expressions, not an unbounded ARRAY rebase.
-
-```sh
-make check RUN='^TestReferenceCastDefinition(Persistence|ReplayPhases|ReplayConflicts|RawFloat4Persistence|RawCompositeArrayBounds|Atomicity|Cancellation)$'
-make check RUN='^TestReferenceCastDefinition(Persistence|ReplayPhases|ReplayConflicts|RawFloat4Persistence|RawCompositeArrayBounds|Atomicity|Cancellation)$' REFERENCE=1
-```
-
-Frozen IO/binary, typed-array function and simple-CASE test recipes also use
-ordinary-SQL cast windows when the original edge was dropped or replaced.
-Windows surround the actual emitted declaration, deferred SET DEFAULT, or
-individual ADD CHECK after graph phase decisions, not an earlier collection
-event. Independently altered defaults/checks can therefore preserve different
-recipes for the same pair without simultaneous conflicting declarations.
-Methods, routine signatures/adapters and original contexts survive; the authentic
-final cast is installed once after all historical windows. No temporary row
-survives replacement. Omitted routine argument defaults bind in their own
-declaration; they do not create false conflicts in later calls.
-`ReplayPhases` covers a self-table-dependent default, post-data table/domain
-NOT VALID checks and a SQL-standard routine's retained IO. `ReplayConflicts`
-covers historical array defaults, valid table/domain CHECKs, unchanged validity,
-nondefault bounds, nonstrict NULLs and simple CASE versus a fresh replacement
-edge. Both replay the actual native-emitted SQL on PostgreSQL when enabled and
-require late-invalid/canceled native replacement to preserve installed state.
-Local checks on an inherited leaf use real ALTER TABLE ONLY, keeping conislocal,
-coninhcount and the original connoinherit flag intact. NO INHERIT checks never
-propagate; inheritable local checks use the same bounded leaf path, not recursive
-replay or a synthesized inherited constraint.
-An inheritable CHECK owned by a parent with descendants instead uses the existing
-real recursive ADD CHECK executor. All affected declarations precede it and all
-affected rows follow it; replay requires a fresh constraint name throughout the
-closure, preserving inherited counts/locality through normal propagation rather
-than introducing a second inheritance reconstruction mechanism.
-Independently added generated columns with different retained cast epochs reuse
-the existing typed-NULL declaration placeholders and genuine SET EXPRESSION
-recipe replay. Each attribute owns its own window before CHECKs/data; the existing
-inheritance-component planner supplies connected placeholders when necessary.
-Stored/generated identity, kind and values remain ordinary catalog state.
+- It accepts only the statements Dump produces (declarations, data, owner
+  directives, sequence state); it is not a general SQL script runner, and
+  parameters are rejected.
+- Roles referenced by owner directives and `regrole` values must already exist in
+  the target engine (`regrole` is dumped by name). Provision them before restoring
+  into another Driver.
+- Any read, parse, execution or cancellation error leaves the target unchanged.
+- Foreign data wrappers referenced by the dump need matching registrations on the
+  target Driver (see [DRIVER.md](DRIVER.md#foreign-data-wrappers)).
+- Commit timestamp history is cleared by Reset and Restore; the startup
+  `track_commit_timestamp` mode is kept.
