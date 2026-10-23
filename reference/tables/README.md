@@ -304,6 +304,71 @@ registered reader; each Iterate executes finite source SQL FETCH and owns no
 first-request Rows/context across logical cursor requests. PostgreSQL uses actual
 postgres_fdw loopback over committed source tables. Neither path uses canned rows.
 
+`TestReferenceFDWImportAtomicity` runs three serial, cohesive cases, each owning
+its own configured fixture with the unchanged 30-second work budget:
+`collision-and-rollback` retains collision recovery followed by real
+BEGIN/IMPORT/ROLLBACK on the same connection; `later-validator` retains ordinary
+QueryContext identity/nil Rows followed by exact typed ExecContext diagnostics
+in the same reader lifetime; `unsupported-source` retains the actual integer-z
+to enum-z source transition and ordinary codec rejection. The Go callback-only
+suffixes remain explicitly native-only. Both modes check real source definitions
+and data survive; native checks inspect actual source Rows/ColumnTypes/Scan/Err/
+Close, while target and PostgreSQL reads retain full recorded Select assertions.
+Each validator attempt independently reaches later z, queries the peer catalog,
+and observes zero publication before rejecting. Context errors remain ordinary,
+never translated into the expected22023 diagnostic.
+
+FDW child teardown owns one independent bounded 15-second context, rather than
+borrowing an expired work context. It uses the same physical connection for
+ROLLBACK, RESET ROLE and the original nine-command cleanup sequence; every error
+is reported, then Conn.Close is checked. Child-owned Rows/statements/callbacks/
+workers must finish first, followed by FDW SQL cleanup, connection return, Pair
+pools, source pool and schema/role cleanup. `TestReferenceFDWFixtureCleanupLifetime`
+creates real objects, a limited-role transaction and an uncommitted row, observes
+ordinary cancellation through `DB.Conn` on a canceled derived phase, then invokes
+the same teardown and requires restored owner, rolled-back data, absent objects
+and same-connection reuse under the still-live work context. This does not impose
+a native canceled-Exec policy on lib/pq, which may retire its driver connection.
+
+The shared FDW helper affects54 existing top-level definitions (44 distinct
+fdwScenario consumers, ten fdwWriteScenario consumers; the direct persistence
+graph is already counted), plus the cleanup regression. Select all complete
+definitions, including native suffixes, in pinned18.6 UTF8/C mode first, native
+mode, and native race mode. These are required proof commands, not recorded
+passing results; every command has an external900-second deadline:
+
+```sh
+A='^TestReferenceFDW(Registration|Validator|Concurrency|NativeControls|Conversion|CursorLifecycle|Lifecycle|LocalConsumers|LateDependencies)$'
+B='^TestReferenceFDW(Import|ImportAtomicity|ImportDefinitions|ImportPrepared|ImportOptions|ImportPermissions|ImportCancellation|ImportMalformedDefinitions|ImportPersistence|ImportDefaultPersistence|ImporterCapability|FixtureCleanupLifetime)$'
+C='^TestReferenceFDW(MetadataLifecycle|OptionsAtomicity|Diagnostics|Transactions|Dependencies|GrantDiagnostics|MetadataActions|WrapperAlterBoundaries|ObjectGrantCleanup|ObjectGrants|RoutineGrants)$'
+D='^TestReference(FDW(Security|MappingSelection|MappingOwnership|SourceSecurity|MissingSupport|Scan|ProjectionTypes|LocalRechecks|Rescan|PreparedIdentity)|PGUserMapping(Shape|Metadata|Security))$'
+E='^TestReferenceFDWWrite(Actions|Identity|Returning|Batch|Copy|Truncate|Transactions|Constraints|Diagnostics|Consumers)$'
+for selector in "$A" "$B" "$C" "$D" "$E"; do
+  timeout --signal=KILL 900s make check RUN="$selector" REFERENCE=1 || exit "$?"
+  timeout --signal=KILL 900s make check RUN="$selector" || exit "$?"
+  timeout --signal=KILL 900s make check RUN="$selector" RACE=1 || exit "$?"
+done
+```
+
+Feature evidence additionally uses the complete session-only public-API program
+`fdw-resilience-smoke.go`, resolved to an absolute source path:
+`timeout --signal=KILL 900s go run "$FDW_RESILIENCE_SMOKE_GO"`.
+It genuinely discovers source SQL definitions, exercises all three cases with
+distinct source values, checks full diagnostics/nil outputs/source survival and
+actual holder counts, then performs checked independent cleanup. It is not a
+test wrapper or canned provider. The session-only `fdw-resilience-cohorts.go`
+supervisor runs exactly ten attempts: reference then native, each with one normal,
+single-GOMAXPROCS, eight-worker load, single-GOMAXPROCS plus load, and joined-worker
+postcontention baseline; no repeat/retry knob. Each pairs the complete selected
+definition with the real smoke. Worker lifetime is bounded600seconds inside each
+900-second envelope, with cancellation/termination/reap on every exit. Retain
+actual case/backend/SQL/import/peer timing overlap and advancing CPU counters,
+not just compilation overlap, and preserve failures. Session attribution tracing
+is temporary, not shipped test infrastructure; final settled selected proof and
+whole quickcheck run without it. Finite load evidence is not proof against
+arbitrary scheduler starvation, and the historical deadline's precise cause
+remains an inference rather than a reproduced measurement.
+
 `pg_user_mapping_test.go` adds focused exact raw-catalog shape, identity/options
 and disclosure witnesses. The four attributes are OID/OID/OID/TEXT[]; only options
 are nullable, PUBLIC has role OID0, and no-options SQL NULL differs from an

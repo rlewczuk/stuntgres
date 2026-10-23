@@ -1,9 +1,11 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"testing"
+	"time"
 
 	"github.com/ngrok/sqlmw"
 
@@ -51,17 +53,30 @@ func fdwConfiguredGraphScenario(t *testing.T, writable, graph bool, body func(*t
 			if err != nil {
 				t.Fatal(err)
 			}
-			t.Cleanup(func() { c.Close() })
 			t.Cleanup(func() {
-				for _, q := range []string{"ROLLBACK", "RESET ROLE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_meta CASCADE", "DROP SERVER IF EXISTS fdw_live CASCADE", "DROP SERVER IF EXISTS fdw_second CASCADE", "DROP SERVER IF EXISTS fdw_truncate_second CASCADE", "DROP SERVER IF EXISTS fdw_readonly CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_readonly_wrapper CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_native CASCADE"} {
-					if _, err := c.ExecContext(p.Ctx, q); err != nil {
-						t.Errorf("cleanup %s: %v", q, err)
-					}
+				if err := c.Close(); err != nil {
+					t.Errorf("FDW connection close: %v", err)
 				}
+			})
+			t.Cleanup(func() {
+				fdwCleanup(t, c)
 			})
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 			body(t, p, b, c, reader, run)
 		})
+	}
+}
+
+// Teardown owns a bounded lifetime independent of failed or canceled case work.
+// Roll back and reset the same physical connection before removing its objects.
+func fdwCleanup(t *testing.T, c *sql.Conn) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	for _, q := range []string{"ROLLBACK", "RESET ROLE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_meta CASCADE", "DROP SERVER IF EXISTS fdw_live CASCADE", "DROP SERVER IF EXISTS fdw_second CASCADE", "DROP SERVER IF EXISTS fdw_truncate_second CASCADE", "DROP SERVER IF EXISTS fdw_readonly CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_readonly_wrapper CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_native CASCADE"} {
+		if _, err := c.ExecContext(ctx, q); err != nil {
+			t.Errorf("cleanup %s: %v", q, err)
+		}
 	}
 }
 

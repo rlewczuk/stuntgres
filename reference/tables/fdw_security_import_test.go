@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
 	"testing"
 
 	"stuntgres"
@@ -87,76 +88,195 @@ func TestReferenceFDWImport(t *testing.T) {
 }
 
 func TestReferenceFDWImportAtomicity(t *testing.T) {
-	fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, reader *fdwSQLReader, run func(fixture.Step)) {
+	setup := func(t *testing.T, p *fixture.Pair, b fixture.Backend, reader *fdwSQLReader, run func(fixture.Step)) {
+		t.Helper()
 		fdwLive(t, p, b, reader, run)
 		run(fixture.Exec("CREATE SCHEMA fdw_import", 0))
 		fdwSourceExec(t, p, b, reader, run, "CREATE TABLE fdw_source.a(id integer)", 0)
 		fdwSourceExec(t, p, b, reader, run, "CREATE TABLE fdw_source.z(id integer)", 0)
-		run(fixture.Exec("CREATE TABLE fdw_import.z(id integer)", 0))
-		collision := fdwDiagnostic("42P07", `relation "z" already exists`)
-		collision.Context = `importing foreign table "z"`
-		run(fixture.ErrorDiagnostic("IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import", collision))
-		run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relname='a'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		run(fixture.Exec("DROP TABLE fdw_import.z", 0))
-		run(fixture.Exec("BEGIN", 0))
-		run(fixture.Exec("IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import", 0))
-		run(fixture.Exec("ROLLBACK", 0))
-		run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		if b.PG {
-			return
-		}
-		failure := errors.New("actual imported table validator rejected z")
-		rejected := false
-		reader.mu.Lock()
-		reader.validateHook = func(ctx context.Context, kind stuntgres.ForeignObjectKind, options []stuntgres.ForeignOption) error {
-			if kind == stuntgres.ForeignTable {
-				for _, option := range options {
-					if option.Name == "table_name" && option.Value == "z" {
-						var visible int
-						if err := p.Native.QueryRowContext(ctx, "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'").Scan(&visible); err != nil {
-							return err
+	}
+	t.Run("collision-and-rollback", func(t *testing.T) {
+		fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, reader *fdwSQLReader, run func(fixture.Step)) {
+			setup(t, p, b, reader, run)
+			run(fixture.Exec("CREATE TABLE fdw_import.z(id integer)", 0))
+			collision := fdwDiagnostic("42P07", `relation "z" already exists`)
+			collision.Context = `importing foreign table "z"`
+			run(fixture.ErrorDiagnostic("IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import", collision))
+			run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relname='a'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			fdwImportSourceSurvives(t, p, b, reader, run, false)
+			run(fixture.Exec("DROP TABLE fdw_import.z", 0))
+			run(fixture.Exec("BEGIN", 0))
+			run(fixture.Exec("IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import", 0))
+			run(fixture.Exec("ROLLBACK", 0))
+			run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			fdwImportSourceSurvives(t, p, b, reader, run, false)
+		})
+	})
+	t.Run("later-validator", func(t *testing.T) {
+		fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, reader *fdwSQLReader, run func(fixture.Step)) {
+			setup(t, p, b, reader, run)
+			run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			fdwImportSourceSurvives(t, p, b, reader, run, false)
+			if b.PG {
+				return
+			}
+			sentinel := errors.New("actual imported table validator rejected z")
+			var failure error = sentinel
+			rejected := false
+			reader.mu.Lock()
+			reader.validateHook = func(ctx context.Context, kind stuntgres.ForeignObjectKind, options []stuntgres.ForeignOption) error {
+				if kind == stuntgres.ForeignTable {
+					for _, option := range options {
+						if option.Name == "table_name" && option.Value == "z" {
+							var visible int
+							if err := p.Native.QueryRowContext(ctx, "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'").Scan(&visible); err != nil {
+								return err
+							}
+							if visible != 0 {
+								return errors.New("import published an earlier table before all validations")
+							}
+							rejected = true
+							return failure
 						}
-						if visible != 0 {
-							return errors.New("import published an earlier table before all validations")
-						}
-						rejected = true
-						return failure
 					}
 				}
+				return ctx.Err()
 			}
-			return ctx.Err()
-		}
-		reader.mu.Unlock()
-		defer func() { reader.mu.Lock(); reader.validateHook = nil; reader.mu.Unlock() }()
-		before := reader.snapshot()
-		fdwHostQueryError(t, p.Ctx, c, "IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import", failure)
-		fdwReleased(t, reader, before, 0)
-		if !rejected {
-			t.Fatal("real later imported definition did not reach validator")
-		}
-		run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		failure = &stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "SQL reader rejects imported z", Context: "provider validation"}
-		validatorDiagnostic := fdwDiagnostic("22023", "SQL reader rejects imported z")
-		validatorDiagnostic.Context = "provider validation\n" + `importing foreign table "z"`
-		before = reader.snapshot()
-		run(fixture.ErrorDiagnostic("IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import", validatorDiagnostic))
-		fdwReleased(t, reader, before, 0)
-		run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		reader.mu.Lock()
-		reader.validateHook = nil
-		reader.mu.Unlock()
-		// The concrete reader rejects source types that its public codec metadata
-		// cannot name. It must not invent a target type or a catalog fallback.
-		fdwSourceExec(t, p, b, reader, run, "DROP TABLE fdw_source.z", 0)
-		fdwSourceExec(t, p, b, reader, run, "CREATE TYPE fdw_source.fdw_enum AS ENUM('source')", 0)
-		fdwSourceExec(t, p, b, reader, run, "CREATE TABLE fdw_source.z(id fdw_source.fdw_enum)", 0)
-		const unsupportedType = `SQL reader cannot import source type ""`
-		before = reader.snapshot()
-		_, err := c.ExecContext(p.Ctx, "IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import")
-		fixture.TransactionOrdinary(t, err, unsupportedType)
-		fdwReleased(t, reader, before, 0)
-		run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			reader.mu.Unlock()
+			defer func() { reader.mu.Lock(); reader.validateHook = nil; reader.mu.Unlock() }()
+			before := reader.snapshot()
+			ordinary := fdwHostQueryError(t, p.Ctx, c, "IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import", failure)
+			fixture.TransactionOrdinary(t, ordinary, sentinel.Error())
+			fdwReleased(t, reader, before, 0)
+			if !rejected {
+				t.Fatal("real later imported definition did not reach validator")
+			}
+			run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			fdwImportSourceSurvives(t, p, b, reader, run, false)
+			typed := &stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "SQL reader rejects imported z", Context: "provider validation"}
+			failure = typed
+			rejected = false
+			validatorDiagnostic := fdwDiagnostic("22023", "SQL reader rejects imported z")
+			validatorDiagnostic.Context = "provider validation\n" + `importing foreign table "z"`
+			before = reader.snapshot()
+			run(fixture.ErrorDiagnostic("IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import", validatorDiagnostic))
+			fdwReleased(t, reader, before, 0)
+			if !rejected {
+				t.Fatal("typed later imported definition did not reach validator")
+			}
+			if typed.Context != "provider validation" || sentinel.Error() != "actual imported table validator rejected z" {
+				t.Fatal("import mutated the original validator error")
+			}
+			run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			fdwImportSourceSurvives(t, p, b, reader, run, false)
+			reader.mu.Lock()
+			reader.validateHook = nil
+			reader.mu.Unlock()
+		})
 	})
+	t.Run("unsupported-source", func(t *testing.T) {
+		fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, reader *fdwSQLReader, run func(fixture.Step)) {
+			setup(t, p, b, reader, run)
+			run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			fdwImportSourceSurvives(t, p, b, reader, run, false)
+			if b.PG {
+				return
+			}
+			// Keep the genuine integer-to-enum source transition. The reader
+			// cannot name this source codec and must not invent a target type.
+			fdwSourceExec(t, p, b, reader, run, "DROP TABLE fdw_source.z", 0)
+			fdwSourceExec(t, p, b, reader, run, "CREATE TYPE fdw_source.fdw_enum AS ENUM('source')", 0)
+			fdwSourceExec(t, p, b, reader, run, "CREATE TABLE fdw_source.z(id fdw_source.fdw_enum)", 0)
+			const unsupportedType = `SQL reader cannot import source type ""`
+			before := reader.snapshot()
+			result, err := c.ExecContext(p.Ctx, "IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(a,z) FROM SERVER fdw_live INTO fdw_import")
+			if result != nil {
+				t.Fatal("failed unsupported-source import published a Result")
+			}
+			fixture.TransactionOrdinary(t, err, unsupportedType)
+			fdwReleased(t, reader, before, 0)
+			run(fixture.Select("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fdw_import' AND c.relkind='f'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			fdwImportSourceSurvives(t, p, b, reader, run, true)
+		})
+	})
+}
+
+func fdwImportSourceSurvives(t *testing.T, p *fixture.Pair, b fixture.Backend, reader *fdwSQLReader, run func(fixture.Step), enum bool) {
+	t.Helper()
+	zType, zSchema := "int4", "pg_catalog"
+	if enum {
+		zType, zSchema = "fdw_enum", "fdw_source"
+	}
+	steps := []fixture.Step{
+		fixture.Select("SELECT c.relname,a.attname,t.typname,tn.nspname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid JOIN pg_type t ON t.oid=a.atttypid JOIN pg_namespace tn ON tn.oid=t.typnamespace WHERE n.nspname='fdw_source' AND c.relname IN ('a','z') AND a.attnum>0 AND NOT a.attisdropped ORDER BY c.relname,a.attnum", []string{"relname", "attname", "typname", "nspname"}, []string{"NAME", "NAME", "NAME", "NAME"}, [][]any{{"a", "id", "int4", "pg_catalog"}, {"z", "id", zType, zSchema}}),
+		fixture.Select("SELECT id FROM fdw_source.a", []string{"id"}, []string{"INT4"}, nil),
+		fdwRows("SELECT id,label,flag FROM fdw_source.data ORDER BY id", [][]any{{int64(1), "one", true}, {int64(2), nil, false}, {int64(3), "three", nil}}),
+	}
+	if !enum {
+		steps = append(steps, fixture.Select("SELECT id FROM fdw_source.z", []string{"id"}, []string{"INT4"}, nil))
+	} else {
+		// The actual public codec name is empty, not an invented enum name.
+		steps = append(steps, fixture.Select("SELECT id FROM fdw_source.z", []string{"id"}, []string{""}, nil))
+	}
+	for _, step := range steps {
+		if b.PG {
+			run(step)
+			continue
+		}
+		fdwImportSourceRows(t, p.Ctx, reader, step)
+	}
+}
+
+// The independent native source has no recording middleware. Inspect its actual
+// public Rows directly under the existing work context; target reads still use
+// the original full RunStep/raw/metadata/middleware route.
+func fdwImportSourceRows(t *testing.T, ctx context.Context, reader *fdwSQLReader, step fixture.Step) {
+	t.Helper()
+	rows, err := reader.source.QueryContext(ctx, step.Query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	columns, err := rows.Columns()
+	if err != nil || !reflect.DeepEqual(columns, step.Columns) {
+		t.Fatalf("source columns=%v error=%v want=%v", columns, err, step.Columns)
+	}
+	types, err := rows.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualTypes := make([]string, len(types))
+	for i, typ := range types {
+		actualTypes[i] = typ.DatabaseTypeName()
+	}
+	if !reflect.DeepEqual(actualTypes, step.Types) {
+		t.Fatalf("source types=%v want=%v", actualTypes, step.Types)
+	}
+	var values [][]any
+	for rows.Next() {
+		row := make([]any, len(columns))
+		dest := make([]any, len(row))
+		for i := range row {
+			dest[i] = &row[i]
+		}
+		if err := rows.Scan(dest...); err != nil {
+			t.Fatal(err)
+		}
+		values = append(values, row)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(values, step.Rows) {
+		t.Fatalf("source rows=%#v want=%#v", values, step.Rows)
+	}
 }
 
 func TestReferenceFDWMissingSupport(t *testing.T) {

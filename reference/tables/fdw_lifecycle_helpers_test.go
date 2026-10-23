@@ -47,7 +47,7 @@ func fdwReleased(t *testing.T, r *fdwSQLReader, before fdwReaderState, begins in
 	}
 	return after
 }
-func fdwHostQueryError(t *testing.T, ctx context.Context, c *sql.Conn, q string, want error) {
+func fdwHostQueryError(t *testing.T, ctx context.Context, c *sql.Conn, q string, want error) error {
 	t.Helper()
 	rows, err := c.QueryContext(ctx, q)
 	if rows != nil {
@@ -57,6 +57,7 @@ func fdwHostQueryError(t *testing.T, ctx context.Context, c *sql.Conn, q string,
 	if !errors.Is(err, want) {
 		t.Fatalf("%s got %v want %v", q, err, want)
 	}
+	return err
 }
 
 // Reuse one mutable byte buffer for real SQL TEXT cells, including across
