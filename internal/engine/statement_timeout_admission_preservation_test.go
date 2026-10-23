@@ -216,7 +216,7 @@ func TestStatementTimeoutAdmissionAuthority(t *testing.T) {
 			if kind == "nonmember" {
 				defer func() { sess.Mu.Lock(); sess.Operations[op] = struct{}{}; sess.Mu.Unlock() }()
 			}
-			want := target.transactionAuthority(op)
+			want := session.TransactionAuthority(domainOf(target), op)
 			scope, err := target.StartStatement(op)
 			if scope != nil || err == nil || want == nil || err.Error() != want.Error() || errors.Is(err, context.Canceled) {
 				t.Fatal("invalid authority lost precedence to own cause", scope, err, want)

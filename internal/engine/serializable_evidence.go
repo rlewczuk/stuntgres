@@ -61,23 +61,5 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 // Rollback restores surviving identity evidence only, never graph edges,
 // predicates, doom or attempted-write history. Engine.mu and owner.mu held.
 func (e *Engine) reconcileSerializableWritesLocked(t *session.TransactionOwner) {
-	e.visibility.ReconcileSerializableWritesLocked(t.Ref, func(address ids.ObjectAddress, event visibility.SerializableWrite) bool {
-		if event.Rewrite {
-			return t.Catalog != nil && t.Catalog.Storage[address].Rewritten
-		}
-		if event.Deletion {
-			root := t.Deletes[address]
-			if root == nil {
-				return false
-			}
-			candidate, ok := root.Rows[event.Row]
-			return ok && candidate.Version == event.Base
-		}
-		for _, row := range t.Writes[address] {
-			if row.Version == event.Version {
-				return true
-			}
-		}
-		return false
-	})
+	e.visibility.ReconcileSerializableWritesLocked(t.Ref, t.SerializableWriteSurvives)
 }

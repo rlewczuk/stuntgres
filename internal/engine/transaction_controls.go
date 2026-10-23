@@ -20,35 +20,12 @@ const (
 	controlExecuted
 )
 
-// Membership is transaction admission authority, not numeric/session identity.
-// Context remains a separate check: an accepted Go commit canceled after
-// admission must retain its existing failed-end/discard disposition.
-func (e *Engine) transactionAuthority(op *session.Operation) error {
-	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domainOf(e) {
-		return errors.New("stuntgres: foreign or missing operation")
-	}
-	sess := op.Session
-	sess.Mu.Lock()
-	defer sess.Mu.Unlock()
-	if op.Released || sess.State != session.Live {
-		if sess.Timeouts.Fatal != nil {
-			copy := *sess.Timeouts.Fatal
-			return &copy
-		}
-		return errors.New("stuntgres: inactive operation")
-	}
-	if _, ok := sess.Operations[op]; !ok {
-		return errors.New("stuntgres: inactive operation")
-	}
-	return nil
-}
-
 // Entry admission checks the caller context only after structural membership.
 // Begin, Rollback and statement admission reject cancellation without mutation.
 // Native Commit deliberately admits cancellation to dispose its valid old
 // incarnation, preserving the established failed-commit contract.
 func (e *Engine) transactionAdmission(op *session.Operation) error {
-	if err := e.transactionAuthority(op); err != nil {
+	if err := session.TransactionAuthority(domainOf(e), op); err != nil {
 		return err
 	}
 	return op.Context().Err()
@@ -116,7 +93,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		e.endLockOwner(candidate)
 		e.endLockOwner(old)
 	}()
-	if err := e.transactionAuthority(op); err != nil {
+	if err := session.TransactionAuthority(domainOf(e), op); err != nil {
 		return EndResult{}, err
 	}
 	if err := t.Validate(ref); err != nil {

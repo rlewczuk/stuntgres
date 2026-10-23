@@ -244,6 +244,31 @@ func ValidateOperation(domain *ids.Domain, op *Operation) error {
 	}
 	return op.FatalErrorLocked(op.Ctx.Err())
 }
+
+// TransactionAuthority checks that op belongs to domain and is a live member
+// of its live session. Membership is transaction admission authority, not
+// numeric/session identity. Context remains a separate check: an accepted Go
+// commit canceled after admission must retain its existing failed-end/discard
+// disposition.
+func TransactionAuthority(domain *ids.Domain, op *Operation) error {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain {
+		return errors.New("stuntgres: foreign or missing operation")
+	}
+	sess := op.Session
+	sess.Mu.Lock()
+	defer sess.Mu.Unlock()
+	if op.Released || sess.State != Live {
+		if sess.Timeouts.Fatal != nil {
+			copy := *sess.Timeouts.Fatal
+			return &copy
+		}
+		return errors.New("stuntgres: inactive operation")
+	}
+	if _, ok := sess.Operations[op]; !ok {
+		return errors.New("stuntgres: inactive operation")
+	}
+	return nil
+}
 func nilResource(owner SessionResource) bool {
 	if owner == nil {
 		return true

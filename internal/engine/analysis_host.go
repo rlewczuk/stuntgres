@@ -228,7 +228,7 @@ func (h *bindingHost) CaptureEnumOperationSafety(input *sqltype.InputEnvironment
 	captureEnumOperationSafety(h.op, input)
 }
 
-func (h *bindingHost) FTSInput() sqltype.FTSInputNotices { return capturedFTSInput{op: h.op} }
+func (h *bindingHost) FTSInput() sqltype.FTSInputNotices { return session.FTSInput{Op: h.op} }
 
 func (h *bindingHost) StoredViewVolatile(auth analyze.Authority, root plan.Node) (bool, error) {
 	return stored.ViewVolatile(auth.ReadCatalog(), root)

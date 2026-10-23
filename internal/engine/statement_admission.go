@@ -30,7 +30,7 @@ func (e *Engine) finishStatementAdmissionError(op *session.Operation, err error,
 		t.Admission.Lock()
 	}
 	defer t.Admission.Unlock()
-	if authorityErr := e.transactionAuthority(op); authorityErr != nil {
+	if authorityErr := session.TransactionAuthority(domainOf(e), op); authorityErr != nil {
 		return authorityErr
 	}
 	// A canceled waiter never owns the live COPY operation's disposal.

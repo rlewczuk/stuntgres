@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -12,7 +13,7 @@ func (s *StatementScope) captureFormalInputLocked(auth AuthorizationView, types 
 	e, op := s.engine(), s.op
 	for _, usage := range types {
 		if sqltype.IsFTS(usage.Type.BaseType().ID()) && s.input.FTS == nil {
-			s.input.FTS = capturedFTSInput{op: op}
+			s.input.FTS = session.FTSInput{Op: op}
 		}
 		if usage.Type.ContainsRegclass() && s.input.Regclass == nil {
 			s.input.Regclass, err = e.captureRegclassInput(auth)

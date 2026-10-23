@@ -27,39 +27,9 @@ func syncCharacteristics(t *session.TransactionOwner) {
 	e.mu.Unlock()
 }
 func assignModes(t *session.TransactionOwner, modes []parser.TransactionMode) error {
-	isolation, readOnly, deferrable := t.Isolation, t.ReadOnly, t.Deferrable
-	for _, mode := range modes {
-		if mode.Isolation != parser.IsolationDefault {
-			next := session.Isolation(mode.Isolation)
-			if t.SnapshotSet && next != isolation {
-				return sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
-			}
-			if len(t.Savepoints) != 0 && next != isolation {
-				return sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must not be called in a subtransaction")
-			}
-			isolation = next
-		}
-		if mode.AccessSet {
-			if len(t.Savepoints) != 0 && readOnly && !mode.ReadOnly {
-				return sqlError("25001", "cannot set transaction read-write mode inside a read-only transaction")
-			}
-			if t.SnapshotSet && readOnly && !mode.ReadOnly {
-				return sqlError("25001", "transaction read-write mode must be set before any query")
-			}
-			readOnly = mode.ReadOnly
-		}
-		if mode.DeferrableSet {
-			if len(t.Savepoints) != 0 {
-				return sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE cannot be called within a subtransaction")
-			}
-			if t.SnapshotSet {
-				return sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE must be called before any query")
-			}
-			deferrable = mode.Deferrable
-		}
+	if err := t.AssignModes(modes); err != nil {
+		return err
 	}
-	t.Isolation, t.ReadOnly = isolation, readOnly
-	t.Deferrable = deferrable
 	syncCharacteristics(t)
 	return nil
 }
@@ -77,31 +47,11 @@ func (e *Engine) applyCurrentCharacteristic(op *session.Operation, d settings.De
 	if err := e.endPreflight(op); err != nil {
 		return "", err
 	}
-	mode := parser.TransactionMode{}
-	if d.Name == "transaction_isolation" {
-		mode.Isolation = parser.TransactionIsolation(session.IsolationFromText(d.Format(value)))
-	} else if d.Name == "transaction_deferrable" {
-		mode.DeferrableSet, mode.Deferrable = true, d.Format(value) == "on"
-	} else {
-		mode.AccessSet = true
-		mode.ReadOnly = d.Format(value) == "on"
-	}
+	mode := session.CharacteristicMode(d.Name, d.Format(value))
 	if err := assignModes(t, []parser.TransactionMode{mode}); err != nil {
 		return "", err
 	}
-	if d.Name == "transaction_isolation" {
-		return session.IsolationText(t.Isolation), nil
-	}
-	if d.Name == "transaction_deferrable" {
-		if t.Deferrable {
-			return "on", nil
-		}
-		return "off", nil
-	}
-	if t.ReadOnly {
-		return "on", nil
-	}
-	return "off", nil
+	return t.Characteristic(d.Name), nil
 }
 func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacteristics, count int) (Result, error) {
 	if count != 0 {

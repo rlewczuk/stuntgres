@@ -55,7 +55,7 @@ func (e *Engine) captureEnumOperationInput(auth AuthorizationView, input *sqltyp
 
 func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *session.Operation, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
 	if sqltype.IsFTS(typ.BaseType().ID()) && input.FTS == nil {
-		input.FTS = capturedFTSInput{op: op}
+		input.FTS = session.FTSInput{Op: op}
 	}
 	if typ.ContainsACLItem() && input.ACLItem == nil {
 		input.ACLItem = e.captureACLItemInput(auth, op)
