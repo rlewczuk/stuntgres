@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
@@ -52,11 +53,11 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	stage.mu.Lock()
 	_, err := stage.remapPreparedCatalog(candidate, e.roles.read(e.catalog.owner(), e.catalog.read(next), roles), stage.roles.read(stage.catalog.owner(), stage.catalog.read(stage.catalog.state), stage.roles.published), nil)
 	if err == nil {
-		// remapCatalogExpressions targets the next epoch. Preserve final numeric
+		// ReownExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
 		stage.catalog.state = catalog.CloneState(stage.catalog.state)
 		stage.catalog.state.SetEpoch(candidate.Epoch() - 1)
-		err = stage.remapCatalogExpressions(candidate, nil)
+		err = stored.ReownExpressions(stage.catalog.read(candidate), candidate, nil, false)
 	}
 	if err == nil {
 		stage.catalog.state = candidate

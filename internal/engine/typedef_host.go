@@ -82,7 +82,7 @@ func (h ddlHost) BindDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.
 }
 
 func (h ddlHost) BindDomainConstraints(a ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	return h.e.bindDomainConstraints(h.op, ddlAuthorityOf(a), h.stage, d, raw, input)
+	return h.e.bindDomainConstraintDefinitions(h.op.Context(), h.op, ddlAuthorityOf(a), h.stage, d, raw, input)
 }
 
 func (h ddlHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name string) (bool, error) {

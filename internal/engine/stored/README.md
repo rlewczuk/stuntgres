@@ -220,9 +220,9 @@ type descriptors alone does not authorize cross-ID scalar values.
 
 ## What stays in the engine
 
-- View, rule and policy DDL entry points (decisions in `view`) and
-  `remapCatalogExpressions` (`catalog_expression_reown.go`), the Restore entry
-  that calls `ReownExpressions`. The imported rule OID remap is
+- View, rule and policy DDL entry points (decisions in `view`) and the
+  Restore calls of `ReownExpressions` (`temporary_preservation.go`,
+  `generated_replacement.go`). The imported rule OID remap is
   `control.RemapViewRuleOIDs`.
 - Host forwarders into this package: the `analyze.Host` methods
   `MapBoundExpression`, `MapBoundQueryExpression`, `StoredViewVolatile`,

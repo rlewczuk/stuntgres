@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -556,7 +557,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	target := New()
 	next := catalog.CloneState(f.e.catalog.state)
 	next.SetEpoch(target.catalog.state.Epoch() + 1)
-	if err := target.remapCatalogExpressions(next, nil); err != nil {
+	if err := stored.ReownExpressions(target.catalog.read(next), next, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	remapped := next.MustRelation(f.index.Address()).SQLIndex.Predicate

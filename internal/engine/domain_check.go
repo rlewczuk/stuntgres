@@ -21,10 +21,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) bindDomainConstraints(op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	return e.bindDomainConstraintDefinitions(op.Context(), op, auth, stage, d, raw, input)
-}
-
 func (e *Engine) bindDomainConstraintDefinitions(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	used := catalog.ConstraintNames(auth.Catalog, d.ObjectNamespace, nil)
 	installed := make(map[string]bool)
