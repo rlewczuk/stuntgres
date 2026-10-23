@@ -49,10 +49,11 @@ evaluates with (`ActingAs` gives the referencing table owner's); the engine's
 
 `Command` (`command.go`) is the active command's DML state grouped by owner
 (`Indexes`, `Insert`, `Partition`, `InheritedTargets`, `ViewWrite`, `RLS`), plus
-target refs, storage, capture source, the INSERT write overlay and partition
-insertion groups. The engine embeds it by value in its per-command mutation, so
-writable CTEs, rules and SQL routines swap it whole. `Insert.CopyFrom` points at
-the single `CopyFromState`; ordinary INSERT has none.
+target refs, storage, capture source, the INSERT write overlay and insertion
+groups. Partition routing capture is shared by INSERT/COPY/UPDATE; only physical
+mutation leaves enter a data view. The engine embeds the command by value in its
+per-command mutation, so writable CTEs, rules and SQL routines swap it whole.
+`Insert.CopyFrom` points at the single `CopyFromState`; ordinary INSERT has none.
 
 ## Entry points
 
@@ -96,6 +97,15 @@ Package-internal helpers keep lower-case names.
   physical-to-named layout and copies finalized values by index into a private
   buffer, never into scratch still borrowed by OLD evaluation or RETURNING. No
   row matches columns by name or builds a second layout.
+- Partition UPDATE evaluates source generations before deciding membership.
+  Staying rows use source constraints and `ReplaceRows`; departing rows route
+  only within the named target, then use destination INSERT constraints/indexes.
+  A move takes a delete-strength grant and passes the original captured deletion
+  identity to `Delete`, which refreshes the current predecessor internally.
+  `ApplyValidated` stages the fresh destination identity in the same write stage;
+  INSERT/COPY groups are not UPDATE batches. Only Finish publishes the pair.
+  Committed movement end markers distinguish concurrent movement from ordinary
+  deletion without following a destination row.
 - COPY FROM runs omitted defaults before rejection/limit admission; the shared
   post-default stage rejects or filters before generation, routing and
   constraints. Reached DEFAULT markers execute exactly once, in COPY-list order.
@@ -151,8 +161,9 @@ cancellation. Allocation guards: `BenchmarkInsertConflictCommittedOmissions`,
 `TestUpdateCoreSparseAllocation`. Public behavior lives in
 [`reference/dml`](../../../reference/dml/README.md#testing).
 
-Frame name matched by tests: the range and list partition publication tests
-cancel at the `dml.ApplyInsertValidated` frame; renaming it breaks them.
+Frame names matched by tests: range/list publication tests cancel at
+`dml.ApplyInsertValidated`; partition UPDATE publication cancels at
+`dml.ApplyValidated` after source deletion. Renaming these breaks the probes.
 
 ```sh
 make check RUN='^Test(InsertConflict(Predicate|Truth)|DMLTargetAdmission$$|CTEDMLInvocationOwnership$$)'
@@ -160,6 +171,7 @@ make check RUN='^TestStatementHost'
 make check RUN='^Test(UpdateCore|UpdateFrom|UpdateRow|MergeNothing|InsertConflictUpdate|InsertReturning)'
 make check RACE=1 RUN='^Test(Unique|Exclusion|InsertConflict)'
 make check RACE=1 RUN='^Test(Range|List)PartitionPublication'
+make check RACE=1 RUN='^TestPartitionRouting(Capture|Publication|LatestRow)'
 make check RUN='^Test(ForeignActions|ForeignKey)'
 make check RUN='^Test(RLSRoutedProposalLayout|CopyFilter(RowAdmission|InputProvenance|FinishVeto)|ProtocolCopyCancellationContext)$$'
 ```

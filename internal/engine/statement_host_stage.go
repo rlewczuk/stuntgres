@@ -237,6 +237,18 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.Ref.Epoch() {
 		return false, ids.ErrCatalogReplaced
 	}
+	if _, update := s.statement.(*parser.Update); update && s.PartitionInsert != nil {
+		if err := s.validateLockedRelation(e); err != nil {
+			return false, err
+		}
+		store := s.mutationStorage(ref)
+		if store == nil || store != e.privateStorageLocked(s.owner.Catalog, ref.Address) || s.view == nil || s.view.Data().GenerationAt(ref.Address) != store {
+			return false, ids.ErrCatalogReplaced
+		}
+		if !e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive) {
+			return false, errors.New("stuntgres: routed update requires its destination grant")
+		}
+	}
 	if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
 		return false, errors.New("stuntgres: relation storage is missing")
 	}

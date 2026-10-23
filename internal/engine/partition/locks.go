@@ -40,8 +40,6 @@ func ConsumerBoundary(statement parser.Statement, d *catalog.Relation, replayAll
 	}
 	message := ""
 	switch s := statement.(type) {
-	case *parser.Update:
-		message = "updating partition hierarchies is unsupported"
 	case *parser.Delete:
 		message = "deleting from partition hierarchies is unsupported"
 	case *parser.Select:

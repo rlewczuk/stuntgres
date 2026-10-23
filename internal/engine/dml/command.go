@@ -44,18 +44,22 @@ type Insert struct {
 	CopyFrom        *CopyFromState
 }
 
-// Partition holds INSERT partition routing (partition).
+// Partition holds shared DML partition routing and INSERT's per-leaf groups.
 type Partition struct {
 	PartitionInsert    *partition.InsertState
 	PartitionRelations map[ids.ObjectAddress]*catalog.Relation
 }
 
-// TargetRefs is ref followed by the inherited targets' refs.
+// TargetRefs is the admitted physical manifest; virtual descriptors have no heap.
 func (c *Command) TargetRefs(ref ids.ObjectRef) []ids.ObjectRef {
-	refs := make([]ids.ObjectRef, 1, len(c.InheritedTargets)+1)
-	refs[0] = ref
+	refs := make([]ids.ObjectRef, 0, len(c.InheritedTargets)+1)
+	if c.PartitionInsert == nil || c.PartitionInsert.Target.Partition == nil {
+		refs = append(refs, ref)
+	}
 	for _, target := range c.InheritedTargets {
-		refs = append(refs, target.Ref)
+		if target.Relation.Partition == nil {
+			refs = append(refs, target.Ref)
+		}
 	}
 	return refs
 }
@@ -80,19 +84,23 @@ func (c *Command) CaptureSource(ctx context.Context, dataView *visibility.View, 
 	if c.RLS.TargetDenied {
 		return view.CaptureDeniedQuerySource(dataView, b.Ref)
 	}
-	if len(c.InheritedTargets) == 0 {
+	virtual := b.Relation.Partition != nil
+	if len(c.InheritedTargets) == 0 && !virtual {
 		return exec.CaptureSource(ctx, dataView, b.Ref)
 	}
 	pin := dataView.Retain()
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	source := &exec.Source{Ref: b.Ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0, len(c.InheritedTargets)+1), InheritanceEnds: make([]int, len(c.InheritedTargets)+1)}
+	source := &exec.Source{Ref: b.Ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0, len(c.InheritedTargets)+1)}
 	root := exec.Leaf{Ref: b.Ref, Relation: b.Relation, Storage: b.Storage, Only: true}
 	for i := 0; i <= len(c.InheritedTargets); i++ {
 		target := root
 		if i != 0 {
 			target = c.InheritedTargets[i-1]
+		}
+		if target.Relation.Partition != nil {
+			continue
 		}
 		layout, err := catalog.InheritanceQueryLayout(b.Relation, target.Relation)
 		if err != nil {
@@ -110,10 +118,10 @@ func (c *Command) CaptureSource(ctx context.Context, dataView *visibility.View, 
 		}
 		source.Inheritance = append(source.Inheritance, segment)
 		total := prefix.Count()
-		if i != 0 {
-			total += source.InheritanceEnds[i-1]
+		if len(source.InheritanceEnds) != 0 {
+			total += source.InheritanceEnds[len(source.InheritanceEnds)-1]
 		}
-		source.InheritanceEnds[i] = total
+		source.InheritanceEnds = append(source.InheritanceEnds, total)
 	}
 	return source, nil
 }

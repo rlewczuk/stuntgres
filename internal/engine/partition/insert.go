@@ -23,11 +23,11 @@ type InsertGroup struct {
 	Unique *index.UniqueWriteBinding
 }
 
-// InsertState is the routing state of one INSERT or COPY into a partitioned
-// or partition target, captured under Engine.mu. Authority is the captured
+// InsertState is the routing state shared by INSERT, COPY and UPDATE into a
+// partition hierarchy, captured under Engine.mu. Authority is the captured
 // view and Env its environment (Restore's trusted insertion keeps its own
 // $user there). NamedRow, Destination and PhysicalRow describe the row being
-// routed; Groups and Order collect the accepted rows per leaf.
+// routed; Groups and Order belong only to INSERT/COPY, never UPDATE batches.
 type InsertState struct {
 	Catalog     catalog.Read
 	Authority   access.View
@@ -41,8 +41,8 @@ type InsertState struct {
 	Order       []*InsertGroup
 }
 
-// CaptureInsertLocked returns the routing state of an INSERT or COPY into
-// target, a member of a partition hierarchy, read through read with the
+// CaptureInsertLocked returns shared DML routing state for target, a member
+// of a partition hierarchy, read through read with the
 // captured authority and its environment. It records the segment layout of
 // target, of each descendant (preorder) and of each ancestor. regTS runs
 // before the layout of every partitioned level whose key contains a
@@ -143,10 +143,10 @@ func (state *InsertState) Route(evaluation *exec.Context, row []sqltype.Value, i
 }
 
 // MissingPartition is the 23514 routing failure under parent. The key values
-// are disclosed only to an actor without RLS who may SELECT the table or
-// every key column.
+// are disclosed only to an actor without RLS who may SELECT the named target
+// or every failing key column projected into that target's attribute layout.
 func (state *InsertState) MissingPartition(ctx context.Context, parent *catalog.Relation, key []catalog.PartitionDatum, output sqltype.OutputEnvironment) error {
-	ref := state.Catalog.Owner().Domain.Ref(state.Catalog.Epoch(), parent.Address())
+	ref := state.Catalog.Owner().Domain.Ref(state.Catalog.Epoch(), state.Target.Address())
 	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.Name())).(*sqlstate.Error)
 	err.Schema, err.Table = state.Catalog.Get(parent.Namespace()).Name(), parent.Name()
 	// Routing/integrity errors remain real, but an actor subject to RLS must
@@ -168,7 +168,11 @@ func (state *InsertState) MissingPartition(ctx context.Context, parent *catalog.
 				return err
 			}
 			column := ref
-			column.Address.SubID = entry.Attribute
+			slot := parent.IndexForAttribute(entry.Attribute)
+			if segment := state.Layouts[parent.Address()]; segment != nil {
+				slot = segment.Layout[slot]
+			}
+			column.Address.SubID = state.Target.Attributes[slot]
 			rights, checkErr = state.Authority.Effective(state.Env, column, false)
 			if checkErr != nil {
 				return checkErr

@@ -40,6 +40,15 @@ columns through normal direct and prepared queries. Table and column ACL origins
 grant options, enabled grantor/grantee roles and current catalog identities remain
 visible according to their captured statement authority.
 
+## Partition UPDATE routing
+
+UPDATE on a partitioned parent or intermediate routes changed partition keys
+within the named target's subtree, counts each original candidate once, and
+returns logical OLD/NEW rows. Direct leaf writes enforce their bounds. Moves
+validate the destination's constraints and indexes and publish both physical
+effects atomically, including transaction rollback and native logical replay.
+Concurrent waiters on a moved source receive PostgreSQL's serialization error.
+
 ## MAC address operators and functions
 
 `macaddr` and `macaddr8` support fixed-width `~`, `&`, `|` and three-octet-prefix

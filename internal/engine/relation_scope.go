@@ -397,6 +397,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if err = s.acquirePartitionDescendants(ref, lock.AccessShare); err != nil {
 			return err
 		}
+	case *parser.Update:
+		if !creation.Only {
+			if err = s.acquirePartitionDescendants(ref, lock.RowExclusive); err != nil {
+				return err
+			}
+		}
 	case *parser.Copy:
 		if creation.From {
 			if err = s.acquirePartitionDescendants(ref, lock.AccessShare); err != nil {

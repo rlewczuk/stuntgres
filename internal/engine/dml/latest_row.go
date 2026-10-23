@@ -27,6 +27,17 @@ func (src LatestRowSource) live(row storage.RowVersion) bool {
 	return visibility.LiveVersion(row, src.CommitSeq, src.Store.Ends, src.OwnDeletes)
 }
 
+// A moved source has no same-relation successor. A concurrent waiter must
+// neither resurrect it, silently skip it as DELETE nor chase another leaf.
+func (src LatestRowSource) movementConflict(row storage.RowVersion) error {
+	if ends := src.Store.Ends; ends != nil {
+		if end, ok := ends.Rows[row.Row]; ok && end.Version == row.Version && end.End <= src.CommitSeq && end.Moved {
+			return sqlError("40001", "tuple to be locked was already moved to another partition due to concurrent update")
+		}
+	}
+	return nil
+}
+
 // LatestUpdateRow reads an UPDATE predecessor; it conflicts under a retained
 // snapshot.
 func LatestUpdateRow(src LatestRowSource, r RowRequest) (LatestRow, error) {
@@ -43,6 +54,9 @@ func LatestUpdateRow(src LatestRowSource, r RowRequest) (LatestRow, error) {
 		return LatestRow{}, errors.New("stuntgres: invalid update predecessor")
 	}
 	if err := visibility.RepeatableConflict(src.Stable, src.Frontier, row, store.Ends); err != nil {
+		return LatestRow{}, err
+	}
+	if err := src.movementConflict(row); err != nil {
 		return LatestRow{}, err
 	}
 	return LatestRow{Version: row, Live: src.live(row)}, nil
@@ -64,6 +78,9 @@ func LatestDeleteRow(src LatestRowSource, r RowRequest) (LatestRow, error) {
 		return LatestRow{}, errors.New("stuntgres: invalid deletion predecessor")
 	}
 	if err := visibility.RepeatableConflict(src.Stable, src.Frontier, row, store.Ends); err != nil {
+		return LatestRow{}, err
+	}
+	if err := src.movementConflict(row); err != nil {
 		return LatestRow{}, err
 	}
 	return LatestRow{Version: row, Live: src.live(row)}, nil

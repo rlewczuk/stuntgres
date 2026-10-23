@@ -510,7 +510,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					p.Store.Maintenance.Modifications++
 					p.Store.Maintenance.Live--
 					p.Store.Maintenance.Dead++
-					p.NextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version, End: e.visibility.CommitSeq() + 1}
+					p.NextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version, End: e.visibility.CommitSeq() + 1, Moved: candidate.Moved}
 				}
 				p.Store.Ends = p.NextEnds
 			}

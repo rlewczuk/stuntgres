@@ -504,6 +504,10 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		e.mu.Unlock()
 		return executeMerge(ctx, scope, b, target, inputs, canonical, schema)
 	case *parser.Update:
+		if err = scope.capturePartitionInsertLocked(e, auth, b.Relation); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
 		err = e.captureCheckCommentSnapshotLocked(scope, b.Relation)
 		for _, target := range scope.InheritedTargets {
 			if err != nil {
@@ -519,7 +523,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		var view *visibility.View
-		if len(b.QuerySources) != 0 || len(scope.InheritedTargets) != 0 {
+		if len(b.QuerySources) != 0 || len(scope.InheritedTargets) != 0 || b.Relation.Partition != nil {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
 			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.Command.TargetRefs(b.Ref), scope.op.Session.SessionToken, plan.RowMark{})

@@ -19,8 +19,12 @@ func validateMutationRow(h Host, b analyze.Binding, schema string, row []sqltype
 	if err := table.EvaluateGenerations(eval.Context, b.Relation, row, &generationEval); err != nil {
 		return err
 	}
+	return validateMutationConstraints(h, b, schema, row, &generationEval, public)
+}
+
+func validateMutationConstraints(h Host, b analyze.Binding, schema string, row []sqltype.Value, eval *exec.Context, public bool) error {
 	if public {
-		if err := h.Command().RLS.CheckProposal(row, &generationEval); err != nil {
+		if err := h.Command().RLS.CheckProposal(row, eval); err != nil {
 			return err
 		}
 	}
@@ -28,7 +32,7 @@ func validateMutationRow(h Host, b analyze.Binding, schema string, row []sqltype
 		if column.Nullable {
 			continue
 		}
-		value, err := table.LogicalColumnValue(b.Relation, i, row, &generationEval)
+		value, err := table.LogicalColumnValue(b.Relation, i, row, eval)
 		if err != nil {
 			return err
 		}
@@ -51,14 +55,18 @@ func validateMutationRow(h Host, b analyze.Binding, schema string, row []sqltype
 // Physical generation/checks use the full physical proposal; diagnostic values
 // and SELECT rights are projected back to the named mutation target.
 func validateInheritedMutationRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow, schema string, row, proposal []sqltype.Value, eval *exec.Context) error {
-	if physical.Leaf.Ref == named.Ref {
-		return validateMutationRow(h, named, schema, row, eval, true)
-	}
-	relation := physical.Leaf.Relation
 	generationEval := *eval
-	if err := table.EvaluateGenerations(eval.Context, relation, row, &generationEval); err != nil {
+	if err := table.EvaluateGenerations(eval.Context, physical.Leaf.Relation, row, &generationEval); err != nil {
 		return err
 	}
+	return validateInheritedMutationConstraints(h, named, physical, schema, row, proposal, &generationEval)
+}
+
+func validateInheritedMutationConstraints(h Host, named analyze.Binding, physical exec.QueryPhysicalRow, schema string, row, proposal []sqltype.Value, eval *exec.Context) error {
+	if physical.Leaf.Ref == named.Ref {
+		return validateMutationConstraints(h, named, schema, row, eval, true)
+	}
+	relation := physical.Leaf.Relation
 	// OLD may still borrow the segment's mapping scratch for RETURNING. Reuse
 	// the private logical replacement for finalized NEW instead of overwriting
 	// that borrowed frame, and project only when an actual program needs it.
@@ -67,7 +75,7 @@ func validateInheritedMutationRow(h Host, named analyze.Binding, physical exec.Q
 			proposal[i] = row[slot]
 		}
 	}
-	if err := h.Command().RLS.CheckProposal(proposal, &generationEval); err != nil {
+	if err := h.Command().RLS.CheckProposal(proposal, eval); err != nil {
 		return err
 	}
 	diagnostic := func(column, check string) error {
@@ -88,7 +96,7 @@ func validateInheritedMutationRow(h Host, named analyze.Binding, physical exec.Q
 	}
 	for i, column := range relation.Columns {
 		if !column.Nullable {
-			value, err := table.LogicalColumnValue(relation, i, row, &generationEval)
+			value, err := table.LogicalColumnValue(relation, i, row, eval)
 			if err != nil {
 				return err
 			}
@@ -97,7 +105,7 @@ func validateInheritedMutationRow(h Host, named analyze.Binding, physical exec.Q
 			}
 		}
 	}
-	if constraint, err := table.ValidateCheckRow(relation, row, &generationEval); err != nil {
+	if constraint, err := table.ValidateCheckRow(relation, row, eval); err != nil {
 		return err
 	} else if constraint != nil {
 		return diagnostic("", constraint.Name)

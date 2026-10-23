@@ -35,7 +35,8 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	defer source.Close()
 	source.Host = h
 	_, lockedStorage := h.Target()
-	if b.Storage == nil || b.Storage != lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address) {
+	virtual := b.Relation.Partition != nil && b.Storage == nil && lockedStorage == nil && h.Command().PartitionInsert != nil && h.Command().PartitionInsert.Target.Address() == b.Ref.Address
+	if !virtual && (b.Storage == nil || b.Storage != lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address)) {
 		if from != nil {
 			from.Close()
 		}
@@ -173,21 +174,17 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	}
 	var single physicalBatch
 	single.ref = b.Ref
-	command := h.Command()
-	if len(command.InheritedTargets) == 0 {
+	if source.Inheritance == nil {
 		capacity := min(len(candidates), source.Count())
 		single.old = make([]storage.RowVersion, 0, capacity)
 		single.rows.Values = make([][]sqltype.Value, 0, capacity)
 	}
 	batches := []physicalBatch(nil)
-	if len(command.InheritedTargets) != 0 && len(candidates) != 0 {
-		batches = make([]physicalBatch, len(command.InheritedTargets)+1)
-		batches[0].ref = b.Ref
-		for i, target := range command.InheritedTargets {
-			batches[i+1].ref = target.Ref
-		}
-		for i := range batches {
-			capacity := min(len(candidates), source.Inheritance[i].Prefix.Count())
+	if source.Inheritance != nil && len(candidates) != 0 {
+		batches = make([]physicalBatch, len(source.Inheritance))
+		for i, segment := range source.Inheritance {
+			batches[i].ref = segment.Leaf.Ref
+			capacity := min(len(candidates), segment.Prefix.Count())
 			batches[i].old = make([]storage.RowVersion, 0, capacity)
 			batches[i].rows.Values = make([][]sqltype.Value, 0, capacity)
 		}
@@ -242,10 +239,14 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 			continue
 		}
 		physicalRow := ScatterMutationRow(candidate.Physical, old, row, b.Targets)
-		if err := validateInheritedMutationRow(h, b, candidate.Physical, schema, physicalRow, row, &eval); err != nil {
+		destination, physicalRow, err := prepareUpdateRow(h, b, candidate.Physical, schema, physicalRow, row, &eval)
+		if err != nil {
 			return Outcome{}, err
 		}
-		keyChanged, err := UniqueKeyChanged(h, ref, old.Values, physicalRow)
+		keyChanged := destination != nil
+		if !keyChanged {
+			keyChanged, err = UniqueKeyChanged(h, ref, old.Values, physicalRow)
+		}
 		if err != nil {
 			return Outcome{}, err
 		}
@@ -281,72 +282,86 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 					return Outcome{}, err
 				}
 				physicalRow = ScatterMutationRow(candidate.Physical, old, row, b.Targets)
-				if err := validateInheritedMutationRow(h, b, candidate.Physical, schema, physicalRow, row, &eval); err != nil {
+				destination, physicalRow, err = prepareUpdateRow(h, b, candidate.Physical, schema, physicalRow, row, &eval)
+				if err != nil {
 					return Outcome{}, err
 				}
-				keyChanged, err = UniqueKeyChanged(h, ref, old.Values, physicalRow)
+				keyChanged = destination != nil
+				if !keyChanged {
+					keyChanged, err = UniqueKeyChanged(h, ref, old.Values, physicalRow)
+				}
 				if err != nil {
 					return Outcome{}, err
 				}
 			}
 		}
-		if err := ClaimUniqueRow(h, ref, old); err != nil {
-			return Outcome{}, err
-		}
-		old.PendingKeyChange = old.PendingKeyChange || keyChanged
-		batch := &single
-		for i := range batches {
-			if batches[i].ref == ref {
-				batch = &batches[i]
-				break
+		if destination != nil {
+			moved, err := moveUpdateRow(h, b, candidate.Physical, old, destination, physicalRow, row, &eval)
+			if err != nil {
+				return Outcome{}, err
 			}
-		}
-		batch.old = append(batch.old, old)
-		actionMode := lock.MultiNoKeyAction
-		if keyChanged {
-			actionMode = lock.MultiUpdateAction
-		}
-		if err := h.PhysicalRowEvent(ref, old, actionMode, 0); err != nil {
-			return Outcome{}, err
-		}
-		proposal := index.WriteCandidate{Values: physicalRow}
-		if err := CheckUniqueRow(h, ref, &proposal, batch.old, batch.rows); err != nil {
-			return Outcome{}, err
-		}
-		if err := CheckViewRow(h, &b, row, &eval); err != nil {
-			return Outcome{}, err
-		}
-		if candidate.Physical.Segment != nil && candidate.Physical.Segment.Layout != nil {
-			for i, slot := range candidate.Physical.Segment.Layout {
-				row[i] = physicalRow[slot]
+			if !moved {
+				continue
 			}
-		}
-		batch.rows.Append(proposal)
-		one := batch.rows.Slice(len(batch.old)-1, len(batch.old))
-		one.ActionMode = actionMode
-		// Other action producers can have staged this physical target already.
-		// Index only their prefix/additions; our accepted targets are distinct
-		// and appending never mutates a prefix retained by an earlier view.
-		existing := h.PrivateRows(ref.Address).Staged
-		if len(existing) < batch.staged {
-			batch.staged = 0
-		}
-		for _, predecessor := range existing[batch.staged:] {
-			if batch.prior == nil {
-				batch.prior = make(map[ids.RowID]struct{})
-			}
-			batch.prior[predecessor.Row] = struct{}{}
-		}
-		_, overlap := batch.prior[old.Row]
-		if overlap {
-			err = ReplaceRows(h, ref, batch.old[len(batch.old)-1:], one, ReplaceMerge)
 		} else {
-			err = ReplaceRows(h, ref, batch.old[len(batch.old)-1:], one, ReplaceAppend)
+			if err := ClaimUniqueRow(h, ref, old); err != nil {
+				return Outcome{}, err
+			}
+			old.PendingKeyChange = old.PendingKeyChange || keyChanged
+			batch := &single
+			for i := range batches {
+				if batches[i].ref == ref {
+					batch = &batches[i]
+					break
+				}
+			}
+			batch.old = append(batch.old, old)
+			actionMode := lock.MultiNoKeyAction
+			if keyChanged {
+				actionMode = lock.MultiUpdateAction
+			}
+			if err := h.PhysicalRowEvent(ref, old, actionMode, 0); err != nil {
+				return Outcome{}, err
+			}
+			proposal := index.WriteCandidate{Values: physicalRow}
+			if err := CheckUniqueRow(h, ref, &proposal, batch.old, batch.rows); err != nil {
+				return Outcome{}, err
+			}
+			if err := CheckViewRow(h, &b, row, &eval); err != nil {
+				return Outcome{}, err
+			}
+			if candidate.Physical.Segment != nil && candidate.Physical.Segment.Layout != nil {
+				for i, slot := range candidate.Physical.Segment.Layout {
+					row[i] = physicalRow[slot]
+				}
+			}
+			batch.rows.Append(proposal)
+			one := batch.rows.Slice(len(batch.old)-1, len(batch.old))
+			one.ActionMode = actionMode
+			// Other action producers can have staged this physical target already.
+			// Index only their prefix/additions; our accepted targets are distinct
+			// and appending never mutates a prefix retained by an earlier view.
+			existing := h.PrivateRows(ref.Address).Staged
+			if len(existing) < batch.staged {
+				batch.staged = 0
+			}
+			for _, predecessor := range existing[batch.staged:] {
+				if batch.prior == nil {
+					batch.prior = make(map[ids.RowID]struct{})
+				}
+				batch.prior[predecessor.Row] = struct{}{}
+			}
+			_, overlap := batch.prior[old.Row]
+			if overlap {
+				err = ReplaceRows(h, ref, batch.old[len(batch.old)-1:], one, ReplaceMerge)
+			} else {
+				err = ReplaceRows(h, ref, batch.old[len(batch.old)-1:], one, ReplaceAppend)
+			}
+			if err != nil {
+				return Outcome{}, err
+			}
+			batch.staged = len(h.PrivateRows(ref.Address).Staged)
 		}
-		if err != nil {
-			return Outcome{}, err
-		}
-		batch.staged = len(h.PrivateRows(ref.Address).Staged)
 		if output != nil {
 			eval.Row, eval.OldRow = row, oldValues
 			if b.Update.From != nil {

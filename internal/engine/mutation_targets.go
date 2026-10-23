@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -36,7 +37,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		if root.RelationKind != catalog.TableRelation {
+		if root.RelationKind != catalog.TableRelation && root.RelationKind != catalog.PartitionedRelation {
 			e.mu.Unlock()
 			return nil
 		}
@@ -47,7 +48,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 		}
 		var pending []exec.Leaf
-		err := table.InheritanceQueryClosure(view, root, s.op.Session.SessionToken, func(child *catalog.Relation) error {
+		collect := func(child *catalog.Relation) error {
 			if child.Address() == root.Address() {
 				return nil
 			}
@@ -60,7 +61,14 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			ref.Address = child.Address()
 			pending = append(pending, exec.Leaf{Ref: ref, Relation: child, Storage: e.privateStorageLocked(s.owner.Catalog, child.Address()), Only: true})
 			return nil
-		})
+		}
+		var err error
+		if root.Partition != nil {
+			captured := partition.CaptureCatalog(view, s.PartitionRelations)
+			err = partition.PhysicalDescendants(captured, captured.MustRelation(root.Address()), collect)
+		} else {
+			err = table.InheritanceQueryClosure(view, root, s.op.Session.SessionToken, collect)
+		}
 		e.mu.Unlock()
 		if err != nil {
 			return err
@@ -91,6 +99,9 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 			e.mu.Lock()
 			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.Catalog), s.owner.Catalog, target)
+			if err == nil {
+				err = s.observePartitionRelationLocked(e, target.Ref)
+			}
 			if err == nil {
 				s.InheritedTargets = append(s.InheritedTargets, target)
 				e.markTemporaryAccessLocked(s, target.Ref)

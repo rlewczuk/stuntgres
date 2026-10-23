@@ -16,6 +16,8 @@ type DeleteCandidate struct {
 	Base    ids.VersionID
 	Ordinal int
 	Own     bool
+	// Moved ends the source of a cross-partition UPDATE, not an ordinary DELETE.
+	Moved bool
 }
 
 // PrivateDeletes is a transaction's immutable private deletion overlay for one

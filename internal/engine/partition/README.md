@@ -18,10 +18,11 @@ it. It never builds a binder.
 ## What it owns
 
 - **Bounds and routing** (`bounds.go`, `*_bounds.go`, `insert.go`): bound
-  validation and containment; `InsertState.Route` walks to the accepting leaf,
-  and `MissingPartition` discloses key values only to an actor without RLS who
-  may SELECT them. `InsertState` keeps its captured `access.View` and
-  environment (Restore's trusted authority has its own `$user`).
+  validation and containment; `InsertState.Route` is shared by INSERT, COPY and
+  UPDATE and walks from the query-named target to the accepting leaf.
+  `MissingPartition` discloses key values only to an actor without RLS who may
+  SELECT them. Routing retains the admitted catalog, layouts, `access.View`
+  and environment; per-leaf insertion groups belong only to INSERT/COPY.
 - **Key recipes** (`routine.go`): `EvaluateRecipe` evaluates a key expression
   through `RecipeHost` (the root `statementHost`); `Scope` is the statement's
   partition slot in the root `StatementScope`.
@@ -81,7 +82,7 @@ Orchestration and everything that holds `Engine`, `StatementScope` or
 (checks in diagnostic order), `attachPartitionLocked`, `detachPartitionLocked`,
 lock admission (`partition_locks.go`), authorization and Restore trust checks
 (`partition*ReplayAllowed`), the Restore executors, storage-read fences and
-INSERT routing capture. `partition_host.go` holds `ddlHost.BindKeyExpression`
+shared DML routing capture. `partition_host.go` holds `ddlHost.BindKeyExpression`
 and the `partitionBoundBinder` adapter.
 
 ## Invariants
@@ -90,6 +91,11 @@ and the `partitionBoundBinder` adapter.
   physical leaves own storage. One write stage routes and validates all
   destinations, so a late failure publishes no earlier leaf rows. Scans capture
   all descendant prefixes at one frontier.
+- **UPDATE movement.** The executor evaluates source generation before routing
+  and validates the actual destination rather than the departing source's local
+  constraints. Direct physical targets never route to siblings. Both effects use
+  the existing canonical write stage, retaining captured deletion provenance and
+  immutable moved-source markers through private and committed publication.
 - **Routing** picks the same partition for every row and allocates no
   rendering, sorting or lookup cache. HASH uses the extended scalar hash support
   functions and the NULL-skipping ordered uint64 row combiner (shared with

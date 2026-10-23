@@ -59,6 +59,7 @@ type RowVersion struct {
 type RowEnd struct {
 	Version ids.VersionID
 	End     ids.CommitSeq
+	Moved   bool // Cross-partition UPDATE; waiters must not treat it as DELETE.
 }
 
 // DeletionRoot holds the committed end markers of a relation, by row.

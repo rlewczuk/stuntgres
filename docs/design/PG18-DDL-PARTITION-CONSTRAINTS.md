@@ -8,7 +8,7 @@ coverage; expression partition keys reject these constraints. Independent leaf
 keys remain independent. Virtual indexes have no heap/index storage. Physical
 leaves enforce real cloned keys and primary NOT NULL definitions. Nonunique virtual
 index creation, virtual REINDEX, generated/identity/serial combinations,
-hierarchy UPDATE/DELETE/row marks/LOCK and unrelated ALTER remain bounded out.
+hierarchy DELETE/row marks/LOCK and unrelated ALTER remain bounded out.
 
 Constraint/index OIDs, stable attribute numbers and immediate-parent edges are
 actual definitions, not a synthetic registry. Constraint ancestry uses the actual

@@ -59,8 +59,8 @@ func TestReferencePartitionExclusionDeferral(t *testing.T) {
 			s.Prepared = prepared
 			fixture.ExclusionReferenceRun(t, p, b, c, s)
 		}
-		// Ordinary tables exercise already-admitted UPDATE/DELETE; this is not
-		// permission to enable hierarchy UPDATE/DELETE or row movement.
+		// Ordinary-table repair shares the exclusion provider; hierarchy DELETE
+		// remains outside this witness.
 		run(fixture.Exec("CREATE TABLE pe_ordinary(id INT,tenant INET,during INT4RANGE,CONSTRAINT pe_ordinary_ex EXCLUDE USING gist("+partitionExclusionKeys+") DEFERRABLE INITIALLY DEFERRED)", 0))
 		run(fixture.Exec("BEGIN", 0))
 		run(fixture.Exec("INSERT INTO pe_ordinary VALUES(1,'10.0.0.1','[1,5)'),(2,'10.0.0.1','[3,7)'),(3,'10.0.0.1','[2,4)')", 3))

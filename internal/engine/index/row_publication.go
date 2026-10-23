@@ -128,7 +128,7 @@ func PrepareRowPublication(p *RowPublication, domain *ids.Domain, ref ids.TxRef,
 				return errors.New("stuntgres: deletion predecessor already ended")
 			}
 			if materialize {
-				p.NextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version}
+				p.NextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version, Moved: candidate.Moved}
 			}
 		}
 	}

@@ -11,8 +11,8 @@ func TestReferenceRangePartitionBoundaries(t *testing.T) {
 		count              int64
 		query              bool
 	}{
-		{"update_parent", "UPDATE rp_boundary SET payload='updated'", "updating partition hierarchies is unsupported", 2, false},
-		{"update_leaf", "UPDATE rp_boundary_a SET payload='updated'", "updating partition hierarchies is unsupported", 1, false},
+		{"update_parent", "UPDATE rp_boundary SET payload='updated'", "", 2, false},
+		{"update_leaf", "UPDATE rp_boundary_a SET payload='updated'", "", 1, false},
 		{"delete_parent", "DELETE FROM rp_boundary", "deleting from partition hierarchies is unsupported", 2, false},
 		{"delete_leaf", "DELETE FROM rp_boundary_a", "deleting from partition hierarchies is unsupported", 1, false},
 		{"row_lock", "SELECT * FROM rp_boundary ORDER BY k FOR UPDATE", "row locking partition hierarchies is unsupported", 0, true},
@@ -31,7 +31,7 @@ func TestReferenceRangePartitionBoundaries(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE rp_boundary_a PARTITION OF rp_boundary FOR VALUES FROM(1) TO(3)", 0))
 				run(fixture.Exec("CREATE TABLE rp_boundary_b PARTITION OF rp_boundary FOR VALUES FROM(3) TO(5)", 0))
 				run(fixture.Exec("INSERT INTO rp_boundary VALUES(1,'a'),(3,'b')", 2))
-				if b.PG {
+				if b.PG || c.name == "update_parent" || c.name == "update_leaf" {
 					if c.name == "lock" {
 						tx, err := b.DB.BeginTx(p.Ctx, nil)
 						if err != nil {
