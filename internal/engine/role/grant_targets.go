@@ -113,6 +113,14 @@ func objectGrantTargets(h Host, auth ddl.Authority, s *parser.ObjectGrant) ([]ca
 // schema, type or domain.
 func grantObject(h Host, auth ddl.Authority, name parser.ObjectName, kind string) (ids.ObjectRef, error) {
 	view := h.AccessView(auth)
+	if kind == "language" {
+		text := catalog.ObjectNameText(name)
+		address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: text})
+		if address == (ids.ObjectAddress{}) {
+			return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("language %q does not exist", text))
+		}
+		return view.Ref(address), nil
+	}
 	if kind == "large object" {
 		text := catalog.ObjectNameText(name)
 		n, err := strconv.ParseInt(text, 10, 64)

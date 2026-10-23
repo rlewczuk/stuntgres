@@ -2,6 +2,8 @@ package pgcatalog
 
 import (
 	"fmt"
+	"sort"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -10,7 +12,7 @@ const LanguageOID ids.OID = 2612
 
 func capturePGLanguage(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
-	catalog := in.Catalog
+	view := in.Catalog
 	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -28,25 +30,46 @@ func capturePGLanguage(in Input) ([][]sqltype.Value, error) {
 		case 8:
 			id = sqltype.ACLItemArray
 		}
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		if !ok || owned != column.Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign language source type")
 		}
 	}
-	row := make([]sqltype.Value, 9)
-	for i, oid := range [8]uint32{12, 0, 10, 0, 0, 0, 0, 2246} {
-		if i == 1 || i == 3 || i == 4 {
-			continue
+	var languages []*catalog.Language
+	for _, descriptor := range view.Descriptors() {
+		if language, ok := descriptor.(*catalog.Language); ok {
+			languages = append(languages, language)
 		}
-		value, err := sqltype.OIDValue(source.Columns[i].Usage.Type, oid)
+	}
+	sort.Slice(languages, func(i, j int) bool { return languages[i].Address().ObjectID < languages[j].Address().ObjectID })
+	rows := make([][]sqltype.Value, 0, len(languages))
+	for _, language := range languages {
+		if err := (catalog.LanguageProvider{}).Validate(view, language); err != nil {
+			return nil, err
+		}
+		if err := in.Runtime.ValidateACL(in.Roles, language); err != nil {
+			return nil, err
+		}
+		row := make([]sqltype.Value, 9)
+		for _, field := range []struct {
+			index int
+			oid   ids.OID
+		}{{0, language.Address().ObjectID}, {2, ids.OID(language.Owner.ID())}, {5, language.Call.ObjectID}, {6, language.Inline.ObjectID}, {7, language.Validator.ObjectID}} {
+			value, err := sqltype.OIDValue(source.Columns[field.index].Usage.Type, uint32(field.oid))
+			if err != nil {
+				return nil, err
+			}
+			row[field.index] = value
+		}
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, language.Name())
+		row[3] = sqltype.Boolean(source.Columns[3].Usage.Type, language.Procedural)
+		row[4] = sqltype.Boolean(source.Columns[4].Usage.Type, language.Trusted)
+		acl, err := ClassACL(in.Owner, in.Roles, source.Columns[8].Usage.Type, language.ACL)
 		if err != nil {
 			return nil, err
 		}
-		row[i] = value
+		row[8] = acl
+		rows = append(rows, row)
 	}
-	row[1] = sqltype.String(source.Columns[1].Usage.Type, "internal")
-	row[3] = sqltype.Boolean(source.Columns[3].Usage.Type, false)
-	row[4] = sqltype.Boolean(source.Columns[4].Usage.Type, false)
-	row[8] = sqltype.Null(source.Columns[8].Usage.Type)
-	return [][]sqltype.Value{row}, nil
+	return rows, ctx.Err()
 }

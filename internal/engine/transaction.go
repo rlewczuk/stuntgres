@@ -473,6 +473,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	switch stmt.(type) {
+	case *parser.Do:
+		return s.engine().describeOperation(s, stmt)
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return StatementDescription{}, nil
 	case *parser.AlterTableAllInTablespace:

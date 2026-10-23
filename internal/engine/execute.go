@@ -65,6 +65,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return scope.executeFetchCursor(stmt.(*parser.FetchCursor), count)
 	case *parser.CloseCursor:
 		return scope.executeCloseCursor(stmt.(*parser.CloseCursor), count)
+	case *parser.Do:
+		return e.executeDO(scope, stmt.(*parser.Do), count)
 	case *parser.DeclareCursor:
 		declaration := stmt.(*parser.DeclareCursor)
 		// A modifying WITH is an analysis error, before cursor installation

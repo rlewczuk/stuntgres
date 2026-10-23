@@ -87,21 +87,12 @@ func pgLanguageBoth(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture.
 
 func pgLanguageInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
-	query, want := "SELECT * FROM pg_catalog.pg_language", pgLanguageInternal()
-	if b.PG {
-		query += " WHERE lanname IN ('internal','c','sql') ORDER BY oid"
-		want = append(want,
-			[]any{int64(13), "c", int64(10), false, false, int64(0), int64(0), int64(2247), nil},
-			[]any{int64(14), "sql", int64(10), false, true, int64(0), int64(0), int64(2248), nil})
-	}
-	s := pgLanguageStep(b, query, want)
-	s.Bag = !b.PG
-	pgLanguageBoth(t, p, b, b.DB, s)
-	if !b.PG {
-		for _, name := range []string{"c", "sql", "plpgsql", pgLanguageAbsent} {
-			pgLanguageBoth(t, p, b, b.DB, pgLanguageStep(b, pgLanguageProbe, [][]any{}, name))
-		}
-	}
+	query, want := "SELECT * FROM pg_catalog.pg_language WHERE lanname IN ('internal','c','sql') ORDER BY oid", pgLanguageInternal()
+	want = append(want,
+		[]any{int64(13), "c", int64(10), false, false, int64(0), int64(0), int64(2247), nil},
+		[]any{int64(14), "sql", int64(10), false, true, int64(0), int64(0), int64(2248), nil})
+	pgLanguageBoth(t, p, b, b.DB, pgLanguageStep(b, query, want))
+	pgLanguageBoth(t, p, b, b.DB, pgLanguageStep(b, pgLanguageProbe, [][]any{}, pgLanguageAbsent))
 }
 
 func TestReferencePGLanguageInventory(t *testing.T) {

@@ -42,6 +42,17 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 				events[key] = append(events[key], dump.Event{OID: predecessor})
 			}
 		}
+		// Declaration prerequisites order replay, not pg_depend/DROP edges.
+		for _, address := range d.DeclarationDependencies {
+			address.SubID = 0
+			predecessor, err := r.Predecessor(view, address, d.Address())
+			if err != nil {
+				return err
+			}
+			if predecessor != 0 {
+				events[key] = append(events[key], dump.Event{OID: predecessor})
+			}
+		}
 		if d.SQLBody != nil {
 			for _, dependency := range d.SQLBody.Dependencies() {
 				address := dependency.Ref.Address
@@ -136,7 +147,15 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 		}
 		sql.WriteString(" RETURNS " + result)
 	}
-	sql.WriteString(" LANGUAGE SQL ")
+	language, ok := view.Get(d.Language).(*catalog.Language)
+	if !ok || (catalog.LanguageProvider{}).Validate(view, language) != nil {
+		return dump.Statement{}, fmt.Errorf("missing routine language authority")
+	}
+	languageName := catalog.QuoteIdentifier(language.Name())
+	if language.Name() == "sql" {
+		languageName = "SQL"
+	}
+	sql.WriteString(" LANGUAGE " + languageName + " ")
 	if d.SQL.Standard {
 		if d.SQLBody == nil {
 			return dump.Statement{}, fmt.Errorf("missing checked SQL-standard routine body")

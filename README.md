@@ -13,6 +13,10 @@ Native [Reset, Dump and Restore](docs/FIXTURES.md) give explicit logical snapsho
 for fixtures; they are not `pg_dump` archives. The optional `cmd/stuntgres`
 executable serves the same engine over the PostgreSQL wire protocol.
 
+The [PL/pgSQL block core](reference/operators/README.md#plpgsql-core) supports
+DO, lexical declarations, assignment and scalar/void RETURN, not general
+procedural control flow, CALL/copyback or language lifecycle.
+
 ## Using stuntgres in unit tests
 
 Each `stuntgres.NewDriver()` owns independent in-memory clusters.

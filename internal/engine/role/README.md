@@ -29,12 +29,15 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   `grant_objects.go`): `ObjectGrantRequest(h, auth, s)` validates grantor,
   kind, targets, grantees, privileges and GRANT OPTION for PUBLIC in
   PostgreSQL's order. Its targets (`objectGrantTargets`: parameters,
-  relations, tablespaces, schemas, types, domains, routines and ALL ... IN
+  relations, tablespaces, languages, schemas, types, domains, routines and ALL ... IN
   SCHEMA in OID order) resolve through `Host` after the kind check.
   `ObjectGrantPlan` builds the new table, column and non-relation ACLs into
   a `GrantPlan` (`Candidate`, `Changed`); sequence plan stamps come from a
   `revision` allocator; the partial-grant warning is
   `authorization.GrantWarning`, which database and FDW grants share.
+  Narrow LANGUAGE USAGE resolves real catalog language identities and uses this
+  same grant-option/revoke/cascade/role-dependency authority. It does not add
+  language lifecycle or grant a native interpreter/ABI execution capability.
 - **Database GRANT** (`database_grant.go`): `PlanDatabaseGrant` returns the
   new database descriptor (nil: unchanged) and the warnings, also before a
   returned error.

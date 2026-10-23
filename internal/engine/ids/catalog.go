@@ -37,6 +37,7 @@ const (
 	PolicyClassID                OID = 3256
 	ParameterClassID             OID = 6243
 	TablespaceClassID            OID = 1213
+	LanguageClassID              OID = 2612
 	ProcedureClassID             OID = 1255
 	ExtensionClassID             OID = 3079
 	TSTemplateClassID            OID = 3764
@@ -84,4 +85,5 @@ const (
 	OperatorClassObject
 	AccessMethodObject
 	CastObject
+	LanguageObject
 )

@@ -8,6 +8,10 @@ Rule rewriting, view-write lowering and RLS walkers are in
 [`view`](../view/README.md); ON CONFLICT and MERGE execution state is in
 [`dml`](../dml/README.md).
 
+Reached PL expressions use the ordinary binder with private lexical slots and
+current RECORD shapes; PL `$n` counts all formals, while SQL stays input-only.
+Assignment tries declared/ordinary assignment casts before descriptor I/O fallback.
+
 ## Imports
 
 Layer L10 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).

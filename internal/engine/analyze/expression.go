@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -56,6 +57,7 @@ type Binder struct {
 	Input        sqltype.InputEnvironment
 	Dependencies []catalog.ExpressionDependency
 	// Identity of the actual missing-call diagnostic, not a SQLSTATE heuristic.
+	PL                 *proc.PLFrame // Private reached-expression lexical inputs; never retained.
 	unresolvedCallable error
 	normalizingSyntax  map[StoredExpressionSyntaxKey]bool
 
@@ -192,7 +194,7 @@ func (b *Binder) FinalizeProjection(node expr.Expr) (expr.Expr, error) {
 	}
 	return b.CoerceParameter(p, b.Type(sqltype.Text).Usage())
 }
-func (b *Binder) Column(raw parser.ColumnExpr) (node expr.Expr, err error) {
+func (b *Binder) column(raw parser.ColumnExpr) (node expr.Expr, err error) {
 	defer func() {
 		if err == nil || !b.Params.ClosedRoutineFormals {
 			return
@@ -702,6 +704,14 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				return nil, err
 			}
 		case parser.ParameterExpr:
+			if b.PL != nil {
+				var err error
+				node, err = b.plParameter(r)
+				if err != nil {
+					return nil, err
+				}
+				break
+			}
 			if b.Stored.CheckLiterals != nil {
 				if r.Number <= 0 || r.Number > len(b.Stored.CheckLiterals) {
 					return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
@@ -1161,6 +1171,9 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 			policy.Expected = target
 		}
 	case parser.ParameterExpr:
+		if b.PL != nil {
+			break
+		}
 		if b.Stored.CheckLiterals != nil {
 			break // bind resolves the captured literal without parameter inference.
 		}

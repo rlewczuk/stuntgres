@@ -133,13 +133,8 @@ func TestReferenceRoutineExternalLanguagesPreservation(t *testing.T) {
 		externalLanguageMissing(t, p, b, c, "CREATE FUNCTION ext_preserve_bad(integer) RETURNS integer LANGUAGE pltcl AS 'SELECT 5'", "pltcl")
 		checkHeld()
 		plpgsql := "CREATE FUNCTION ext_plpgsql(integer) RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN $1+1; END$$"
-		if b.PG {
-			routineExec(t, p, b, c, plpgsql)
-			routineValue(t, p, b, c, "SELECT ext_plpgsql(4) AS v", "v", "INT4", int64(5))
-		} else {
-			externalLanguageError(t, p, b, c, plpgsql, fixture.ControlsReferenceDiagnostic("0A000", "only LANGUAGE SQL functions are supported"), false)
-			externalLanguageMissingCall(t, p, b, c, "ext_plpgsql")
-		}
+		routineExec(t, p, b, c, plpgsql)
+		routineValue(t, p, b, c, "SELECT ext_plpgsql(4) AS v", "v", "INT4", int64(5))
 		checkHeld()
 		externalLanguageInventory(t, p, b, c)
 		externalLanguageDataCheck(t, p, b, c)

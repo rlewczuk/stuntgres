@@ -161,6 +161,9 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.TablespaceProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(catalog.LanguageProvider{}); err != nil {
+		return nil, err
+	}
 	if err := e.RegisterCatalogProvider(catalog.LargeObjectProvider{}); err != nil {
 		return nil, err
 	}
@@ -216,6 +219,9 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.installBuiltinConversionRoutines()
 	e.installBuiltinProcedures()
 	e.installNativeAccessMethods()
+	if err := e.installBuiltinLanguages(); err != nil {
+		return nil, err
+	}
 	e.initializeTablespaces()
 	for i := range catalog.BuiltinConversions {
 		d := new(catalog.Conversion)
@@ -271,7 +277,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.CreateCast, *parser.DropCast:
+	case *parser.Do, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.CreateCast, *parser.DropCast:
 		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return StatementDescription{}, nil
@@ -453,6 +459,9 @@ func describeWithRule(ctx context.Context, host analyze.Host, stmt parser.Statem
 func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (analyze.Binding, error) {
 	if scope.sqlRoutine.binding != nil {
 		return *scope.sqlRoutine.binding, nil
+	}
+	if scope.sqlRoutine.lexical != nil {
+		return analyze.DescribePL(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, &scope.queryLockAdmission, scope.sqlRoutine.lexical)
 	}
 	if scope.sqlRoutine.definition != nil {
 		return analyze.DescribeRoutine(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.inputCollation)

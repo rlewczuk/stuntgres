@@ -17,7 +17,7 @@ func TestReferenceObjectGrantFeatureSmoke(t *testing.T) {
 	objectGrantScenario(t, []string{"og_smoke"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		defer objectGrantRoutineCleanup(t, p, c, []string{"pg_catalog.abs(integer)", "pg_catalog.sum(integer)", "pg_catalog.row_number()", "pg_catalog.first_value(anyelement)", "pg_catalog.int4pl(integer,integer)", "pg_catalog.int4eq(integer,integer)", "pg_catalog.json_array_length(json)", "pg_catalog.quote_literal(text)"})
 		defer func() {
-			for _, q := range []string{"RESET SESSION AUTHORIZATION", "REVOKE ALL ON PARAMETER lc_messages FROM og_object_reader,og_object_other CASCADE", "REVOKE ALL ON TABLESPACE pg_default FROM og_object_reader,og_object_other CASCADE"} {
+			for _, q := range []string{"RESET SESSION AUTHORIZATION", "REVOKE ALL ON LANGUAGE plpgsql FROM og_object_reader CASCADE", "REVOKE ALL ON PARAMETER lc_messages FROM og_object_reader,og_object_other CASCADE", "REVOKE ALL ON TABLESPACE pg_default FROM og_object_reader,og_object_other CASCADE"} {
 				if _, err := c.ExecContext(p.Ctx, q); err != nil {
 					t.Error("feature smoke ACL cleanup", q, err)
 				}
@@ -165,7 +165,6 @@ func TestReferenceObjectGrantFeatureSmoke(t *testing.T) {
 			default:
 				t.Fatal("unexpected Dump failure instead of explicit ACL boundary", err)
 			}
-			fixture.RoleGrantError(run, "GRANT USAGE ON LANGUAGE plpgsql TO og_object_reader", "0A000", "LANGUAGE privileges are unsupported in embedded mode")
 			q := "ALTER SYSTEM SET lc_messages='C'"
 			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "SYSTEM"`, Position: "7"})
 			s.ErrorStage = "execute"
@@ -174,6 +173,7 @@ func TestReferenceObjectGrantFeatureSmoke(t *testing.T) {
 			}
 			run(s)
 		}
+		run(fixture.Exec("GRANT USAGE ON LANGUAGE plpgsql TO og_object_reader", 0))
 	})
 }
 

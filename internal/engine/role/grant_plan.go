@@ -58,13 +58,11 @@ func ObjectGrantRequest(h Host, auth ddl.Authority, s *parser.ObjectGrant) (Gran
 	}
 	unavailable := ""
 	switch s.Kind {
-	case "language":
-		unavailable = "LANGUAGE privileges are unsupported in embedded mode"
 	case "foreign data wrapper":
 		unavailable = "FOREIGN DATA WRAPPER privileges are unsupported in embedded mode"
 	case "foreign server":
 		unavailable = "FOREIGN SERVER privileges are unsupported in embedded mode"
-	case "", "sequence", "schema", "type", "domain", "function", "procedure", "routine", "parameter", "tablespace", "large object":
+	case "", "language", "sequence", "schema", "type", "domain", "function", "procedure", "routine", "parameter", "tablespace", "large object":
 	default:
 		return GrantRequest{}, sqlError("0A000", "statement is not supported")
 	}

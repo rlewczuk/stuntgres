@@ -1,4 +1,4 @@
-# proc — immutable SQL definitions and private values
+# proc — immutable routine definitions and private values
 
 `proc` is the reusable, lower-level routine owner. It imports parser and scalar
 value/type facilities, never engine or catalog. It does not interpret expressions
@@ -7,8 +7,10 @@ or own name lookup, permissions, query execution, transactions or prepared cache
 `Definition` retains body form, original quoted text/source position, ordered
 statement syntax and ordered formal modes/names/usages/default-presence flags.
 `SetFormals` derives input/output projections, inverse input slots and input-only
-names/usages; INOUT belongs to both, and pure OUT does not consume `$n`.
-Duplicate names are projection-aware, so pure IN/OUT name reuse is legal.
+SQL names/usages. INOUT belongs to both; pure OUT consumes no actual input.
+PL lexical `$n` separately addresses all declared formals, including OUT.
+Shared SQL names are projection-aware, allowing pure IN/OUT name reuse; PL's
+single formal namespace instead rejects named/positional collisions.
 Published syntax/metadata is immutable. Standard RETURN is a SELECT expression;
 BEGIN ATOMIC is an ordered SQL program, not a transaction or procedural return.
 Checked standard-body and declaration-default recipes live in `stored`, above
@@ -68,6 +70,21 @@ registry. Namespace/signature selection, the catalog's derived COW name index,
 prepared-analysis retention and stored-call identity capture remain above proc.
 Frozen engine syntax marks selected SQL calls only after binding; that marker
 cannot authorize a call or replace its checked occurrence reference.
+
+PL definitions retain a distinct body kind, complete positioned syntax and a
+checked immutable `PLProgram`. Fixed slots identify all formals then locals;
+aliases share their original constrained slot. Initializer namespaces retain
+declaration-order visibility. `PLFrame` owns values/scopes only; closing it
+cannot mutate the program, caller arguments or already returned immutable values.
+Replacement preserves complete local Usages, including typmods and once-mapped collation capabilities.
+Private effective Usages inherit checked call collation for formals/ordinary
+locals and their lexical `%TYPE` copies; column `%TYPE` stays fixed to its source.
+Known rows retain typed whole NULL until materialized; RECORD begins indeterminate
+and NULL assignment clears its shape. Composite-domain candidates validate before publication.
+The higher root owns reached SQL binding, conversion, handler admission and
+execution. PL VOID uses non-NULL `VoidValue`; procedure completion is separate.
+PL nesting borrows the same balanced SQL-body/root guard, not a second counter.
+
 
 ## Testing
 

@@ -39,14 +39,15 @@ func (e SubqueryExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type SQLRoutineExpr struct {
 	expr.Info
-	Procedure    *catalog.Procedure
-	Ref          ids.ObjectRef
-	Args         []expr.Expr
-	WrittenCount int
-	ArgNames     []parser.Identifier
-	Variadic     bool
-	InputMap     []RoutineInput
-	ChildSlots   []int // Validated inverse of InputMap, built once during binding.
+	Procedure      *catalog.Procedure
+	Ref            ids.ObjectRef
+	Args           []expr.Expr
+	WrittenCount   int
+	ArgNames       []parser.Identifier
+	Variadic       bool
+	InputMap       []RoutineInput
+	ChildSlots     []int // Validated inverse of InputMap, built once during binding.
+	InputCollation sqltype.CollationRef
 }
 
 func (n SQLRoutineExpr) Children() []expr.Expr { return n.Args }
@@ -74,7 +75,7 @@ func (n SQLRoutineExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 
 func (n SQLRoutineExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, _ bool) bool {
 	o, ok := other.(SQLRoutineExpr)
-	if !ok || n.Ref != o.Ref || n.Procedure.SQL != o.Procedure.SQL || len(n.Args) != len(o.Args) || !n.SameArguments(o) {
+	if !ok || n.Ref != o.Ref || n.Procedure.SQL != o.Procedure.SQL || n.InputCollation != o.InputCollation || len(n.Args) != len(o.Args) || !n.SameArguments(o) {
 		return false
 	}
 	for i, arg := range n.Args {
@@ -88,6 +89,9 @@ func (n SQLRoutineExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Exp
 func (n SQLRoutineExpr) ValidateStoredProvider() error {
 	if n.Procedure == nil || n.Procedure.SQL == nil || n.Info.RoutineReference != n.Procedure || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Usage.Type == nil || !n.Usage.Valid() || n.Usage.Type.ID() != sqltype.ID(n.Procedure.Result) {
 		return fmt.Errorf("invalid stored SQL routine provider")
+	}
+	if n.InputCollation.ID != 0 && !n.InputCollation.Valid() {
+		return fmt.Errorf("invalid SQL routine input collation")
 	}
 	if _, err := n.Rebuild(n.Info, n.Args); err != nil {
 		return err

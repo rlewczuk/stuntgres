@@ -30,6 +30,8 @@ func changeNonRelationGrant(ctx context.Context, view access.View, d catalog.Des
 		class, noun = authorization.DefaultSchemas, "schema"
 	case ids.ProcedureObject:
 		class, noun = authorization.DefaultRoutines, "function"
+	case ids.LanguageObject:
+		class, noun = authorization.DefaultTypes, "language"
 	case ids.ParameterObject:
 		class, noun = authorization.DefaultParameters, "parameter"
 	case ids.TablespaceObject:
@@ -75,6 +77,10 @@ func changeNonRelationGrant(ctx context.Context, view access.View, d catalog.Des
 		n.ACLSyntheticDefault = false
 		next = &n
 	case *catalog.Procedure:
+		n := *d
+		n.ACL = nextACL
+		next = &n
+	case *catalog.Language:
 		n := *d
 		n.ACL = nextACL
 		next = &n

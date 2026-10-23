@@ -124,7 +124,14 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 				current, ok := descriptor.(*catalog.Procedure)
 				sameSignature := ok && current.Signature == captured.Signature
 				if ok && captured.SQL != nil {
-					sameSignature = sameMappedSQLRoutine(current, captured, retainedType)
+					var collation typedef.CollationRemapper
+					if len(collations) != 0 {
+						collation = collations[0]
+					}
+					sameSignature, err = sameMappedSQLRoutine(current, captured, retainedType, collation)
+					if err != nil {
+						return nil, false, err
+					}
 				}
 				if cube, cubeCall := node.(plan.InstalledCubeExpr); cubeCall {
 					sameSignature = ok && sameMappedCubeSignature(cube, current, retainedType)

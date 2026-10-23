@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
@@ -75,7 +76,7 @@ func (h ddlHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, 
 // BindSQLRoutine binds d's body with the stage's definitions in place of the
 // operation's. Restore defers SQL body validation until the import ends.
 func (h ddlHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
-	if operationReplayOrZero(h.op).sqlBodies && !d.SQL.Standard {
+	if operationReplayOrZero(h.op).sqlBodies && !d.SQL.Standard && d.SQL.Kind != proc.PLpgSQLBody {
 		return nil
 	}
 	previous := h.op.Definition
@@ -83,6 +84,9 @@ func (h ddlHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sql
 	defer func() { h.op.Definition = previous }()
 	auth := ddlAuthorityOf(a)
 	auth.definition = h.op.Definition
+	if d.SQL.Kind == proc.PLpgSQLBody {
+		return h.e.compilePLRoutineLocked(h.op, auth, d)
+	}
 	_, _, err := h.e.bindSQLRoutineLocked(h.op, auth, d, input, nil)
 	return err
 }

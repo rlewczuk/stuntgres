@@ -1,14 +1,19 @@
 package routine
 
 import (
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-// admitFunctionLanguage runs after namespace authority and before constructing
-// any executable descriptor. This is syntax admission, not a language registry:
-// pg_language's limited metadata inventory does not describe SQL executability.
+// Language admission uses the same real descriptor and ACL as pg_language.
 func admitFunctionLanguage(h ddl.Host, auth ddl.Authority, s *parser.CreateFunction) error {
+	if _, err := AdmitLanguage(h.AccessView(auth), auth, s.Language.Text); err != nil {
+		return err
+	}
 	switch language := s.Language.Text; language {
 	case "sql":
 		return nil
@@ -26,15 +31,35 @@ func admitFunctionLanguage(h ddl.Host, auth ddl.Authority, s *parser.CreateFunct
 		}
 		return sqlError("0A000", "LANGUAGE "+language+" functions are unsupported in embedded mode")
 	case "plpgsql":
-		if err := checkRoutineBodyForm(s); err != nil {
-			return err
-		}
-		// Preserve the existing runtime boundary; installed PostgreSQL plpgsql
-		// is not evidence of an embedded interpreter or native execution.
-		return sqlError("0A000", "only LANGUAGE SQL functions are supported")
+		return checkRoutineBodyForm(s)
 	default:
 		return sqlError("42704", "language \""+language+"\" does not exist")
 	}
+}
+
+func AdmitLanguage(view access.View, env access.Environment, name string) (*catalog.Language, error) {
+	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: name})
+	if address == (ids.ObjectAddress{}) {
+		return nil, sqlError("42704", "language \""+name+"\" does not exist")
+	}
+	d, err := catalog.LookupLanguage(view.Catalog, name)
+	if err != nil {
+		return nil, err
+	}
+	if !d.Trusted {
+		actor, err := view.Roles.Descriptor(view.State.CurrentUser)
+		if err != nil {
+			return nil, err
+		}
+		if !actor.Superuser {
+			return nil, sqlError("42501", "permission denied for language "+name)
+		}
+		return d, nil
+	}
+	if err := view.Check(env, access.Requirement{Object: view.Ref(address), Privileges: authorization.UsagePrivilege}); err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
 func checkRoutineBodyForm(s *parser.CreateFunction) error {

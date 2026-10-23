@@ -27,8 +27,8 @@ type sqlRoutineAnalysis struct {
 }
 
 // InvokeSQLRoutine runs a SQL-language routine body inside the statement.
-func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage) (sqltype.Value, error) {
-	return h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, sqltype.CollationRef{})
+func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef) (sqltype.Value, error) {
+	return h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, inputCollation)
 }
 
 // The owner supplies only top-level support EXECUTE. The body still runs in
@@ -66,10 +66,16 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 		changes = parent.owner.Catalog
 	}
 	read := e.privateCatalogLocked(changes)
+	if err == nil && inputCollation.ID != 0 {
+		err = stored.ValidateUsageCollation(read, sqltype.Usage{Collation: inputCollation})
+	}
 	retained := payloadOf(parent.op.Session).sqlRoutines[d.Address()]
 	e.mu.Unlock()
 	if err != nil {
 		return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
+	}
+	if d.SQL.Kind == proc.PLpgSQLBody {
+		return parent.invokePLRoutine(d, frame, read, inputCollation)
 	}
 	statements := d.SQL.Statements
 	if d.SQL.Standard {

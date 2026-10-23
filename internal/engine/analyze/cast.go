@@ -160,6 +160,10 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 			assembly[slot] = plan.RoutineInput{Start: slot, Count: 1}
 		}
 		node := plan.SQLRoutineExpr{Info: ri, Procedure: p, Ref: ref, Args: args, WrittenCount: len(args), InputMap: assembly}
+		node, err = node.Collate(b.CollatedInfo)
+		if err != nil {
+			return nil, true, err
+		}
 		result, err = node.AssembleArguments()
 		if err != nil {
 			return nil, true, err

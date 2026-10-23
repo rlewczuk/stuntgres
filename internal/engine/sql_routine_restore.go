@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
 )
 
@@ -28,6 +29,12 @@ func (e *Engine) validateRestoredSQLRoutines(ctx context.Context, op *session.Op
 		}
 		if d, ok := descriptor.(*catalog.Procedure); ok && d.SQL != nil {
 			auth.State.CurrentUser = d.Owner
+			if d.SQL.Kind == proc.PLpgSQLBody {
+				if err := e.compilePLRoutineLocked(op, auth, d); err != nil {
+					return err
+				}
+				continue
+			}
 			binding, _, bindErr := e.bindSQLRoutineLocked(op, auth, d, input, nil)
 			if bindErr != nil && !binding.UnresolvedCallable {
 				return bindErr

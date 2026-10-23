@@ -30,7 +30,9 @@ func ReplayDirective(data string, stmt parser.Statement) bool {
 // RebindSQLDefinitions rebinds the SQL routines of state to the mapped types.
 // Typed SQL definitions are recreated against the destination type generation;
 // syntax is immutable and text-body names remain runtime analysis, not edges.
-func RebindSQLDefinitions(view catalog.Read, state *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+// Preserve each complete Usage; collation is the caller's destination capability
+// mapper, nil only when no collation identity remapping is needed.
+func RebindSQLDefinitions(view catalog.Read, state *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, collation func(sqltype.CollationRef) (sqltype.CollationRef, error)) error {
 	for address, descriptor := range state.Descriptors() {
 		d, ok := descriptor.(*catalog.Procedure)
 		if !ok || d.SQL == nil {
@@ -47,7 +49,15 @@ func RebindSQLDefinitions(view catalog.Read, state *catalog.State, mapping map[i
 			if !ok || !t.Concrete() {
 				return sqltype.Usage{}, fmt.Errorf("missing imported SQL routine type")
 			}
-			return t.Usage(), nil
+			u.Type = t
+			if collation != nil && u.Collation.ID != 0 {
+				var err error
+				u.Collation, err = collation(u.Collation)
+				if err != nil {
+					return sqltype.Usage{}, err
+				}
+			}
+			return u, nil
 		}
 		var err error
 		for i, formal := range d.SQL.Formals {
@@ -63,6 +73,21 @@ func RebindSQLDefinitions(view catalog.Read, state *catalog.State, mapping map[i
 		definition.Result, err = mapUsage(d.SQL.Result)
 		if err != nil {
 			return err
+		}
+		if d.SQL.PL != nil {
+			program := *d.SQL.PL
+			program.Variables = append([]proc.PLVariable(nil), d.SQL.PL.Variables...)
+			for i, variable := range program.Variables {
+				if variable.Record {
+					continue
+				}
+				mapped, failure := mapUsage(variable.Usage)
+				if failure != nil {
+					return failure
+				}
+				program.Variables[i].Usage = mapped
+			}
+			definition.PL = &program
 		}
 		next := *d
 		next.SQL = &definition

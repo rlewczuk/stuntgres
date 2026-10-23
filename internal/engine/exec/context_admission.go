@@ -93,7 +93,7 @@ func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, er
 	if host == nil {
 		return value, fmt.Errorf("SQL routine invocation has no statement owner")
 	}
-	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage)
+	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation)
 	if err != nil {
 		return value, err // The body owner annotates its actual command ordinal.
 	}

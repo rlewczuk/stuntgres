@@ -14,6 +14,14 @@ Layer L7 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-archite
 standard library, never the engine, `analyze`, `session` or a feature package
 (`routine`, `extension`, ...).
 
+The shared checked routine call/frame contract also admits PL definitions.
+Declaration equivalence includes real language/body identity; current validated
+PL call capability is required even on retained paths. EXECUTE remains live,
+while language USAGE belongs to DO/CREATE admission rather than each call.
+PL execution stays with the root's existing lexical/root operation owner; no
+second SQLRoutineExpr family or fake handler scalar is introduced.
+
+
 ## What it owns
 
 - **Runtime records** (`query.go`, `query_sources.go`): `Source` (a captured

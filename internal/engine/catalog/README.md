@@ -19,6 +19,10 @@ private frames, not catalog authority.
   procedures, operators, collations, conversions, extensions, foreign objects,
   large objects, access methods, casts, operator classes and families, ...) and
   their records. Read identity through the `Descriptor` methods.
+- **Languages.** Real owner/ACL/trust and distinct call/inline/validator procedure
+  capabilities are validated by `LanguageProvider`; PL installation OIDs are
+  allocated, not universal constants. `Procedure.DeclarationDependencies` stores
+  replay-only type/collation and `%TYPE`/`%ROWTYPE` sources, not `pg_depend` edges.
 - **Relation layout.** `Relation` keeps identity and the live column shape at the
   top level, the sub-records `ColumnMeta`, `Constraints`, `Security` and
   `History`, and the kind payloads (`SQLIndex`, `Partition`, `Sequence`, `View`,

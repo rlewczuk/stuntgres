@@ -2187,6 +2187,14 @@ func ExpressionStart(expr Expr) Position {
 		return ExpressionStart(e.Left)
 	case ArrayComparisonExpr:
 		return ExpressionStart(e.Left)
+	case PredicateExpr:
+		return ExpressionStart(e.Left)
+	case JSONPredicateExpr:
+		return ExpressionStart(e.Child)
+	case LogicalExpr:
+		if start := ExpressionStart(e.Left); start.Offset < pos.Offset {
+			return start
+		}
 	}
 	if subscript, ok := expr.(SubscriptExpr); ok {
 		return ExpressionStart(subscript.Base)

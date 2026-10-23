@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -118,7 +119,7 @@ func TestSQLRoutineParameterRemap(t *testing.T) {
 			{ClassID: ids.TypeClassID, ObjectID: 95000}: {ClassID: ids.TypeClassID, ObjectID: 95001},
 			{ClassID: ids.TypeClassID, ObjectID: 95001}: {ClassID: ids.TypeClassID, ObjectID: 95002},
 		}
-		if err := routine.RebindSQLDefinitions(read, read.State(), mapping); err != nil {
+		if err := routine.RebindSQLDefinitions(read, read.State(), mapping, typedef.RemappedCollationCapabilities(read.State(), mapping)); err != nil {
 			t.Fatal(err)
 		}
 		next, ok := read.Procedure(source.Address())
@@ -327,6 +328,12 @@ func TestSQLRoutineDomainRecipeTypeGeneration(t *testing.T) {
 				if err := (catalog.DatabaseProvider{}).Validate(read, database); err != nil {
 					t.Fatal(err)
 				}
+				language := &catalog.Language{ObjectAddress: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 14}, ObjectRevision: 1, ObjectName: "sql", Owner: bootstrap.Ref, Trusted: true, Validator: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 2248}}
+				read.State().SetDescriptor(language.Address(), language)
+				read.State().BindName(catalog.DescriptorNameKey(language), language.Address())
+				if err := (catalog.LanguageProvider{}).Validate(read, language); err != nil {
+					t.Fatal(err)
+				}
 				action := routineLiteralAction(t, integer)
 				definition := &proc.Definition{Name: "value", Standard: true, Result: integer.Usage(), Statements: []parser.Statement{action.Syntax()}}
 				if err := definition.SetFormals([]proc.Formal{{Mode: "i", Name: "a", Usage: integer.Usage(), HasDefault: true}}); err != nil {
@@ -343,6 +350,7 @@ func TestSQLRoutineDomainRecipeTypeGeneration(t *testing.T) {
 				}
 				source := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 97100}, ObjectRevision: 1, ObjectNamespace: relation.Namespace(), ObjectName: "value", Signature: "23", RoutineKind: catalog.FunctionRoutine, Result: 23, Volatility: expr.Volatile, SQL: definition, SQLDefaults: defaults, SQLBody: program}
 				source.Owner = bootstrap.Ref
+				source.Language = language.Address()
 				read.State().SetDescriptor(source.Address(), source)
 				ref := read.Owner().Domain.Ref(read.Epoch(), source.Address())
 				call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: source, Property: expr.Properties{Volatility: expr.Volatile}}, Procedure: source, Ref: ref, Args: []expr.Expr{literal}, InputMap: []plan.RoutineInput{{Start: 0, Count: 1}}, ChildSlots: []int{0}}

@@ -97,6 +97,8 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Procedure:
 		return d.Owner, d.ACL, nil
+	case *catalog.Language:
+		return d.Owner, d.ACL, nil
 	case *catalog.Parameter:
 		return d.Owner, d.ACL, nil
 	case *catalog.Tablespace:
@@ -160,6 +162,13 @@ func WithObjectACL(d catalog.Descriptor, subID int32, acl authorization.ACLValue
 		n := *d
 		n.ACL = acl
 		return &n, nil
+	case *catalog.Language:
+		if subID != 0 {
+			return nil, fmt.Errorf("stuntgres: language subobject")
+		}
+		n := *d
+		n.ACL = acl
+		return &n, nil
 	case *catalog.Parameter:
 		if subID != 0 {
 			return nil, fmt.Errorf("stuntgres: parameter subobject")
@@ -207,6 +216,9 @@ func WithObjectACL(d catalog.Descriptor, subID int32, acl authorization.ACLValue
 
 // ClassPrivileges returns the privileges that can be granted on d.
 func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
+	if d.Kind() == ids.LanguageObject {
+		return authorization.UsagePrivilege
+	}
 	if d.Kind() == ids.LargeObjectObject {
 		return authorization.SelectPrivilege | authorization.UpdatePrivilege
 	}
@@ -326,6 +338,9 @@ func (v View) Effective(env Environment, ref ids.ObjectRef, grantOptions bool) (
 		rights |= authorization.ExecutePrivilege
 	}
 	if d.Kind() == ids.TypeObject && !acl.Explicit && !grantOptions {
+		rights |= authorization.UsagePrivilege
+	}
+	if language, ok := d.(*catalog.Language); ok && language.Trusted && !acl.Explicit && !grantOptions {
 		rights |= authorization.UsagePrivilege
 	}
 	if ref.Address.SubID > 0 {
@@ -460,6 +475,8 @@ func (v View) Check(env Environment, req Requirement) error {
 		kind = "database"
 	} else if d.Kind() == ids.TablespaceObject {
 		kind = "tablespace"
+	} else if d.Kind() == ids.LanguageObject {
+		kind = "language"
 	} else if d.Kind() == ids.ProcedureObject {
 		kind = "function"
 	} else if d.Kind() == ids.ForeignWrapperObject {

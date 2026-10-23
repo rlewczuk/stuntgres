@@ -64,7 +64,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
-	if err := routine.RebindSQLDefinitions(e.catalog.read(next), next, mapping); err != nil {
+	if err := routine.RebindSQLDefinitions(e.catalog.read(next), next, mapping, typedef.RemappedCollationCapabilities(next, mapping)); err != nil {
 		return err
 	}
 	if err := e.remapCatalogExpressions(next, mapping); err != nil {

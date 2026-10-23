@@ -66,13 +66,23 @@ func TestBuiltinProcedureNamesCopyOnEdit(t *testing.T) {
 	if len(builtinBucket) == 0 {
 		t.Fatal("precondition: missing built-in abs overloads")
 	}
+	createdAddresses := make([]ids.ObjectAddress, len(engines))
+	for i, e := range engines {
+		e.mu.Lock()
+		oid, err := e.catalog.allocateOIDLocked()
+		e.mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		createdAddresses[i] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
+	}
 	next := make([]*catalog.State, len(engines))
 	errs := make([]error, len(engines))
 	var wg sync.WaitGroup
 	for i, e := range engines {
 		wg.Go(func() {
 			candidate := catalog.NewCandidate(e.CatalogRead())
-			created := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(16384 + i)}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: key.Name, Signature: "23", RoutineKind: catalog.FunctionRoutine}
+			created := &catalog.Procedure{ObjectAddress: createdAddresses[i], ObjectNamespace: public, ObjectRevision: 1, ObjectName: key.Name, Signature: "23", RoutineKind: catalog.FunctionRoutine}
 			moved := *e.CatalogRead().MustProcedure(builtinBucket[0])
 			moved.ObjectNamespace = public
 			if errs[i] = candidate.Create(created); errs[i] == nil {
@@ -86,7 +96,7 @@ func TestBuiltinProcedureNamesCopyOnEdit(t *testing.T) {
 		if errs[i] != nil {
 			t.Fatal(errs[i])
 		}
-		created := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(16384 + i)}
+		created := createdAddresses[i]
 		if got := state.ProceduresNamed(public, key.Name); len(got) != 1 || got[0] != created {
 			t.Fatalf("engine %d staged procedures %v, want only %v", i, got, created)
 		}

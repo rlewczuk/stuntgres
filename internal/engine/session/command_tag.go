@@ -150,6 +150,8 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		}
 	case *parser.CreateLanguage:
 		base = "CREATE LANGUAGE"
+	case *parser.Do:
+		base = "DO"
 	case *parser.DropRoutine:
 		base = routineDropCommandTag(s.Kind)
 	case *parser.CreateOperator:

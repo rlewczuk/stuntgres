@@ -100,6 +100,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"database", isDumpDatabase, collectDatabaseDump},
 	{"parameter", isDumpParameter, collectParameterDump},
 	{"tablespace", isDumpTablespace, collectTablespaceDump},
+	{"language", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Language); return ok }, collectLanguageDump},
 	{"large object", isDumpLargeObject, collectLargeObjectDump},
 	{"access method", isDumpAccessMethod, collectAccessMethodDump},
 	{"operator family", isDumpOperatorFamily, collectOperatorFamilyDump},
@@ -224,6 +225,17 @@ func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 	return nil
 }
 
+func collectLanguageDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, descriptor catalog.Descriptor) error {
+	d := descriptor.(*catalog.Language)
+	if err := (catalog.LanguageProvider{}).Validate(c.CatalogView, d); err != nil {
+		return err
+	}
+	if d.Owner != c.source.Bootstrap || d.ACL.Explicit {
+		return fmt.Errorf("stuntgres: dump cannot serialize altered language authority")
+	}
+	return nil
+}
+
 func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Operator)
 	dumped, err := routine.OperatorDumped(c.CatalogView, t)
@@ -235,6 +247,15 @@ func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddre
 
 func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Procedure)
+	if t.PLHandler != catalog.NoPLHandler {
+		if err := catalog.ValidatePLHandler(c.CatalogView, t); err != nil {
+			return err
+		}
+		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
+			return fmt.Errorf("stuntgres: dump cannot serialize altered PL handler authority")
+		}
+		return nil
+	}
 	if t.DynamicCallable() {
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err

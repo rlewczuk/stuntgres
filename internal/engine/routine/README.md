@@ -6,6 +6,10 @@ DDL handlers, and operator/owned-routine dump statements. Immutable SQL routine
 definitions and invocation frames are in [`proc`](../proc/README.md); call
 resolution and SQL body binding stay in the engine.
 
+SQL and PL declarations share formal/default/staging authority. DO and CREATE
+check language USAGE; calls check EXECUTE, not language USAGE again. Dump renders
+the actual language and orders real declaration prerequisites before PL source.
+
 ## Imports
 
 Layer L9 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).

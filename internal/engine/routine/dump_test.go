@@ -112,6 +112,38 @@ func TestSQLRoutineDumpEventsUseResolver(t *testing.T) {
 		t.Fatalf("asked %v, want all formals then result %v", asked, want)
 	}
 
+	t.Run("pl_declaration_predecessors", func(t *testing.T) {
+		pl := *d
+		definition := *d.SQL
+		definition.Kind = proc.PLpgSQLBody
+		pl.SQL = &definition
+		pl.DeclarationDependencies = []ids.ObjectAddress{
+			{ClassID: ids.RelationClassID, ObjectID: 90002, SubID: 7},
+			{ClassID: ids.RelationClassID, ObjectID: 90003},
+			{ClassID: ids.TypeClassID, ObjectID: 90004},
+			{ClassID: ids.CollationClassID, ObjectID: 90005},
+		}
+		declResolver := &dumpUnitResolver{predecessors: map[ids.OID]ids.OID{90002: 90002, 90003: 90003, 90004: 90004, 90005: 90005}}
+		declGraph := dump.Graph{}
+		if err := RoutineDumpEvents(declResolver, catalog.Read{}, []*catalog.Procedure{&pl}, declGraph); err != nil {
+			t.Fatal(err)
+		}
+		want := []dump.Event{{OID: 90002}, {OID: 90003}, {OID: 90004}, {OID: 90005}}
+		if !reflect.DeepEqual(declGraph[dump.Event{OID: 90001}], want) {
+			t.Fatalf("declaration predecessors %v, want %v", declGraph, want)
+		}
+		requests := declResolver.requests[len(declResolver.requests)-len(pl.DeclarationDependencies):]
+		for i, source := range pl.DeclarationDependencies {
+			source.SubID = 0
+			if requests[i] != [2]ids.ObjectAddress{source, pl.Address()} {
+				t.Fatalf("declaration resolver request %v, want owning declaration %v", requests[i], source)
+			}
+		}
+		if pl.DeclarationDependencies[0].SubID != 7 {
+			t.Fatal("dump mutated stable member source")
+		}
+	})
+
 	failure := errors.New("resolver failure")
 	if err := RoutineDumpEvents(&dumpUnitResolver{err: failure}, catalog.Read{}, []*catalog.Procedure{d}, dump.Graph{}); !errors.Is(err, failure) {
 		t.Fatalf("err = %v, want the resolver's error", err)

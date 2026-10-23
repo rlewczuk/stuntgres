@@ -8,9 +8,19 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+type BodyKind uint8
+
+const (
+	SQLBody BodyKind = iota
+	PLpgSQLBody
+)
+
 // Definition contains syntax, not executable resources or permission decisions.
 // Standard bodies additionally require a checked catalog-owned frozen program.
 type Definition struct {
+	Kind          BodyKind
+	PLSyntax      *parser.PLBlock
+	PL            *PLProgram
 	Source        string
 	Position      parser.Position
 	Statements    []parser.Statement

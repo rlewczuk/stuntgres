@@ -53,3 +53,16 @@ Add `REFERENCE=1` for the oracle.
 - `regoperator` external boundary: `RUN='^TestReferenceRegOperatorExternalBoundary$'`
 - <a id="routine-parameter-binding"></a>Routine parameter binding: `RUN='^TestReferenceRoutineParameters'`
 - <a id="cast-definitions"></a>CREATE CAST definitions: `RUN='^TestReferenceCastDefinition'`
+
+### PL/pgSQL core
+
+Shared dual-mode cases cover lexical slots/aliases, all-formal `$n`, declarations,
+fieldwise rows/RECORD, non-NULL VOID, lazy binding/full parsing, language USAGE
+versus EXECUTE, stored consumers and two native/unchanged-PostgreSQL replay rounds.
+
+```sh
+make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRecords|Returns|LazyBinding|LanguageAuthority|Persistence|CompositeNull|RecordClear|CompositeDomain|CopiedCollation|InvocationCollation|FormalNamespace)$'
+make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRecords|Returns|LazyBinding|LanguageAuthority|Persistence|CompositeNull|RecordClear|CompositeDomain|CopiedCollation|InvocationCollation|FormalNamespace)$' REFERENCE=1
+make check RUN='^TestPLpgSQL(ParserFullConsumption|FormalSlots|FrameLifetime|FrameInputCollation|CheckedCallCollation|RowAssignment|CompositeAssignmentAtomicity|DiagnosticIdentity|ProcedureReturn|HandlerAuthority|RemapOnce|DepthUnwind|LocalUsageReplacement|LocalUsageEquivalence|FormalNamespaceCompiler|FormalNamespaceValidation)$' RACE=1
+make check RUN='^TestSQLRoutineDumpEventsUseResolver$'
+```

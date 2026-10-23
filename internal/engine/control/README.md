@@ -24,6 +24,11 @@ The root's capture window (`captureDumpLocked`, under `Engine.mu`) calls
 `Dump(ctx, capture, dst)` (`dump.go`) then sorts and completes the `Capture` in
 place, builds the script and writes it; the root never reads the capture again.
 
+PL bootstrap languages/handlers are validated and omitted, not recreated.
+Altered language authority rejects Dump before writer I/O. Restore compiles PL
+declarations on CREATE, preserves lazy expression binding, and remaps declaration
+source addresses once without converting replay prerequisites into hard edges.
+
 - **Collect tables** (`collect*.go`): `dumpCollectors` is an ordered list of
   `{name, matches, collect}`. Temporary-namespace objects are skipped, the first
   matching entry collects a descriptor and an unmatched one fails with

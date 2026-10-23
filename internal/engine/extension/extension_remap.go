@@ -18,6 +18,14 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		return a
 	}
 	switch d := d.(type) {
+	case *catalog.Language:
+		n := *d
+		n.ObjectAddress = address(d.Address())
+		n.Call, n.Inline, n.Validator = address(d.Call), address(d.Inline), address(d.Validator)
+		if n.ObjectAddress == d.ObjectAddress && n.Call == d.Call && n.Inline == d.Inline && n.Validator == d.Validator {
+			return d
+		}
+		return &n
 	case *catalog.Type:
 		next := address(d.Extension)
 		if next == d.Extension {
@@ -71,6 +79,23 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.ObjectNamespace = address(n.Namespace())
 		n.Extension = address(n.Extension)
 		n.Dictionary = address(n.Dictionary)
+		n.Language = address(d.Language)
+		if len(d.DeclarationDependencies) != 0 {
+			copied := false
+			for i, old := range d.DeclarationDependencies {
+				base := old
+				base.SubID = 0
+				next := address(base)
+				next.SubID = old.SubID
+				if next != old {
+					if !copied {
+						n.DeclarationDependencies = append([]ids.ObjectAddress(nil), d.DeclarationDependencies...)
+						copied = true
+					}
+					n.DeclarationDependencies[i] = next
+				}
+			}
+		}
 		if d.Aggregate != nil && d.DynamicCallable() {
 			owned := *d.Aggregate
 			owned.Definition.Function = n.Address().ObjectID

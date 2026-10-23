@@ -6,6 +6,13 @@ and imports `catalog`, `authorization`, `ids`, `parser`, `sqlstate` and the
 standard library. It never imports the engine. The role graph and ACL
 algorithms it applies live in [`authorization`](../authorization/README.md).
 
+Language descriptors use the ordinary owner/ACL/class-mask and paired role
+authority. Trusted default PUBLIC USAGE is distinct from explicit empty ACL;
+DO/CREATE admission checks USAGE while an existing call checks routine EXECUTE.
+Language ACL entries participate in the same principal dependencies and cleanup.
+No parallel language-permission table or cached grant decision exists.
+
+
 ## What it holds
 
 - **`View`** (`view.go`): the immutable captured pair. It holds the catalog

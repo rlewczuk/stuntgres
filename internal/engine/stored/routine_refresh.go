@@ -42,6 +42,20 @@ func currentRoutineCall(read catalog.Read, call plan.SQLRoutineExpr) (*catalog.P
 	if !ok || current.SQL == nil || current.SQL != call.Procedure.SQL || current.SQLDefaults != call.Procedure.SQLDefaults || current.Signature != call.Procedure.Signature || current.Result != call.Procedure.Result || current.RoutineKind != catalog.FunctionRoutine {
 		return nil, ids.ErrCatalogReplaced
 	}
+	derived, err := call.Collate(func(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
+		return analyze.CollatedInfo(read, info, inputs...)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if derived.InputCollation != call.InputCollation {
+		return nil, fmt.Errorf("stuntgres: mismatched SQL routine input collation")
+	}
+	if call.InputCollation.ID != 0 {
+		if err := ValidateUsageCollation(read, sqltype.Usage{Collation: call.InputCollation}); err != nil {
+			return nil, err
+		}
+	}
 	return current, nil
 }
 
@@ -204,6 +218,26 @@ func reownRoutineDefinition(source *proc.Definition, typ func(*sqltype.Descripto
 	if result != source.Result.Type {
 		detach()
 		next.Result.Type = result
+	}
+	if source.PL != nil {
+		for i, variable := range source.PL.Variables {
+			if variable.Record {
+				continue
+			}
+			mapped := typ(variable.Usage.Type)
+			if mapped == nil || !mapped.Concrete() {
+				return nil, fmt.Errorf("stuntgres: missing PL local type generation")
+			}
+			if mapped != variable.Usage.Type {
+				detach()
+				if next.PL == source.PL {
+					program := *source.PL
+					program.Variables = slices.Clone(source.PL.Variables)
+					next.PL = &program
+				}
+				next.PL.Variables[i].Usage.Type = mapped
+			}
+		}
 	}
 	return next, nil
 }

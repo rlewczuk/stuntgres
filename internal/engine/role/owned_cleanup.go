@@ -84,6 +84,10 @@ func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles autho
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
+		case *catalog.Language:
+			next := *old
+			next.ACL, next.ObjectRevision = nextACL, revision
+			err = stage.Replace(&next)
 		case *catalog.ForeignObject:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision

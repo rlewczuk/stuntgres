@@ -87,6 +87,10 @@ empty/SETOF failures are soft; raw type-grammar errors are explicitly hard
 type-parser or typmod exception never becomes a recoverable delimiter error.
 Diagnostic presentation may unwrap to copy fields but keeps the outer origin.
 
+`ParsePLpgSQL` uses a private lexer/goyacc entry and ordinary SQL expression
+grammar, preserving positions and fully parsing unreachable syntax. Contextual
+PL keywords do not change SQL parsing or configured prewalk behavior.
+
 ## Testing
 
 Unit tests here drive the real lexer and generated parser and check AST shape,
@@ -104,6 +108,7 @@ feature prefix.
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`
 - Typed literals and operators: `RUN='^Test(GeometryConversionCLiteralSyntax|INETSubnetParser)$'`
 - Database creation: `RUN='^TestCreateDatabase'`
+- PL block syntax and full consumption: `RUN='^TestPLpgSQLParserFullConsumption$'`
 
 **Benchmarks.** Compare scratch-receiver changes with the unchanged
 `parser_scratch_bench_test.go` harness before and after:

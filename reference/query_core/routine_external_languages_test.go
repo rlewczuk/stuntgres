@@ -94,10 +94,7 @@ func externalLanguageCapability(t *testing.T, p *fixture.Pair, b fixture.Backend
 
 func externalLanguageInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
-	want := [][]any{{"internal"}}
-	if b.PG {
-		want = [][]any{{"c"}, {"internal"}, {"plpgsql"}, {"sql"}}
-	}
+	want := [][]any{{"c"}, {"internal"}, {"plpgsql"}, {"sql"}}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT lanname FROM pg_catalog.pg_language ORDER BY lanname", []string{"lanname"}, []string{"NAME"}, want))
 }
 

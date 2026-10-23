@@ -73,7 +73,15 @@ func (n SQLRoutineExpr) ValidateArguments(children []expr.Expr) error {
 				return fmt.Errorf("duplicate SQL routine child consumption")
 			}
 			child := children[index]
-			if child == nil || child.ResultUsage() != usage {
+			if child == nil {
+				return fmt.Errorf("invalid SQL routine argument usage")
+			}
+			actual := child.ResultUsage()
+			expected := usage
+			if usage.Collation.ID != 0 && actual.Collation.ID != 0 && actual.Collation.Valid() {
+				expected.Collation = actual.Collation
+			}
+			if actual != expected {
 				return fmt.Errorf("invalid SQL routine argument usage")
 			}
 		}

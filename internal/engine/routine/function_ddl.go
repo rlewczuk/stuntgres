@@ -103,13 +103,21 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Volatile}
+	d.Language = h.AccessView(auth).Catalog.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: s.Language.Text})
 	if s.Procedure {
 		d.RoutineKind = catalog.ProcedureRoutine
 	}
 	if h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) {
 		return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", name))
 	}
-	definition, err := proc.New(s.Body, s.BodyPos, inputs, result)
+	var definition *proc.Definition
+	if s.Language.Text == "plpgsql" {
+		var syntax *parser.PLBlock
+		syntax, err = parser.ParsePLpgSQL(s.Body)
+		definition = &proc.Definition{Kind: proc.PLpgSQLBody, Source: s.Body, Position: s.BodyPos, Inputs: inputs, Result: result, PLSyntax: syntax}
+	} else {
+		definition, err = proc.New(s.Body, s.BodyPos, inputs, result)
+	}
 	if err != nil {
 		var diagnostic *sqlstate.Error
 		if errors.As(err, &diagnostic) && (diagnostic.Code == "42601" || diagnostic.Code == "42P02") {

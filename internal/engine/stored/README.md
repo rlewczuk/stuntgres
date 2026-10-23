@@ -5,6 +5,10 @@ descriptors carry (views, rules, policies, routine recipes), the renderers that
 turn them back into SQL, and the mappers that retag and remap them. View, rule
 and policy DDL decisions and rule rewriting live in [`view`](../view/README.md).
 
+SQL/PL routines share callable captures. Language/body kind, declaration replay
+sources and typed local Usages participate in validation, equivalence and remap;
+no activation values or evaluated PL expressions enter stored payloads.
+
 ## Imports
 
 Layer L11 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture),

@@ -52,6 +52,9 @@ type lexer struct {
 	typeInputNotice    func(sqlstate.Error)
 	options            Options
 	routineBodyDepth   int // SQL-standard body input syntax; never changes outer prewalk policy.
+	plEntry, plMode    bool
+	plResult           *PLBlock
+	plExpression       bool
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool
@@ -742,6 +745,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if l.err != nil {
 		return 0
 	}
+	if l.plEntry {
+		l.plEntry = false
+		return PL_ENTRY
+	}
 	if l.typeInputEntry {
 		l.typeInputEntry = false
 		return TYPE_INPUT
@@ -754,6 +761,38 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		return 0
 	}
 	token := l.nextRaw()
+	if l.plMode && !l.plExpression {
+		spelling := token.lexeme.raw
+		quoted := strings.HasPrefix(spelling, "\"") || len(spelling) >= 3 && (spelling[0] == 'u' || spelling[0] == 'U') && spelling[1] == '&' && spelling[2] == '"'
+		if !quoted && (token.lexeme.keyword != nil || token.code == IDENT) {
+			switch token.lexeme.text {
+			case "return":
+				if l.previousToken != END {
+					token.code = PL_RETURN
+				}
+			case "constant":
+				token.code = PL_CONSTANT
+			case "alias":
+				token.code = PL_ALIAS
+			}
+			if l.previousToken == '%' {
+				switch token.lexeme.text {
+				case "type":
+					token.code = PL_TYPE_COPY
+				case "rowtype":
+					token.code = PL_ROW_COPY
+				}
+			}
+		}
+		switch token.lexeme.text {
+		case "<<":
+			token.code = PL_LABEL_OPEN
+		case ">>":
+			token.code = PL_LABEL_CLOSE
+		case ":=":
+			token.code = PL_ASSIGN
+		}
+	}
 	if l.typeInputMode && token.lexeme.keyword != nil && token.lexeme.text == "setof" {
 		token.code = SETOF_TYPE
 	}

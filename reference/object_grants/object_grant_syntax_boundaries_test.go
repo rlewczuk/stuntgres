@@ -112,8 +112,8 @@ func TestReferenceObjectGrantSyntaxDiagnostics(t *testing.T) {
 
 func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 	largeObjectScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
-		// Handlerless SQL/MED metadata and large-object bytes are real on both
-		// backends. Language execution retains its independent native boundary.
+		// Handlerless SQL/MED metadata, language USAGE and large-object bytes
+		// are real on both backends; no external native ABI is implied.
 		defer func() {
 			for _, q := range []string{
 				"RESET SESSION AUTHORIZATION",
@@ -129,33 +129,31 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 		run(fixture.Exec("CREATE FOREIGN DATA WRAPPER og_boundary_fdw NO HANDLER NO VALIDATOR", 0))
 		run(fixture.Exec("CREATE SERVER og_boundary_server FOREIGN DATA WRAPPER og_boundary_fdw", 0))
 		var lo uint32
-		if b.PG {
-			defer func() {
-				queries := []string{
-					"RESET SESSION AUTHORIZATION",
-					"GRANT USAGE ON LANGUAGE plpgsql TO PUBLIC",
-					"REVOKE USAGE ON LANGUAGE plpgsql FROM og_object_reader,og_object_other CASCADE",
-					"DROP FUNCTION IF EXISTS public.og_boundary_lang()",
-					"DROP FUNCTION IF EXISTS public.og_boundary_lang_denied()",
+		defer func() {
+			queries := []string{
+				"RESET SESSION AUTHORIZATION",
+				"GRANT USAGE ON LANGUAGE plpgsql TO PUBLIC",
+				"REVOKE USAGE ON LANGUAGE plpgsql FROM og_object_reader,og_object_other CASCADE",
+				"DROP FUNCTION IF EXISTS public.og_boundary_lang()",
+				"DROP FUNCTION IF EXISTS public.og_boundary_lang_denied()",
+			}
+			for _, q := range queries {
+				if _, err := c.ExecContext(p.Ctx, q); err != nil {
+					t.Error("external facility cleanup", q, err)
 				}
-				for _, q := range queries {
-					if _, err := c.ExecContext(p.Ctx, q); err != nil {
-						t.Error("external facility cleanup", q, err)
-					}
-				}
-			}()
-		}
+			}
+		}()
 		if err := c.QueryRowContext(p.Ctx, "SELECT lo_create(0)").Scan(&lo); err != nil {
 			t.Fatal(err)
 		}
 		defer largeObjectCleanup(t, p, c, lo)
 		run(fixture.Exec(fmt.Sprintf("SELECT lo_put(%d,0,decode('6162','hex'))", lo), 1))
 		loTarget := fmt.Sprint(lo)
-		for _, tc := range []struct{ target, privilege, noun, unsupported string }{
-			{"LANGUAGE plpgsql", "USAGE", "language", "LANGUAGE"},
-			{"FOREIGN DATA WRAPPER og_boundary_fdw", "USAGE", "foreign-data wrapper", "FOREIGN DATA WRAPPER"},
-			{"FOREIGN SERVER og_boundary_server", "USAGE", "foreign server", "FOREIGN SERVER"},
-			{"LARGE OBJECT " + loTarget, "SELECT", "large object", "LARGE OBJECT"},
+		for _, tc := range []struct{ target, privilege, noun string }{
+			{"LANGUAGE plpgsql", "USAGE", "language"},
+			{"FOREIGN DATA WRAPPER og_boundary_fdw", "USAGE", "foreign-data wrapper"},
+			{"FOREIGN SERVER og_boundary_server", "USAGE", "foreign server"},
+			{"LARGE OBJECT " + loTarget, "SELECT", "large object"},
 		} {
 			for _, privilege := range []string{"TEMP", "TEMPORARY", "EXECUTE"} {
 				canonical := privilege
@@ -168,16 +166,12 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 			fixture.RoleGrantError(run, "GRANT "+tc.privilege+"(x) ON "+tc.target+" TO og_object_reader", "0LP01", "column privileges are only valid for relations")
 			for _, privilege := range []string{tc.privilege, "ALL PRIVILEGES"} {
 				q := "GRANT " + privilege + " ON " + tc.target + " TO og_object_reader"
-				if b.PG || tc.unsupported != "LANGUAGE" {
-					run(fixture.Exec(q, 0))
-				} else {
-					fixture.RoleGrantError(run, q, "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
-				}
+				run(fixture.Exec(q, 0))
 			}
-			if !b.PG && tc.unsupported == "LANGUAGE" {
-				fixture.RoleGrantError(run, "REVOKE "+tc.privilege+" ON "+tc.target+" FROM og_object_reader", "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
-				fixture.RoleGrantError(run, "REVOKE GRANT OPTION FOR "+tc.privilege+" ON "+tc.target+" FROM og_object_reader", "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
-				fixture.RoleGrantError(run, "REVOKE "+tc.privilege+" ON "+tc.target+" FROM og_object_reader CASCADE", "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
+			if tc.noun == "language" {
+				run(fixture.Exec("REVOKE "+tc.privilege+" ON "+tc.target+" FROM og_object_reader", 0))
+				run(fixture.Exec("REVOKE GRANT OPTION FOR "+tc.privilege+" ON "+tc.target+" FROM og_object_reader", 0))
+				run(fixture.Exec("REVOKE "+tc.privilege+" ON "+tc.target+" FROM og_object_reader CASCADE", 0))
 			}
 		}
 		run(fixture.Exec("REVOKE USAGE ON FOREIGN DATA WRAPPER og_boundary_fdw FROM og_object_reader", 0))
@@ -194,22 +188,20 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 		})
 		run(fixture.Exec("GRANT USAGE ON FOREIGN SERVER og_boundary_server TO og_object_reader", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() { run(fixture.Exec(createMapping, 0)) })
-		if b.PG {
-			run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO og_object_reader", 0))
-			run(fixture.Exec("REVOKE USAGE ON LANGUAGE plpgsql FROM PUBLIC,og_object_reader", 0))
-			createFunction := "CREATE FUNCTION public.og_boundary_lang() RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN 7; END$$"
-			fixture.RoleGrantActor(run, "og_object_reader", func() { fixture.RoleGrantPermissionDenied(run, createFunction, "language", "plpgsql") })
-			run(fixture.Exec("GRANT USAGE ON LANGUAGE plpgsql TO og_object_reader", 0))
-			fixture.RoleGrantActor(run, "og_object_reader", func() {
-				run(fixture.Exec(createFunction, 0))
-				run(fixture.Select("SELECT public.og_boundary_lang() AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
-			})
-			run(fixture.Exec("REVOKE USAGE ON LANGUAGE plpgsql FROM og_object_reader", 0))
-			fixture.RoleGrantActor(run, "og_object_reader", func() {
-				fixture.RoleGrantPermissionDenied(run, "CREATE FUNCTION public.og_boundary_lang_denied() RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN 7; END$$", "language", "plpgsql")
-				run(fixture.Select("SELECT public.og_boundary_lang() AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
-			})
-		}
+		run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO og_object_reader", 0))
+		run(fixture.Exec("REVOKE USAGE ON LANGUAGE plpgsql FROM PUBLIC,og_object_reader", 0))
+		createFunction := "CREATE FUNCTION public.og_boundary_lang() RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN 7; END$$"
+		fixture.RoleGrantActor(run, "og_object_reader", func() { fixture.RoleGrantPermissionDenied(run, createFunction, "language", "plpgsql") })
+		run(fixture.Exec("GRANT USAGE ON LANGUAGE plpgsql TO og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			run(fixture.Exec(createFunction, 0))
+			run(fixture.Select("SELECT public.og_boundary_lang() AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		})
+		run(fixture.Exec("REVOKE USAGE ON LANGUAGE plpgsql FROM og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			fixture.RoleGrantPermissionDenied(run, "CREATE FUNCTION public.og_boundary_lang_denied() RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN 7; END$$", "language", "plpgsql")
+			run(fixture.Select("SELECT public.og_boundary_lang() AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		})
 
 		run(fixture.Exec("REVOKE ALL ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
 		read := "SELECT encode(lo_get(" + loTarget + "),'hex') AS v"

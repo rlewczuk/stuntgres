@@ -181,6 +181,20 @@ identities; native logical snapshots remap them coherently. See the
 [provider ownership](internal/engine/extension/README.md) and
 [reference tests](reference/types/README.md#testing).
 
+## PL/pgSQL block core
+
+Added DO and lexical DECLARE/BEGIN/END execution, aliases, scalar/row/RECORD
+assignment and scalar/void RETURN. PL uses all-formal `$n` numbering and non-NULL
+VOID; SQL retains its existing contracts. Real language USAGE and routine EXECUTE
+remain distinct. Stored consumers and native replay retain checked declarations.
+Composite whole-NULL values retain their known shape; NULL clears RECORD shape.
+Whole-row and field assignment validate composite-domain constraints before publication.
+Copied declaration typmods and collation capabilities survive native replacement.
+Checked call collation reaches private parameter/local Usages without changing fixed column `%TYPE` collations.
+PL rejects colliding formal names without changing SQL's projection-aware name reuse.
+General procedural control flow, CALL/copyback and language lifecycle are not
+included. See [contracts and selected tests](reference/operators/README.md#plpgsql-core).
+
 <!-- moved from README.md -->
 
 ## External routine languages — change note

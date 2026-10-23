@@ -37,6 +37,12 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	if !ok {
 		return invalid()
 	}
+	if d.SQL == nil && len(d.DeclarationDependencies) != 0 {
+		return invalid()
+	}
+	if d.PLHandler != catalog.NoPLHandler {
+		return catalog.ValidatePLHandler(v, d)
+	}
 	if d.AccessMethod != catalog.NoAccessMethod {
 		identity, known := catalog.BuiltinRoutineIdentityByOID(d.Address().ObjectID)
 		result, _ := catalog.BuiltinRoutineResultByOID(d.Address().ObjectID)
@@ -86,8 +92,66 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if !d.SQL.Result.Valid() || d.SQL.Standard != (d.SQLBody != nil) || len(d.SQL.Names) != len(d.SQL.Inputs) {
 		return invalid()
 	}
+	language, validLanguage := v.Get(d.Language).(*catalog.Language)
+	if !validLanguage || (catalog.LanguageProvider{}).Validate(v, language) != nil {
+		return invalid()
+	}
+	if d.SQL.Kind == proc.PLpgSQLBody {
+		if language.Name() != "plpgsql" || d.SQL.Standard || len(d.SQL.Statements) != 0 || d.SQL.PL == nil || d.SQL.PLSyntax == nil || d.SQL.PL.Function != d.Name() || d.SQL.PL.FormalCount != len(d.SQL.Formals) || d.SQL.PL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine) {
+			return invalid()
+		}
+		if err := d.SQL.PL.ValidateDefinition(d.SQL); err != nil {
+			return err
+		}
+		seen := make(map[ids.ObjectAddress]bool, len(d.DeclarationDependencies))
+		for _, dependency := range d.DeclarationDependencies {
+			if dependency.ObjectID == 0 || seen[dependency] {
+				return invalid()
+			}
+			seen[dependency] = true
+			base := dependency
+			base.SubID = 0
+			switch dependency.ClassID {
+			case ids.TypeClassID:
+				if dependency.SubID != 0 {
+					return invalid()
+				}
+				if _, ok := v.Get(base).(*catalog.Type); !ok {
+					return invalid()
+				}
+			case ids.CollationClassID:
+				if dependency.SubID != 0 {
+					return invalid()
+				}
+				if _, ok := v.Get(base).(*catalog.Collation); !ok {
+					return invalid()
+				}
+			case ids.RelationClassID:
+				relation, ok := v.Get(base).(*catalog.Relation)
+				if !ok || dependency.SubID < 0 || dependency.SubID > 0 && !slices.Contains(relation.Attributes, dependency.SubID) {
+					return invalid()
+				}
+			default:
+				return invalid()
+			}
+		}
+		for _, variable := range d.SQL.PL.Variables {
+			if variable.Record {
+				continue
+			}
+			if !variable.Usage.Valid() {
+				return invalid()
+			}
+			typ, exists := v.LookupType(variable.Usage.Type.ID())
+			if !exists || typ != variable.Usage.Type {
+				return invalid()
+			}
+		}
+	} else if d.SQL.Kind != proc.SQLBody || language.Name() != "sql" || d.SQL.PL != nil || d.SQL.PLSyntax != nil || len(d.DeclarationDependencies) != 0 {
+		return invalid()
+	}
 	result, ok := v.LookupType(d.SQL.Result.Type.ID())
-	if !ok || !result.Concrete() {
+	if !ok || !result.Concrete() || result != d.SQL.Result.Type {
 		return invalid()
 	}
 	layout := &proc.Definition{}

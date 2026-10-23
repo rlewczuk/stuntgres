@@ -49,6 +49,13 @@ package parser
  routineResult routineResult
  routineAS routineAS
  createLanguage *CreateLanguage
+ plBlock *PLBlock
+ plDeclarations []PLDeclaration
+ plDeclaration PLDeclaration
+ plStatements []PLStatement
+ plStatement PLStatement
+ plType PLType
+ plIdentifier Identifier
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
@@ -210,6 +217,7 @@ package parser
 /* Private bounded replay entry for destination-context INSERT cells. */
 %token <tok> INSERT_SCALAR_VALUES
 %token <tok> TYPE_INPUT
+%token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN
 %token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
@@ -459,6 +467,19 @@ package parser
 %type <objectName> language_inline language_validator
 %type <routineAS> routine_as
 %type <stmt> create_cast drop_cast
+%type <stmt> do_statement
+%type <plBlock> pl_block
+%type <plDeclarations> pl_declarations pl_declaration_list
+%type <plDeclaration> pl_declaration
+%type <plStatements> pl_statements
+%type <plStatement> pl_statement
+%type <plType> pl_type
+%type <plIdentifier> pl_label pl_end_label
+%type <desc> pl_constant
+%type <tok> pl_not_null
+%type <expr> pl_default pl_target pl_return_value pl_expression
+%type <tok> pl_name
+%type <objectName> pl_path
 %type <tok> cast_context
 %type <tok> returns_word
 %type <routineParameters> function_arguments function_declaration_argument_list
@@ -806,7 +827,8 @@ package parser
 %type <row> execute_arguments execute_argument_list
 %%
 script: separators optional_statements
- | TYPE_INPUT standalone_type { sqllex.(*lexer).typeInputResult = standaloneType($2) } ;
+ | TYPE_INPUT standalone_type { sqllex.(*lexer).typeInputResult = standaloneType($2) }
+ | PL_ENTRY pl_block pl_final_semicolon { sqllex.(*lexer).plResult = $2 } ;
 standalone_type: type { $$=$1 }
  | standalone_type '.' col_label { $$=appendStandalonePart($1,$3) }
  | standalone_type '(' { if len($1.Parts)<3 {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).characterGeneric=true;sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).multipleModifiers=true;sqllex.(*lexer).bitModifier=true } generic_modifiers ')' { $$=$1;$$.Modifiers=$4.Modifiers }
@@ -822,6 +844,7 @@ accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqll
 statement: nontransaction_statement | transaction_control ;
 nontransaction_statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment
  | with_mutation
+ | do_statement
  | vacuum
  | truncate_table
  | alter_default_privileges
@@ -1549,6 +1572,42 @@ language_head: CREATE LANGUAGE name {$$=&CreateLanguage{Name:Identifier{Text:$3.
 create_language: language_head FDW_HANDLER relation_name language_inline language_validator {$$=$1;$1.Handler=$3;$1.Inline=$4;$1.Validator=$5} ;
 language_inline: /* empty */ {$$=ObjectName{}} | LANGUAGE_INLINE relation_name {$$=$2} ;
 language_validator: /* empty */ {$$=ObjectName{}} | FDW_VALIDATOR relation_name {$$=$2} ;
+do_statement: DO STRING {$$=&Do{Body:$2.text,BodyPos:routineBodyPosition($2),Language:Identifier{Text:"plpgsql"},Pos:$1.pos}}
+ | DO LANGUAGE name STRING {$$=&Do{Body:$4.text,BodyPos:routineBodyPosition($4),Language:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}}
+ | DO STRING LANGUAGE name {$$=&Do{Body:$2.text,BodyPos:routineBodyPosition($2),Language:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}} ;
+pl_final_semicolon: /* empty */ | ';' ;
+pl_label: /* empty */ {$$=Identifier{}}
+ | PL_LABEL_OPEN pl_name PL_LABEL_CLOSE {$$=Identifier{Text:$2.text,Pos:$2.pos}} ;
+pl_end_label: /* empty */ {$$=Identifier{}}
+ | pl_name {$$=Identifier{Text:$1.text,Pos:$1.pos}} ;
+pl_block: pl_label pl_declarations BEGIN pl_statements END pl_end_label {$$=sqllex.(*lexer).plBlock($1,$2,$4,$6,$3.pos);if sqllex.(*lexer).err!=nil{return 1}} ;
+pl_declarations: /* empty */ {$$=nil}
+ | DECLARE pl_declaration_list {$$=$2} ;
+pl_declaration_list: /* empty */ {$$=nil}
+ | pl_declaration_list pl_declaration ';' {$$=append($1,$2)} ;
+pl_declaration: pl_name pl_constant pl_type pl_not_null pl_default {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Constant:$2,Type:$3,NotNull:$4.text!="",NotNullPos:$4.pos,Default:$5}}
+ | pl_name PL_ALIAS FOR pl_target {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Alias:$4}} ;
+pl_constant: /* empty */ {$$=false} | PL_CONSTANT {$$=true} ;
+pl_not_null: /* empty */ {$$=lexeme{}} | NOT NULL {$$=$1} ;
+pl_type: declared_type {$$=PLType{Type:$1}}
+ | declared_type '%' PL_TYPE_COPY {$$=plCopiedType($1,false)}
+ | declared_type '.' name '%' PL_TYPE_COPY {$$=plCopiedType($1,false);$$.Copy.Parts=append($$.Copy.Parts,Identifier{Text:$3.text,Pos:$3.pos})}
+ | declared_type '%' PL_ROW_COPY {$$=plCopiedType($1,true)} ;
+pl_default: /* empty */ {$$=nil} | DEFAULT pl_expression {$$=$2} | PL_ASSIGN pl_expression {$$=$2} | '=' pl_expression {$$=$2} ;
+pl_statements: /* empty */ {$$=nil}
+ | pl_statements pl_statement ';' {$$=append($1,$2)} ;
+pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
+ | pl_target PL_ASSIGN pl_expression {$$=PLStatement{Target:$1,Expression:$3,Pos:$1.SourcePosition()}}
+ | pl_target '=' pl_expression {$$=PLStatement{Target:$1,Expression:$3,Pos:$1.SourcePosition()}}
+ | PL_RETURN pl_return_value {$$=PLStatement{Return:true,Expression:$2,Pos:$1.pos}} ;
+pl_return_value: /* empty */ {$$=nil} | pl_expression {$$=$1} ;
+pl_expression: pl_expression_start scalar_projection { sqllex.(*lexer).plExpression=false; $$=$2 } ;
+pl_expression_start: /* empty */ { sqllex.(*lexer).plExpression=true } ;
+pl_target: pl_path {$$=ColumnExpr{Name:$1,Pos:$1.Parts[0].Pos}}
+ | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}} ;
+pl_name: IDENT | KW_U | KW_C | KW_T | RETURN_BODY ;
+pl_path: pl_name {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}
+ | pl_path '.' col_label {$$=$1;$$.Parts=append($$.Parts,Identifier{Text:$3.text,Pos:$3.pos})} ;
 routine_return_head: RETURN_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 routine_atomic_head: BEGIN ATOMIC_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 standard_routine_body: routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=[]Statement{&Select{Targets:[]Expr{$2},Pos:$1.pos}}}

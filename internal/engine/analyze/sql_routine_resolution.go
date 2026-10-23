@@ -485,6 +485,10 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			info.Property = expr.MergeProperties(info.Property, node.Properties())
 		}
 		node := plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: args, WrittenCount: len(raw.Args), ArgNames: raw.ArgNames, Variadic: raw.Variadic, InputMap: assembly}
+		node, err := node.Collate(b.CollatedInfo)
+		if err != nil {
+			return nil, err
+		}
 		return node.AssembleArguments()
 	}
 	previous, previousSyntax, previousArguments := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments

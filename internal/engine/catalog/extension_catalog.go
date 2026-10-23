@@ -48,13 +48,18 @@ type Procedure struct {
 	RoutineKind                               RoutineKind
 	Builtin                                   *BuiltinRoutineDeclaration
 	SQL                                       *proc.Definition
-	SQLBody                                   RoutineProgram
-	SQLDefaults                               RoutineDefaults
-	Body                                      []RoutineBodyEdge
-	Owner                                     authorization.PrincipalRef
-	Result                                    ids.OID
-	Volatility                                expr.Volatility
-	Strict                                    bool
+	Language                                  ids.ObjectAddress
+	PLHandler                                 PLHandler
+	// DeclarationDependencies order replay only; PL source is not an eager SQL
+	// body dependency manifest and these addresses do not create pg_depend edges.
+	DeclarationDependencies []ids.ObjectAddress
+	SQLBody                 RoutineProgram
+	SQLDefaults             RoutineDefaults
+	Body                    []RoutineBodyEdge
+	Owner                   authorization.PrincipalRef
+	Result                  ids.OID
+	Volatility              expr.Volatility
+	Strict                  bool
 	// Implementation is the extension implementation that installed this
 	// routine; nil for builtin, conversion and foreign routines.
 	Implementation ExtensionImplementation

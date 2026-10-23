@@ -2,6 +2,7 @@ package exec
 
 import (
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -60,6 +61,18 @@ func currentRoutineDeclaration(view catalog.Read, captured *catalog.Procedure) (
 	if !ok || !SameRoutineDeclaration(current, captured) {
 		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
 	}
+	if current.SQL != nil {
+		language, exists := view.Get(current.Language).(*catalog.Language)
+		if !exists || (catalog.LanguageProvider{}).Validate(view, language) != nil {
+			return nil, fmt.Errorf("stuntgres: invalid routine language authority")
+		}
+		if current.SQL.PL != nil {
+			handler, exists := view.Get(language.Call).(*catalog.Procedure)
+			if !exists || handler.PLHandler != catalog.PLCallHandler || catalog.ValidatePLHandler(view, handler) != nil {
+				return nil, fmt.Errorf("stuntgres: invalid PL call handler authority")
+			}
+		}
+	}
 	return current, nil
 }
 
@@ -69,6 +82,8 @@ func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.RoutineKind == captured.RoutineKind && current.Result == captured.Result &&
 		current.Strict == captured.Strict && current.Volatility == captured.Volatility &&
 		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
+		current.Language == captured.Language && current.PLHandler == captured.PLHandler &&
+		slices.Equal(current.DeclarationDependencies, captured.DeclarationDependencies) &&
 		current.Conversion == captured.Conversion && current.SQL == captured.SQL && current.SQLBody == captured.SQLBody &&
 		current.SQLDefaults == captured.SQLDefaults && sameAggregateDefinition(current.Aggregate, captured.Aggregate)
 }

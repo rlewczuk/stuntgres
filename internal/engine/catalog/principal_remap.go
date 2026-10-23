@@ -100,6 +100,18 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 				return err
 			}
 			state.SetDescriptor(addr, &n)
+		case *Language:
+			n := *d
+			var err error
+			n.Owner, err = seedOwner(d.Owner, true)
+			if err != nil {
+				return err
+			}
+			n.ACL, err = acl(d.ACL)
+			if err != nil {
+				return err
+			}
+			state.SetDescriptor(addr, &n)
 		case *Parameter:
 			n := *d
 			var err error
