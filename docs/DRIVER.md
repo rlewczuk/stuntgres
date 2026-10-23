@@ -172,6 +172,18 @@ OS process). Notifications are not delivered while the receiver is inside a
 transaction. Other SQL on the same `*sql.Conn` waits until the call returns, so
 cancel its context before closing the connection.
 
+`pg_listening_channels()` returns the pinned physical connection's committed
+subscriptions as TEXT rows. `pg_notification_queue_usage()` returns a FLOAT8
+fraction shared by the logical databases of that Driver/DSN cluster. Busy
+registered listeners retain pending pages even for unmatched or foreign-database
+traffic; payload delivery remains database-local. Idle processing at publication
+and outer transaction boundaries releases those holds, independently of client
+receipt. A within-page hold can report zero.
+
+Both inquiries work directly and through held prepared statements. Native
+Reset/Restore retain live subscriptions, pending holds and client-ready events;
+Dump serializes none of them, and an independent restored Driver starts empty.
+
 ## COPY
 
 `stuntgres.CopyFrom(ctx, conn, "COPY t FROM STDIN ...", reader)` and

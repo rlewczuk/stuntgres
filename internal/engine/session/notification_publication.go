@@ -14,8 +14,7 @@ type notificationCapture struct {
 // replacement states prepared without the lock (Prepare), and a replacement
 // registry when the sender's registration changes. The publisher checks it
 // with UnchangedLocked and installs it with InstallLocked under the same
-// Engine.mu window as the rows and catalog. There is no secondary notification
-// commit authority or counter to exhaust.
+// cluster-shared Engine.mu window as rows, catalog and the queue head.
 type NotificationPublication struct {
 	captured []notificationCapture
 	registry NotificationRegistry
@@ -23,29 +22,31 @@ type NotificationPublication struct {
 	own      *NotificationListener
 }
 
-// CaptureLocked records into p every registered listener and the sender's own
-// listener own, with their states, busy and ended flags, and the registration
-// count.
+// CaptureLocked records every registered listener and, when nonnil, the local
+// sender's own listener, with immutable state roots and busy/ended flags.
 func (r *NotificationRegistry) CaptureLocked(p *NotificationPublication, own *NotificationListener) {
 	p.own = own
 	p.count = len(*r)
-	p.captured = make([]notificationCapture, 0, p.count+1)
+	capacity := p.count
+	if own != nil && (*r)[own.Session.SessionToken] != own {
+		capacity++
+	}
+	p.captured = make([]notificationCapture, 0, capacity)
 	ownFound := false
 	for _, n := range *r {
 		p.captured = append(p.captured, notificationCapture{resource: n, original: n.State, busy: n.Busy, ended: n.Ended})
 		ownFound = ownFound || n == own
 	}
-	if !ownFound {
+	if own != nil && !ownFound {
 		p.captured = append(p.captured, notificationCapture{resource: own, original: own.State, busy: own.Busy, ended: own.Ended})
 	}
 }
 
-// Prepare computes, without Engine.mu, each captured listener's replacement
-// state: the sender's LISTEN/UNLISTEN actions, then events, held in Pending
-// for busy recipients and appended to Ready for idle ones. Ended listeners
-// are skipped. When the sender's registration changes it also builds the
-// replacement registry.
-func (p *NotificationPublication) Prepare(actions []NotificationAction, events []Notification) {
+// Prepare computes immutable replacements without Engine.mu. start is the
+// cluster head before this batch. Every busy registered listener retains that
+// boundary; local gates payload links and delivery, not global accounting.
+// Sender actions change only the local registry.
+func (p *NotificationPublication) Prepare(actions []NotificationAction, events []Notification, start NotificationQueuePosition, local bool) {
 	own := p.own
 	batch := events[:len(events):len(events)]
 	for i := range p.captured {
@@ -76,6 +77,8 @@ func (p *NotificationPublication) Prepare(actions []NotificationAction, events [
 			}
 			if len(next.Channels) == 0 {
 				next.Pending = nil
+				next.Unread = false
+				next.Position = NotificationQueuePosition{}
 			}
 			if wasRegistered != (len(next.Channels) != 0) {
 				p.registry = make(NotificationRegistry, p.count+1)
@@ -91,16 +94,25 @@ func (p *NotificationPublication) Prepare(actions []NotificationAction, events [
 		}
 		if len(batch) != 0 && len(next.Channels) != 0 {
 			if c.busy {
-				next.Pending = &NotificationLink{Batch: batch, Next: next.Pending}
+				if !next.Unread {
+					next.Unread = true
+					next.Position = start
+				}
+				if local {
+					next.Pending = &NotificationLink{Batch: batch, Next: next.Pending}
+				}
 				changed = true
 			} else {
-				ready := next.Ready.Append(FilterNotificationBatch(batch, next.Channels))
-				changed = changed || ready != next.Ready
-				next.Ready = ready
+				if local {
+					ready := next.Ready.Append(FilterNotificationBatch(batch, next.Channels))
+					changed = changed || ready != next.Ready
+					next.Ready = ready
+				}
 			}
 		}
 		if changed {
-			c.next = &NotificationState{Channels: next.Channels, History: next.History, Pending: next.Pending, Ready: next.Ready}
+			c.next = new(NotificationState)
+			*c.next = next
 		}
 	}
 }

@@ -492,6 +492,22 @@ func (c *Context) OtherTempNamespace(oid uint32) (bool, error) {
 	return host.OtherTempNamespace(oid)
 }
 
+func (c *Context) ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: notification inquiry lacks statement authority")
+	}
+	return host.ListeningChannels(result)
+}
+
+func (c *Context) NotificationQueueUsage() (float64, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return 0, fmt.Errorf("stuntgres: notification inquiry lacks statement authority")
+	}
+	return host.NotificationQueueUsage()
+}
+
 var _ functions.TransactionInquiryRuntime = (*Context)(nil)
 
 func (c *Context) CheckTransactionInquiryContext() error { return EvaluationContext(c) }

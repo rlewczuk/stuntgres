@@ -27,7 +27,7 @@ func notificationTestRegistry(listeners ...*NotificationListener) NotificationRe
 func notificationTestPrepared(r *NotificationRegistry, own *NotificationListener, actions []NotificationAction, events []Notification) *NotificationPublication {
 	p := &NotificationPublication{}
 	r.CaptureLocked(p, own)
-	p.Prepare(actions, events)
+	p.Prepare(actions, events, NotificationQueuePosition{}, true)
 	return p
 }
 

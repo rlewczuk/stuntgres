@@ -76,6 +76,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					changes = session.NewJournal()
 				}
 				original, frontier, root := e.catalog.state, e.visibility.CommitSeq(), payloadOf(receiver).notifications.State
+				head := e.cluster.notificationHead
 				switch failure {
 				case "cancel":
 					cancel()
@@ -92,13 +93,16 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					if err == nil {
 						t.Fatal("failed preflight published")
 					}
-					if payloadOf(receiver).notifications.State != root || e.catalog.state != original || e.visibility.CommitSeq() != frontier {
+					if payloadOf(receiver).notifications.State != root || e.catalog.state != original || e.visibility.CommitSeq() != frontier || e.cluster.notificationHead != head {
 						t.Fatal("partial catalog/notification installation")
 					}
 					return
 				}
 				if err != nil {
 					t.Fatal(err)
+				}
+				if e.cluster.notificationHead == head || *e.cluster.notificationHead != (session.NotificationQueuePosition{Offset: 32}) {
+					t.Fatal("successful publication did not advance the sole head exactly once", e.cluster.notificationHead)
 				}
 				if e.visibility.LastAssignedXID() == 0 {
 					t.Fatal("notification-only publication did not assign XID")
@@ -195,7 +199,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			case "retire":
 				payloadOf(r).notifications.Ended = true
 			}
-			unchanged := e.notifications.UnchangedLocked(candidate)
+			unchanged := e.notificationPublicationUnchangedLocked(candidate)
 			if change == "registration" {
 				e.notifications[r.SessionToken] = &payloadOf(r).notifications
 			}

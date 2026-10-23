@@ -104,13 +104,18 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				e.mu.Unlock()
 				return err
 			}
-			if !e.notifications.UnchangedLocked(notifications) {
+			if !e.notificationPublicationUnchangedLocked(notifications) {
 				op.Session.Mu.Unlock()
 				e.mu.Unlock()
 				if remoteSettled {
 					return catalog.Conflict{}
 				}
 				continue
+			}
+			if err := notificationPublicationError(notifications); err != nil {
+				op.Session.Mu.Unlock()
+				e.mu.Unlock()
+				return err
 			}
 			if phase == nil && !remoteSettled && foreignPending(session.TxOwnerOf(ref)) {
 				op.Session.Mu.Unlock()
@@ -130,7 +135,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			if phase != nil && phase.preparing {
 				e.installPreparedLocked(phase)
 			} else {
-				e.notifications.InstallLocked(notifications)
+				e.installNotificationPublicationLocked(notifications)
 				e.visibility.SerializableCommittedLocked(ref, e.visibility.CommitSeq())
 				e.visibility.RecordCommitTimestampLocked(ref)
 				e.finishPreparedLocked(phase)
@@ -355,7 +360,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if err == nil && e.visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := !e.notifications.UnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || len(p.Store.Versions) != len(p.Root) {
@@ -419,6 +424,11 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.mu.Unlock()
 			return err
 		}
+		if err := notificationPublicationError(notifications); err != nil {
+			sess.Mu.Unlock()
+			e.mu.Unlock()
+			return err
+		}
 		if phase != nil && phase.preparing {
 			e.installPreparedLocked(phase)
 			sess.Mu.Unlock()
@@ -444,7 +454,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			databaseRoots = e.databaseProjectionLocked(nextCatalog)
 		}
 		// No callback, allocation or failure remains after this point.
-		e.notifications.InstallLocked(notifications)
+		e.installNotificationPublicationLocked(notifications)
 		if c != nil {
 			for _, shape := range c.Storage {
 				if shape.Original != nil {

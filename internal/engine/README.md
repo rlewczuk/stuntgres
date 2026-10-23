@@ -62,6 +62,17 @@ include other targets' persistent objects/default ACLs; external role-reference
 labels remain scoped to their owning database. Native controls capture the
 selected runtime and preserve registry/roles/other targets during replacement.
 
+Notification accounting shares this mutex and one immutable cluster head.
+The existing transaction publisher captures every exact target/registry/listener
+root, prepares replacements unlocked, and validates them alongside row/catalog
+authority before any installation. Only local targets receive payload batches;
+busy registered listeners across all targets retain global unread positions.
+Idle publication/outer boundaries process eagerly. Usage reads the minimum
+unread boundary without allocation or consuming Ready data. Capacity vetoes are
+prepared before the fence and raised only for validated roots; the installation
+fence remains allocation-, callback- and failure-free. Native replacement retains
+the head and live listener roots; none is serialized.
+
 
 ## Hosts
 
@@ -278,6 +289,7 @@ make check RUN='^TestSetting'                         # settings registry
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # producers; one catalog: ^TestPG<Name>
 make check RUN='^Test(AlterDropColumnRevisionFrontier|CatalogConcurrentReplacement|AccessMethod|Builtin)'  # catalog writes, seed
 make check RUN='^Test(CatalogRelations|NamespaceIdentity|ObjectAddress)'  # catalog inquiry and identity
+make check RUN='^TestNotification'                     # immutable session/cluster queues and publication
 make check RUN='^Test(Advisory|BlockingPids|DeadlockResultScheduling|RelationDeadlock|RelationLockWaits|PGLocks)'  # advisory, waits, deadlocks
 make check RUN='^Test(UpdateCore|TransactionIdentity|CommitTime)'  # MultiXact, transaction identity
 make check RUN='^Test(Serial|SourceProtocol|ViewLiteralProtocol)'  # sequences, sources, stored capture

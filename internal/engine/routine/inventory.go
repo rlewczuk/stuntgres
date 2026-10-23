@@ -1542,6 +1542,8 @@ var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{6159, ids.PGCatalogNamespaceOID, "pg_get_catalog_foreign_keys", ""}, catalog.FunctionRoutine, 2249, true, expr.Stable, 's', true, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{3778, ids.PGCatalogNamespaceOID, "pg_tablespace_location", "26"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{2556, ids.PGCatalogNamespaceOID, "pg_tablespace_databases", "26"}, catalog.FunctionRoutine, 26, true, expr.Stable, 's', true, 0, 0, functions.CatalogRoutineProvider},
+	{catalog.RoutineIdentity{3035, ids.PGCatalogNamespaceOID, "pg_listening_channels", ""}, catalog.FunctionRoutine, 25, true, expr.Stable, 'r', true, 0, 0, functions.CatalogRoutineProvider},
+	{catalog.RoutineIdentity{3296, ids.PGCatalogNamespaceOID, "pg_notification_queue_usage", ""}, catalog.FunctionRoutine, 701, true, expr.Volatile, 'r', false, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{3423, ids.PGCatalogNamespaceOID, "pg_partition_tree", "2205"}, catalog.FunctionRoutine, 2249, true, expr.Volatile, 's', true, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{3425, ids.PGCatalogNamespaceOID, "pg_partition_ancestors", "2205"}, catalog.FunctionRoutine, 2205, true, expr.Volatile, 's', true, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{3424, ids.PGCatalogNamespaceOID, "pg_partition_root", "2205"}, catalog.FunctionRoutine, 2205, true, expr.Immutable, 's', false, 0, 0, functions.CatalogRoutineProvider},

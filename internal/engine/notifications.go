@@ -163,7 +163,7 @@ func finishNotificationBoundary(t *session.TransactionOwner) {
 	for {
 		e.mu.Lock()
 		original := n.State
-		if n.Ended || original == nil || original.Pending == nil {
+		if n.Ended || original == nil || original.Pending == nil && !original.Unread {
 			n.Busy = false
 			e.mu.Unlock()
 			return
@@ -172,6 +172,8 @@ func finishNotificationBoundary(t *session.TransactionOwner) {
 		next := *original
 		next.Ready = session.ScanNotificationPending(next.Ready, next.Pending, next.Channels)
 		next.Pending = nil
+		next.Unread = false
+		next.Position = session.NotificationQueuePosition{}
 		e.mu.Lock()
 		if n.State != original || n.Ended {
 			e.mu.Unlock()

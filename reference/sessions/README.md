@@ -55,6 +55,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   `WaitForNotification` inside one bounded `sql.Conn.Raw` callback on PostgreSQL;
   the raw connection never escapes the callback
   ([driver contract](../../docs/DRIVER.md#notices-and-notifications)).
+- Notification-info inquiries pin middleware-wrapped `backend.DB` connections
+  through `notificationInfoConn`, including cross-database and independently
+  restored pools, so SQL result assertions retain fixture recording. Only native
+  controls use the separate raw pool; these scenarios do not receive notifications.
 - Drain and close a PostgreSQL cursor before issuing another command on its
   physical connection. Native controls use `p.Native`/`p.NativeConnector`, never
   the middleware-wrapped pool.
@@ -78,6 +82,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Schema and TEMP namespace identity: `RUN='^TestReferenceNamespaceIdentity'`
 - Version and Unicode inquiries: `RUN='^TestReferenceVersionInformation'`
 - LISTEN/NOTIFY session messages: `RUN='^TestReferenceSessionMessages'`
+- Notification state inquiries: `RUN='^TestReferenceNotificationInfo'`
 - `pg_locks`: `RUN='^TestReferenceViewLocks'`
 - `pg_blocking_pids`: `RUN='^TestReferenceBlockingPids'`
 - Transaction status and commit timestamps, tracking off: `RUN='^TestReference(TransactionIdentityStatusDefaultTracking|CommitTime(Disabled|SpecialIDs|Resolution))'`

@@ -13,6 +13,8 @@ type SessionInquiryRuntime interface {
 	MyTempNamespace() (uint32, error)
 	OtherTempNamespace(uint32) (bool, error)
 	CurrentSchemas(bool, *sqltype.Descriptor) (sqltype.Value, error)
+	ListeningChannels(*sqltype.Descriptor) ([]sqltype.Value, error)
+	NotificationQueueUsage() (float64, error)
 }
 
 func sessionInquiryRuntime(c expr.Context) (SessionInquiryRuntime, error) {

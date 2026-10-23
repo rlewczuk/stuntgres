@@ -51,6 +51,10 @@ type NotificationState struct {
 	History  bool
 	Pending  *NotificationLink
 	Ready    NotificationFIFO
+	// Unread owns the oldest unprocessed global queue boundary, including
+	// foreign-database traffic with no local Pending payload.
+	Unread   bool
+	Position NotificationQueuePosition
 }
 
 // AppendNotificationEvents appends the events of added whose channel and

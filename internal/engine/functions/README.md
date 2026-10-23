@@ -171,6 +171,11 @@ host, which owns all locking and returns owned values.
 - Evaluation order is part of each family's contract (error priority and
   reached child effects): which children evaluate, when strict NULL applies and
   when the runtime is first demanded.
+- Notification inquiries use `SessionInquiryRuntime` for committed physical
+  subscriptions and the cluster queue fraction. The zero-child recipes retain
+  neither snapshots nor authority. Listening opens an invocation-owned typed
+  vector (including empty TEXT sources); queue usage is volatile and scalar.
+  Both are nonfoldable and reuse ordinary callable identities and source gates.
 
 ## Aggregate and window registries
 

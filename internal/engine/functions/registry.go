@@ -67,6 +67,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_identify_object", "pg_identify_object_as_address", "pg_get_object_address", "pg_describe_object"}, Claims: parser.ObjectAddressFunctionName, Bind: bindObjectAddress, NamedCall: namedObjectAddress},
 	{Names: []string{"pg_get_userbyid", "pg_get_catalog_foreign_keys"}, Bind: bindCatalogRelation},
 	{Names: []string{"pg_tablespace_location", "pg_tablespace_databases"}, Bind: bindTablespaceInfo},
+	{Names: []string{"pg_listening_channels", "pg_notification_queue_usage"}, Bind: bindNotificationInfo},
 	{Names: []string{"pg_partition_tree", "pg_partition_ancestors", "pg_partition_root"}, Bind: bindPartitionInfo, NamedCall: namedPartitionInfo},
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
 	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall, ProbeCall: probeJSONCall, ResultCall: jsonRecordCallResult, NamedCall: namedJSONCall},

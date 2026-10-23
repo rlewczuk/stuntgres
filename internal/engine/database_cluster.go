@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -20,6 +21,8 @@ type databaseCluster struct {
 	targets       map[string]*Engine
 	nextOID       ids.OID
 	seed          *Engine
+	// Immutable queue head root; all runtimes use this cluster's mu.
+	notificationHead *session.NotificationQueuePosition
 	// Seed initialization never holds mu and never invokes host callbacks.
 	seedOnce  sync.Once
 	seedError error

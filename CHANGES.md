@@ -23,6 +23,16 @@ strict. POLYGON compares raw bounds while POINT, BOX and CIRCLE retain their
 epsilon rules. Selected overloads, typed NULLs, diagnostics and stored
 expressions retain their authority through native logical replay.
 
+## Notification state inquiries
+
+`pg_listening_channels()` exposes committed physical-session subscriptions as
+typed TEXT rows, and `pg_notification_queue_usage()` reports the shared cluster's
+backend-pending page fraction as FLOAT8. Direct and held prepared calls observe
+current state; aborted NOTIFY contributes nothing. Native Reset/Restore preserve
+live subscriptions and queue holds without serializing or importing them.
+Both functions reject aggregate-star calls with PostgreSQL's SQLSTATE 42809
+diagnostic during direct binding and statement preparation.
+
 ## MAC address operators and functions
 
 `macaddr` and `macaddr8` support fixed-width `~`, `&`, `|` and three-octet-prefix

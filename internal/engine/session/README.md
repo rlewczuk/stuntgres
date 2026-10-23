@@ -47,11 +47,17 @@ implement its slots, so either import would form a cycle.
   exceptions and errors.
 - **Timeouts** (`timeout.go`): transaction, idle-in-transaction and idle session
   budgets and timers.
-- **LISTEN/NOTIFY** (`notification_*.go`): records, the persistent listener
-  FIFO, `NotificationListener` (in the root payload), `NotificationRegistry`
-  and publication (`CaptureLocked`, unlocked `Prepare`, `UnchangedLocked`,
-  `InstallLocked`). Every field but the listener's `Used` hint belongs to
-  `Engine.mu`, which the root takes around the `…Locked` methods.
+- **LISTEN/NOTIFY** (`notification_*.go`): records, persistent listener FIFO,
+  immutable global page positions, `NotificationListener` (in the root payload),
+  `NotificationRegistry` and publication (`CaptureLocked`, unlocked `Prepare`,
+  `OldestPrepared`, `UnchangedLocked`, `InstallLocked`). Every mutable field but
+  the listener's `Used` hint belongs to the cluster-shared `Engine.mu`, which the
+  root takes around the `…Locked` methods. A state's optional unread position
+  retains the oldest global boundary, including cursor-only foreign traffic;
+  Pending owns local unprocessed batches and Ready owns client-ready events.
+  Preparation receives the pre-batch head and local-delivery eligibility.
+  Unlocked copying preserves every field; last UNLISTEN, outer idle processing
+  and exact owner end release holds, while Ready dequeue preserves them.
 - **Delegates**: advisory, `AuthorizationState`, `RandomState`, the v7 UUID
   clock, the v1 allocator (`uuid_v1.go`) and `StatementLease`.
 - **Journal** (`journal.go`, `journal_bookkeeping.go`): `Journal`, a
