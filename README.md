@@ -14,6 +14,20 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## External routine languages — change note
+
+Routine declarations distinguish absent languages (`42704`) from native
+mechanisms that embedded mode cannot supply. Ordinary roles cannot declare
+`LANGUAGE c` or `internal` routines (`42501`); superusers reach an explicit
+`0A000` native-ABI boundary. Both AS strings parse without inspecting libraries
+or looking up symbols. Explicit custom `CREATE LANGUAGE ... HANDLER` declarations
+check superuser authority, then reject unavailable handler execution without
+installing a language or routine. Tcl, Perl and Python interpreters are not
+provisioned. SQL routine execution and native persistence remain supported;
+PL/pgSQL retains its existing unavailable-runtime rejection, not native execution.
+See [availability limits](docs/DIALECT.md#external-routine-language-boundary)
+and [selected proof and smoke](reference/query_core/README.md#external-routine-language-boundary).
+
 ## Relation storage parameters — change note
 
 `ALTER TABLE ... SET (...)` and `RESET (...)` retain validated logical storage

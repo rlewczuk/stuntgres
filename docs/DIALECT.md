@@ -681,6 +681,44 @@ See [logical replay](FIXTURES.md#sql-routine-declarations-and-callers) and
 Function-parameter selectors and smoke are documented in
 [reference/operators](../reference/operators/README.md#routine-parameter-binding).
 
+## External routine language boundary
+
+Function and procedure declarations resolve the creation namespace and CREATE
+authority before language admission. Missing `pltcl`, `pltclu`, `plperl`,
+`plperlu`, `plpython3u`, historical `plpython`/`plpythonu`, and custom languages
+fail with `42704` / `language "<name>" does not exist`. These names do not
+provision interpreters or imply extension availability.
+
+For `LANGUAGE c` and `internal`, an ordinary effective actor receives `42501` /
+`permission denied for language c` (or `internal`). Superusers receive explicit
+`0A000` / `LANGUAGE c functions are unsupported in embedded mode` (or `internal`).
+One or two quoted AS items parse in either clause order, with an explicitly
+empty second item distinct from omission. Two items for non-C languages and
+unquoted SQL bodies for non-SQL languages retain their `42P13` body-form errors
+after language existence/authority. There is no filesystem probe, dynamic loader,
+PostgreSQL native ABI or static internal-symbol implementation; native errors
+do not pretend PostgreSQL failed to find a real library or symbol.
+
+`CREATE [OR REPLACE] [TRUSTED] [PROCEDURAL] LANGUAGE name HANDLER qualified_name
+[INLINE qualified_name] [VALIDATOR qualified_name]` is failure-only admission.
+Execution checks superuser authority first (`42501` /
+`must be superuser to create custom procedural language`), then rejects with
+`0A000` / `custom procedural language handlers are unsupported in embedded mode`.
+Handler lookup, validation and registration never run. Handlerless extension
+provisioning, DROP/ALTER LANGUAGE, DO and procedural execution are not supplied.
+Prepare admits valid utility syntax; Execute owns authority/capability failures.
+
+Failed declarations publish neither language nor routine, execute no body or
+default, and preserve existing data and SQL routines. A subsequent call resolves
+normally as missing (`42883`); corrective SQL declarations can reuse the identity.
+Native Restore rejects an external declaration atomically, preserving its prior
+target even after a valid replay prefix. Supported SQL routines, defaults and
+data retain native Dump/Restore. PL/pgSQL remains explicitly unavailable
+(`0A000` / `only LANGUAGE SQL functions are supported`); this part does not
+implement its adjacent runtime. Real PostgreSQL successfully creates/invokes
+the valid internal/handler controls and installed PL/pgSQL independently of this
+native boundary. See [selected proof and smoke](../reference/query_core/README.md#external-routine-language-boundary).
+
 ## Comparison resolution and predicates
 
 Executable type/shape admission is separate from operator admission. Comparison
@@ -3887,9 +3925,11 @@ language privileges, not an empty ACL and not a grant to execute internal
 functions. PUBLIC SELECT on the catalog relation is a separate table privilege.
 
 The native language catalog still has no `c`, `sql` or `plpgsql` rows. The bounded
-[scalar SQL routine facility](#scalar-sql-routines) does not fabricate additional
-language metadata or supply a general procedural runtime. Language DDL, DO,
-handler/validator execution and external native ABI loading remain unavailable.
+[scalar SQL routine facility](#scalar-sql-routines) executes SQL without
+fabricating language metadata. Explicit custom-handler declarations have
+[failure-only admission](#external-routine-language-boundary), not registration.
+DO, procedural runtime, handler/validator execution and external native ABI
+loading remain unavailable. The `internal` row is metadata, not ABI availability.
 Catalog INSERT/UPDATE/DELETE fail with
 `0A000` / `catalog source mutation is unsupported`, even for zero-match
 predicates. Row locks fail with `0A000` /

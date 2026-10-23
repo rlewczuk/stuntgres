@@ -222,6 +222,8 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		if err = routine.StageCreateFunction(host, auth, s, input); err != nil {
 			return nil, err
 		}
+	case *parser.CreateLanguage:
+		return nil, routine.RejectCreateLanguage(host, auth)
 	case *parser.DropRoutine:
 		if err = routine.StageDropRoutine(host, auth, s); err != nil {
 			return nil, err

@@ -45,6 +45,8 @@ package parser
  routineParameter RoutineParameter
  routineParameters []RoutineParameter
  routineResult routineResult
+ routineAS routineAS
+ createLanguage *CreateLanguage
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
@@ -302,6 +304,7 @@ package parser
 %token <tok> POLICY
 %token <tok> RULE ALSO INSTEAD NOTIFY LISTEN UNLISTEN LOAD
 %token <tok> FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT
+%token <tok> LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R ANALYZE UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -347,7 +350,7 @@ package parser
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
 /* RECURSIVE likewise retains KW_U's contextual identifier/type-tail precedence. */
 /* LISTEN/UNLISTEN/LOAD also retain their former KW_U type-tail precedence. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
 /* These words previously used KW_U. Preserve its type-tail and COPY-WITH
  * decisions rather than adding implicit zero-precedence conflicts. */
 %nonassoc RETURN_BODY ATOMIC_BODY
@@ -449,6 +452,10 @@ package parser
 %type <stmt> create_collation alter_collation drop_collation
 %type <stmt> create_conversion alter_conversion drop_conversion
 %type <stmt> create_function create_aggregate drop_routine
+%type <stmt> create_language
+%type <createLanguage> language_head language_flags
+%type <objectName> language_inline language_validator
+%type <routineAS> routine_as
 %type <stmt> create_cast drop_cast
 %type <tok> cast_context
 %type <tok> returns_word
@@ -1372,6 +1379,7 @@ create: create_table { $$=$1 }
  | create_collation { $$=$1 }
  | create_conversion { $$=$1 }
  | create_function { $$=$1 }
+ | create_language { $$=$1 }
  | create_aggregate { $$=$1 }
  | create_operator { $$=$1 }
  | create_operator_family { $$=$1 }
@@ -1488,16 +1496,28 @@ drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Na
  | DROP DEFAULT {sqllex.(*lexer).syntax($2);return 1} ;
 create_aggregate: CREATE AGGREGATE relation_name '(' aggregate_arguments ')' '(' operator_options ')' {$$=&CreateAggregate{Name:$3,Arguments:$5,Options:$8,Pos:$1.pos}} ;
 aggregate_arguments: '*' {$$=nil} | grant_routine_arguments {$$=$1} ;
-create_function: CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$9.text,Pos:$9.pos},Body:$11.text,BodyPos:routineBodyPosition($11),Pos:$1.pos}}
- | CREATE FUNCTION relation_name '(' function_arguments ')' function_result AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$11.text,Pos:$11.pos},Body:$9.text,BodyPos:routineBodyPosition($9),Pos:$1.pos}}
+create_function: CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name AS routine_as {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$9.text,Pos:$9.pos},Body:$11.Body.text,BodyPos:routineBodyPosition($11.Body),Symbol:$11.Symbol.text,SymbolSpecified:$11.HasSymbol,SymbolPos:$11.Symbol.pos,Pos:$1.pos}}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result AS routine_as LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$11.text,Pos:$11.pos},Body:$9.Body.text,BodyPos:routineBodyPosition($9.Body),Symbol:$9.Symbol.text,SymbolSpecified:$9.HasSymbol,SymbolPos:$9.Symbol.pos,Pos:$1.pos}}
  | CREATE FUNCTION relation_name '(' function_arguments ')' function_result standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:"sql"},Standard:$8,Pos:$1.pos}}
  | CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$9.text,Pos:$9.pos},Standard:$10,Pos:$1.pos}}
- | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Body:$10.text,BodyPos:routineBodyPosition($10),Pos:$1.pos}}
- | CREATE PROCEDURE relation_name '(' function_arguments ')' AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$7.text,BodyPos:routineBodyPosition($7),Pos:$1.pos}}
+ | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name AS routine_as {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Body:$10.Body.text,BodyPos:routineBodyPosition($10.Body),Symbol:$10.Symbol.text,SymbolSpecified:$10.HasSymbol,SymbolPos:$10.Symbol.pos,Pos:$1.pos}}
+ | CREATE PROCEDURE relation_name '(' function_arguments ')' AS routine_as LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$8.Body.text,BodyPos:routineBodyPosition($8.Body),Symbol:$8.Symbol.text,SymbolSpecified:$8.HasSymbol,SymbolPos:$8.Symbol.pos,Pos:$1.pos}}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:"sql"},Standard:$7,Pos:$1.pos}}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Standard:$9,Pos:$1.pos}}
  | CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name name {sqllex.(*lexer).failAt("0A000","SQL function attributes are unsupported",$10.pos.Offset);return 1}
  | CREATE OR replace_word FUNCTION {sqllex.(*lexer).failAt("0A000","CREATE OR REPLACE FUNCTION is unsupported",$1.pos.Offset);return 1} ;
+routine_as: STRING {$$=routineAS{Body:$1}}
+ | STRING ',' STRING {$$=routineAS{Body:$1,Symbol:$3,HasSymbol:true}} ;
+language_flags: LANGUAGE_TRUSTED {$$=&CreateLanguage{Trusted:true}}
+ | LANGUAGE_PROCEDURAL {$$=&CreateLanguage{Procedural:true}}
+ | LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL {$$=&CreateLanguage{Trusted:true,Procedural:true}} ;
+language_head: CREATE LANGUAGE name {$$=&CreateLanguage{Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}}
+ | CREATE language_flags LANGUAGE name {$$=$2;$$.Name=Identifier{Text:$4.text,Pos:$4.pos};$$.Pos=$1.pos}
+ | CREATE OR replace_word LANGUAGE name {$$=&CreateLanguage{Name:Identifier{Text:$5.text,Pos:$5.pos},Replace:true,Pos:$1.pos}}
+ | CREATE OR replace_word language_flags LANGUAGE name {$$=$4;$$.Name=Identifier{Text:$6.text,Pos:$6.pos};$$.Replace=true;$$.Pos=$1.pos} ;
+create_language: language_head FDW_HANDLER relation_name language_inline language_validator {$$=$1;$1.Handler=$3;$1.Inline=$4;$1.Validator=$5} ;
+language_inline: /* empty */ {$$=ObjectName{}} | LANGUAGE_INLINE relation_name {$$=$2} ;
+language_validator: /* empty */ {$$=ObjectName{}} | FDW_VALIDATOR relation_name {$$=$2} ;
 routine_return_head: RETURN_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 routine_atomic_head: BEGIN ATOMIC_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 standard_routine_body: routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=[]Statement{&Select{Targets:[]Expr{$2},Pos:$1.pos}}}
@@ -2893,6 +2913,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
+ | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | CONVERSION
  | RECURSIVE
  | string_word
@@ -2941,6 +2962,7 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
+ | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | SQLJSON_PARSE
  | CONVERSION
  | RECURSIVE
@@ -2979,6 +3001,7 @@ generic_statement_word: generic_word_base_without_vacuum | WITH | EXISTS ;
 generic_word_base: generic_word_base_without_vacuum | VACUUM ;
 generic_word_base_without_vacuum: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
+ | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | CONVERSION
  | RECURSIVE
  | FREEZE | VERBOSE | ANALYZE

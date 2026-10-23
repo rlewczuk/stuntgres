@@ -85,6 +85,17 @@ or the engine. Step 14 of the split moves it here; see
   Checked defaults bind against the legitimate pre-declaration stage, including
   prior staged objects but excluding the new declaration. Only then is the
   declaration staged for body validation and existing self-recursion behavior.
+  Namespace resolution and CREATE authority precede language admission.
+  `language.go` distinguishes absent optional/custom languages (`42704`) from
+  C/internal authority (`42501`) and unavailable mechanisms (`0A000`). It checks
+  locally decidable AS cardinality/standard-body rules, never loads a library,
+  probes a symbol or installs an external descriptor. Internal aliases require
+  statically linked PostgreSQL symbols, not an embedded implementation of them.
+  `RejectCreateLanguage` checks the effective actor before rejecting explicit
+  custom handlers; there is no callback registry or synthetic language row.
+  SQL binding/execution and persistence keep the existing path. PL/pgSQL retains
+  `only LANGUAGE SQL functions are supported`; no adjacent procedural runtime is
+  implemented. Rejected definitions leave ordinary missing-signature resolution.
 - **Ordinary aggregates** (`aggregate_ddl.go`, `aggregate_definition.go`):
   stage and validate the four-option declaration, real support/state identity
   and hard dependencies atomically. `AggregateSupportTypes` uses the existing

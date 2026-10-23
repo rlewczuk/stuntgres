@@ -267,7 +267,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateFunction, *parser.CreateAggregate, *parser.DropRoutine, *parser.CreateCast, *parser.DropCast:
+	case *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.CreateCast, *parser.DropCast:
 		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return StatementDescription{}, nil

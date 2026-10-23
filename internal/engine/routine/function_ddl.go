@@ -20,14 +20,14 @@ import (
 // StageCreateFunction stages CREATE FUNCTION ... LANGUAGE SQL and binds its
 // body against the stage, except during Restore SQL body replay.
 func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
-	if s.Language.Text != "sql" {
-		return expr.ErrorAt("0A000", "only LANGUAGE SQL functions are supported", s.Language.Pos)
-	}
 	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
 	}
 	if err = h.CheckCreateIn(auth, ns); err != nil {
+		return err
+	}
+	if err = admitFunctionLanguage(h, auth, s); err != nil {
 		return err
 	}
 	formals := make([]proc.Formal, len(s.Arguments))
@@ -97,6 +97,9 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	if !s.Procedure && len(layout.OutputFormals) == 1 && result.Type != formals[layout.OutputFormals[0]].Usage.Type {
 		return sqlError("42P13", "function result type must be "+formals[layout.OutputFormals[0]].Usage.Type.DiagnosticName()+" because of OUT parameters")
+	}
+	if err = checkRoutineBodyForm(s); err != nil {
+		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Volatile}

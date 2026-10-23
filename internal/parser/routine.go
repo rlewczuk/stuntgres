@@ -15,6 +15,9 @@ type CreateFunction struct {
 	Language        Identifier
 	Body            string
 	BodyPos         Position
+	Symbol          string
+	SymbolSpecified bool
+	SymbolPos       Position
 	Procedure       bool
 	Standard        []Statement // Non-nil for a definition-analyzed SQL-standard body.
 	Pos             Position
@@ -31,6 +34,27 @@ type routineResult struct {
 	Type      TypeName
 	Specified bool
 }
+
+type routineAS struct {
+	Body      lexeme
+	Symbol    lexeme
+	HasSymbol bool
+}
+
+// CreateLanguage admits explicit handler syntax, not interpreter provisioning.
+// Names retain their source positions even though native execution rejects it.
+type CreateLanguage struct {
+	Name       Identifier
+	Handler    ObjectName
+	Inline     ObjectName
+	Validator  ObjectName
+	Replace    bool
+	Trusted    bool
+	Procedural bool
+	Pos        Position
+}
+
+func (*CreateLanguage) statement() {}
 
 // BodyPos is the position immediately preceding the decoded body. Keep the
 // actual quote delimiter width, rather than assuming every body uses $$.

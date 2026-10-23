@@ -6,6 +6,55 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### External routine language boundary
+
+The six `TestReferenceRoutineExternalLanguages*` scenarios share one body across
+native and pinned PostgreSQL18.6 backends. Oracle-first discovery established the
+PostgreSQL diagnostic fields and stages before the native failing checkpoint;
+the temporary PG-only filter is removed. Run selected proof in both modes after
+any affected implementation or test change:
+
+```sh
+make check RUN='^(TestReferenceRoutineExternalLanguages(Diagnostics|NativeBoundary|HandlerDeclarations|Atomicity|Preservation|FeatureSmoke)|TestRoutineExternal(ASItems|HandlerSyntax))$'
+make check RUN='^(TestReferenceRoutineExternalLanguages(Diagnostics|NativeBoundary|HandlerDeclarations|Atomicity|Preservation|FeatureSmoke)|TestRoutineExternal(ASItems|HandlerSyntax))$' REFERENCE=1
+```
+
+| Scenario | Independent expected behavior |
+| --- | --- |
+| Diagnostics | Missing Tcl/Perl/Python/custom/historical languages `42704`; namespace/CREATE before language and language before unknown types; ordinary C/internal `42501`; invalid body forms `42P13`; full English diagnostics and prepare/execute stages |
+| NativeBoundary | Valid internal alias yields PostgreSQL `5/INT4`; valid C library/symbol declarations succeed there. Native reports explicit `0A000`, never fabricated library/symbol lookup errors or installed signatures |
+| HandlerDeclarations | Ordinary role `42501` before handler lookup; real PG handler declaration succeeds versus native `0A000`; rejected custom language remains missing natively; malformed whole input is rejected |
+| Atomicity | Sentinel `7` and SQL `5` survive failures; failed signature `42883`, corrective same-signature SQL succeeds; native Dump bytes unchanged and failed Restore preserves its target after a valid prefix |
+| Preservation | SQL `5/INT4`, direct/prepared/held calls and table defaults survive rejection and native replay; PostgreSQL PL/pgSQL returns `5` versus native's existing explicit unavailable-runtime error |
+| FeatureSmoke | Compact absent-language/authority/native-mechanism/custom-handler boundaries, missing signature, SQL values/metadata and native sentinel/default roundtrip |
+
+The native language inventory remains exactly `internal`, not an executable
+registry. The PostgreSQL fixture inventory is independently `c`, `internal`,
+`plpgsql`, `sql`; optional interpreters are not provisioned. Explicit custom
+languages are dropped through deferred cleanup because resetting `public` does
+not remove them. Handler pseudo-types are not invoked as scalar values.
+
+Private `TestRoutineExternalASItems` and `TestRoutineExternalHandlerSyntax`
+assert decoded AST content, explicit-empty versus omitted second AS string,
+source origins, qualified handler names and flags, not source/wiring structure.
+Public SQL assertions remain exclusively in the shared reference scenarios.
+Existing scalar metadata helpers assert carrier types, alias `v`, `INT4`, one
+row and EOF, unknown scalar nullability and absent length/precision.
+
+Standalone durable feature smoke:
+
+```sh
+make check RUN='^TestReferenceRoutineExternalLanguagesFeatureSmoke$'
+make check RUN='^TestReferenceRoutineExternalLanguagesFeatureSmoke$' REFERENCE=1
+make quickcheck
+```
+
+Expected smoke is successful completion only when the new boundaries and missing
+signature are asserted, SQL remains `5/INT4`, and sentinel `7`/default `5` survive
+native controls. No PL/pgSQL native execution is claimed: its adjacent declaration,
+compiler and interpreter runtime remain unavailable. No loader, shell, external
+interpreter, native ABI or custom-handler registration is supplied by these tests.
+
 ### Scalar SQL routine contract
 
 `TestReferenceRoutineCore*` owns consumer-facing anonymous positional
