@@ -1,19 +1,15 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
-// presentationCaches is the statement's output-presentation slot: reg* and
-// operator spellings, conversion defaults and the regex executor, filled on
-// first use by a single evaluator owner and discarded with the scope.
+// presentationCaches is the statement's output-presentation slot: the reg*
+// spellings, conversion defaults and the regex executor, filled on first use
+// by a single evaluator owner and discarded with the scope.
 type presentationCaches struct {
-	regproc            map[uint32]string
-	regprocedure       map[uint32]string
-	operators          map[exec.OperatorOutputKey]string
-	operatorGroups     exec.OperatorGroups
-	regTS              map[exec.RegTSOutputKey]string
+	spellings          regobj.SpellingCache
 	conversionDefaults map[[2]int]conversionDefault
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.

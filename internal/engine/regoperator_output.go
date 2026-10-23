@@ -2,8 +2,6 @@ package engine
 
 import (
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,19 +12,7 @@ func (s *StatementScope) formatOperator(id uint32, alias sqltype.ID) (string, er
 		}
 		return exec.DetachedPresentation{}.FormatRegoper(id)
 	}
-	key := exec.OperatorOutputKey{ID: id, Alias: alias}
-	if text, ok := s.presentationOrZero().operators[key]; ok {
-		return text, nil
-	}
-	if s.presentationOrZero().operatorGroups == nil {
-		s.presentation().operatorGroups = regobj.CollectOperatorGroups(s.inquiry.commentCatalog)
-	}
-	text := regobj.OperatorSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, s.presentationOrZero().operatorGroups, ids.OID(id), alias)
-	if s.presentationOrZero().operators == nil {
-		s.presentation().operators = make(map[exec.OperatorOutputKey]string)
-	}
-	s.presentation().operators[key] = text
-	return text, nil
+	return s.presentation().spellings.Operator(s.inquiry.commentCatalog, s.inquiry.deparsePath, id, alias), nil
 }
 func (s *StatementScope) FormatRegoper(id uint32) (string, error) {
 	return s.formatOperator(id, sqltype.Regoper)
