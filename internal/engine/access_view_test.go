@@ -141,3 +141,43 @@ func TestAccessViewTypeDenialQualifiesByReferencePath(t *testing.T) {
 		}
 	}
 }
+
+// A live view is its own access.Environment: a type denial inside the check
+// re-enters search path resolution through ReferencePath, which reads the
+// session's search_path at call time.
+func TestAccessViewTypeDenialFollowsLiveSearchPath(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	roleExecute(t, e, op, "CREATE USER live_type_reader")
+	roleExecute(t, e, op, "CREATE SCHEMA moods")
+	roleExecute(t, e, op, "GRANT USAGE ON SCHEMA moods TO live_type_reader")
+	roleExecute(t, e, op, "CREATE TYPE moods.mood AS ENUM ('ok')")
+	roleExecute(t, e, op, "REVOKE USAGE ON TYPE moods.mood FROM PUBLIC")
+	readerOp, readerDone := roleOperation(t, e, "live_type_reader")
+	defer readerDone()
+	for _, tc := range []struct {
+		set  string
+		want string
+	}{
+		{"", "permission denied for type moods.mood"},
+		{"SET search_path TO moods", "permission denied for type mood"},
+	} {
+		if tc.set != "" {
+			roleExecute(t, e, readerOp, tc.set)
+		}
+		auth, err := operationAuthorization(readerOp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		address, ok := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: accessViewNamespace(t, auth.Catalog, "moods"), Name: "mood"})
+		if !ok {
+			t.Fatal("missing type")
+		}
+		err = auth.CanUse(auth.Ref(address))
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != tc.want {
+			t.Fatalf("%q: got %v, want %q", tc.set, err, tc.want)
+		}
+	}
+}
