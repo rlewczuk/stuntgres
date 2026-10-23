@@ -34,7 +34,7 @@ func TestExclusionPublication(t *testing.T) {
 				writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
 				publication := index.RowPublication{Address: parent.Address(), Relation: parent, OriginalRelation: parent, Original: store, Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, SingleSlot: -1}
 				if materialize {
-					if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
+					if err := index.PrepareRowPublication(&publication, e.catalog.Domain, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -71,7 +71,7 @@ func TestExclusionPublication(t *testing.T) {
 				row, version := e.storage.RowFrontier(), e.storage.VersionFrontier()
 				writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{overflow}}}
 				publication := index.RowPublication{Address: parent.Address(), Relation: parent, OriginalRelation: parent, Original: store, Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, SingleSlot: -1}
-				if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
+				if err := index.PrepareRowPublication(&publication, e.catalog.Domain, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 					t.Fatal(err)
 				}
 				roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, index.CaptureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
@@ -114,7 +114,7 @@ func TestExclusionPublication(t *testing.T) {
 					writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
 					publication := index.RowPublication{Address: parent.Address(), Relation: parent, OriginalRelation: parent, Original: store, Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, SingleSlot: -1}
 					if materialize {
-						if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
+						if err := index.PrepareRowPublication(&publication, e.catalog.Domain, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 							t.Fatal(err)
 						}
 					}

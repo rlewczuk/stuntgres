@@ -187,7 +187,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	// publication. Its final pre-return poll follows touched-bucket copying;
 	// cancel at the immediately preceding bucket-entry poll in the real owner.
 	p := index.RowPublication{Address: parent.Address(), Store: store, Original: store, OriginalRelation: parent, Relation: parent, Root: store.Versions, Writes: writes[parent.Address()], Ends: store.Ends, Deletion: deletes[parent.Address()], Generation: store.Generation, SingleSlot: -1}
-	if err := e.prepareRowPublication(&p, ref, true); err != nil {
+	if err := index.PrepareRowPublication(&p, e.catalog.Domain, ref, true); err != nil {
 		t.Fatal(err)
 	}
 	calibration, stop := context.WithCancel(context.Background())

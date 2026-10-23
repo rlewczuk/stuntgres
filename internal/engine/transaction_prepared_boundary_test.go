@@ -701,7 +701,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	if !found || predecessor.Version != update.Base || !visibility.LiveVersion(predecessor, entry.frontier, publication.Ends, nil) {
 		t.Fatal("structural fixture omitted a live genuine UPDATE predecessor")
 	}
-	if err := e.prepareRowPublication(&publication, entry.ref, false); err != nil {
+	if err := index.PrepareRowPublication(&publication, e.catalog.Domain, entry.ref, false); err != nil {
 		t.Fatal(err)
 	}
 	if publication.Next != nil || publication.NextEnds != nil || publication.Slots != nil || publication.SingleSlot != -1 {
@@ -718,7 +718,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	}
 	preparedBoundaryUnchanged(t, e, entry, before)
 	materialized := publication
-	if err := e.prepareRowPublication(&materialized, entry.ref, true); err != nil {
+	if err := index.PrepareRowPublication(&materialized, e.catalog.Domain, entry.ref, true); err != nil {
 		t.Fatal(err)
 	}
 	if materialized.Next == nil || materialized.NextEnds == nil || len(materialized.Slots) != len(publication.Writes) || materialized.Slots[updatePosition] != predecessorSlot || &materialized.Next[0] == &publication.Root[0] {
@@ -731,8 +731,8 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	invalid := publication
 	invalid.Writes = slices.Clone(publication.Writes)
 	invalid.Writes[0].Born = 1
-	validationError := e.prepareRowPublication(&invalid, entry.ref, false)
-	installationError := e.prepareRowPublication(&invalid, entry.ref, true)
+	validationError := index.PrepareRowPublication(&invalid, e.catalog.Domain, entry.ref, false)
+	installationError := index.PrepareRowPublication(&invalid, e.catalog.Domain, entry.ref, true)
 	if validationError == nil || validationError.Error() != "stuntgres: invalid private row version" || installationError == nil || installationError.Error() != "stuntgres: invalid private row version" {
 		t.Fatal("phase switch weakened canonical predecessor validation", validationError, installationError)
 	}
@@ -745,7 +745,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 			} else {
 				stale.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{update.Row: {Version: update.Base, End: entry.frontier}}}
 			}
-			err := e.prepareRowPublication(&stale, entry.ref, materialize)
+			err := index.PrepareRowPublication(&stale, e.catalog.Domain, entry.ref, materialize)
 			if err == nil || err.Error() != "stuntgres: stale update predecessor" {
 				t.Fatal("phase switch failed to reject stale UPDATE predecessor", staleKind, materialize, err)
 			}

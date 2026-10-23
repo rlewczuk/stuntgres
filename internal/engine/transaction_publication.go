@@ -292,7 +292,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 		}
 		for i := range prepared {
-			if err := e.prepareRowPublication(&prepared[i], ref, materialize); err != nil {
+			if err := index.PrepareRowPublication(&prepared[i], e.catalog.Domain, ref, materialize); err != nil {
 				return err
 			}
 		}

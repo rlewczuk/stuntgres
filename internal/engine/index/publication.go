@@ -575,19 +575,3 @@ func PreserveUnchangedIndexRoots(prepared, previous, live map[ids.ObjectAddress]
 		}
 	}
 }
-
-// Prepare immutable replacement heads/end roots outside final locks. Appends
-// retain geometric capacity; final installation follows one all-relations veto.
-type RowPublication struct {
-	Address            ids.ObjectAddress
-	Store              *storage.Relation
-	Original           *storage.Relation
-	OriginalRelation   *catalog.Relation
-	Relation           *catalog.Relation
-	Root, Next, Writes []storage.RowVersion
-	Ends, NextEnds     *storage.DeletionRoot
-	Deletion           *visibility.PrivateDeletes
-	Generation         uint64
-	Slots              []int
-	SingleSlot         int
-}

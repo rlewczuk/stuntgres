@@ -261,7 +261,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 	for _, rebuild := range []bool{false, true} {
 		for _, materialize := range []bool{false, true} {
 			p := index.RowPublication{Address: parent.Address(), Store: store, Original: store, OriginalRelation: parent, Relation: parent, Root: store.Versions, Writes: writes, Ends: store.Ends, Generation: store.Generation, SingleSlot: -1}
-			if err := e.prepareRowPublication(&p, ids.TxRef{}, materialize); err != nil {
+			if err := index.PrepareRowPublication(&p, e.catalog.Domain, ids.TxRef{}, materialize); err != nil {
 				t.Fatal(err)
 			}
 			var intents map[ids.ObjectAddress]*catalog.Relation

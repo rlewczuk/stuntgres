@@ -1,17 +1,37 @@
-package engine
+package index
 
 import (
 	"errors"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
 
-// Validation is shared by prepare and commit. Only commit constructs install
-// heads, deletion maps and slot manifests; prepare transfers the private roots.
-func (e *Engine) prepareRowPublication(p *index.RowPublication, ref ids.TxRef, materialize bool) error {
+// Prepare immutable replacement heads/end roots outside final locks. Appends
+// retain geometric capacity; final installation follows one all-relations veto.
+type RowPublication struct {
+	Address            ids.ObjectAddress
+	Store              *storage.Relation
+	Original           *storage.Relation
+	OriginalRelation   *catalog.Relation
+	Relation           *catalog.Relation
+	Root, Next, Writes []storage.RowVersion
+	Ends, NextEnds     *storage.DeletionRoot
+	Deletion           *visibility.PrivateDeletes
+	Generation         uint64
+	Slots              []int
+	SingleSlot         int
+}
+
+// PrepareRowPublication validates p and, when materialize is set, builds its
+// next heads, slots and end roots. Validation is shared by prepare and
+// commit. Only commit constructs install heads, deletion maps and slot
+// manifests; prepare transfers the private roots. It runs outside Engine.mu
+// over private roots; domain is the engine's catalog domain, which every
+// deletion candidate must carry.
+func PrepareRowPublication(p *RowPublication, domain *ids.Domain, ref ids.TxRef, materialize bool) error {
 	inserts, replacements := 0, 0
 	for _, row := range p.Writes {
 		if row.Row == 0 || row.Version == 0 || row.Born != 0 || len(row.Values) != len(p.Relation.Columns) {
@@ -93,7 +113,7 @@ func (e *Engine) prepareRowPublication(p *index.RowPublication, ref ids.TxRef, m
 			}
 		}
 		for id, candidate := range p.Deletion.Rows {
-			if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Epoch != ref.Epoch() || candidate.Ref.Address != p.Address || id == 0 || id != candidate.Row || candidate.Version == 0 || candidate.Storage != p.Store {
+			if candidate.Ref.Domain() != domain || candidate.Ref.Epoch != ref.Epoch() || candidate.Ref.Address != p.Address || id == 0 || id != candidate.Row || candidate.Version == 0 || candidate.Storage != p.Store {
 				return ids.ErrCatalogReplaced
 			}
 			predecessors := p.Root

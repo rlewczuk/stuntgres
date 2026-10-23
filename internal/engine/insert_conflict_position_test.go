@@ -88,7 +88,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					}
 					p.Deletion = &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{deleted: {Ref: ref, Storage: f.store, Row: deleted, Version: old.Version, Ordinal: position}}}
 				}
-				if err := f.e.prepareRowPublication(&p, scope.txRef, true); err != nil {
+				if err := index.PrepareRowPublication(&p, f.e.catalog.Domain, scope.txRef, true); err != nil {
 					t.Fatal(err)
 				}
 				next, err := index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, root.Entries, &p, false, true, false, "public", scope.output, nil, nil)
