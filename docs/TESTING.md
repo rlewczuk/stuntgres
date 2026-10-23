@@ -14,6 +14,9 @@ package's `README.md` under `## Testing`.
 - When working in an area with offending tests, migrate them to `reference/`.
   Keep the complete assertion set and execution routes, merge with existing
   coverage, and delete the originals; leave no native-only copies.
+- Files tagged `//go:build reference` hold legacy PostgreSQL-only tests that run
+  only with `REFERENCE=1` (a quick-mode run never covers them). Migrate them to
+  untagged dual-mode tests when working in their area.
 - Internal unit tests of package functions stay beside their package. They
   supplement, never replace, reference coverage.
 - Every new PostgreSQL feature needs new or changed reference coverage, and every
@@ -121,8 +124,9 @@ package share one container, so **never use `t.Parallel()`**. Each package's
   at most 2 ULP; NaN, infinities, signs and errors stay exact.
 - **Client differences.** lib/pq reports unknown nullability for every column,
   MERGE affected count 0, INT4 `ScanType` int32 (native int64), and OID/REGTYPE raw
-  values as strings or bytes. Native rows are eager with detached `Columns` slices;
-  pq streams. Branch on `backend.PG` only for such independently specified
+  values as strings or bytes. Native reports known nullability for stored table and
+  view columns and unknown for most computed results. Native rows are eager with
+  detached `Columns` slices; pq streams. Branch on `backend.PG` only for such independently specified
   expectations, never to duplicate the scenario.
 - **Throwaway programs.** Standalone smoke programs used during development are
   never committed.

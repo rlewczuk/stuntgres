@@ -29,8 +29,6 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 - `atsPhysical` (`alter_tablespace_physical_test.go`) prepares real tablespaces
   on the oracle: it creates their directories through `fixture.Container.Exec`,
   registers cleanup (drop, then `rmdir`), and only then creates the tablespaces.
-- Files tagged `//go:build reference` hold legacy oracle-only tests (run only with
-  `REFERENCE=1`); migrate them to untagged dual-mode tests when working there.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

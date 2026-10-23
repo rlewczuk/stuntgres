@@ -35,8 +35,6 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 - Query results do not prove that an index is used. Index structure, lookup and
   native lock-queue order are asserted by engine units:
   `make check RUN='^Test(AccessMethod|OperatorClass|OperatorFamily|HashIndex|ConcurrentIndex|PartialIndex|UsingIndex|PrimaryKey|Exclusion)'`.
-- Files tagged `//go:build reference` hold legacy oracle-only tests (run only with
-  `REFERENCE=1`); migrate them to untagged dual-mode tests when working there.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

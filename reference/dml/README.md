@@ -54,8 +54,6 @@ COPY transports and notice connections are documented in the
   release and join the blocked reader so COPY can drain. Release a complete
   record (for CSV, the closing quote) so malformed input cannot outrank the
   interrupt. Canceling the client context while sending EOF races autocommit.
-- Files tagged `//go:build reference` hold legacy oracle-only tests (run only with
-  `REFERENCE=1`); migrate them to untagged dual-mode tests when working there.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

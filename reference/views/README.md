@@ -32,8 +32,6 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 - Raw cells differ by client: OID is native `int64`, pq bytes; DATE and TIME are
   native strings, pq `time.Time` (±infinity DATE as bytes). pq cannot build the
   `time.Time` for TIMETZ displacement endpoints, so those tests read TEXT.
-- Files tagged `//go:build reference` hold legacy oracle-only tests (run only with
-  `REFERENCE=1`); migrate them to untagged dual-mode tests when working there.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

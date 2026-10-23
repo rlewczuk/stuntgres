@@ -47,6 +47,8 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
 - Public-schema owners differ by design: native `public` is owned by 6171
   (`pg_database_owner`), the oracle's rebuilt `public` by its bootstrap role 10.
   Never invent a common owner.
+- The oracle's rebuilt `public` has no PUBLIC USAGE grant; tests that need
+  non-owner access to it grant USAGE explicitly (or use `WithPublicSchemaOwner`).
 - Prepared-transaction scenarios clean their own GIDs before schema teardown.
 
 ## Startup options

@@ -28,8 +28,6 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   is non-NULL and empty.
 - Never name a file `*_windows_test.go`: Go builds it only on Windows (hence
   `generated_virtual_window_identity_test.go`).
-- Files tagged `//go:build reference` hold legacy oracle-only tests (run only with
-  `REFERENCE=1`); migrate them to untagged dual-mode tests when working there.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
