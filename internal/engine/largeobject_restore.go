@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -10,7 +9,6 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 // restoreLargeObjectACL is reachable only through the isolated Restore repair
@@ -35,54 +33,11 @@ func (e *Engine) restoreLargeObjectACL(op *session.Operation, raw *parser.Update
 	next := *old
 	next.ACL = authorization.ACLValue{Explicit: !absent}
 	if !absent {
-		array, ok := auth.Catalog.LookupType(sqltype.ACLItemArray)
-		if !ok {
+		output := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}
+		next.ACL.Entries, err = regobj.LargeObjectACL(op.Context(), auth.Catalog, text, e.captureACLItemInput(auth, op), output)
+		if err != nil {
 			e.mu.Unlock()
-			return fmt.Errorf("stuntgres: missing ACL array type")
-		}
-		value, inputErr := array.InputWithEnvironment(op.Context(), text, -1, sqltype.InputEnvironment{ACLItem: e.captureACLItemInput(auth, op)})
-		if inputErr != nil {
-			e.mu.Unlock()
-			return inputErr
-		}
-		canonical, outputErr := array.OutputWithEnvironment(op.Context(), value, sqltype.OutputEnvironment{ACLItem: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}})
-		if outputErr != nil {
-			e.mu.Unlock()
-			return outputErr
-		}
-		if canonical != text {
-			e.mu.Unlock()
-			return sqlError("0A000", "restore accepts only canonical large object ACL arrays")
-		}
-		selectBits, _ := authorization.ACLItemBits(authorization.SelectPrivilege)
-		updateBits, _ := authorization.ACLItemBits(authorization.UpdatePrivilege)
-		privileges := func(bits uint32) authorization.Privileges {
-			var out authorization.Privileges
-			if bits&selectBits != 0 {
-				out |= authorization.SelectPrivilege
-			}
-			if bits&updateBits != 0 {
-				out |= authorization.UpdatePrivilege
-			}
-			return out
-		}
-		next.ACL.Entries = make([]authorization.ACLEntry, value.ArrayLen())
-		for i := range value.ArrayLen() {
-			authority, grantee, grantor, rights, options, itemErr := value.ArrayElement(i).ACLItem()
-			if itemErr != nil {
-				e.mu.Unlock()
-				return itemErr
-			}
-			if authority != e.catalog.ACLAuthority || rights & ^(selectBits|updateBits) != 0 {
-				e.mu.Unlock()
-				return fmt.Errorf("stuntgres: invalid large object ACL privileges")
-			}
-			entry := authorization.ACLEntry{Grantor: e.roles.domain.Principal(uint64(grantor)), Privileges: privileges(rights), GrantOptions: privileges(options)}
-			entry.Grantee.Public = grantee == 0
-			if grantee != 0 {
-				entry.Grantee.Role = e.roles.domain.Principal(uint64(grantee))
-			}
-			next.ACL.Entries[i] = entry
+			return err
 		}
 	}
 	if err = access.ValidateACL(auth.Roles, &next); err != nil {
