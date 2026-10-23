@@ -73,12 +73,26 @@ implement its slots, so either import would form a cycle.
   transaction's private catalog overlay (descriptors and name bindings with
   originals, default ACLs, sequence generators, private storage changes,
   dependency observations, role overlays, fences and feature slots), with
-  `Clone`, `AddFence`, `PrivateRead`, `RecordDescriptor` and `RecordDefaultACL`.
-  The root's `…Locked` wrappers pass the published base under `Engine.mu`.
+  `Clone`, `AddFence`, `PrivateRead`, `RecordDescriptor`, `RecordDefaultACL`,
+  `RecordCandidateDefaults` and `MergeCandidate` (a `catalog.Candidate`
+  checked and recorded against the published base). The root's `…Locked`
+  wrappers pass the published base under `Engine.mu`.
+- **Journal capture** (`journal_capture.go`): `JournalCapture` turns a
+  validated stage's `catalog.Candidate` into the retained transaction's
+  observations and fences, over the published and private catalog states:
+  `ObserveDatabase`, `Observe`, `ObserveBase`, `ObserveCandidate` and
+  `FenceNames`. The root calls them between its own domain,
+  materialized-view, index and storage steps, which fixes the recording
+  order and the first error.
 - **Storage projections** (`storage_projection.go`): column-shape and private
   snapshot projections that read only catalog, storage and visibility records.
-- **Fences** (`fence.go`): `Fence` with `Kind()`; the root declares the kinds,
-  the fence types and their check order.
+- **Fences** (`fence.go`, `journal_fences.go`): `Fence` with `Kind()`, and
+  three session kinds with their fences: `FenceStorageRead`
+  (`StorageReadFence`), `FenceIndexSet` (`IndexSetFence`) and `FenceNamespace`
+  (`NamespaceFence`). They implement `CommittedFence`, whose `Current` reads
+  only the published catalog and storage relations. The root declares its own
+  kinds from `FenceRootKinds` on, and the order in which publication checks
+  the kinds.
 - **Slots**: journal slots (`journal_slots.go`: `EnumSlot`, `DomainSlot`,
   `IndexSlot`, implemented by `typedef` and `index`) and root slots
   (`root_slots.go`: `PayloadSlot`, `OwnerSlot`, `ExclusionMarkSlot`,
@@ -130,11 +144,13 @@ and visibility: begin, commit, rollback and CHAIN (`transaction*.go`),
 publication, preflight and 2PC, savepoints (`savepoints.go`), session start,
 settings application (`setting_apply.go`, `discard.go`), the `Engine.mu`
 windows of notification publication and polling, the `…Locked` journal
-wrappers, the fence types and their checks, and the root slot types.
+wrappers, the root fence types and the fence check order, and the root slot
+types.
 
 ## Testing
 
-Package units cover the journal, notices, SET LOCAL actions, the notification
+Package units cover the journal with its fences, capture and merge, notices,
+SET LOCAL actions, the notification
 queue, registry and publication, characteristic modes, serializable write
 survival, the `lc_messages` access callback and the UUID v1 allocator. Engine
 tests (in `internal/engine`) cover the host and root slots, catalog fences,

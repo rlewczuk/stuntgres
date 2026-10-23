@@ -244,7 +244,36 @@ run `make bench` before and after.
 
 ## Status
 
-- 155: not started.
+- 155: done (`3bc20a6ca`, `ea5eb4842`, then the docs commit).
+  - On `session`: `FenceStorageRead`, `FenceIndexSet`, `FenceNamespace` and
+    `FenceRootKinds`; `StorageReadFence` (`NewStorageReadFence`, `Address`,
+    `Matches`), `IndexSetFence` and `NamespaceFence`, all `CommittedFence`
+    (`journal_fences.go`); `JournalCapture` with `ObserveDatabase`,
+    `Observe`, `ObserveBase`, `ObserveCandidate` and `FenceNames`
+    (`journal_capture.go`); `Journal.RecordCandidateDefaults` and
+    `Journal.MergeCandidate`. The root keeps `catalogFence`, its three kinds,
+    `catalogFencesCurrentLocked` (one `session.CommittedFence` branch),
+    `captureCatalogStageLocked` (three session calls) and
+    `storageReadsValidLocked`, now in `catalog_message.go`;
+    `storage_read_fence.go` is gone.
+  - Deviations: the database predecessor block moved too (`ObserveDatabase`,
+    the "predecessors" input); its `catalogAuthority` update stays in the root
+    right after the call. The `dropSequences` epoch check stays in the root,
+    because `catalog.Read.Epoch` accepts a nil state and `State.Epoch` does
+    not.
+  - Root 391 → 390 files and 48.9k → 48.7k lines (−0.21k); `session` gains
+    0.33k production lines.
+  - Tests: none moved, because all use engine fixtures. Adapted
+    `catalog_fence_test.go`, `driver_batch_catalog_provider_test.go`,
+    `partition_attach_publication_test.go` and
+    `default_privileges_catalog_test.go`. New session units are in
+    `journal_fences_test.go` and `journal_capture_test.go`.
+  - For item 167: new root feature code since 153: `catalog_source_views.go`
+    (0.17k, `b8a166c33`), `plpgsql_assignment.go`, `plpgsql_checkpoint.go`,
+    `plpgsql_conditional.go` and `sql_command_effects.go` (0.53k,
+    `8ee510460`, `9b91b59d0`, `c0fa3a453`) and `restore_provider.go`
+    (59 lines, `7ab862ceb`). Root production code grew about 1.3k net from
+    `9942278d2` to `c0fa3a453`.
 - 160: not started.
 - 161: not started.
 - 162: not started.

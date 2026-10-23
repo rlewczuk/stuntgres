@@ -10,17 +10,16 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `921b983b6`.
+Last verified against `master` at `c0fa3a453`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 154 (table, DROP), 155 (session, journal fences), 156 (table, VACUUM),
-  157 (partition), 158 (table, ALTER), 159 (view), 160 (session, 2PC), 163
-  (exec, cursors), 165 (session, protocol codec) and 166 (ddl, CREATE
-  DATABASE).
+- 154 (table, DROP), 156 (table, VACUUM), 157 (partition), 158 (table,
+  ALTER), 159 (view), 160 (session, 2PC), 163 (exec, cursors), 165
+  (session, protocol codec) and 166 (ddl, CREATE DATABASE).
 
 ## Linear plan
 
@@ -48,9 +47,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
 154. [ ] Table: DROP dependency decisions —
      [table](ENGINE-SPLIT-table.md#item-154--drop-dependency-decisions) ·
      needs 153 · 0.37k
-155. [ ] Session: journal observation and state fences —
+155. [x] Session: journal observation and state fences —
      [session](ENGINE-SPLIT-session.md#item-155--journal-observation-and-state-fences)
-     · needs 153 · 0.21k
+     · needs 153 · 0.21k (`3bc20a6ca`, `ea5eb4842`, then the docs commit) ·
+     root 391 → 390 files and 48.9k → 48.7k lines · targeted units (also
+     `RACE=1`), quickcheck and the quick and `REFERENCE=1` default-privilege,
+     concurrent foreign DDL, ALTER TYPE repeatable-read, DROP SEQUENCE and
+     serial cascade selections passed; racecheck/finalcheck skipped at user
+     request
 156. [ ] Table: VACUUM decisions —
      [table](ENGINE-SPLIT-table.md#item-156--vacuum-decisions) · needs — ·
      0.49k
