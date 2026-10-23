@@ -1,12 +1,9 @@
 # internal/engine/view
 
-The code that *uses* stored queries and needs no engine: rule rewriting and rule
-programs, the lowering of writes through auto-updatable views, stored-projection
-demand, view options, concurrent materialized refresh and the materialized
-snapshot codec, policy validation and RLS layer selection, the view, rule and
-policy dependency checks and DDL decisions behind `Host` and `StageHost`, the
-execution-time query preflight and join legality, the privilege walkers over
-view definitions and view writes, and the read side of DROP behind `DropReader`.
+The code that *uses* stored queries and needs no engine: view, rule and policy
+DDL decisions, rule rewriting, writes through auto-updatable views, materialized
+refresh and snapshots, RLS layer selection, execution-time query preflight, the
+privilege and lock walks over view definitions and the read side of DROP.
 
 ## Imports
 
@@ -19,180 +16,92 @@ An upper feature in [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target
 imports the engine, `fdw`, `partition`, `role`, `dml` or `control`, and it never
 builds a binder.
 
-## What `stored` owns instead
-
-The stored definitions are not here. The frozen view payload (`stored.View`),
-the rule and policy payloads (`stored.Rule`, `stored.RuleAction`,
-`stored.Policy`), their SQL rendering, dumps and remap are in
-[`stored`](../stored/README.md). `view` imports `stored`; `analyze` reaches views
-only through its host (`StoredViewVolatile`, `ValidateViewReadGraph`,
-`CaptureRetainedViewInput`, `BindViewWrite`) and never imports `view`.
+The stored definitions (`stored.View`, `stored.Rule`, `stored.Policy`), their SQL
+rendering, dumps and remap are in [`stored`](../stored/README.md). `analyze`
+reaches views only through its host (`StoredViewVolatile`,
+`ValidateViewReadGraph`, `CaptureRetainedViewInput`, `BindViewWrite`) and never
+imports `view`.
 
 ## What it owns
 
 - **DDL decisions** (`host.go`, `create.go`, `alter_drop.go`, `rule_ddl.go`,
-  `rule_bind.go`, `policy_ddl.go`, `definition.go`,
-  `rule_action_presentation.go`): `Host` (stage-less: allocation, the access
+  `policy_ddl.go`, `definition.go`): `Host` (stage-less: allocation, the access
   view, relation resolution, the temporary owner and the root-built rule and
-  policy binders) and `StageHost` (`Host` and `ddl.Host` with row-type staging,
-  array displacement and `ReownDisplacedTypes`), both implemented by the root's
-  `ddlHost`. CREATE OR REPLACE VIEW is `CreateTarget`, `CheckCreate` (with
-  `CreateOptions`) and `StageCreate`; ALTER VIEW is `AlterChange`; DROP VIEW is
-  `DropTargets` and, after the waits, `RecheckDropTargets`. CREATE/ALTER/DROP
-  RULE and POLICY are `PlanRule` and `PlanPolicy`, which return a
-  `RelationChange` (a skip NOTICE, or the next relation and its query sources)
-  that the root stages and publishes. `FreezeDefinition` freezes view and
-  materialized view queries; `freezeRuleActionPresentation` and
-  `freezeRuleModifierPresentations` freeze rule actions.
-- **Query preflight** (`query_preflight.go`, `query_set_preflight.go`,
-  `query_join_legality.go`): `PreflightQuery` copies the plan paths that hold
-  folded coercions for one execution (window, join, set, DISTINCT,
-  function-from and set-project nodes, rule producer demand);
-  `PrepareStoredExecutionRoot` preflights a stored view query for its demanded
-  outputs and returns the source reads; the execution-only join and row-mark
-  legality checks `ValidateQueryJoinExecution`, `ValidateMutationJoinExecution`,
-  `ValidateExpressionJoinExecution` and `ValidateMarkedQueryJoin`. They run on
-  execution-owned parameters, never at Prepare. The root's `exec` preparation
-  forwarders (`PreflightQuery`, `AdmitExpression` in `exec_preparation.go`) call
-  them.
+  policy binders) and `StageHost` (`Host` plus `ddl.Host` with row-type staging),
+  both implemented by the root's `ddlHost`. CREATE OR REPLACE VIEW is
+  `CreateTarget`, `CheckCreate` and `StageCreate`; ALTER VIEW is `AlterChange`;
+  DROP VIEW is `DropTargets`, then `RecheckDropTargets` after the waits. RULE and
+  POLICY DDL is `PlanRule` and `PlanPolicy`, which return a `RelationChange` that
+  the root stages and publishes. `FreezeDefinition` freezes view queries.
+- **Query preflight and join legality** (`query_preflight.go`,
+  `query_set_preflight.go`, `query_join_legality.go`): `PreflightQuery` copies
+  the plan paths that hold folded coercions for one execution;
+  `PrepareStoredExecutionRoot` preflights a stored view for its demanded outputs;
+  the `Validate*JoinExecution` and `ValidateMarkedQueryJoin` checks. They run on
+  execution-owned parameters, never at Prepare, and are the bodies behind the
+  root's `exec` preparation forwarders.
 - **Privilege walkers** (`write_authority.go`, `source_authority.go`,
   `query_table_refs.go`): `CheckWrite` (a write through a view: the logical
-  target through `analyze.CheckBinding`, then each layer under its owner or the
-  original invoker), `AuthorizeSource` (SELECT on a stored view's source leaves,
-  then its row marks), `CheckRowMarks` (stored and inherited row marks under each
-  nested view's principal), `QueryTableRefs` (every executable view occurrence
-  authorized, then view bases, partitions and inheritance children expanded into
-  the stored relations to capture) and `CheckRowSecuritySource` (the
-  `row_security` setting guard on a relation and, through stored views, on each
-  source under its layer's principal). They take the captured `access.View` and
-  its `access.Environment`; the root's `AuthorizationView.CheckViewWrite`,
-  `CheckViewRowMarks` and `queryTableRefsLocked` forward to them. They check only
-  relations and columns, so the caller's environment serves every nested
-  principal.
-- **Rule rewriting** (`rule_rewrite.go`, `rule_frames.go`,
-  `rule_producer_demand.go`, `rule_query_*.go`, `rule_parameter_preflight.go`,
-  `rule_update_output.go`): `RuleRewriter` (`ExpandLocked`, the INSTEAD, ALSO and
-  conditional INSTEAD expansion with recursion detection by `ruleAncestry`),
-  `ComposeRuleAction`, `RuleResidual`, `MakeRuleProducer`, the program records
-  `RuleProgram` and `RuleCommand`, `RefreshRuleSources`, `FinalizeRuleQuery`,
-  `ValidateRuleNewUpdateOutput`.
-- **Rule authority** (`rule_authority.go`): `RuleAuthority`, the opaque statement
-  authority a rewritten command carries. The engine's `AuthorizationView`
-  implements it; `ruleAuthorizationOf` (root) recovers the full view at execution
-  time.
-- **Rule CTEs** (`rule_cte*.go`): `RuleCTECommand`, `RuleCTEProgramError`,
-  `NormalizeRuleCTEsLocked` (expands each data-modifying CTE's rules into the
-  binding's rule CTE recipes, over the catalog owner), `ValidateRuleActionCTEs`,
-  `IsolateRuleCTEFrames`, `RetainRuleCTEPresentation`, `RefreshRuleActionCTEs`.
-- **Rule DDL checks** (`rule_definition.go`, `rule_dependencies.go`,
-  `rule_execution.go`): `RuleDuplicate`, `RuleIndex`, `RuleMissing`,
-  `RuleResultCheck`, `RuleDepends`, `RuleReferences`, `BindingRuleRelation`.
-- **Writes through views** (`write.go`, `write_insert.go`, `write_query.go`,
-  `write_sources.go`, `binding_slots.go`, `default_origin.go`): `Write` (its base
-  relation field is `BaseRelation`, because `Base()` is the
-  `analyze.ViewWriteSlot` method), `WriteLayer`, `CheckGroup`, `BindViewWrite`,
-  `PhysicalBinding`, `BindingDefaultOrigin`, `EvalBindingDefault`,
-  `FreezeWriteSources` (the frozen-layout bridges of a view write's sources,
-  borrowing the statement's query authority or host), and the `analyze` slot
-  helpers `ViewWriteOf`, `ViewWriteSlotOf`, `RuleCTECommands`, `RuleCTEsOf`,
-  `RuleCTEsSlotOf`.
-- **View DDL records and checks** (`view.go`, `alter.go`, `dependencies.go`,
-  `options.go`, `query.go`): `CreationScope`, `CheckViewOutputNames`,
-  `CheckViewPrefix`, `RequestedViewPersistence`, `CheckColumnCollations`,
-  `AlterViewAuthority`, `ViewDropMissing`, `ViewDropOwner`,
-  `ValidateViewDefinition`, `ViewDepends`, `DependencyEdge`,
-  `TransformViewOptions` and `StoredProjectionDemand`.
+  target, then each layer under its owner or the invoker), `AuthorizeSource`,
+  `CheckRowMarks`, `QueryTableRefs` (authorizes every executable view occurrence,
+  then expands bases, partitions and inheritance children into the relations to
+  capture) and `CheckRowSecuritySource`. They take the captured `access.View` and
+  its `access.Environment`; they check only relations and columns, so the
+  caller's environment serves every nested principal.
+- **Rules** (`rule_*.go`): `RuleRewriter.ExpandLocked` (INSTEAD, ALSO and
+  conditional INSTEAD expansion with recursion detection), the programs
+  `RuleProgram` and `RuleCommand`, `RuleAuthority` (the opaque statement
+  authority a rewritten command carries, implemented by the engine's
+  `AuthorizationView`), rule CTE normalization (`NormalizeRuleCTEsLocked`) and
+  the rule DDL and dependency checks.
+- **Writes through views** (`write*.go`, `binding_slots.go`,
+  `default_origin.go`): `Write` (base relation field `BaseRelation`, because
+  `Base()` is the `analyze.ViewWriteSlot` method), `WriteLayer`, `BindViewWrite`,
+  `FreezeWriteSources` and the `analyze` slot helpers (`ViewWriteOf`,
+  `RuleCTEsOf`, ...). `StoredQueryImporter` and `Write.GraftQuery` share one
+  frozen-occurrence graft: it translates frozen read attributes to live uses once
+  per occurrence, keeps required view keys demanded after renames, and still
+  prunes unrequested projections.
+- **View records and checks** (`view.go`, `alter.go`, `dependencies.go`,
+  `options.go`, `query.go`): creation scope, output-name and collation checks,
+  `ValidateViewDefinition`, `ViewDepends`, `TransformViewOptions` and
+  `StoredProjectionDemand`.
 - **Lock walks** (`source_locks.go`, `query_locks.go`): `SourceWalk.Closure`
-  walks the view definitions reachable from a statement's locked target and
-  query leaves and returns a `SourceClosure` (the strongest row mode per
-  relation, the relations still to acquire, the temporary views to revalidate
-  and, for a refresh, the observed sources); `StoredLeaves` lists the visited
-  stored relations; `DefinitionReferences` lists the relations a binding's
-  dependencies and sequence constants name. `FirstQueryRowMode` finds the first
-  row-lock mode a query or its stored views request (the read-only diagnostics);
-  `QueryLocks` validates the read graph and the row-lock legality of every
-  reached view and relation and returns a `QueryLockDemand`;
-  `CurrentQuerySource` revalidates an admitted leaf's exact identity (domain,
-  epoch, name, kind, row shape, storage lineage or sequence plan stamp). They
-  read the statement's private `catalog.Read`; the root acquires the locks.
+  walks the view definitions reachable from a statement's targets and leaves and
+  returns a `SourceClosure` (strongest row mode per relation, relations still to
+  acquire, temporary views to revalidate); `QueryLocks` validates the read graph
+  and row-lock legality and returns a `QueryLockDemand`; `CurrentQuerySource`
+  revalidates an admitted leaf's exact identity. They read the statement's
+  private `catalog.Read`; the root acquires the locks.
 - **Stored view sources** (`stored_sources.go`): `FreezeStoredSources` installs
-  the frozen-layout bridges and stored references of a stored view's captured
-  sources; the root's `captureStoredSourceLocked` calls it after selecting the
-  raw prefixes.
-- **The DROP read side** (`drop_reader.go`, `drop_closure.go`, `dependents.go`,
-  `drop_diagnostics.go`): `DropReader` is the drop stage (the base catalog, the
-  staged or prepared replacements and removals, the diagnostic path and
-  `DefinitionInput`) that the root's `dropProvider` implements, as it implements
-  `table.DropDependencyReader`. `DropClosure` is the dependency closure (its
-  edges are `table.DomainDependency`), `RestrictError` its RESTRICT error and
-  `PassiveTypeDependency` the passive view type capture check.
-  `DependencyClosure`, `DependentViews`, `KeepRules`, `KeepPolicies`,
-  `DropPolicyDependents` and `DropRuleDependents` are the view, rule and policy
-  dependents; `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view.
-  The diagnostics are `Dependent` with its label helpers,
-  `DependentsRestrictError` and `EmitCascade`. Object descriptions are
-  `stored.DependencyObject`.
-- **Materialized views** (`materialized_*.go`): the refresh scope and stage
-  records (`MaterializedRefreshScope`, `MaterializedReplacement`,
-  `MaterializedStage`), `MaterializedRefreshAccess`,
-  `MaterializedRefreshCompatible`, the concurrent-refresh row matching and index
-  eligibility (`MaterializedConcurrentAdmission`, `MaterializedConcurrentRows`,
-  `MaterializedDuplicatePreflight`, `MaterializedNewEntries`,
-  `SameMaterializedLineage`), the snapshot codec (`MaterializedSnapshot`,
-  `EmitMaterializedSnapshot`, `DecodeMaterializedSnapshot`, the
-  `stuntgres-matview-v1` comment) and its import checks
-  (`ParseMaterializedSnapshot`, `MaterializedSnapshotInsert`),
-  `MaterializedExtensionDepends`, and the replacement cores
-  (`ConcurrentPrevious`, `ValidateMaterializedReplacement`,
-  `MaterializedReplacement.Current`, `CheckMaterializedRows`,
-  `MaterializedIndexCount`).
-- **Policies and RLS** (`policy*.go`, `rls_base.go`, `row_security*.go`):
-  `ValidatePolicies`, `PolicyClauses`, `PolicyDuplicate`, `PolicyIndex`,
-  `PolicyMissing`, `PolicyOwnerNoun`, `PolicyPreflight`, `ResolvePolicyRoles`,
-  `PolicyDepends`, `PolicyTypeChangeError`, `PolicyPayloadOf`,
-  `RowSecurityLayers`, `CaptureDeniedQuerySource`; the `row_security` setting
-  walkers (`CheckRowSecurityBinding` over a binding's target, query sources and
-  data-modifying CTEs, `CheckRowSecurityRuleProgram` over a rule program, each
-  command under its `RuleAuthority.Access()`); and the command state
-  `RowSecurity`, which borrows OLD/NEW `exec.RLSProgram`s (`RowSecurityTarget`
-  resets selection, `CheckProposal` shares NEW enforcement and
-  `SelectAdjacentRowSecurity` retains MERGE/ON CONFLICT action boundaries).
-- **Frozen occurrence graft** (`write_query.go`): `StoredQueryImporter` and
-  `Write.GraftQuery` share one graft. Target policy source zero stays a row
-  frame, while nested sources retain original refs/attribute layouts. The graft
-  translates frozen read attributes to live dense Uses once per occurrence; zero
-  frozen Reads is explicitly presence-only, not live nil/full demand. Required
-  view keys stay demanded after renames/reordering, while unrequested
-  projections still prune.
+  the frozen-layout bridges and stored references of captured sources.
+- **DROP read side** (`drop_*.go`, `dependents.go`): `DropReader` is the drop
+  stage that the root's `dropProvider` implements. `DropClosure` is the
+  dependency closure (edges are `table.DomainDependency`); `DependentViews`,
+  `KeepRules`, `KeepPolicies` and the `Drop*Dependents` helpers find dependents;
+  `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view.
+- **Materialized views** (`materialized_*.go`): refresh scope and stage records,
+  concurrent-refresh row matching and index eligibility, the replacement cores
+  and the snapshot codec (`EmitMaterializedSnapshot`,
+  `DecodeMaterializedSnapshot`, the `stuntgres-matview-v1` comment) with its
+  import checks.
+- **Policies and RLS** (`policy*.go`, `rls_base.go`, `row_security*.go`): policy
+  validation and dependencies, `RowSecurityLayers`, the `row_security` setting
+  walkers and the command state `RowSecurity`, which borrows OLD/NEW
+  `exec.RLSProgram`s.
 - **Target admission** (`target_admission.go`): `TargetAdmission`, the
-  `table.TargetEntry` of CREATE/ALTER/DROP RULE and POLICY, CREATE OR REPLACE
-  VIEW and ALTER VIEW, which the root registers with the `table` and `dml`
-  entries.
+  `table.TargetEntry` of RULE, POLICY and VIEW DDL.
 
 ## What stays in the engine
 
-Dispatch (`execute.go`), `Engine.mu`, lock waits (the acquire loops of
-`view_locks.go`, `acquireViewWriteTarget`, `acquireMaterializedRefresh`) and
-`relation_scope.go` admission with `prepareViewCreation` (it binds the view query
-with the scope's lock admission). The handler skeletons (`executeCreateView`,
-`executeAlterView`, `executeDropView`, `executeRule`, `executePolicy`,
-`publishRelationChangeLocked`, `finishPolicyNoticeLocked`) keep the statement
-authority, the trusted Restore guard of CREATE VIEW, the fenced IF EXISTS
-NOTICEs, the stage lifecycle, the unlock, the AccessExclusive waits and
-dependents of DROP VIEW, and publication; RENAME and SET SCHEMA dispatch to the
-root's table handlers. Also the host bodies (`view_host.go`;
-`BindPolicyExpression` in `policy_expression.go`), rule program execution and
-admission (they run DML), `prepareStoredQueryLocked` (it opens the sources under
-`Engine.mu`), view source opening and the authorization capture around
-`AuthorizeSource` (`view_source.go`), refresh row production and staging
-(`refreshMaterializedLocked`, `materializedRefreshRowsLocked`,
-`stageMaterializedRows`), the `CatalogStage` replacement wrappers, the
-materialized source fence, `importMaterializedSnapshots` (target lookup, row
-evaluation and installation), `admitRuleCTEsLocked`, the row-security authority
-wrappers (`stageRowSecurityFlagsLocked`, `configureRowSecurityLocked`,
-`rowSecurityInputLocked`), `ruleActionScope`, the `initializeQueryLocksLocked`
-and `currentQuerySourceLocked` wrappers, `dropProvider`'s staging, removal and
-lock-wait core, and the slot accessors on `CatalogStage` and `StatementScope`.
+Dispatch, `Engine.mu`, lock waits (`view_locks.go`) and `prepareViewCreation`.
+The handler skeletons (`executeCreateView`, `executeAlterView`,
+`executeDropView`, `executeRule`, `executePolicy`) keep the statement authority,
+the IF EXISTS NOTICEs, the stage lifecycle, the waits and publication. Also the
+host bodies (`view_host.go`), rule program execution (it runs DML), view source
+opening (`view_source.go`), refresh row production and staging,
+`importMaterializedSnapshots`, the row-security authority wrappers and
+`dropProvider`.
 
 ## Invariants
 
@@ -205,29 +114,18 @@ lock-wait core, and the slot accessors on `CatalogStage` and `StatementScope`.
 - Concurrent refresh keeps the unique-index requirement, duplicate detection and
   source lineage checks. Snapshot comments (`stuntgres-matview-v1`) are
   byte-stable and decode the same way.
-- `Host` and `StageHost` methods run with `Engine.mu` held, never take or
-  release it and never wait; the decisions never begin, publish or discard a
-  stage. `StageCreate` writes only to the stage it is given, and the root holds
-  `Engine.mu` until it returns.
-- The package holds no engine state and no mutex. Functions here never wait;
+- `Host` and `StageHost` methods run with `Engine.mu` held, never take or release
+  it and never wait; the decisions never begin, publish or discard a stage.
+  `StageCreate` writes only to the stage it is given.
+- The package holds no engine state and no mutex, and its functions never wait.
   `RuleRewriter.ExpandLocked` reads live storage through the rule authority, so
   its caller (and `NormalizeRuleCTEsLocked`'s) holds `Engine.mu`.
-- **Snapshot import admission.** Native snapshots preserve captured values
-  without REFRESH; PostgreSQL ignores the comments, so emitted WITH NO DATA
-  definitions need REFRESH there. Import binds every scalar through the ordinary
-  typed binder and accepts only the closed shapes the emitter writes: the
-  qualified negative-circle codec, composite ROW members under a
-  destination-owned qualified cast, and nested rank-one arrays as the qualified
-  three-argument `array_fill` singleton seed or two-argument `array_cat` seed
-  plus a nonempty qualified typed ARRAY tail (closed signed int32 lower bounds,
-  recursively closed elements). Named, VARIADIC, decorated, arbitrary and
-  malformed calls are rejected. Before preflight or evaluation, admitted array
-  calls must keep the genuine `ArrayTransform` provider and builtin array-family
-  identity; same-named `pg_catalog` SQL overloads gain no codec authority. Import
-  requires a full destination-ordered column list with closed integer slice
-  bounds; constructor values must keep their rank and every dimension length.
-  Only authentic stored domain NULLs authorize private cell transport, and a
-  slice on a captured NULL placeholder is rejected.
+- **Snapshot import admission.** Import binds every scalar through the ordinary
+  typed binder and accepts only the closed shapes the emitter writes, with a full
+  destination-ordered column list; anything else is rejected. Admitted array
+  calls must keep the genuine builtin provider identity (same-named overloads
+  gain no codec authority), and only authentic stored domain NULLs authorize
+  private cell transport.
 
 ## Testing
 
