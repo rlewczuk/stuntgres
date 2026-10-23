@@ -2,8 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
-	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
@@ -22,13 +20,13 @@ import (
 // replacement. Imported identity collisions are remapped, never temp identities.
 func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, restoreOp *session.Operation, indexes *index.Snapshot) error {
 	e.retainDatabaseLocked(next)
+	current := e.catalog.read(e.catalog.state)
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
 	}
-	if err := e.checkTemporaryRuleSourcesReplacementLocked(); err != nil {
+	if err := control.CheckTemporaryRuleSourcesLocked(current); err != nil {
 		return err
 	}
-	current := e.catalog.read(e.catalog.state)
 	temporary, err := control.TemporarySet(current, next)
 	if err != nil {
 		return err
@@ -40,7 +38,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := control.CheckTemporaryDependencies(current, next, temporary); err != nil {
 		return err
 	}
-	if err := e.retainTemporaryViewProvidersLocked(next, temporary); err != nil {
+	if err := control.RetainTemporaryViewProvidersLocked(current, next, temporary); err != nil {
 		return err
 	}
 	mapping, err := control.TemporaryCollisionMapping(next, temporary, e.catalog.allocateOIDLocked)
@@ -180,125 +178,12 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	return nil
 }
 
-// Only immutable bootstrap catalog sources have a persistent survivor route.
-// Retain the predecessor itself, after checking the candidate's full provider
-// shape and namespace/ACL authority; a compatible-looking user table is not it.
-func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor) error {
-	view := e.catalog.read(e.catalog.state)
-	for _, descriptor := range temporary {
-		consumer, ok := descriptor.(*catalog.Relation)
-		if !ok || consumer.View == nil {
-			continue
-		}
-		for ref, captured := range stored.ViewOf(consumer).References() {
-			address := ref.Address
-			address.SubID = 0
-			old, ok := e.catalog.state.Relation(address)
-			if !ok {
-				continue
-			}
-			if temporary[old.Namespace()] != nil {
-				if !stored.ViewReferenceValid(view, consumer, ref) {
-					return ids.ErrCatalogReplaced
-				}
-				continue
-			}
-			fail := func() error {
-				return fmt.Errorf("stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported")
-			}
-			if old != captured || old.RelationKind != catalog.CatalogRelation || !stored.DependPinned(view, nil, address) {
-				return fail()
-			}
-			candidate, ok := next.Relation(address)
-			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.History.HasIndexes != old.History.HasIndexes || candidate.History.HasSubclasses != old.History.HasSubclasses || candidate.ColumnMeta.HighWater != old.ColumnMeta.HighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.Security.ACL.Explicit != old.Security.ACL.Explicit || !slices.Equal(candidate.Security.ACL.Entries, old.Security.ACL.Entries) || len(candidate.Security.ColumnACL) != len(old.Security.ColumnACL) {
-				return fail()
-			}
-			for attribute, acl := range old.Security.ColumnACL {
-				other, ok := candidate.Security.ColumnACL[attribute]
-				if !ok || other.Explicit != acl.Explicit || !slices.Equal(other.Entries, acl.Entries) {
-					return fail()
-				}
-			}
-			for i, column := range old.Columns {
-				other := candidate.Columns[i]
-				if column.Name != other.Name || column.Usage.Type.ID() != other.Usage.Type.ID() || column.Usage.Typmod != other.Usage.Typmod || column.Usage.Collation.ID != other.Usage.Collation.ID || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
-					return fail()
-				}
-			}
-			namespace, ok := e.catalog.state.Namespace(old.Namespace())
-			other, candidateOK := next.Namespace(old.Namespace())
-			if !ok || !candidateOK || !stored.DependPinned(view, nil, old.Namespace()) || namespace.Name() != other.Name() || namespace.Owner != other.Owner || namespace.Temporary != other.Temporary || namespace.TemporaryToast != other.TemporaryToast || namespace.ACL.Explicit != other.ACL.Explicit || !slices.Equal(namespace.ACL.Entries, other.ACL.Entries) {
-				return fail()
-			}
-			next.SetDescriptor(address, old)
-			next.SetDescriptor(old.Namespace(), namespace)
-		}
-	}
-	return nil
-}
-
-const temporaryInheritanceReplacementError = "stuntgres: catalog replacement with live temporary table inheritance of persistent parents is unsupported"
-
 // Called under Engine.mu at preallocation and final replacement admission.
-// Retained TEMP relations cannot substitute persistent inheritance or OF sources.
+// Retained TEMP relations cannot substitute persistent inheritance or OF
+// sources: control checks the inheritance parents, then the typed check runs.
 func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
-	for _, descriptor := range e.catalog.state.Descriptors() {
-		table, ok := descriptor.(*catalog.Relation)
-		if !ok || table.Inheritance == nil {
-			continue
-		}
-		namespace := e.catalog.state.MustNamespace(table.Namespace())
-		if namespace.Temporary == (ids.SessionToken{}) {
-			continue
-		}
-		for _, edge := range table.Inheritance.Parents {
-			parent := edge.Relation
-			source, ok := e.catalog.state.Relation(parent)
-			if !ok {
-				return fmt.Errorf("stuntgres: missing inheritance parent")
-			}
-			if e.catalog.state.MustNamespace(source.Namespace()).Temporary == (ids.SessionToken{}) {
-				return fmt.Errorf("%s", temporaryInheritanceReplacementError)
-			}
-		}
+	if err := control.CheckTemporaryRelationSourcesLocked(e.catalog.state); err != nil {
+		return err
 	}
 	return e.checkTemporaryTypedReplacementLocked()
-}
-
-func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
-	view := e.catalog.read(e.catalog.state)
-	for _, descriptor := range e.catalog.state.Descriptors() {
-		d, ok := descriptor.(*catalog.Relation)
-		if !ok || len(stored.RulesOf(d)) == 0 {
-			continue
-		}
-		ns, ok := e.catalog.state.Namespace(d.Namespace())
-		if !ok || ns.Temporary == (ids.SessionToken{}) {
-			continue
-		}
-		for _, rule := range stored.RulesOf(d) {
-			for _, address := range rule.References() {
-				address.SubID = 0
-				if stored.DependPinned(view, nil, address) {
-					continue
-				}
-				provider := e.catalog.state.Get(address)
-				if address.ClassID == 2606 {
-					parent := stored.ConstraintParent(view, address)
-					if parent == nil {
-						return ids.ErrCatalogReplaced
-					}
-					provider = parent
-				}
-				if provider == nil {
-					return ids.ErrCatalogReplaced
-				}
-				providerNS, ok := e.catalog.state.Namespace(provider.Namespace())
-				if !ok || providerNS.Temporary != ns.Temporary {
-					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary rule %q dependencies", rule.Name)
-				}
-			}
-		}
-	}
-	return nil
 }

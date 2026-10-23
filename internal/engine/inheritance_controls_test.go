@@ -41,14 +41,14 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	e.mu.Lock()
 	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
-	if err == nil || err.Error() != temporaryInheritanceReplacementError {
+	if err == nil || err.Error() != control.TemporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
 	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.catalog.state.Epoch() != epoch || e.storage.Relations[temp.Address()] != stored {
 		t.Fatal("rejection changed target/allocator")
 	}
 	// Reset uses the same final replacement fence, not just a helper-only guard.
-	if err = e.Reset(context.Background()); err == nil || err.Error() != temporaryInheritanceReplacementError {
+	if err = e.Reset(context.Background()); err == nil || err.Error() != control.TemporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
 	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[temp.Address()] != stored {
