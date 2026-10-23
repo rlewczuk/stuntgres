@@ -1,14 +1,9 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -88,6 +83,9 @@ func (e *Engine) resolveStringAnnotationType(raw parser.TypeName, op *session.Op
 	return e.resolveAnnotationTypeInput(raw, op, unknownNull, false, true, false, false)
 }
 
+// resolveAnnotationTypeInput authorizes and runs the namespace lookup, then
+// resolves the name there (analyze.ResolveTypeName). Typmod text reads the
+// operation's context and a typmod warning becomes an operation notice.
 func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Operation, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
@@ -105,108 +103,15 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Ope
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	var found ids.ObjectAddress
-	for i := range path.Count() {
-		found = auth.definitionLookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name})
-		if found != (ids.ObjectAddress{}) {
-			break
-		}
+	in := analyze.TypeNameInput{
+		Catalog: auth.Catalog, Definition: auth.definition,
+		UnknownNull: unknownNull, DomainBase: domainBase, StringInput: stringInput,
+		JSONReturning: jsonReturning, ThresholdArrayInput: thresholdArrayInput,
 	}
-	if found == (ids.ObjectAddress{}) {
-		if domainBase && raw.Name == "record" && (raw.Schema == nil || raw.Schema.Text == "pg_catalog") {
-			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42804", `"record" is not a valid base type for a domain`)
-		}
-		if raw.Schema == nil && typedef.UnsupportedColumnType(raw) {
-			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
-		}
-		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s%s" does not exist`, catalog.ObjectNameText(object), strings.Repeat("[]", len(raw.ArrayBounds))))
+	var operation analyze.TypeNameOperation
+	if op != nil {
+		operation.Context = op.Context
+		operation.Warn = func(warning sqlstate.Error) { op.EmitNotice(session.LevelWarning, warning) }
 	}
-	d, validType := auth.definitionType(sqltype.ID(found.ObjectID))
-	if !validType {
-		return sqltype.Usage{}, fmt.Errorf("stuntgres: missing definition type provider")
-	}
-	if jsonReturning && functions.JSONReturningPseudoType(d) {
-		return sqltype.Usage{}, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
-	}
-	if domainBase && (!d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Void) {
-		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42804", fmt.Sprintf(`"%s" is not a valid base type for a domain`, d.Name()))
-	}
-	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
-		return d.Usage(), nil
-	}
-	if unknownNull && d.ID() == 2249 && len(raw.Modifiers) == 0 && len(raw.ArrayBounds) == 0 {
-		return sqltype.DeferredRecord().Usage(), nil
-	}
-	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !thresholdArrayInput || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void {
-		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
-	}
-	u := d.Usage()
-	if !raw.Quoted && (raw.Name == "char" || raw.Name == "character") && len(raw.Modifiers) == 0 {
-		u.Typmod = 5
-	}
-	if !raw.Quoted && raw.Schema == nil && raw.Name == "bit" && len(raw.Modifiers) == 0 {
-		u.Typmod = 1
-	}
-	if len(raw.Modifiers) > 0 {
-		if d.IsUserDefined() || d.IsDomain() {
-			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, catalog.ObjectNameText(object)))
-		}
-		if err := d.CheckModifierSupport(); err != nil {
-			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42601" && raw.Schema != nil {
-				// Explicit qualification owns its diagnostic spelling. Unqualified
-				// aliases and lowered declarations retain the descriptor's name.
-				return sqltype.Usage{}, typedef.TypeDiagnostic(raw, diagnostic.Code, fmt.Sprintf(`type modifier is not allowed for type "%s"`, catalog.ObjectNameText(object)))
-			}
-			return sqltype.Usage{}, analyze.InputErrorAt(err, raw.Pos)
-		}
-	}
-	modifiers := make([]int32, len(raw.Modifiers))
-	for i, modifier := range raw.Modifiers {
-		if modifier.NonSimple || modifier.UnaryPlus {
-			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42601", "type modifiers must be simple constants or identifiers")
-		}
-		if modifier.Integer != nil {
-			modifiers[i] = *modifier.Integer
-			continue
-		}
-		integer, _ := auth.definitionType(sqltype.Int4)
-		ctx := context.Background()
-		if op != nil {
-			ctx = op.Context()
-		}
-		value, err := integer.Input(ctx, modifier.Raw, -1)
-		if err != nil {
-			return sqltype.Usage{}, analyze.InputErrorAt(err, raw.Pos)
-		}
-		n, err := value.Integer()
-		if err != nil {
-			return sqltype.Usage{}, err
-		}
-		modifiers[i] = int32(n)
-	}
-	if len(modifiers) > 0 {
-		var warning *sqlstate.Error
-		var err error
-		u, warning, err = d.ResolveModifiers(modifiers...)
-		if err != nil {
-			return sqltype.Usage{}, analyze.InputErrorAt(err, raw.Pos)
-		}
-		if warning != nil && op != nil {
-			if raw.Pos.Character > 0 {
-				warning.Position = strconv.Itoa(raw.Pos.Character)
-			}
-			op.EmitNotice(session.LevelWarning, *warning)
-		}
-	}
-	if len(raw.ArrayBounds) > 0 {
-		if d.BaseType().ID() == sqltype.Macaddr || d.BaseType().ID() == sqltype.Macaddr8 || sqltype.IsTransactionIdentifier(d.BaseType().ID()) {
-			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
-		}
-		array, ok := auth.definitionArray(d)
-		if !ok || d.IsEnum() && !thresholdArrayInput {
-			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported array element type")
-		}
-		u.Type = array
-	}
-	return u, nil
+	return analyze.ResolveTypeName(raw, name, object, path, in, operation)
 }
