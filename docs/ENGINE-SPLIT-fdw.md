@@ -707,7 +707,28 @@ pass.
   `^TestReferenceDumpRoundTrip$` in quick and `REFERENCE=1` mode, and
   quickcheck; racecheck/finalcheck skipped at user request; bench not run
   (no startup or hot-path change).
-- [ ] 26f — Participant handshake (linear item 141)
+- [x] 26f — Participant handshake (linear item 141) (`67aa49035`, then the
+  docs commit). Re-measured at `dcd3b6a2e`: about 70 lines, as planned.
+  Moved into `fdw`: `BeginParticipant` (`transaction.go`; capabilities,
+  Begin, savepoint replay over the owner's `[]session.SavepointMark`,
+  rollback on failure), `EndStatements` (`transaction.go`; the end loop of
+  `finishForeignStatements`, which now applies `context.WithoutCancel`
+  itself) and `GroupTruncate` (`modify.go`; the server grouping of
+  `prepareForeignTruncate`, which now captures every source first and then
+  groups; grouping has no errors or side effects). Small addition:
+  `TruncateGroup.SetTransaction`, the per-group transaction stamping. The
+  root keeps the replacement-read release, both `owner.Mu` windows, the
+  rollback after a failed second validation, the participant checks and
+  statement record in `enlistForeign`, the slot clearing, the captures
+  under `Engine.mu` and the admission loop. No aliases. String literals
+  unchanged as a multiset. Tests added (observed failing first):
+  `TestFDWBeginParticipant`, `TestFDWEndStatements` and
+  `TestFDWGroupTruncate` (`fdw/transaction_test.go`); none moved or
+  deleted. Verified with `^(TestFDW|TestOwnerExtension|TestStatementTimeoutAdmission)`
+  (also `RACE=1`), `^TestReferenceFDW`, `^TestReferenceTruncate` and
+  `^TestReferenceDumpRoundTrip$` in quick and `REFERENCE=1` mode, and
+  quickcheck; racecheck/finalcheck skipped at user request; bench not run
+  (no startup or hot-path change).
 
 Outstanding aliases: none yet.
 

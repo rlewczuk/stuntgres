@@ -6,7 +6,8 @@ transforms, the foreign write protocol, the foreign transaction
 participants and the pure helpers of WRAPPER, SERVER, USER MAPPING, IMPORT
 FOREIGN SCHEMA, GRANT and foreign-table DDL. Step 26 of the engine split
 created it (26b moved the clean set, 26d the WRAPPER, SERVER, USER MAPPING,
-IMPORT and GRANT decisions, 26e the foreign-table decisions).
+IMPORT and GRANT decisions, 26e the foreign-table decisions, 26f the
+participant handshake, statement end loop and TRUNCATE grouping).
 The package is an upper feature at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`,
@@ -37,11 +38,18 @@ never imports it. The engine and the driver import it. See
   `statementHost` implements it); `PlanModification` (the operation check
   and the wrapper's row identity and planning callbacks; the caller has
   released the replacement read), `ModifyAdmission`, `OperationSupported`
-  and the TRUNCATE group record `TruncateGroup`.
+  and the TRUNCATE group record `TruncateGroup` (`GroupTruncate` groups the
+  selected foreign tables by server in first-seen order; `SetTransaction`
+  gives a group and its tables the server's participant transaction).
 - **Transaction participants** (`transaction.go`): `Transaction` is the
   owner's FDW state (`Participant`, `Enlist`, `Retire`, `TakeCleanup`,
   `Commit`, `Pending`, `Savepoint`); `Participant`, `ParticipantKey`,
-  `Rollback`, `MarkName` and `CapabilityError`.
+  `Rollback`, `MarkName` and `CapabilityError`. `BeginParticipant` is a new
+  participant's provider handshake: capability checks, Begin and the replay
+  of the owner's open savepoint marks, rolling the transaction back on any
+  later failure. `EndStatements` ends the statement in each open
+  participant; a failed release closes and rolls back that participant
+  once.
 - **DDL helpers** (`ddl.go`, `import.go`, `table.go`, `scan.go`): object
   lookup (`Find`, `Class`, `IsCatalogClass`, `ObjectRef`; the command tag
   and grant-kind test are `session.ForeignDDLTag` and
@@ -128,11 +136,16 @@ whose candidate waits on locks, the CHECK capture and rebind, OIDs,
 validations and publication); `InstallForeignDefinitions`
 and `RegistrationError`; scan capture (`captureForeignSourceLocked`) and
 participant enlistment (`enlistForeign`, `TouchForeignScan`), which need the
-statement scope; the commit and savepoint call sites; and the scope slot
-`foreignTableScope`, which holds engine cursors. Foreign INSERT, UPDATE
+statement scope: `enlistForeign` keeps the replacement-read release, the two
+`owner.Mu` validate and enlist windows around `BeginParticipant` and the
+statement's participant record, and `finishForeignStatements` keeps the
+release and clears the slot around `EndStatements`; the commit and savepoint
+call sites; and the scope slot `foreignTableScope`, which holds engine
+cursors. Foreign INSERT, UPDATE
 and DELETE execution is `dml.ExecuteForeign` (step 29d.5), which imports
 this package; its locked prologue (`executeForeignCommandLocked`), foreign
-TRUNCATE and COPY FROM stay in the engine.
+TRUNCATE (the source captures under `Engine.mu` and the participant
+admission around `GroupTruncate`) and COPY FROM stay in the engine.
 
 ## Testing
 
@@ -141,14 +154,18 @@ make check RUN='^(TestFDW|TestOwnerExtension)'
 make check RUN='^TestReferenceFDW'
 make check RUN='^TestReferenceDumpRoundTrip$'
 make check RUN='^TestReferenceObjectGrant'
+make check RUN='^TestReferenceTruncate'
 ```
 
 The first selection runs this package's unit tests (`TestFDWModifyIdentity`,
 `TestFDWOptionsTransform`, `TestFDWValidateDefinitions`,
-`TestFDWImportSelected`, `TestFDWAlterCandidate`) and the engine's FDW unit tests, which need an
+`TestFDWImportSelected`, `TestFDWAlterCandidate`, `TestFDWBeginParticipant`,
+`TestFDWEndStatements`, `TestFDWGroupTruncate`) and the engine's FDW unit tests, which need an
 `Engine` and stay in `internal/engine` (`fdw_*_test.go`, including the
 `StageTable` test `TestFDWStageTable`,
 `transaction_extension_test.go`). `^TestReferenceObjectGrant` covers the
-GRANT warnings `PlanGrant` shares through `authorization.GrantWarning`. Add `RACE=1` for the
+GRANT warnings `PlanGrant` shares through `authorization.GrantWarning`;
+`^TestReferenceTruncate` covers foreign TRUNCATE's server grouping and
+participant admission. Add `RACE=1` for the
 participant tests, and `REFERENCE=1` to the reference selections for the
 real PostgreSQL oracle.
