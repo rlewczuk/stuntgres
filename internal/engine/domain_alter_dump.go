@@ -1,25 +1,12 @@
 package engine
 
 import (
-	"strings"
-
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
-
-// A historical cast recipe may require a valid CHECK after CREATE DOMAIN.
-// Admission preserves its validity flag; ordinary ALTER owns binding and
-// validation against existing rows before the private stage can be published.
-func restoreDomainAlter(raw *parser.AlterDomain) error {
-	if raw == nil || raw.Action != parser.DomainAddCheck || raw.Check == nil || raw.Check.NoInherit || raw.Check.Name.Text == "" || raw.Constraint != raw.Check.Name || raw.IfExists || raw.Mode != 0 || len(raw.Name.Parts) != 2 || raw.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(raw.Name.Parts[0].Text, "pg_temp_") {
-		return sqlError("0A000", "restore accepts only qualified named domain CHECK additions")
-	}
-	return dump.RestoreScalar(raw.Check.Expression, true)
-}
 
 // Only the constructor's actual fresh ref, immediately after the captured owner
 // and bootstrap directives, can produce this pair. The Restore loop expires it

@@ -231,7 +231,7 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 		{"ALTER DOMAIN public.d ADD CONSTRAINT positive CHECK($1>0)", false},
 	} {
 		raw := statement(t, tc.sql).(*parser.AlterDomain)
-		if err := restoreDomainAlter(raw); (err == nil) != tc.valid {
+		if err := control.CheckAlterDomain(raw); (err == nil) != tc.valid {
 			t.Fatal(tc, err)
 		}
 	}

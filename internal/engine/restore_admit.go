@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/largeobject"
 	"stuntgres/internal/engine/partition"
-	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -18,14 +17,6 @@ import (
 // kind no entry admits is rejected with control's rejection text.
 
 type restoreAdmitFunc = func(*restoreRun, *session.Operation, parser.Statement) (control.Admission, error)
-
-// restoreAdmitKind admits every statement of kind T unchecked.
-func restoreAdmitKind[T parser.Statement](_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
-	if _, ok := stmt.(T); ok {
-		return control.Admitted, nil
-	}
-	return control.NotHandled, nil
-}
 
 // restoreAdmitChecked admits a statement of kind T that check accepts.
 func restoreAdmitChecked[T parser.Statement](check func(*restoreRun, *session.Operation, T) error) restoreAdmitFunc {
@@ -54,26 +45,6 @@ func restoreAdmitReplayed[T parser.Statement](replay func(*restoreRun, *session.
 		}
 		return control.Consumed, nil
 	}
-}
-
-// restoreAdmitSchemaObject admits the schema-level object DDL.
-func restoreAdmitSchemaObject(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
-	switch stmt.(type) {
-	case *parser.CreateCast, *parser.DropCast, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
-		return control.Admitted, nil
-	}
-	return control.NotHandled, nil
-}
-
-// restoreAdmitOperator admits operator DDL.
-func restoreAdmitOperator(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
-	switch stmt.(type) {
-	case *parser.CreateAccessMethod:
-		return control.Admitted, nil
-	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
-		return control.Admitted, nil
-	}
-	return control.NotHandled, nil
 }
 
 // restoreAdmitForeignDDL admits declarations, owner transfers and the selected
@@ -131,12 +102,6 @@ func restoreForeignDefault(s *parser.ForeignDDL) *parser.AlterTableDefault {
 	return alteration
 }
 
-// restoreStagesTemporary reports a TEMPORARY or pg_temp-qualified relation,
-// which a private restore stage cannot retract.
-func restoreStagesTemporary(persistence string, name parser.ObjectName) bool {
-	return persistence == "temporary" || len(name.Parts) == 2 && (name.Parts[0].Text == "pg_temp" || strings.HasPrefix(name.Parts[0].Text, "pg_temp_"))
-}
-
 // admitRestoreAlterOwner pairs an ALTER OWNER with the domain or inheriting
 // table its owner directive created.
 func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
@@ -147,7 +112,7 @@ func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.Alte
 }
 
 // admitRestoreCreateTable captures and strips the table's foreign keys
-// (bound at finish) and checks its stored expressions.
+// (bound at finish), then runs control's CREATE TABLE check.
 func admitRestoreCreateTable(r *restoreRun, op *session.Operation, s *parser.CreateTable) error {
 	if declarations := table.ForeignKeyDeclarations(s); len(declarations) != 0 {
 		var err error
@@ -157,76 +122,7 @@ func admitRestoreCreateTable(r *restoreRun, op *session.Operation, s *parser.Cre
 		}
 		table.StripRestoreForeignKeys(s)
 	}
-	if restoreStagesTemporary(s.Persistence, s.Name) {
-		return sqlError("0A000", "restore cannot stage non-retractable effects")
-	}
-	for _, element := range s.Elements {
-		if element.Column != nil {
-			for _, constraint := range element.Column.Constraints {
-				if err := dump.RestoreScalar(constraint.Default, true); err != nil {
-					return err
-				}
-				if constraint.Generation != nil {
-					if err := dump.RestoreScalar(constraint.Generation.Expression, true); err != nil {
-						return err
-					}
-				}
-				if constraint.Check != nil {
-					if err := dump.RestoreScalar(constraint.Check.Expression, true); err != nil {
-						return err
-					}
-				}
-			}
-		}
-		if element.Check != nil {
-			if err := dump.RestoreScalar(element.Check.Expression, true); err != nil {
-				return err
-			}
-		}
-		if element.Exclusion != nil {
-			for _, key := range element.Exclusion.Index.Keys {
-				if err := dump.RestoreScalar(key.Expression, true); err != nil {
-					return err
-				}
-			}
-			if err := dump.RestoreScalar(element.Exclusion.Index.Predicate, true); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func admitRestoreAlterDomain(_ *restoreRun, _ *session.Operation, s *parser.AlterDomain) error {
-	return restoreDomainAlter(s)
-}
-
-func admitRestoreAlterView(_ *restoreRun, _ *session.Operation, s *parser.AlterView) error {
-	if !s.Materialized || (s.Action != "depends" && s.Action != "no_depends") || s.IfExists {
-		return sqlError("0A000", "restore accepts only materialized extension dependency ALTER")
-	}
-	return nil
-}
-
-func admitRestoreCreateView(_ *restoreRun, _ *session.Operation, s *parser.CreateView) error {
-	if restoreStagesTemporary(s.Persistence, s.Name) {
-		return sqlError("0A000", "restore cannot stage non-retractable effects")
-	}
-	return nil
-}
-
-func admitRestoreCreateQueryTable(_ *restoreRun, _ *session.Operation, s *parser.CreateQueryTable) error {
-	if s.Form != parser.CreateMaterializedView || !s.NoData {
-		return sqlError("0A000", "restore accepts only unpopulated materialized view definitions")
-	}
-	return nil
-}
-
-func admitRestoreAlterIndex(_ *restoreRun, _ *session.Operation, s *parser.AlterIndex) error {
-	if s.Action != "rename" && s.Action != "attach" {
-		return sqlError("0A000", "restore accepts only index rename and partition attachment")
-	}
-	return nil
+	return control.CheckCreateTable(s)
 }
 
 // admitRestoreAlterTable admits a physical constructor, row-security actions,
@@ -243,13 +139,6 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 		return r.stage.restoreCheck(op, s, r.generationRepairs)
 	}
 	return table.RestoreAlterConstraints(s)
-}
-
-func admitRestoreAlterTableOf(_ *restoreRun, _ *session.Operation, s *parser.AlterTableOf) error {
-	if s.Type == nil {
-		return sqlError("0A000", "restore accepts only typed-table attachments")
-	}
-	return nil
 }
 
 // admitRestoreDetachPartition captures the teardown a later generated DROP
@@ -276,29 +165,6 @@ func admitRestoreDropTable(r *restoreRun, op *session.Operation, s *parser.DropT
 	return r.stage.validatePartitionReplayTeardown(op, s.Names[0], r.partitionTeardowns)
 }
 
-func admitRestoreAttachPartition(_ *restoreRun, _ *session.Operation, s *parser.AlterTableAttachPartition) error {
-	if s.IfExists {
-		return sqlError("0A000", "restore accepts only unconditional partition attachments")
-	}
-	for _, tuple := range [3][]parser.PartitionDatum{s.Bound.Lower, s.Bound.Upper, s.Bound.Values} {
-		for _, datum := range tuple {
-			if datum.Kind == 0 {
-				if err := dump.RestoreScalar(datum.Expression, true); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func admitRestoreCreateSequence(_ *restoreRun, _ *session.Operation, s *parser.CreateSequence) error {
-	if s.Persistence == "temporary" {
-		return sqlError("0A000", "restore cannot stage non-retractable effects")
-	}
-	return nil
-}
-
 // admitRestoreAlterSequence admits OWNED BY, or an identity configuration
 // the restored column matches.
 func admitRestoreAlterSequence(r *restoreRun, op *session.Operation, s *parser.AlterSequence) error {
@@ -306,27 +172,6 @@ func admitRestoreAlterSequence(r *restoreRun, op *session.Operation, s *parser.A
 		return nil
 	}
 	return r.stage.validateRestoreIdentityConfiguration(op, s)
-}
-
-func admitRestoreAlterTableDefault(_ *restoreRun, _ *session.Operation, s *parser.AlterTableDefault) error {
-	if !(s.Action == parser.SetDefault && s.Expression != nil) && !(s.Action == parser.DropDefault && s.Only && len(s.Name.Parts) == 2) {
-		return sqlError("0A000", "restore accepts only deferred SET DEFAULT or inherited ONLY DEFAULT alterations")
-	}
-	return nil
-}
-
-func admitRestoreSelect(_ *restoreRun, _ *session.Operation, s *parser.Select) error {
-	if !sequence.RestoresState(s) && !largeobject.RestoresBytes(s) {
-		return sqlError("0A000", "restore accepts only generated sequence or large object state")
-	}
-	return nil
-}
-
-func admitRestoreComment(_ *restoreRun, _ *session.Operation, s *parser.Comment) error {
-	if s.Kind == parser.CommentRole {
-		return sqlError("0A000", "restore accepts only database-local COMMENT targets")
-	}
-	return nil
 }
 
 // admitRestoreSessionAuthorization admits owner directives and DEFAULT;
@@ -383,48 +228,5 @@ func replayRestorePhysicalNotNull(r *restoreRun, op *session.Operation, s *parse
 		r.pairedPhysical = nil
 	}
 	r.pairedNotNull = table.RestoredNotNull{}
-	return nil
-}
-
-// admitRestoreInsert admits a plain VALUES INSERT whose subscripts and
-// values are Restore scalars.
-func admitRestoreInsert(_ *restoreRun, _ *session.Operation, s *parser.Insert) error {
-	if len(s.With) != 0 {
-		return sqlError("0A000", "restore INSERT WITH clauses are unsupported")
-	}
-	if s.Returning != nil {
-		return sqlError("0A000", "restore INSERT RETURNING is unsupported")
-	}
-	if s.Conflict != nil {
-		return sqlError("0A000", "restore INSERT conflict clauses are unsupported")
-	}
-	if s.Source != nil {
-		return sqlError("0A000", "restore INSERT query sources are unsupported")
-	}
-	for _, target := range s.Targets {
-		for _, step := range target.Steps {
-			if step.Subscript == nil {
-				continue
-			}
-			bound := step.Subscript
-			if bound.Lower != nil {
-				if err := dump.RestoreScalar(bound.Lower, false); err != nil {
-					return err
-				}
-			}
-			if bound.Upper != nil {
-				if err := dump.RestoreScalar(bound.Upper, false); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	for _, row := range s.Rows {
-		for _, v := range row {
-			if err := dump.RestoreScalar(v, false); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
