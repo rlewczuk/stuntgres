@@ -183,3 +183,14 @@ same held consumer omits a domain after PUBLIC USAGE revocation and includes it
 after direct type USAGE without schema USAGE. Typed empty NULL/nil predicates
 and full42703/Position8 missing-column diagnostics finish the scenario.
 These are proof commands and expected observations, not a passing-check claim.
+
+### Information-schema sequence definitions
+
+`info_sequences_helpers_test.go` owns the shared scenario, exact option vectors,
+raw-codec and metadata assertions, safe role/schema cleanup and direct/new/held
+consumers. The family covers definition, authority, object-boundary, lifecycle,
+transaction, typed-NULL and diagnostic contracts using independent expectations.
+Retained eager-row ownership is asserted only on native cursors.
+See [producer ownership](../../internal/engine/pgcatalog/README.md#information-schema-sequence-definitions).
+
+- Sequence definitions: `RUN='^TestReferenceInfoSequences'`

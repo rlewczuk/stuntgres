@@ -87,6 +87,7 @@ var producers = [...]Registration{
 	{InfoViewTableUsageOID, captureInfoViewTableUsage},
 	{InfoColumnColumnUsageOID, captureInfoColumnColumnUsage},
 	{InfoDomainConstraintsOID, captureInfoDomainConstraints},
+	{InfoSequencesOID, captureInfoSequences},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

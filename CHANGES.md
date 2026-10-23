@@ -23,6 +23,16 @@ Dump/Restore retain the selected overloads and result types.
 See [type contracts](internal/sqltype/README.md) and
 [dual-mode proof](reference/types/README.md#testing).
 
+## Information-schema sequence definitions
+
+`information_schema.sequences` now exposes actual sequence identities, numeric
+types and declared start/minimum/maximum/increment/cycle options through its
+twelve typed columns. Enabled owners or users with any sequence SELECT, UPDATE
+or USAGE privilege see complete definitions without needing schema USAGE.
+Identity sequences and other sessions' TEMP sequences are excluded. Held
+prepared reads refresh after option, ACL and lifecycle changes; declared options
+remain independent of current sequence values.
+
 ## Domain constraints — change note
 
 `information_schema.domain_constraints` exposes the released eight-column view:

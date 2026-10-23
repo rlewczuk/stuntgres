@@ -753,4 +753,18 @@ var Specs = [...]Spec{
 		{"is_deferrable", 13256, true, 950, 0, -1},
 		{"initially_deferred", 13256, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing domain constraint domain"},
+	{InfoSequencesOID, 13229, "sequences", []ColumnSpec{
+		{"sequence_catalog", 13248, true, 950, 0, -1},
+		{"sequence_schema", 13248, true, 950, 0, -1},
+		{"sequence_name", 13248, true, 950, 0, -1},
+		{"data_type", 13246, true, 950, 0, -1},
+		{"numeric_precision", 13243, true, 0, 0, -1},
+		{"numeric_precision_radix", 13243, true, 0, 0, -1},
+		{"numeric_scale", 13243, true, 0, 0, -1},
+		{"start_value", 13246, true, 950, 0, -1},
+		{"minimum_value", 13246, true, 950, 0, -1},
+		{"maximum_value", 13246, true, 950, 0, -1},
+		{"increment", 13246, true, 950, 0, -1},
+		{"cycle_option", 13256, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing sequences domain"},
 }

@@ -4,7 +4,8 @@ Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` views (`table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
-`character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`). Each
+`character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
+`sequences`). Each
 producer is a pure function from a captured catalog, a paired role read and a
 narrow runtime capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -201,6 +202,19 @@ partial rows. Native relation identity16211 is independent of PostgreSQL's
 allocator-dependent view OID.
 See [selected proof and smoke](../../../reference/catalogs/README.md#domain-constraints).
 
+## Information-schema sequence definitions
+
+`info_sequences.go` projects actual immutable SequenceOptions using one paired
+catalog/role capture with the current principal, database and physical TEMP owner.
+The normal catalog source path owns registration, PUBLIC SELECT, source-owned
+domain carriers, origin attributes and existing row/array associations.
+Visibility is enabled ownership OR any relation-level SELECT, UPDATE or USAGE;
+schema USAGE and search_path are not filters. Identity sequences and foreign
+physical TEMP objects are excluded; ordinary AUTO ownership is eligible.
+The producer does not read generators or acquire sequence-value locks. Fresh
+held executions capture current options and permissions; returned eager native
+Rows remain unchanged. Errors and cancellation publish no partial prefix.
+
 ## Testing
 
 Package units here run without an engine. Producer behavior tests need an
@@ -218,6 +232,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - Large objects: `RUN='^TestReferenceLargeObject'`
 - Settings view: `RUN='^TestReferenceStatisticsSettings'`
 - Transforms: `RUN='^TestReferencePGTransform'`
+- Sequence-definition producer units: `RUN='^TestInfoSequences'`
+- Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`
 
 ### Domain constraints
 
