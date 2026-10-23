@@ -153,7 +153,7 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 	}
 	for _, tc := range []struct{ path, code string }{
 		{`$v`, `42704`}, {`exists($v)`, `42704`}, {`$v==1`, `42704`},
-		{`exists($.double())`, `0A000`}, {`$.double()>0`, `0A000`}, {`exists(1+2)`, `0A000`},
+		{`exists($.double())`, `0A000`}, {`$.double()>0`, `0A000`},
 		{`$[2147483648]`, `22033`}, {`$[$v]`, `42704`},
 	} {
 		for _, silent := range []bool{false, true} {
@@ -169,6 +169,12 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 			if !errors.As(err, &d) || d.Code != tc.code {
 				t.Fatal(tc.path, silent, err)
 			}
+		}
+	}
+	for _, silent := range []bool{false, true} {
+		v, err := p.Evaluate(context.Background(), navigateValues(t, types, `1`, `exists(1+2)`, `{}`, silent))
+		if err != nil || v.text != `[true]` {
+			t.Fatal(v.text, err)
 		}
 	}
 	// Subscript cardinality does not stop operand execution or replace a later

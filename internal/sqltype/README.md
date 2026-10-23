@@ -101,6 +101,12 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
 - No geometric type gains default ordering/hash/index authority from its
   scalar operators.
 - One path walker serves JSONPath, SQL/JSON query plans and `JSONTableRows`.
+  Numeric path arithmetic borrows exact decimal operands into private typed
+  NUMERIC headers and reuses the numeric kernels; no provider identity escapes
+  into JSONB results. Binary operands finish before singleton validation; unary
+  operands materialize before emission. Invocation-local results and only
+  operation-origin numeric failures use the walker's existing consumer and
+  suppressible-error channels; input errors and cancellation retain identity.
 - Unicode tables come from `unicode16/`; there is no ICU, cgo or host-Go
   Unicode dependency.
 - `RegexpPlan` evaluation shares the statement-local `PGRegexExecution` (no

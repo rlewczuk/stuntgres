@@ -120,16 +120,12 @@ func TestReferenceJSONPathQueryDemand(t *testing.T) {
 				want = `null`
 			}
 			jsonpathNavigateBoth(t, p, b, c, jsonpathQueryOne(`SELECT `+f.name+`('[{"x":1},{}]','strict exists($[*].x)') AS changed`, f.typ, want))
-			// Capability boundary: PG evaluates arithmetic; native must retain 0A000.
 			s := jsonpathQueryOne(`SELECT `+f.name+`('1','$ + 1','{}',true) AS changed`, f.typ, `2`)
 			if f.name == "jsonb_path_exists" {
 				s = jsonpathQueryOne(s.Query, "BOOL", true)
 			}
 			if f.name == "jsonb_path_match" {
 				s = jsonpathQueryOne(`SELECT jsonb_path_match('1','$ + 1 == 2','{}',true) AS changed`, "BOOL", true)
-			}
-			if !b.PG {
-				s = jsonpathNavigateError(s.Query, "0A000", "stuntgres: JSONPath arithmetic is unsupported")
 			}
 			jsonpathNavigateBoth(t, p, b, c, s)
 		}

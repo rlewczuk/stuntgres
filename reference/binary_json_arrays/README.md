@@ -35,7 +35,8 @@ follow its random-property rule. `TestMain` uses the default `fixture.Main(m)`.
     the holder's grant and `pg_blocking_pids`; writers also require the earlier
     small-output grant. It proves cancellation after output exists, not inside a
     provider. Used by `BinaryConversionActiveCancellation`,
-    `JSONElementsCancellation` and `JSONPathNavigateCancellation`;
+    `JSONElementsCancellation`, `JSONPathNavigateCancellation` and
+    `JSONPathArithmeticCancellation`;
     `JSONBConcatDeleteCancellation` has its own gate in
     `jsonb_concat_delete_gate_test.go`. Provider-internal cancellation belongs in
     internal units.
@@ -46,6 +47,14 @@ follow its random-property rule. `TestMain` uses the default `fixture.Main(m)`.
   `jsonbRecordCancellationScenario`). Within one, admission, cancellation, join
   and same-held recovery share the context, and helpers use that callback's
   `testing.T`.
+- **Arithmetic.** `jsonpath_arithmetic_helpers_test.go` fixes an exact numeric
+  document and reuses the navigation scenario/direct-prepared helpers. Assert
+  decimal JSON text and scale, not float-normalized parity. Binary shape and
+  ordered-demand cases differ from unary materialization/prefix cases.
+  Arithmetic cancellation gates completed unary or multiplicative-filter output
+  over typed numeric workloads below 32MiB. Native controls retain old output,
+  replay stored recipes on the same/fresh Driver and PostgreSQL, then execute
+  future writes; failed/canceled Restore must leave the prior dump unchanged.
 - **Client metadata.** lib/pq reports an empty `DatabaseTypeName` for
   user-defined arrays, composites and JSONPATH; `interface{}` ScanType and byte
   payloads for JSON, JSONPATH and RECORD (native: type name, string); BYTEA
@@ -86,6 +95,7 @@ Add `REFERENCE=1` for the oracle.
 - `jsonb_path_query_array` and path navigation: `RUN='^TestReferenceJSONPathNavigate'`
 - `jsonb_path_exists`/`match`/`query`/`query_first`: `RUN='^TestReferenceJSONPathQuery'`
 - JSONPath item methods: `RUN='^TestReferenceJSONPathMethods'`
+- JSONPath arithmetic: `RUN='^TestReferenceJSONPathArithmetic'`
 - SQL/JSON constructors, `IS JSON`, `JSON_SERIALIZE` (also selects `SQLJSONQuery`): `RUN='^TestReferenceSQLJSON'`
 - <a id="sqljson-query-functions"></a>`JSON_EXISTS`, `JSON_QUERY`, `JSON_VALUE`: `RUN='^TestReferenceSQLJSONQuery'`
 - `JSON_TABLE`: `RUN='^TestReferenceJSONTable'`

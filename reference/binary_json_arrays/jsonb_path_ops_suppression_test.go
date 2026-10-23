@@ -28,7 +28,7 @@ func TestReferenceJSONBPathOpsCapabilityBoundary(t *testing.T) {
 			doc, path, message string
 			exists, match      any
 		}{
-			{`1`, `$ / 0`, `stuntgres: JSONPath arithmetic is unsupported`, nil, nil},
+			{`1`, `$ / 0`, ``, nil, nil},
 			{`"not-a-date"`, `$.datetime()`, `stuntgres: JSONPath scalar methods are unsupported`, nil, nil},
 			{`[1,2]`, `$.size()`, ``, true, nil},
 			{`[1,2]`, `$.double()`, `stuntgres: JSONPath scalar methods are unsupported`, true, nil},

@@ -355,7 +355,9 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input jsonpathItem, scope js
 			}
 			push(n.next, jsonpathItem{jsonbNode: result}, s)
 		case "+", "-", "*", "/", "%", "unary+", "unary-":
-			return false, failure("0A000", "stuntgres: JSONPath arithmetic is unsupported")
+			if stopped, err := e.arithmetic(n, v, s, emit); stopped || err != nil {
+				return stopped, err
+			}
 		case "||", "&&", "==", "!=", "<", ">", "<=", ">=", "starts with", "like_regex", "!", "is unknown", "exists":
 			truth, err := e.condition(n, s)
 			if err != nil {

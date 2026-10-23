@@ -22,6 +22,32 @@ retain their original cells and types.
 See [semantics and boundaries](internal/engine/pgcatalog/README.md#domain-constraints)
 and [selected proof and smoke](reference/catalogs/README.md#domain-constraints).
 
+## JSONPath arithmetic
+
+JSONPath numeric `+`, `-`, `*`, `/`, `%` and unary signs execute through the
+existing evaluator shared by array/query consumers, operators and SQL/JSON.
+Arithmetic uses exact NUMERIC kernels rather than binary floats; JSONB results
+preserve decimal display scale, signed fractions and integers above float
+precision. Limits remain 131072 integral and 16383 fractional digits, with
+NUMERIC division scale, rounding and dividend-signed remainder.
+
+Binary operands finish left then right before singleton/type checks and unwrap
+one array level only in lax mode. Unary operands finish before processing their
+numeric sequence; unary signs preserve scale and canonical positive zero.
+Invalid operands (`22038` binary, `2203B` unary), division by zero (`22012`) and
+overflow (`22003`) remain errors in lax mode, become unknown in predicates, or
+terminate silent evaluation with its emitted prefix. Missing variables, ordinary
+SQL errors and cancellation are not silenced. Results and metadata remain JSONB;
+existing signatures, defaults, ACLs and persistence authority are unchanged.
+Stored recipes survive native logical replay and reexecute on future writes.
+
+The [reference family](reference/binary_json_arrays/README.md#testing) covers
+direct/held inputs, ownership, diagnostics, atomicity, cancellation and native
+Dump/Reset/Restore with actual emitted SQL replay on PostgreSQL. Feature smoke:
+`make check RUN='^TestReferenceJSONPathArithmeticFeatureSmoke$'`
+(also with `REFERENCE=1`); expected witnesses include `[3.500]`, exact thirds,
+`[9007199254740994]`, held division-error recovery and future stored sum `[4.25]`.
+
 <!-- moved from README.md -->
 
 ## External routine languages — change note
