@@ -3,8 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -12,44 +10,7 @@ import (
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
-
-func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, ids.ObjectRef, error) {
-	lookup := name
-	if len(name.Parts) == 2 {
-		parts := [2]parser.Identifier{name.Parts[0], name.Parts[1]}
-		parts[0].Pos = parser.Position{}
-		lookup.Parts = parts[:]
-	}
-	path, err := e.lookupNamespaces(auth, lookup, analyze.TypeLookup)
-	if err != nil {
-		return nil, ids.ObjectRef{}, err
-	}
-	for i := range path.Count() {
-		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name.Parts[len(name.Parts)-1].Text})
-		if len(found) == 0 {
-			continue
-		}
-		d := auth.Catalog.MustType(found[0])
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-		diagnosticPath, err := referencePath(auth)
-		if err != nil {
-			return nil, ref, err
-		}
-		if !d.SQLType.IsDomain() {
-			return nil, ref, sqlError("42809", d.SQLType.DiagnosticName()+" is not a domain")
-		}
-		if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
-				err = sqlError("42501", "must be owner of type "+catalog.TypeDiagnosticNameAt(auth.Catalog, d, diagnosticPath))
-			}
-			return nil, ref, err
-		}
-		return d, ref, nil
-	}
-	return nil, ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", catalog.ObjectNameText(name)))
-}
 
 func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDomain, count int) (Result, error) {
 	if count != 0 {
@@ -61,7 +22,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	var original *catalog.Type
 	var ref ids.ObjectRef
 	if err == nil {
-		original, ref, err = e.resolveAlterDomainLocked(auth, raw.Name)
+		original, ref, err = typedef.ResolveAlterDomainLocked(ddlHost{e: e, op: op}, auth, raw.Name)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -75,7 +36,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	var old *catalog.Type
 	var current ids.ObjectRef
 	if err == nil {
-		old, current, err = e.resolveAlterDomainLocked(auth, raw.Name)
+		old, current, err = typedef.ResolveAlterDomainLocked(ddlHost{e: e, op: op}, auth, raw.Name)
 	}
 	if err == nil && (ref != current || old != original) {
 		err = ids.ErrCatalogReplaced

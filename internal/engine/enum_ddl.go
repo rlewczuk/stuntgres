@@ -3,8 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -12,47 +10,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, ids.ObjectRef, error) {
-	// Utility object lookup has no cursor position, unlike expression type input.
-	lookupName := name
-	if len(name.Parts) == 2 {
-		parts := [2]parser.Identifier{name.Parts[0], name.Parts[1]}
-		parts[0].Pos = parser.Position{}
-		lookupName.Parts = parts[:]
-	}
-	path, err := e.lookupNamespaces(auth, lookupName, analyze.TypeLookup)
-	if err != nil {
-		return nil, ids.ObjectRef{}, err
-	}
-	for i := range path.Count() {
-		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name.Parts[len(name.Parts)-1].Text})
-		if len(found) == 0 {
-			continue
-		}
-		d, ok := auth.Catalog.Type(found[0])
-		if !ok {
-			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid type descriptor")
-		}
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-		if !d.SQLType.IsEnum() {
-			display := d.SQLType.DiagnosticName()
-			if d.SQLType.IsUserDefined() || d.SQLType.IsDomain() || d.SQLType.IsComposite() {
-				path, err := referencePath(auth)
-				if err != nil {
-					return nil, ref, err
-				}
-				display = catalog.TypeDiagnosticNameAt(auth.Catalog, d, path)
-			}
-			return nil, ref, sqlError("42809", display+" is not an enum")
-		}
-		if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-			return nil, ref, err
-		}
-		return d, ref, nil
-	}
-	return nil, ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", catalog.ObjectNameText(name)))
-}
 
 func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
@@ -65,7 +22,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		auth, err := e.authorizationLocked(op)
 		var ref ids.ObjectRef
 		if err == nil {
-			_, ref, err = e.resolveAlterEnumLocked(auth, alter.Name)
+			_, ref, err = typedef.ResolveAlterEnumLocked(ddlHost{e: e, op: op}, auth, alter.Name)
 		}
 		e.mu.Unlock()
 		if err != nil {
@@ -94,8 +51,9 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 	changes := scope.owner.Catalog.Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
+	host := ddlHost{e: e, op: op, stage: stage}
 	if create, ok := stmt.(*parser.CreateEnum); ok {
-		if err := typedef.StageCreateEnumLocked(ddlHost{e: e, op: op, stage: stage}, auth, create); err != nil {
+		if err := typedef.StageCreateEnumLocked(host, auth, create); err != nil {
 			return Result{}, err
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
@@ -112,7 +70,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		}
 	} else {
 		alter := stmt.(*parser.AlterEnum)
-		old, ref, err := e.resolveAlterEnumLocked(auth, alter.Name)
+		old, ref, err := typedef.ResolveAlterEnumLocked(host, auth, alter.Name)
 		if err != nil {
 			return Result{}, err
 		}
@@ -120,7 +78,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
-		edit, err := typedef.StageAlterEnumLabelLocked(ddlHost{e: e, op: op, stage: stage}, old, alter)
+		edit, err := typedef.StageAlterEnumLabelLocked(host, old, alter)
 		if err != nil {
 			return Result{}, err
 		}

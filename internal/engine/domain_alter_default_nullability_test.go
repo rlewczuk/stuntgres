@@ -29,7 +29,7 @@ func domainValueUnitStage(t *testing.T, e *Engine, op *session.Operation, q stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, _, err := e.resolveAlterDomainLocked(auth, raw.Name)
+	d, _, err := typedef.ResolveAlterDomainLocked(ddlHost{e: e, op: op}, auth, raw.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
