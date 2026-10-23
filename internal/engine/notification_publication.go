@@ -1,41 +1,18 @@
 package engine
 
 import (
-	"errors"
-
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
+// notificationEffects binds a publication's prepared phase and statement
+// scope to session.NotificationEffects.
 func notificationEffects(op *session.Operation, ref ids.TxRef, phase *preparedPublication, scope *StatementScope) ([]session.NotificationAction, []session.Notification, error) {
-	// PREPARE rejects notification effects. Completion owns only the detached
-	// entry: even checking its old attachment would read a reusable live owner.
-	if phase != nil && !phase.preparing {
-		return nil, nil, nil
-	}
-	if op == nil || op.Self != op || op.Session == nil || op.Session.Transactions == nil ||
-		session.TxOwnerOf(ref) != op.Session.Transactions {
-		return nil, nil, errors.New("stuntgres: foreign notification transaction")
-	}
-	// The caller holds this session's transaction admission. Validate against
-	// that owner, never against an owner reached through an untrusted old ref.
-	owner := op.Session.Transactions
-	if err := owner.Validate(ref); err != nil {
-		return nil, nil, err
-	}
-	if scope != nil && (scope.op != op || scope.owner != owner) {
-		return nil, nil, errors.New("stuntgres: foreign notification statement")
-	}
-	actions, events := owner.NotificationActions, owner.NotificationEvents
+	var statement *session.NotificationStatement
 	if scope != nil {
-		if len(actions) == 0 {
-			actions = scope.notificationActions
-		} else {
-			actions = append(actions, scope.notificationActions...)
-		}
-		events = session.AppendNotificationEvents(events, scope.notificationEvents)
+		statement = &session.NotificationStatement{Op: scope.op, Owner: scope.owner, Actions: scope.notificationActions, Events: scope.notificationEvents}
 	}
-	return actions, events, nil
+	return session.NotificationEffects(op, ref, phase != nil && !phase.preparing, statement)
 }
 
 // Capture under Engine.mu, prepare independent immutable replacements unlocked,

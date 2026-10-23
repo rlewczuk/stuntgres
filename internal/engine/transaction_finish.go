@@ -142,13 +142,7 @@ func (s *StatementScope) Finish(err error) error {
 				if !s.projectedRoots {
 					writes = visibility.PrepareOwnWrites(t.Writes, s.stage.rows, s.stage.replacing)
 				}
-				notificationActions := t.NotificationActions
-				if len(notificationActions) == 0 {
-					notificationActions = s.notificationActions
-				} else {
-					notificationActions = append(notificationActions, s.notificationActions...)
-				}
-				notificationEvents := session.AppendNotificationEvents(t.NotificationEvents, s.notificationEvents)
+				notificationActions, notificationEvents := t.MergeNotifications(s.notificationActions, s.notificationEvents)
 				session := s.op.Session
 			privateForeignFence:
 				e.mu.Lock()

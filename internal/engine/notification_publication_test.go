@@ -385,4 +385,27 @@ func TestNotificationEffectsOwnership(t *testing.T) {
 	if err != nil || len(events) != 1 || events[0].Payload != "live" {
 		t.Fatal("exact live owner lost its effects", err, events)
 	}
+
+	// A statement of another operation or owner is rejected after the owner
+	// checks; the exact statement's effects follow the owner's, deduplicated.
+	peerOp := transactionOperation(t, origin)
+	for _, scope := range []*StatementScope{{op: peerOp, owner: origin.Transactions}, {op: op, owner: &session.TransactionOwner{}}} {
+		actions, events, err := notificationEffects(op, live, nil, scope)
+		if err == nil || err.Error() != "stuntgres: foreign notification statement" || len(actions) != 0 || len(events) != 0 {
+			t.Fatal("foreign statement exposed effects", err, actions, events)
+		}
+	}
+	if _, _, err := notificationEffects(op, old, nil, &StatementScope{op: peerOp, owner: origin.Transactions}); err == nil || err.Error() == "stuntgres: foreign notification statement" {
+		t.Fatal("statement check preceded the owner check", err)
+	}
+	listen := session.NotificationAction{Channel: "unit", Listen: true}
+	statement := &StatementScope{op: op, owner: origin.Transactions, notificationActions: []session.NotificationAction{listen},
+		notificationEvents: []session.Notification{events[0], {PID: events[0].PID, Channel: "unit", Payload: "statement"}}}
+	actions, merged, err := notificationEffects(op, live, nil, statement)
+	if err != nil || !reflect.DeepEqual(actions, []session.NotificationAction{listen}) || len(merged) != 2 || merged[0] != events[0] || merged[1].Payload != "statement" {
+		t.Fatal("statement effects not merged after the owner's", err, actions, merged)
+	}
+	if actions, events, err := notificationEffects(op, live, &preparedPublication{}, statement); err != nil || actions != nil || events != nil {
+		t.Fatal("prepared completion read live effects", err, actions, events)
+	}
 }
