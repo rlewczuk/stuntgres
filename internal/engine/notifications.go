@@ -4,50 +4,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
-// Held in the session payload: unused sessions have no queue, map, channel or registry
-// allocation. Except for the monotonic used hint, all mutable fields below,
-// including busy, belong exclusively to Engine.mu. Busy is relevant only to
-// registered recipients; unused owners need no extra idle-boundary lock.
-// Transaction owner admission/mu may precede Engine.mu; fanout never acquires
-// recipient owner or lifecycle locks.
-type sessionNotifications struct {
-	// Monotonic fast path only; queue authority remains under Engine.mu.
-	used        atomic.Bool
-	engine      *Engine // Owns the registry; set with token before attachment.
-	token       ids.SessionToken
-	state       *session.NotificationState
-	busy, ended bool
-	wake        chan struct{}
-}
+// notificationSessionEnd is a session's listener seen as its Notifications
+// resource. It is a pointer conversion of the listener, so attaching it
+// allocates nothing.
+type notificationSessionEnd session.NotificationListener
 
-func (n *sessionNotifications) signalLocked() {
-	if n.wake != nil {
-		close(n.wake)
-		n.wake = nil
-	}
-}
-func (n *sessionNotifications) EndSession(token ids.SessionToken, _ session.EndReason) error {
-	if token != n.token {
+func (r *notificationSessionEnd) EndSession(token ids.SessionToken, _ session.EndReason) error {
+	n := (*session.NotificationListener)(r)
+	if token != n.Session.SessionToken {
 		return errors.New("stuntgres: foreign notification session")
 	}
-	e := n.engine
+	e := engineOf(n.Session)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !n.ended {
-		n.ended = true
-		n.state = nil
-		if e.notifications[token] == n {
-			delete(e.notifications, token)
-		}
-		n.signalLocked()
-	}
+	e.notifications.EndLocked(n)
 	return nil
 }
 
@@ -89,7 +65,7 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 			}
 		}
 		e.mu.Lock()
-		if n.ended {
+		if n.Ended {
 			e.mu.Unlock()
 			if check != nil {
 				if err := check(); err != nil {
@@ -98,7 +74,7 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 			}
 			return session.Notification{}, false, nil, errors.New("stuntgres: notification session ended")
 		}
-		original := n.state
+		original := n.State
 		var queue session.NotificationFIFO
 		if original != nil {
 			queue = original.Ready
@@ -115,7 +91,7 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 			next := *original
 			next.Ready = queue
 			e.mu.Lock()
-			if n.state != original || n.ended {
+			if n.State != original || n.Ended {
 				e.mu.Unlock()
 				continue
 			}
@@ -125,23 +101,23 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 					return session.Notification{}, false, nil, err
 				}
 			}
-			n.state = &next
+			n.State = &next
 			e.mu.Unlock()
 			return event, true, nil, nil
 		}
-		wake := n.wake
+		wake := n.Wake
 		if wake == nil {
 			e.mu.Unlock()
 			candidate := make(chan struct{})
 			e.mu.Lock()
-			if n.state != original || n.ended {
+			if n.State != original || n.Ended {
 				e.mu.Unlock()
 				continue
 			}
-			if n.wake == nil {
-				n.wake = candidate
+			if n.Wake == nil {
+				n.Wake = candidate
 			}
-			wake = n.wake
+			wake = n.Wake
 		}
 		e.mu.Unlock()
 		return session.Notification{}, false, wake, nil
@@ -163,7 +139,7 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 	case *parser.Unlisten:
 		e := s.engine()
 		e.mu.Lock()
-		state := payloadOf(s.op.Session).notifications.state
+		state := payloadOf(s.op.Session).notifications.State
 		history := state != nil && state.History
 		e.mu.Unlock()
 		if history || len(s.owner.NotificationActions) != 0 || len(s.notificationActions) != 0 {
@@ -181,14 +157,14 @@ func finishNotificationBoundary(t *session.TransactionOwner) {
 		return
 	}
 	e, n := engineOf(t.Session), &payloadOf(t.Session).notifications
-	if !n.used.Load() {
+	if !n.Used.Load() {
 		return
 	}
 	for {
 		e.mu.Lock()
-		original := n.state
-		if n.ended || original == nil || original.Pending == nil {
-			n.busy = false
+		original := n.State
+		if n.Ended || original == nil || original.Pending == nil {
+			n.Busy = false
 			e.mu.Unlock()
 			return
 		}
@@ -197,13 +173,13 @@ func finishNotificationBoundary(t *session.TransactionOwner) {
 		next.Ready = session.ScanNotificationPending(next.Ready, next.Pending, next.Channels)
 		next.Pending = nil
 		e.mu.Lock()
-		if n.state != original || n.ended {
+		if n.State != original || n.Ended {
 			e.mu.Unlock()
 			continue
 		}
-		n.state = &next
-		n.busy = false
-		n.signalLocked()
+		n.State = &next
+		n.Busy = false
+		n.SignalLocked()
 		e.mu.Unlock()
 		return
 	}

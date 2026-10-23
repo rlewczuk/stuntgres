@@ -91,8 +91,8 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		}
 	}
 	if err == nil {
-		payload.notifications.engine, payload.notifications.token = e, s.SessionToken
-		_, err = op.Attach(session.Notifications, &payload.notifications)
+		payload.notifications.Session = s
+		_, err = op.Attach(session.Notifications, (*notificationSessionEnd)(&payload.notifications))
 	}
 	if err == nil {
 		var ticket *lock.Ticket

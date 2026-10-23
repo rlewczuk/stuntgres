@@ -242,8 +242,8 @@ func TestProtocolNotificationPoll(t *testing.T) {
 		t.Fatal("idle poll acquired SQL activity lease")
 	}
 	e.mu.Lock()
-	payloadOf(s).notifications.state = &session.NotificationState{Ready: session.NotificationFIFO{}.Append([]session.Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
-	payloadOf(s).notifications.signalLocked()
+	payloadOf(s).notifications.State = &session.NotificationState{Ready: session.NotificationFIFO{}.Append([]session.Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
+	payloadOf(s).notifications.SignalLocked()
 	e.mu.Unlock()
 	select {
 	case <-wake:
@@ -260,7 +260,7 @@ func TestProtocolNotificationPoll(t *testing.T) {
 	if err != nil || available || wake == nil {
 		t.Fatal("drained queue lacked new wake", err)
 	}
-	if err = payloadOf(s).notifications.EndSession(s.SessionToken, session.CleanClose); err != nil {
+	if err = (*notificationSessionEnd)(&payloadOf(s).notifications).EndSession(s.SessionToken, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	select {

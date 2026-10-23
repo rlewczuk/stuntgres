@@ -32,8 +32,8 @@ import (
 type Engine struct {
 	mu            sync.Mutex
 	locks         *lock.Manager
-	analysis      bindingHost                                // Binding host without an operation; immutable after New.
-	notifications map[ids.SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
+	analysis      bindingHost                  // Binding host without an operation; immutable after New.
+	notifications session.NotificationRegistry // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu     replacementAdmission
 	catalog           catalogStore

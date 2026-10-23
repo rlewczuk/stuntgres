@@ -53,7 +53,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	if raw.Category == parser.DiscardAll {
 		e := engineOf(sess)
 		e.mu.Lock()
-		state := payloadOf(sess).notifications.state
+		state := payloadOf(sess).notifications.State
 		history := state != nil && state.History
 		e.mu.Unlock()
 		if history {

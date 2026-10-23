@@ -75,7 +75,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				if catalog {
 					changes = session.NewJournal()
 				}
-				original, frontier, root := e.catalog.state, e.visibility.CommitSeq(), payloadOf(receiver).notifications.state
+				original, frontier, root := e.catalog.state, e.visibility.CommitSeq(), payloadOf(receiver).notifications.State
 				switch failure {
 				case "cancel":
 					cancel()
@@ -92,7 +92,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					if err == nil {
 						t.Fatal("failed preflight published")
 					}
-					if payloadOf(receiver).notifications.state != root || e.catalog.state != original || e.visibility.CommitSeq() != frontier {
+					if payloadOf(receiver).notifications.State != root || e.catalog.state != original || e.visibility.CommitSeq() != frontier {
 						t.Fatal("partial catalog/notification installation")
 					}
 					return
@@ -124,7 +124,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 type notificationRootContext struct {
 	context.Context
 	engine      *Engine
-	resource    *sessionNotifications
+	resource    *session.NotificationListener
 	replacement *session.NotificationState
 	changed     bool
 }
@@ -134,7 +134,7 @@ func (c *notificationRootContext) Err() error {
 		if c.engine.mu.TryLock() {
 			c.engine.mu.Unlock()
 		} else {
-			c.resource.state = c.replacement
+			c.resource.State = c.replacement
 			c.changed = true
 		}
 	}
@@ -148,7 +148,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			notificationUnitListen(t, r)
 			ref := transactionBegin(t, s)
 			s.Transactions.NotificationEvents = []session.Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "after"}}
-			replacement := *payloadOf(r).notifications.state
+			replacement := *payloadOf(r).notifications.State
 			replacement.Ready = replacement.Ready.Append([]session.Notification{{PID: 999, Channel: "unit", Payload: "before"}})
 			ctx := &notificationRootContext{Context: context.Background(), engine: e, resource: &payloadOf(r).notifications, replacement: &replacement}
 			op := transactionOperation(t, s)
@@ -169,7 +169,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 				}
 			}
 			e.mu.Lock()
-			queue := payloadOf(r).notifications.state.Ready
+			queue := payloadOf(r).notifications.State.Ready
 			e.mu.Unlock()
 			if queue.Front != nil || queue.Back != nil {
 				t.Fatal("retry duplicated delivery")
@@ -186,21 +186,21 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			e.mu.Lock()
 			switch change {
 			case "busy":
-				payloadOf(r).notifications.busy = !payloadOf(r).notifications.busy
+				payloadOf(r).notifications.Busy = !payloadOf(r).notifications.Busy
 			case "dequeue":
-				next := *payloadOf(r).notifications.state
-				payloadOf(r).notifications.state = &next
+				next := *payloadOf(r).notifications.State
+				payloadOf(r).notifications.State = &next
 			case "registration":
 				delete(e.notifications, r.SessionToken)
 			case "retire":
-				payloadOf(r).notifications.ended = true
+				payloadOf(r).notifications.Ended = true
 			}
 			unchanged := e.notificationPublicationUnchangedLocked(candidate)
 			if change == "registration" {
 				e.notifications[r.SessionToken] = &payloadOf(r).notifications
 			}
 			if change == "retire" {
-				payloadOf(r).notifications.ended = false
+				payloadOf(r).notifications.Ended = false
 			}
 			e.mu.Unlock()
 			if unchanged {
@@ -251,7 +251,7 @@ func TestNotificationIdentityAndAssignment(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if e.notifications != nil || payloadOf(s).notifications.state != nil || payloadOf(s).notifications.wake != nil {
+	if e.notifications != nil || payloadOf(s).notifications.State != nil || payloadOf(s).notifications.Wake != nil {
 		t.Fatal("unused feature allocated queue state")
 	}
 	before := e.visibility.LastAssignedXID()
@@ -349,8 +349,8 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 				}
 			}
 			e.mu.Lock()
-			_, kept := payloadOf(finisher).notifications.state.Channels["unit"]
-			_, stolen := payloadOf(finisher).notifications.state.Channels["origin-only"]
+			_, kept := payloadOf(finisher).notifications.State.Channels["unit"]
+			_, stolen := payloadOf(finisher).notifications.State.Channels["origin-only"]
 			e.mu.Unlock()
 			if !kept || stolen {
 				t.Fatal("detached completion changed finisher subscriptions")

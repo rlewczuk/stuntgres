@@ -17,7 +17,7 @@ type sessionPayload struct {
 	preparedSQL   *sqlPreparedRegistry
 	sqlRoutines   map[ids.ObjectAddress]sqlRoutineAnalysis
 	sequences     sequence.SessionMemory
-	notifications sessionNotifications
+	notifications session.NotificationListener
 }
 
 func (*sessionPayload) PayloadSlot() {}

@@ -121,7 +121,7 @@ func (e *Engine) beginLocked(op *session.Operation, t *session.TransactionOwner,
 	t.Next++
 	t.Ref = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.state.Epoch(), t, diagnostic)
 	t.State = state
-	payloadOf(sess).notifications.busy = true
+	payloadOf(sess).notifications.Busy = true
 	t.Isolation = session.IsolationFromText(settings.Value("default_transaction_isolation"))
 	t.ReadOnly = settings.Value("default_transaction_read_only") == "on"
 	t.Deferrable = settings.Value("default_transaction_deferrable") == "on"

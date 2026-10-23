@@ -9,14 +9,14 @@ import (
 )
 
 type notificationCapture struct {
-	resource    *sessionNotifications
+	resource    *session.NotificationListener
 	original    *session.NotificationState
 	busy, ended bool
 	next        *session.NotificationState
 }
 type notificationPublication struct {
 	captured []notificationCapture
-	registry map[ids.SessionToken]*sessionNotifications
+	registry session.NotificationRegistry
 	count    int
 }
 
@@ -65,11 +65,11 @@ func (e *Engine) prepareNotificationPublication(sender *session.Session, actions
 	own := &payloadOf(sender).notifications
 	ownFound := false
 	for _, n := range e.notifications {
-		p.captured = append(p.captured, notificationCapture{resource: n, original: n.state, busy: n.busy, ended: n.ended})
+		p.captured = append(p.captured, notificationCapture{resource: n, original: n.State, busy: n.Busy, ended: n.Ended})
 		ownFound = ownFound || n == own
 	}
 	if !ownFound {
-		p.captured = append(p.captured, notificationCapture{resource: own, original: own.state, busy: own.busy, ended: own.ended})
+		p.captured = append(p.captured, notificationCapture{resource: own, original: own.State, busy: own.Busy, ended: own.Ended})
 	}
 	e.mu.Unlock()
 	batch := events[:len(events):len(events)]
@@ -103,14 +103,14 @@ func (e *Engine) prepareNotificationPublication(sender *session.Session, actions
 				next.Pending = nil
 			}
 			if wasRegistered != (len(next.Channels) != 0) {
-				p.registry = make(map[ids.SessionToken]*sessionNotifications, p.count+1)
+				p.registry = make(session.NotificationRegistry, p.count+1)
 				for _, entry := range p.captured {
 					if entry.resource != own && !entry.ended && entry.original != nil && len(entry.original.Channels) != 0 {
-						p.registry[entry.resource.token] = entry.resource
+						p.registry[entry.resource.Session.SessionToken] = entry.resource
 					}
 				}
 				if len(next.Channels) != 0 {
-					p.registry[own.token] = own
+					p.registry[own.Session.SessionToken] = own
 				}
 			}
 		}
@@ -139,11 +139,11 @@ func (e *Engine) notificationPublicationUnchangedLocked(p *notificationPublicati
 	}
 	for _, c := range p.captured {
 		n := c.resource
-		if n.state != c.original || n.busy != c.busy || n.ended != c.ended {
+		if n.State != c.original || n.Busy != c.busy || n.Ended != c.ended {
 			return false
 		}
 		registered := c.original != nil && len(c.original.Channels) != 0 && !c.ended
-		if (e.notifications[n.token] == n) != registered {
+		if (e.notifications[n.Session.SessionToken] == n) != registered {
 			return false
 		}
 	}
@@ -158,9 +158,9 @@ func (e *Engine) installNotificationsLocked(p *notificationPublication) {
 	}
 	for _, c := range p.captured {
 		if c.next != nil {
-			c.resource.state = c.next
-			c.resource.used.Store(true)
-			c.resource.signalLocked()
+			c.resource.State = c.next
+			c.resource.Used.Store(true)
+			c.resource.SignalLocked()
 		}
 	}
 }
