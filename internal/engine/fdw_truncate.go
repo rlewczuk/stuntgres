@@ -10,7 +10,7 @@ import (
 
 func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 	e := s.engine()
-	var groups []fdw.TruncateGroup
+	var sources []*exec.ForeignQuerySource
 	for _, selected := range s.truncateOrZero().Relations {
 		if selected.Relation.RelationKind != catalog.ForeignRelation {
 			continue
@@ -21,20 +21,9 @@ func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 		if err != nil {
 			return nil, err
 		}
-		f := source.Foreign
-		index := -1
-		for i, g := range groups {
-			if g.Source.Request.ServerOID == f.Request.ServerOID {
-				index = i
-				break
-			}
-		}
-		if index < 0 {
-			index = len(groups)
-			groups = append(groups, fdw.TruncateGroup{Source: f, Request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().ForeignCascade, RestartIdentity: s.truncateOrZero().Restart}})
-		}
-		groups[index].Request.Tables = append(groups[index].Request.Tables, exec.CopyForeignRequest(f.Request))
+		sources = append(sources, source.Foreign)
 	}
+	groups := fdw.GroupTruncate(sources, s.truncateOrZero().ForeignCascade, s.truncateOrZero().Restart)
 	// Admit every participant before any selected server is truncated.
 	for i := range groups {
 		g := &groups[i]
@@ -42,10 +31,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 		if err != nil {
 			return nil, err
 		}
-		g.Request.Transaction = tx
-		for j := range g.Request.Tables {
-			g.Request.Tables[j].Transaction = tx
-		}
+		g.SetTransaction(tx)
 	}
 	return groups, nil
 }

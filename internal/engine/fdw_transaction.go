@@ -63,39 +63,10 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 	marks := t.Savepoints // Borrowed immutable roots under retained owner admission.
 	t.Mu.Unlock()
 	if participant == nil {
-		capabilities, err := provider.ForeignTransactionCapabilities(ctx, exec.CopyForeignRequest(request))
+		var err error
+		participant, err = fdw.BeginParticipant(ctx, provider, key, request, marks)
 		if err != nil {
-			return nil, exec.ForeignCallbackError(err)
-		}
-		if !capabilities.StatementRollback || !capabilities.TransactionRollback {
-			return nil, fdw.CapabilityError()
-		}
-		if len(marks) != 0 && !capabilities.Savepoints {
-			return nil, sqlError("0A000", "foreign transaction does not support savepoints")
-		}
-		tx, err := provider.BeginForeignTransaction(ctx, exec.CopyForeignRequest(request))
-		if err != nil {
-			if tx != nil {
-				_ = tx.Rollback(context.WithoutCancel(ctx))
-			}
-			return nil, exec.ForeignCallbackError(err)
-		}
-		if tx == nil {
-			return nil, errors.New("stuntgres: foreign provider returned no transaction")
-		}
-		participant = &fdw.Participant{Key: key, Tx: tx, Capabilities: capabilities}
-		if capabilities.Savepoints {
-			sp, ok := tx.(catalog.ForeignTransactionSavepoints)
-			if !ok {
-				_ = tx.Rollback(context.WithoutCancel(ctx))
-				return nil, errors.New("stuntgres: foreign savepoint capability has no implementation")
-			}
-			for _, mark := range marks {
-				if err := sp.Savepoint(ctx, fdw.MarkName(mark.Serial)); err != nil {
-					_ = tx.Rollback(context.WithoutCancel(ctx))
-					return nil, exec.ForeignCallbackError(err)
-				}
-			}
+			return nil, err
 		}
 		t.Mu.Lock()
 		err = t.Validate(s.txRef)
@@ -104,7 +75,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		}
 		t.Mu.Unlock()
 		if err != nil {
-			_ = tx.Rollback(context.WithoutCancel(ctx))
+			_ = participant.Tx.Rollback(context.WithoutCancel(ctx))
 			return nil, err
 		}
 	}
@@ -142,20 +113,7 @@ func (s *StatementScope) finishForeignStatements(primary error) error {
 	if len(s.foreignTablesOrZero().statements) != 0 {
 		s.foreignUnlocked()
 	}
-	ctx := context.WithoutCancel(s.op.Context())
-	for _, p := range s.foreignTablesOrZero().statements {
-		if p.Closed {
-			continue
-		}
-		if err := p.Tx.EndStatement(ctx, primary == nil); err != nil {
-			if primary == nil {
-				primary = exec.ForeignCallbackError(err)
-			}
-			// A failed release is not a reusable transaction; abort it, once.
-			p.Closed = true
-			_ = p.Tx.Rollback(ctx)
-		}
-	}
+	primary = fdw.EndStatements(s.op.Context(), s.foreignTablesOrZero().statements, primary)
 	s.foreignTablesSlot.clearStatements()
 	return primary
 }

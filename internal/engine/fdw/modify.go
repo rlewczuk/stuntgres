@@ -226,6 +226,37 @@ type TruncateGroup struct {
 	Request catalog.ForeignTruncateRequest
 }
 
+// GroupTruncate groups the selected foreign tables by server, in first-seen
+// order, so each server gets one truncate request with its tables in
+// selection order.
+func GroupTruncate(sources []*exec.ForeignQuerySource, cascade, restartIdentity bool) []TruncateGroup {
+	var groups []TruncateGroup
+	for _, f := range sources {
+		index := -1
+		for i, g := range groups {
+			if g.Source.Request.ServerOID == f.Request.ServerOID {
+				index = i
+				break
+			}
+		}
+		if index < 0 {
+			index = len(groups)
+			groups = append(groups, TruncateGroup{Source: f, Request: catalog.ForeignTruncateRequest{Cascade: cascade, RestartIdentity: restartIdentity}})
+		}
+		groups[index].Request.Tables = append(groups[index].Request.Tables, exec.CopyForeignRequest(f.Request))
+	}
+	return groups
+}
+
+// SetTransaction gives the group's request and each of its tables the
+// server's participant transaction.
+func (g *TruncateGroup) SetTransaction(tx catalog.ForeignTransaction) {
+	g.Request.Transaction = tx
+	for j := range g.Request.Tables {
+		g.Request.Tables[j].Transaction = tx
+	}
+}
+
 // PlanModification checks the operation and runs the wrapper's row identity
 // and planning callbacks. The caller has released the replacement read.
 func PlanModification(ctx context.Context, source *exec.ForeignQuerySource, operation catalog.ForeignModifyOperation, copying bool) (*Modification, error) {

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 )
 
 // Transaction is the transaction owner's FDW state, held in the owner's
@@ -46,6 +47,69 @@ func Rollback(ctx context.Context, participants []*Participant) error {
 }
 
 func MarkName(id uint64) string { return fmt.Sprintf("stuntgres_sql_%d", id) }
+
+// BeginParticipant runs a provider's handshake for a new participant: it
+// checks the capabilities, begins the transaction and replays the owner's
+// open savepoints marks. A failure after Begin returned a transaction rolls it
+// back. The caller holds no lock and enlists the participant after
+// revalidating the owner.
+func BeginParticipant(ctx context.Context, provider catalog.ForeignTransactionProvider, key ParticipantKey, request catalog.ForeignRequest, marks []session.SavepointMark) (*Participant, error) {
+	capabilities, err := provider.ForeignTransactionCapabilities(ctx, exec.CopyForeignRequest(request))
+	if err != nil {
+		return nil, exec.ForeignCallbackError(err)
+	}
+	if !capabilities.StatementRollback || !capabilities.TransactionRollback {
+		return nil, CapabilityError()
+	}
+	if len(marks) != 0 && !capabilities.Savepoints {
+		return nil, sqlError("0A000", "foreign transaction does not support savepoints")
+	}
+	tx, err := provider.BeginForeignTransaction(ctx, exec.CopyForeignRequest(request))
+	if err != nil {
+		if tx != nil {
+			_ = tx.Rollback(context.WithoutCancel(ctx))
+		}
+		return nil, exec.ForeignCallbackError(err)
+	}
+	if tx == nil {
+		return nil, errors.New("stuntgres: foreign provider returned no transaction")
+	}
+	if capabilities.Savepoints {
+		sp, ok := tx.(catalog.ForeignTransactionSavepoints)
+		if !ok {
+			_ = tx.Rollback(context.WithoutCancel(ctx))
+			return nil, errors.New("stuntgres: foreign savepoint capability has no implementation")
+		}
+		for _, mark := range marks {
+			if err := sp.Savepoint(ctx, MarkName(mark.Serial)); err != nil {
+				_ = tx.Rollback(context.WithoutCancel(ctx))
+				return nil, exec.ForeignCallbackError(err)
+			}
+		}
+	}
+	return &Participant{Key: key, Tx: tx, Capabilities: capabilities}, nil
+}
+
+// EndStatements ends the statement in each open participant, reporting
+// success while primary is nil. A failed release is not a reusable
+// transaction: that participant closes and rolls back, once, and its error
+// becomes primary when primary is nil. Cancellation of ctx is ignored.
+func EndStatements(ctx context.Context, participants []*Participant, primary error) error {
+	ctx = context.WithoutCancel(ctx)
+	for _, p := range participants {
+		if p.Closed {
+			continue
+		}
+		if err := p.Tx.EndStatement(ctx, primary == nil); err != nil {
+			if primary == nil {
+				primary = exec.ForeignCallbackError(err)
+			}
+			p.Closed = true
+			_ = p.Tx.Rollback(ctx)
+		}
+	}
+	return primary
+}
 
 // Participant returns the enlisted participant for key, or nil.
 func (f *Transaction) Participant(key ParticipantKey) *Participant {
