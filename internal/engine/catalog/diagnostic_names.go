@@ -101,3 +101,21 @@ func Identifier(name string) string {
 
 // QuoteIdentifier always double-quotes s, doubling embedded quotes.
 func QuoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
+
+// TypeDiagnosticNamer freezes input and demanded-comparison type naming
+// against view and the reference path used for binding; providers consult it
+// on failure. Unknown types name as "".
+func TypeDiagnosticNamer(view Read, path []ids.ObjectAddress) func(sqltype.ID) string {
+	return func(id sqltype.ID) string {
+		descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
+		if !ok {
+			return ""
+		}
+		if descriptor.SQLType.NamespaceName() == "pg_catalog" {
+			// Released diagnostics use SQL aliases, not catalog spellings such
+			// as int4, and do not identifier-quote builtin names such as json.
+			return descriptor.SQLType.DiagnosticName()
+		}
+		return TypeDiagnosticNameAt(view, descriptor, path)
+	}
+}

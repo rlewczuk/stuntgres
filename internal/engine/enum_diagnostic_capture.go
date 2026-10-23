@@ -3,32 +3,19 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
-// captureTypeDiagnosticName freezes input and demanded-comparison naming against
-// the catalog and reference path used for binding. Providers consult it on failure.
+// captureTypeDiagnosticName freezes type naming against the catalog and the
+// reference path used for binding (catalog.TypeDiagnosticNamer).
 func captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string, error) {
 	path, err := referencePath(auth)
 	if err != nil {
 		return nil, err
 	}
-	catalogView := auth.Catalog
-	return func(id sqltype.ID) string {
-		descriptor, ok := catalogView.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-		if !ok {
-			return ""
-		}
-		if descriptor.SQLType.NamespaceName() == "pg_catalog" {
-			// Released diagnostics use SQL aliases, not catalog spellings such
-			// as int4, and do not identifier-quote builtin names such as json.
-			return descriptor.SQLType.DiagnosticName()
-		}
-		return catalog.TypeDiagnosticNameAt(catalogView, descriptor, path)
-	}, nil
+	return catalog.TypeDiagnosticNamer(auth.Catalog, path), nil
 }
 
 // Safety belongs to admission, not discovery of an enum node. Scope inputs and
