@@ -104,7 +104,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				e.mu.Unlock()
 				return err
 			}
-			if !e.notificationPublicationUnchangedLocked(notifications) {
+			if !e.notifications.UnchangedLocked(notifications) {
 				op.Session.Mu.Unlock()
 				e.mu.Unlock()
 				if remoteSettled {
@@ -130,7 +130,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			if phase != nil && phase.preparing {
 				e.installPreparedLocked(phase)
 			} else {
-				e.installNotificationsLocked(notifications)
+				e.notifications.InstallLocked(notifications)
 				e.visibility.SerializableCommittedLocked(ref, e.visibility.CommitSeq())
 				e.visibility.RecordCommitTimestampLocked(ref)
 				e.finishPreparedLocked(phase)
@@ -355,7 +355,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if err == nil && e.visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := !e.notifications.UnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || len(p.Store.Versions) != len(p.Root) {
@@ -440,7 +440,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			goto publicationFence
 		}
 		// No callback, allocation or failure remains after this point.
-		e.installNotificationsLocked(notifications)
+		e.notifications.InstallLocked(notifications)
 		if c != nil {
 			for _, shape := range c.Storage {
 				if shape.Original != nil {

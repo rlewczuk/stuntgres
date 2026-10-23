@@ -195,7 +195,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			case "retire":
 				payloadOf(r).notifications.Ended = true
 			}
-			unchanged := e.notificationPublicationUnchangedLocked(candidate)
+			unchanged := e.notifications.UnchangedLocked(candidate)
 			if change == "registration" {
 				e.notifications[r.SessionToken] = &payloadOf(r).notifications
 			}
