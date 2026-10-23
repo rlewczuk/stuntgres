@@ -72,6 +72,20 @@ private frames, not catalog authority.
   For default ACLs, `ObserveDefault` records the base input once (including
   absence), `SetDefaultACL` stages output (present nil means removal) and
   `DefaultRecordsUnchanged` checks the observed inputs.
+- **Candidate publication helpers** (`candidate_fences.go`,
+  `candidate_apply.go`, `relation_history.go`,
+  `default_privileges_catalog.go`). Unlike the reads above, these scan the
+  current state and validate or build publication; the root calls them under
+  `Engine.mu`, except `ApplyTo`, which runs with nothing held. The fences
+  (`DefaultPreflight`, `AccessMethodsCurrent`, `DomainBasesCurrent`,
+  `DescriptorsCurrent`) compare the candidate's base inputs with the current
+  state and have no side effects. `ApplyTo` projects the candidate onto the
+  current state; `ChangedAddresses` lists its changes in address order.
+  `MarkIndexHistoryLocked` and `MarkSubclassHistoryLocked` set the sticky
+  parent flags through a revision allocator and a replace callback (the root
+  passes `CatalogStage.Replace`, which also synchronizes the row type).
+  `CreationACL`, `CreationTypeACL` and `RemoveSchemaDefaults` read and stage
+  default ACLs as observed inputs.
 - **Derived name indexes** (`operator_index.go`, `procedure_index.go`).
   `OperatorNameIndex` and `ProcedureNameIndex` map names to addresses; they are
   membership, not callable or ACL authority. Edits (`OperatorIndexEdit`,
@@ -98,6 +112,9 @@ private frames, not catalog authority.
   `DefinitionReader` is the sparse read that definition cooking uses to see a
   statement's unpublished, ordered DROP effects; the engine implements it over a
   catalog stage. It is never persisted and is not a permission cache.
+  `CandidateDefinitions` (`candidate_definitions.go`, from
+  `Candidate.Definitions`) implements it over a candidate: the base with the
+  candidate's removals hidden and its descriptors laid over.
   `DescriptorAt` and the typed `Definition*At` reads serve the binder and DDL.
 - **Diagnostic names** (`diagnostic_names.go`): `QuoteIdentifier` always quotes;
   `Identifier` quotes only when the grammar needs it (deparse, dump);
@@ -145,13 +162,17 @@ private frames, not catalog authority.
 
 ## What stays in the engine
 
-DDL commands, `CatalogStage` and publication, the `catalogStore` allocators,
-seeding, the transaction catalog journal, the registration of providers that
-live in their own packages (`role.ParameterProvider`, `table.RelationProvider`,
-`stored.TypeProvider`, `stored.ProcedureProvider`, `extension.CatalogProvider`,
-`routine.OperatorProvider`), definition-OID assignment (the Restore remap is
-`control.RemapDefinitionOIDs`) and the `DefinitionReader` implementations.
-Callers name the declarations here directly, without aliases.
+DDL commands, `CatalogStage` and publication (taking `Engine.mu`, the storage,
+index and materialized-view fences including the extension materialized-view
+recheck, the relations map and the post-apply validators), the `catalogStore`
+allocators, seeding, the transaction catalog journal, the registration of
+providers that live in their own packages (`role.ParameterProvider`,
+`table.RelationProvider`, `stored.TypeProvider`, `stored.ProcedureProvider`,
+`extension.CatalogProvider`, `routine.OperatorProvider`), definition-OID
+assignment (the Restore remap is `control.RemapDefinitionOIDs`), the stage
+reader's index layouts (`stageDefinitionReader.IndexLayout`) and the
+prepared-drop `DefinitionReader`. Callers name the declarations here directly,
+without aliases.
 
 ## Testing
 
@@ -162,10 +183,12 @@ builtin routine inventory. `testdata/builtin_routine_results_pg18_6.tsv` is the
 independent record of every builtin routine identity and result, extracted from
 the pinned PostgreSQL 18.6 oracle; `TestBuiltinRoutineResultInventory` checks it.
 Engine-side seams (provider registry, payload accessors, operator index,
-publication) are units in `internal/engine`.
+publication, including the candidate publication helpers) are units in
+`internal/engine`.
 
 ```sh
 make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad)|Candidate|BuiltinRoutineResultInventory)'
 make check RACE=1 RUN='^Test(CastDefinition(PairIndex|CandidateIsolation)|.*PrincipalRemap|OperatorClass(Catalog|Value))'
 make check RUN='^Test(CatalogAllocatorAndProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload|UserOperatorIndex)'
+make check RACE=1 RUN='^Test(AccessMethodDescriptor|PgClassSubclass|TableSummary|DefaultPrivileges(PublicationFence|CreationFence)|SQLRoutineStagedLookup|DropReaderSeam)'
 ```

@@ -74,4 +74,35 @@ that the root calls under `Engine.mu`, and they scan the current state.
 
 ## Status
 
-- 153: not started.
+- 153: done (`e65488cfd`, `37034b87f`, `9dd8665fb`, then the docs commit).
+  - On `*catalog.Candidate`: `DomainBasesCurrent`, `DescriptorsCurrent`,
+    `AccessMethodsCurrent` and `DefaultPreflight` (`candidate_fences.go`);
+    `ApplyTo` and `ChangedAddresses` (`candidate_apply.go`);
+    `MarkIndexHistoryLocked` and `MarkSubclassHistoryLocked`
+    (`relation_history.go`); `CreationACL`, `CreationTypeACL` and
+    `RemoveSchemaDefaults` (`default_privileges_catalog.go`). The root keeps
+    `extensionMaterializedViewsCurrent`, the relations map,
+    `catalogStageChanges` and the post-apply validators.
+  - Deviation: the five reader methods cannot be `Candidate` methods, because
+    `Candidate.Descriptors()` already returns overlay entries only. They are
+    `catalog.CandidateDefinitions` (from `Candidate.Definitions()`). The root
+    `stageDefinitionReader` embeds it, keeps `IndexLayout`, and is built by
+    `stageDefinitions(stage)` at every former literal.
+  - Root dedupe: `installReplacementLocked`, `replacementCapacityLocked` and
+    `replacementACLsLocked`. `installForeignCatalogLocked` keeps its signature,
+    because four tests call it.
+  - Tests: none moved, because all use engine fixtures. Calls were renamed in
+    `access_method_test.go`, `pg_class_history_test.go`,
+    `partition_constraints_test.go`, `table_view_summary_test.go`,
+    `object_acl_type_test.go`, `ownership_default_cleanup_test.go`,
+    `default_privileges_helpers_test.go` and `sql_routine_lookup_test.go`.
+  - For item 155: `captureCatalogStageLocked` now calls
+    `Candidate.DefaultPreflight`; root `default_privileges_catalog.go` keeps
+    only the three journal helpers.
+  - For item 158: its "Inputs" name `stageDefinitionReader{stage}`, which is
+    now `stageDefinitions(stage)`.
+  - For item 167: new root feature code `info_columns_runtime.go` (33 lines,
+    `4a833c0b2`), `fts_query_*.go` (0.31k, `6b6bdd404`) and the type
+    lifecycle (+0.17k net, including `prepared_type_identity.go`,
+    `042d34035`); the snapshot functions add 0.14k net to existing
+    transaction files (`95d4e7f92`).

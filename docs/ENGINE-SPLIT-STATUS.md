@@ -10,16 +10,17 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `335c3daf8`.
+Last verified against `master` at `921b983b6`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 153 (catalog), 156 (table, VACUUM), 157 (partition), 158 (table, ALTER),
-  159 (view), 160 (session, 2PC), 163 (exec, cursors), 165 (session,
-  protocol codec) and 166 (ddl, CREATE DATABASE).
+- 154 (table, DROP), 155 (session, journal fences), 156 (table, VACUUM),
+  157 (partition), 158 (table, ALTER), 159 (view), 160 (session, 2PC), 163
+  (exec, cursors), 165 (session, protocol codec) and 166 (ddl, CREATE
+  DATABASE).
 
 ## Linear plan
 
@@ -36,9 +37,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      47.2k lines, no allocation change · targeted units, quickcheck and the
      quick and `REFERENCE=1` role, COMMENT, capture and Restore selections
      passed; racecheck/finalcheck skipped at user request
-153. [ ] Catalog: candidate publication helpers —
+153. [x] Catalog: candidate publication helpers —
      [catalog](ENGINE-SPLIT-catalog.md#item-153--candidate-publication-helpers)
-     · needs — · 0.38k
+     · needs — · 0.38k (`e65488cfd`, `37034b87f`, `9dd8665fb`, then the docs
+     commit) · root 383 → 380 files and 47.3k → 46.9k lines · targeted
+     units (also `RACE=1`), quickcheck and the quick and `REFERENCE=1`
+     access-method, default-privilege, pg_depend, CREATE DATABASE,
+     concurrent foreign DDL, extension matview and Restore selections
+     passed; racecheck/finalcheck skipped at user request
 154. [ ] Table: DROP dependency decisions —
      [table](ENGINE-SPLIT-table.md#item-154--drop-dependency-decisions) ·
      needs 153 · 0.37k

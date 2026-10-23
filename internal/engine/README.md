@@ -183,9 +183,11 @@ Producers, the OID registry and descriptor specs live in
 - `catalog.AdvanceRevisionFrontier` is pure and saturating and never reserves
   the global allocator; publication commits its local frontier only at
   successful installation under `Engine.mu`.
-- `CatalogStage` embeds `catalog.Candidate`; DDL authorization, lifecycle,
-  rowtype synchronization, storage coordination and engine-dependent validators
-  stay in the root. Recipe rewrites retain the original routine authority, never
+- `CatalogStage` embeds `catalog.Candidate`, which owns the catalog-only
+  publication fences, the apply step, the history markers and the creation
+  ACLs; DDL authorization, lifecycle, rowtype synchronization, storage
+  coordination, the extension materialized-view fence and engine-dependent
+  validators stay in the root. Recipe rewrites retain the original routine authority, never
   recovering it from an OID.
 - Every engine seeds the same built-in catalog in one bulk load (`newEngine`'s
   `BeginBulkLoad` … `finishSeed`) from pure constructors; `builtin_catalog.go`
