@@ -48,6 +48,8 @@ type sqlCursor struct {
 	state                                       exec.State
 	stage                                       *exec.Stage
 	authority                                   *exec.Authority
+	currentSnapshot                             *sqltype.Snapshot
+	snapshotFrontier                            ids.CommitSeq
 	foreignOwner                                *exec.ForeignScanOwner
 	rlsPrograms                                 []*rowSecurityProgram // Admitted clause state and nested source pins.
 	position                                    cursorPosition
@@ -113,6 +115,7 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.visibilityCatalog = catalog.Read{}
 	c.routineDependencies = nil
 	c.routineAuth = AuthorizationView{}
+	c.currentSnapshot, c.snapshotFrontier = nil, 0
 	if c.authority != nil {
 		c.authority.Host = nil
 		c.authority.Expression = nil
@@ -212,6 +215,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
 		deparseAuth: s.inquiry.deparseAuth, deparsePath: s.inquiry.deparsePath, collationPath: s.inquiry.collationPath, visibilityCatalog: s.inquiry.visibilityCatalog,
 		visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
+	c.currentSnapshot, c.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
 	c.statement, c.created = declaration.Source, created
 	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
 	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
@@ -239,6 +243,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 // The operation, ticket, owner, command and write roots belong to the freshly
 // admitted FETCH; the initialized producer retains DECLARE's routine authority.
 func (c *sqlCursor) admit(s *StatementScope) {
+	s.currentSnapshot, s.snapshotFrontier = c.currentSnapshot, c.snapshotFrontier
 	s.querySources, s.queryLocks = c.leaves, c.locks
 	s.inquiry.commentCatalog, s.inquiry.commentRoles = c.catalog, c.roles
 	s.routineDependencies = c.routineDependencies

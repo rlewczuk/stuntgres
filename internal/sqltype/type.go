@@ -31,6 +31,7 @@ const (
 	Xid              ID = 28
 	Cid              ID = 29
 	Xid8             ID = 5069
+	PgSnapshot       ID = 5038
 	JSON             ID = 114
 	PgNodeTree       ID = 194
 	Point            ID = 600
@@ -274,6 +275,7 @@ func Builtins() []*Descriptor {
 		{id: Xid, name: "xid", sql: "XID", database: "XID", associatedArray: 1011},
 		{id: Cid, name: "cid", sql: "CID", database: "CID"},
 		{id: Xid8, name: "xid8", sql: "XID8", database: "XID8"},
+		{id: PgSnapshot, name: "pg_snapshot", sql: "PG_SNAPSHOT", database: "PG_SNAPSHOT"},
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
 		{id: JSONB, name: "jsonb", sql: "JSONB", database: "JSONB", associatedArray: 3807},
 		{id: JSONPath, name: "jsonpath", sql: "JSONPATH", database: "JSONPATH", associatedArray: 4073},
@@ -430,6 +432,7 @@ type Value struct {
 	path            *pathPayload
 	circle          circleDatum
 	polygon         *polygonPayload
+	snapshot        *Snapshot
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -782,6 +785,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.jsonInput(ctx, text)
 	case JSONPath:
 		return d.jsonpathInput(ctx, text)
+	case PgSnapshot:
+		return d.snapshotInput(text)
 	case Oid, Xid, Cid, Xid8:
 		return d.oidInput(text)
 	case Char:
@@ -1081,6 +1086,12 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return "", nil
 	case Oid, Xid, Cid:
 		return strconv.FormatUint(uint64(v.oid), 10), nil
+	case PgSnapshot:
+		s, err := v.Snapshot()
+		if err != nil {
+			return "", err
+		}
+		return s.String(), nil
 	case Xid8:
 		return strconv.FormatUint(uint64(v.integer), 10), nil
 	case Bytea:
@@ -1206,6 +1217,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "", fmt.Errorf("invalid literal value")
 	}
 	if v.null {
+		if d.BaseType().id == PgSnapshot {
+			return "NULL::pg_snapshot", nil
+		}
 		if IsNetwork(d.BaseType().id) || d.BaseType().id == Tid || d.BaseType().id == Macaddr || d.BaseType().id == Macaddr8 {
 			return "CAST(NULL AS " + d.BaseType().SQLName() + ")", nil
 		}
@@ -1409,6 +1423,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	case PgSnapshot:
+		s, err := v.Snapshot()
+		if err != nil {
+			return "", err
+		}
+		return "'" + s.String() + "'::pg_snapshot", nil
 	case Oid, Xid, Cid, Xid8, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
 		if err != nil {
@@ -1711,6 +1731,8 @@ func StoredScalarCastType(id ID) bool {
 	switch id {
 	case TSVector, TSQuery, Box, Point, Lseg, Circle, Line, Path, Polygon:
 		return true
+	case PgSnapshot:
+		return true
 	case Bool, Int2, Int4, Int8, Oid, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
 		return true
@@ -1830,6 +1852,17 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		}
 		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) ||
 			context == Assignment && (source.Type.IsQueryInt() || source.Type.IsCube()) && IsCharacter(target.Type.id) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
+	if source.Type.id == PgSnapshot || target.Type.id == PgSnapshot {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && IsCharacter(source.Type.id) && target.Type.id == PgSnapshot ||
+			context >= Assignment && source.Type.id == PgSnapshot && IsCharacter(target.Type.id) {
 			p.method = viaIO
 			return p, nil
 		}

@@ -394,7 +394,7 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		// Identifier literals already render with their scalar authority. A
 		// transparent relabel must not grow another CAST on each Restore.
-		if r.CheckLiterals == nil && sqltype.IsTransactionIdentifier(u.Type.ID()) && n.Child.ResultUsage() == u {
+		if r.CheckLiterals == nil && (sqltype.IsTransactionIdentifier(u.Type.ID()) || u.Type.ID() == sqltype.PgSnapshot) && n.Child.ResultUsage() == u {
 			return child, nil
 		}
 		// Bare quoted TEXT becomes unknown on replay and can move a deferred

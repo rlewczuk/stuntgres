@@ -12,6 +12,9 @@ func StoredArrayElement(typ *sqltype.Descriptor) bool {
 		return false
 	}
 	physical := typ.BaseType()
+	if physical.ID() == sqltype.PgSnapshot {
+		return false
+	}
 	if physical.ID() == sqltype.Lseg || physical.ID() == sqltype.Circle || physical.ID() == sqltype.Tid || physical.ID() == sqltype.Macaddr || physical.ID() == sqltype.Macaddr8 || sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
 		return false
 	}

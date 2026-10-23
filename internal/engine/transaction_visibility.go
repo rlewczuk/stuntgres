@@ -35,8 +35,8 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ids.ObjectRef)
 	return s.captureDataViewsLocked(e, refs, false)
 }
 
-// ATTACH validates the grant-time committed frontier plus this owner's earlier
-// commands. It does not change the RR/Serializable owner's ordinary snapshot.
+// Partition integrity validation uses the grant-time committed frontier plus
+// this owner's earlier commands, without changing its ordinary snapshot.
 func (s *StatementScope) acquirePartitionValidationViewsLocked(e *Engine, refs []ids.ObjectRef) (*visibility.View, error) {
 	return s.captureDataViewsLocked(e, refs, true)
 }
@@ -109,10 +109,13 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 		if _, err := e.visibilitySnapshotLocked(s.txRef, false); err != nil {
 			return nil, err
 		}
+		if err := e.captureStatementSnapshotLocked(s); err != nil {
+			return nil, err
+		}
 	}
 	frontier := e.visibility.CommitSeq()
-	if !latest && s.owner.Isolation.Stable() {
-		frontier = s.owner.Frontier
+	if !latest {
+		frontier = s.snapshotFrontier
 	}
 	if base != nil {
 		frontier = base.Frontier
@@ -156,7 +159,9 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 	for _, ref := range refs {
 		stored := e.privateStorageLocked(s.owner.Catalog, ref.Address)
 		versions, ends := stored.Versions, stored.Ends
-		needsBirthFilter := false
+		// Roots obtained after utility entry (or during dynamic extension)
+		// can contain commits newer than the already active command frontier.
+		needsBirthFilter := !latest && !s.owner.Isolation.Stable() && frontier < e.visibility.CommitSeq()
 		var rewrite session.StorageChange
 		if s.owner.Catalog != nil {
 			rewrite = s.owner.Catalog.Storage[ref.Address]

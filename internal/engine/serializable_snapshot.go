@@ -3,7 +3,6 @@ package engine
 import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/visibility"
 )
 
 // Caller holds the admitted owner's mutex, never a peer owner. Waiting releases
@@ -26,16 +25,12 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 			e.mu.Unlock()
 			return err
 		}
+		if err := e.retainTransactionSnapshotLocked(t); err != nil {
+			e.mu.Unlock()
+			return err
+		}
 		e.enrollSerializableLocked(t.Ref, t.Isolation)
 		node := e.visibility.CaptureSerializableLocked(t.Ref, t.ReadOnly, t.Deferrable)
-		roots := make(map[ids.ObjectAddress]visibility.Root, len(e.storage.Relations))
-		for address, storage := range e.storage.Relations {
-			if relation, ok := e.catalog.state.Relation(address); ok {
-				roots[address] = visibility.Root{storage.Versions, storage.Ends, storage, relation}
-			}
-		}
-		t.Roots, t.Frontier = roots, e.visibility.CommitSeq()
-		t.SequenceCatalog = e.catalog.state
 		ready, wait := node.SafeSnapshotWait()
 		if !wait {
 			t.SnapshotSet = true
@@ -67,6 +62,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 			node.AbandonSafeSnapshotLocked()
 			t.Roots = nil
 			t.SequenceCatalog = nil
+			t.CurrentSnapshot = nil
 			t.Frontier = 0
 			e.mu.Unlock()
 			return err
@@ -80,6 +76,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		// Discard their immutable roots and take a fresh authoritative snapshot.
 		t.Roots = nil
 		t.SequenceCatalog = nil
+		t.CurrentSnapshot = nil
 		t.Frontier = 0
 		e.mu.Unlock()
 	}

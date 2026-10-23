@@ -58,7 +58,9 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			}
 			stage.storageReads = append(stage.storageReads, storageReadFence{address: ref.Address, storage: storage, length: len(storage.Versions), ends: storage.Ends, generation: storage.Generation})
 		}
-		pending.view, err = scope.acquireDataViewsLocked(e, pending.DefaultLeaves)
+		// Constraint validation must include writers completed before the
+		// hierarchy lock grant, without advancing the active utility pair.
+		pending.view, err = scope.acquirePartitionValidationViewsLocked(e, pending.DefaultLeaves)
 		if err != nil {
 			return nil, err
 		}

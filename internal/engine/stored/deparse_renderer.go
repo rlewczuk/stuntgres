@@ -240,6 +240,8 @@ func (r Deparser) Literal(ctx context.Context, n plan.LiteralExpr) (string, erro
 			return text + "::" + typ, nil
 		}
 		return text, nil
+	case sqltype.PgSnapshot:
+		return quote(text) + "::" + typ, nil
 	case sqltype.Int2, sqltype.Int8, sqltype.Oid, sqltype.Xid, sqltype.Cid, sqltype.Xid8:
 		return quote(text) + "::" + typ, nil
 	case sqltype.Float4, sqltype.Float8:
@@ -529,7 +531,7 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		}
 		// Identifier leaves already retain their scalar annotation. A transparent
 		// relabel must not duplicate it around a genuine enclosing conversion.
-		if n.Child != nil && sqltype.IsTransactionIdentifier(n.Usage.Type.ID()) && n.Child.ResultUsage() == n.Usage {
+		if n.Child != nil && (sqltype.IsTransactionIdentifier(n.Usage.Type.ID()) || n.Usage.Type.ID() == sqltype.PgSnapshot) && n.Child.ResultUsage() == n.Usage {
 			return r.SQL(ctx, n.Child, parent)
 		}
 		if literal, ok := n.Child.(plan.LiteralExpr); ok && n.Mode == sqltype.Explicit &&

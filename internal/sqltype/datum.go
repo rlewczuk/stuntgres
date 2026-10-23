@@ -117,6 +117,22 @@ func SameDatum(a, b Value) bool {
 			}
 		}
 		return true
+	case PgSnapshot:
+		if a.snapshot == nil || b.snapshot == nil {
+			return false
+		}
+		if a.snapshot == b.snapshot {
+			return true
+		}
+		if a.snapshot.xmin != b.snapshot.xmin || a.snapshot.xmax != b.snapshot.xmax || len(a.snapshot.members) != len(b.snapshot.members) {
+			return false
+		}
+		for i, id := range a.snapshot.members {
+			if id != b.snapshot.members[i] {
+				return false
+			}
+		}
+		return true
 	case JSONPath:
 		return a.jsonpath != nil && b.jsonpath != nil && a.text == b.text
 	case JSONB:

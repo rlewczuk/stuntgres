@@ -15,6 +15,7 @@ type TransactionInquiryRuntime interface {
 	RequireTransactionIdentityScope() error
 	MultiTransactionAge(uint32) (int32, error)
 	CurrentTransactionID(bool) (uint64, error)
+	CurrentSnapshot() (*sqltype.Snapshot, error)
 	TransactionStatus(uint64) (string, bool, error)
 	TransactionMembers(uint32, *sqltype.Descriptor) ([]sqltype.Value, error)
 	CommitTimestamp(uint32) (time.Time, uint32, bool, error)

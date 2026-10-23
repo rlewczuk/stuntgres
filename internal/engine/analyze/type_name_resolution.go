@@ -138,6 +138,9 @@ func ResolveTypeName(raw parser.TypeName, name string, object parser.ObjectName,
 		}
 	}
 	if len(raw.ArrayBounds) > 0 {
+		if d.BaseType().ID() == sqltype.PgSnapshot {
+			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
+		}
 		if d.BaseType().ID() == sqltype.Macaddr || d.BaseType().ID() == sqltype.Macaddr8 || sqltype.IsTransactionIdentifier(d.BaseType().ID()) {
 			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 		}

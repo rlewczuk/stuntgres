@@ -25,6 +25,8 @@ func (s *StatementScope) Finish(err error) error {
 	// Finishing still consumes held cursors, foreign-action recipes and index
 	// expressions. Their borrowed admission context ends only after those users.
 	defer func() {
+		s.currentSnapshot = nil
+		s.snapshotFrontier = 0
 		for _, program := range s.rlsPrograms {
 			program.Close()
 		}
@@ -315,6 +317,7 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	t.Deletes = nil
 	t.Roots = nil
 	t.SequenceCatalog = nil
+	t.CurrentSnapshot = nil
 	t.Frontier = 0
 	t.Catalog = nil
 	t.NotificationActions = nil

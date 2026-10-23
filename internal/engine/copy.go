@@ -46,11 +46,16 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			return 0, err
 		}
 	}
-	if err = s.snapshotPhase(syntax); err != nil {
+	if err = s.snapshotExecutionAdmission(syntax); err != nil {
 		return
 	}
 	if err = s.acquireRelation(syntax, true); err != nil {
 		return
+	}
+	if syntax.Query == nil {
+		if err = s.snapshotDataPhase(); err != nil {
+			return
+		}
 	}
 	if syntax.Query != nil {
 		rows, queryErr := s.prepareCopyQueryRows(syntax.Query)

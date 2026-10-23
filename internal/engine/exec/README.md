@@ -51,6 +51,9 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   methods forward to the host. `InputDomainChecks` scopes fresh text input:
   domain violations stay soft, CHECK execution errors carry the hard
   `sqlstate.InputError` marker. COPY and JSONB record input use it.
+  Snapshot inquiry forwards to the admitted host's immutable public value,
+  selected together with the tuple frontier, never sampled during Eval.
+  Immutable expression nodes and prepared descriptors retain no runtime owner.
 - **Routine admission and descriptors** (`routine_*.go`): planning-time EXECUTE
   admission (`AdmitRoutineCall`, `AdmitRoutineReference`,
   `EvaluatePlanningExpression`), the consumed-call footprint `RoutineProgram`,
@@ -116,17 +119,22 @@ reconsidered on every execution, never stored as planning facts.
   the engine host bodies and the `lock` manager; the lock manager's mutex is
   never taken under `Engine.mu`.
 - **Snapshots.** Records borrow immutable published snapshots and catalog reads;
-  no snapshot copies row values. Repeatable read retains every immutable root
-  before analysis waits; read committed views stay fresh at grant time (see the
-  [`visibility` README](../visibility/README.md)).
+  no snapshot copies row values. Stable isolation retains its public value and
+  tuple roots/frontier during the first snapshot-requiring analysis. Ordinary RC
+  queries select their execution pair after relation admission, before Eval;
+  snapshot-requiring utilities select theirs at utility entry, before internal
+  waits. Late physical roots use that same frontier with birth/end filtering.
+  Cursors retain their producer's pair when borrowing a fresh operation host
+  (see the [`visibility` README](../visibility/README.md)).
 - **Eager public results.** Finite public results are finalized before statement
   completion: late projection, sort, source-close or cancellation failure exposes
-  no successful prefix. Public result reads do not resume SQL evaluation or
-  publish writes. Nested SQL rewrite rows instead borrow an active lexical
-  scope and `OpenQueryProjectStage`, exposing schema before ordered row demand;
-  their owner closes the stage, memberships and sources before scope restoration.
-  Grouping, distinct and windows are serial; the bounded SELECT scan is the
-  parallel exception.
+  no successful prefix. Public result reads do not resume SQL evaluation,
+  acquire grants or publish writes, and expose copied values or immutable owned
+  backing, never execution scratch. Nested SQL rewrite rows instead borrow an
+  active lexical scope and `OpenQueryProjectStage`, exposing schema before
+  ordered row demand; their owner closes the stage, memberships and sources
+  before scope restoration. Grouping, distinct and windows are serial; the
+  bounded SELECT scan is the parallel exception.
 - **Row locks.** Rowmarks lock actual physical identities. After a wait only
   frozen contributors are followed to current heads; rechecks rebuild their
   bound frames without finding new matches or resorting. Immediate wait policies

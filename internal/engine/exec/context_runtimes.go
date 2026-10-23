@@ -543,6 +543,14 @@ func (c *Context) CurrentTransactionID(assign bool) (uint64, error) {
 	return host.CurrentTransactionID(assign)
 }
 
+func (c *Context) CurrentSnapshot() (*sqltype.Snapshot, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: snapshot inquiry lacks statement scope")
+	}
+	return host.CurrentSnapshot()
+}
+
 func (c *Context) TransactionStatus(full uint64) (string, bool, error) {
 	host := c.LiveHost()
 	if host == nil {

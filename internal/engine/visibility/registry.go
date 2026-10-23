@@ -32,6 +32,7 @@ type Registry struct {
 	visibilityXID        uint64
 	Entries              map[ids.TxRef]Entry
 	assignedXID          uint64
+	latestCompletedXID   uint64
 	History              map[uint64]IdentityRecord
 	transactionHorizon   uint64
 	LowIDs               map[uint32]uint64 // Latest full assignment per low32; constant-time live alias guard.
@@ -46,7 +47,7 @@ type Registry struct {
 // NewRegistry starts canonical assignment after the special XIDs.
 // Maps are allocated on first use.
 func NewRegistry(trackCommitTimestamp bool) Registry {
-	return Registry{trackCommitTimestamp: trackCommitTimestamp, assignedXID: 2, commitTimestampBase: 3}
+	return Registry{trackCommitTimestamp: trackCommitTimestamp, assignedXID: 2, latestCompletedXID: 2, commitTimestampBase: 3}
 }
 
 // CommitSeq is the newest published commit frontier. Caller holds Engine.mu.

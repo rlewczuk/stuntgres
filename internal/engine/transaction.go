@@ -49,6 +49,7 @@ func clearTransaction(t *session.TransactionOwner) {
 	t.Deletes = nil
 	t.Start = time.Time{}
 	t.SnapshotSet = false
+	t.CurrentSnapshot = nil
 	t.Frontier = 0
 	t.Roots = nil
 	t.SequenceCatalog = nil
@@ -206,6 +207,8 @@ func (e *Engine) Commit(op *session.Operation, ref ids.TxRef) (EndResult, error)
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
 	statementMutation
+	currentSnapshot   *sqltype.Snapshot
+	snapshotFrontier  ids.CommitSeq
 	mutations         []statementMutation
 	activeMutation    int
 	cteInvocation     *exec.CTEInvocation
@@ -515,7 +518,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 			return StatementDescription{}, err
 		}
 	}
-	if err := s.snapshotPhase(stmt); err != nil {
+	if err := s.snapshotAnalysisPhase(stmt); err != nil {
 		return StatementDescription{}, err
 	}
 	switch stmt.(type) {
@@ -704,7 +707,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, err
 		}
 	}
-	if err := s.snapshotPhase(stmt); err != nil {
+	if err := s.snapshotExecutionAdmission(stmt); err != nil {
 		return Result{}, err
 	}
 	if _, ok := stmt.(*parser.LockTable); ok && count != 0 {
@@ -739,6 +742,15 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	}
 	if err := s.acquireRelation(stmt, true); err != nil {
 		return Result{}, err
+	}
+	// SELECT (including cursor and query COPY sources) acquires its RC pair
+	// in final source admission. Other commands need it before any expression.
+	switch stmt.(type) {
+	case *parser.Select, *parser.DeclareCursor:
+	default:
+		if err := s.snapshotPhase(stmt); err != nil {
+			return Result{}, err
+		}
 	}
 	if _, ok := stmt.(*parser.LockTable); ok {
 		return Result{}, nil

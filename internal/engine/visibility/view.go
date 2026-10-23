@@ -8,10 +8,10 @@ import (
 	"stuntgres/internal/engine/storage"
 )
 
-// Generation is the storage incarnation captured for one relation. A
-// committed TRUNCATE incarnation can be newer than the retained snapshot;
-// NeedsBirthFilter is capture metadata for the existing selector, not
-// another frontier.
+// Generation is the storage incarnation captured for one relation. Roots
+// obtained after active-snapshot acquisition (including utility lock waits and
+// committed TRUNCATE incarnations) can contain newer births. NeedsBirthFilter
+// selects them at the existing frontier; it is not another frontier.
 type Generation struct {
 	Storage          *storage.Relation
 	NeedsBirthFilter bool

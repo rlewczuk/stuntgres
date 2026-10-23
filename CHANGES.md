@@ -13,6 +13,16 @@ structural updatability follow current captured definitions; column privileges
 filter rows without renumbering surviving attributes. Direct and prepared reads
 retain typed empty results and refresh after supported DDL and ACL changes.
 
+## Coherent active transaction snapshots
+
+Snapshot-requiring preparation inside repeatable-read and serializable
+transactions retains the same public snapshot and tuple frontier for execution.
+READ COMMITTED queries acquire both after relation admission, without refreshing
+during expression evaluation. Materialized-view refresh uses its active utility
+snapshot, including through nested views; later source capture filters births
+and deletions at that original frontier. Cursor producers retain their captured
+pair across FETCH and holdable-cursor materialization.
+
 ## Installed cube comparisons
 
 Installed `cube` supports `=`, `<>`, `<`, `<=`, `>` and `>=`, their comparison
@@ -87,6 +97,18 @@ including base-name collisions before table-rowtype rejection.
 Type identity and compatible catalog publications tolerate maintenance-only
 database horizon updates without losing the new horizon or relaxing genuine
 database authority fences.
+
+## Transaction snapshot values and visibility
+
+Added typed `pg_snapshot` input/output and `pg_current_snapshot`,
+`pg_snapshot_xmin`, `pg_snapshot_xmax`, `pg_snapshot_xip` and
+`pg_visible_in_snapshot`. Captures retain command or stable-isolation transaction
+snapshots without assigning an XID; saved values remain unchanged after peers
+finish. Snapshot values preserve canonical full-width bounds and membership
+through parameters, result metadata, stored expressions and logical Dump/Restore.
+Visibility is the documented top-level-XID predicate, not a subtransaction
+completion test. NULL and empty member lists produce no rows in either FROM
+or target-list calls; malformed input retains complete ERROR diagnostics.
 
 ## MAC address operators and functions
 

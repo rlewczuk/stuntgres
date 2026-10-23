@@ -2,7 +2,7 @@
 
 Transaction identity, commit order, commit timestamps, snapshot data views
 and the serializable (SSI) tracker. The package imports only `catalog`,
-`ids`, `lock` (for `*lock.Ticket` identity), `storage`, `sqlstate` and the
+`ids`, `lock` (for `*lock.Ticket` identity), `storage`, `sqltype`, `sqlstate` and the
 standard library. It never imports the root engine. Layering is in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 
@@ -83,10 +83,15 @@ standard library. It never imports the root engine. Layering is in
   following a later index phase with the same low bits. Sparse retained
   status and optional timestamp reservations index the full identity. With
   tracking off, no timestamp map is allocated.
-- **Snapshots and retention.** Repeatable read and serializable retain every
-  immutable relation root and end root (`Root`) before analysis waits. Read
-  committed and read uncommitted views stay fresh at grant time. Retention
-  holds roots by pointer and never copies row values. A `View` handle has its
+- **Snapshots and retention.** Repeatable read and serializable acquire every
+  immutable relation root and end root (`Root`), the tuple frontier and the public
+  full-XID value together, including snapshot-requiring transaction analysis.
+  Ordinary RC execution acquires its pair after relation admission. Utilities
+  acquire an active pair at entry; roots obtained after their internal waits are
+  birth/end-filtered at that original frontier. Dynamic extensions keep their
+  base frontier; partition grant-time validation and private rewrites retain
+  their explicit visibility rules. Retention holds roots by pointer and never
+  copies row values. A `View` handle has its
   own release authority: `Retain` returns an independent handle, `Release`
   ends only its own handle, and a forged or copied handle can neither retain,
   release nor read (`Data` panics; `Load` returns the raw pointer).
@@ -134,6 +139,15 @@ standard library. It never imports the root engine. Layering is in
   `SafeSnapshotOutcome` and waits with `Engine.mu` released. That loop also
   drops and retakes `replacementMu` while its caller holds
   `session.TransactionOwner.Mu`; this package takes no part in that ordering.
+
+- **Public snapshots.** `CurrentSnapshotLocked` captures full transaction IDs
+  under `Engine.mu`, with a latest-completed frontier distinct from writer
+  ordering and assignment. Self lowers xmin but is omitted from membership;
+  active peers below xmax include detached prepared owners. Completion history
+  wins over stale entry/ticket mirrors, and commit and abort both advance xmax.
+  The root captures this value and the tuple commit frontier under the same
+  admission lock. A stable SSI candidate owns both; rejecting or abandoning it
+  discards the whole pair, while accepting it preserves both across safe waits.
 
 ## What stays in the engine
 

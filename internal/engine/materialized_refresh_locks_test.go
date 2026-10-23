@@ -25,9 +25,6 @@ func refreshUnitScope(t *testing.T, e *Engine, ctx context.Context) *StatementSc
 	if err := scope.gate(stmt); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.snapshotPhase(stmt); err != nil {
-		t.Fatal(err)
-	}
 	return scope
 }
 

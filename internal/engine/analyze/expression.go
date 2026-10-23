@@ -1085,7 +1085,7 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 			return nil, err
 		}
 	}
-	if raw.Syntax == parser.FunctionCast && (!visible || raw.Callee != "oid" && raw.Callee != "xid" && raw.Callee != "cid" && raw.Callee != "xid8" && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool") {
+	if raw.Syntax == parser.FunctionCast && (!visible || raw.Callee != "pg_snapshot" && raw.Callee != "oid" && raw.Callee != "xid" && raw.Callee != "cid" && raw.Callee != "xid8" && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool") {
 		source := "unknown"
 		if literal, ok := raw.Child.(parser.LiteralExpr); !ok || (literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue) {
 			child, err := b.Bind(raw.Child, ExpressionPolicy{Context: ProjectionContext})
@@ -1276,6 +1276,9 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 			if raw.Syntax == parser.FunctionCast {
 				return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
 			}
+			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
+		}
+		if source.Type.BaseType().ID() == sqltype.PgSnapshot || target.Type.BaseType().ID() == sqltype.PgSnapshot {
 			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
 		}
 		if source.Type.BaseType().ID() == sqltype.Circle || target.Type.BaseType().ID() == sqltype.Circle || source.Type.BaseType().IsCube() || target.Type.BaseType().IsCube() || source.Type.BaseType().IsCitext() || target.Type.BaseType().IsCitext() {

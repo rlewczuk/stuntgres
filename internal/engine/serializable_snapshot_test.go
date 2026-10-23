@@ -101,6 +101,7 @@ func TestSerializableSafeSnapshotWriterAbortOrNoWriteCommitWakes(t *testing.T) {
 			join := serializableUnitCaptureWorker(t, scope)
 			serializableUnitAwaitCandidate(t, e, node)
 			e.mu.Lock()
+			candidate, frontier := scope.owner.CurrentSnapshot, scope.owner.Frontier
 			if commit {
 				e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
 			}
@@ -109,7 +110,7 @@ func TestSerializableSafeSnapshotWriterAbortOrNoWriteCommitWakes(t *testing.T) {
 			if err := join(); err != nil {
 				t.Fatal(err)
 			}
-			if !node.Exempt || !scope.owner.SnapshotSet || len(node.Possible) != 0 {
+			if !node.Exempt || !scope.owner.SnapshotSet || len(node.Possible) != 0 || candidate == nil || scope.owner.CurrentSnapshot != candidate || scope.owner.Frontier != frontier {
 				t.Fatal("safe resolution did not preserve TX snapshot")
 			}
 		})
@@ -121,6 +122,16 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	writer := serializableUnitNode(t, e, false)
 	out := serializableUnitNode(t, e, false)
 	e.mu.Lock()
+	if err := e.assignTransactionXIDLocked(writer.Ref); err != nil {
+		e.mu.Unlock()
+		t.Fatal(err)
+	}
+	if err := e.assignTransactionXIDLocked(out.Ref); err != nil {
+		e.mu.Unlock()
+		t.Fatal(err)
+	}
+	writerID := e.visibility.FullXIDLocked(writer.Ref)
+	e.visibility.EndTransactionIdentityLocked(out.Ref, true)
 	writer.DidWrite = true
 	writer.Outgoing[out] = struct{}{}
 	out.Incoming[writer] = struct{}{}
@@ -131,6 +142,11 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	join := serializableUnitCaptureWorker(t, scope)
 	serializableUnitAwaitCandidate(t, e, node)
 	e.mu.Lock()
+	candidate := scope.owner.CurrentSnapshot
+	if candidate == nil || candidate.Visible(writerID) {
+		e.mu.Unlock()
+		t.Fatal("candidate public snapshot did not include its active writer")
+	}
 	if scope.owner.Roots[ref.Address].Storage != old {
 		t.Fatal("candidate did not capture old root")
 	}
@@ -138,12 +154,13 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	e.storage.InstallRelationLocked(ref.Address, next)
 	e.visibility.AdvanceCommitSeqLocked()
 	e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
+	e.visibility.EndTransactionIdentityLocked(writer.Ref, true)
 	e.endSerializableLocked(writer.Ref, true)
 	e.mu.Unlock()
 	if err := join(); err != nil {
 		t.Fatal(err)
 	}
-	if scope.owner.Roots[ref.Address].Storage != next || scope.owner.Frontier != e.visibility.CommitSeq() || !node.Exempt || node.Unsafe {
+	if scope.owner.Roots[ref.Address].Storage != next || scope.owner.Frontier != e.visibility.CommitSeq() || !node.Exempt || node.Unsafe || scope.owner.CurrentSnapshot == nil || scope.owner.CurrentSnapshot == candidate || !scope.owner.CurrentSnapshot.Visible(writerID) || candidate.Visible(writerID) {
 		t.Fatal("unsafe candidate escaped or was not recaptured")
 	}
 }
@@ -270,7 +287,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 			func() {
 				e.mu.Lock()
 				defer e.mu.Unlock()
-				if scope.owner.Roots != nil || scope.owner.Frontier != 0 || scope.owner.SnapshotSet || len(node.Possible) != 0 || !node.Resolved {
+				if scope.owner.Roots != nil || scope.owner.Frontier != 0 || scope.owner.CurrentSnapshot != nil || scope.currentSnapshot != nil || scope.owner.SnapshotSet || len(node.Possible) != 0 || !node.Resolved {
 					t.Fatal("candidate roots/wait not released")
 				}
 				if writer.Ended || writer.Committed {

@@ -130,4 +130,7 @@ func (reg *Registry) EndTransactionIdentityLocked(ref ids.TxRef, committed bool)
 		r.Ticket.MirrorCompletion(r.State)
 	}
 	reg.History[v.FullXID] = r
+	if v.FullXID > reg.latestCompletedXID {
+		reg.latestCompletedXID = v.FullXID
+	}
 }

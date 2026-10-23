@@ -88,6 +88,21 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 	}()
 	if creation, ok := stmt.(*parser.CreateTable); ok && execute {
+		if creation.PartitionOf != nil {
+			// Select the active utility pair before relation waits, outside
+			// Engine.mu so SSI can wait safely, and only after the existing
+			// execution restrictions. DEFAULT integrity validation separately
+			// uses its grant-time frontier.
+			if err := s.readOnlyUtilityEligibility(creation); err != nil {
+				return err
+			}
+			if err := s.executionEligibility(creation); err != nil {
+				return err
+			}
+			if err := s.snapshotDataPhase(); err != nil {
+				return err
+			}
+		}
 		if err := s.acquireForeignKeyCreation(creation); err != nil {
 			return err
 		}

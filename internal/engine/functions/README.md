@@ -24,6 +24,13 @@ the authority behind evaluation capabilities in the root
   aliases.
 - Nodes embed `expr.Info`, hold children as `expr.Expr` and evaluate with
   `Eval(expr.Context)`.
+- Snapshot calls use the ordinary typed binder and stored-expression protocols.
+  Current-snapshot evaluation borrows an immutable command capture through
+  `TransactionInquiryRuntime`; it never allocates an XID or refreshes visibility.
+  The member SRF declares target-set placement and stage dependence, preserves
+  occurrence identity across rewrites, and keeps only its immutable value and
+  invocation-private index. NULL and empty member lists exhaust that invocation
+  without producing a row.
 
 ## Registry
 

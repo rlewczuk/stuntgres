@@ -86,6 +86,7 @@ type Host interface {
 	// functions.TransactionInquiryRuntime
 	CommitTimestamp(xid uint32) (time.Time, uint32, bool, error)
 	CurrentTransactionID(assign bool) (uint64, error)
+	CurrentSnapshot() (*sqltype.Snapshot, error)
 	LastCommittedTransaction() (uint32, time.Time, uint32, bool, error)
 	MultiTransactionAge(xid uint32) (int32, error)
 	TransactionAge(xid uint32) (int32, error)

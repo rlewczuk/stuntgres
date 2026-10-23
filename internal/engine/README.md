@@ -127,6 +127,11 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   metadata stay fresh. The resolution environment is captured before any
   relation wait: never retarget after lock admission or certify an older queued
   resolution under a newer environment.
+- Snapshot-requiring analysis may establish a stable transaction's retained
+  public value and tuple roots/frontier. RC analysis never freezes execution:
+  query source admission selects its pair after relation waits, while utility
+  entry selects before utility-specific waits. Later roots and cursor producers
+  consume that same immutable pair; expression evaluation never recaptures it.
 - DML synthetic query roots are not stable AST owners: retain the original table
   occurrences. Writable views retain their logical target identity, not the
   translated physical base.
@@ -295,6 +300,9 @@ Add `RACE=1` for lifecycle, cancellation and contention selections.
 - Lock-wait tests observe the exact queued request before triggering a caller
   deadline (`lockWaitCaller`) and use `Manager.ExpireWait`, never sleeps. Worker
   goroutines return outcomes; only the test goroutine asserts.
+- Snapshot units publish controlled registry/tuple frontiers and select through
+  real retained views and heap sources. Utility timing observes an actual queued
+  target lock; safe-snapshot units check accepted and discarded public/root pairs.
 
 ### Advisory timer scheduling and shared result waits
 
@@ -317,6 +325,7 @@ make check RUN='^Test(CatalogRelations|NamespaceIdentity|ObjectAddress)'  # cata
 make check RUN='^TestNotification'                     # immutable session/cluster queues and publication
 make check RUN='^Test(Advisory|BlockingPids|DeadlockResultScheduling|RelationDeadlock|RelationLockWaits|PGLocks)'  # advisory, waits, deadlocks
 make check RUN='^Test(UpdateCore|TransactionIdentity|CommitTime)'  # MultiXact, transaction identity
+make check RUN='^TestSnapshot'                        # binding, retained command/transaction pairs and physical frontier filters
 make check RUN='^Test(Serial|SourceProtocol|ViewLiteralProtocol)'  # sequences, sources, stored capture
 make check RUN='^Test([A-Za-z]+RoutineOriginalAuthority|SQLRoutine|UnavailableFunctionIdentityBoundary)'  # routines
 make check RUN='^Test(Extension|PGDepend|CatalogDrop|DropOwned)'  # extensions, drop fences

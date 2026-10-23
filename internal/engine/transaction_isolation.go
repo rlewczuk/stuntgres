@@ -103,13 +103,34 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	}
 	return Result{}, err
 }
+
+// Analysis can establish a transaction-stable snapshot, but RC analysis must
+// not select the later command's execution frontier.
+func (s *StatementScope) snapshotAnalysisPhase(stmt parser.Statement) error {
+	if !s.owner.Isolation.Stable() {
+		return nil
+	}
+	return s.snapshotPhase(stmt)
+}
+
+// Utilities enter with an active snapshot before their internal relation waits.
+// Ordinary RC commands select theirs only after relation admission.
+func (s *StatementScope) snapshotExecutionAdmission(stmt parser.Statement) error {
+	switch stmt.(type) {
+	case *parser.CreateQueryTable, *parser.RefreshMaterializedView:
+		return s.snapshotPhase(stmt)
+	default:
+		return s.snapshotAnalysisPhase(stmt)
+	}
+}
+
 func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	switch stmt.(type) {
-	case *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.FetchCursor, *parser.CreateQueryTable, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.SettingCall:
+	case *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable, *parser.RefreshMaterializedView, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.SettingCall:
+		return s.snapshotDataPhase()
 	default:
 		return nil
 	}
-	return s.snapshotDataPhase()
 }
 
 // Fastpath has no SQL AST but obtains the same transaction snapshot before
@@ -132,7 +153,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		}
 		return false
 	}
-	if t.SnapshotSet && !needsProjection(t.Roots) {
+	if t.SnapshotSet && !needsProjection(t.Roots) && s.currentSnapshot != nil {
 		return nil
 	}
 	sess := s.op.Session
@@ -152,30 +173,28 @@ func (s *StatementScope) snapshotDataPhase() error {
 		e.mu.Unlock()
 		return err
 	}
-	roots, frontier := t.Roots, t.Frontier
-	sequenceCatalog := t.SequenceCatalog
 	if !t.SnapshotSet && t.Isolation.Stable() {
 		if _, err := e.visibilitySnapshotLocked(t.Ref, false); err != nil {
 			sess.Mu.Unlock()
 			e.mu.Unlock()
 			return err
 		}
-		roots = make(map[ids.ObjectAddress]visibility.Root, len(e.storage.Relations))
-		for address, storage := range e.storage.Relations {
-			if relation, ok := e.catalog.state.Relation(address); ok {
-				roots[address] = visibility.Root{storage.Versions, storage.Ends, storage, relation}
-			}
+		if err := e.retainTransactionSnapshotLocked(t); err != nil {
+			sess.Mu.Unlock()
+			e.mu.Unlock()
+			return err
 		}
-		frontier = e.visibility.CommitSeq()
-		sequenceCatalog = e.catalog.state
 	}
+	roots, frontier := t.Roots, t.Frontier
+	sequenceCatalog := t.SequenceCatalog
 	if !needsProjection(roots) {
 		t.Roots, t.Frontier = roots, frontier
 		t.SequenceCatalog = sequenceCatalog
 		t.SnapshotSet = true
+		err := e.captureStatementSnapshotLocked(s)
 		sess.Mu.Unlock()
 		e.mu.Unlock()
-		return nil
+		return err
 	}
 	catalog := t.Catalog
 	sess.Mu.Unlock()
@@ -194,11 +213,58 @@ func (s *StatementScope) snapshotDataPhase() error {
 		t.Roots, t.Frontier = roots, frontier
 		t.SequenceCatalog = sequenceCatalog
 		t.SnapshotSet = true
+		err = e.captureStatementSnapshotLocked(s)
 	}
 	sess.Mu.Unlock()
 	e.mu.Unlock()
 	return err
 }
+
+// captureStatementSnapshotLocked installs the command's immutable public value
+// and tuple frontier together. Engine.mu is held, and stable owner acquisition
+// (including any SSI safe-snapshot wait) has already completed.
+func (e *Engine) captureStatementSnapshotLocked(s *StatementScope) error {
+	if s.currentSnapshot != nil {
+		return nil
+	}
+	t := s.owner
+	if t.Isolation.Stable() {
+		if !t.SnapshotSet || t.CurrentSnapshot == nil {
+			return sqlError("55000", "no active transaction snapshot")
+		}
+		s.currentSnapshot, s.snapshotFrontier = t.CurrentSnapshot, t.Frontier
+		return nil
+	}
+	snapshot, err := e.visibility.CurrentSnapshotLocked(t.Ref)
+	if err != nil {
+		return err
+	}
+	s.currentSnapshot, s.snapshotFrontier = snapshot, e.visibility.CommitSeq()
+	// RC retains only the command pair, but acquiring it still closes the
+	// transaction-characteristics window for the rest of this transaction.
+	t.SnapshotSet = true
+	return nil
+}
+
+// retainTransactionSnapshotLocked selects all stable owner state in one
+// Engine.mu window. SSI uses the same acquisition for each safe candidate;
+// SnapshotSet is installed only after that candidate/projection is accepted.
+func (e *Engine) retainTransactionSnapshotLocked(t *session.TransactionOwner) error {
+	snapshot, err := e.visibility.CurrentSnapshotLocked(t.Ref)
+	if err != nil {
+		return err
+	}
+	roots := make(map[ids.ObjectAddress]visibility.Root, len(e.storage.Relations))
+	for address, storage := range e.storage.Relations {
+		if relation, ok := e.catalog.state.Relation(address); ok {
+			roots[address] = visibility.Root{storage.Versions, storage.Ends, storage, relation}
+		}
+	}
+	t.CurrentSnapshot, t.Frontier = snapshot, e.visibility.CommitSeq()
+	t.Roots, t.SequenceCatalog = roots, e.catalog.state
+	return nil
+}
+
 func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error {
 	t := s.owner
 	switch stmt.(type) {

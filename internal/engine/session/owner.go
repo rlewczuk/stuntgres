@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/sqltype"
 )
 
 type TxState uint8
@@ -67,6 +68,7 @@ type TransactionOwner struct {
 	EntryReadOnly   bool
 	EntryDeferrable bool
 	SnapshotSet     bool
+	CurrentSnapshot *sqltype.Snapshot
 	Frontier        ids.CommitSeq
 	Roots           map[ids.ObjectAddress]visibility.Root
 	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.

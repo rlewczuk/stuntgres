@@ -33,6 +33,15 @@ implement its slots, so either import would form a cycle.
   `AssignModes` and `CharacteristicMode` decide transaction modes
   (`transaction_characteristics.go`); `SerializableWriteSurvives` tells rollback
   which serializable write evidence survives.
+  Stable isolation retains immutable tuple roots, the commit frontier, sequence
+  catalog and public transaction snapshot as one acquisition on this owner.
+  Snapshot-requiring analysis inside the transaction can establish that pair;
+  preparing before BEGIN cannot retain it into the later transaction. RC analysis
+  does not retain execution authority. Command-local pairs belong to
+  `StatementScope`; cursors retain their producer's pair across fresh FETCH
+  admissions. Root lifecycle cleanup releases the owner pair at transaction end.
+  `SnapshotSet` also records that RC execution has acquired a snapshot, closing
+  the transaction-characteristics window without retaining a transaction pair.
 - **Settings store** (`settings_store.go`): `SettingsStore` (values, defaults,
   provider provenance, SET LOCAL and role setting actions, characteristic
   projections) and `SettingsMark`. Default providers run once at physical

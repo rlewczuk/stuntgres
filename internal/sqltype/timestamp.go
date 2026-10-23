@@ -126,6 +126,8 @@ func (d *Descriptor) CheckModifierSupport() error {
 		return nil
 	case Tid:
 		return failure("42601", `type modifier is not allowed for type "tid"`)
+	case PgSnapshot:
+		return failure("42601", `type modifier is not allowed for type "pg_snapshot"`)
 	case Macaddr, Macaddr8, Int2, Int4, Int8, Xid, Cid, Xid8, Money, JSON, JSONB, JSONPath, Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange, Int4Multirange, Int8Multirange, NumMultirange:
 		return failure("42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, d.DiagnosticName()))
 	case Text:

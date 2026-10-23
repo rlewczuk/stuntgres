@@ -39,6 +39,25 @@ func (h *statementHost) CurrentTransactionID(assign bool) (uint64, error) {
 	return e.visibility.FullXIDLocked(scope.txRef), nil
 }
 
+func (h *statementHost) CurrentSnapshot() (*sqltype.Snapshot, error) {
+	scope := h.scope()
+	e := scope.engine()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	scope.op.Session.Mu.Lock()
+	defer scope.op.Session.Mu.Unlock()
+	if err := publicationOperationLocked(e, scope.op); err != nil {
+		return nil, err
+	}
+	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
+		return nil, ids.ErrCatalogReplaced
+	}
+	if scope.currentSnapshot == nil {
+		return nil, sqlError("55000", "no active snapshot")
+	}
+	return scope.currentSnapshot, nil
+}
+
 func (h *statementHost) TransactionStatus(full uint64) (string, bool, error) {
 	scope := h.scope()
 	e := scope.engine()

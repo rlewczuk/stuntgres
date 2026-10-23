@@ -42,6 +42,14 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
 - Text-array input checks declared dimensions early, but child conversion and
   domain CHECK errors precede an extent mismatch, and storage grows only with
   parsed children (shared `ownedArray` guards).
+- `pg_snapshot` owns an immutable full-XID bounds/member payload. Text input
+  validates nondecreasing membership and canonicalizes duplicates; constructors
+  copy caller-owned members and indexed access never exposes mutable backing.
+  Visibility is arithmetic plus membership for top-level IDs, not subxid status.
+  Invalid snapshot text owns its full `22P02` diagnostic, including both ERROR
+  severity fields; callers may attach literal positions or parameter context.
+  Scalar text I/O and explicit text casts do not grant array, comparison or
+  binary-codec capabilities.
 
 ### Type identity generations
 

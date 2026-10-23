@@ -96,6 +96,9 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.ID() == sqltype.Box || target.Type.ID() == sqltype.Point || target.Type.ID() == sqltype.Lseg || target.Type.ID() == sqltype.Circle || target.Type.ID() == sqltype.Line || target.Type.ID() == sqltype.Path || target.Type.ID() == sqltype.Polygon || target.Type.ID() == sqltype.Tid || target.Type.ID() == sqltype.Macaddr || target.Type.ID() == sqltype.Macaddr8 {
 			return sqltype.Null(target.Type), nil
 		}
+		if target.Type.BaseType().ID() == sqltype.PgSnapshot {
+			return sqltype.Null(target.Type), nil
+		}
 		if target.Type.IsCitext() || target.Type.IsCube() || target.Type.IsQueryInt() || sqltype.IsTransactionIdentifier(target.Type.ID()) || sqltype.IsOperatorAlias(target.Type.ID()) || sqltype.IsRegObjectAlias(target.Type.ID()) || sqltype.IsRegTS(target.Type.ID()) {
 			return sqltype.Null(target.Type), nil
 		}
@@ -233,7 +236,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Regtype, sqltype.Regproc, sqltype.Regprocedure, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
-	case sqltype.Xid, sqltype.Cid, sqltype.Xid8:
+	case sqltype.Xid, sqltype.Cid, sqltype.Xid8, sqltype.PgSnapshot:
 		text, err := v.Type().Output(ctx, v)
 		return []byte(text), err
 	case sqltype.Oid:
@@ -297,7 +300,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
 		return reflect.TypeFor[string]()
-	case sqltype.Bytea, sqltype.Xid, sqltype.Cid, sqltype.Xid8:
+	case sqltype.Bytea, sqltype.Xid, sqltype.Cid, sqltype.Xid8, sqltype.PgSnapshot:
 		return reflect.TypeFor[[]byte]()
 	case sqltype.Timestamp, sqltype.Timestamptz:
 		return reflect.TypeFor[time.Time]()

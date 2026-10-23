@@ -264,6 +264,9 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 	if locks == nil {
 		locks = scope.queryLocks
 	}
+	if err := e.captureStatementSnapshotLocked(scope); err != nil {
+		return nil, err
+	}
 	if scope.txRef != (ids.TxRef{}) {
 		if _, err := e.visibilitySnapshotLocked(scope.txRef, false); err != nil {
 			return nil, err

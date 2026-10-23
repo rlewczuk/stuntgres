@@ -18,6 +18,11 @@ import (
 )
 
 func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterializedView) error {
+	// Utility entry selects the pair before target/source lock waits. Direct
+	// internal callers share the same boundary as SQL execution.
+	if err := s.snapshotDataPhase(); err != nil {
+		return err
+	}
 	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
