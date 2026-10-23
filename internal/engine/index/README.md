@@ -40,12 +40,15 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   gin/brin spelling boundary; registered custom btree methods with those names
   retain genuine btree class/support and exclusion behavior.
 
-- **Keys, roots and programs** (`index.go`, `hash.go`, `gist.go`,
-  `predicate.go`, `expression.go`, `program.go`, `clauses.go`,
+- **Keys, roots and programs** (`index.go`, `hash.go`, `hash_capture.go`,
+  `gist.go`, `predicate.go`, `expression.go`, `program.go`, `clauses.go`,
   `options.go`, `property.go`, `catalog_key.go`): `Ordering` and
   `BindIndexOrdering`; `BuildIndexRoot`, `BuildIndexEntries`,
   `MergeIndexRoot`; `BindHashIndex`, `BuildHashIndexRoot`,
-  `MergeHashIndexRoot`, `PublicationSlot`; `BindIndexKeys` (GiST);
+  `MergeHashIndexRoot`, `PublicationSlot`; `CaptureHashIndexesLocked` over
+  `HashCapture` (the published hash roots that exactly cover a plain table
+  query source; the engine fills the capture and holds `Engine.mu` across
+  the call); `BindIndexKeys` (GiST);
   `ExecutionPreparation`, `PrepareIndexRecipe`, `NewLogicalIndexRoot`;
   `KeyUsage`, `KeyBaseUsage`, `ExpressionDepends`; `ResolveIndexMethod`
   (captured method resolution and capability validation); the clause and option
@@ -61,12 +64,15 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   identity, never a fabricated CIDR family row; other operator eligibility
   checks retain their declared SQL input semantics.
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
-  `build_transport.go`, `layout_transport.go`, `layout_capture.go`,
-  `snapshot.go`, `snapshot_capture.go`, `snapshot_repair.go`,
-  `replacement.go`, `remint.go`, `expression_validation.go`,
-  `effective_root.go`, `alter_type.go`, `exclusion_type.go`):
-  `PrepareIndexPublication` over `RowPublication` (which engine publication
-  fills); `ValidatePrivateExpressions` (the explicit-statement derived-key
+  `row_publication.go`, `build_transport.go`, `layout_transport.go`,
+  `layout_capture.go`, `snapshot.go`, `snapshot_capture.go`,
+  `snapshot_repair.go`, `replacement.go`, `remint.go`,
+  `expression_validation.go`, `effective_root.go`, `alter_type.go`,
+  `exclusion_type.go`):
+  `PrepareIndexPublication` over `RowPublication`, which engine publication
+  fills and `PrepareRowPublication` validates and materializes outside
+  `Engine.mu` over the private roots (the engine passes its catalog
+  domain); `ValidatePrivateExpressions` (the explicit-statement derived-key
   preflight); index evolution (`EvolveIndex`, `EvolveIndexes`,
   `ApplyIndexEvolution`, `EvolutionInput`) over `EvolutionReader` and
   `EvolutionTarget`; `CaptureLayouts` over `LayoutCaptureInput`,
@@ -143,7 +149,10 @@ is `Metadata`, `indexCoverageReader` is `CoverageReader`); every other
 name is capitalized (`exclusionRegistry` is `ExclusionRegistry`,
 `rowPublication` is `RowPublication`, `journalIndexes` is
 `JournalIndexes`). Helpers only the package uses keep their lower-case
-names.
+names. 23f moved `prepareRowPublication` as `PrepareRowPublication`, the
+body of `captureHashIndexesLocked` as `CaptureHashIndexesLocked`, and
+`exclusionMark`, `exclusionMarkSlotOf` and `exclusionMarkOrZero` as
+`ExclusionMark`, `ExclusionMarkSlotOf` and `ExclusionMarkOrZero`.
 
 ## The DDL host
 
@@ -292,6 +301,11 @@ Names settled in 23d.2 (engine name → `index` name): `uniqueParent` →
   checked read, `JournalIndexes` allocates on first use and
   `JournalIndexesOrZero` reads a nil slot as zero. `Clone` deep-copies the
   maps, so savepoint marks keep sharing older journals.
+- **Savepoint exclusion mark.** `ExclusionMark` (`exclusion_mark.go`)
+  implements `session.ExclusionMarkSlot`: the owner's exclusion modes and
+  the pending projection a savepoint captured. `ExclusionMarkSlotOf` keeps
+  exactly zero state a nil slot, so most savepoints allocate nothing, and
+  `ExclusionMarkOrZero` reads a nil slot as zero.
 - **Statement and stage slots.** `Scope` (the statement's index
   maintenance, existing outputs and exclusion modes) and `Stage` (a catalog
   stage's REINDEX intents, candidates, layouts, parent and index-set
@@ -304,11 +318,12 @@ The orchestration: the `Engine.mu` windows, the CONCURRENTLY phases and
 their waits, lock admission (`acquireIndexMaintenance`: name resolution
 under `Engine.mu` and the acquire loop with its recheck, over the `index`
 grant plan), unique key pins,
-the registry instances, savepoint marks (`exclusionMark`), the Finish
-order, and publication and Restore storage (`prepareIndexCatalog`,
-`catalog_overlay_indexes.go`), with the capture windows of
-`captureIndexSnapshotParents`, `prepareRemintedStorage`,
-`captureIndexLayouts` and `validatePrivateIndexExpressions`.
+the registry instances, the savepoint capture and restore windows (which
+store and read an `ExclusionMark`), the Finish order, and publication and
+Restore storage (`prepareIndexCatalog`, `catalog_overlay_indexes.go`), with
+the capture windows of `captureIndexSnapshotParents`,
+`prepareRemintedStorage`, `captureIndexLayouts`,
+`validatePrivateIndexExpressions` and `captureHashIndexesLocked`.
 `executeCreateIndex` and `executeIndexMaintenance` stay as orchestration: the retry loop and lock,
 authorization and identity capture, the stage lifecycle, RENAME, the
 unlocked DROP path with its dependency recording, validation, the
@@ -361,8 +376,8 @@ treating ordinary ORDER BY results as evidence of a btree query optimizer.
 
 
 Package tests: `go test ./internal/engine/index` (the column capability
-matrix and `EffectiveRoot`). Most index tests build an engine and stay
-in the root package:
+matrix, `EffectiveRoot` and the savepoint exclusion mark). Most index tests
+build an engine and stay in the root package:
 
 ```sh
 make check RUN='^Test(Index|Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex|EffectiveRoot|PartitionDetach(Unique|UsingIndex)Replay|PartitionAttachIndex|PartitionConstraint|PrimaryKey)'

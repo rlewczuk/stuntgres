@@ -109,8 +109,9 @@ so either import would form a cycle.
   nil when both are zero), `ReplaySlot` (an operation's Restore and
   materialized population state) and `AnalysisSlot` (an operation's binding
   host). Each has only an exported marker method; the root implements them
-  with `sessionPayload`, `ownerExtension`, `exclusionMark`, `restoreReplay`
-  and `bindingHost`.
+  with `sessionPayload`, `ownerExtension`, `restoreReplay` and
+  `bindingHost`, and `index` implements the exclusion mark with
+  `index.ExclusionMark`.
 - **The engine host** (`host.go`): `Host`, what session code needs from the
   engine that owns a session: `EndMaintenance` (TEMP collation teardown,
   called after the Transaction resource callback returns, without
@@ -161,9 +162,9 @@ so either import would form a cycle.
   set before the value is shared and never change, so neither adds an
   allocation. The replay slot is allocated on first write; the exclusion
   mark only for nonzero state. Root helpers: `payloadOf`,
-  `ownerExtensionOf`/`ownerExtensionOrZero`, `exclusionMarkSlotOf`/
-  `exclusionMarkOrZero`, `operationReplay`/`operationReplayOrZero` and
-  `Engine.analysisHost`.
+  `ownerExtensionOf`/`ownerExtensionOrZero`, `operationReplay`/
+  `operationReplayOrZero` and `Engine.analysisHost`; the exclusion mark's
+  are `index.ExclusionMarkSlotOf`/`ExclusionMarkOrZero`.
 - **Fence order.** Publication checks fences by kind at fixed points, each
   kind in recording order, so the first error does not depend on storage.
 

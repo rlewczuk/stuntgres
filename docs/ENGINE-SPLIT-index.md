@@ -993,7 +993,12 @@ listed above. The checks in §8.3 pass.
   plan are `index` functions over inputs the root captures under
   `Engine.mu`; `index.EffectiveRoot` replaces nine copies; the dead and
   test-only wrappers are deleted; no aliases. See the 23e record.
-- [ ] 23f — Row publication and hash capture (linear item 142)
+- [x] 23f — Row publication and hash capture (linear item 142;
+  `6b8f2d4b3`, `44b0296a0`, `107d5c96e`, then the docs commit).
+  `index.PrepareRowPublication` with the catalog domain passed in,
+  `index.CaptureHashIndexesLocked` over a root-filled `HashCapture` under
+  `Engine.mu`, and the savepoint `index.ExclusionMark` with its slot helpers;
+  no aliases. See the 23f record.
 
 Outstanding aliases: none (23b added none).
 
@@ -1374,6 +1379,62 @@ Scripts and logs in `.cswd/tmp/PG18-ENGINE-SPLIT-INDEX-ALGORITHMS/`.
   round-trip tests) passed in full. `make deps` lists only this module.
   racecheck, finalcheck and bench skipped at user request (no startup
   change).
+
+### 23f record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-INDEX-ROW-PUBLICATION`, started at
+master `3fd377a2d` and rebased onto `80706f8ca` (one unrelated geometry
+commit landed in between; no conflict). Logs in
+`.cswd/tmp/PG18-ENGINE-SPLIT-INDEX-ROW-PUBLICATION/`. `reach` on master
+confirmed the plan: `exclusionMark` and its helpers were clean, and
+`prepareRowPublication` reached `Engine` only through `e.catalog.Domain`.
+
+| Commit | Change |
+|---|---|
+| `6b8f2d4b3` | `index.PrepareRowPublication`; `RowPublication` moves beside it into `row_publication.go`; `transaction_row_publication.go` removed |
+| `44b0296a0` | `index.CaptureHashIndexesLocked` over `HashCapture`; root `captureHashIndexesLocked` keeps the capture window |
+| `107d5c96e` | `index.ExclusionMark`, `ExclusionMarkSlotOf`, `ExclusionMarkOrZero`; the test moves with them |
+
+- **Shape.** `PrepareRowPublication(p, domain, ref, materialize)` is the old
+  body with `e.catalog.Domain` replaced by `domain`; transaction publication
+  passes the engine's domain and still calls it outside `Engine.mu`.
+  `HashCapture` holds the eligibility flag (an implicit statement without a
+  private catalog), the published catalog, storage relations, index roots
+  and commit sequence. The root fills it under `Engine.mu` and the package
+  function keeps the `Locked` suffix; the guard order is unchanged, and
+  the engine fields (plain reads under the same lock) are read before the
+  guards instead of after them. The
+  savepoint capture, restore and ROLLBACK TO windows store and read an
+  `index.ExclusionMark`.
+- **Deviations.** (1) `executeSavepoint`'s local `index` (the savepoint
+  position) is renamed `position`, since it would shadow the package.
+  (2) `session/root_slots.go` and `session/savepoint_marks.go` comments now
+  name the `index` implementer.
+- **Per-row and query paths.** `go build -gcflags=-m`: the `HashCapture`
+  literal does not escape and `PrepareRowPublication` allocates what the
+  root method did; the publication loop and query admission each make one
+  direct call instead of a method call.
+- **Tests.** `savepoint_exclusion_test.go` moved to
+  `index/exclusion_mark_test.go` (package `index`, same test names). Twelve
+  calls in `transaction_prepared_boundary_test.go`,
+  `exclusion_publication_test.go`, `unique_index_publication_test.go`,
+  `insert_conflict_position_test.go`, `index_hash_cancellation_test.go` and
+  `index_hash_test.go` call `index.PrepareRowPublication` with the engine's
+  domain. None deleted.
+- **Checks.** `index` imports nothing new (`go list`); the string-literal
+  multiset of `internal/engine` changed only by import paths. Targeted
+  units (index, unique, exclusion, hash index, query hash, prepared
+  boundary, ON CONFLICT position, savepoint, lock-mode and TRUNCATE
+  savepoint, serializable publication) passed per commit; `RACE=1` over
+  `Exclusion`, `UniqueLifetime`, `UniqueClaim`,
+  `HashIndexMergeCancellation`, `Savepoints` and
+  `PreparedValidationOmitsInstallationRoots` passed; the quick `HashIndex`,
+  `BtreeIndex` and `PartialIndex` reference selection passed; quickcheck
+  passed on the rebased tree. With `REFERENCE=1` the hash index, unique
+  index, exclusion, ON CONFLICT, partial-index savepoint, lock-mode
+  savepoint and prepared-transaction selection passed in full. `make deps`
+  lists only this module. racecheck, finalcheck and bench skipped at user
+  request (no startup change).
 
 ### Notes for later steps
 
