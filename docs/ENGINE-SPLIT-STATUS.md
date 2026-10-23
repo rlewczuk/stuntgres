@@ -10,16 +10,16 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `fe0683b68`.
+Last verified against `master` at `335c3daf8`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 152 (root cleanup), 153 (catalog), 156 (table, VACUUM), 157 (partition),
-  158 (table, ALTER), 159 (view), 160 (session, 2PC), 163 (exec, cursors),
-  165 (session, protocol codec) and 166 (ddl, CREATE DATABASE).
+- 153 (catalog), 156 (table, VACUUM), 157 (partition), 158 (table, ALTER),
+  159 (view), 160 (session, 2PC), 163 (exec, cursors), 165 (session,
+  protocol codec) and 166 (ddl, CREATE DATABASE).
 
 ## Linear plan
 
@@ -29,9 +29,13 @@ One item per session. Start one with "Implement Item N from Linear Plan in
 151. [x] Closing review 2 (docs only): re-measure after the fourth round, plan
      the fifth round, reset the split docs — [ENGINE-SPLIT.md](ENGINE-SPLIT.md)
      §1 and §4 · needs 134–150 · (docs commit)
-152. [ ] Root cleanup: dead, test-only and duplicated code —
+152. [x] Root cleanup: dead, test-only and duplicated code —
      [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-152--root-cleanup) · needs — ·
-     −0.3k
+     −0.3k (`824bf2d84`, `cbdc57c47`, `029942506`, `142caed1a`, `b42acb633`,
+     `1e796cdab`, then the docs commit) · root 390 → 383 files and 47.5k →
+     47.2k lines, no allocation change · targeted units, quickcheck and the
+     quick and `REFERENCE=1` role, COMMENT, capture and Restore selections
+     passed; racecheck/finalcheck skipped at user request
 153. [ ] Catalog: candidate publication helpers —
      [catalog](ENGINE-SPLIT-catalog.md#item-153--candidate-publication-helpers)
      · needs — · 0.38k

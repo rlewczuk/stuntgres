@@ -322,6 +322,19 @@ Remove root code that has no production purpose. Nothing moves to a package.
   - quick and `REFERENCE=1` selections for GRANT/REVOKE, COMMENT, DROP ROLE
     and DROP OWNED, SET ROLE and SESSION AUTHORIZATION, the `pg_catalog`
     capture paths, and trusted Restore.
+- **Status:** done (`824bf2d84`, `cbdc57c47`, `029942506`, `142caed1a`,
+  `b42acb633`, `1e796cdab`, then the docs commit).
+  - Corrections: `ValidateCapture` had 11 identical cases, not 12
+    (`335c3daf8` then added `role_column_grants`, and all 12 share the
+    check); `remapCatalogExpressions` had two production callers;
+    `captureCatalogSourceLocked` was in `catalog_sources.go`. The
+    trusted-Restore table is a type switch (`trustedRestoreForm`), because a
+    table of match functions made the statement escape.
+  - For item 167: `access.WithObjectACL` now has no production caller (only
+    the root `SetObjectACL` test fixture and its own tests). New feature code
+    in the root: `restore_comparison_context.go` and
+    `restore_comparison_receipt.go` (0.3k, `e1f187c80`), and
+    `plpgsql_*.go` (0.6k, `cf468664c`).
 
 ### Item 167 — closing review 3
 
