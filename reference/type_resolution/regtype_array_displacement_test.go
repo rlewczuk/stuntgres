@@ -10,6 +10,7 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
+	"time"
 )
 
 type regtypeDisplacementCase struct {
@@ -436,91 +437,172 @@ func TestReferenceRegtypeArrayDisplacementAtomicity(t *testing.T) {
 }
 
 func TestReferenceRegtypeArrayDisplacementControls(t *testing.T) {
-	var emitted []byte
-	fixture.RegtypeDisplacementScenario(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, conn *sql.Conn, recorder *fixture.Recorder) {
-		cases := regtypeDisplacementCases()
-		for _, c := range cases {
-			first, second := c.base, c.named
-			if !c.arrayFirst {
-				first, second = second, first
-			}
-			fixture.RunStep(t, p.Ctx, conn, recorder, regtypeDisplacementCreate(c, first))
-			if c.arrayFirst {
-				regtypeDisplacementReferences(t, p, conn, recorder, c)
-			}
-			fixture.RunStep(t, p.Ctx, conn, recorder, regtypeDisplacementCreate(c, second))
-			if !c.arrayFirst {
-				regtypeDisplacementReferences(t, p, conn, recorder, c)
-			}
-		}
-		check := func(source bool) {
-			identities := regtypeDisplacementIdentities(t, p, conn, cases)
-			for i, c := range cases {
-				if source {
-					baseID, arrayID := identities[i][0], identities[i][1]
-					regtypeDisplacementCheck(t, p, backend, conn, recorder, c, baseID, arrayID)
-					regtypeDisplacementReferenceCheck(t, p, conn, recorder, c, arrayID, 1)
-				} else {
-					regtypeDisplacementLogicalCheck(t, p, backend, conn, recorder, c, identities[i])
+	for _, kind := range []string{"table", "query_table", "domain", "enum", "view"} {
+		t.Run(kind, func(t *testing.T) {
+			var cases []regtypeDisplacementCase
+			for _, c := range regtypeDisplacementCases() {
+				if c.kind == kind {
+					cases = append(cases, c)
 				}
 			}
-		}
-		check(true)
-		if backend.PG {
-			if emitted == nil {
-				t.Fatal("actual native displacement Dump stream required")
+			var emitted []byte
+			sourceOK := t.Run("source", func(t *testing.T) {
+				regtypeDisplacementControlsScenario(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, conn *sql.Conn, recorder *fixture.Recorder) {
+					mark := regtypeDisplacementControlsPhase(t, p)
+					for _, c := range cases {
+						mark("setup/" + c.base)
+						first, second := c.base, c.named
+						if !c.arrayFirst {
+							first, second = second, first
+						}
+						fixture.RunStep(t, p.Ctx, conn, recorder, regtypeDisplacementCreate(c, first))
+						if c.arrayFirst {
+							regtypeDisplacementReferences(t, p, conn, recorder, c)
+						}
+						fixture.RunStep(t, p.Ctx, conn, recorder, regtypeDisplacementCreate(c, second))
+						if !c.arrayFirst {
+							regtypeDisplacementReferences(t, p, conn, recorder, c)
+						}
+					}
+					check := func(source bool) {
+						mark("identity-checkpoint")
+						identities := regtypeDisplacementIdentities(t, p, conn, cases)
+						for i, c := range cases {
+							mark("logical-check/" + c.base)
+							if source {
+								baseID, arrayID := identities[i][0], identities[i][1]
+								regtypeDisplacementCheck(t, p, backend, conn, recorder, c, baseID, arrayID)
+								regtypeDisplacementReferenceCheck(t, p, conn, recorder, c, arrayID, 1)
+							} else {
+								regtypeDisplacementLogicalCheck(t, p, backend, conn, recorder, c, identities[i])
+							}
+						}
+					}
+					check(true)
+					if backend.PG {
+						if emitted == nil {
+							t.Fatal("actual native displacement Dump stream required")
+						}
+						mark("PG-replay/drop-source-and-execute-actual-dump")
+						fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("DROP SCHEMA regtype_displacement CASCADE", 0))
+						if _, err := conn.ExecContext(p.Ctx, string(emitted)); err != nil {
+							t.Fatal("actual displacement stream PostgreSQL replay", err)
+						}
+						fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("SET search_path TO regtype_displacement,public", 0))
+						check(false)
+						return
+					}
+					mark("dump")
+					var dump bytes.Buffer
+					if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+						t.Fatal(err)
+					}
+					emitted = bytes.Clone(dump.Bytes())
+					retainedCase := cases[0]
+					mark("retained-cursor/" + retainedCase.base)
+					retained, err := conn.QueryContext(p.Ctx, "SELECT r FROM "+fixture.RegtypeDisplacementQualified("w_"+retainedCase.base))
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer retained.Close()
+					mark("same-reset")
+					if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+						t.Fatal(err)
+					}
+					mark("same-restore")
+					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(emitted)); err != nil {
+						t.Fatal(err)
+					}
+					check(false)
+					mark("retained-rows/" + retainedCase.base)
+					fixture.RegtypeAssertRows(t, retained, [][]any{{retainedCase.base + "[]"}}, false)
+					// Complete the dependent source chain before independent target work.
+					mark("failed-restore")
+					bad := "CREATE SCHEMA regtype_displacement; CREATE DOMAIN regtype_displacement.late AS integer; CREATE TABLE regtype_displacement._late(v integer); CREATE TABLE regtype_displacement.invalid(v integer DEFAULT 'bad');"
+					if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
+						t.Fatal("invalid displacement Restore succeeded")
+					}
+					check(false)
+				})
+			})
+			if !sourceOK {
+				return
 			}
-			fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("DROP SCHEMA regtype_displacement CASCADE", 0))
-			if _, err := conn.ExecContext(p.Ctx, string(emitted)); err != nil {
-				t.Fatal("actual displacement stream PostgreSQL replay", err)
-			}
-			fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("SET search_path TO regtype_displacement,public", 0))
-			check(false)
-			return
+			t.Run("fresh-target", func(t *testing.T) {
+				if len(emitted) == 0 {
+					t.Fatal("actual native displacement Dump stream required")
+				}
+				// Restore into a separately allocated engine exercises destination type
+				// identity remapping rather than relying on source OID reuse.
+				target := fixture.NewFixture(t, false, true)
+				mark := regtypeDisplacementControlsPhase(t, target)
+				mark("fresh-target/spacer-and-restore")
+				fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Exec("CREATE DOMAIN public.displacement_spacer AS integer", 0))
+				if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(emitted)); err != nil {
+					t.Fatal(err)
+				}
+				targetConn, err := target.Memory.Conn(target.Ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer targetConn.Close()
+				fixture.RunStep(t, target.Ctx, targetConn, target.MemoryRecord, fixture.Exec("SET search_path TO regtype_displacement,public", 0))
+				mark("fresh-target/identity-checkpoint")
+				identities := regtypeDisplacementIdentities(t, target, targetConn, cases)
+				for i, c := range cases {
+					mark("fresh-target/logical-check/" + c.base)
+					regtypeDisplacementLogicalCheck(t, target, target.Backends()[0], targetConn, target.MemoryRecord, c, identities[i])
+				}
+			})
+		})
+	}
+}
+
+// Diagnostics are local to Controls; successful runs remain quiet.
+func regtypeDisplacementControlsPhase(t *testing.T, p *fixture.Pair) func(string) {
+	t.Helper()
+	started := time.Now()
+	phase := "setup"
+	t.Cleanup(func() {
+		if t.Failed() {
+			deadline, _ := p.Ctx.Deadline()
+			t.Logf("owner=%s routes=direct+prepared phase=%s elapsed=%s remaining=%s context=%v", t.Name(), phase, time.Since(started), time.Until(deadline), p.Ctx.Err())
 		}
-		var dump bytes.Buffer
-		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
-			t.Fatal(err)
-		}
-		emitted = bytes.Clone(dump.Bytes())
-		retained, err := conn.QueryContext(p.Ctx, "SELECT r FROM regtype_displacement.w_d_domain_true_false")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer retained.Close()
-		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-			t.Fatal(err)
-		}
-		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(emitted)); err != nil {
-			t.Fatal(err)
-		}
-		check(false)
-		fixture.RegtypeAssertRows(t, retained, [][]any{{"d_domain_true_false[]"}}, false)
-		// Restore into a separately allocated engine exercises destination type
-		// identity remapping rather than relying on source OID reuse.
-		target := fixture.NewFixture(t, false, true)
-		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Exec("CREATE DOMAIN public.displacement_spacer AS integer", 0))
-		if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(emitted)); err != nil {
-			t.Fatal(err)
-		}
-		targetConn, err := target.Memory.Conn(target.Ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer targetConn.Close()
-		fixture.RunStep(t, target.Ctx, targetConn, target.MemoryRecord, fixture.Exec("SET search_path TO regtype_displacement,public", 0))
-		identities := regtypeDisplacementIdentities(t, target, targetConn, cases)
-		for i, c := range cases {
-			regtypeDisplacementLogicalCheck(t, target, target.Backends()[0], targetConn, target.MemoryRecord, c, identities[i])
-		}
-		// A late declaration after tentative displacement cannot replace the
-		// destination generation, its original array names, or its saved data.
-		bad := "CREATE SCHEMA regtype_displacement; CREATE DOMAIN regtype_displacement.late AS integer; CREATE TABLE regtype_displacement._late(v integer); CREATE TABLE regtype_displacement.invalid(v integer DEFAULT 'bad');"
-		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
-			t.Fatal("invalid displacement Restore succeeded")
-		}
-		check(false)
 	})
+	return func(next string) { phase = next }
+}
+
+// Kinds are independent, but each kind's four creation-order/DDL cases and
+// source replacement chain share one setup-born context per backend.
+func regtypeDisplacementControlsScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *fixture.Recorder)) {
+	t.Helper()
+	for _, postgres := range []bool{false, true} {
+		if postgres && !*fixture.Mode {
+			continue
+		}
+		name := "memory"
+		if postgres {
+			name = "postgres"
+		}
+		t.Run(name, func(t *testing.T) {
+			fixture.SchemaReferenceCleanup(t, "regtype_displacement")
+			p := fixture.NewFixture(t, postgres, true)
+			mark := regtypeDisplacementControlsPhase(t, p)
+			for _, b := range p.Backends() {
+				if b.PG != postgres {
+					continue
+				}
+				var notices []fixture.Diagnostic
+				_, conn, recorder := fixture.NoticeReferencePool(t, p, b.PG, &notices)
+				for _, query := range []string{"CREATE SCHEMA regtype_displacement", "SET search_path TO regtype_displacement,public"} {
+					mark("setup/" + query)
+					fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec(query, 0))
+				}
+				mark("source-body")
+				body(t, p, b, conn, recorder)
+			}
+		})
+	}
 }
 
 // An array-name change must reown live executable consumers, not merely make

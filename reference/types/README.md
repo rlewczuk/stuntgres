@@ -161,20 +161,52 @@ The selected-local runner closes notice/connection handles before teardown and
 uses a separate15s cleanup-only context. It does not refresh scenario30s or alter
 the shared domain fixture or its other consumers.
 
+Each backend now also owns its fixture before setup, but backend isolation is
+not the repair for the later native source-phase recurrence. The measured local
+repair moves only the attribute-dependency query's existing classid/refclassid/
+objsubid/refobjid and namespace predicates, and the survivor-shape query's
+existing namespace/relation/positive-attribute/not-dropped predicates, into
+derived catalog operands before joining. Actual catalogs, join keys,
+multiplicities, columns, ordering and one-statement capture are unchanged.
+There is no expected-name-derived data, LIMIT, captured-OID cache, separate
+snapshot, context renewal or production optimization. Default-metadata and
+type-dependency SQL remain unchanged: candidate rewrites lacked consistent
+measured benefit.
+
+The finite three-round native/race experiment used authentic pre/post-CASCADE
+vectors on independent variant fixtures. Actual operands shrank: dependency
+rows41→3, owned types300→16, survivor classes75→2 and attributes949→667.
+With exactly two stoppable integer contenders under race, aggregate108-query
+attribute-dependency wall time was14.918076s→6.151810s and72-query survivor-shape
+time32.294920s→2.050746s. These are workload measurements, not CPU counts,
+universal timing thresholds or proof of historical host starvation.
+The original continuous source chain and complete full/empty/direct/prepared
+metadata, exact RESTRICT/CASCADE notices/diagnostics, remaining b edges and
+survivor18/fresh writes remain mandatory. Failure-only diagnostics identify
+backend/DDL owner, phase/query, elapsed and remaining original budget.
+
+
 ```sh
 make check RUN='^TestReferenceDomainDefaultCompositeFieldDependencies$' REFERENCE=1
 make check RUN='^TestReferenceDomainDefaultCompositeFieldDependencies$'
 make check RUN='^TestReferenceDomainDefaultCompositeFieldDependencies$' RACE=1
+make check RUN='^TestReferenceDomainDefaultCompositeFieldDependencies$' REFERENCE=1 RACE=1
 # Unchanged companion explicitly owns failed/canceled restore acceptance.
 make check RUN='^TestReferenceDomainDefaultNativeControls$' REFERENCE=1
 make check RUN='^TestReferenceDomainDefaultNativeControls$'
 make check RUN='^TestReferenceDomainDefaultNativeControls$' RACE=1
 ```
 
-Use external900-second deadlines. Standalone public smoke must consume real dump
-bytes on the same attachment and an independent Driver, observe fresh18 writes,
-and verify failed23502/canceled Restore preserves sentinel42/no bad_restore plus
-a subsequent valid default write. Selected companion proof retains full v22/p52.
+Use external900-second deadlines. The standalone public-API client is retained
+as OMP run archive `local://jsonb-regtype-smoke-main.go`, not a committed tool.
+Set `SMOKE` to its absolute path from the run handoff, then run
+`go run "$SMOKE" -scenario domain -rounds 3 -contention-workers 0` and
+`go run -race "$SMOKE" -scenario domain -rounds 3 -contention-workers 2`.
+It checks authentic defaults/dependencies, exact RESTRICT/CASCADE diagnostics
+and notices, actual Dump/no mutation, SAME-attachment and independent-Driver
+replay, full/empty metadata and fresh18 writes. Selected companion proof retains
+the full failed/canceled Restore preservation vector v22/p52; native smoke is
+not PostgreSQL oracle evidence.
 
 ### PATH scalar contract
 

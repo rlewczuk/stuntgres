@@ -283,6 +283,38 @@ PostgreSQL. Cancellation uses
 stored JSONB arrays with real provider/server admission, joined workers and
 sentinel checks after canceled/late-failing writes.
 
+`TestReferenceJSONBRecordCancellation` gives `read`, `write` and `valid`
+independent setup-born 30-second fixtures for each available backend. Each
+admission→cancel→join→SAME-held recovery chain remains uninterrupted on that
+context; admission15s/join5s and the generic observer are unchanged. Every
+attempt still imports eight stored arrays of 1,048,576 elements. Native
+direct/held precancel Query/Exec/Prepare checks, nil publication, sentinel
+`0/{99}`, small recovery sum/count9, late22P02/no prefix writes, absent failed
+CTAS and SAME-writer9/total10 remain required. Failures report attempt/backend,
+named phase/query, elapsed and remaining context; success stays quiet.
+
+The finite standalone measurement used independently owned successful-large
+comparisons (read sum8,388,609, valid9, writer9/total10), never charging those
+comparisons to an active cancellation case. Race observations required2–4
+stack samples and2.77–56.49ms to admission; these measurements did not justify
+changing the shared observer and do not prove historical starvation.
+
+```sh
+make check RUN='^TestReferenceJSONBRecordCancellation$' REFERENCE=1
+make check RUN='^TestReferenceJSONBRecordCancellation$'
+make check RUN='^TestReferenceJSONBRecordCancellation$' RACE=1
+make check RUN='^TestReferenceJSONBRecordCancellation$' REFERENCE=1 RACE=1
+```
+
+Use external900-second deadlines. The public-API standalone source is the OMP
+run archive `local://jsonb-regtype-smoke-main.go`, not a committed fixture tool.
+Set `SMOKE` to that archive's absolute path from the run handoff, then run
+`go run "$SMOKE" -scenario jsonb -rounds 3 -contention-workers 0` and
+`go run -race "$SMOKE" -scenario jsonb -rounds 3 -contention-workers 2`.
+The native client checks actual admission/errors/recovery and atomicity; it
+does not replace selected pinned PostgreSQL18.6 proof.
+
+
 ### JSONB containment
 
 The six `TestReferenceJSONBContainment` entrypoints specify structural `@>`

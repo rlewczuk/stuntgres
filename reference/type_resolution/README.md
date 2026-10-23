@@ -1017,6 +1017,44 @@ existing PostgreSQL-only phase; its native assertions are unchanged.
 definition is located after the unrelated NamedDomainReplay test. Executable
 and NamedDomainReplay are unchanged preservation siblings, not extra callers.
 
+`TestReferenceRegtypeArrayDisplacementControls` has five independent kind
+lifecycles: table, query_table, domain, enum and view. Each selects all four
+original creation-order×direct/prepared-DDL cases from the unchanged20-case
+inventory before constructing a fixture. Each backend's context is born before
+its setup, not refreshed inside a dependent source chain. Batching and the
+reciprocal query narrowing above remain unchanged.
+
+Each source completes creation/reference checks, actual Dump, SAME-attachment
+Reset/Restore, logical checks, retained rows and invalid late Restore with
+unchanged-source checks before an independent spacer target is created.
+The original `w_d_domain_true_false` retained cursor and
+`d_domain_true_false[]` witness remain in the domain group. Every one of the
+five actual emitted four-case streams is replayed on PostgreSQL after that
+backend's independent original creation/source checks. No stream is synthesized.
+Positive/distinct/reciprocal identities, generated aliases, stored/default/view
+references, raw/metadata/nullability and v7 remain required on all20 cases.
+Failures name context owner/kind/case, phase and remaining budget; successful
+runs remain quiet. This local ownership is not MixedReplay's phase-context
+pattern described below, and no shared scenario/checker changes are needed.
+
+```sh
+make check RUN='^TestReferenceRegtypeArrayDisplacementControls$' REFERENCE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacementControls$'
+make check RUN='^TestReferenceRegtypeArrayDisplacementControls$' RACE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacementControls$' REFERENCE=1 RACE=1
+```
+
+Each command has an external900-second deadline. For the actual public-API
+client, set `SMOKE` to the absolute OMP run archive
+`local://jsonb-regtype-smoke-main.go` identified in the handoff and run
+`go run "$SMOKE" -scenario controls -rounds 3 -contention-workers 0`, then
+`go run -race "$SMOKE" -scenario controls -rounds 3 -contention-workers 2`.
+This native client checks all20 identities/reference recipes and actual
+same/fresh replay, including retained domain rows and failed replacement.
+It cannot claim PostgreSQL replay; the selected real-mode definition owns all
+five actual-stream oracle checks.
+
+
 MixedReplay alone gives each cohesive phase a fresh 30-second context rooted
 in `t.Context()`: backend borrowing/schema/search-path setup, creator-pair
 setup, identity batch, each complete case check, each data witness, Dump,
