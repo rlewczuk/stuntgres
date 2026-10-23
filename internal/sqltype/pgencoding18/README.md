@@ -57,7 +57,7 @@ A transform allocates only its final immutable output; identity and SQL_ASCII
 paths reuse the source string. Numeric size checks use the release huge
 allocation and result-allocation limits before output publication.
 
-## Independent coverage
+## Testing
 
 Package units contain literal witnesses for all 128 pairs/all 42 identities,
 verifier error widths and permissive identity cases, all 25 combined mappings
@@ -65,5 +65,9 @@ per JIS2004 encoding in both directions, radix zero/boundary entries, all 13
 GB18030 range endpoints and adjacent GB gaps, Japanese replacement/IBM/UDC,
 JIS2004 plane boundaries, BIG5/CNS private planes and direct table holes.
 Generator units exercise invalid syntax, declarations and reachable bounds.
-Public independently specified PostgreSQL goldens remain in the repository's
-external `reference` package; they are not generated from this implementation.
+Public, independently specified PostgreSQL goldens live in `reference/`; they
+are never generated from this implementation.
+
+```sh
+make check RUN='^TestBinaryEncoding'
+```

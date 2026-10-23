@@ -21,14 +21,11 @@ algorithms it applies live in [`authorization`](../authorization/README.md).
   - Identity: `Ref` mints a reference in the view's epoch, `Stamp` names the
     captured publication, `Recapture` binds a substituted catalog to the same
     role root.
-  - Helpers: `DescriptorACL`, `ClassPrivileges`, `ValidateACL`.
-    Global access methods have no owner or ACL: ValidateACL classifies them
-    alongside the existing ownerless descriptors, while their catalog provider
-    validates structural and handler authority. Owning descriptors still reject
-    every zero/foreign principal.
-    `make check RUN='^TestAccessMethodOwnerlessACLValidation$'` covers this boundary
-    without public SQL; publication and control witnesses remain in the shared
-    [access-method suite](../../../reference/indexes/README.md#access-method-definitions).
+  - Helpers: `DescriptorACL`, `ClassPrivileges`, `ValidateACL`. Global
+    access methods have no owner or ACL: `ValidateACL` classifies them with
+    the other ownerless descriptors, while their catalog provider validates
+    structural and handler authority. Owning descriptors reject every
+    zero or foreign principal.
 - **`Environment`**: the two session inputs of the checks.
   `TemporaryNamespace()` returns the session's own TEMP namespace, and
   `ReferencePath()` returns the search path that qualifies type names in
@@ -94,7 +91,7 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
 
 - `AuthorizationView`: statement-level authority that embeds `View` and adds
   the session, settings, definition reader and path inputs. It holds no
-  engine (B7): one constructor gives it a pointer to the engine's
+  engine: one constructor gives it a pointer to the engine's
   `authorityInputs` (the engine's domain for path references and the TEMP
   token check, the settings registry for the boot `search_path`, and
   the published storage that `StorageLocked` reads under the engine mutex),
@@ -112,8 +109,8 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
 - Search path resolution (functions over `AuthorizationView`) and
   `temporaryNamespace` and RLS configuration. The binding and rule-program
   `row_security` walkers, which call `access` for each object, are
-  `view.CheckRowSecurityBinding` and `view.CheckRowSecurityRuleProgram`
-  (view 27i); the stored-view source walker is `view.CheckRowSecuritySource`.
+  `view.CheckRowSecurityBinding` and `view.CheckRowSecurityRuleProgram`; the
+  stored-view source walker is `view.CheckRowSecuritySource`.
   The binding walkers (`CheckBinding`, `CheckQuerySources`) are in
   `analyze`; the walkers over view definitions and view writes
   (`CheckWrite`, `AuthorizeSource`, `CheckRowMarks`, `QueryTableRefs`) are
@@ -122,26 +119,19 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
 
 ## Testing
 
-Run from the repository root under the shared
-[testing policy](../../../docs/TESTING.md). The package tests build a catalog
-owner, a seeded role root and a current database without an engine, and pin
-the view's owner, pairing and epoch rejection, `RoleRead`'s owner and domain
-checks, the lazy TEMP environment, `RowSecurityPrincipal`, DROP OWNED policy
-cleanup, the `RowSecurityKind` fallback and the TEMP namespace helpers:
+The package tests build a catalog owner, a seeded role root and a current
+database without an engine, and pin the view's owner, pairing and epoch
+rejection, `RoleRead`'s owner and domain checks, the lazy TEMP environment,
+`RowSecurityPrincipal`, the row-security setting guard, DROP OWNED policy
+cleanup, the `RowSecurityKind` fallback, the TEMP namespace helpers and the
+ownerless ACL validation of access methods and casts. Engine unit tests
+exercise the checks through `AuthorizationView`.
 
 ```sh
-timeout 900s make check RUN='^(TestViewRejectsForeignOrStaleObjects|TestRoleReadRequiresOwnerDomainAndRoot|TestViewTemporaryNamespaceOnlyFromEnvironment|TestRowSecurityPrincipalFollowsInnermostDefiner|TestDropOwnedPolicyTargets|TestRowSecurityKindDelegatesOtherKinds|TestOwnTemporaryNamespaceNeedsTheSessionTemporarySchema|TestAdjustRelationCreationPersistenceReadsTemporaryLazily)$'
+make check RUN='^Test(AccessMethodOwnerlessACLValidation|AdjustRelationCreationPersistence|CastDefinitionOwnerlessACL|DropOwnedPolicyTargets|OperatorFamilyMemberOwnershipValidation|OwnTemporaryNamespace|RoleReadRequiresOwnerDomainAndRoot|RowSecurity(KindDelegates|PrincipalFollows|SettingGuard)|View(RejectsForeign|TemporaryNamespaceOnly))'
+make check RUN='^Test(AccessView|RoleStore|DatabaseTemporaryCapturedRights|DataTypePrivilegesCapture|ObjectACLAddressLookup|RLS|Ownership|RoleOwnership|DropOwned|ReassignOwned)'
+make check RUN='^TestReference(AccessRole|ForeignActionsAuthorization|SchemaAuthorization$$|TypedTableAuthorization$$)'
 ```
 
-Engine unit tests exercise the checks through `AuthorizationView`:
-
-```sh
-timeout 900s make check RUN='^(TestAccessView.*|TestRoleStore.*|TestDatabaseTemporaryCapturedRights|TestDataTypePrivilegesCapture|TestObjectACLAddressLookup|TestRLS.*|TestOwnership.*|TestRoleOwnership.*|TestDropOwned.*|TestReassignOwned.*)$'
-```
-
-Public behavior is covered by the dual-mode reference tests; run each with
-`REFERENCE=1` and in quick mode:
-
-```sh
-timeout 900s make check REFERENCE=1 RUN='^(TestReferenceAccessRole.*|TestReferenceForeignActionsAuthorization.*|TestReferenceSchemaAuthorization|TestReferenceTypedTableAuthorization)$'
-```
+Access-method publication and control witnesses are in the
+[access-method suite](../../../reference/indexes/README.md#access-method-definitions).

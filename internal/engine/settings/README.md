@@ -14,11 +14,12 @@ import this package directly.
 
 - **Definitions** (`definition.go`, `metadata.go`): `Definition` with `Type`,
   `Access`, `Unit`, category and optional extra description; builtin metadata
-  follows PostgreSQL18 English wording. `Validate` captures custom category
-  `Customized Options`, dotted names, bounds, enums and exact typed boot values;
-  `BootValue`, `FoldName`, `CustomName`, `DisplayName` and `SessionDefaultProvider`.
-  Validation errors use the same `"stuntgres: "` prefix as the engine's `RegistrationError`,
-  which stays in the engine because foreign-data registration shares it.
+  follows PostgreSQL 18 English wording. `Validate` captures the custom
+  category `Customized Options`, dotted names, bounds, enums and exact typed
+  boot values; `BootValue`, `FoldName`, `CustomName`, `DisplayName` and
+  `SessionDefaultProvider`. Validation errors use the same `"stuntgres: "`
+  prefix as the engine's `RegistrationError`, which stays in the engine
+  because foreign-data registration shares it.
 - **Builtins** (`builtins.go`, `messages.go`, `format_encoding.go`): the
   private builtin table in PostgreSQL 18.0 `short_desc` wording, the
   `application_name`, `client_min_messages` (`ClientMinMessages`),
@@ -51,35 +52,27 @@ import this package directly.
 
 ## What stays in the engine
 
-SET/RESET/SHOW execution, `current_setting`/`set_config`, RESET ALL and the
-`pg_settings` producer. Per-session storage and the SET LOCAL action stack
-(`SettingsStore`), command admission, timeout publication, notice levels and
-emission (13d.6), and the presentation capture, definition lookup, value
-parse, SET input and access-class check (13g) live in
-[`session`](../session/README.md).
+SET/RESET/SHOW execution, `current_setting`/`set_config` and RESET ALL stay
+in the engine (see the
+[engine README](../README.md#immutable-settings-registry)); the `pg_settings`
+producer is in `pgcatalog`. Per-session
+storage and the SET LOCAL action stack (`SettingsStore`), command admission,
+timeout publication, notice levels and emission, and the presentation
+capture, definition lookup, value parse, SET input and access-class check
+live in [`session`](../session/README.md).
 
 ## Testing
 
-Follow the [shared testing guide](../../../docs/TESTING.md). Run from the
-repository root.
-
-Pure definition behavior (typed input and formatting, normalizers,
-search-path parsing):
+Package units cover typed input and formatting, the normalizers, search-path
+parsing, registry metadata and raw integer/real formatting:
 
 ```sh
-make check RUN='^Test(ParseAndFormatTypedInput|EncodingLocaleAndLevelNormalizers|ApplicationNameNormalizer|ParseSearchPath)$'
+make check RUN='^Test(ParseAndFormatTypedInput|EncodingLocaleAndLevelNormalizers|ApplicationNameNormalizer|ParseSearchPath|SettingsMetadata(Raw|Registry))$$'
 ```
 
-Engine-side session, publication and public SQL selectors are in the
-[engine README](../README.md#immutable-settings-registry).
-
-Registry metadata and raw integer/real formatting are supplemented by:
-
-```sh
-make check RUN='^TestSettingsMetadata(Raw|Registry)$'
-```
-
-The shared public metadata, registered-custom and actual feature-smoke scenarios
-live in [reference/session_state](../../../reference/session_state/README.md#runtime-settings-metadata);
-run their selected definitions in native and pinned PostgreSQL modes.
-
+Public metadata, registered-custom and SHOW scenarios live in
+[reference/session_state](../../../reference/session_state/README.md#testing).
+Their `SHOW ALL` expectations assert every built-in description independently
+against PostgreSQL 18.0 `short_desc`, including the current and default
+transaction settings, and every registered custom description, with no
+empty-string exemptions.

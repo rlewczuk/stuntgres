@@ -3,17 +3,16 @@
 Sequence objects: option validation and limits, a physical session's sequence
 memory, prepared sequence literals, the decisions of sequence, identity and
 serial DDL and of the sequence functions, sequence dump formatting and the
-sequence and identity diagnostics. The package sits at layer L9 of
+sequence and identity diagnostics. Everything here is a pure function over
+catalog records, parser syntax and the session memory; the engine keeps the
+orchestration.
+
+The package sits at layer L9 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
 imports only `authorization`, `catalog`, `expr`, `functions`, `ids`,
 `session`, `storage`, `parser`, `sqltype`, `sqlstate` and the standard
-library, and never `analyze`, `exec` or the engine. Step 17 of the split
-moves it here; see
+library, and never `analyze`, `exec` or the engine. See
 [ENGINE-SPLIT-sequence.md](../../../docs/ENGINE-SPLIT-sequence.md).
-
-Everything here is a pure function over catalog records, parser syntax and
-the session memory; the engine keeps the orchestration (decisions move,
-orchestration stays, as in the 17c plan).
 
 ## What it owns
 
@@ -66,7 +65,7 @@ orchestration stays, as in the 17c plan).
 ## Rules
 
 - Sequence DDL and the sequence functions use relation descriptors, central
-  ACLs and the existing transaction, lock and query paths.
+  ACLs and the shared transaction, lock and query paths.
 - Session memories are distinct from transactional sequence metadata (the
   catalog's `SequenceOptions`) and from the shared generator, which stays in
   [`storage`](../storage/README.md) with its rules. Never use per-CACHE
@@ -134,23 +133,19 @@ input and output. The generic relation diagnostic is
 
 ## Testing
 
-Package seams:
+Package units pin the session memory, relation shape, generators,
+`CallLocked`, privileges, prepared analysis validity and fences,
+`PinReplacement`, `TemporaryEpochValid`, `DefinitionStamp`, `AlterEffects`,
+identity option splitting, control copy/retain and the stage slot. Engine
+witnesses exercise the package through sessions, DDL, DISCARD, TRUNCATE
+RESTART IDENTITY and native Dump/Restore; add `RACE=1` for concurrent
+`nextval` and TEMP teardown.
 
 ```sh
-make check RUN='^TestSequence(SessionMemoryInspection|NewRelationShape|Generators|CallLocked|CallLockedSetval|CallPrivilegesAndReadOnly|AnalysisValid|AnalysisValidFences|PinReplacement|TemporaryEpochValid|DefinitionStamp|AlterEffects|SplitIdentityOptions|ControlCopyAndRetain|StageSlot)$'
+make check RUN='^TestSequence'
+make check RUN='^Test(Discard|Serial|Identity|TruncateRestart)'
 ```
 
-Engine witnesses that exercise the package through sessions, DDL, DISCARD,
-TRUNCATE RESTART IDENTITY and native Dump/Restore (add `RACE=1` for
-concurrent `nextval` and TEMP teardown):
-
-```sh
-make check RUN='^Test(Discard|Sequence|Serial|Identity|TruncateRestart|Ownership|AlterTablespacePrefix|GroupingSetsRestoreWhitelist|TemporaryTable)'
-```
-
-Public behavior is covered by `reference/sequences`, the identity, serial,
-DISCARD, TRUNCATE and Control tests (quick mode, then `REFERENCE=1`):
-
-```sh
-make check RUN='^TestReference(Sequence|Serial|Identity|SmokeSequence|SmokeIdentity|Discard|AlterIdentity|AlterTypeIdentity|TruncateRestart|Control|CollationTemporary|TemporaryTable|AlterNullability|CheckSequence|CheckAlterOwnedSequence|DeleteUsingSequence|DeleteReturningSequence|ConditionalSequence)'
-```
+Public behavior lives in
+[reference/sequences](../../../reference/sequences/README.md#testing), plus the
+identity, serial, DISCARD, TRUNCATE and Control families.

@@ -5,7 +5,8 @@ versions, deletion roots, logical B-tree and hash index roots, sequence
 generator state, and the `Store` that owns them. The package sits at layer
 L4 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `catalog`, `expr`, `ids`, `sqltype` and the standard library,
-and never the engine.
+and never the engine. See
+[ENGINE-SPLIT-storage.md](../../../docs/ENGINE-SPLIT-storage.md).
 
 ## What it owns
 
@@ -59,8 +60,8 @@ and never the engine.
   and allocated in order; failed work may leave gaps.
 - **Sequence generators.** Generator state is nontransactional and distinct
   from the transactional sequence options in the catalog and from the
-  per-session currval/lastval memories of [`sequence`](../sequence/README.md). Never add live catalog
-  undo or per-CACHE arrays for it.
+  per-session currval/lastval memories of [`sequence`](../sequence/README.md).
+  Never add live catalog undo or per-CACHE arrays for it.
 - **Maintenance provenance.** `RowVersion.InsertFullXID` is actual canonical
   committed publisher identity, independent of Born CommitSeq. Frozen headers
   retain it. `ImportFrozen` explicitly denotes an atomically committed detached
@@ -72,7 +73,7 @@ and never the engine.
   actual unfrozen publisher without rescanning old versions. Unknown bounds
   remain unknown until engine initialization against the canonical safe cutoff.
   Remint initializes current Live from committed visible capture cardinality,
-  Dead0, and independently resets scan/vacuum/cumulative history; transport is
+  Dead 0, and independently resets scan/vacuum/cumulative history; transport is
   not counted as native committed INSERT activity.
 - **VACUUM roots.** `InspectVacuum` counts and chooses exact committed matching
   end/version retirement; `MaterializeVacuum` copies headers only when changed,
@@ -85,44 +86,31 @@ and never the engine.
 
 ## What stays in the engine
 
-Write staging (`WriteStage`), the overlays
-that consult the transaction catalog journal (`privateStorageLocked`,
+Write staging (`WriteStage`), the overlays that consult the transaction
+catalog journal (`privateStorageLocked`,
 `sequenceGeneratorLocked`, `domainStageIndexRootLocked`), DML candidate
 building, index builds and maintenance orchestration, Restore, Dump and
 replacement, and sequence DDL and transactional sequence metadata. Session
-sequence memories belong to [`sequence`](../sequence/README.md). Index key comparison
-(`index.OutputMatches`) belongs to [`index`](../index/README.md). The transaction-private deletion overlay and
-the single concrete `HeapOperations.LiveVersion` rule belong to
+sequence memories belong to [`sequence`](../sequence/README.md). Index key
+comparison (`index.OutputMatches`) belongs to [`index`](../index/README.md). The
+transaction-private deletion overlay and the single concrete
+`HeapOperations.LiveVersion` rule belong to
 [`visibility`](../visibility/README.md). Registered heap operations consume these
-existing version vectors/end roots; they do not wrap or replace `storage.Relation`.
+version vectors and end roots; they do not wrap or replace `storage.Relation`.
 
 ## Testing
 
-Package seams and selected storage-map publication witnesses:
+Package units pin the allocators, `IndexRootsCurrent`, index identity and
+truncate lineage. Engine witnesses cover storage-map publication
+(materialized views, generated replacement, unique and concurrent index
+publication, TRUNCATE generations, TEMP cleanup, commit-time publication) and
+VACUUM roots; public sequence, control and hash-partition replacement
+witnesses are in `reference/`.
 
 ```sh
-make check RUN='^Test(StoreAllocateRowVersionsInOrder|StoreAllocateRowVersionsExhaustion|StoreSingleAllocatorsAdvanceIndependently|StoreIndexRootsCurrent|RelationIndexIdentity|RelationSameTruncateLineage)$'
-make check RUN='^Test(MaterializedViewSnapshotImport|MaterializedViewPublication|GeneratedReplacementStaleAuthority|GeneratedReplacementLateCancellation|ControlTransactionsReplacementCancellationBoundary|CommitTimePublication)$'
-make check RUN='^Test(UniqueIndexPublicationStreaming|UniqueIndexPublicationCancellation|TruncateGeneration|TruncateIndexes|MaterializedRefreshPublicationFences|TemporaryTableCleanupPublication)$'
-make check RACE=1 RUN='^Test(ConcurrentIndexU1RootPhasesAndVersions|ConcurrentIndexU6ReadyCancellationReleasesSUE|UniqueIndexPublicationCancellation|GeneratedReplacementStaleAuthority|GeneratedReplacementLateCancellation|TemporaryTableCleanupPublication)$'
-make check RUN='^TestVacuum(SnapshotSafety|CompactionIndexes|PublicationFences|FreezeProvenance|ImportHorizons|MetadataStatistics)$'
+make check RUN='^Test(Store|Relation(IndexIdentity|SameTruncateLineage))'
+make check RACE=1 RUN='^Test(ConcurrentIndexU1RootPhasesAndVersions|ConcurrentIndexU6ReadyCancellationReleasesSUE|UniqueIndexPublication(Streaming|Cancellation)|GeneratedReplacement(StaleAuthority|LateCancellation)|TemporaryTableCleanupPublication)$$'
+make check RUN='^Test(MaterializedViewSnapshotImport|MaterializedViewPublication|MaterializedRefreshPublicationFences|ControlTransactionsReplacementCancellationBoundary|CommitTimePublication|TruncateGeneration|TruncateIndexes)$$'
+make check RUN='^TestVacuum'
+make check RUN='^TestReference(ControlSnapshotSurvivesCatalogReplacement|ControlFailedRestorePreservesCatalog|HashPartition(Controls|FinalRemap))$$'
 ```
-
-Public sequence and replacement witnesses retain independent expectations:
-
-```sh
-make check RUN='^TestReferenceSequence(DefaultsPrepared|SessionsSetvalRollback|TransactionalRestartDDL)$'
-make check REFERENCE=1 RUN='^TestReferenceSequence(DefaultsPrepared|SessionsSetvalRollback|TransactionalRestartDDL)$'
-make check RUN='^TestReference(ControlSnapshotSurvivesCatalogReplacement|ControlFailedRestorePreservesCatalog|SequenceTemporaryPreparedIdentitySurvivesPersistentControls)$'
-make check REFERENCE=1 RUN='^TestReference(ControlSnapshotSurvivesCatalogReplacement|ControlFailedRestorePreservesCatalog)$'
-make check RUN='^TestReferenceHashPartition(Controls|FinalRemap)$'
-make check REFERENCE=1 RUN='^TestReferenceHashPartition(Controls|FinalRemap)$'
-make check RACE=1 RUN='^TestReferenceHashPartition(Controls|FinalRemap)$'
-```
-
-Held readers keep their old INT4 rows 1,2 across replacement; fresh native
-reads see TEXT 99. Failed Restore retains sentinel 77 and no replacement.
-The TEMP prepared-identity control witness is native-only, not PostgreSQL
-control-API coverage. See [TESTING.md](../../../docs/TESTING.md) for pinned
-PostgreSQL policy and the storage split's selected DML/index/TRUNCATE/materialized
-replay evidence in [ENGINE-SPLIT-storage.md](../../../docs/ENGINE-SPLIT-storage.md).

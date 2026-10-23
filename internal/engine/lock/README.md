@@ -19,18 +19,24 @@ engine.
   `ids.ObjectRef`), a logical row (`Row`), an interned unique key
   (`PinUniqueKey`), a transaction's completion (`CompletionOf`) or an advisory
   key (`Kind`, `High`, `Low`). `Mode` uses PostgreSQL's table and row lock
-  names; `Conflicts` is the conflict table. Advisory grants are counted
-  (`Hold.Shared`, `Hold.Exclusive`).
+  names; `Conflicts` is the conflict table. A ticket's modes accumulate as bits,
+  not a strongest-mode ranking, and an owner never conflicts with itself. Advisory
+  grants are counted (`Hold.Shared`, `Hold.Exclusive`).
 - **Queues and waits.** `StartAcquire` grants at once or returns the queued
   `Request`, which the caller waits on (`Wait`) after releasing its own
   locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,
-  the caller's source context and the session request's provenance.
-  `WaitError` decides a wait's outcome from absolute SQL deadlines, not from
-  callback scheduling. `TimeoutSlot` lets the session observe a pending SQL
-  timeout without the manager mutex.
+  the caller's source context and the session request's provenance. Each queued
+  acquisition gets its own fresh lock-timeout deadline; immediate grants are
+  untimed. `WaitError` decides a wait's outcome from absolute SQL deadlines, not
+  from callback scheduling: the earlier deadline wins and an exact tie favors the
+  lock timeout. Queue settlement checks the deadline before granting, so a late
+  release fails rather than extending the timeout. `TimeoutSlot` lets the
+  session observe a pending SQL timeout without the manager mutex. Only the
+  manager grants or removes requests.
 - **Deadlock detection.** Every new wait runs detection over the live queues.
-  Soft cycles are resolved by reordering queues when a proposal removes every
-  cycle; otherwise one request gets `40P01` with an exact witness.
+  Cancellation and deadlines are normalized before graph decisions. Soft cycles
+  are resolved by reordering queues when a proposal removes every cycle;
+  otherwise one request gets `40P01` with an exact witness.
 - **Savepoints and unique-key candidates.** `Checkpoint`/`Restore` and the
   unique-key variants restore held contributions, never pending requests.
   `BeginUniqueDelta`, `RestoreUniqueDelta` and `EndUniqueDelta` journal the
@@ -39,7 +45,7 @@ engine.
   `EndDelta`, `RestoreDelta`); the engine's DML code uses it.
 - **MultiXact history.** The manager owns immutable MultiXact records, the
   nonzero modular counter and the association with exact row versions
-  (`PhysicalEvents`, `MultiXactMembers`, `MultiAge`). Arbitration still uses
+  (`PhysicalEvents`, `MultiXactMembers`, `MultiAge`). Arbitration uses
   `ObjectRef` and `RowID`; history adds `VersionID`, so a successor copies the
   predecessor's original raw xmax ID and full member set, including ended or
   mixed-mode members. A batch is prepared completely before any counter or
@@ -75,11 +81,11 @@ engine.
 
 `Manager.mu` guards every map, queue, journal and counter above. Engine code
 reaches it only through `Manager` methods; no method runs a caller callback
-under it. The order below was audited in engine-split step 4a.
+under it.
 
 - `mu` is innermost. It may be taken while the engine holds `replacementMu`
-  (admission reservation) or a `session.TransactionOwner.Mu` (savepoint checkpoint and
-  restore, finish).
+  (admission reservation) or a `session.TransactionOwner.Mu` (savepoint
+  checkpoint and restore, finish).
 - It is never taken while holding `Engine.mu`, `Session.Mu`,
   `SettingsStore.Mu` or `Engine.sessionMu`. Callers release `Engine.mu`
   before calling the manager.
@@ -93,16 +99,13 @@ For reference, the surrounding engine order takes `replacementMu` and
 `Engine.sessionMu`. Session code reaches the engine only through
 `session.Host`: `Unregister` runs under `Session.Mu` and takes only
 `Engine.sessionMu`; `EndMaintenance` runs with no session lock held, outside
-every `SessionResource` callback, and may take `Engine.mu`.
-The session-layer mutexes are exported fields of `session` types
-(`Session.Mu`, `TransactionOwner.Mu` and `Admission`, `SettingsStore.Mu`;
-exported in engine-split 13d.5, moved in 13d.6); their order and ownership
-are unchanged. `NewOperation`, the third `session.Host` method, only
-allocates and takes no lock. The LISTEN/NOTIFY registry and listener fields
-(`session.NotificationRegistry`, `session.NotificationListener`, 13h) belong
-to `Engine.mu`; only root code takes it around their `…Locked` methods, and
-the root `notificationSessionEnd` resource callback takes it to end a
-listener.
+every `SessionResource` callback, and may take `Engine.mu`; `NewOperation` only
+allocates and takes no lock. The session-layer mutexes are exported fields of
+`session` types (`Session.Mu`, `TransactionOwner.Mu` and `Admission`,
+`SettingsStore.Mu`). The LISTEN/NOTIFY registry and listener fields
+(`session.NotificationRegistry`, `session.NotificationListener`) belong to
+`Engine.mu`; only root code takes it around their `…Locked` methods, and the
+root `notificationSessionEnd` resource callback takes it to end a listener.
 
 Ticket atomics (`AssignedPublicXID`, `OwnershipEnded`, `CompletionState`) are
 readable without `mu`; the engine updates them under `Engine.mu`, which is why
@@ -139,9 +142,9 @@ identity (ticket and request pointers, interned key values):
 - `Request.Terminal`, `Request.Released` (terminal, timer and callback
   disarmed) and `MutexHeld` let tests observe lifecycle without the mutex.
 
-The defining type of `Request` keeps the name `relationRequest`, and `Wait`
-blocks in `(*relationRequest).wait`: the reference suite recognizes a parked
-lock wait by that frame. Keep both names.
+**Frame names matched by tests.** The defining type of `Request` is
+`relationRequest`, and `Wait` blocks in `(*relationRequest).wait`: the reference
+suite recognizes a parked lock wait by that frame. Keep both names.
 
 ## What stays in the engine
 
@@ -149,63 +152,22 @@ Query lock admission, `LOCK TABLE` statement handling and relation scopes
 (they combine locks with the catalog), the `pg_locks` projection and engine
 adapters for advisory and blocking-inquiry SQL, predicate-lock (SSI) records,
 safe-snapshot blocking, the exclusion projection registry instance,
-unique-key pins, and XID
-assignment. The registry type (`index.ExclusionRegistry`) and the unique
-key the pins lock (`index.UniqueKeyValues`, `index.UniqueKeyHash`) are
+unique-key pins, and XID assignment. The registry type
+(`index.ExclusionRegistry`) and the unique key the pins lock
+(`index.UniqueKeyValues`, `index.UniqueKeyHash`) are
 [`index`](../index/README.md) code. The advisory/blocking immutable nodes
-and family bind/evaluation recipes live in `functions`, not in this manager;
-engine adapters retain resource construction, ticket choice and lock ordering.
+and family bind/evaluation recipes live in `functions`; engine adapters retain
+resource construction, ticket choice and lock ordering.
 
 ## Testing
 
 Unit tests run on `lockFixture` (`fixture_test.go`), which mints tickets and
-resources from an `ids.Domain` without an engine. They cover deadlock search,
-review, publication, lifecycle and deadlines, type locks, advisory counts and
-delayed callbacks, blocking-PID journal authority and lifecycle, MultiXact age,
-cache and counter wrap, `pg_locks` records and capture against concurrent XID
-assignment, and delayed deadline release. Run them with the race detector:
+resources from an `ids.Domain` without an engine; drive deadlines with
+`ExpireWait` and explicit instants, never sleeps. Run them with the race
+detector. Engine tests that need an engine stay in `internal/engine` and read
+lock state only through the diagnostic seam.
 
 ```sh
-make check RACE=1 RUN='^Test(RelationDeadlock|RelationLockWaitsDelayedDeadlines|TypeLockLifecycle|Advisory(CountedGrantsAndOverflow|ExpiredSourceWinsDelayedCallback)|BlockingPids(AdvisoryAuthority|Lifecycle)|MultiXact|PGLocks(ResourceRecords|ConcurrentAssignmentCapture))'
+make check RACE=1 RUN='^Test(RelationDeadlock|RelationLockWaits(DelayedDeadlines|TimeoutPerAcquisition)|TypeLock|Advisory(Counted|Expired)|BlockingPids(AdvisoryAuthority|Lifecycle)|MultiXact|PGLocks(ResourceRecords|ConcurrentAssignment)|UniqueJournal)'
+make check RUN='^TestPgrowlocks'   # pgrowlocks capture through a real engine
 ```
-
-`TestRelationLockWaitsTimeoutPerAcquisition` uses the real manager, one waiter
-ticket and one policy across two different relation resources. It checks each
-generated deadline against that acquisition's start, ages only the first
-request's private deadline under `mu`, and supplies explicit instants to
-`ExpireWait`. Each wait consumes three quarters of its own budget; the second
-crosses the first deadline, and both requests transfer successfully. The total
-modeled wait is therefore one and a half budgets. A final request must fail
-exactly at its own deadline with `55P03` and the exact lock-timeout diagnostic.
-Grant ownership, callback retirement and empty teardown are also asserted.
-Reusing a request deadline or deducting an earlier wait from a later budget
-violates the fresh-deadline bound or the second wait's successful outcome.
-
-This replaces the engine's sleep-only duplicate: sleeping 120ms does not
-guarantee release within a 200ms timeout. `StartAcquire` installs a fresh
-absolute deadline, and queue settlement checks it before granting, even when
-the timer callback is delayed. A late release must fail rather than extend the
-timeout. No production clock, timeout or lock-order behavior changes.
-
-Selected mechanism smoke (also run with `RACE=1`):
-
-```sh
-make check RUN='^TestRelationLockWaitsTimeoutPerAcquisition$'
-```
-
-Expected: two granted acquisitions despite cumulative modeled waits exceeding
-one budget, exact-boundary timeout on the third, and no retained lock state.
-This is private manager coverage, not a public SQL/API witness; it needs no
-new reference definition or real-mode oracle run.
-
-Engine tests that need an engine stay in `internal/engine` and read lock state
-only through the diagnostic seam.
-
-Pgrowlocks engine-level mechanism witnesses use genuine canonical XID
-assignment, row grants and physical events; no fake SQL rows:
-
-```sh
-make check RUN='^TestPgrowlocks(Capture|Eligibility|RelationIdentity|InheritedOwnerProvenance)$'
-make check RACE=1 RUN='^TestPgrowlocks(Capture|Eligibility|RelationIdentity|InheritedOwnerProvenance)$'
-```
-

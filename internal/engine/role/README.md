@@ -3,12 +3,14 @@
 Role and ACL DDL decisions: GRANT/REVOKE targets, request and plan,
 database GRANT, the SET ROLE and SESSION AUTHORIZATION targets, DROP ROLE,
 the ALTER DEFAULT PRIVILEGES plan, the ALTER ... OWNER checks, the REASSIGN
-OWNED and DROP OWNED plan and staging, and the role diagnostics. Step 28 of
-the engine split created it (28b moved the clean set; 28d moved the handler
-decisions behind `Host` and `StageHost`). The package is an upper feature
-at layer L12 of
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
-it imports `access`, `analyze` (types and pure functions), `authorization`,
+OWNED and DROP OWNED plan and staging, and the role diagnostics. The handler
+decisions reach the engine through `Host` and `StageHost`. The role graph and
+ACL algorithms are in [`authorization`](../authorization/README.md); the
+checks over a captured view are in [`access`](../access/README.md).
+
+The package is an upper feature at layer L12 of
+[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture): it
+imports `access`, `analyze` (types and pure functions), `authorization`,
 `catalog`, `ddl`, `extension`, `ids`, `regobj`, `routine`, `sequence`,
 `session`, `stored`, `parser`, `sqlstate` and the standard library, and
 never the engine, `analyze`'s binder or another upper feature. See
@@ -84,8 +86,8 @@ never the engine, `analyze`'s binder or another upper feature. See
 - **Role publication stays atomic.** `StageOwnedCleanup` joins its
   membership deletion to the stage through `SetRoleCandidate`, so it
   publishes with the catalog change.
-- **Errors.** Messages, SQLSTATEs, details and hints match the engine's
-  previous output.
+- **Errors.** Messages, SQLSTATEs, details and hints are compatibility
+  contracts.
 
 ## What stays in the engine
 
@@ -93,8 +95,9 @@ never the engine, `analyze`'s binder or another upper feature. See
 capture, `roleStore` publication and `installOperationRolesLocked`,
 `SetObjectACL`/`SetRoleReferences`, the host adapter (`role_host.go`) and
 the `*CatalogStage` adapters (`owned_stage.go`), the parameter targets
-(`parameter_catalog.go`), and the orchestration: `initialRole`, `executeRole` (dispatch, the SET LOCAL
-warning, session mutation, `publishDroppedRolesLocked`),
+(`parameter_catalog.go`), and the orchestration: `initialRole`,
+`executeRole` (dispatch, the SET LOCAL warning, session mutation,
+`publishDroppedRolesLocked`),
 `executeRoleAttributes`, `membershipLocked`, `objectGrantLocked`,
 `executeDatabaseGrant` and `alterDefaultPrivilegesLocked` (warnings,
 OIDs and installation), the three ALTER OWNER executors (resolution, the
@@ -105,16 +108,18 @@ notice).
 
 ## Testing
 
+The package has no unit tests of its own: tests of its plans and staging need
+an `Engine` fixture and live in `internal/engine` (`role_*_test.go`,
+`ownership*_test.go`, `owned_roles_cleanup_test.go`, `object_acl_*_test.go`).
+`TestRoleHostStageless` (`role_host_test.go`) pins the host seam: a
+stage-less `ddlHost` as `Host`. Add `RACE=1` for the connection-limit and role
+switch tests.
+
 ```sh
-make check RUN='^Test(Role|ObjectGrant|ObjectRevoke|DefaultPrivileges|DropOwned|ReassignOwned|Membership|ObjectACL|DatabaseACL|Ownership|ParameterTablespaceGrant|DDLHost)'
-make check RUN='^TestReference(Role|ObjectGrant|DefaultPrivilege|Reassign|DropOwned)|Ownership|Owned|^TestReferenceSchema(Owner|ACL|Authorization)|Tablespace'
-make check RUN='^TestReferenceDumpRoundTrip$'
+make check RUN='^Test(Role|ObjectGrant|ObjectRevoke|DefaultPrivileges|DropOwned|ReassignOwned|Membership|ObjectACL|DatabaseACL|Ownership|ParameterTablespaceGrant)'
 ```
 
-The package has no unit tests of its own: the tests of its plans and
-staging need an `Engine` fixture and stay in `internal/engine`
-(`role_*_test.go`, `ownership*_test.go`, `owned_roles_cleanup_test.go`,
-`object_acl_*_test.go`). `TestRoleHostStageless` (`role_host_test.go`)
-pins the host seam: a stage-less `ddlHost` as `Host`. Add `RACE=1` for the connection-limit and role
-switch tests, and `REFERENCE=1` to the reference selections for the real
-PostgreSQL oracle.
+Public behavior is in [reference/roles](../../../reference/roles/README.md#testing)
+and [reference/object_grants](../../../reference/object_grants/README.md#testing)
+(`^TestReference(Role|ObjectGrant|DefaultPrivilege|Reassign|DropOwned)`), plus
+`^TestReferenceDumpRoundTrip$` for owner and ACL replay.

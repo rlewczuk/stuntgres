@@ -1,1473 +1,386 @@
 # internal/engine
 
-## Settings ownership
+The root engine is the analysis host and owns transactions, settings and
+lifecycle publication: `Engine.mu`, the catalog store, statement scopes and
+admission, catalog/storage/visibility installation, and the orchestration of
+native Dump/Restore and the wire protocol. Subsystem logic lives in the layered
+subpackages ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SPLIT.md) §3), each with
+its own README. Subpackages never import the root; they reach it through the
+host interfaces below. Put new code in the lowest package that can own it
+(new builtins go to the [`functions`](functions/README.md) registry).
 
-Setting definitions, the builtin table, parsing, validation and the immutable
-registry live in [`settings`](settings/README.md). `Engine.settings` holds one
-`settings.Registry` by value, constructed before provider registration and
-publication with the visibility tracking flag; parameter providers borrow a
-pointer to it, and descriptor validation and grant-name canonicalization use
-the same registry. ACL catalogs remain sparse. Search-path decisions are in
-[`analyze`](analyze/README.md); `schema_path.go` keeps the wrappers that read
-`search_path` under the session settings mutex. Runtime notice levels, threshold captures and emission,
-physical-session values, the journal, timeout publication and their locks
-live in [`session`](session/README.md). The engine, the root driver and
-`cmd/stuntgres` name `settings.` and `session.` types directly; no aliases
-remain.
+## Hosts
 
-## System catalog producers
+The root implements each subpackage's host interface, with a compile-time
+assertion beside the implementation:
 
-The rows-only producers, their `Input`/`Runtime` contract, the OID registry,
-the descriptor spec data and their pure helpers live in
-[`pgcatalog`](pgcatalog/README.md). The engine keeps the orchestration around
-them:
+| Root type | Implements |
+| --- | --- |
+| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `SequenceRuntime`, `TransactionInquiryRuntime`, `LargeObjectRuntime`, `PgrowlocksRuntime`) that `*exec.Context` forwards |
+| `ddlHost` | `ddl.Host`, `ddl.SchemaHost`, `routine.DDLHost`, `typedef.StageHost`, `table.Host`, `index.Host`, `index.KeyHost`, `fdw.Host`, `role.Host`, `role.StageHost`, `partition.Host`, `view.Host`, `view.StageHost` |
+| `alterHost` | `table.AlterHost` |
+| `extensionHost` (`extension_host.go`) | `extension.Host`, `extension.Stage` |
+| `bindingHost` (`analysis_host.go`) | `analyze.Host` |
+| `engineCatalogRuntime` (`catalog_source_runtime.go`) | `pgcatalog.Runtime` |
+| `enginePreparation` (`exec_preparation.go`) | `exec.Preparation`, installed with `exec.InstallPreparation` |
+| `restoreHost` (`restore_run.go`) | `control.Host` |
+| `sessionHost` (an `Engine` conversion; `session_host.go`) | `session.Host` |
 
-- `catalog_source_capture.go`: `openCatalogSourceLocked` looks up
-  `pgcatalog.ProducerFor` and chooses per-OID immutable catalog/role roots,
-  presentation and unlock timing; it is not a second producer dispatcher.
-  `captureCatalogSourceRows` alone wraps producer rows as
-  `querySource{ref, anonymous}`; private units use that same wrapper. Only
-  `pg_locks` and lazy `pg_sequences` have explicit non-producer handlers.
-- `catalog_source_runtime.go`: `engineCatalogRuntime` implements
-  `pgcatalog.Runtime` per call and on demand: construction retains handles and
-  cheap facts without enumerating unrelated runtime state. Its value-taking
-  operations expose neither Engine, StatementScope, AuthorizationView nor
-  bindings. Cursors are observed without fetching; settings capture one
-  coherent registry-wide physical-session snapshot after unlocking Engine.mu;
-  prepared rows use the actual registry, assigned XID and currently published owner
-  name. Expression/query walkers and deparsers forward to `stored`; the
-  foreign-key binder, type and ACL validation, output formatters and
-  error-bearing privilege operations stay adapter-owned. Physical TEMP ownership, sequence journal overlays,
-  cancellation boundaries and foreign disclosure booleans keep their
-  semantics.
+Root code names subpackage types directly (`settings.`, `session.`, `exec.`,
+`pgcatalog.`, ...); there are no aliases.
+
+## Lock order
+
+The engine-wide mutex order and the lock manager's rules are in
+[lock/README.md](lock/README.md#mutex-ownership-and-lock-order):
+`replacementMu` and `TransactionOwner.Mu` precede `Engine.mu`, which precedes
+`Session.Mu`, `SettingsStore.Mu` and `Engine.sessionMu`; the lock manager's
+mutex is innermost and is never taken under `Engine.mu`. Callbacks and external
+I/O run outside these locks.
+
+## Prepared statements
+
+- Ordinary prepared SQL keeps one private analysis-identity cell
+  (`preparedAnalysis`, `prepared_rebind.go`), not an executable plan, data or
+  permission cache. `Engine.mu` and physical-session admission own it.
+- While the cell is valid, admission preserves per-occurrence target, nested,
+  view and unused-CTE identities. Only dependency, effective-path, namespace or
+  DISCARD invalidation reanalyzes the original source; creating a shadow in an
+  existing schema is not by itself a trigger. Invalidation reuses the effective
+  namespace comparator and the dependencies collected by analysis, never an
+  all-DDL epoch.
+- Full invalidation publishes atomically, after analysis, signature and
+  provenance succeed: genuine temporal scalar/array candidates, sequence/regtype
+  candidates and identity stamps. It preserves native logical enum, domain and
+  composite captures, arrays with catalog-owned leaves (including embedded
+  temporal fields) and existing lifetime diagnostics. Never re-input old enum
+  labels or rescue replacement logical identities. A later importer or execution
+  failure need not undo a successful analysis.
+- Fixed formals and results stay immutable; current data, ACLs and compatible
+  metadata stay fresh.
+- The resolution environment is captured before any relation wait. Never
+  retarget after lock admission, and never certify an older queued resolution
+  under a newer environment.
+- DML synthetic query roots are not stable AST owners: retain the original table
+  occurrences. Writable views retain their logical target identity, not the
+  translated physical base.
+- Shadow retention applies to statement-boundary shadows that already exist, not
+  to changes made during admission waits. Record the actual lexical resolution
+  independently of the retained target/source; when that observation changes
+  during a wait, every route returns native `ErrCatalogReplaced`, with no warmup
+  exemption, retarget or replay. Keep the direct, new-prepare and held conflict
+  tests unchanged.
+
+## Read-only utility execution
+
+- `readOnlyUtilityEligibility` (`transaction_isolation.go`) rejects supported
+  modifying utility tags before object resolution, authorization or relation
+  locks. DML keeps its analysis-before-read-only diagnostics. Prepare never
+  applies this execution rejection.
+- `executionEligibility` admits explicit-transaction utilities only within its
+  bounded exceptions: selected ALTER TABLE nullability, named NOT NULL and DROP
+  COLUMN lists, and sequence DDL. Do not enable unrelated utilities as a side
+  effect.
+
+## Immutable settings registry
+
+Definitions, the builtin table, parsing, validation and the registry live in
+[`settings`](settings/README.md). `Engine.settings` holds one
+`settings.Registry` by value, built before provider registration and
+publication; parameter providers borrow a pointer to it, and descriptor
+validation and grant-name canonicalization use the same registry. Search-path
+decisions are in [`analyze`](analyze/README.md); `schema_path.go` keeps the
+wrappers that read `search_path` under the session settings mutex. Notice
+levels, physical-session values, the settings journal and timeout publication
+belong to [`session`](session/README.md).
+
+## System catalog producer contract
+
+Producers, their `Input`/`Runtime` contract, the OID registry and descriptor
+specs live in [`pgcatalog`](pgcatalog/README.md). The root keeps the
+orchestration:
+
+- `openCatalogSourceLocked` (`catalog_source_capture.go`) looks up
+  `pgcatalog.ProducerFor` and chooses the per-OID catalog/role roots,
+  presentation and unlock timing; it is not a second dispatcher.
+  `captureCatalogSourceRows` alone wraps producer rows into an `exec.Source`.
+  Only `pg_locks` and lazy `pg_sequences` bypass producers.
+- `engineCatalogRuntime` implements `pgcatalog.Runtime` per call and on demand,
+  exposing values only: never Engine, StatementScope, AuthorizationView or
+  bindings. Settings rows capture one coherent physical-session snapshot after
+  unlocking `Engine.mu`.
 - `pg_locks_capture.go` keeps the unlock/capture/relock epoch fence and never
-  takes the lock manager mutex under `Engine.mu`; `pgcatalog.LockRows` builds
-  the rows. Lazy sequence completion alone demands sequence locks and
-  generator state.
-- `catalog_sources.go`: `initializeCatalogSources`, `catalogSourceDescriptor`
-  and `registerCatalogSource` resolve owned types from `pgcatalog.Specs` and
-  register fresh descriptors, preserving registration order, OIDs, columns,
-  typmods, dimensions, nullability, collation, origins, flags and actual
-  row/array links.
-
-Provenance is same-pointer authority, not equal names/OIDs/epochs:
-`catalogStore.owner()` supplies the stable `*catalog.Owner`, whose Domain,
-Principals and ACLAuthority are the engine's exact paired authorities.
-Publication/index history markers live in `catalog_relation_history.go` (the
-replacement normalizers are `catalog` code), sequence
-predicate admission in `query_pg_sequences_admission.go`, and shared
-expression/plan reference walking in `expression_references.go`; those are not
-producer ownership. Engine code names the moved types directly
-(`pgcatalog.Input`, `pgcatalog.Runtime`, `pgcatalog.DependEdge`, ...).
-
-## Registered access-method publication
-
-Access-method descriptors and finite native handler associations are seeded in
-the ordinary catalog before family/class validation. Global method utilities
-use the existing schema stage and dependency closure, not a parallel registry.
-`access_method.go` fences outgoing method/handler reads and newly incoming
-consumers at publication under Engine.mu. Physical index mechanics remain
-separate from exact SQL MethodOID. Native Heap resolves through captured method/
-handler validation to concrete `visibility.HeapOperations`; ordinary source
-selection consumes its real existing liveness rule without custom TABLE syntax.
-
-## Ordinary maintenance ownership
-
-`vacuum.go` owns normal command selection/admission. One StatementScope owns
-one canonical transaction/ticket; target-added transient AS and work SUE holds
-are restored to manager checkpoints outside engine/session locks between targets.
-It never invents per-target registry owners or workers. Lock waits have no
-progress row and retain genuine cancel/timeout/replacement errors.
-Effective SKIP_LOCKED is passed to both explicit selection AS and work SUE.
-Only genuine manager ErrUnavailable becomes the exact55P03 warning/omission,
-after restoring that target's checkpoint; cancellation/timeouts remain errors.
-Genuine selection warnings (root ACL, ONLY-partition, root-AS unavailable) share
-one lazy encounter-ordered code/message slice, delivered after checkpoints and
-metadata mutexes leave. Nonheap and descendant ACL warnings are work-phase,
-never appended during expansion or emitted before a later selection error.
-
-The queue holds only ObjectRef plus original explicit name (empty for anonymous
-descendants/omitted candidates). Root ACL does not suppress traversal. Expansion
-is BFS/direct-child OID order, dedup per root, never globally across target lists.
-SUE/current descriptor/current ACL precede kind, foreign TEMP, partition and
-PROCESS_MAIN gates. Missing/unavailable work uses origin-aware diagnostics;
-whole-epoch/owner failures remain genuine errors, not blanket replacement skips.
-Only admitted heap work binds a separate descriptor/store target; compatible
-same-identity rename/TRUNCATE before admission is not a stale-selection fence.
-Final detached publication retains the existing strict shape/store/root/index/
-authority/epoch/gate checks. Sequence/nonheap inherited ownership is real role
-closure authority, not an assumption that every kind has a MAINTAIN ACL bit.
-The VACUUM-only peer-TEMP resolver uses paired namespace/object ACLs. The
-`analyze.ExplicitPath` body is shared with ordinary lookups (false); only
-VACUUM opts in (true) using RelationLookup. `analyze.EffectivePath` and shared
-object lookup/diagnostics/own-TEMP admission retain one implementation. Generic
-namespace/searchpath/SELECT/DML boundaries are not relaxed, and there is no
-InstalledFunctionLookup shortcut or second configured-path resolver.
-
-`vacuum_publication.go` inspects/materializes detached immutable candidates,
-remaps existing logical indexes without evaluating keys and rechecks current
-root/storage/shape/authority/gate tokens before atomic installation. Compatible
-peer DML causes candidate recapture, never SQL replay; metadata-only changes are
-preserved. No failure remains inside the install region after its first write.
-`vacuum_metadata.go` keeps full-XID bounds, committed logical statistics and
-actual phase records under Engine.mu; selective pgcatalog Runtime captures expose
-only values. Progress visibility uses backend startup authentication authority,
-not table ownership or the maintenance session's current SET ROLE.
-The canonical active-publisher cutoff initializes even empty incarnations.
-Every actual ordinary/prepared/journal/MV birth reconciles existing bounds in
-constant time; no full-root rescan is added to steady-state DML. Visible-only
-remint initializes current Live separately from reset historical counters.
-Database refresh seeds from the same safe canonical cutoff before minimizing
-installed bounds, including the empty-engine interval before a future relation
-exists. ONLY/main completion and both catalog-replacement install paths share
-that calculation; no later table-create repair or alternate horizon registry.
-
-Snapshot safety definitions retain both independently prescribed index generations:
-three keys before DELETE and one live key after DELETE's existing exact-version
-filter. They compare owned header/provenance/payload/end/key baselines through
-snapshot-gated freezing, quiescent compaction and the no-change repeat.
-Materialized-maintenance commit/discard definitions use retained **implicit**
-messages without BEGIN, matching the existing batch publication route.
-Fresh REFRESH after explicit BEGIN remains native0A000 even with command
-admission; separate ordinary/concurrent cases assert full0A000/25P02 and unchanged
-published facts. Existing implicit-refresh→later-BEGIN promotion is retained.
-No adjacent utility policy is relaxed.
-
-Selected definitions, to be exercised by the root with external900-second deadlines:
-
-```sh
-make check RUN='^TestVacuum(Options|SnapshotSafety|CompactionIndexes|PublicationFences|FreezeProvenance|ImportHorizons|AuthorizationLocks|MetadataStatistics|ProgressLifecycle)$'
-make check RUN='^TestVacuumGrammar$'
-make check RUN='^TestVacuum(SnapshotSafety|PublicationFences|AuthorizationLocks|ProgressLifecycle)$' RACE=1
-```
-
-Public proof and actual feature smoke are in
-[`reference/catalogs`](../../reference/catalogs/README.md#vacuum-oracle-first-contract);
-changed reference definitions require selected native and REFERENCE=1 runs.
-
-## Testing
-
-Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
-public/private test placement. Run these commands from the repository root.
-
-### Access methods
-
-```sh
-make check RUN='^TestAccessMethod(Descriptor|HandlerRegistration|IndexRouting|DropClosure|CaptureReplacement)$'
-make check RUN='^TestAccessMethod(IndexRouting|DropClosure|CaptureReplacement)$' RACE=1
-make check RUN='^TestAccessMethod(HeapOperations|ExclusionDescriptorPrecedence)$'
-make check RUN='^TestAccessMethod(HeapOperations|ExclusionDescriptorPrecedence)$' RACE=1
-```
-
-These direct structural units inspect the installed capability/provider,
-separate method-owned defaults, actual support351, sorted live root membership
-4→7 and immutable predecessor roots, shared drop closure, owned captures and
-typed replacement remapping with foreign destination root rebuild/maintenance.
-HeapOperations proves actual ordinary/registered heap liveness, concrete source
-selection, immutable borrowed roots and forged-handler rejection.
-ExclusionDescriptorPrecedence proves registered btree methods named gin/brin win
-over absent-builtin spelling, while unresolved and TABLE-kind boundaries remain.
-Public SQL/API proof and the runtime smoke contract belong to
-[reference/indexes](../../reference/indexes/README.md#access-method-definitions).
-Root owns generation/formatting/proof; these commands are not claimed passed.
-
-Reduced structural fixtures must retain real access-method descriptors and
-registered native handler Procedures alongside their family/class/support seeds.
-The shared `operatorFamilyFixtureState` copies `AccessMethodClassID` from the
-ordinary immutable engine bootstrap; package-local predicate/pruning/member/
-membership fixtures use the normal method and handler seed constructors. Missing
-fixture authority is not repaired by production OID/name fallbacks.
-
-### Earthdistance
-
-Earthdistance installs an ordinary cube-based domain and three real CHECK records.
-`extension_earth.go` attaches bounded internal recipes under the catalog mutex;
-the ordinary renderer/dependency preparation/domain evaluator owns their validity
-and execution. Generation remapping traverses the actual lexical VALUE child.
-
-`RestrictError` suppresses an owned implementation member's redundant DETAIL line
-only when its owning extension is itself reported as a dependent. Closure edges,
-blocking decisions and retirement remain unchanged; a member without a reported
-owner retains its own diagnostic line.
-
-```sh
-make check RUN='^(TestEarthDomainExpression|TestEarthProvider(Identity|Conflicts|Controls)|TestEarthPrerequisiteRemovalDetail)$'
-make check RUN='^(TestAvailableExtensions(Projection|StatementFrontier)|TestExtensionVersionGraph|TestExtensionMembersHoldBareProviders)$'
-```
-
-Use external900-second deadlines. Public proof and standalone consumer instructions
-are in [`reference/types`](../../reference/types/README.md#earth-domain-contract).
-
-
-### Large-object SQL routine snapshots
-
-VOLATILE SQL body entry captures an immutable command-visible large-object READ
-catalog under the existing engine mutex. It lives in `sqlRoutineScratch`, not
-the root effect journal: nested queries get fresh captures; unwind restores the
-outer query's bytes while retaining root-owned command effects for publication.
-No SQL-wrapper special case or global authorization recapture is introduced.
-
-```sh
-make check RUN='^(TestLargeObjectSQLRoutineScratch|TestSQLRoutineResultScratchUnwind)$'
-make check RUN='^TestReferenceLargeObjectSQLRoutineSnapshots$'
-make check RUN='^TestReferenceLargeObjectSQLRoutineSnapshots$' REFERENCE=1
-```
-
-Use external900-second deadlines. These supplement the
-[public LO proof and standalone smoke](../../reference/object_grants/README.md#transactional-large-object-byte-storage).
-
-### Transform catalog
-
-`TestPGTransformCapture` checks the real registered producer and capture Ref,
-nonnil empty inventory, malformed widths, foreign-owned OID/REGPROC carriers
-and cancellation precedence. `TestPGTransformOwnership` checks exact relation,
-attribute and PUBLIC SELECT facts, native row10103/array10102 ownership and
-fresh versus retained descriptors across Reset.
-
-```sh
-make check RUN='^TestPGTransform(Capture|Ownership)$'
-make check RUN='^Test(PgClassBuiltinIndexMetadata|TableViewSummaryBuiltinIdentity)$'
-```
-
-Public dual-mode coverage and standalone smoke instructions live in
-[catalog reference tests](../../reference/catalogs/README.md#pg_transform-selected-proof).
-
-
-### Text-search configuration catalog
-
-`TestPGTSConfigCapture` exercises the registered empty producer, invalid widths,
-foreign-owned NAME/OID descriptors and cancellation precedence.
-`TestPGTSConfigOwnership` checks current and retained attribute/row/array ownership
-across Reset and rejects an old-generation source in the replacement catalog.
-
-```sh
-make check RUN='^TestPGTSConfig(Capture|Ownership)$'
-make check RUN='^Test(PgClassBuiltinIndexMetadata|TableViewSummaryBuiltinIdentity)$'
-```
-
-Public SQL/API coverage and both-mode selectors live in the
-[catalog reference tests](../../reference/catalogs/README.md#pg_ts_config-selected-proof).
-
-### Immutable settings registry
-
-Focused ownership/default and publication checks:
-
-```sh
-make check RUN='^Test(Setting(CapturedDefaults|ProviderDefaultsAndDescriptorOwnership|ExactDecimalDefaultCapture|UtilitySnapshotOwnership)|SettingsTimezoneAbbreviationsCapturedProvider)$'
-make check RUN='^TestSettingsLocal(NormalizerPublication|ExactTypedUndo)$' RACE=1
-make check RUN='^TestSettingsConcurrentFreeze$' RACE=1
-make check RUN='^TestReferenceSettings(BuiltinRegistry|PublicTypedSQL|ErrorsAndAtomicity|RegistryPublication|ShowAllPlaceholdersAndLifecycle|PreparedBindingAndStages|ControlsDefaultOnParser)$'
-make check RUN='^TestReferenceSettings(BuiltinRegistry|PublicTypedSQL|ErrorsAndAtomicity|RegistryPublication|ShowAllPlaceholdersAndLifecycle|PreparedBindingAndStages|ControlsDefaultOnParser)$' REFERENCE=1
-```
-
-The normalizer publication witness installs a validated custom definition before
-construction. Its staged callback still performs actual cancellation, native
-replacement and acquisition of all three publication locks; no registry mutation
-hook is exposed. Existing public reference scenarios are unchanged. Pure
-definition tests live in the [`settings` README](settings/README.md#testing);
-split evidence lives in
-[the split prompt](../../docs/ENGINE-SPLIT-settings.md#status).
-
-### Settings catalog authorization
-
-`TestPGSettingsCatalogACLRecheck` retains the immutable authorization-view
-assertions. `TestPGSettingsCatalogACLConsumers` uses actual `SetObjectACL`
-publication, engine preparation and statement execution: direct, freshly
-prepared and held consumers must recheck relation/column SELECT authority for
-both populated and empty predicates. A name-only grant permits name reads but
-not setting projections or setting predicates. Revocation after the same
-statement's metadata admission preserves the native `ErrCatalogReplaced` fence
-and publishes no rows/count. A fresh held attempt while still revoked must
-independently return the complete42501 diagnostic. Restored direct/new/held
-consumers read the original values; rejected reads cannot change settings,
-boot/reset values or provenance.
-
-```sh
-make check RUN='^TestPGSettingsCatalogACL(Recheck|Consumers)$'
-make check RUN='^TestPGSettingsCatalogACL(Recheck|Consumers)$' RACE=1
-```
-
-Use external900-second deadlines. These package-seam tests supplement the public
-ordinary-role and native unsupported catalog GRANT/REVOKE witnesses in
-`TestReferenceStatisticsSettingsAuthority`; they do not admit catalog-grant SQL.
-
-### Catalog inquiry and session identity
-
-`functions` owns the ten immutable inquiry/identity nodes, their binders,
-registry definitions and node-owned protocols, including all seven visibility
-kinds and twelve deparse signatures. Keyword identity keeps its distinct parser
-route. `catalog_inquiry_runtime.go` and `session_inquiry_runtime.go` hold the
-`statementHost` bodies behind the narrow functions capabilities that
-`exec.Context` forwards, not forwarding engine nodes.
-The leaf imports no engine/catalog/storage/lock/visibility state packages.
-
-Engine retains SQL-callable precedence, analyzer/coercion authority, statement
-catalog/role/comment/visibility snapshots, locks and authorization recapture,
-schemaInquiryPathLocked and pending-TEMP staging/publication, schema execution
-caches and FK/rule/view expression authority. It also owns address lookup,
-catalog index interpretation, post-NULL successful-only lazy routine admission,
-deparse/tree engines and serial ownership lookup. pg_extension_update_paths
-is not part of the move; sequence calls moved separately (below).
-
-Generic visitors consume node-owned capture, source, demand, cost, grouping,
-volatility and rendering hooks; installed/catalog wrappers still win. Stored
-literal pairing, logical identities/remapping, prepared invalidation, snapshot
-manifests and native catalog-replacement fences stay here. Pure node units moved
-to functions; real binder/captured-authority/stored/serial integrations did not.
-
-```sh
-make check RUN='^TestCatalogRelations(Binding|Consumers|Capture)$'
-make check RUN='^TestNamespaceIdentity(TypedBinding|StagedAuthorityAndFinishVeto|NoPendingFastPath)$'
-make check RUN='^TestCatalogInquiryRetainedVolatility$'
-make check RUN='^TestVisibilityInquiryStoredNullManifest$'
-make check RUN='^TestObjectAddress(RoutineOriginalAuthority|SourceNullOriginalGraph|ScalarNullPreflightInfo|SourceFalseDemand|StoredRecipes)$'
-make check RUN='^TestSerialSequence(Ownership|NameInput|Expression)$'
-make check RUN='^TestReferenceObjectAddress(Signatures|RoundTrips|Nulls|Metadata|StrictEvaluation|StoredBoundaries)$'
-make check RUN='^TestReferenceObjectAddress(Signatures|RoundTrips|Nulls|Metadata|StrictEvaluation|StoredBoundaries)$' REFERENCE=1
-make check RUN='^TestReferenceObjectAddress(StoredDemand|StrictConstantNull|StrictConstantNullFrom|TypeArgumentOrder|DiagnosticParameterMatrix)$'
-make check RUN='^TestReferenceObjectAddress(StoredDemand|StrictConstantNull|StrictConstantNullFrom|TypeArgumentOrder|DiagnosticParameterMatrix)$' REFERENCE=1
-make check RUN='^Test(CatalogRelations(Capture|Cursor)|ReferenceCatalogRelations(Held|Lifecycle))$' RACE=1
-make check RUN='^TestReferenceNamespaceIdentity(FeatureSmoke|PendingTemp|Ownership|Retirement)$' RACE=1
-```
-
-Use external 900-second deadlines. Complete public selectors remain in the owning
-reference READMEs; each affected selection needs native and real pinned
-PostgreSQL18.6 UTF8/C proof. After the concurrent split rebase and visibility
-manifest remedy, production build, all 70 bounded public native/real commands,
-focused lifecycle races, dependencies/import-layer checks and actual public
-direct/SAME-held role/path/native replay smoke passed (940 dump bytes).
-Full quickcheck passed in 128s and unchanged GOMAXPROCS=8 racecheck in 490s.
-An earlier default-CPU race run hit two 30-second fixture deadlines under
-contention; it remains failed evidence, not a skipped or weakened test.
-Latest default-CPU startup samples were 0.844–1.314ms, with one of five above
-the <1ms target and 5152 steady allocations (first sample 5161). The original
-5152-allocation baseline's five 1.008–1.704ms samples all missed that target;
-shared-machine timings do not establish a speedup.
-The wrapped-NULL stored-manifest unit failed before the narrow replay remedy
-and passed afterward with identical argv. It preserves unconditional demand for
-a retained visibility node, bare-NULL folding, binary-conversion NULL suppression
-and sibling demand in both orders, including persisted-manifest validation.
-Review, integration and post-integration finalcheck are separate lifecycle gates,
-recorded in the catalog part's reports; no neighboring waiver applies.
-
-### F3 provider and diagnostic ownership
-
-Engine callers and declaration inventories use `functions.RoutineProvider` and
-its family constants directly; private authority/call-shape fixtures use the
-same owners. Cast-diagnostic fixtures consume `functions.SignatureHint`.
-These are name/import adaptations, not unit moves or public behavior changes.
-The real analyzer's missing-signature note and composite fallback remain here.
-See [functions Testing](functions/README.md#testing) for selected private units,
-native/real public proof, actual public smoke and detailed startup results.
-Latest-base root tests-12 establishes 1291 exact-owner uses, 26 removed
-declarations, 28 Go files, 1,065,774 conserved non-target bindings and eight
-retained diagnostic-method callers; actual public smoke also passed.
-Tests-10/tests-11 describe the preceding base: 1293 uses/30 Go files, build,
-all selected native/pinned-PostgreSQL proof, quickcheck (147.74s), full racecheck
-(595.62s), dependencies and import graph passed. Latest complete-candidate
-gates refresh before review. Three of five preceding-base startup samples
-exceeded1ms; the advanced integration
-base and shared-host contention prevent a clean causal comparison with the
-historical baseline. No runtime optimization or test weakening was added.
-Only Item6 is marked verified; independent review/integration remain separate.
-Post-integration finalcheck was explicitly waived by the user, not run or passed.
-
-### Advisory and blocking inquiry authority
-
-`functions.Advisory` and `functions.BlockingInquiry` own SQL binding, immutable
-node operations and argument demand. Engine `advisory_runtime.go` and
-`blocking_runtime.go` implement their narrow value capabilities with compile-time
-checks. Resource construction, current physical-session/transaction selection,
-admission/wait/readmission, notices, canonical manager reads and SSI safe waits
-remain here. Ordinary blocking reads never nest Engine.mu and manager mutexes;
-safe-snapshot capture remains under Engine.mu. No prepared node caches an owner.
-
-Run `make check RUN='^Test(AdvisoryBlockingDomainInput|AdvisorySession(BindingTraversal|CheckPreparationCache|CheckPrepareAllBeforeEvaluation)|AdvisoryXactBindingTraversal|BlockingPids(BindingAndIdentity|TraversalReplay))$'`
-for actual binder/context/traversal/replay units. Node-only units and the
-public selected proof/smoke instructions are in the functions README. Existing
-manager ownership, savepoint/prepared transfer, replacement and SSI tests remain
-at their canonical seams; moving SQL nodes does not move their authority.
-
-### Sequence call authority
-
-`functions.SequenceCall` and `functions.BindSequenceCall` own the
-`nextval`/`currval`/`setval`/`lastval` binding, immutable node operations and
-argument demand; `parser.CallExpr` dispatch calls the binder directly. The
-engine keeps the authority behind `SequenceRuntime` (`sequence_runtime.go`): the
-evaluation prelude and live statement scope, OID-to-reference construction and
-`lastval`'s session provider, the catalog epoch fence (including TEMP epoch
-revalidation) before and after the RowExclusive `acquireSequence`, the ACL and
-read-only checks and `sequenceGeneratorLocked`, all in the original order; the
-privilege masks, the read-only rejection and the currval/lastval/nextval/setval
-semantics over the physical-session memories are
-[`sequence`](sequence/README.md)'s `CallPrivileges`, `ReadOnlyCallError` and
-`CallLocked`. The
-binder's `SequenceArgument`/`SequenceTemporary` keep regclass input,
-prepared sequence-literal capture and DEFAULT TEMP validation here; the node
-caches no session, scope or owner. Catalog-identity consumers keep explicit
-`functions.SequenceCall` cases: stored DEFAULT SQL and replay eligibility,
-`table.ValidateCookedDefaultTemporary`, `analyze.ClosedSequenceDefault`, dependency references,
-view `Ref` remapping, COPY's nextval volatility and the identity DEFAULT
-constructor in `BindInsertDefaults`.
-
-Run `make check RUN='^Test(SerialStoredDefaultInvariants|SerialDefaultIdentityProviderTemporaryCollision|QueryParallelEligibility|TableLikeTemporary(DefaultAuthority|RetainedCopy)|Inheritance(MergeStableRemap|RetainedRowAuthority)|TableLikeCookedRowRemap|IdentityOwnCheckBindingAuthority)$'`
-for the actual binder, stored-default, remap and parallel-safety units that use
-the moved node. Node-only units and public selections are in the functions
-README; generator and prepared-literal tests stay with their engine owners.
-
-### Catalog write ownership
-
-`catalog.AdvanceRevisionFrontier` is a pure, saturating calculation over a
-descriptor revision and (for relations) its sequence plan stamp. It never reserves
-the global allocator or touches live generator state. Publication accumulates a
-local frontier and commits it only at the existing successful catalog/storage/
-visibility installation under `Engine.mu`; ALTER SET SCHEMA uses descriptor-local
-advancement and retains its distinct exhaustion diagnostic.
-
-`CatalogStage` embeds `catalog.Candidate`, whose seven overlay maps are private.
-Focused lookup/presence/count and iterator methods read overlay entries without
-copies or base enumeration. Method-owned private completion, staged rename,
-retirement and default-policy observation/delta writes preserve the same overlay
-authority. Original Base observations are distinct from private output, including
-nil tombstones. DDL authorization, lifecycle, rowtype synchronization, storage
-coordination and engine-dependent validators remain here.
-
-Selected internal contract selectors (historical proof commands; the latest
-user instruction requires quickcheck only, with no further race execution):
-
-```sh
-make check RUN='^Test(CatalogStoreRevisionFrontier|AlterDropColumnRevisionFrontier(Failures|Terminal)?|AlterSchema(WholeCandidate|OverflowAndSkip))$'
-make check RUN='^TestCandidate(PrivateUpdates|RenameRemovalReuse|DefaultObservations|RetainedState)$'
-make check RUN='^Test(DefaultPrivileges(CloneStage|RetainedMessage|SchemaLifecycle|CreationFence)|SQLRoutineStagedLookup|CatalogCopiesStayIndependent|UserOperatorIndex(CopyOnWrite|PublicationAndOverlay)|BuiltinProcedureNamesCopyOnEdit)$'
-make check RACE=1 RUN='^Test(Catalog(ConcurrentReplacement|CanceledPreparedPublication|SelfReplacementCanceledDuringPreparation|RelationsCapture)|DefaultPrivilegesCreationFence|ControlTransactionsReplacementCancellationBoundary)$'
-```
-
-Existing public reference definitions are unchanged. Root observed build,
-focused native and pinned PostgreSQL 18.6 proof, selected publication races,
-module-only dependencies and actual four-phase direct/prepared smoke passing.
-Fresh post-rebase quickcheck and smoke passed against master
-`9c6c4562326304fbe4cacff06b2b98b75fe03911`. Earlier full-race failures remain
-failed evidence; further racecheck and race-containing finalcheck are explicitly
-user-waived, not passing. Post-integration quickcheck replaces finalcheck.
-The preexisting <1ms startup target miss remains; warm allocations stayed 5152.
-No startup optimization or timing-equivalence claim is made.
-
-### System catalog producer contract
-
-These engine units cover producer/explicit-handler ownership and unknown
-errors, independent Owner/root provenance, real runtime capture and ordered
-descriptor metadata. Producer units reach producers through the real
-`pgcatalog` registry (`catalog_source_producers_test.go`) and the production
-wrapper. Engine-free units are in the
-[`pgcatalog` README](pgcatalog/README.md#testing).
-
-`TestInfoUserMappingsProducer` additionally exercises the domain-typed
-information-schema mapping projection through the real registry: actual metadata,
-PUBLIC spelling, identity rather than diagnostic role names, immutable same-principal
-role-descriptor name replacement with unchanged mappings and retained old roots/rows,
-inherited owner and effective server USAGE, denied/empty boundaries, malformed
-captures and unchanged cancellation errors. Public shape, privilege, lifecycle and smoke
-contracts are in [catalogs Testing](../../reference/catalogs/README.md#information-schema-user-mappings).
-
-```sh
-make check RUN='^(TestCatalogSourceProducerCoverage|TestCatalogSourceInputProvenance|TestCatalogSourceRuntimeCapture|TestCatalogSourceSpecMetadata)$'
-make check RUN='^TestInfoUserMappingsProducer$'
-make check RUN='^(TestPGAttributeCapture|TestPGTypeCaptureOwnership|TestDataTypePrivilegesCapture|TestPgClassACLTranslation)$'
-make check RUN='^(TestPGIndexesCaptureRetentionAndStableColumnACL|TestPGIndexesSourceInvokerAndFreshAuthorization|TestPGParameterACLSnapshot|TestPGParameterACLCancellation)$'
-make check RUN='^(TestReferencePGAttributeSmoke|TestReferencePGCursorsMetadata|TestReferencePGCursorsSourcesAndTime|TestReferenceDataTypePrivilegesKindsAndTemp)$'
-make check REFERENCE=1 RUN='^(TestReferencePGAttributeSmoke|TestReferencePGCursorsMetadata|TestReferencePGCursorsSourcesAndTime|TestReferenceDataTypePrivilegesKindsAndTemp)$'
-make check RACE=1 RUN='^(TestPGLocksWaitDependencies|TestPGLocksSnapshotOwnership|TestPGCursorsSource|TestPGSequencesCancellation)$'
-make check RACE=1 RUN='^(TestReferenceViewLocksTransitions|TestReferenceViewLocksCancellation|TestReferencePGCursorsMetadata|TestReferencePGCursorsSourcesAndTime)$'
-make check RACE=1 REFERENCE=1 RUN='^(TestReferenceViewLocksTransitions|TestReferenceViewLocksCancellation|TestReferencePGCursorsMetadata|TestReferencePGCursorsSourcesAndTime)$'
-```
-
-Use an external 900-second deadline for each selected check. The unchanged
-reference definitions independently cover direct/new/SAME-held DDL metadata,
-actual cursor lifecycle/time and physical TEMP visibility; selected races cover
-real lock waits, ownership and cancellation. Full supplements remain in the
-living implementation plan; these selectors are not a substitute for full gates.
-
-Observed after cutover: the four new contract units passed, and the root's
-outside-repository public `database/sql` smoke passed dispatch, direct/new/held
-DDL metadata, table/view/index/type links and definition presentation, bounded
-runtime rows, retained unadvanced Rows/ColumnTypes across Dump/Reset, and
-Restore with compact live slots and data. Selected unchanged native and pinned
-PostgreSQL18.6 definitions, selected races, build, dependencies and full quickcheck
-also passed. Full racecheck and the race-containing post-integration finalcheck
-were waived for this cutover; neither is claimed passing. Steady startup
-allocations fell from 5152 to 5100. Latest current-base samples measured
-880449–1214836ns/op: three below the 1ms target and two above it. Earlier
-samples and overload failures remain in part evidence. These measurements
-do not establish full compatibility, a controlled timing speedup, or
-consistently sub-millisecond startup.
-
-### Closed function-source protocol
-
-`string_set_query.go` owns invocation scheduling, zip/lateral demand, layout,
-ordinality and cleanup, not provider dispatch. `SourceAdmission` separates
-closed FROM eligibility from target-set cardinality; OUT names do not control
-record expansion. `openFunctionSource` requires explicit admission and opening.
-Catalog username/linkage/object-address nodes and provider-local source hooks
-live in `functions`; engine catalog/extension runtime operations retain their
-original state/validation authority. Transaction inquiry nodes also live in
-`functions`; their `TransactionInquiryRuntime` adapter retains live scope,
-catalog fences, canonical visibility and lock-manager authority here. Unnest
-retains real intagg procedure, object-ref, owner-domain/epoch and revision checks
-in installed remap/retag, render, dependency and stored-admission routes.
-
-Series/subscripts/unnest now expose immutable lexical children, substitution,
-grouping, volatility, no-fold/preflight and rendering hooks. Equivalent stage
-rewrites use `expr.Substitute` without provider re-resolution. Engine position
-and both-set guards precede owner occurrence comparison: identityMembers remains
-nonreflexive and RegexpSet remains concrete-family-only. Neither grouping nor
-arbitrary function spelling replaces these rules.
-
-Existing private source units remain engine-owned because they bind real calls,
-query frames or catalog authority; their cursor checks now use Next/Close,
-values/presence, typed EOF and released shared state, with no legacy union shim.
-Marker child-mapping units use MapSubstituted. The substitution regression
-retains a selected JSONRecord provider across an equivalent child's foreign
-analysis descriptor, including actual nested-recordset/scalar survivor execution
-through lowering and preflight. Only equivalent-child stage traversal enables
-source substitution; catalog generation remapping still uses Rebuild/Retag.
-New source seam units cover numeric independent ownership,
-present scalar NULL/zero-width zip in both directions, partial-open failure,
-precanceled/no-argument evaluation, exhausted cancellation and retained payload.
-
-```sh
-make check RUN='^TestSourceProtocol(Substitution|Occurrence|CursorOwnership|Presence|Cleanup|Cancellation|BorrowedLifetime)$'
-make check RACE=1 RUN='^TestSourceProtocol(CursorOwnership|Presence|Cleanup|Cancellation|BorrowedLifetime)$'
-make check RUN='^TestSeries(Binding|Cursor|Overflow|ExpressionHooks|Lowering|Cancellation)$'
-make check RUN='^TestSubscripts(Binding|Cursor|Bounds|ExpressionHooks|Lowering|Cancellation|Finalization)$'
-make check RUN='^TestNumericSeries(Binding|Invocation|ExpressionHooks)$'
-make check RUN='^TestArrayRelational(UnnestCursor|CompositeNull|ZeroWidthComposite|ExpressionOwners|Reownership|Cancellation)$'
-make check RUN='^TestReferenceSRFFrom(Consumers|Lifecycle|Controls|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferenceSRFFrom(Consumers|Lifecycle|Controls|FeatureSmoke)$'
-```
-
-Public reference outcomes remain unchanged. The native cancellation fixture
-observes the new `SourceCursor.Next` advancement frame instead of the removed
-cursor method; same-worker admission, cancellation, join and recovery assertions
-are retained. Complete family selectors live in their owning reference READMEs.
-Observed proof includes full quickcheck, real-driver direct/held/mixed zip/
-per-left LATERAL and Dump/Reset/Restore smoke, and allocation/escape comparisons.
-Selected lifecycle races passed before the user waived further tests except
-quickcheck. Full racecheck was interrupted; post-change startup benchmarking and
-finalcheck were waived, not passing. The refactor makes no new SQL admission or
-startup-performance claim.
-The latest quickcheck retry failed the unchanged LIKE cancellation observer
-(`TestReferenceLikeHeldEnteredCancellation/normalizer`) before it issued
-cancellation. The user explicitly waived that failure for integration; the
-earlier post-rebase quickcheck passed. No passing latest retry is claimed.
-
-
-Stored literal capture pairs raw normalized preorder with explicitly admitted
-`expr.Capturable` written operands. Engine-owned wrappers run first; structural
-query/clause/target/node/source/row keys, selected-parent argument annotations,
-catalog identities, coercions, SQLJSON RETURNING/query construction and frame
-ownership remain engine responsibilities. Hooks never evaluate or reconstruct
-definitions; SQLJSON syntax itself comes from the functions rendering protocol.
-Capture validates all operands before any annotation write. Source-aware
-`Check`/`At` reuse the original boxed Capturable; fixed-array nodes use indexed
-access instead of borrowing value-receiver array copies. Safe slices and two
-inline operands retain their existing storage path.
-
-SQL routine wrappers validate normalized syntax and captured procedure authority
-before exposing written actuals through `CaptureFunction`. Their immutable slice
-is borrowed without copying; selected implicit casts retain argument-indexed
-annotations so stored calls preserve overload identity through Dump/Restore.
-
-```sh
-make check RUN='^TestViewLiteralProtocol(WrittenOperands|OccurrenceOwnership|Annotations|RejectsMismatch|QueryBoundaries|InstalledWrapper)$'
-make check RUN='^TestCaptureOperands(WrittenSlots|RawKinds|SpecialAnnotations|NoAllocations)$'
-```
-
-The boundary test binds a real nested query/function source and remaps its frozen
-presentation to fresh type descriptors. Existing stored-consumer reference tests
-remain unchanged and require both selected native and real PostgreSQL proof.
-
-SQLJSON display and stored replay interpret the same `expr.Rendering` as other
-function nodes. The engine unwraps only a recognized formatted-input conversion,
-supplies a RETURNING type usage only from its owning conversion, and retains
-genuine outer casts and typed-TEXT transport. Raw view rendering still owns its
-query/captured operands and type usages, sharing only the pure constructor syntax
-recipe with functions. Catalog qualification, typmods/domains, descriptor
-validation and coercion Rebind/Equal checks remain here.
-
-`TestSQLJSONRendererBoundaries` constructs real constructors, plans and a
-published domain without issuing public SQL. It checks exact display/replay,
-pretty/nonpretty explicit/implicit cast boundaries, empty grammar, UTF8 suffixes,
-ordinary call identity, immutable nodes and rendering a real volatile operand
-without an evaluation context. The private matrix and identical public smoke
-passed after cutover, including full emitted-definition/Dump byte equality and
-independent values/types/defaults. Selected pinned18.6 dual-mode, selected race,
-build/dependency and full quickcheck gates also passed. Whole-project race runs
-hit their 900-second deadlines; the user then waived all remaining checks except
-quickcheck, including post-integration finalcheck. No full-race pass is claimed.
-An earlier documentation-only quickcheck rerun failed in the unchanged regexp
-cancellation provider-observation test; the user explicitly waived that failure
-for integration. No clean final quickcheck is claimed.
-
-```sh
-make check RUN='^Test(SQLJSONProtocol|JSONPredicateProtocol|SQLJSONRendererBoundaries|SQLJSONReturningOwnershipRebind)$'
-make check RUN='^TestReferenceSQLJSON(Stored|Controls|EmptyObjectControls|AssignmentControls|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Stored|Controls|EmptyObjectControls|AssignmentControls|FeatureSmoke)$'
-make check RUN='^TestReferenceSQLJSON(Format|Returning|OutputEncoding|Diagnostics|Metadata)$'
-make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Format|Returning|OutputEncoding|Diagnostics|Metadata)$'
-```
-
-Dependency function diagnostics render every validated installed signature using
-canonical builtin type names and the captured diagnostic path for other types,
-without changing regprocedure output or function-name qualification. Internal
-coverage preserves conversion `cstring`/`internal` spelling and generic extension
-signatures. Prepared mixed routine/operator captures recover only after successful
-atomic Execute reanalysis; restoring authority alone does not revive an invalid
-shared analysis cell. Failure atomicity, exact datums, dependencies and result
-signatures remain asserted.
-
-```sh
-make check RUN='^(TestConversionDescriptorNoopAndPinBoundaries|TestRoutineMixedOperatorCompoundCapture|TestExtensionDropDiagnostics)$'
-```
-
-Extension retirement captures the complete authentic target set, including
-automatic aliases. The shared incoming-dependency preflight separately inspects
-changed committed owners through their effective candidate descriptors: removed
-or genuinely rewired owners and retained providers are not dangling edges.
-Surviving column usages, domain base/array identities and bound domain CHECK
-references join the existing expression/foreign/sequence fences. Rejection is
-`catalog.Conflict` before mutation, never adoption or a second cascade; original,
-epoch, storage and index predecessor fences remain independent.
-Existing expression/attachment/ownership observations remain conservative
-retirement fences during retained-message admission, before removals are
-overlaid. Candidate target presence gates only the added type-usage and
-domain-CHECK checks; it does not disable those established observations.
-
-`TestExtensionDropPublication` exercises six genuine late-consumer schedules:
-view, query_int column and domain CHECK at validated publication and outer
-commit. Its two explicitly unsupported query_int[] column cells instead prove
-native 0A000 admission and unchanged committed state; array storage is not added.
-Candidate controls cover removal, real rewiring, dependent replacements, retained
-providers and stale originals. Authentic LookupArray usage/retirement controls,
-manifest retirement and supported domain-array lifetime tests supplement these
-six fences without fabricating query_int[] consumers.
-
-`TestPGDependDomainCheckDependencies` binds and publishes a real domain CHECK
-with repeated installed-function calls. Existing stored dependencies project
-one normal edge from its actual constraint OID, not from the domain type, through
-the collector's pinning/cancellation policy; real CHECK pruning removes it while
-retained snapshots keep it. The public domain witness covers CASCADE/rollback
-identity and exact diagnostics.
-
-```sh
-make check RUN='^TestExtensionDropPublication(Candidate)?$'
-make check RUN='^(TestPGDepend(Shape|ConstructionBags|DomainTopologyAndPinning|DomainCheckDependencies|CanceledCapture|CancellationDuringWalk|ExpressionReferences|QuerySourceSuppression|RegtypeValueReferences|SetArmCoercionReferences)|TestDomainCheck(BindingIdentityInternal|EvaluationFrameInternal|RetirementAndRemapInternal)|TestDomainPublicationFencesBaseAndConcurrentColumns|TestArrayDomainDependencyClosureAndLifetime|TestExtensionDropManifest)$'
-make check RUN='^(TestCatalogDrop(PublicationAndRetainedReads|ReferenceAndConflictFences|ChangedDescriptorAndUnrelatedRemoval|CanceledGroupAndRestoreEpochFence)|TestDropOwned(UnionRestrictAndCascade|TypeACLAndCancellation))$'
-make check RACE=1 RUN='^(TestExtensionDropPublication(Candidate)?|TestPGDependDomainCheckDependencies|TestReferenceExtensionDropTransactions|TestReferenceExtensionTransactions)$'
-```
-
-Transaction-versus-statement callback ordering is exercised by
-`TestSessionTimeoutResidualBeforeStatement`: the actual engine, transaction,
-command timer and blocked mutation live inside a `synctest` bubble. A 500ms
-transaction aged 300ms must terminate the actual request at 500ms, before its
-375ms statement budget reaches 675ms. Exact FATAL25P04, no effects, physical-end
-and lock cleanup, and healthy peer mutation/readback are mandatory. This replaces
-a public wall-clock callback-order assumption, not the intentional opposite case:
-`TestSessionTimeoutPendingOrderMechanics` and `TestSessionTimeoutPendingLifecycle`
-still require already-pending statement ERROR57014 priority.
-
-`TestSessionTimeoutResidualBeforeIdle` covers the idle counterpart with actual
-setting publication and ready-boundary arming: transaction500ms is unchanged
-when idle375ms starts after300ms, so idle is due at675ms. A private INSERT and
-the peer's exact queued lock remain through499ms; full location-free25P04 at500ms
-must roll back the write, release the peer, end physical ownership and empty
-locks before healthy-peer write/readback. The public wall-clock counterpart is
-removed because both-already-due idle25P03 intentionally wins; that opposite
-outcome remains strict in `TestSessionTimeoutPendingOrderMechanics`.
-
-Both residual bubbles inspect settled state after `synctest.Wait` and fail
-immediately on unexpected worker completion or a missing exact request; they
-never spin while waiting for fake time to advance. The idle counterpart begins
-a real explicit peer transaction for `LOCK TABLE`, observes the canonical
-manager request (an untimed peer has no operation timeout-slot projection), and
-rolls back that peer after the owner's timeout grants its lock.
-
-```sh
-make check RUN='^TestSessionTimeout(ResidualBefore(Statement|Idle)|PendingOrderMechanics|PendingLifecycle|PendingCompletedLifecycle)$'
-make check RACE=1 RUN='^TestSessionTimeout(ResidualBefore(Statement|Idle)|PendingOrderMechanics|PendingLifecycle|PendingCompletedLifecycle)$'
-```
-
-Each selected invocation needs an external 900-second deadline. Public portable
-timeout contracts remain dual-mode tests in `reference/session_state`.
-
-Extension versions use one immutable catalog inventory and the existing
-statement-owned catalog stage. Only base-reachable graph edges require typed
-actions; fuzzy1.1→1.2 creates the real DM member. UPDATE retains exact extension
-and predecessor-member read fences (including ACLs) from the staged snapshot,
-not newer descriptors observed after outside-lock provider validation.
-Old members are fences, not redundant replacements. CREATE/UPDATE share final
-authority/name/epoch publication; no retry, second registry or script runner.
-
-Selected unit proof:
-```sh
-make check RUN='^(TestExtensionVersion(Graph|Manifest|Publication|PathsConsumers)|TestExtensionOwnerManifestAdmission|TestAvailableExtensions(Projection|Capture|StatementFrontier))$'
-make check RACE=1 RUN='^(TestExtensionVersionPublication|TestAvailableExtensionsStatementFrontier)$'
-```
-Use external900-second deadlines. Graph tests cover topology/detachment and
-registration/action validation; manifest/owner tests use genuine providers
-and version-specific nine/ten members. Publication tests gate genuine validation
-outside the mutex, then perform real competing updates, ACL/role mutations,
-Reset/replacement or cancellation, retaining exact winner consumers/data.
-Public SQL/control proof stays in `reference/catalogs/extension_version_*`.
-
-Provider records, member validation, owner metadata and remap live in
-[`extension`](extension/README.md); `stored.ProcedureProvider` owns the procedure
-class and delegates installed members to `extension.CatalogProvider`. The
-providers stage themselves (`extension.Installer`) through `extensionHost`
-(`extension_host.go`), the root `extension.Stage` over the engine, the
-captured authorization view and the `CatalogStage`; every call runs under
-`Engine.mu`. The registry and the installed members hold the same stock
-provider. The CREATE, ALTER EXTENSION UPDATE and DROP EXTENSION decisions,
-the owner-import matching and the fence check are `extension` functions too
-(`StageCreate`, `StageUpdate`, `DropTargets`, `ImportOwners`,
-`AuthorityObservation.Current`); `extensionHost` is also their
-`extension.Host`, and the root keeps dispatch, `Engine.mu`, publication and
-the removal pipeline. Run `make check RUN='^(TestExtensionHostRefusesDiscardedStage|TestExtensionHostBeginStageHandsBackRootStage|TestExtensionMembersHoldBareProviders|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures)$'`.
-
-### Expression node runtime and query executor
-
-The plan IR and the expression node types live in
-[`plan`](plan/README.md), which documents the `plan.Runtime` capability.
-The query executor and `*exec.Context`, its only implementation, live in
-[`exec`](exec/README.md): the shared prologue, the `Eval*` bodies, the node
-openers, row-lock arbitration and the cursors. The engine implements
-`exec.Host` on `statementHost` and installs `enginePreparation`; it names
-the `exec` types directly, with no aliases. A data-modifying
-CTE carries its binding as the opaque `plan.CTEMutation`, recovered only
-through `analyze.MutationBinding`. The installed extension routine nodes and the
-`pg_extension_update_paths` node live in `plan` too; their provider
-validators (`validateInstalled*`) stay here; `exec` reaches
-`analyze.ValidInstalledText` through the preparation value.
-
-Run `make check RUN='^TestNodeRuntimePrologue$'` for the prologue seam; public
-evaluation proof is the existing query, CTE, RETURNING, MERGE, window,
-grouping, domain and generated-column reference selections.
-
-### Advisory timer scheduling and shared result waits
-
-`TestAdvisorySessionQueueTimersDeadlock` keeps its queue, cycle, caller-cancel
-and detached-owner assertions. Its `current_lock_timer` and
-`current_statement_timer` subtests each run `boundary` and `delayed_consumer`
-schedules inside `testing/synctest`. These use actual `context.WithDeadline`,
-`context.AfterFunc` and manager lock timers, not manual expiration or a second
-timer authority. The original70ms/1s budgets are unchanged. The exact request
-and provenance must be queued before virtual time advances; after69ms and
-`synctest.Wait` it is incomplete with no grant, and at70ms the earlier timer
-must complete. The delayed consumer handshakes before blocking on a release
-channel, consumes only at1100ms (after both nominal deadlines), and is joined
-on success and failure paths. This proves delayed consumption, not delayed
-callback delivery or wall-clock performance.
-
-Full location-free ERROR55P03 `canceling statement due to lock timeout` versus
-ERROR57014 `canceling statement due to statement timeout` remains exact,
-including empty Position and unrelated fields. Timeout leaves no failed-key
-grant, pending request or target journal entry; the blocker and independent
-prior session hold survive. After blocker release the SAME owner acquires and
-unlocks once, without losing its prior hold. Ordinary cancellation stays an
-ordinary context error. The unchanged lock-package
-`TestAdvisoryExpiredSourceWinsDelayedCallback` separately holds the actual
-manager mutex across a70ms source deadline and proves delayed callback safety;
-`TestRelationLockWaitsDelayedDeadlines` supplies modeled both-due arbitration.
-
-The test-only `deadlockResult` awaits authoritative Done, never Terminal alone,
-and reads Err only after Done. It checks completion before allocating its
-single stopped one-second failure guard and rechecks completion when that
-guard wins. A genuinely unfinished request still fails; the deadline is never
-refreshed. `TestDeadlockResultScheduling` deterministically checks guard
-resolution for closed/open completion, completion-first behavior without
-consuming an already-ready guard, a blocked waiter/release/join handshake, nil
-requests and exact stored error identity for actual grants, cancellation and
-timeout. The completed guard-resolution regression was observed failing before
-the repair; it does not rely on randomly selecting between ready channels.
-
-All fourteen original top-level consumers were audited and retained: the three
-session advisory queue/cohort/soft-cycle tests, advisory transaction terminal
-races, three blocking-PID tests, enum deadlock retirement, three pg_locks tests
-and three relation deadlock tests. Their caller bodies remain unchanged except
-for the advisory timer cases above. Exact40P01 victim/survivor diagnostics,
-retained counts, blocker identity, owned snapshots and lifecycle cleanup remain
-obligations, not merely successful waits.
-
-```sh
-C='^Test(AdvisorySession(CompatibleCohortTerminalOrder|PhysicalSoftCycle|QueueTimersDeadlock)|AdvisoryXactTerminalRaces|BlockingPids(AdvisorySafeSnapshot|BindingAndIdentity|OrdinaryAuthority)|EnumTypeDeadlockRetirement|PGLocks(TransactionLifetime|WaitDependencies|SnapshotOwnership)|RelationDeadlock(LifecycleCanceledPredecessor|HardCycles|SoftQueues)|DeadlockResultScheduling|AdvisoryExpiredSourceWinsDelayedCallback|RelationLockWaitsDelayedDeadlines)$'
-make check RACE=1 RUN='^TestAdvisorySessionQueueTimersDeadlock$'
-make check RUN="$C"
-make check RACE=1 RUN="$C"
-```
-
-Root's2026-10-22 selected proof passed the target race run and both C modes,
-then C race under exactly two cancellable, ready-handshaken integer contenders.
-The contention run exited0 in26.06s including launcher overhead and reported
-workers2/ready2/joined2, Go1.27.1 and GOMAXPROCS32. The temporary wrapper used one
-840s cooperative deadline, child process-group termination/reaping and joined
-workers under an unchanged outer900s deadline. It did not change affinity,
-GOMAXPROCS or suite concurrency. For the archived source setup and actual
-public wall-clock smoke, see the
-[advisory runtime proof](../../reference/locking_transactions/README.md#advisory-timer-runtime-proof-and-standalone-smoke);
-with that SESSION and C above, the contention command was:
-
-```sh
-timeout --signal=KILL 900s go run "$SESSION/advisory-contention-main.go" -workers 2 -deadline 840s -- make check RACE=1 RUN="$C"
-```
-
-Use external900s deadlines for selected checks. This is bounded competing-work
-evidence, not saturation or arbitrary-load tolerance. The historical finalcheck
-guard failure does not identify whether callback delivery, notification or
-ready-channel selection was delayed; no production timer defect is claimed.
-
-### Relation lock timeout mechanics
-
-Relation-lock timeout units observe completion and lock state together in short
-repeated checks; a short SQL timeout need not remain queued until the parent is
-scheduled. Exact diagnostics, holder preservation, empty final queues and session
-recovery remain mandatory. Fairness uses the existing `Manager.ExpireWait` seam
-rather than elapsed sleeps: its hour-long test policy prevents incidental
-wall-clock expiry while an explicit deadline probe proves queue settlement.
-The canonical per-acquisition proof lives in
-[`lock/timeout_test.go`](lock/timeout_test.go), not a second engine duplicate.
-It retains two successful grants across modeled cumulative waits, independently
-brackets each fresh deadline and verifies expiry at a later request's own bound.
-
-`TestRelationLockWaitsTimeoutCleanup` complements that canonical budget proof
-with one real 200ms request expired at its own deadline. Exact55P03 and retired
-callbacks are required even if its real timer already won. Before holder release,
-it checks the unchanged exclusive holder, empty pending queue and removed waiter
-journal entry; after release, the same ticket must acquire untimed successfully.
-Complete teardown must leave no lock state.
-
-```sh
-make check RUN='^TestRelationLockWaits(Timeout|TimeoutPerAcquisition|TimeoutCleanup|Fairness)$'
-make check RUN='^TestRelationLockWaits(Timeout|TimeoutPerAcquisition|TimeoutCleanup|Fairness)$' RACE=1
-```
-
-### Other engine invariants
-
-Caller-interruption and row-view units observe the actual queued request before
-triggering a controlled caller deadline. Untimed waits and delayed-callback
-arbitration use logical expiration instants, not elapsed sleeps. Statement-timeout
-recovery expires the exact admitted row wait and retains the timeout,
-aborted-transaction, rollback-data and lock-cleanup assertions. Public SQL timeout
-witnesses continue to use real timers.
-
-```sh
-make check RUN='^(TestRowLockViews|TestRowLockViewProvenance|TestRowLockViewStored)$' RACE=1
-make check RUN='^(TestRelationLockWaitsCallerContext|TestRelationLockWaitsUntimedGrant|TestRelationLockWaitsDelayedDeadlines)$' RACE=1
-make check RUN='^TestTransactionIsolationStatementTimeout$' RACE=1
-```
-
-Default-ACL catalog units use real producer ASTs and immutable captured catalog/
-role authority, not public SQL. They cover stable/recreated identities, final-key
-allocation, allocator collisions/exhaustion, private/remapped roots, exact typed
-ACL masks/order, owned captures, invariant rejection, deterministic cancellation
-and actual catalog ACL publication rechecked through direct/fresh/held execution.
-Public dual-mode proof lives in
-[`reference/catalogs`](../../reference/catalogs/README.md#pg_default_acl-selected-proof).
-
-```sh
-make check RUN='^TestPGDefaultACL(Identity|CaptureOwnership|AuthorityAndCancellation|PermissionPublication)$'
-make check RUN='^TestPGDefaultACL(Identity|CaptureOwnership|AuthorityAndCancellation|PermissionPublication)$' RACE=1
-make check RUN='^(TestDropOwnedDefaultCanonicalCleanup|TestDefaultPrivileges(CloneStage|RetainedMessage))$'
-```
-
-Transaction identity, commit order, commit timestamps, snapshot views and SSI
-belong to `visibility.Registry` (`Engine.visibility`) under Engine.mu; see
-[visibility/README.md](visibility/README.md), which also lists the identity
-and commit-timestamp selectors.
-
-Transaction identity/timestamp function-specific binders, immutable nodes,
-evaluation, source operations and node protocols belong to
-[`functions`](functions/README.md#transaction-inquiry-ownership-and-demand).
-`transaction_inquiry_runtime.go` implements their narrow runtime capability;
-`transaction_identity_store.go` and `commit_timestamp_store.go` retain their
-existing domain/epoch fences. Identity context checks precede child evaluation;
-timestamp strict NULL and xid0/1/2 paths precede capability demand. Member SQL
-packing follows the manager snapshot clone outside locks; last XID/timestamp
-are sampled together under `Engine.mu`. No allocator/history or publication
-authority moved into a node.
-
-Mixed real binding/lifecycle tests remain here rather than becoming leaf fakes.
-`TestTransactionIdentityBinding` retains fixed provider IDs, dependency-manifest
-admission, replay/grouping/traversal and fresh-owner retag/remap assertions.
-`TestCommitTimeExpression` retains actual column-origin and slot remapping,
-original immutability, shape/provider/properties and strict whole NULL checks.
-Genuine demand/immutable-node units are listed in the functions README; no whole
-existing definition was removed. Selected engine proof:
-
-```sh
-make check RUN='^TestTransactionIdentity(AgeArithmetic|Allocation|History|Completion|Binding)$'
-make check RUN='^TestCommitTime(Assignment|Publication|Replacement|Expression)$'
-make check RUN='^TestTransactionIdentity(MultiHistory|GrantActions|Savepoint)$'
-make check RACE=1 RUN='^TestCommitTime(Assignment|Publication|Replacement)$'
-```
-
-The root observed the Item8 worktree build and standalone public-driver smoke
-pass after source edits, including real member ownership, exact disabled
-timestamp diagnostics, actual commit timestamps and byte-identical symbolic
-Dump/Reset/Restore. That observation does not replace required selected
-dual-mode, full-suite, race, review or post-integration proof.
-
-
-MultiXact records, counters and version history belong to the lock manager; see
-[lock/README.md](lock/README.md). Raw candidate grants imply neither assignment
-nor membership. CHECK/branch admission precedes the physical event; index and
-RETURNING evaluation follow it. Shared mutations journal successor/deletion
-events while private roots are locked and flush after Engine/owner unlock,
-before caller-visible evaluation. No Engine.mu→manager mutex acquisition is
-introduced; status reads ticket atomics.
-
-Ordinary UPDATE accumulates distinct accepted physical targets by amortized append,
-without copying the growing private prefix per row. Its frozen source and FROM
-winner gate supply distinctness; existing action-prefix overlaps retain immutable
-replacement merging. Append choice does not bypass ordinary target/RI validation
-or UPSERT's separate affected-row cardinality check. Physical events still precede
-unique/RETURNING boundaries, and Finish discards private stages on failure.
-
-```sh
-make check RUN='^TestPGLocks(ProjectionModes|TransactionLifetime|PredicateLifetime)$'
-make check RUN='^TestUpdateCore(MultirowAllocation|StagedPrefixOverlap|SparseAllocation)$'
-make check RUN='^Test(WalkBoundExpressionVisitsCompositeChildren|InstalledFunctionRebuildKeepsWrapper)$'
-```
-
-Use external 900-second deadlines. These actual-seam units seed wrap/horizon/
-collision state, immutable bags, one-updater filtering, real grant/cancel paths,
-busy prepared claims and symbolic original provider ownership; public SQL and
-all-six-function smoke remain in `reference/locking_transactions`.
-
-`TestRowLockViews`, `TestRowLockViewProvenance` and `TestRowLockViewStored`
-observe a nonterminal request for the exact requested mode on a physical row
-held by the blocking transaction before triggering the controlled caller deadline
-with `lockWaitCaller(t, true)`. These contention/provenance/strength witnesses
-retain `context.DeadlineExceeded`, no result cursor and no affected rows without
-racing a wall-clock deadline against enqueue. In particular, the restored-layout
-case must still block `FOR KEY SHARE` behind the stored `FOR UPDATE` mark after
-column rename/drop and real Dump/Restore. Queue observation, worker execution,
-result collection and cleanup retain their existing five-second bounds. Worker
-goroutines return outcomes; only the owning test goroutine makes fatal
-assertions. Dedicated timeout-budget tests remain unchanged.
-
-```sh
-make check RUN='^(TestRowLockViews|TestRowLockView(Provenance|Stored|Recheck|Lifetime))$'
-make check RUN='^(TestRowLockViews|TestRowLockView(Provenance|Stored|Recheck|Lifetime))$' RACE=1
-```
-
-
-`TestObjectACLTypeSetterProvenance` exercises actual `Engine.SetObjectACL`
-publication for domains, enums and standalone composites. Genuine replacement
-clears constructor-synthetic provenance for explicit default-equivalent, empty
-and owner-only ACLs. The test checks raw visibility, provider validity, retained
-catalog snapshots and rejection of explicit ACL serialization before either
-writer interface is called.
-
-```sh
-make check RUN='^TestObjectACLType(SetterProvenance|Provenance)$'
-make check RACE=1 RUN='^TestObjectACLTypeSetterProvenance$'
-```
-
-Public grant, raw-ACL, held-execution and native-control witnesses live in
-[`reference/object_grants`](../../reference/object_grants/README.md), not in this
-package's private invariant tests.
-
-`TestObjectAddressRoutineOriginalAuthority`, `SourceNullOriginalGraph`,
-`ScalarNullPreflightInfo` and `SourceFalseDemand` (with the ObjectAddress prefix)
-retain original inquiry descriptors, complete manifests and immutable source
-schemas while execution-only NULL/empty-source pruning changes actual demand.
-Independent imported NULL proofs do not erase per-argument domain barriers or
-actual typed-domain input validation.
-
-`TestNumericSeriesRoutineOriginalAuthority`, the two `TestJSONRecordRoutine`
-definitions and `TestIntaggRoutineOriginalAuthority` exercise selected full
-formal identities, genuine source/project admission and missing/empty/foreign/
-stale manifest rejection. Shape completion, retagging, relocation and stored
-recipe grafting must retain original authority, not recover it from an OID.
-`TestIntaggRoutineIndependentOwners` covers actual COW ownership staging, named
-owner metadata import and reassignment with independent member owners.
-
-The six `TestJSONBRecordRoutine` definitions apply original-authority, stored-view
-recipe, ended-scope, failed-constructor and real ACL/owner-COW invariants to all
-five existing JSONB providers. Compatible owner declarations do not waive revision
-checks: retained old snapshots remain valid, an old graph rejects a changed current
-revision, and fresh analysis captures the new owner/revision before admission.
-
-These are private provider/lifetime invariants, not duplicate public SQL tests.
-Fixtures create stored recipes before retaining statement admission; entering
-Engine.Execute on an operation that already owns admission would recursively
-acquire its mutex. Parameterized expressions retain structural rewrite coverage
-without pretending they are persistable native recipes.
-
-```sh
-make check RUN='^TestObjectAddress(RoutineOriginalAuthority|SourceNullOriginalGraph|ScalarNullPreflightInfo|SourceFalseDemand)$'
-make check RACE=1 RUN='^TestObjectAddress(RoutineOriginalAuthority|SourceNullOriginalGraph|ScalarNullPreflightInfo|SourceFalseDemand)$'
-make check RUN='^(TestJSONRecordRoutine(OriginalAuthority|FailedConstructor)|TestIntaggRoutine(OriginalAuthority|IndependentOwners)|TestNumericSeriesRoutineOriginalAuthority)$'
-make check RACE=1 RUN='^(TestJSONRecordRoutine(OriginalAuthority|FailedConstructor)|TestIntaggRoutine(OriginalAuthority|IndependentOwners)|TestNumericSeriesRoutineOriginalAuthority)$'
-make check RUN='^TestJSONBRecordRoutine(OriginalAuthority|StoredRecipe|EndedScope)$'
-make check RACE=1 RUN='^TestJSONBRecordRoutine(OriginalAuthority|StoredRecipe|EndedScope)$'
-make check RUN='^TestJSONBRecordRoutine(FailedConstructor|OwnershipCOW|ACLCOW)$'
-make check RACE=1 RUN='^TestJSONBRecordRoutine(FailedConstructor|OwnershipCOW|ACLCOW)$'
-```
-
-Virtual-generation private invariants retain the original owning recipe,
-current-invoker authority, captured-source mapping and allocation-free lookup.
-Cursor invariants retain DECLARE's genuine authorization snapshot while rejecting
-missing/foreign/stale original manifests at FETCH/promotion and releasing all
-producer authority at teardown. Stored-recipe replacement checks actual private
-catalog remapping; public SQL answers and Dump/Restore live in `reference/`.
-
-```sh
-make check RUN='^(TestAlterGeneratedExpressionCapturedVirtual|TestVirtualGenerationOriginalAdmission|TestSQLCursorRoutineAuthorityLifetime)$'
-make check RUN='^(TestAlterGeneratedExpressionCapturedVirtual|TestVirtualGenerationOriginalAdmission|TestSQLCursorRoutineAuthorityLifetime)$' RACE=1
-make check RUN='^TestRoutineBody(OriginalLifetimeAndForeignRetag|StoredRecipeReplacement|EveryProviderOriginalLifetime)$'
-make check RUN='^TestUpdateCoreRecursivePreflight$'
-```
-
-`TestNetworkOperatorRoutineOriginalAuthority` independently checks the seven
-canonical declarations, complete original manifests and the one genuine SQL
-edge, including missing/foreign/stale authority rejection. The SQL-body lifetime
-witness now binds 40 distinct roots in 42 instances, retaining independent
-BOOL/INET cast-reference removal cases.
-
-```sh
-make check RUN='^(TestNetworkOperatorRoutineOriginalAuthority|TestRoutineBodyEveryProviderOriginalLifetime)$'
-make check RUN='^(TestNetworkOperatorRoutineOriginalAuthority|TestRoutineBodyEveryProviderOriginalLifetime)$' RACE=1
-```
-
-`TestTIDRoutineAuthority` binds all six existing row-backed comparison providers,
-retains their canonical original descriptor/reference/revision and rejects
-missing/foreign/stale or forged-retag authority. No private SQL-answer oracle or
-new physical TID mechanism is involved.
-
-```sh
-make check RUN='^TestTIDRoutineAuthority$'
-make check RUN='^TestTIDRoutineAuthority$' RACE=1
-```
-
-`TestACLValueRoutineOriginalAuthority` checks the four existing bound ACL
-providers' full IN signatures, original descriptors/manifests and authentic
-missing/foreign/stale/retag rejection. Expansion retains physical RECORD2249,
-four OUT fields and SETOF classification; genuine source/project admission
-uses `(false,false)`, not the scalar-planning exemption. Bare expression binding
-does not itself mark the enclosing query's target-set observation.
-
-```sh
-make check RUN='^TestACLValueRoutineOriginalAuthority$'
-make check RUN='^TestACLValueRoutineOriginalAuthority$' RACE=1
-```
-
-### Server protocol ownership
-
-The wire adapter uses the existing session, transaction, prepared-analysis and
-typed-frame authorities. `ProtocolCycle` retains implicit transaction work, not
-an operation or admission lock; each message acquires its own command context.
-Sync closes implicit work without closing an explicit transaction. Simple-query
-plain SELECT output uses the initialized live producer before statement Finish;
-store-backed output uses a finished retained scope. Both release admission and
-the replacement read fence through reserved I/O and validate the exact current
-owner on resume. Non-retained transaction controls borrow the existing owner
-identity for pre-execution disposal without starting a transaction.
-
-Prepared SQL and wire statements share names. Wire portals share collision and
-Close visibility with SQL cursors but own separate execution position/lifetime.
-Plain SELECT binds its snapshot before target demand; finite execution performs
-no extra-row lookahead. Retained producers and once-executed row stores do not
-replay volatile projections or writes on resume. Closing a statement does not
-discard an already bound portal.
-
-Retained typed execution state is not retained wire presentation. Each Execute
-serializes through its fresh scope settings and per-row borrowed catalog readers,
-recycling spelling maps so repeated OIDs follow the current effective path and
-quoting policy. Live producers keep their captured catalog interpretation; stored
-destinations select the current canonical catalog once on their first tuple.
-Catalog-derived operator groups are reused within that destination, not rebuilt
-per row. Stored typed rows and their embedded immutable output environment are
-never rewritten, rebound or replayed to refresh wire presentation.
-
-`ExecuteProtocolSimple` uses the canonical execution core, including shared
-prepared-name resolution and parameter import. Direct wire SELECT plans closed
-immutable expressions before executor startup, preserving imported-parameter,
-row, domain and volatile demand barriers. This protocol policy uses the same
-canonical preflight helpers without changing embedded ordinary arithmetic's
-existing row-owned phase boundary. The prepared graph feeds the live producer:
-actual schema precedes row demand, and an execution error cannot retract emitted
-rows. Planning errors emit neither schema nor rows. RETURNING, modifying-CTE and
-utility-row strategies retain their store-before-destination boundary; failure
-while filling that store does not fabricate a RowDescription. Embedded Execute
-keeps its immutable, eagerly finalized Rows contract.
-SQL EXECUTE retains its outer utility strategy: simple portal creation precedes
-the existing prepared-name lookup, actual arguments and inner planning. Its
-resolved SELECT fills a row store before destination startup, so an inner
-execution error emits no RowDescription or partial DataRow prefix. Named sibling
-portals remain intact; the resolved body is not promoted to a direct live SELECT.
-
-Published EXECUTE utilities resolve iteratively through that same authority,
-preserving the outer utility/store strategy at every supported nesting level.
-Each invocation imports its own nonzero formal frame once before the next
-lookup; wire EXECUTE retains explicit unused hints. These values do not create a
-lexical `$n` namespace inside another EXECUTE utility. Zero-formal utilities keep
-their existing ignored-actual policy. Intermediate frame scratch is cleared and
-reused, obsolete importer captures are released, and successive consumed actual
-graphs coalesce through the existing exact reference/consumer/actor union without
-dropping lifetime checks or changing readmission order. The incoming Expected
-signature is restored on exit; leaf query signatures and COPY's zero/nil inner
-query parameters retain their normal ownership. Every hop checks the original
-operation's cancellation/session state. No synthetic cycle/depth limit or
-PostgreSQL host-stack diagnostic is introduced or claimed equivalent.
-
-Eligible EXISTS preparation follows the existing presence-only plan: unused
-outer targets are not evaluated, while demanded child predicates and existing
-presence/sort policy still receive canonical preflight.
-
-Simple Query removes only the unnamed portal, at actual planned-command execution
-or untransformed utility entry. Empty Query and failures in required outer
-parsing/analysis/planning do not reach that event; SQL EXECUTE's inner lookup and
-planning follow its utility event. Failed unnamed Parse removes its old statement
-before raw parsing but preserves already bound portals. Named Parse publishes
-only after required analysis and rejects duplicate names without replacing the
-original. Describe looks up its statement/portal first; in an aborted transaction,
-row descriptors (including zero-column results) fail before parameter/result
-metadata, while retained NoData and empty descriptions remain available.
-
-SQL cursors and wire portals use one birth frontier. Both savepoint restoration
-paths retire newer same-transaction wire portals through unlocked terminal
-cleanup; older producer positions are not rewound.
-
-Executor completion and name retirement are distinct. Exhausted SELECT and
-row-store portals remain fetchable with current-fetch count zero; completed
-non-row DML, controls and COPY reject another Execute with 55000. Empty-query
-portals retain their separate EmptyQueryResponse behavior. An execution failure
-disposes executor/frame/output resources but retains a failed name and descriptor
-when its birth survives savepoint restoration. That name rejects execution with
-55000 and duplicate Bind with 42P03 until Close or actual lifetime retirement.
-Terminal disposal uses a logical reservation even after cancellation, never
-resumes an executor and never replaces the primary execution error.
-
-Query-creation utilities cross simple portal creation after canonical analysis
-and before destination skip notices/schema effects, including WITH NO DATA and
-existing IF NOT EXISTS destinations. These fast paths do not demand the SELECT
-producer. Pending catalog publication uses the exact active operation/scope and
-canonical retained incarnation, whether retention comes from a SQL message or
-a protocol cycle; no synthetic message or transaction expands embedded DDL.
-
-COPY uses the same text/CSV/binary executor as native streams. Its real preflight
-supplies response metadata; callbacks run outside engine/publication locks and
-admission. The terminal input hook can veto rows before application/publication,
-including CopyFail after a text end marker. File/PROGRAM endpoints remain
-unsupported. Notification polling shares the committed native queue/wake owner,
-holds no idle activity lease and leaves wire transaction-idle gating to the
-serialized adapter. FunctionCall uses actual declared executable OIDs, current
-ACL authority and the shared codecs, not lookup-only routine identities.
-
-Binary NULL arguments resolve the declared receive provider before typed NULL
-construction and domain checks, without invoking nonnull conversion or container
-members. Ordinary row destinations initialize binary send providers once on
-their first actual tuple, before NULL attributes are encoded; Bind, Describe and
-empty ordinary results do not initialize them. Resumed execution has its own
-destination startup. COPY retains its separate stream-initialization boundary.
-FunctionCall's strict NULL result still bypasses result-format/provider use.
-Its receiver shares typed import with Bind but retains arity-before-format-count
-ordering and its own format-count and signed invalid-argument-size diagnostics.
-
-Protocol callers pass COPY stream capability lexically through that same core.
-Actual COPY, including a wire-prepared body reached by SQL EXECUTE or an extended
-EXECUTE wrapper, uses the real CopyProtocol hooks; no socket callback is saved by
-the portal after execution. Embedded Execute passes no capability and retains
-CopyBoundary. Nonzero utility formals use the existing SQL actual importer once
-before CopyStart, after its arity check; zero-formal behavior adds no new checks.
-Unused utility formals are not parameters of the inner COPY query. That inner
-query temporarily suspends/restores the outer NoData signature and still uses
-the existing fixed-zero-parameter analyzer/executor, without a second binder.
-
-Protocol COPY of a plain SELECT transfers the canonical initialized cursor
-directly to the shared exporter, without a registered portal, rebind or replay.
-Planning, metadata and current authority precede CopyStart; projection demand
-starts only after the real CopyOutResponse. Successfully emitted records survive
-a later query error. Intrinsically blocking operators retain their own demand
-policy; modifying-CTE/store strategies and embedded COPY retain their existing
-execution boundary. Per-record output readers reuse bounded scratch rather than
-retaining the query's output history. Disposal runs unlocked while borrowing,
-not replacing or prematurely completing, COPY's existing scope reservation.
-
-Protocol binary COPY FROM initializes declared receive functions before
-CopyInResponse, visiting all live physical attributes in order, including omitted
-COPY targets but excluding dropped history. Each attribute's provider setup
-precedes its existing default preflight; earlier defaults retain precedence over
-later provider failures. Empty/NULL streams cannot bypass an absent receiver.
-A domain has the generic domain receiver, so an empty stream can complete even
-when its base receiver is absent. Actual domain input, including NULL, resolves
-the base at row invocation after the response and before domain constraints,
-preserving genuine COPY row/column error context. Embedded stream and ordinary
-Go-context policies remain unchanged.
-
-Binary COPY TO initializes the actual declared send providers after CopyOutResponse
-but before its binary signature or any row demand, including empty/NULL results.
-A missing provider therefore emits the response and its genuine diagnostic, not
-binary data or successful completion. Domains delegate to their base provider;
-generic array send does not eagerly initialize its members' providers.
-
-Typed wire user cancellation is deferred only through genuine COPY receive
-ownership and decoding/conversion. For native wire FROM, including binary input,
-healthy admission establishes that owner before publishing CopyInResponse and
-carries it through the unlocked Start return fence into the first decoder.
-Pre-canceled admission still rejects before Start; callback errors and
-owner/catalog fences remain authoritative. Embedded COPY and COPY OUT are
-unchanged.
-The operation selects an actual standard input context
-without replacing its original/source context. Only after that cancellation is
-pending does the lazy view detach its cancellation key and re-project the exact
-captured absolute deadline; no budget is restarted. Required codec conversion
-errors keep their genuine row/column context and take precedence. Successful
-conversion observes pending cancellation before returning a row to assembly.
-The hold is cleared before constraints/application and restored on every exit;
-ordinary Go caller cancellation and native input policy remain unchanged.
-The wire input caller arms the first-record ownership hold and installs its
-cleanup before invoking Start, so immediate frontend cancellation cannot win
-the callback resume check. The callback itself does not arm a second hold.
-Cleanup covers failed Start, failed resume validation, decoder exit and panics
-after ownership begins. `TestProtocolCopyInputStartOwnership` cancels inside the
-actual callback without timing, covering valid/invalid input, embedded
-cancellation, pre-start cancellation, failed publication and ownership cleanup.
-
-At text-decoder entry and binary row-decoder entry after header initialization,
-a typed user cancel arriving just after selection of a live context causes a
-refresh through that same held input owner, followed by another cancellation
-check. This decoder refresh does not alter the caller's pre-Start ownership.
-This does not bypass an ordinary, terminal or deadline error, change source
-cancellation, or promise that CopyInResponse alone establishes socket-read
-admission. The complete record
-still determines conversion errors; successful conversion must still observe
-the pending-cancel veto.
-
-`Session.EndRequested` lazily observes canonical ending before lease cleanup,
-without acquiring a lease or changing `WaitEnd`. Session ending directly cancels
-any held input view. The adapter's existing watcher requests ending on physical
-shutdown/disconnect and observes this wake for later FATAL delivery, so an earlier
-user-cancel cause cannot hide physical or session termination.
-
-Session checks and operation admission observe due transaction/idle budgets
-under `Session.Mu` before publishing a lease or invalidating the idle slot.
-One timestamp feeds the existing callback expiry decision for both slots, so
-delayed callback delivery cannot admit work on an expired physical owner.
-Generation, transaction authority, retired budgets and pending statement/lock
-ERROR priority remain shared with callbacks; termination uses the canonical
-first-reason/cancellation/cleanup path. Pre-canceled callers retain their Go
-context error before admission.
-
-`TestSessionTimeoutAdmissionMechanics` covers Check, activity and command
-admission without scheduler sleeps. `TestSessionTimeoutRetiredAdmissionMechanics`
-and `TestSessionTimeoutCanceledAdmissionMechanics` preserve retirement and caller
-cancellation; `TestSessionTimeoutPendingOrderMechanics` covers active pending
-ERROR priority independently of callback scheduling.
-
-```sh
-make check RUN='^TestSessionTimeout(Admission|RetiredAdmission|CanceledAdmission|PendingOrder)Mechanics$'
-```
-
-An acquired command's own statement timeout before `StartStatement` can create a
-scope synchronously fails its originating explicit block. Acquisition captures
-immutable incarnation evidence under `Session.Mu`; it is not transaction
-authority. Admission revalidates real operation membership and exact current
-incarnation before using the same explicit failure disposal as ordinary
-`StatementScope.Finish`. Settings/savepoints, private effects, visibility,
-foreign/cursor cleanup and lock retirement therefore keep their canonical
-semantics. No timer callback mutates the transaction, and timer start is unchanged.
-
-Ordinary caller cancellation/deadlines retain their context identity and
-preadmission no-mutation policy. Idle-origin or stale commands cannot poison a
-later transaction. A timed-out waiter cannot dispose a live COPY reservation,
-stop its owner's budget or wait for its external reader to finish.
-
-`TestStatementTimeoutAdmission` covers immediate failed state and recovery,
-contended admission, caller/authority/incarnation preservation, actual COPY
-reservations, savepoints, complete resource disposal and protocol admission.
-The tests deliver the exact own cause to genuine acquired commands at observed
-context checkpoints; they do not claim wall-clock timer callback delivery or
-observable mutex queue membership. The unchanged public queued-conflict
-reference scenario supplies configured-timer coverage.
-
-```sh
-make check RUN='^TestStatementTimeoutAdmission'
-make check RUN='^TestStatementTimeoutAdmission' RACE=1
-```
-
-Use external900-second deadlines for these selected commands.
-
-Private mechanisms supplement the real socket tests:
-
-`TestProtocolCopyCursorCapturedCancellation` and
-`TestProtocolCopyBinaryCursorCapturedCancellation` deterministically schedule
-genuine source cancellation between input-context selection and the cursor's
-first cancellation check. Real text/binary parsing and integer conversion
-distinguish invalid input precedence from successful conversion's pending-cancel
-veto; ordinary and terminal cancellation retain their own authority. Selected
-owner-seam proof:
-
-```sh
-make check RUN='^TestProtocolCopy(Binary)?CursorCapturedCancellation$'
-```
-
-`TestProtocolCopyStartCancellation` retains the canonical simple/extended
-valid/invalid first-record handoff proof. Its complementary
-`TestProtocolCopyStartCancellationAuthority` checks pre-canceled admission,
-ordinary/FATAL causes and primary callback failures without consuming input.
-Both use actual COPY Start callbacks; neither infers a socket-read observer
-or PostgreSQL admission equivalence.
-
-```sh
-make check RUN='^TestProtocolCopyStartCancellation(Authority)?$'
-```
-
-- `TestProtocolPreparedRegistry`: exact-session retirement and independently
-  retained portal recipes.
-- `TestProtocolValueCodecs`: borrowed field-buffer growth, NULL/empty identity,
-  role-reader recapture under changing presentation and occurrence-owned deferred
-  RECORD input.
-- `TestProtocolCycleRetention` and `TestProtocolPortalProducer`: fresh operation
-  admission, exact demand/position, savepoint birth-frontier ownership and
-  idempotent producer cleanup.
-- `TestProtocolSimpleDisposalFence`: unlocked pre-control disposal with exact
-  owner/replacement-fence preservation and reusable output reservations.
-- `TestProtocolSimplePlanningBounds`: planning-owned immutable errors, no early
-  volatile target demand, actual finite row demand and parameter barriers.
-- `TestProtocolFailedExecutorOwnership`: canceled-operation cleanup outside locks,
-  retained failed identity, birth-frontier retirement and exactly-once disposal.
-- `TestProtocolCopyCancellationContext`: immutable typed SQL cancellation enriched
-  from actual cursor context, primary-error precedence and embedded Go-cancel
-  identity preservation.
-- `TestProtocolCopyInputContext`: real codec conversion precedence, standard
-  context cancellation/value/deadline contracts, decoder-only scope, original
-  source identity, ordinary caller/timeout behavior and ending before lease drain.
-- `TestProtocolCopyStartCancellation`: simple/extended COPY installs its first-record
-  cancellation hold before the metadata hook can send CopyInResponse. Immediate
-  cancellation retains actual record context and conversion-error precedence;
-  the hold and immutable source diagnostic do not escape the invocation.
-- `TestProtocolEndRequestedWake`: early/late request observation, repeated
-  requests and completion waiting for the actual operation lease.
-- `TestProtocolCopyHooks`: unlocked metadata callbacks and terminal veto before
-  row application.
-- `TestProtocolCopyQuerySignatureScope`: outer utility signature restoration
-  across inner-analysis/output failure and unlocked actual output.
-- `TestProtocolFunctionInvocation`: aborted-transaction rejection before OID
-  consumption.
-- `TestProtocolNotificationPoll`: FIFO dequeue, atomic wake registration, no
-  activity lease and retirement wake.
-- `TestPreparedSQLActualProgramOwnership`: bounded repeated actual-call graphs,
-  original consumed-call identity and foreign-authority rejection.
-
-```sh
-make check RUN='^TestProtocol(PreparedRegistry|ValueCodecs|CycleRetention|PortalProducer|SimpleDisposalFence|SimplePlanningBounds|FailedExecutorOwnership|CopyCancellationContext|CopyInputContext|EndRequestedWake|CopyHooks|CopyQuerySignatureScope|FunctionInvocation|NotificationPoll)$'
-make check RACE=1 RUN='^TestProtocol(CycleRetention|PortalProducer|SimpleDisposalFence|SimplePlanningBounds|FailedExecutorOwnership|CopyCancellationContext|CopyInputContext|EndRequestedWake|CopyHooks|CopyQuerySignatureScope|NotificationPoll)$'
-make check RUN='^TestPreparedSQLActual(NoSnapshotDemand|ProgramOwnership)$'
-make check RUN='^TestProtocolCopyInputStartOwnership$'
-make check RUN='^TestProtocolCopyInputStartOwnership$' RACE=1
-```
-
-Public answers, metadata, ACL timing, cancellation and actual pq/psql behavior
-belong to [`reference/sessions`](../../reference/sessions/README.md), using real
-server subprocesses and the pinned PostgreSQL fixture. Run affected shared
-definitions with `make check RUN='...'` and the same selection with `REFERENCE=1`;
-the private mechanisms are not a substitute for that proof. The owning sessions
-README contains the separate built-server smoke and complete selector inventory.
-
-
-### Recursive SEARCH components
-
-`make check RUN='^TestQuerySearch(Shape|Parent|Identity|Remap|Cancellation|Signature)$'`
-checks exact occurrence RECORD/_RECORD Usage and NULL fields, actual joined-parent
-slots, immutable ancestry, complete generated collision equality including CYCLE,
-destination leaf reownership/memoization and strict stored layouts. It distinguishes
-stable public result identity from exact internal/parameter shape, and polls real
-construction/hash/equality loops for cancellation. Run selected race proof with
-`make check RACE=1 RUN='^TestQuerySearch(Parent|Remap|Cancellation)$'`.
-The affected installed units are
-`make check RUN='^TestQueryCycle(Equality|Parent|Ownership|Lifecycle|Signature)$'`.
-Public ordering, prepared/native persistence, atomicity and cancellation witnesses
-remain the dual-mode definitions documented in `reference/query_core/README.md`.
-
-### Built-in catalog seed
+  takes the lock manager mutex under `Engine.mu`.
+- `catalog_sources.go` registers descriptors from `pgcatalog.Specs`, preserving
+  registration order, OIDs, columns and row/array links.
+- Provenance is same-pointer authority (`catalogStore.owner()` returns the
+  stable `*catalog.Owner`), never equal names, OIDs or epochs.
+- `pg_settings` consumers (direct, fresh and held) recheck relation and column
+  SELECT authority; a revocation after the statement's metadata admission
+  returns `ErrCatalogReplaced` and publishes no rows.
+
+## Catalog writes
+
+- `catalog.AdvanceRevisionFrontier` is pure and saturating; it never reserves
+  the global allocator. Publication accumulates a local frontier and commits it
+  only at successful catalog/storage/visibility installation under `Engine.mu`.
+- `CatalogStage` embeds `catalog.Candidate`, whose overlay maps are private; DDL
+  authorization, lifecycle, rowtype synchronization, storage coordination and
+  engine-dependent validators stay in the root.
+- Access-method descriptors and native handler associations are seeded in the
+  ordinary catalog before family/class validation; `access_method.go` fences
+  method/handler consumers at publication under `Engine.mu`. Heap resolves
+  through captured method/handler validation to `visibility.HeapOperations`.
+- `Engine.SetObjectACL` replacement clears constructor-synthetic ACL provenance
+  for explicit default-equivalent, empty and owner-only ACLs.
+- Shape completion, retagging, relocation and stored-recipe grafting retain the
+  original routine authority; they never recover it from an OID.
+
+## Built-in catalog seed
 
 Every engine seeds the same built-in catalog from compiled tables; only the
 current database descriptor depends on engine options. `builtin_catalog.go`
-therefore validates the seed once per process (the current database on every
-engine) and shares one procedure-name index, as `routine.SeededOperatorNames` does for
-operators. It also shares the seed's name map: `finishSeed` builds the
-persistent map of every seed name binding except the current database's once
-per process, and each engine adds its database binding to its own version. A
-seed that depends on new engine options must be validated per engine too, and
-must bind those names after the shared ones or not share them. The seed is one
-catalog bulk load (`BeginBulkLoad` in `newEngine`, ended by `finishSeed`), so
-seeding costs Go-map writes plus one bulk build of the descriptor map.
-Publications and stage reads share the persistent maps and no longer scale
-with the seed size; check `make bench` allocations when adding built-ins. Seed values come from
-pure constructors (`routine.BuiltinProcedures`, `typedef.BuiltinConversionProcedures`,
-`typedef.BuiltinDomainCheckSeeds`, ...); the `install*` methods in `builtin_catalog.go`
-write them into the catalog in `newEngine`'s order.
+validates the seed once per process and shares its procedure-name index and
+persistent name map; each engine validates and binds only its database. A seed
+that depends on new engine options must be validated per engine and bound after
+the shared names (or not shared). Seeding is one bulk load (`BeginBulkLoad` in
+`newEngine`, ended by `finishSeed`) of values from pure constructors
+(`routine.BuiltinProcedures`, `typedef.BuiltinConversionProcedures`, ...),
+written by the `install*` methods in `newEngine`'s order. Check `make bench`
+allocations when adding built-ins.
+
+## Function runtimes
+
+`functions` nodes own binding, immutable recipes and argument demand; the root
+runtime bodies keep the authority.
+
+### Catalog inquiry and session identity
+
+`catalog_inquiry_runtime.go` and `session_inquiry_runtime.go` back the
+capabilities. The root keeps SQL-callable precedence,
+analyzer/coercion authority, statement catalog/role/comment/visibility
+snapshots, locks and authorization recapture, `schemaInquiryPathLocked`,
+pending-TEMP staging/publication, schema caches, FK/rule/view expression
+authority, address lookup, catalog index interpretation, lazy routine
+admission, deparse/tree engines and serial ownership lookup. Stored literal
+pairing, logical identity remapping, prepared invalidation, snapshot manifests
+and catalog-replacement fences also stay here.
+
+### Other runtimes
+
+- **Advisory and blocking.** `advisory_runtime.go` and `blocking_runtime.go`
+  keep resource construction, current session/transaction selection, admission,
+  wait/readmission, notices, manager reads and SSI safe waits. Ordinary blocking
+  reads never nest `Engine.mu` and manager mutexes; safe-snapshot capture stays
+  under `Engine.mu`. No prepared node caches an owner.
+- **Sequences.** `sequence_runtime.go` runs, in this order: the evaluation
+  prelude and live statement scope, OID-to-reference construction (and
+  `lastval`'s session provider), the catalog epoch fence (including TEMP epoch
+  revalidation) before and after RowExclusive `acquireSequence`, the ACL and
+  read-only checks and `sequenceGeneratorLocked`. Privileges, the read-only
+  error and call semantics are [`sequence`](sequence/README.md)'s
+  `CallPrivileges`, `ReadOnlyCallError` and `CallLocked`.
+- **Transaction inquiry.** `transaction_inquiry_runtime.go` implements
+  `TransactionInquiryRuntime`; `transaction_identity_store.go` and
+  `commit_timestamp_store.go` keep their domain/epoch fences. Last XID and
+  timestamp are sampled together under `Engine.mu`; member records are packed
+  from the manager's snapshot clone outside locks. Transaction identity, commit
+  order and SSI belong to [`visibility`](visibility/README.md).
+- **Large objects.** VOLATILE SQL body entry captures an immutable
+  command-visible large-object READ catalog in `sqlRoutineScratch`, not the root
+  effect journal; nested queries get fresh captures and unwind restores the
+  outer view while root-owned command effects stay for publication.
+
+## Closed function sources and stored capture
+
+- `expr.Source.SourceAdmission` and `exec.OpenFunctionSource` own source
+  admission and opening; root catalog/extension runtime operations keep their
+  state and validation authority. Equivalent stage rewrites use
+  `expr.Substitute` without provider re-resolution; catalog generation remapping
+  uses Rebuild/Retag.
+- Stored literal capture pairs the raw normalized preorder with explicitly
+  admitted `expr.Capturable` written operands. Engine wrappers run first, and
+  capture validates every operand before writing any annotation. SQL routine
+  wrappers validate syntax and captured procedure authority before exposing
+  written actuals.
+- SQL/JSON display and stored replay interpret the node's `expr.Rendering`; the
+  root unwraps only a recognized formatted-input conversion and supplies a
+  RETURNING usage only from its owning conversion.
+
+## SQL routine admission
+
+- SQL routines extend stored DEFAULT closure only when a real checked SQL call
+  occurs in it, never making a rejected volatile expression admissible; the
+  callee body is not executed while admitting a default.
+- An ordinary call without a native provider distinguishes a missing signature
+  (42883) from a viable released core signature whose native capability is
+  absent (0A000). The release identity index is diagnostic evidence only: it
+  never grants execution, adds catalog rows or installs extension functions.
+  Diagnostic arity honors trailing defaults from the native declaration
+  inventory (or lookup-only release metadata); defaults are never evaluated.
+
+## Extensions
+
+- Provider records, members and manifests live in
+  [`extension`](extension/README.md). Providers stage through `extensionHost`,
+  always under `Engine.mu`; CREATE/UPDATE/DROP decisions are `extension`
+  functions, and the root keeps dispatch, `Engine.mu`, publication and the
+  removal pipeline.
+- Versions use one immutable catalog inventory and the statement-owned stage.
+  UPDATE keeps the exact extension and predecessor-member read fences (including
+  ACLs) from the staged snapshot, not descriptors observed after outside-lock
+  provider validation. CREATE and UPDATE share final authority/name/epoch
+  publication; no retry, second registry or script runner.
+- Retirement captures the complete target set, including automatic aliases. The
+  incoming-dependency preflight inspects changed committed owners through their
+  candidate descriptors and rejects with `catalog.Conflict` before mutation,
+  never by adoption or a second cascade.
+
+## VACUUM
+
+- `vacuum.go` owns selection and admission: one StatementScope, one
+  transaction/ticket. Per-target AccessShare/ShareUpdateExclusive holds return to
+  manager checkpoints outside engine/session locks between targets.
+- SKIP_LOCKED applies to selection and work locks. Only a genuine manager
+  `ErrUnavailable` becomes the 55P03 warning/omission, after restoring that
+  target's checkpoint; cancellation and timeouts stay errors. Warnings are
+  delivered in encounter order after checkpoints and metadata mutexes are
+  released.
+- Expansion is breadth-first in direct-child OID order, deduplicated per root
+  only. Only VACUUM opts into `analyze.ExplicitPath`'s peer-TEMP resolution.
+- `vacuum_publication.go` materializes detached immutable candidates, remaps
+  indexes without evaluating keys and rechecks root/storage/shape/authority/gate
+  tokens before atomic installation. Peer DML causes recapture, never SQL
+  replay; nothing fails after the install region's first write.
+- `vacuum_metadata.go` keeps full-XID bounds, statistics and phase records under
+  `Engine.mu`; progress visibility uses backend startup authentication
+  authority. Relation births reconcile bounds in constant time.
+
+## Row mutation and MultiXact
+
+MultiXact records, counters and history belong to the lock manager. CHECK and
+branch admission precede the physical event; index and RETURNING evaluation
+follow it. Shared mutations journal successor/deletion events while private
+roots are locked and flush after the engine/owner unlock, before caller-visible
+evaluation. No `Engine.mu` → manager-mutex acquisition exists; status reads
+ticket atomics. Ordinary UPDATE accumulates distinct accepted physical targets
+by amortized append, and Finish discards private stages on failure.
+
+## Server protocol
+
+The wire adapter reuses the session, transaction, prepared-analysis and
+typed-frame authorities.
+
+- `session.ProtocolCycle` retains implicit transaction work, not an operation or
+  admission lock; each message acquires its own command context. Sync closes
+  implicit work, never an explicit transaction.
+- Prepared SQL and wire statements share names. Wire portals share collision,
+  Close visibility and the savepoint birth frontier with SQL cursors but own
+  their position and lifetime. Closing a statement keeps its bound portals.
+- Each Execute presents rows with its fresh scope settings and per-row borrowed
+  catalog readers; stored typed rows are never rewritten or replayed to refresh
+  presentation.
+- `StatementScope.ExecuteProtocolSimple` uses the canonical execution core.
+  Plain SELECT streams from the live producer (schema before row demand; emitted
+  rows stand after a later error). RETURNING, modifying-CTE, utility and SQL
+  EXECUTE fill a row store first, so an inner failure emits no RowDescription or
+  partial rows.
+- Simple Query removes only the unnamed portal, at planned-command execution or
+  utility entry. Failed unnamed Parse drops the old statement but keeps bound
+  portals; named Parse publishes after analysis and never replaces a duplicate.
+- Completion and retirement are distinct: exhausted row portals stay fetchable;
+  completed non-row commands reject Execute with 55000. A failed portal keeps its
+  name (Execute 55000, duplicate Bind 42P03) until Close or retirement. Terminal
+  disposal never resumes an executor or replaces the primary error.
+- COPY uses the native text/CSV/binary executor (`StatementScope.CopyProtocol`);
+  hooks run outside engine/publication locks and admission, and the terminal
+  input hook can veto rows before publication.
+- Binary providers initialize at fixed points: COPY FROM receive functions
+  before CopyInResponse (every live attribute, in order); COPY TO send functions
+  after CopyOutResponse, before any row demand; row destinations on their first
+  actual tuple (never at Bind, Describe or for empty results). A binary NULL Bind
+  argument resolves its receive provider before typed NULL construction.
+- Wire COPY FROM holds a cancellation owner from before CopyInResponse through
+  decoding; the caller arms it before Start and cleanup covers every exit.
+  Conversion errors keep row/column context and win; a successful conversion
+  observes pending cancellation before returning a row.
+- `Session.EndRequested` observes ending without a lease; ending cancels any
+  held input view, so a user-cancel cause cannot hide termination.
+
+## Session timeouts
+
+- Session checks and operation admission observe due transaction/idle budgets
+  under `Session.Mu` before publishing a lease or invalidating the idle slot.
+  One timestamp feeds the expiry decision for both slots, so delayed callback
+  delivery cannot admit work on an expired owner.
+- A command's own statement timeout before `StartStatement` synchronously fails
+  its explicit block through the same disposal as `StatementScope.Finish`; no
+  timer callback mutates the transaction. Ordinary caller cancellation keeps its
+  context identity, and a timed-out waiter never disposes a live COPY
+  reservation.
+
+## Native Dump and Restore
+
+The drivers, Emit table and hook entry types live in
+[`control`](control/README.md). The root keeps the `Engine.mu` window and the
+Collect tables of Dump, the restore stage, `restoreRun` with the `restoreHooks`
+table and every entry, and the atomic `replaceCatalog`.
+
+## Testing
+
+Root tests are package-level units of these contracts; public SQL behavior is
+tested only in `reference/` ([docs/TESTING.md](../../docs/TESTING.md)).
+
+- Fixtures must not enter `Engine.Execute` while already owning admission
+  (that recursively acquires its mutex); create stored recipes before retaining
+  statement admission.
+- Reduced structural fixtures keep real access-method descriptors and native
+  handler procedures; `operatorFamilyFixtureState` copies them from the
+  bootstrap catalog. Missing fixture authority is never repaired by production
+  OID/name fallbacks.
+- Lock-wait tests observe the exact queued request before triggering a caller
+  deadline (`lockWaitCaller`), and use logical expiry (`Manager.ExpireWait`)
+  instead of sleeps. Worker goroutines return outcomes; only the test goroutine
+  asserts.
+- SHOW ALL descriptions are asserted independently against PostgreSQL 18.0
+  `short_desc` (see the [`settings` README](settings/README.md#testing)).
+
+### Advisory timer scheduling and shared result waits
+
+- Timer cases of `TestAdvisorySessionQueueTimersDeadlock` run under
+  `testing/synctest` with real `context.WithDeadline`, `context.AfterFunc` and
+  manager lock timers, never manual expiration or a second timer authority. The
+  exact request is queued before virtual time advances; state is inspected only
+  after `synctest.Wait`, and the delayed consumer is joined on every path.
+- Timeouts keep exact location-free 55P03/57014 diagnostics and leave no grant,
+  pending request or journal entry; the blocker and prior holds survive.
+- `deadlockResult` waits for the authoritative `Done` (never `Terminal` alone),
+  reads `Err` only after `Done`, and uses one stopped one-second guard that is
+  never refreshed.
 
 ```sh
-make check RUN='^(TestBuiltinCatalogValidatesForEveryEngineConfiguration|TestBuiltinProcedureNamesMatchSeed|TestBuiltinSeedNamesMatchUnsharedSeed|TestOperatorDependsOnMatchesDependencyAddresses)$'
-make check RUN='^TestBuiltinProcedureNamesCopyOnEdit$' RACE=1
-make check RUN='^(TestCatalogCopiesStayIndependent|TestCatalogTypeJournalSlotsCopyOnWrite)$'
+make check RUN='^TestPreparedRebind'                  # prepared analysis identity
+make check RUN='^TestSetting'                         # settings registry
+make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # producers; one catalog: ^TestPG<Name>
+make check RUN='^Test(AlterDropColumnRevisionFrontier|AlterSchema|CatalogConcurrentReplacement|DefaultPrivileges|ObjectACLType)'  # catalog writes
+make check RUN='^TestAccessMethod'                    # access methods
+make check RUN='^TestBuiltin'                         # built-in seed
+make check RUN='^Test(CatalogRelations|NamespaceIdentity|ObjectAddress)'  # catalog inquiry and identity
+make check RUN='^Test(Advisory|BlockingPids|DeadlockResultScheduling|RelationDeadlock)'  # advisory, blocking, deadlocks
+make check RUN='^Test(RelationLockWaits|RowLockView|PGLocks)'  # lock waits, pg_locks
+make check RUN='^TestUpdateCore'                      # MultiXact and UPDATE core
+make check RUN='^Test(TransactionIdentity|CommitTime)'  # transaction identity, commit time
+make check RUN='^TestSerial'                          # serial and sequence defaults
+make check RUN='^Test(SourceProtocol|Series|Subscripts|NumericSeries|ArrayRelational)'  # function sources
+make check RUN='^Test(ViewLiteralProtocol|SQLJSON)'   # stored capture, SQL/JSON rendering
+make check RUN='^Test([A-Za-z]+RoutineOriginalAuthority|JSONBRecordRoutine|TIDRoutineAuthority|RoutineBody)'  # routine authority
+make check RUN='^Test(SQLRoutine|UnavailableFunctionIdentityBoundary|LargeObjectSQLRoutineScratch)'  # SQL routines
+make check RUN='^Test(Earth|Extension|AvailableExtensions)'  # extensions
+make check RUN='^Test(PGDepend|CatalogDrop|DropOwned)'  # drop and dependency fences
+make check RUN='^TestVacuum'                          # VACUUM
+make check RUN='^Test(Protocol|PreparedSQLActual)'    # server protocol
+make check RUN='^Test(SessionTimeout|StatementTimeoutAdmission)'  # timeouts
+make check RUN='^TestQuery(Search|Cycle)'             # recursive SEARCH/CYCLE
 ```
 
-### SQL routine admission boundaries
-
-SQL routines extend stored DEFAULT closure only when a real checked SQL call
-occurs in that closure. They do not make an otherwise rejected volatile
-expression admissible: bare `nextval(...) + 1` retains the existing sequence
-default boundary, and the existing `currval`/dynamic-sequence restrictions remain.
-The callee body is not executed while admitting a stored default.
-
-An ordinary call with no native provider distinguishes a truly missing signature
-(`42883`) from a viable released core signature whose native capability is
-unavailable (`0A000`). The existing release identity index supplies diagnostic
-evidence only; it never grants execution, adds catalog rows, or installs extension
-functions. Names from uninstalled extensions remain missing. Argument count,
-implicit coercion, exact quoted spelling and namespace visibility still apply.
-Specialized executable providers continue to own their signature diagnostics.
-Diagnostic arity also respects trailing defaults from the existing native
-declaration inventory, supplemented by lookup-only release metadata where no
-native declaration exists. For example,
-[`pg_terminate_backend(pid integer, timeout int8 DEFAULT 0)`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/catalog/system_functions.sql#L401-L404)
-has a genuine one-argument call shape. This never evaluates a default or
-implements backend signaling; wrong supplied types and invalid arities still
-produce missing-signature diagnostics.
-
-Private binder/closure regressions:
-
-```sh
-make check RUN='^Test(SQLRoutineDefaultClosureBoundary|SQLRoutineStoredDefaultValidation|SerialStoredDefaultInvariants|UnavailableFunctionIdentityBoundary)$'
-make check RUN='^Test(SQLRoutineDefaultClosureBoundary|UnavailableFunctionIdentityBoundary)$' RACE=1
-```
-
-These units supplement the public routine definitions in
-[`reference/query_core`](../../reference/query_core/README.md) and the existing
-native capability witnesses in the owning reference packages; they do not replace
-selected dual-mode verification.
-
-### Native Dump and Restore
-
-The Dump and Restore drivers, the Emit table and the hook table entry types
-live in [`control`](control/README.md). The root keeps the `Engine.mu`
-window and the Collect tables of the Dump capture, the restore stage,
-`restoreRun` with the `restoreHooks` table and every entry, and the atomic
-`replaceCatalog`; the `control` README lists the selectors.
-
-### Network subnet binding and authority
-
-```sh
-make check RUN='^TestINETSubnet(Binding|RoutineAuthority)$'
-```
-
-The component units exercise CIDR coercion, independent BOOL authority, stored
-rendering/retagging/group identity and the five original INTERNAL routine
-dependencies. Shared shift/overlap dispatch analyzes children once; custom
-catalog selection still owns masking and namespace resolution. Public direct,
-held, ACL and native replay witnesses use the dual-mode definitions documented in
-[`reference/types`](../../reference/types/README.md) and
-[`reference/object_grants`](../../reference/object_grants/README.md).
+Add `RACE=1` for lifecycle, cancellation and contention selections.

@@ -6,8 +6,8 @@ publication. It imports `parser`, `sqlstate`, `sqltype/unicode16` (SASLprep)
 and the standard library, never the engine. It sits at layer L1 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture), below
 `catalog`, because catalog descriptors hold its `ACLValue` and `PrincipalRef`.
-SQL behavior and native limits are described in
-[AUTHORIZATION.md](../../../docs/AUTHORIZATION.md).
+Enforcement over catalog objects is in [`access`](../access/README.md); role
+and ACL DDL decisions are in [`role`](../role/README.md).
 
 ## What it holds
 
@@ -22,6 +22,13 @@ SQL behavior and native limits are described in
   `RoleClosure`, `InheritsRole`, `AdminOfRole`, `CanSetRole`,
   `ValidateInitialRole`, `HasRole` with `ParseRolePrivileges` (`pg_has_role`),
   `GroupRole`/`GroupMember` (`pg_group`) and `PredefinedPrivileges`.
+  `Read.GroupRole` validates an already-enumerated role's NOLOGIN identity
+  without another descriptor lookup; `Read.GroupMember` checks a live,
+  same-domain, nonzero, OID-representable endpoint with a matching
+  descriptor. The engine's `pg_group` producer applies these same rules in
+  its parent loop and both direct-edge passes; typed NAME/OID/member arrays,
+  origin multiplicities, count limits, per-entry cancellation and returned-row
+  snapshots stay in the engine.
   Candidates: `PutDescriptor`, `Retire`, `Reprovenance`,
   `ValidateRoleAttributes`, `AttributeCandidate`, `MembershipCandidate`,
   `OwnedMembershipCandidate` and `ValidateDeletionCandidate`.
@@ -79,9 +86,10 @@ SQL behavior and native limits are described in
   `relacl`.
 - **Statements:** GRANT, REVOKE, ALTER DEFAULT PRIVILEGES, role DDL, SET ROLE
   and session startup.
-- **ACL SQL functions** (`aclexplode`, `acldefault`, `makeaclitem`, `aclitem`
-  input and output). They work on raw `aclitem` bits and move with the other
-  builtin functions in step 3.
+
+The ACL SQL functions (`aclexplode`, `acldefault`, `makeaclitem`, `aclitem`
+input and output) work on raw `aclitem` bits and live in
+[`functions`](../functions/README.md).
 
 **Enforcement** reads catalog descriptors, so it cannot live here without an
 import cycle. It lives in [`access`](../access/README.md), above `catalog`:
@@ -91,34 +99,18 @@ in `catalog` (`CreationDefaultACL`).
 
 ## Testing
 
-Run from the repository root under the shared
-[testing policy](../../../docs/TESTING.md). Unit tests here pin the algorithms:
-masks, grant sources, selective revoke, candidate immutability, reached
-notices, cyclic ADMIN traversal, malformed `pg_group` storage, password
-vectors, default merges and parser character positions. Engine unit tests
-cover publication, pairing, lifecycle, cancellation and typed projections.
+Unit tests here pin the algorithms: masks, grant sources, selective revoke,
+candidate immutability, reached notices, cyclic ADMIN traversal, malformed
+`pg_group` storage, password vectors, default merges, predefined roles and
+parser character positions. Engine unit tests cover publication, pairing,
+lifecycle, cancellation and typed projections (`pg_group`, `relacl`, database
+ACL baselines).
 
 ```sh
-timeout 900s make check RUN='^(TestObjectGrantMasksAndDefaults|TestObjectGrantSingleSourceAndImmutableOrigins|TestObjectRevokeAlternateSupport|TestObjectRevokeSelectiveBits|TestDefaultPrivilegesMasks|TestDefaultPrivilegesBaselines|TestDefaultPrivilegesMerge|TestACLItemBits|TestRolePrivilegesParse)$'
-timeout 900s make check RUN='^(TestAuthorizationDescriptorCandidateImmutability|TestAuthorizationMalformedEnumeration|TestPGGroupMalformedRoot|TestOwnershipDeletionCandidateValidation|TestMembershipCandidateImmutabilityAndReachedNotices|TestRoleAttributesCyclicAdminTraversal|TestAuthorizationDiagnosticCharacterPosition)$'
-timeout 900s make check RUN='^TestDefault(Schema|LargeObject)CreationACLOrder$'
+make check RUN='^Test(ACLItemBits|Authorization(DescriptorCandidate|Diagnostic|Malformed)|Default(LargeObject|Schema)CreationACLOrder|DefaultPrivileges(Baselines|Masks|Merge)|MembershipCandidate|ObjectGrant|ObjectRevoke|OwnershipDeletionCandidate|PGGroupMalformedRoot|PredefinedRoleInitialization|RoleAttributes|RoleOwnership(ACLScopes|GrantOptions)|RolePrivilegesParse|SessionIdentityMembershipClosure)'
+make check RUN='^Test(AuthorizationStampRetainsRolePublication|RoleOwnershipDatabase|CollationBootstrapPrincipalNameReuse|RoleOwnershipInitialSourceCanonicalIdentity|RoleStore|PGGroup|AccessInquiryRoleOIDs|DatabaseACLBaselineTransitions|PgClassACLTranslation)'
+make check RACE=1 RUN='^Test(MembershipConcurrentCyclePublication|AuthorizationInitializationFencesDeletedPrincipal|RoleAttributesConnectionLimitRaces|RoleAttributesPasswordCancellationLifecycle)$$'
 ```
 
-Engine consumers:
-
-```sh
-timeout 900s make check RUN='^(TestAuthorizationStampRetainsRolePublication|TestRoleOwnershipDatabaseImmutableRolePair|TestRoleOwnershipDatabaseRejectsMixedAuthorization|TestCollationBootstrapPrincipalNameReuse|TestRoleOwnershipInitialSourceCanonicalIdentity|TestRoleAttributesMembershipNonInheritanceAndAdminTraversal|TestRoleStoreReadRequiresOwnCatalogAndRoot|TestRoleStoreSetReferencesFailuresLeaveStateUnchanged|TestAccessView.*)$'
-timeout 900s make check RUN='^(TestPGGroupProjection|TestPGGroupRoleRoot|TestPGGroupCancellation|TestAccessInquiryRoleOIDs|TestDatabaseACLBaselineTransitions|TestPgClassACLTranslation)$'
-timeout 900s make check RACE=1 RUN='^(TestMembershipConcurrentCyclePublication|TestAuthorizationInitializationFencesDeletedPrincipal|TestRoleAttributesConnectionLimitRaces|TestRoleAttributesPasswordCancellationLifecycle)$'
-```
-
-Public behavior is covered by the dual-mode reference tests. Run each selection
-with `REFERENCE=1` (pinned PostgreSQL) and without (quick mode), for example:
-
-```sh
-timeout 900s make check REFERENCE=1 RUN='^TestReferenceRoleMembership(AuthorityGrantor|NoninheritAdminCorner|NearestGrantor|FeatureSmoke)$'
-timeout 900s make check REFERENCE=1 RUN='^TestReferenceRoleSwitch(IdentityAuthority|Savepoints|CachedRestoration|FeatureSmoke)$'
-timeout 900s make check REFERENCE=1 RUN='^TestReferencePredefined(DataFeatureSmoke|MaintainFeatureSmoke|BoundaryFeatureSmoke)$'
-timeout 900s make check REFERENCE=1 RUN='^TestReferenceRoleDefaultPrivileges(Authority|Precedence|OwnerOptions|FeatureSmoke)$'
-timeout 900s make check REFERENCE=1 RUN='^(TestReferenceAccessRole.*|TestReferenceObjectGrantAccessInquiry.*|TestReferencePGDatabaseACL|TestReferencePgClassACL|TestReferencePGParameterACL.*|TestReferenceObjectGrantDatabaseAdmission)$'
-```
+Public behavior is in [reference/roles](../../../reference/roles/README.md#testing)
+and [reference/object_grants](../../../reference/object_grants/README.md#testing).

@@ -1,17 +1,17 @@
 # internal/engine/copyfmt
 
-The COPY data formats: option parsing, FORCE binding, text and CSV
-reading and writing, and binary framing. It is plain Go over a reader or
-writer and parsed options; it knows nothing of the statement, session or transaction
+The COPY data formats: option parsing, FORCE binding, text and CSV reading
+and writing, and binary framing. It is plain Go over a reader or writer and
+parsed options; it knows nothing of the statement, session or transaction
 running the COPY.
 
 The package sits at layer L4 of
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `catalog`, `parser`, `sqltype`, `sqlstate` and the
-standard library. It holds no state beyond one reader's buffers, no mutex
-and no engine callback. Step 19 of the split created it; see
-[ENGINE-SPLIT-copyfmt.md](../../../docs/ENGINE-SPLIT-copyfmt.md). The name
-is not `copy`, which would shadow the builtin in every importing file.
+[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
+imports only `catalog`, `parser`, `sqltype`, `sqlstate` and the standard
+library. It holds no state beyond one reader's buffers, no mutex and no engine
+callback. See [ENGINE-SPLIT-copyfmt.md](../../../docs/ENGINE-SPLIT-copyfmt.md).
+The name is not `copy`, which would shadow the builtin in every importing
+file.
 
 ## What it owns
 
@@ -61,15 +61,15 @@ is not `copy`, which would shadow the builtin in every importing file.
   cursors' `Next`, never in the codec.
 - **Execution**: binding the target and producing the output rows in the
   root (`copy.go`; `copy_text.go`'s `copyOutput` passes them to `WriteRows`
-  through `copyWriter` and re-checks the statement after the last row); converting fields to
-  values, the "COPY t, line N" context and insertion in `dml`
-  (`copy_cursor.go`, `copy_binary_cursor.go`, `copy_insertion.go`).
+  through `copyWriter` and re-checks the statement after the last row);
+  converting fields to values, the "COPY t, line N" context and insertion in
+  `dml` (`copy_cursor.go`, `copy_binary_cursor.go`, `copy_insertion.go`).
 
 ## Invariants
 
-- COPY framing and diagnostics are byte-identical to the root code they
-  came from: signature and header, end marker, quoting, escapes, FORCE
-  flags, NULL/DEFAULT markers, header checks, SQLSTATEs and texts.
+- COPY framing and diagnostics are compatibility contracts, byte for byte:
+  signature and header, end marker, quoting, escapes, FORCE flags,
+  NULL/DEFAULT markers, header checks, SQLSTATEs and texts.
 - No per-row or per-field allocation: the line, decode, field and payload
   buffers are reused across records; `Fields`, `Line` and a `Field`
   payload are valid only until the next read. Binary payloads grow with
@@ -81,21 +81,15 @@ is not `copy`, which would shadow the builtin in every importing file.
 
 ## Testing
 
-Unit tests: option parsing (`options_test.go`), CSV framing, fields and
-output (`csv_test.go`), text escapes (`line_reader_test.go`), context
-truncation (`context_test.go`) and the COPY TO writers (`writer_test.go`):
+Unit tests: option parsing (`options_test.go`), CSV framing, fields and output
+(`csv_test.go`), text escapes (`line_reader_test.go`), context truncation
+(`context_test.go`), the COPY TO writers (`writer_test.go`) and the
+filter/error options and DEFAULT marker bytes. The root cursor, protocol and
+cancellation units are `^Test(Copy|ProtocolCopy)` in `internal/engine`.
 
 ```sh
-make check RUN='^TestCopy(CSV(Options|Framing|Fields|Output|Context)|BinaryOptions|TextEscapeUnits|WriteRows)$'
+make check RUN='^TestCopy(CSV|BinaryOptions|TextEscapeUnits|WriteRows|Filter(Options|MarkerBytes))'
 ```
 
-The public behavior is covered by the dual-mode reference tests
-(`make check RUN='^TestReferenceCopy'`, plus `REFERENCE=1`); the root
-cursor, protocol and cancellation units are `^Test(Copy|ProtocolCopy)`
-in `internal/engine`.
-
-Filter/error option and marker-byte units:
-`make check RUN='^TestCopyFilter(Options|MarkerBytes)$'`.
-Shared native/pinned behavioral selectors, including the migrated existing
-binary options definition, are listed in
-[`reference/dml`](../../../reference/dml/README.md#copy-filtering-and-conversion-error-policy).
+Public behavior is in the `^TestReferenceCopy` families of
+[reference/dml](../../../reference/dml/README.md#testing).

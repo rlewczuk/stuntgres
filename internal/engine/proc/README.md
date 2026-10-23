@@ -39,30 +39,29 @@ explicit arrays are not unpacked/copied. Declaration defaults use Assignment
 conversion and fresh evaluation; actuals use Implicit conversion. Nested/repeated
 calls cannot overwrite caller parameters. Scalar results use Assignment conversion.
 Scalar/tree `sqltype.Value` payloads are immutable: a returned value survives frame
-closure without an unnecessary payload copy. Driver mutable-byte export remains
-with its existing type/driver owner. Closing a frame clears slots and result and
-is idempotent; no closed frame admits a new value.
+closure without an unnecessary payload copy. Driver mutable-byte export stays
+with the type/driver owner. Closing a frame clears slots and result and is
+idempotent; no closed frame admits a value.
 
-Engine shares existing per-command prepared-analysis retention for quoted
-bodies and checks live EXECUTE/invoker authority and data. Eligible terminal
-SELECT uses first-row demand; nonterminal/VOID SELECT and every DML command run
-fully. Required sort/aggregate/auxiliary work remains query/DML-owned. No row
-yields typed NULL. Persistence writes quoted declarations or actual standard
-bodies with checked current identities/implicit usages, never invocation values,
-opened executors, data snapshots or permission decisions.
+Engine shares per-command prepared-analysis retention for quoted bodies and
+checks live EXECUTE/invoker authority and data. Eligible terminal SELECT uses
+first-row demand; nonterminal/VOID SELECT and every DML command run fully.
+Required sort/aggregate/auxiliary work remains query/DML-owned. No row yields
+typed NULL. Persistence writes quoted declarations or actual standard bodies with
+checked current identities/implicit usages, never invocation values, opened
+executors, data snapshots or permission decisions.
 
 Invocation borrows the same admitted engine statement scope. A balanced lexical
 activation guard saves/restores query, parameter, view and protocol scratch;
 the root stage, effects, completion queues, transaction and live reservation
-ownership stay with their existing owners. A callee never calls root Finish or
-creates a separate publication boundary.
+ownership stay with their owners. A callee never calls root Finish or creates a
+separate publication boundary.
 
 The root statement scope also owns a balanced maximum of 128 active SQL bodies,
-shared by direct and mutual calls. Excess calls return SQLSTATE 54001, `stack
-depth limit exceeded`; successful, failed and canceled calls all unwind. This
-native safety limit is not PostgreSQL's byte-valued `max_stack_depth` setting.
-Result usage/coercion plans are invocation scratch, never retained executable
-plans in the session's analysis cells.
+shared by direct and mutual calls, independent of `max_stack_depth`. Excess calls
+return SQLSTATE 54001, `stack depth limit exceeded`; successful, failed and
+canceled calls all unwind. Result usage/coercion plans are invocation scratch,
+never retained executable plans in the session's analysis cells.
 
 Catalog procedure descriptors hold `*Definition`, not a second executable
 registry. Namespace/signature selection, the catalog's derived COW name index,
@@ -72,29 +71,13 @@ cannot authorize a call or replace its checked occurrence reference.
 
 ## Testing
 
-Run from the repository root, with an external 900-second command deadline:
+Package units cover frames and parameter layout; engine-level routine units live
+in `internal/engine`. Public SQL routine scenarios live in
+[reference/query_core](../../../reference/query_core/README.md#testing) (core,
+SQL bodies, review) and [reference/operators](../../../reference/operators/README.md#testing)
+(parameters). Add `REFERENCE=1` to reference selectors for the oracle.
 
 ```sh
-make check RACE=1 RUN='^TestSQLRoutine(FrameIsolation|FrameResultOwnership|CallableSelection|StagedLookup|FirstRowDemand|ValidationNoExecution|BodyAnalysisRetention|RestoreStaging|FrozenPresentation|StoredDefaultValidation)$'
-make check RUN='^TestReferenceRoutineCore(CreationAndCalls|Resolution|BodyAndResults|Diagnostics|Lifetime|Persistence|FeatureSmoke|CallableKinds)$'
-make check REFERENCE=1 RUN='^TestReferenceRoutineCore(CreationAndCalls|Resolution|BodyAndResults|Diagnostics|Lifetime|Persistence|FeatureSmoke|CallableKinds)$'
-make check RUN='^TestReferenceRoutineReview(ClosedFormals|ReturnReanalysis|Recursion|MutualRecursion)$'
-make check REFERENCE=1 RUN='^TestReferenceRoutineReview(ClosedFormals|ReturnReanalysis|Recursion|MutualRecursion)$'
-make check RACE=1 RUN='^TestSQLRoutine(ClosedFormalBoundary|ReturnContract|DepthUnwind|ResultScratchUnwind)$'
-make check RUN='^TestReferenceRoutineSQLBodies(Statements|Arguments|Standard|Void|Validation|Restrictions|Atomicity|Dependencies|Persistence|ProcedureDeclarations|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferenceRoutineSQLBodies(Statements|Arguments|Standard|Void|Validation|Restrictions|Atomicity|Dependencies|Persistence|ProcedureDeclarations|FeatureSmoke)$'
-make check RUN='^(TestRoutineParameterLayout|TestSQLCallableParameterMapping|TestSQLRoutineWrittenCapture|TestSQLRoutineParameterRemap|TestRoutineDefaultOriginRestoration|TestSQLRoutineNamedProviderShapes)$'
-make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|ScalarOutputsIdentity|Variadic|WrittenCapturePersistence)$'
-make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|ScalarOutputsIdentity|Variadic|WrittenCapturePersistence)$' REFERENCE=1
+make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'
+make check RUN='^TestReferenceRoutine(Core|SQLBodies|Review|Parameters)'
 ```
-
-The permanent selected feature smoke is
-`make check RUN='^TestReferenceRoutineCoreFeatureSmoke$'`, in native mode and with
-`REFERENCE=1`. Expected: add1(4)=5/INT4, held inputs 4/9 yield 5/10,
-empty-body typed NULL, first eligible projected row 10, FLOAT8 adaptation,
-restored add1=5, cycle-default sum=14 and missing-function SQLSTATE 42883.
-A separately exercised public-API `go run` smoke observes the same compact native
-outcomes; its temporary source is not a repository deliverable.
-Persistence additionally exercises actual emitted-stream replay on pinned
-PostgreSQL18.6. See the [reference testing contract](../../../reference/query_core/README.md#scalar-sql-routine-contract).
-These commands are proof selections, not claims that this package ran them.

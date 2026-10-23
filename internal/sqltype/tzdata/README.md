@@ -16,7 +16,7 @@ The maintained `generate` command accepts an acquired directory containing `zone
 go run ./internal/sqltype/tzdata/generate -source /absolute/path/to/acquired-evidence -output internal/sqltype/tzdata
 ```
 
-It sorts names, uses uncompressed ZIP entries with fixed 1980 timestamps and read-only permissions, preserves TZif bytes, and emits `SHA256SUMS`. Generation reads only the explicitly supplied acquisition directory; runtime uses the embedded archive and abbreviation snapshot, never the host timezone database, network, or operating-system local timezone. The root ran this command successfully for the pinned image acquisition.
+It sorts names, uses uncompressed ZIP entries with fixed 1980 timestamps and read-only permissions, preserves TZif bytes, and emits `SHA256SUMS`. Generation reads only the explicitly supplied acquisition directory; runtime uses the embedded archive and abbreviation snapshot, never the host timezone database, network, or operating-system local timezone.
 
 `tzdata-copyright` preserves the image's Debian/IANA license and provenance notices. `PostgreSQL-COPYRIGHT` preserves the PostgreSQL license applicable to the three abbreviation snapshots and release-source-derived timezone algorithms. See [PostgreSQL REL_18_0 COPYRIGHT](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/COPYRIGHT).
 

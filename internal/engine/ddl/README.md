@@ -1,9 +1,12 @@
 # internal/engine/ddl
 
 The contract every package that stages catalog changes shares with the
-engine. `routine`, `typedef` and `extension` used to declare their own
-statement authority and stage with nearly the same methods; this package
-holds them once, and the feature hosts embed them. It sits at layer L8 of
+engine: the statement authority, the stage, the allocator and the host
+methods `routine`, `typedef`, `extension`, `fdw` and `role` need. Feature
+hosts embed these instead of declaring their own. The package also holds the
+schema-level DDL decisions and the tablespace and LOAD validators.
+
+It sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 above `session` (it names `session.NoticeLevel`), below the feature packages.
 It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
@@ -28,56 +31,44 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   ACL.
 - **`Host`**: `Allocator` plus authority views, creation namespaces, the
   CREATE check, namespace search (type, conversion, operator and function
-  names),
-  function lookup, dependency descriptions, the stage and its reads, the
-  creation ACL, drop targets, notices and the statement context.
-- **Helpers**: `Check(h, auth, req)` pairs a view with its own authority as
-  the environment, `ObjectRef(h, auth, a)` stamps a reference with the
-  view's catalog epoch, and `Notice(h, code, message)` emits a NOTICE.
-  `GeneratedRelationName` (`naming.go`) chooses PostgreSQL's name for an
-  implicit relation (index, owned sequence, LIKE index): table and column
-  clipped to 63 bytes on rune boundaries, then the label with the first
-  free numeric suffix.
-- **`SchemaHost`**: `Host` plus what CREATE and DROP SCHEMA need:
-  `StageSchemaTable` (one `CREATE TABLE` element, analyzed as the schema
-  owner with the new namespace first in the path, on the host's own copy of
-  the authority), `StageSchemaDependents` (the dependency closure of dropped
-  schemas), `RemoveObject`, `AddCascadeNotice` and `RelationDiagnostic`.
+  names), function lookup, dependency descriptions, the stage and its reads,
+  the creation ACL, drop targets, notices and the statement context.
   `Host.RecordDependencyPath` records the path and returns its error; DROP
   SCHEMA stops on it, the other handlers ignore it.
+- **Helpers**: `Check(h, auth, req)` pairs a view with its own authority as
+  the environment, `ObjectRef(h, auth, a)` stamps a reference with the view's
+  catalog epoch, and `Notice(h, code, message)` emits a NOTICE.
+  `GeneratedRelationName` (`naming.go`) chooses PostgreSQL's name for an
+  implicit relation (index, owned sequence, LIKE index): table and column
+  clipped to 63 bytes on rune boundaries, then the label with the first free
+  numeric suffix.
+- **`SchemaHost`**: `Host` plus what CREATE and DROP SCHEMA need:
+  `StageSchemaTable` (one `CREATE TABLE` element, analyzed as the schema owner
+  with the new namespace first in the path, on the host's own copy of the
+  authority), `StageSchemaDependents` (the dependency closure of dropped
+  schemas), `RemoveObject`, `AddCascadeNotice` and `RelationDiagnostic`.
 - **Schema-level DDL**: `StageCreateSchema`, `StageAlterSchema` (needs only
-  `Host`) and `StageDropSchema` hold every decision of those statements:
-  owners, the database CREATE gate, the SET ROLE rule, reserved `pg_`
-  names, duplicates and IF [NOT] EXISTS notices, the namespace descriptor
-  and ACL, element checks, dependent classification, the 2BP01 diagnostic,
-  cascade notices and removals, in PostgreSQL's order. Each returns
-  `(staged, err)`; `false, nil` means there is nothing to publish.
-  `CreateTablespace(ctx, view, s)` validates CREATE TABLESPACE over the
-  `access.View` and always fails (0A000 `TablespacePhysicalUnsupported`
-  once valid); it never stages. `TablespaceRef(view, name)` resolves a
-  tablespace for GRANT, ALTER TABLESPACE and ALTER TABLE SET TABLESPACE.
-  `CheckAlterTablespaceCreate(view, env, ref)` checks CREATE on a SET
-  TABLESPACE or ALL IN TABLESPACE destination (none for `pg_default`), and
-  `AlterTablespaceKind(relation)` rejects SET TABLESPACE on relation kinds
-  without their own storage (42809). `AlterAllTablespace(view, env, s)`
-  decides ALTER ... ALL IN TABLESPACE: owner membership, both references,
-  the pg_global rejection (22023), the destination CREATE check, success
-  for the same tablespace and 0A000 otherwise; it never selects or locks a
-  relation.
-- **Tablespace inquiries** (`tablespace_info.go`):
-  `TablespaceLocation(read, oid, result)` and
-  `TablespaceDatabase(read, oid, result)` are `pg_tablespace_location` and
-  one row of `pg_tablespace_databases` over the statement's retained
-  `catalog.Read`. `TablespaceDatabase` returns its 01000 WARNING (a
-  `pg_global` or non-tablespace OID) beside a NULL, not-present value; the
-  caller emits it.
-- **LOAD lexical boundary**: `Load(ctx, view, s)` uses the current actor's
-  SUPERUSER attribute, then PostgreSQL's exact plugin-prefix/suffix restriction
-  and slash-containing filename macro validation. Once valid it always returns
-  `0A000` with `LoadUnsupported`. It never expands paths, inspects files, loads
-  process code, stages objects or allocates catalog identities. The engine's
-  `executeLoad` owns argument count, mutex and fresh authority capture;
-  preparation performs none of these execution checks.
+  `Host`) and `StageDropSchema` hold every decision of those statements, in
+  PostgreSQL's order: owners, the database CREATE gate, the SET ROLE rule,
+  reserved `pg_` names, duplicates and IF [NOT] EXISTS notices, the namespace
+  descriptor and ACL, element checks, dependent classification, the 2BP01
+  diagnostic, cascade notices and removals. Each returns `(staged, err)`;
+  `false, nil` means there is nothing to publish.
+- **Tablespaces**: `CreateTablespace(ctx, view, s)` validates CREATE
+  TABLESPACE over the `access.View` and, once valid, fails with 0A000
+  (`TablespacePhysicalUnsupported`); it never stages. `TablespaceRef(view,
+  name)` resolves a tablespace for GRANT, ALTER TABLESPACE and ALTER TABLE SET
+  TABLESPACE. `CheckAlterTablespaceCreate(view, env, ref)` checks CREATE on a
+  SET TABLESPACE or ALL IN TABLESPACE destination (none for `pg_default`),
+  and `AlterTablespaceKind(relation)` rejects SET TABLESPACE on relation
+  kinds without their own storage (42809).
+- **LOAD**: `Load(ctx, view, s)` checks the current actor's SUPERUSER
+  attribute, then PostgreSQL's plugin prefix/suffix restriction and
+  slash-containing filename macro validation; once valid it returns 0A000
+  (`LoadUnsupported`). It never expands paths, inspects files, stages objects
+  or allocates catalog identities. The engine's `executeLoad` owns the
+  argument count, the mutex and fresh authority capture; Prepare performs none
+  of these execution checks.
 
 ## Lock rule
 
@@ -92,79 +83,47 @@ and none waits on the lock manager. The package adds no mutex.
   `Authority` and check it through the `access.View` passed beside it.
 - In the engine, `AuthorizationView` is the only `Authority`
   (`ddlAuthorityOf` recovers it and panics on another kind). There is one
-  staging adapter, `ddlHost` (engine, operation, catalog stage): its
-  `Host` methods are in `ddl_host.go`, the `routine.DDLHost` methods in
+  staging adapter, `ddlHost` (engine, operation, catalog stage): its `Host`
+  methods are in `ddl_host.go`, the `routine.DDLHost` methods in
   `routine_host.go`, the `typedef.StageHost` and `TypeStaging` methods in
-  `typedef_host.go`, the `fdw.Host` method in `fdw_host.go`, and the
-  `role.Host` and `role.StageHost` methods in `role_host.go`.
-  `extensionHost` (`extension_host.go`) stays separate: it captures one view
-  and implements `extension.Host` and `extension.Stage`.
+  `typedef_host.go`, the `fdw.Host` method in `fdw_host.go`, the `role.Host`
+  and `role.StageHost` methods in `role_host.go`, and `SchemaHost` in
+  `schema_host.go`. `extensionHost` (`extension_host.go`) stays separate: it
+  captures one view and implements `extension.Host` and `extension.Stage`.
   Neither adapter is a defined type over `CatalogStage`, so its unchecked
   `Create`/`Replace` are never promoted.
-- A later feature host embeds `Host` and declares no `Authority` or `Stage`
-  of its own. Its root adapter either embeds `ddlHost` (Go promotes the
-  shared methods) or is `ddlHost` itself; the feature's refine step
-  chooses. A shared method body is never copied.
+- **Adding a feature host:** embed `Host` and declare no `Authority` or
+  `Stage` of your own. The root adapter either embeds `ddlHost` (Go promotes
+  the shared methods) or is `ddlHost` itself. Never copy a shared method body.
 
 ## What stays in the engine
 
 `Engine.mu`, authority capture, stage begin and publication, and the schema
-statement dispatch (`schema.go`): `executeSchema` (partition 0A000 pre-checks, locks,
-publication and the cascade notice), `stageSchemaLocked` (capture, the early
-actor read that gates every staged statement, one call per statement),
-`schemaTableLocked` (a forwarder to `table.StageCreateTable`, step 24),
-`stageSchemaDomainsLocked`, `relationDiagnosticName` and
-`schemaNotice` (the fdw DDL still uses it). `ddlHost` implements
-`SchemaHost` in `schema_host.go`. `executeCreateTablespace` keeps the
-argument count check, the lock and the authority capture;
-`alterAllTablespaceLocked` keeps the argument count check and the deferred
-`Engine.mu` unlock. `statementHost.TablespaceLocation` and
-`TablespaceDatabase` (`catalog_inquiry_runtime.go`) keep the retained
-snapshot and owner check and emit the returned warning.
+statement dispatch (`schema.go`): `executeSchema` (partition 0A000
+pre-checks, locks, publication and the cascade notice), `stageSchemaLocked`
+(capture, the early actor read that gates every staged statement, one call
+per statement), `schemaTableLocked` (a forwarder to `table.StageCreateTable`),
+`stageSchemaDomainsLocked`, `relationDiagnosticName` and `schemaNotice`
+(shared with the FDW DDL). `executeCreateTablespace` keeps the argument count
+check, the lock and the authority capture.
 
 ## Testing
 
-Run from the repository root under the shared
-[testing policy](../../../docs/TESTING.md). The package tests build a catalog
-owner, a seeded role root and a TEMP namespace without an engine, and pin
-that `Check` uses the authority as the environment, that `ObjectRef` stamps
-the catalog epoch, that `Notice` emits NOTICE level, which relation kinds
-SET TABLESPACE accepts and that `TablespaceDatabase` returns its warning
-instead of emitting it:
+The package tests build a catalog owner, a seeded role root and a TEMP
+namespace without an engine, and pin that `Check` uses the authority as the
+environment, that `ObjectRef` stamps the catalog epoch, that `Notice` emits
+NOTICE level, creation error positions and which relation kinds SET
+TABLESPACE accepts. Engine tests pin the adapter (`TestDDLHost*` in
+`ddl_host_test.go`; `TestDDLHostStageSchemaTableKeepsAuthority` checks that
+`StageSchemaTable` leaves the caller's authority unchanged and stages the
+table with the given owner and namespace), LOAD validation and executor
+non-publication, and CREATE TABLESPACE non-publication.
 
 ```sh
-timeout 900s make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|AlterTablespaceKind|TablespaceDatabaseReturnsWarning)$'
+make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|CreationErrorPositionsAtFirstNamePart|AlterTablespaceKind)$$'
+make check RUN='^Test(DDLHost|Load(Validation|ExecutorNoPublication)$$|TablespaceExecutorNoPublication$$)'
+make check RUN='^TestReference((Alter)?Schema|.*Tablespace|Load)'
 ```
 
-The engine adapter is pinned by the `TestDDLHost` tests in the engine
-package (`ddl_host_test.go`):
-
-```sh
-timeout 900s make check RUN='^TestDDLHost'
-```
-
-`TestLoadValidation` and `TestLoadExecutorNoPublication` in the engine package
-exercise the real role view, lexical edge cases whose physical PostgreSQL
-outcomes are environment-dependent, effect-free description, complete errors
-and native cancellation without catalog/role/allocator/identity publication:
-
-```sh
-timeout 900s make check RUN='^TestLoad(Validation|ExecutorNoPublication)$'
-```
-
-Public direct/prepared/held LOAD behavior and independent native/PostgreSQL
-outcomes live in the [catalog reference scenarios](../../../reference/catalogs/README.md#load-native-library-boundary).
-
-
-`TestDDLHostStageSchemaTableKeepsAuthority` (`schema_host_test.go`) pins
-that `StageSchemaTable` leaves the caller's authority unchanged and stages
-the table owned by the given owner in the given namespace;
-`TestTablespaceExecutorNoPublication` pins CREATE TABLESPACE and the
-`TestTablespaceInfo` tests pin the inquiry adapter. The public schema and
-tablespace behavior, including ALL IN TABLESPACE and the tablespace
-inquiries, is in the dual-mode reference tests:
-
-```sh
-timeout 900s make check RUN='^TestReference((Alter)?Schema|.*Tablespace)'
-timeout 900s make check REFERENCE=1 RUN='^TestReference((Alter)?Schema|.*Tablespace)'
-```
+Public LOAD scenarios are in
+[reference/catalogs](../../../reference/catalogs/README.md#testing).

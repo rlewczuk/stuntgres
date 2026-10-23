@@ -1,485 +1,322 @@
 # internal/engine/table
 
-Table records and decisions that need no engine: column and constraint
-records, NOT NULL (logical and physical), CHECK, DEFAULT and generated
-columns, foreign-key definitions and the FK probe, ALTER TABLE records,
-the table dump record (`DumpRelation`) with its emitters and Restore
-parsers, and inheritance. Step 24 of the engine split created it (24b
-moved the clean set). It sits above `index` and below `partition`, `view`,
-`dml` and `control` in
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
-it imports `access`, `analyze` (types and pure functions only),
-`authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`, `extension`,
-`functions`,
-`ids`, `index`, `lock`, `pgcatalog`, `plan`, `regobj`, `sequence`,
-`session`, `storage`, `stored`, `typedef`, `visibility`, `parser`,
-`sqlstate`, `sqltype` and the standard library. It never imports the
-engine, `partition`, `view`, `dml` or `control`; they import it. It never
-builds a binder. See
-[ENGINE-SPLIT-table.md](../../../docs/ENGINE-SPLIT-table.md).
+Table records and decisions that need no engine: column and constraint records,
+NOT NULL (logical and physical), CHECK, DEFAULT and generated columns,
+relation options, foreign-key definitions and the FK probe, ALTER TABLE
+records, the table dump record (`DumpRelation`) with its emitters and Restore
+parsers, and inheritance. FK write-time enforcement and FK actions live in
+[`dml`](../dml/README.md); the materialized snapshot codec is in `view`.
+
+## Imports
+
+It sits above `index` and below `partition`, `view`, `dml` and `control` in
+[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture) (see
+also [ENGINE-SPLIT-table.md](../../../docs/ENGINE-SPLIT-table.md)). It imports
+`access`, `analyze` (types and pure functions only), `authorization`, `catalog`,
+`ddl`, `dump`, `exec`, `expr`, `extension`, `functions`, `ids`, `index`, `lock`,
+`pgcatalog`, `plan`, `regobj`, `routine`, `sequence`, `session`, `settings`,
+`storage`, `stored`, `typedef`, `visibility`, `parser`, `sqlstate`, `sqltype` and
+the standard library. It never imports the engine, `partition`, `view`, `dml` or
+`control`; they import it. It never builds a binder.
 
 ## Why inheritance is here
 
-Inheritance and table DDL use each other in both directions: ALTER TABLE
-on an inheritance tree re-enters the ALTER handler once per node, and the
-dump record has emitters for both. Go cannot split one type's methods
-across packages, so one package holds both. Inheritance *query and DML
-expansion* is not DDL: the query scope methods stay with root query
-admission and DML expansion goes to `dml`; the pure query leaf walk and
-pending-grant decision they call live here.
+Inheritance and table DDL use each other in both directions: ALTER TABLE on an
+inheritance tree re-enters the ALTER handler once per node, and the dump record
+has emitters for both. Go cannot split one type's methods across packages, so
+one package holds both. Inheritance *query and DML expansion* is not DDL: the
+query scope methods stay with root query admission and DML expansion is in
+`dml`; the pure query leaf walk and pending-grant decision they call live here.
 
 ## What it owns
 
 - **ALTER TABLE records** (`alter_*.go`, `rename.go`, `query_table_create.go`):
   `AddedColumn`, `AlterCookingError`, `OrdinaryColumnDrop` (over
   `DropDependencyReader`), `DroppedConstraint`, `PreparedAddedChecks`,
-  `VerifyAlterPrimaryPrerequisites`, `AlterTypePreparation`,
-  `AlterTypeColumn`, `AlterTypeIndex`, the ALTER TYPE check rebinding
-  (`AlterTypeCheck`, `CaptureAlterTypeChecks`, `AlterRowValidator`),
-  `AlterActionPhase` (the nine-pass order), `AlterTableLockMode`,
-  `AlterTableLookupKind`, `AlterTablePreparation`, `AlterForeignKeyAdmission`,
-  `ForeignKeyCreation` (the statement's CREATE TABLE REFERENCES targets and
-  ALTER TABLE ADD FOREIGN KEY captures; the root keeps it in a
-  `StatementScope` slot),
-  `RenameColumnCandidate`, `RenameLocalConstraint`,
-  `ValidateQueryTableOutputType`.
-  `AlterCookingError` and `AlterTypeCheckReparseError` clone underlying public
-  diagnostics without dropping a direct input-origin annotation or mutating the
-  source. CHECK reparse clears only its internal source's `Position`,
-  `InternalPosition` and `InternalQuery`; all other fields stay unchanged.
+  `VerifyAlterPrimaryPrerequisites`, `AlterTypePreparation`, `AlterTypeColumn`,
+  `AlterTypeIndex`, the ALTER TYPE check rebinding (`AlterTypeCheck`,
+  `CaptureAlterTypeChecks`, `AlterRowValidator`), `AlterActionPhase` (the
+  nine-pass order), `AlterTableLockMode`, `AlterTableLookupKind`,
+  `AlterTablePreparation`, `AlterForeignKeyAdmission`, `ForeignKeyCreation` (the
+  statement's CREATE TABLE REFERENCES targets and ADD FOREIGN KEY captures, kept
+  in a `StatementScope` slot), `RenameColumnCandidate`, `RenameLocalConstraint`,
+  `ValidateQueryTableOutputType`. `AlterCookingError` and
+  `AlterTypeCheckReparseError` clone public diagnostics without dropping a direct
+  input-origin annotation or mutating the source; CHECK reparse clears only its
+  internal source's `Position`, `InternalPosition` and `InternalQuery`.
+- **Relation options** (`relation_options.go`): the storage-parameter registry,
+  `HasRelationOptions`/`RelationOptionsOnly` (option-only versus mixed-list
+  admission) and `RelationOptionsCandidate`, which transforms each option
+  namespace independently, base first.
 - **NOT NULL** (`not_null_*.go`, `physical_not_null*.go`): `NotNullCandidate`
   with `NotNullRecursion`, `NameCreateNotNull`, `UsingIndexNotNullCandidate`;
   physical NOT NULL transitions (`PhysicalNotNullFromType`,
-  `TransitionPhysicalNotNull`, `PrunePhysicalNotNull`,
-  `ValidatePhysicalNotNull`), the competing-unique and self-FK emitters, and
-  the Restore repair parsers (`RestorePhysicalNotNullSyntax`,
-  `RestoreNoInheritSyntax`) next to the emitters whose output they read.
-- **CHECK, DEFAULT and generated columns** (`check.go`, `default*.go`,
+  `TransitionPhysicalNotNull`, `PrunePhysicalNotNull`, `ValidatePhysicalNotNull`),
+  the competing-unique and self-FK emitters, and the Restore repair parsers
+  (`RestorePhysicalNotNullSyntax`, `RestoreNoInheritSyntax`) next to the emitters
+  whose output they read.
+- **CHECK, DEFAULT and generated columns** (`check*.go`, `default*.go`,
   `generated*.go`, `domain_dependencies.go`, `row_constraints.go`):
-  `OrderedChecks`, `ValidateChecks`, `ValidateCheckRow`,
-  `PhysicalRowViolation` (the first NOT NULL or CHECK violation of a
-  physical row, rendered by `RowViolation.Diagnostic` with the caller's
-  detail), `NotNullDetailError`, the CHECK and DEFAULT dependency
-  passes (`CheckDependents`, `DefaultDependents`, over
-  `DropDependencyReader`), `DefaultReplayDeferrable`,
-  `EvaluateGenerations`, `PrepareGenerationProgram`, `GenerationDepends`,
-  the virtual-generation rules (`VirtualDestination`,
-  `AdmitColumnVirtualGeneration`; index uses are `index.RejectVirtualUses`),
-  and
-  `DomainDependency`.
+  `OrderedChecks`, `ValidateChecks`, `ValidateCheckRow`, `PhysicalRowViolation`
+  (the first NOT NULL or CHECK violation of a physical row, rendered by
+  `RowViolation.Diagnostic` with the caller's detail), `NotNullDetailError`, the
+  dependency passes (`CheckDependents`, `DefaultDependents`, over
+  `DropDependencyReader`), `DefaultReplayDeferrable`, `EvaluateGenerations`,
+  `PrepareGenerationProgram`, `GenerationDepends`, the virtual-generation rules
+  (`VirtualDestination`, `AdmitColumnVirtualGeneration`; index uses are
+  `index.RejectVirtualUses`), `DomainDependency` and `BindChecks` (CHECK naming,
+  inherited merge, duplicate diagnostics, ordinals and dependency rendering of
+  CREATE and ADD CONSTRAINT, binding through `Host.BindCheckExpression`).
 - **Foreign keys** (`foreign_key*.go`): declarations and comparison binding
-  (`ForeignKeyDeclarations`, `BindForeignKeyComparison`,
-  `ValidateForeignKeys`), the diagnostics over `access.View`
-  (`ForeignKeyDiagnostic`, `ForeignKeyReferencesAllowed`), the dependency
-  pass (`ForeignKeyDependents`), the probe (`FindForeignKeyParent`,
-  `PrepareForeignKeyChild`, `ProbeForeignKeyIndex`, `ForeignKeyRows`), and
-  Restore (`RestoredForeignKeys`, whose authority is an opaque
-  `ddl.Authority`).
-- **Dump and Restore** (`dump.go`, `constraint_dump.go`, `*_restore*.go`,
-  `domain_default_restore.go`): `DumpRelation` and all its emitters,
-  `RestoredNotNull`, `RestoreAttributeRankSyntax`,
-  `RestoreAlterConstraints`, the retired-constraint and inherited
-  recipe/owner/FK repair records, and `PhysicalNotNullDumpDependencies`
-  (`physical_not_null_dump_graph.go`), the dump graph edges of moved
-  physical NOT NULL providers over a `dump.Resolver`.
-  The root also admits a qualified single named valid ADD CHECK for a permanent
-  ordinary table outside the inheritance graph when historical cast recipes
-  require separate replay statements. This remains real ALTER TABLE with
-  normal binding, ownership, row validation and cancellation.
-  Fresh local `ALTER TABLE ONLY ... ADD CHECK` replay on an inheritance
-  participant is also admitted when it is `NO INHERIT` or has no descendants.
-  The original flag is preserved; existing or inherited constraint names cannot
-  be merged into local definitions. A fresh recursive ADD CHECK on a parent with
-  descendants is also admitted only after verifying permanent ordinary targets
-  and absent names across the real propagation closure. Existing connected
-  generation-repair authority takes precedence; unrelated repairs do not block
-  this ordinary path. Both paths use real ALTER propagation and validation,
-  not a replay marker, and never promote NOT VALID constraints.
-  `PrepareGenerationPlaceholders(view, tables, seeds)` reuses the existing
-  inheritance-component planner for explicitly identified historical generated
-  recipe conflicts as well as differing inherited recipes. Nil seeds preserve
-  ordinary captured-inheritance selection; each selected component restores its
-  real generation expressions before CHECKs and data.
-- **Restore repair cores** (24d.3; `*_restore*.go`,
-  `inheritance_recipe_restore.go`, `inheritance_retired_remap.go`,
-  `default_replay.go`): the decisions inside the root Restore hooks, over a
-  `catalog.Read` or `access.View`. Whole: the captures
-  (`CaptureRestoredPlaceholders`, `CaptureRestoredNotNulls`,
-  `CaptureHistoricalFacts`, `CapturePhysicalImportIndex`),
-  `RetiredArchiveHighWater` and `RemapRetiredConstraints`, and
-  `ValidateForeignKeyData`. Split, with no stage: a shape check before
-  authorization (`RestoredGenerationShape`, `InheritedOwnerShape`,
-  `PhysicalSelfForeignKeyShape`, ...) and a decision after resolution
-  (`PairRestoredGeneration`, `InheritedCheckRecipe`, `PairRestoredNotNull`,
-  `CaptureInheritedOwner`, `CaptureInheritedForeignKey`,
-  `PreparePhysicalNotNullConstructor`, `CapturePhysicalNotNullConstructor`,
-  `CapturePhysicalForeignKeyProvider`, `ValidateRestoredDefault`, ...).
-  Around their own stage: `NoInheritNotNullCandidate`,
-  `AttributeRankCandidate`, `PhysicalNotNullCleanup` and
-  `RetiredConstraintCandidate` return the next relation (nil for no
-  change), and the caller applies `Advance` or `CommitRetiredRepair` after
-  publication. The receipts `RestoredPhysicalNotNull` and
-  `RestoredPhysicalForeignKeyProvider` hold a role record, not an
-  authorization view. Root-only validators come in as arguments
-  (`catalog.Provider`, `*ids.Domain`).
-  Retained selected-cast DEFAULTs can replay as independent ALTER statements
-  on ordinary and foreign tables. This admission does not change global
-  deferral or evaluate a default; normal binding and provider validation apply.
+  (`ForeignKeyDeclarations`, `BindForeignKeyComparison`, `ValidateForeignKeys`),
+  diagnostics over `access.View` (`ForeignKeyDiagnostic`,
+  `ForeignKeyReferencesAllowed`), the dependency pass (`ForeignKeyDependents`),
+  the probe (`FindForeignKeyParent`, `PrepareForeignKeyChild`,
+  `ProbeForeignKeyIndex`, `ForeignKeyRows`), provider plans
+  (`InstalledForeignKey`, `AlterForeignKeyIndex`, the OID-ordered
+  `ForeignKeyTypeProviders`/`ForeignKeyDefinitionProviders` walks and the
+  post-grant recheck `CheckForeignKeyDefinitionProviders`), the initial row scans
+  (`ScanForeignKeys` over `AddedForeignKeys` or `ReferencingForeignKeys`, and
+  `ScanRestoredForeignKeys`) and Restore (`RestoredForeignKeys` with an opaque
+  `ddl.Authority`; `RestoredForeignKey.ResolveTarget` is the target-path
+  fallback). A `ForeignKeyScan` carries the authority, the domain and a
+  `ForeignKeyRowsCapture` callback that takes `Engine.mu`, so callers hold
+  nothing.
+- **CREATE TABLE decisions** (`create.go`, `create_shape.go`,
+  `inheritance_create.go`, `like*.go`, `identity.go`, `serial.go`,
+  `foreign_key_stage.go`), all over `Host`: `StageCreateTable` (CREATE TABLE and
+  the CREATE SCHEMA table element, in fixed order: descriptor, row type,
+  inheritance, NOT NULL names, identity and serial sequences, LIKE columns,
+  defaults, generations, CHECKs, LIKE checks, constraint OIDs, UNIQUE, EXCLUDE,
+  LIKE indexes, FOREIGN KEYs), `StageInheritance`, `StageLike*`,
+  `StageCreateIdentities`, `StageIdentitySequence`, `StageCreateSerials`,
+  `StageForeignKey`, `StageCreateForeignKeys`, `CreateCheckSyntax` and
+  `CheckCreateShape` (the shape errors in order); `NewRelation` and
+  `AssignDefinitionOIDs` over a `ddl.Allocator` (typedef's composite relations
+  use `NewRelation` too).
+- **ALTER TABLE decisions**: candidates over `AlterHost` (`AddColumnCandidate`,
+  `GenerationCandidate`, `AlterTypeCandidate` with `AdmitAlterType`/
+  `CompleteAlterType`/`PrepareAlterType`, `PrepareAlterTableActions`,
+  `PrepareAddedChecks`, `RebindAlterType{Checks,Indexes}`, `CookAlterDefault`);
+  staging over `Host` (`StageAddedUnique`, `StageAddedForeignKey`,
+  `AddIdentityCandidate`); post-loop rebuilds over `ddl.Host`/`ddl.Stage`
+  (`RebuildAlterNotNulls`, `RebuildAlterForeignKeys`,
+  `RebindPhysicalNotNullType`); and pure pieces (`PrepareIdentitySet`/
+  `FinishIdentitySet` around the root's sequence wait, `PlanAlterScan`, the
+  ALTER [NOT] OF checks `AlterTableOf`/`TypedSources`, the loop pieces in
+  `alter_table_loop.go`). Over `DropDependencyReader`: `DropConstraintIndexes`,
+  `OwnedSequences` and `DropIdentity`.
+- **ALTER row rewrite and scan**: `PlanAddedColumns` (ADD COLUMN DEFAULT
+  preparation and one-time fills), `RewriteTypeRows` (the TYPE, added-column and
+  generation rewrite of the effective live heads into a private replacement) and
+  `ValidateAddedConstraintRows` (the CHECK and NOT NULL scan of old rows). The
+  caller passes the statement's `exec.Context` template and the private write
+  and delete roots; the functions take no lock, but expressions may reach host
+  methods that take `Engine.mu`, so callers hold nothing.
 - **Inheritance** (`inheritance_*.go`, `typed_inheritance.go`): the recursion
-  plan record `InheritanceAlterPlan` (the root holder
-  `inheritanceAlterState` adds the stage, journal and prepared nodes),
-  `InheritanceAlterOrder`, `InheritanceOnlyActions`,
-  `InheritanceRecursiveAction`, the events (`InheritanceAlterEvent`,
-  `InheritanceParentActions`), the guards, `ValidateInheritance`, retired
-  constraints (`InheritRetiredColumnConstraints`, `RetireRebuilt*`),
-  `RemapInheritance`, `InheritanceDefinitionReader` (it overlays prepared
-  drops through `DefinitionDelta`, which the root's prepared column and
-  identity drops implement), the typed-table propagation
-  (`TypedClosure`, `TypedInheritedActions`), and the query-expansion
-  helpers `InheritanceQueryClosure`, `CaptureInheritanceQueryPrefix`,
-  `SourceOnly`, `InheritanceQueryLeaves` (the stored-view-aware leaf walk)
-  and `InheritancePendingGrants` (24g: which physical leaves still need a
-  grant and in which row-mark mode; the root fills their storage and
-  waits). `inheritance_relationship.go` owns compatible ordinary attach
-  and detach candidates; the root owns exact endpoint grants/admission and the
-  existing single ALTER stage. Parent candidates read that stage's complete
-  catalog view, including unchanged base descriptors, not its staged-only Get
-  map. Capture observes every lexical endpoint, including absence, without
-  emitting later lookup/owner errors. Each misc action consumes its own semantic
-  lookup and parent grant before compatibility. Unreached captures are not final
-  publication subjects. Live observation ignores the recipe-definition reader.
-  Post-wait admission compares the original parent before refreshing it; only
-  genuine first-child marker publication is allowed. An unstaged parent's actual
-  admitted marker pointer can be consumed into the stage, never reminted or
-  substituted for staged own changes; Stage.Base is not rebased.
-  The same endpoint fence runs under the Engine mutex at actual implicit
-  publication and explicit private-journal installation, not just stage
-  construction; its authorization capture precedes the Session mutex.
-  Attach's typed/partition preparation restrictions and detach's actual-partition
-  execution restriction are distinct. Relationship-only detach reaches its
-  missing-edge diagnostic without requiring storage; unsupported mixed physical
-  partition ALTER remains behind its existing capability boundary.
-  `InheritanceParent` stores identity plus a live
-  sparse ordinal. Detached retired origins retain archival identity without a
-  live parent provider; strict restore carriers pair that history with fresh
-  facts. TYPE cleanup uses checked physical-NN historical causes and does not
-  invent keys or constraint rows.
-  Detach uses the admitted current parent identity plus ReferenceEpochValid for
-  still-attached retained TEMP certificates; it neither requires whole old/new
-  reference equality nor reconnects a detached archival source.
-  Recursive DROP's RESTRICT primary distinguishes actual physical column
-  deletions from origin decrements: a local or other-parent contribution can
-  preserve the child's column, leaving a singular root deletion diagnostic.
-  CHECK attachment and CHECK-origin validation share a CHECK-only cooked
-  deparsed-definition comparator. `SameInheritedExpression` remains structural,
-  normalizing only retained row-reference epochs; it never substitutes rendered
-  SQL for differing type or external-provider authority. CREATE merges and
-  default/generated recipe provenance keep their existing structural proofs.
-- **CREATE TABLE decisions** (24d.1; `create.go`, `inheritance_create.go`,
-  `like.go`, `like_index.go`, `identity.go`, `serial.go`,
-  `foreign_key_stage.go`), all over `Host`: `StageCreateTable` (the body of
-  CREATE TABLE and of the CREATE SCHEMA table element, in its fixed order:
-  descriptor, row type, inheritance, NOT NULL names, identity and serial
-  sequences, LIKE columns, defaults, generations, CHECKs, LIKE checks,
-  constraint OIDs, UNIQUE, EXCLUDE, LIKE indexes, FOREIGN KEYs),
-  `StageInheritance`, `StageLikeColumns`, `StageLikeChecks`,
-  `StageLikeIndexes`, `StageCreateIdentities`, `StageIdentitySequence`,
-  `StageCreateSerials`, `StageForeignKey`, `StageCreateForeignKeys` and
-  `CreateCheckSyntax`; `NewRelation` and `AssignDefinitionOIDs` over a
-  `ddl.Allocator` (typedef's composite relations use `NewRelation` too).
-- **ALTER TABLE decisions** (24d.2), over `AlterHost`: the candidates
-  `AddColumnCandidate`, `GenerationCandidate`, `AlterTypeCandidate` with
-  `AdmitAlterType`, `CompleteAlterType` and `PrepareAlterType`,
-  `PrepareAlterTableActions` with `AlterTableActionKind`,
-  `PrepareAddedChecks` (it takes the nil-safe recursion plan),
-  `RebindAlterTypeChecks`, `RebindAlterTypeIndexes`, `CookAlterDefault`;
-  over `Host`: `StageAddedUnique`, `StageAddedForeignKey`,
-  `AddIdentityCandidate`; over `ddl.Host` or `ddl.Stage`: the post-loop
-  rebuilds `RebuildAlterNotNulls`, `RebuildAlterForeignKeys`,
-  `RebindPhysicalNotNullType`; pure: `CaptureAlterTypeIndexes`,
-  `PrepareIdentitySet`/`FinishIdentitySet` (around the root's sequence
-  wait), `AlterDefaultColumn`, `AlterDefaultCandidate`,
-  `RemapPhysicalNotNull` (over a `catalog.Read`), `RenameConstraintKind`,
-  `StageRenameConstraint` (over an `index.DescriptorStage`) and the loop
-  pieces `OnlySetNotNull`, `AddedCheckSyntax`, `StoredReplacements`,
-  `DependencyTargets` (`alter_table_loop.go`). The inheritance recursion
-  decisions are host-less: `PlanInheritanceAlter`, `InheritedAlterActions`,
+  plan `InheritanceAlterPlan` (the root holder `inheritanceAlterState` adds the
+  stage, journal and prepared nodes), `InheritanceAlterOrder`,
+  `InheritanceOnlyActions`, `InheritanceRecursiveAction`, the events, the guards,
+  `ValidateInheritance`, retired constraints (`InheritRetiredColumnConstraints`,
+  `RetireRebuilt*`), `RemapInheritance`, `InheritanceDefinitionReader` (overlays
+  prepared drops through `DefinitionDelta`), typed-table propagation
+  (`TypedClosure`, `TypedInheritedActions`), `InheritanceDropClosure` (the
+  OID-ordered tables a DROP locks), and the query helpers
+  `InheritanceQueryClosure`, `CaptureInheritanceQueryPrefix`, `SourceOnly`,
+  `InheritanceQueryLeaves` (the stored-view-aware leaf walk) and
+  `InheritancePendingGrants` (which physical leaves still need a grant and in
+  which row-mark mode). The recursion decisions are host-less:
+  `PlanInheritanceAlter`, `InheritedAlterActions`,
   `FinishInheritanceAlterCandidate`, the nil-safe plan methods
-  `RecordAction`, `RecordChecks`, `NotNullMode` and `OnlyCreatedConstraint`
-  (`inheritance_alter_record.go`), `InheritanceDefaultCandidate` and the
-  per-member rename cores `RenameInheritanceColumn[Precheck]` and
-  `RenameInheritanceConstraint[Precheck]`. The prepare side (24g;
-  `inheritance_alter_prepare.go`, `inheritance_prepare_host.go`):
-  `PrepareInheritanceNode` cooks phases 0–6 of one node before the sole
-  stage exists, through the six-method `PrepareHost` (USING INDEX metadata,
-  ADD COLUMN, column, identity and constraint-index drops, added CHECKs),
-  and records `InheritancePreparedNode`/`InheritancePreparedAction`. Prepared
-  drops cross as `PreparedDrop` (a `DefinitionDelta` with `Next`); the
-  root's `inheritancePrepareHost` hands each call's definition reader to the
-  authority and unwraps drops for the stage consumers. Callers hold
-  nothing; the host methods take `Engine.mu` and the drops may wait.
-  Over `DropDependencyReader`:
-  `DropConstraintIndexes`, `OwnedSequences` and `DropIdentity`.
-  The same plan and engine stage serve the narrow partition CHECK/NOT NULL
-  policy (`partition_alter.go`, `partition_alter_check.go`). Membership remains
-  partition topology; `AlterGraph` is statement-owned constraint scratch only.
-  Root CHECKs are cooked once and remapped to descendant row identities, with
-  structural merge checks and per-action stop events. Final descriptors carry
-  exact `PartitionOrigin`, never synthetic ordinary parents. NOT NULL keeps
-  column identity, operation-specific naming and local survival; ONLY removal
-  localizes immediate child contributions without changing grandchildren.
-- **Other table DDL cores** (pure, no stage): `DropTargets` (DROP TABLE
-  resolution, kinds and ownership over `Resolver`), the SET SCHEMA cores
-  `SetSchemaOwned`, `SetSchemaGroup`, `SetSchemaCandidates` and
-  `SetSchemaConflict` (`set_schema.go`), `QueryTableColumns` (CREATE TABLE
-  AS column derivation), `TypedObservationValid` (`typed.go`).
-- **Relation validation** (24e; `relation_validation.go`):
-  `RelationProvider`, the catalog provider of relation descriptors. The
-  three checks owned by packages above `table` come in as
-  `RelationValidators` slots, called at fixed points in this order:
-  `Policies` after the column checks, `Partition` after the CHECK-kind
-  check, `Definition` as the view and materialized-view tail. The root
-  builds one `relationProvider` value with `view.ValidatePolicies`,
-  `partition.ValidateDescriptor` and `view.ValidateViewDefinition`.
-- **Generation remap** (24e; `generated_remap.go`):
-  `RecomputeRemappedGenerations` recomputes the stored generated cells that
-  read their owner's table OID after an OID remap, with NOT NULL and CHECK
-  rechecks. Its CHECK snapshot capture is a callback, called with no lock
-  held; the root's `remapCheckCapture` takes `Engine.mu` for it.
-- **Tablespace-only ALTER helpers** (24e; `alter_tablespace.go`):
-  `TablespaceOnlyActions`, `ValidateAlterTablespaceMove`; the bulk
-  `ALTER TABLE ALL IN TABLESPACE` handler stays in the root.
-- **Remaining CREATE and ALTER decisions** (24f): `BindChecks`
-  (`check_bind.go`), the CHECK naming, inherited merge, duplicate
-  diagnostics, ordinals and dependency rendering of CREATE and ADD
-  CONSTRAINT, binding each expression through `Host.BindCheckExpression`;
-  `CheckCreateShape` (`create_shape.go`), the CREATE TABLE shape errors in
-  order; `PlanAlterScan` (`alter_scan.go`), whether ALTER TABLE scans old
-  rows and with which validator; `AlterTableOf`, `ResolveTypedSource` and
-  `TypedSources` (`typed_alter.go`), the ALTER TABLE [NOT] OF checks over a
-  small `TypedResolver` and the OID-ordered OF types a typed-table change
-  locks.
-- **ALTER row rewrite and scan** (24h): `PlanAddedColumns`
-  (`alter_add_column.go`), the ADD COLUMN DEFAULT preparation and one-time
-  fills; `RewriteTypeRows` (`alter_rewrite.go`), the TYPE, added-column and
-  generation rewrite of the effective live heads into a private
-  replacement; `ValidateAddedConstraintRows` (`alter_constraint_rows.go`),
-  the CHECK and NOT NULL scan of old rows. The caller passes the statement's
-  `exec.Context` template (the routine authority's catalog for the fills
-  and the rewrite, none for the scan) and the private write and delete
-  roots; the functions take no lock, and expressions may reach host methods
-  that take `Engine.mu`, so callers hold nothing.
-- **FK provider plans and validation scans** (24i):
-  `foreign_key_providers.go` holds `InstalledForeignKey`,
-  `AlterForeignKeyIndex` (the parent index an ADD FOREIGN KEY captures
-  before its waits), the OID-ordered provider walks
-  `ForeignKeyTypeProviders` and `ForeignKeyDefinitionProviders`, and
-  `CheckForeignKeyDefinitionProviders`, the post-grant recheck over an
-  `access.View`. `foreign_key_scan.go` holds the initial row scans:
-  `ScanForeignKeys` over `ForeignKeyCheck`s chosen by `AddedForeignKeys` or
-  `ReferencingForeignKeys` (ALTER TABLE), and `ScanRestoredForeignKeys`
-  (Restore, with the bound-slot check). A `ForeignKeyScan` carries the
-  authority, the domain and a `ForeignKeyRowsCapture` callback; the
-  engine's capture takes `Engine.mu`, so callers hold nothing.
-  `RestoredForeignKey.ResolveTarget` is Restore's target-path fallback.
-- **Inheritance drop decisions** (24i; `inheritance_drop.go`):
-  `InheritanceDropClosure`, the OID-ordered tables a DROP of an
-  inheritance participant locks, and `InheritanceAlterPlan.ColumnDropMultiple`,
-  whether a recursive DROP COLUMN deletes more than one physical column.
-  `ValidateInitialTables` (`query_table_create.go`) checks the rows CREATE
-  TABLE AS staged, over the stage's descriptor getter.
-- **Definition providers** (24j; `definition_providers.go`):
-  `Stage.DefinitionProviders` collects the incumbent relations a stage's
-  definitions depend on (LIKE sources, view leaves and dependencies,
-  CHECKs, defaults, generations, index keys and predicates), proves each
-  original attribute reference, and returns OID-ordered
-  `DefinitionProviderRequest`s (`ShareUpdateExclusive` for an inheritance
-  parent of a staged relation, else `AccessShare`) with the base
-  descriptors of providers first referenced at an older epoch. The root
-  takes the locks and rechecks each provider under `Engine.mu`.
-- **Deparse inquiries** (24j; `deparse.go`): `Deparse` answers
-  `pg_get_constraintdef`, `pg_get_expr`, `pg_get_indexdef`,
-  `pg_get_viewdef` and `pg_get_serial_sequence` over `DeparseInputs` (the
-  statement's catalog snapshot, path, output settings, database, a lazy
-  TEMP namespace and a relation resolver), which the root builds from the
-  statement's inquiry snapshot after its missing-snapshot check. It lives
-  here, not in `view`, because the serial form needs
-  `regobj.ClassQualifiedName`.
-- **Domain row validation** (24j; `domain_rows.go`):
-  `ValidateSelectedDomainRows` scans one domain use's live rows for ALTER
-  DOMAIN SET NOT NULL and VALIDATE CONSTRAINT; the root keeps the fence,
-  waits and `Engine.mu` windows of `executeAlterDomain`.
-- **Target admission** (24f; `target_admission.go`): `Target` is how a
-  statement admits its target relation (name, lock mode, owner, rename,
-  IF EXISTS, table-rename and view-replacement flags), decided from syntax.
-  Each owning package exports a `TargetEntry` (`TargetAdmission` here, also
-  for CREATE INDEX and ALTER OWNER, whose packages sit below `table`;
-  `view.TargetAdmission`, `dml.TargetAdmission`); the root registers them
-  once (`relationTargetEntries`) and `AdmitTarget` asks them in order. Each
-  statement kind belongs to one entry, so the order cannot change a result.
-- **Explicit locks** (B7; `explicit_lock.go`): `ExplicitLockMode` maps a
-  LOCK TABLE mode to its lock, and `CheckExplicitLock` checks the relation
-  kind, then the rights of the captured `access.View` through its
-  `access.Environment` (any privilege PostgreSQL accepts for the mode), then
-  the partition-hierarchy boundary. The root keeps the per-target lock loop.
-- **Stage slot** (`stage.go`, `like.go`): `Stage` holds CREATE … LIKE
-  sources, recorded by `CaptureLikeSource` and checked at publication by
-  `ValidateLikeSources`; the `CatalogStage` accessors stay in the engine.
+  (`inheritance_alter_record.go`), `InheritanceDefaultCandidate` and the rename
+  cores `RenameInheritanceColumn[Precheck]`/`RenameInheritanceConstraint[Precheck]`.
+  `PrepareInheritanceNode` cooks phases 0–6 of one node before the sole stage
+  exists, through the six-method `PrepareHost`, recording
+  `InheritancePreparedNode`/`InheritancePreparedAction`; prepared drops cross as
+  `PreparedDrop`. Callers hold nothing; the prepare host methods take `Engine.mu`
+  and the drops may wait. The same plan and stage serve the partition CHECK/NOT
+  NULL policy (`partition_alter*.go`): root CHECKs are cooked once and remapped to
+  descendant row identities, final descriptors carry exact `PartitionOrigin`
+  (never synthetic ordinary parents), and ONLY removal localizes immediate child
+  contributions without changing grandchildren.
+- **Dump and Restore** (`dump.go`, `constraint_dump.go`, `*_restore*.go`,
+  `default_replay.go`): `DumpRelation` and all its emitters, `RestoredNotNull`,
+  `RestoreAttributeRankSyntax`, `RestoreAlterConstraints`, the retired-constraint
+  and inherited recipe/owner/FK repair records, `PhysicalNotNullDumpDependencies`
+  (the dump graph edges of physical NOT NULL providers over a `dump.Resolver`) and
+  `PrepareGenerationPlaceholders(view, tables, seeds)` (the inheritance-component
+  planner for historical or differing inherited generated recipes; nil seeds keep
+  captured-inheritance selection, and each component restores its generation
+  expressions before CHECKs and data).
+- **Restore repair cores**: the decisions inside the root Restore hooks, over a
+  `catalog.Read` or `access.View`: whole captures (`CaptureRestored*`,
+  `CaptureHistoricalFacts`, `CapturePhysicalImportIndex`, `RemapRetiredConstraints`,
+  `ValidateForeignKeyData`); split pairs of a shape check before authorization
+  (`*Shape`) and a decision after resolution (`PairRestored*`, `Capture*`,
+  `ValidateRestoredDefault`, ...); and stage-local candidates
+  (`NoInheritNotNullCandidate`, `AttributeRankCandidate`, `PhysicalNotNullCleanup`,
+  `RetiredConstraintCandidate`) that return the next relation (nil for no change)
+  for the caller to `Advance` or `CommitRetiredRepair` after publication.
+  Receipts hold a role record, not an authorization view; root-only validators
+  come in as arguments (`catalog.Provider`, `*ids.Domain`).
+- **Other cores**: `DropTargets` (DROP TABLE resolution over `Resolver`), the SET
+  SCHEMA cores (`set_schema.go`), `QueryTableColumns` and `ValidateInitialTables`
+  (CREATE TABLE AS), `TypedObservationValid`, `TablespaceOnlyActions` and
+  `ValidateAlterTablespaceMove`, `RelationProvider` (the relation descriptor
+  validator, whose `RelationValidators` slots are called in fixed order:
+  `Policies` after the column checks, `Partition` after the CHECK-kind check,
+  `Definition` as the view tail), `RecomputeRemappedGenerations` (stored
+  generated cells that read their owner's table OID after an OID remap; its CHECK
+  snapshot callback is called with no lock held), `Stage.DefinitionProviders`
+  (OID-ordered provider lock requests — `ShareUpdateExclusive` for an
+  inheritance parent of a staged relation, else `AccessShare` — which the root
+  takes and rechecks under `Engine.mu`), `Deparse` (`pg_get_constraintdef`,
+  `pg_get_expr`, `pg_get_indexdef`, `pg_get_viewdef`, `pg_get_serial_sequence`
+  over `DeparseInputs`; here because the serial form needs
+  `regobj.ClassQualifiedName`), `ValidateSelectedDomainRows` (ALTER DOMAIN row
+  scans), `Target`/`TargetAdmission` (each statement kind belongs to exactly one
+  registered `TargetEntry`, so `AdmitTarget`'s order cannot change a result),
+  `ExplicitLockMode`/`CheckExplicitLock` (LOCK TABLE: relation kind, then the
+  captured view's rights, then the partition-hierarchy boundary) and the `Stage`
+  slot (LIKE sources recorded by `CaptureLikeSource`, checked at publication by
+  `ValidateLikeSources`).
+
+## Restore ADD CHECK admission
+
+The root admits three real ALTER TABLE ADD CHECK replay forms when historical
+cast recipes need separate statements: a qualified single named valid ADD CHECK
+on a permanent ordinary table outside the inheritance graph; a fresh local
+`ALTER TABLE ONLY ... ADD CHECK` on an inheritance participant that is `NO
+INHERIT` or has no descendants (the flag is preserved and existing or inherited
+names never merge into local definitions); and a fresh recursive ADD CHECK on a
+parent with descendants, only after verifying permanent ordinary targets and
+absent names across the real propagation closure. Connected generation-repair
+authority takes precedence. All use normal binding, ownership, propagation, row
+validation and cancellation, never a replay marker, and never promote NOT VALID
+constraints. Retained selected-cast DEFAULTs likewise replay as independent
+ALTER statements on ordinary and foreign tables, without changing global
+deferral or evaluating a default.
+
+## Inheritance attach and detach fences
+
+`inheritance_relationship.go` owns compatible ordinary INHERIT/NO INHERIT
+candidates; these are relationship-phase actions, not table recreation, and
+preserve child attribute/fact identities, storage, rows, defaults and generated
+recipes. Parent physical keys and indexes are never inherited. The root owns
+exact endpoint grants/admission and the single ALTER stage.
+
+- Parent candidates read the stage's complete catalog view, including unchanged
+  base descriptors, not its staged-only Get map. Capture observes every lexical
+  endpoint, including absence, without emitting later lookup/owner errors; each
+  action consumes its own lookup and parent grant before compatibility, so
+  unreached endpoints cannot preempt earlier errors.
+- Post-wait admission compares the original parent before refreshing it and
+  rejects replacement or newly shadowing targets. Only genuine first-child
+  marker publication is allowed: an unstaged parent's admitted marker pointer
+  can be consumed into the stage, never reminted or substituted for staged own
+  changes, and `Stage.Base` is never rebased. The same endpoint fence runs under
+  `Engine.mu` at implicit publication and explicit private-journal installation;
+  its authorization capture precedes `Session.Mu`.
+- Attach's typed/partition preparation restrictions and detach's
+  actual-partition execution restriction are distinct; relationship-only detach
+  reaches its missing-edge diagnostic without storage.
+- `InheritanceParent` stores identity plus a live sparse ordinal. Last detach
+  archives retired NN/CHECK origins as history without a live parent provider;
+  strict restore carriers pair that history with fresh facts, and TYPE cleanup
+  uses checked physical-NN historical causes without inventing keys or
+  constraint rows. Detach of retained TEMP certificates uses the admitted parent
+  identity plus `ReferenceEpochValid` and never reconnects an archived source.
+- Recursive DROP's RESTRICT primary distinguishes physical column deletions from
+  origin decrements: a local or other-parent contribution preserves the child's
+  column. CHECK attachment and CHECK-origin validation share one cooked
+  deparsed-definition comparator; `SameInheritedExpression` stays structural,
+  normalizing only retained row-reference epochs.
 
 ## Hosts
 
 `Host` (`host.go`) is what CREATE TABLE, the CREATE SCHEMA table element,
 PARTITION OF children, ADD IDENTITY and FOREIGN KEY staging need: `index.Host`
 (and through it `ddl.Host`), `ddl.TypeStaging`, row types, column type and
-collation resolution, the table and sequence stage slots
-(`TableStage`, `SequenceStage`, `SequenceColumns`, `NameBinding`,
-`StageChanged`), `StagedTemporary`, relation resolution (`Resolver`,
-`RestoreResolver`), `DescribeCreateTable` and the binders
-`BindColumnDefaults`, `BindGenerations` and `BindCheckExpression`,
-`OperationDefinition` (the operation's definition reader, which CHECK
-rendering reads) and `LiveEpoch`. The root `ddlHost`
-implements it (`table_host.go`). `Resolver` is its stage-less part, used by
-`DropTargets` before DROP TABLE begins a stage; `RestoreResolver`
-(`ResolveRestoredRelation`) is the stage-less part `RetiredConstraintCandidate`
-resolves retired parents through. `AlterHost` adds what one
-ALTER statement's bindings need: the live `Input` (captures mutate it, so
-callers read it again before each binding), the snapshot
+collation resolution, the table and sequence stage slots (`TableStage`,
+`SequenceStage`, `SequenceColumns`, `NameBinding`, `StageChanged`),
+`StagedTemporary`, relation resolution (`Resolver`, `RestoreResolver`),
+`DescribeCreateTable`, the binders `BindColumnDefaults`, `BindGenerations` and
+`BindCheckExpression`, `OperationDefinition` (the operation's definition reader)
+and `LiveEpoch`. The root `ddlHost` implements it (`table_host.go`). `Resolver`
+is its stage-less part, used by `DropTargets` before DROP TABLE begins a stage;
+`RestoreResolver` is the stage-less part `RetiredConstraintCandidate` resolves
+retired parents through.
+
+`AlterHost` adds what one ALTER statement's bindings need: the live `Input`
+(captures mutate it, so callers read it again before each binding), the snapshot
 captures (`CaptureTypeDiagnosticName`, `CaptureCommentSnapshot`,
 `CaptureCheckSnapshots`), the binders `BindDefault`, `BindGeneration`,
 `RebindCheck` and `BindAlterTypeUsing`, `TypeChangeDependents` and
 `StageIdentitySequenceOptions`. The root `alterHost{ddlHost; scope}`
-(`alter_host.go`) implements it; the root builds one per call because the
-ALTER loop begins its stage lazily, so the stage may be nil. Every method runs with
-`Engine.mu` held, never takes or releases it, and never waits; the
-authority is an opaque `ddl.Authority`, so code here re-reads
-`AccessView` after every `Recapture`.
+(`alter_host.go`) implements it, one per call, because the ALTER loop begins its
+stage lazily and the stage may be nil.
 
-Names settled in 24b: every moved name is capitalized; `tableStage` is
-`Stage`. Helpers only the package uses keep their lower-case names. Index
-23d.1 moved `IncompatibleNotValid` and `RejectVirtualIndexUses` down into
-`index` (`index.IncompatibleNotValid`, `index.RejectVirtualUses`).
+Every `Host` and `AlterHost` method runs with `Engine.mu` held, never takes or
+releases it, and never waits; the authority is an opaque `ddl.Authority`, so
+code here re-reads `AccessView` after every `Recapture`. The removal interface
+`DropDependencyReader` is passed in with callers holding nothing; its comment
+marks the methods that wait (`Acquire`, `CaptureIdentitySequence`, the
+dependency passes) or take `Engine.mu` (`Remove`, `ApplyViewDependents`).
 
 ## What stays in the engine
 
-The orchestration of CREATE and ALTER TABLE: `createTableLocked` (lock,
-persistence and namespace checks, stage lifecycle, the typed-source waits,
-providers, overlay or publication), `schemaTableLocked` (a forwarder that
-builds the host), `dropTableLocked`, `alterSchemaLocked` and
-`prepareQueryTableLocked` around their cores, `schemaPartitionTableLocked`
-(partition 25d), `alterTableLocked` and its pass loop, the candidate
-functions that stage or wait (`addColumnCandidate`, `alterTypeCandidate`,
-`dropColumnCandidate`, ...), the row evaluation template
-(`alterRowEvaluation`) and projection roots, `Engine.mu` windows,
-lock admission (the acquire loop and post-wait checks of
-`acquireDefinitionProviders`, `admitInheritanceAlter`,
-`acquireInheritanceDefinitions`, the FK provider grant loops of
-`acquireAlterForeignKeys` and `acquireForeignKeyTypeProviders`, the
-acquire loop and epoch reconciliation of `admitInheritanceDropClosure`),
-the authority captures and row-capture callbacks of the FK scans, the identity sequence waits and staging
-(`stageAlterIdentityTypes`, `alterIdentityTypeSequence`,
-`refreshIdentitySequenceLocked`), the prepare host
-(`inheritancePrepareHost`) and the prepared-node consumers
-(`consumeInheritancePreparedAction`, the `alterTableLocked` passes),
-prepared drops (`preparedDrop`, `preparedIdentityDrop`), and Finish. The candidate wrappers
-(`addColumnCandidate`, `alterTypeCandidate`, `generationCandidate`,
-`prepareAddedChecks`, `rebindAlterTypeChecks`, `rebindAlterTypeIndexes`,
-`stageAddedUnique`, `stageAddedForeignKey`) take `Engine.mu` across the
-`table` call and build the host; nothing inside waits.
-Also in the root: the binder bodies behind the host (`bindCreateDefaults`,
-`bindCreateGenerations`, `ddlHost.BindCheckExpression`), the
-acquire loop of `acquireRelationTarget` around `AdmitTarget`,
-the `projectColumnShape` wrapper that supplies the statement's roots to
-`session.ProjectColumnShapeRoots` (moved with the storage projections in
-catalog 5k) and the inheritance query scope methods (query admission:
-`acquireInheritanceSources` keeps its loop, waits and storage lookup
-around `InheritancePendingGrants`). Restore keeps its hook bodies in the
-root (control reaches them): the context check, authorization, the
-superuser 42501, the `Engine.mu` window, the trust checks
-(`partitionConstraintReplayImport`, the captured roles, the attribute-rank
-authority), name resolution, and the shared stage tail
-`publishRestoreRepairLocked`; also the pending foreign-key binder
-(`captureRestoredForeignKeys`, `resolveRestoredForeignKeyTargets`,
-`bindRestoredForeignKeys`, `validateRestoredInheritedForeignKey`, around
-`ResolveTarget` and `ScanRestoredForeignKeys`) and
-`restore_replay.go`. FK write-time
-enforcement and FK actions (`foreignKeyJob`, `foreign_action*.go`) and
-`mutation_targets.go` go to `dml`; the materialized snapshot codec is in `view`.
-24c refined the hosts: `table.Host` (on the root `ddlHost`) and
-`table.AlterHost` (on a scope-bound root `alterHost`), every method under
-`Engine.mu` and never waiting; 24d.1 moved the CREATE decisions, 24d.2 the
-ALTER and inheritance decisions and 24d.3 the Restore cores (see
-[ENGINE-SPLIT-table.md](../../../docs/ENGINE-SPLIT-table.md) Part B). The
-removal interface stays table-local: `DropDependencyReader` is passed in,
-and its callers hold nothing; its comment marks the methods that wait
-(`Acquire`, `CaptureIdentitySequence`, the dependency passes) or take
-`Engine.mu` (`Remove`, `ApplyViewDependents`).
+The orchestration: `createTableLocked`, `schemaTableLocked`, `dropTableLocked`,
+`alterSchemaLocked`, `prepareQueryTableLocked` and `alterTableLocked` with its
+pass loop; the candidate wrappers that take `Engine.mu` across a `table` call and
+build the host; the row evaluation template (`alterRowEvaluation`) and
+projection roots; lock admission and post-wait checks
+(`acquireDefinitionProviders`, `admitInheritanceAlter`,
+`acquireAlterForeignKeys`, `admitInheritanceDropClosure`, `acquireRelationTarget`
+around `AdmitTarget`, `acquireInheritanceSources` around
+`InheritancePendingGrants`); the identity sequence waits; the prepare host
+(`inheritancePrepareHost`), prepared drops and their consumers; Finish; the
+binder bodies behind the host; the bulk `ALTER TABLE ALL IN TABLESPACE` handler;
+the ALTER DOMAIN fence; and the Restore hook bodies (authorization, the
+`Engine.mu` window, trust checks, name resolution, `publishRestoreRepairLocked`,
+the pending foreign-key binder and `restore_replay.go`).
 
 ## Invariants
 
-- ALTER TABLE keeps its nine-pass order (`AlterActionPhase`), the
-  inheritance pass order and per-node re-entry, so the same first error is
-  reported for every action list.
-- Dump output is byte-identical: `DumpRelation` emitters keep their order
-  and never iterate maps into output; each Restore syntax parser stays next
-  to the emitter whose output it reads.
-- The package holds no engine state and no mutex. Functions here never
-  wait; callers in the root own `Engine.mu` and lock waits.
-
-Negative constructor CIRCLE leaves stay on ordinary qualified constructor SQL.
-Only existing array-containing cells that need those leaves use the existing
-native captured-cell metadata alongside SQL NULL, preserving exact dimensions
-and recursive typed members. The engine authenticates destination, owner,
-placeholder and operation lifetime; ordinary inputs and scalar sidecars gain
-no bypass. PostgreSQL ignores that private metadata and receives SQL NULL.
+- ALTER TABLE keeps its nine-pass order (`AlterActionPhase`), the inheritance
+  pass order and per-node re-entry, so the same first error is reported for
+  every action list. Definition preparation uses ordered provider results once,
+  before the sole stage and row rewrite; no partially prepared stage is rebased
+  or patched to a newer base.
+- Constraint order: index attachments stage first; physical builds follow index
+  declaration order before historical CHECK scans, which follow declaration
+  order. Ordinary DML enforces NOT NULL first and CHECKs in constraint-name
+  order. TYPE rewrites check each converted row's NOT NULL and affected CHECKs
+  before converting the next. Final rows and all required constraints validate
+  before publication; failure leaves identities, constraints, rows and roots
+  intact.
+- Dump output is byte-stable: `DumpRelation` emitters keep their order and never
+  iterate maps into output; each Restore syntax parser stays next to the emitter
+  whose output it reads. Negative constructor CIRCLE leaves stay on qualified
+  constructor SQL; only array-containing cells that need them use native
+  captured-cell metadata alongside SQL NULL, which the engine authenticates
+  (destination, owner, placeholder, operation lifetime) and PostgreSQL receives
+  as SQL NULL.
+- The package holds no engine state and no mutex. Functions here never wait;
+  callers in the root own `Engine.mu` and lock waits.
 
 ## Testing
 
-Package-local tests cover pure helpers (`TestOwnedSequenceNameTruncatesToValidUTF8`).
-Every other table unit test builds an engine and stays in the root package,
-naming the moved code as `table.X`; the host seams have
-`TestTableHost(BindColumnDefaultsMatchesCreateTable|StageChangedReportsStagedDescriptor)`,
-`TestAlterHostInputReflectsCheckSnapshotCapture`, the validator slots
-`TestRelationValidatorsOrder` and the remap capture
-`TestGeneratedRemapCheckCapture`. The 24f decisions have package-local
-tests: `TestTypedSources`, `TestPlanAlterScan`, `TestCheckCreateShape`,
-`TestTableTargetAdmission` and `TestAdmitTargetAsksEachEntry`. The 24g
-prepare side and query grants have package-local tests over a fake host
-and a small catalog: `TestPrepareInheritanceNode(PhaseOrder|StopsAtFailedStep)`
-and `TestInheritancePendingGrants`. The 24h scan has
-`TestValidateAddedConstraintRows`; the rewrite and fill tests need an
-engine fixture and stay in the root (`TestAlterAddColumn*`,
-`TestAlterGenerated*`). The 24i decisions have package-local tests over a
-small catalog: `TestForeignKey(TypeProviders|DefinitionProviders|Checks)`,
-`TestScanForeignKeysReplaced`, `TestScanRestoredForeignKeysSlots`,
-`TestRestoredForeignKeyTarget` and `TestInheritanceDropClosure`; the row
-scans themselves need an engine and are reached by the root FK and Restore
-tests (`TestForeignKey*`, `TestRestoreInheritedForeignKey*`), and
-`ColumnDropMultiple` and `ValidateInitialTables` by
-`TestInheritanceMaint*` and `TestMaterializedView*`. The 24j moves have
-package-local tests over a small catalog:
-`TestDefinitionProviders(Invalid)`, `TestDeparse(SerialSequence|MissingObjects)`
-and `TestValidateSelectedDomainRows`; the provider waits are reached by the
-root LIKE and inheritance admission tests (`TestTableLike*`,
-`TestInheritanceAdmission*`), and the deparse and ALTER DOMAIN paths by
-`TestDeparseConstraints*`, `TestSerialSequence*` and `TestDomainAlter*`.
+Package units run over a fake host or a small catalog; most table tests build an
+engine and stay in `internal/engine`, naming the code as `table.X`. Run the
+inheritance and NOT NULL admission units with `RACE=1`. Public SQL lives in
+[reference/tables](../../../reference/tables/README.md#testing) and ALTER TABLE
+in [reference/alter](../../../reference/alter/README.md#testing); add
+`REFERENCE=1` for the oracle.
 
 ```sh
-make check RUN='^TestOwnedSequenceName|^TestTableHost|^TestAlterHost|^TestRelationValidatorsOrder$|^TestGeneratedRemapCheckCapture$'
-make check RUN='^Test(TypedSources|PlanAlterScan|CheckCreateShape|TableTargetAdmission|AdmitTargetAsksEachEntry)$'
-make check RUN='^Test(PrepareInheritanceNode|InheritancePendingGrants|ValidateAddedConstraintRows)'
-make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|ScanForeignKeysReplaced|ScanRestoredForeignKeysSlots|RestoredForeignKeyTarget|InheritanceDropClosure)$'
-make check RUN='^Test(DefinitionProviders.*|Deparse.*|ValidateSelectedDomainRows|SerialSequence.*|DomainAlter.*)$'
-make check RUN='^Test(AlterAdd|AlterGenerated|AlterTablespace|AlterType|AlterDefault|IdentityAlter|ConstraintRename|InheritanceAlter|InheritanceRetired|InheritanceMetadata)'
-make check RUN='^Test(NotNull|Inheritance|PhysicalNotNull|RestoreInherited|TableLike|Typed|AlterDropColumn|GeneratedVirtual|Check(Native|Descriptor|Completed|Review))'
-make check RUN='^Test(Serial|Identity|SchemaTable|DDLHostStageSchemaTable|QueryTableCreate|TemporaryTable)'
-make check RACE=1 RUN='^Test(NotNullAXWaitCancellationAndEnd$|InheritanceAdmission|InheritanceAlterAdmission)'
-make check RUN='^Test(AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit|RestoreInherited|InheritanceForeignKeyForwardReplay|PhysicalNotNull|InheritanceRetiredLocalCheckReconstruction)'
-```
-
-Public behavior is covered by the dual-mode reference suite:
-
-```sh
-make check RUN='^TestReference(TableCore|TableLike|Like|NotNull|Check|Default|GeneratedStored|GeneratedVirtual|ForeignKey|ForeignActions|Inheritance|ConstraintRename|TypedTable|Identity|Serial|Truncate|DumpRound)'
-make check RUN='^TestReferenceAlter(AddColumn|AddConstraint|Default|DropColumn|Generated|Identity|Nullability|Rename|Schema|Tablespace|Type)'
-make check RUN='^TestReference(DeparseConstraints|DeparseRelations|SerialIdentity|DomainAlter)'
+make check RUN='^Test(TableHost|AlterHost|RelationValidatorsOrder|GeneratedRemapCheckCapture|TableTargetAdmission|AdmitTargetAsksEachEntry)'
+make check RUN='^Test(CheckCreateShape|TypedSources|PlanAlterScan|ValidateAddedConstraintRows|RelationOptions|PrepareInheritanceNode|InheritancePendingGrants|InheritanceDropClosure|DefinitionProviders|Deparse(SerialSequence|MissingObjects)|ValidateSelectedDomainRows|OwnedSequenceName)'
+make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|Scan(Restored)?ForeignKeys|RestoredForeignKeyTarget|RestoreInherited|AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit)'
+make check RACE=1 RUN='^Test(NotNull|PhysicalNotNull|Inheritance)'
+make check RUN='^TestReference(TableCore|TableLike|NotNull|Check|Inheritance|TypedTable)'
 ```

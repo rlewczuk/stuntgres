@@ -1,18 +1,21 @@
 # internal/engine/pgcatalog
 
 Row producers for the system relations: the `pg_catalog` tables and views and
-the `information_schema` views `table_privileges`, `data_type_privileges`,
-`user_mappings`, `key_column_usage`, `constraint_column_usage`,
-`column_column_usage`, `routine_sequence_usage`, `character_sets`, `enabled_roles`
-and `view_table_usage`.
-Each producer is a pure function from a captured catalog, a paired role read
-and a narrow runtime capability to rows. The package sits at L5 of
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
-imports `catalog`, `authorization`, `largeobject`, `lock` (lock records), `expr`,
-`ids`, `sqltype`, `sqlstate`, `parser` and the standard library. It never imports the
-engine, `access`, `storage` or `visibility`. `parser` is needed because
-catalog descriptors store parser enums (foreign-key actions, identity mode,
-partition bound values); it is an L0 leaf that `catalog` also imports.
+the producer-backed `information_schema` views (`table_privileges`,
+`data_type_privileges`, `user_mappings`, `key_column_usage`,
+`constraint_column_usage`, `routine_sequence_usage`, `character_sets`). Each
+producer is a pure function from a captured catalog, a paired role read and a
+narrow runtime capability to rows. Orchestration (per-OID catalog choice,
+unlock timing, wrapping rows as query sources) stays in the engine; see the
+[engine README](../README.md).
+
+## Imports
+
+Layer L5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
+It imports `catalog`, `authorization`, `functions`, `largeobject`, `lock` (lock
+records), `expr`, `ids`, `settings`, `sqltype`, `sqlstate`, `parser` (catalog
+descriptors store parser enums) and the standard library. It never imports the
+root engine, `access`, `storage` or `visibility`.
 
 ## Producer contract
 
@@ -30,59 +33,23 @@ type Producer func(Input) ([][]sqltype.Value, error)
 ```
 
 - A producer returns rows and nothing else. It never builds a query source,
-  keeps a statement scope or takes a lock. The engine wraps the rows.
-  Successful dynamic captures return a nonnil empty row slice when no rows
-  exist. This denotes an actual empty anonymous source; nil is not a substitute
-  for an absent retained data view. Maintenance progress/statistics follow the
-  same convention without inventing a placeholder row.
-- Rows follow the column order of `Input.Source`, with each cell typed by that
-  column's descriptor. Producers check that the source has the expected shape
-  and types and fail otherwise.
+  keeps a statement scope or takes a lock; the engine wraps the rows.
+- A successful capture with no rows returns a non-nil empty slice (an actual
+  empty anonymous source); nil is never a substitute. Cancellation or invalid
+  authority returns nil rows and the error, never a prefix.
+- Rows follow the column order of `Input.Source`, each cell typed by that
+  column's descriptor. Producers check the expected shape and types and fail
+  otherwise.
 - Producers check `Context` between descriptors and return its error.
-- **Provenance.** `Input.Owner` is the engine's stable `*catalog.Owner`. Its
+- **Provenance.** `Input.Owner` is the engine's stable `*catalog.Owner`; its
   `Domain`, `Principals` and `ACLAuthority` are compared as the same pointers,
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
   `Roles.BelongsTo(Owner.Principals)` and `Source` identity must agree before
-  rows are produced. Absent and explicit-empty ACLs stay different: `ClassACL`
-  returns NULL for an absent ACL.
-  `pg_am` enumerates live global method descriptors (four bootstrap rows plus
-  real custom definitions), with owned contiguous typed cells per capture.
-  `pg_class.relam` retains declared custom index identity. Family→method AUTO
-  and method→handler NORMAL dependencies use shared selectors; references to
-  pinned stock handlers are suppressed, not fabricated as pg_depend rows.
-
-`pg_largeobject` (2613) enumerates actual immutable LO stored chunks, not
-zero-filled logical reads. Its producer validates source/descriptor provenance
-and copies each borrowed chunk once into an owned BYTEA value; holes and short
-tails are never materialized. It does not consult per-object ACLs: ordinary
-table/column SELECT admission protects this non-public relation. The engine
-selects only2613's active LO READ root, falling back to the statement inquiry
-frontier, so fresh SQL bodies see argument effects while outer scans remain
-frozen. Existing metadata2995 capture remains independent and unchanged.
-
-Behavioral units cover retained/fresh captured roots, cancellation and ordinary
-provenance errors; public SQL contracts and smoke belong in
-[reference/catalogs](../../../reference/catalogs/README.md#pg_largeobject-page-projection).
-
-```sh
-make check RUN='^TestPGLargeobject(Projection|CapturedRoots|CanceledCapture)$'
-make check RUN='^TestCatalogSourceProducerCoverage$'
-```
-
-
-## Maintenance projections
-
-The released30-column table-statistics views project committed logical DML and
-manual VACUUM facts, not query-time COUNT(*) or physical scan estimates. The
-15-column progress view captures real active phases and authenticated-owner
-visibility under the engine capture lock. Unsupported page/dead-item metrics,
-scan/I/O/duration statistics and absent analyze timestamps remain typed NULL.
-No row is created while waiting for a relation lock or after work completes.
-These four sources use ordinary relation/row/array identities; their generated
-PostgreSQL OIDs are not cross-backend numeric constants.
-`pg_class`/`pg_database` expose genuine logical freezing bounds without changing
-unimplemented physical page/map/MultiXact fields.
-See [maintenance proof](../../../reference/catalogs/README.md#vacuum-oracle-first-contract).
+  rows are produced.
+- Absent and explicit-empty ACLs stay distinct: `ClassACL` returns NULL for an
+  absent ACL and `{}` for an empty one.
+- Information-schema producers emit genuine `sql_identifier` and
+  `cardinal_number` domain values, not bare NAME or INT4.
 
 ## Enabled-role projection
 
@@ -102,14 +69,14 @@ See [public proof](../../../reference/catalogs/README.md#enabled-roles).
 
 `catalog_source_producers.go` holds one process-initialized array of
 `Registration{OID, Produce}`, sorted by relation OID and never changed.
-`ProducerFor(oid)` finds a producer by binary search; `Registrations()`
-returns a copy for coverage checks. The array does not contain `pg_locks`
-(`LocksOID`) or `pg_sequences` (12048): the engine handles those two itself.
+`ProducerFor(oid)` finds a producer by binary search; `Registrations()` returns
+a copy for coverage checks. `pg_locks` (`LocksOID`) and `pg_sequences` are not
+registered: the engine handles those two itself.
 
 `catalog_source_specs.go` holds `Specs`, the ordered descriptor metadata for
 every system relation (OID, namespace, name, columns with type, typmod,
-dimensions, nullability and collation, and flags). The spec order is the
-descriptor registration order and differs from the registry order.
+dimensions, nullability and collation, flags). Spec order is the descriptor
+registration order and differs from the registry order.
 
 ### Adding a system relation
 
@@ -124,296 +91,90 @@ descriptor registration order and differs from the registry order.
 ## Runtime capability
 
 `Runtime` is the narrow interface the engine implements per call
-(`engineCatalogRuntime`, §4.1 pattern 3). Methods take and return values; none
-return engine structs. Building the adapter reads nothing; only the selected
-producer calls the methods it needs. Rule facts (`catalog.RuleFact`), view
-options and policy conditions are read from the catalog payloads directly
-(`Relation.HasRules`, `Relation.VisitRules`, `ViewPayload.Options`,
-`PolicyDefinition.VisitExpressions`), not through `Runtime`.
-
-Maintenance-aware `pg_class`/database/statistics projections require an adapter
-backed by the actual engine, including direct package-seam fixtures. An empty
-adapter is not an initialized maintenance capture; callers supply their owner
-rather than masking missing authority with panic suppression or invented facts.
+(`engineCatalogRuntime`). Methods take and return values, never engine structs.
+Building the adapter reads nothing; only the selected producer calls the
+methods it needs. Rule facts, view options and policy conditions are read from
+catalog payloads directly (`Relation.HasRules`, `Relation.VisitRules`,
+`ViewPayload.Options`, `PolicyDefinition.VisitExpressions`), not through
+`Runtime`. Maintenance-aware projections need an adapter backed by a real
+engine; an empty adapter is not an initialized maintenance capture.
 
 | Methods | Why they are engine-owned |
 |---|---|
 | `CursorCount`, `VisitCursors` | session cursor registry (`pg_cursors`) |
-| `SessionSettings` | coherent registry-wide typed current/reset/source capture under one physical-session mutex (`pg_settings`) |
+| `SessionSettings` | one coherent typed settings snapshot under the physical-session mutex (`pg_settings`) |
 | `PreparedCount`, `VisitPreparedTransactions` | prepared-transaction registry, assigned XIDs, published role names |
 | `TimezoneInput`, `DatabaseName`, `TemporaryOwner`, `CurrentPrincipal` | statement input environment, session database, physical TEMP owner, current user |
 | `ValidateCapture`, `Effective`, `CanUse`, `SelectColumns`, `ForeignServerVisible` | error-bearing privilege checks through the statement's authorization view |
-| `ValidateParameter` | setting registry validation of parameter ACL rows |
+| `ValidateParameter` | settings registry validation of parameter ACL rows |
 | `ValidateACL`, `ObjectACL` | ACL validation and raw object ACLs (`access` is not imported here) |
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
-| `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress` | immutable logical maintenance/statistics facts and authenticated active-work redaction |
-| `ExpressionTree` | native structural `pg_node_tree` output of bound expressions |
+| `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress` | immutable logical maintenance facts and authenticated active-work redaction |
+| `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |
 | `ViewDefinition`, `IndexDefinition` | view and index definition rendering |
-| `Pinned`, `OperatorSeeded`, `OperatorDependencies`, `TypeProviderProcedure` | pin decisions; the builtin operator inventory and operator dependencies owned by `routine` (L10, above this package); extension type providers (`pg_depend`, `pg_operator`) |
+| `Pinned`, `OperatorSeeded`, `OperatorDependencies`, `TypeProviderProcedure` | pin decisions, the builtin operator inventory and operator dependencies owned by `routine`, extension type providers |
 | `VisitSequenceDefinitions` | sequence definitions with the statement's journal overlay (`pg_sequence`) |
 
 ## Exported helpers
 
-The engine calls these directly: `ClassKind`, `ClassACL`, `AttributeMetadata`,
+The engine calls `ClassKind`, `ClassACL`, `AttributeMetadata`,
 `HasSystemAttributes`, `AttributeNumber`, `InitializeAttributes`,
 `CollationActualVersion`, `DatabaseCollationActualVersion`,
 `DescriptorComment`, `ForeignDependencies`, `VirtualViewWriteError`,
 `LockRows`, `CapturePGSequences` and the OID constants (`LocksOID`,
-`CursorsOID`, `SettingsOID`, `TypeOID`, ...). Engine unit tests also call
-`CollectDepend`, `ClassRow`, `AttributeRow`, `TypeFacts`, `ConstraintOperator`
-and a few other row helpers, because they check producer behavior against an
-engine-seeded catalog.
+`CursorsOID`, `SettingsOID`, `TypeOID`, ...). Engine unit tests also call row
+helpers such as `CollectDepend`, `ClassRow`, `AttributeRow`, `TypeFacts` and
+`ConstraintOperator`. `CollationActualVersion` reads actual provider
+authority, never the recorded `Version`.
 
-`CollationActualVersion` reads actual provider authority, never recorded
-`Version`: supported builtin locales return `1`; libc C/POSIX and unavailable
-native ICU version data return nil (SQL TEXT NULL). Default delegates to the
-native libc/C database, also versionless. Inquiry-only ICU NULL does not admit
-ICU creation/execution or provide an installed system inventory. Other invalid
-or unsupported executable definitions retain their semantic errors.
+## Relations with special rules
 
-## What stays in the engine
-
-- `openRelationSourceLocked`, `openCatalogSourceLocked` (per-OID choice of
-  catalog, roles, presentation and unlock timing) and `captureCatalogSourceRows`
-  (the only place rows become a `querySource`).
-- `engineCatalogRuntime`, the `Runtime` adapter.
-- `pg_locks` capture (`pg_locks_capture.go`): it releases and retakes
-  `Engine.mu` and never takes the lock manager mutex under it. Rows come from
-  `LockRows`.
-- `pg_sequences` source construction and lazy completion: the engine picks
-  the retained base and the journal overlay, passes the overlay walk, a
-  namespace lookup and a fresh cancellation check to `CapturePGSequences`
-  (`pg_sequences.go`, which builds the rows with `last_value` left NULL),
-  builds the source refs, and acquires the sequence locks through the
-  statement scope at completion. The `pg_sequence` producer reads the same
-  overlay through `VisitSequenceDefinitions`.
-- Descriptor registration during catalog seeding (`initializeCatalogSources`,
-  `catalogSourceDescriptor`, `registerCatalogSource`), which reads `Specs`.
-- The `Runtime` bodies over stored definitions, which forward to `stored`:
-  `ViewDefinition` (`stored.ViewDefinitionSQL`), `ExpressionReferences`,
-  `ViewReferences`, `IndexReferences` and `PartitionReferences`
-  (`stored.*DependRefs`), and `Pinned` (`stored.DependPinned`, which also
-  reads unpublished definition state).
-
-## Large-object metadata
-
-`pg_largeobject.go` projects genuine large-object descriptors into relation2995:
-exact object OID, effective creator's owner OID and raw `ClassACL`. Absent ACLs
-are NULL, explicit-empty ACLs are `{}`, and populated ACL order, grantors and
-grant options are preserved. The ordinary PUBLIC-readable catalog exposes all
-metadata rows without per-object privilege filtering or ACL redaction.
-`ValidateACL` validates integrity; it does not authorize byte access.
-The same transaction-visible descriptors drive real create, grant/revoke and
-unlink operations; no metadata-only object store or payload relation is added.
-
-## Transform metadata
-
-`pg_transform.go` owns the relation3576 producer. No implemented transforms
-exist: casts/codecs, SQL routines and extension availability are not providers.
-It checks cancellation before shape, then the five catalog-owned carriers
-OID/OID/OID/REGPROC/REGPROC, and returns a nonnil empty anonymous source.
-`Specs` owns its nonnullable columns; ordinary registration reuses the existing
-row/array descriptors. Index-presence and pg_tables inclusion remain separate
-metadata predicates. No new runtime interface or provider registry is needed.
+- `pg_am`: live global method descriptors with owned typed cells per capture;
+  family→method and method→handler dependencies use shared selectors, and
+  references to pinned stock handlers are suppressed, not fabricated.
+- `pg_largeobject` (2613): actual immutable stored chunks, each borrowed chunk
+  copied once into an owned BYTEA; holes are never materialized and per-object
+  ACLs are not consulted (ordinary relation SELECT protects it).
+- `pg_largeobject_metadata` (2995): object OID, creator's owner OID and raw
+  `ClassACL`, without per-object filtering or redaction.
+- `pg_transform` (3576): checks cancellation, then the five carrier types, and
+  returns a non-nil empty source.
+- `pg_settings`: projects registry metadata and one coherent typed snapshot;
+  owns its enum-array buffers and never publishes partial canceled rows.
+- Table-statistics and progress views: committed logical DML and manual VACUUM
+  facts and real active phases with authenticated-owner visibility, captured
+  under the engine capture lock; unknown metrics stay typed NULL.
+- `information_schema.user_mappings`: real mapping identities; server owner or
+  effective USAGE exposes all mappings. It never copies options or reuses
+  `ForeignServerVisible`, which governs `pg_user_mappings` option redaction.
+- `key_column_usage`: foreign-key positions follow the supporting index's
+  ordered keys; visibility is owner inheritance or a column privilege.
+- `constraint_column_usage`: CHECK columns come from `ExpressionReferences`,
+  never a second walker; owner-role inheritance on the table is the only
+  visibility predicate.
+- `routine_sequence_usage`: direct stored SQL-body relation references to real
+  sequences, validated before duplicate suppression; sequence-owner role
+  inheritance is the only visibility predicate.
+- `character_sets`: one current-database UTF8 row; encoding and locale facts
+  are shared with `pg_database`.
 
 ## Testing
-Public metadata acceptance belongs in `reference/object_grants`, not internal
-SQL tests. It checks empty/populated descriptors, unrelated-role visibility,
-byte denials and one retained statement through drop/recreation. Existing
-Transactions and Restore cover private visibility and native-control replay.
-See the [owning Testing section](../../../reference/object_grants/README.md#large-object-metadata)
-for the public feature smoke and independent outcomes. Selected proof:
 
-```sh
-make check RUN='^TestReferenceLargeObjectMetadata(Shape|Visibility|Lifecycle)$'
-make check RUN='^TestReferenceLargeObjectMetadata(Shape|Visibility|Lifecycle)$' REFERENCE=1
-make check RUN='^TestReferenceLargeObject(Privileges|Transactions|Prepared|Restore)$'
-make check RUN='^TestReferenceLargeObject(Privileges|Transactions|Prepared|Restore)$' REFERENCE=1
-```
+Package units here run without an engine. Producer behavior tests need an
+engine-seeded catalog, so they live in `internal/engine` and reach producers
+through the real registry (`catalog_source_producers_test.go`); see the
+[engine Testing section](../README.md#system-catalog-producer-contract). Public
+catalog SQL belongs in `reference/catalogs` (large objects in
+`reference/object_grants`, settings in `reference/session_state`); follow
+[docs/TESTING.md](../../../docs/TESTING.md) and add `REFERENCE=1` for the oracle.
 
-
-Transform producer invariants and initialized ownership are covered by engine
-units; public SQL/API coverage stays in reference/catalogs:
-
-```sh
-make check RUN='^TestPGTransform(Capture|Ownership)$'
-make check RUN='^TestReferencePGTransform(Inventory|Shape|CatalogLinks|Prepared|Diagnostics|Permissions|Lifecycle)$'
-make check RUN='^TestReferencePGTransform(Inventory|Shape|CatalogLinks|Prepared|Diagnostics|Permissions|Lifecycle)$' REFERENCE=1
-```
-
-
-`info_user_mappings.go` emits only real mapping identities from the captured
-catalog and paired roles. Server inherited-owner OR effective-USAGE authority
-exposes all attached mappings. It wraps inline NAME payloads in the genuine
-`sql_identifier` domain; source metadata remains available for empty results.
-Successful empty captures return a nonnil empty row slice so the executor
-recognizes an anonymous source, not an absent physical source.
-It never copies options or reuses `ForeignServerVisible`, which governs the
-distinct `pg_user_mappings` option-redaction path.
-
-```sh
-make check RUN='^TestInfoUserMappingsProducer$'
-make check RUN='^TestReferenceInfoUserMappings(Shape|Visibility|Lifecycle|Diagnostics|Smoke)$'
-make check REFERENCE=1 RUN='^TestReferenceInfoUserMappings(Shape|Visibility|Lifecycle|Diagnostics|Smoke)$'
-```
-
-`key_column_usage.go` emits the nine documented columns from actual primary,
-unique and foreign-key descriptors on ordinary and partitioned tables. Capture
-uses coherent catalog/role/session authority and genuine `sql_identifier` and
-`cardinal_number` domain values, including typed NULL unique positions for p/u.
-Foreign-key positions follow the actual supporting index's ordered Keys, never
-another equivalent index, constraint-name lookup or INCLUDE payload. Each
-constraint occurrence survives duplicate names. Owner inheritance or effective
-SELECT/INSERT/UPDATE/REFERENCES on each constrained column controls visibility;
-partial keys retain their original ordinals. Other-session TEMP is excluded.
-Successful empty captures are nonnil; cancellation and invalid authority expose
-no prefix. Existing DDL, transactions and logical controls own all population.
-
-```sh
-make check RUN='^Test(InfoKeyColumnUsage(Producer|Capture|Cancellation)|CatalogSourceProducerCoverage)$'
-make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$'
-make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$' REFERENCE=1
-```
-
-
-
-`constraint_column_usage.go` projects seven genuine nullable `sql_identifier`
-values from captured actual CHECK, NOT NULL, primary/unique and FK descriptors.
-The engine pairs catalog/role/session authority and validates exact source
-identity before projection. CHECK uses existing `ExpressionReferences`, never a
-second AST walker or expression execution. Only ordinary/partitioned projected
-tables and live admitted attributes contribute. FKs resolve target addresses
-and referenced vectors but retain the child constraint's namespace/name.
-
-Owner-role inheritance on the projected table is the sole visibility predicate;
-ACL grants, schema USAGE, child ownership and peer-TEMP status add no filter.
-Capture-local owner memoization avoids repeating role traversal for composites
-and shared targets. CHECK and NOT NULL have independent branch DISTINCT keys;
-the key branch preserves constraint occurrences and identical FK tuples, while
-repeated attributes within one vector emit once. No supporting-index ordering,
-global DISTINCT, population registry, future admission or extra columns are
-introduced. Success returns nonnil empty rows; cancellation or invalid
-capture/dependencies return nil rows and the original error, never a prefix.
-
-```sh
-make check RUN='^TestInfoConstraintColumnUsage(Producer|Capture|Cancellation)$'
-make check RUN='^TestInfoConstraintColumnUsage(Capture|Cancellation)$' RACE=1
-make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$'
-make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$' REFERENCE=1
-```
-
-`info_column_column_usage.go` projects five nullable `sql_identifier` values
-from actual retained generated-column definitions. It uses the existing
-`ExpressionReferences` walker on analyzed `Expression`, not folded `Planned`
-expressions: dead branches and the admitted `tableoid` attribute−6 survive.
-The walker deduplicates base addresses per generation; distinct dependents
-remain separate. Constant/NULL definitions and unrelated references add no rows.
-There is no copied relation-kind restriction, SQL parsing, or second dependency
-registry. Source identity/domain and paired immutable catalog/role authority are
-validated before projection; cancellation/errors discard every accumulated row.
-
-Enabled relation-owner membership is the only visibility predicate, evaluated
-once per generated relation. ACLs, schema USAGE, RLS, search path and peer-TEMP
-status do not substitute for it. Existing DDL/transactions/control replay own
-definition changes; held reads capture current facts and retained rows stay old.
-Successful native Reset/Restore replaces logical domain lifetimes, so an older
-held sql_identifier result retains the existing0A000 fixed-result fence; a fresh
-prepare observes the replacement. Already captured rows/types remain usable.
-The existing virtual-view write dispatcher supplies the DISTINCT-specific
-55000 DETAIL on both direct execution and protocol Prepare.
-
-```sh
-make check RUN='^Test(InfoColumnColumnUsage(Producer|Capture|Cancellation)|CatalogSourceProducerCoverage)$'
-make check RUN='^TestInfoColumnColumnUsage(Capture|Cancellation)$' RACE=1
-make check RUN='^TestReferenceInfoColumnColumnUsageFeatureSmoke$'
-make check RUN='^TestReferenceInfoColumnColumnUsageFeatureSmoke$' REFERENCE=1
-```
-
-
-`info_routine_sequence_usage.go` reads direct stored SQLBody relation references
-from the captured procedure descriptors, resolves only real sequences in the
-same catalog root, and validates nonzero sequence attributes with the captured
-relation's `HasAttribute` authority. Distinct stored attribute ObjectRefs may
-refer to one sequence, so a lazy per-routine sequence-identity set implements
-distinct pairs. Every reference is validated before duplicate suppression;
-invalid attributes and foreign-domain/stale-epoch refs remain errors.
-Its sole visibility predicate is enabled sequence-owner role inheritance;
-routine/schema/sequence ACL checks
-are deliberately absent. Current descriptor names and a UTF8 prefix-clipped,
-OID-suffix-preserving specific name form nine genuine `sql_identifier` values.
-The engine supplies paired catalog/role provenance and the session database name.
-Empty captures are nonnil; cancellation and invalid capture/dependency identities
-return no prefix rows. No SQL-body parsing, recursive expansion, pg_depend
-materialization or second lifecycle registry is involved.
-
-```sh
-make check RUN='^TestInfoRoutineSequenceUsage(Producer|SpecificName)$'
-make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$'
-make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$' REFERENCE=1
-```
-
-`info_view_table_usage.go` projects direct stored ordinary-view SELECT-rule
-references through the same runtime dependency recorder as `pg_depend`.
-The engine validates relation source/dependency ObjectRefs against the captured
-catalog and contextual retained-TEMP authority before recording addresses;
-invalid later references cannot hide behind pinning or pair deduplication.
-The producer resolves current containing relations, includes SQL kinds r/v/f/p,
-suppresses self identity and deduplicates pairs per defining view. Its only
-visibility predicate is enabled referenced-owner inheritance. It emits six
-column-owned identifier-domain values, nonnil empty captures and no partial
-prefix on error/cancellation. It does not execute definitions, expand nested
-views or call foreign providers. Bootstrap tables are pinned; catalog views are
-not. Exact retained TEMP provider identity is a separate lifetime contract.
-
-```sh
-make check RUN='^(TestInfoViewTableUsageProducer|TestCatalogSourceRuntimeCapture)$'
-make check RUN='^TestPGDependCatalogRelationPinning$'
-make check RUN='^TestReferenceInfoViewTableUsage(Shape|Dependencies|Visibility|Lifecycle|Controls|Diagnostics|FeatureSmoke)$'
-make check RUN='^TestReferenceInfoViewTableUsage(Shape|Dependencies|Visibility|Lifecycle|Controls|Diagnostics|FeatureSmoke)$' REFERENCE=1
-```
-
-`info_character_sets.go` emits one current-database UTF8 identity with eight
-generation-owned nullable `sql_identifier` values. Encoding and C locale facts
-are shared with `pg_database`; current database and winning namespace/collation
-names come from the captured runtime/catalog. The producer validates the paired
-catalog/roles/source and owned domain/base descriptors. A single descriptor scan
-matches both COLLATE/CTYPE, ranking character length descending then name
-ascending without sorting or per-candidate rows. PUBLIC visibility adds no
-schema-usage, provider or encoding filter. With no match only default schema/name
-are typed NULL; the database catalog remains populated per released SQL.
-Cancellation and invalid provenance expose no rows. Held executions recapture;
-retained values do not change with later catalog roots.
-
-```sh
-make check RUN='^TestInfoCharacterSets(Producer|CollationChoice)$'
-make check RUN='^TestReferenceInfoCharacterSets(Rows|Metadata|Identity|CollationSelection|Lifecycle|Visibility|Diagnostics|FeatureSmoke)$'
-make check RUN='^TestReferenceInfoCharacterSets(Rows|Metadata|Identity|CollationSelection|Lifecycle|Visibility|Diagnostics|FeatureSmoke)$' REFERENCE=1
-```
-
-Package units run without an engine:
-
-```sh
-make check RUN='^(TestProducerRegistryLookup|TestPgClassPartitionTree)$'
-make check RUN='^TestCollationActualVersionProviders$'
-```
-
-Producer behavior is tested in the engine package, because those tests need a
-catalog seeded by the engine. They call producers through the real registry
-(`internal/engine/catalog_source_producers_test.go`). Their selectors, the
-reference selections and the race checks are in the
-[engine README](../README.md#system-catalog-producer-contract).
-
-The existing `pg_settings` producer projects registry metadata and one coherent
-typed snapshot into the unchanged17-column schema/SettingsOID. It owns enum-array
-buffers, releases no caller-owned locks, and publishes no partial canceled rows.
-SQL mutation remains the existing read-only virtual-view boundary.
-
-```sh
-make check RUN='^TestPGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)$'
-make check RUN='^TestReferenceStatisticsSettings(Metadata|Consumers|Controls|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferenceStatisticsSettings(Metadata|Consumers|Controls|FeatureSmoke)$'
-```
-
+- Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders|InfoRoutineSequenceUsageSpecificName)$'`
+- Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
+- Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets))'`
+- Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets)'`
+- Large objects: `RUN='^TestReferenceLargeObject'`
+- Settings view: `RUN='^TestReferenceStatisticsSettings'`
+- Transforms: `RUN='^TestReferencePGTransform'`

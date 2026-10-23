@@ -44,14 +44,13 @@ any engine subpackage may import it.
   dereferences owners only through them. Never pass a typed nil pointer as an
   owner.
 
-## What stays in the engine
+## What lives elsewhere
 
-Every provenance check (foreign, stale, zero and pre-registration
-identities), the transaction options `Isolation` and `TxOptions`, the
-lowercase `pg*OID` relation constants, and `authorization.Domain`, which has
-its own Restore staging domain.
-
-The engine, the root driver and `cmd/stuntgres` use the `ids.` names
+Every provenance check (foreign, stale, zero and pre-registration identities)
+stays in the engine. The transaction options `Isolation` and `TxOptions` are
+in `session`; system catalog relation OIDs are in `pgcatalog`;
+`authorization.Domain` is a separate domain with its own Restore staging.
+Engine code, the root driver and `cmd/stuntgres` use the `ids.` names
 directly; there are no aliases.
 
 ## Testing
