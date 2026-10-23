@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
@@ -20,63 +21,8 @@ func (e *Engine) captureRegclassOutput(op *session.Operation, rows *exec.FinalRo
 	if err != nil {
 		return err
 	}
-	var collationPath []ids.ObjectAddress
-	aclOutput := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}
-	roleOutput := regobj.RoleOutput{Owner: e.catalog.owner(), Roles: auth.Roles, QuoteAll: rows.Output.QuoteAllIdentifiers}
-	for _, value := range rows.Values {
-		if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, value); err != nil {
-			return err
-		}
-		if err := regobj.CaptureRoleOutputValue(rows, roleOutput, value); err != nil {
-			return err
-		}
-		if err := regobj.CaptureACLItemOutputValue(rows, aclOutput, value); err != nil {
-			return err
-		}
-		if err := regobj.CaptureClassOutputValue(rows, auth.Catalog, path, value); err != nil {
-			return err
-		}
-	}
-	for _, row := range rows.Anonymous {
-		for _, value := range row {
-			if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, value); err != nil {
-				return err
-			}
-			if err := regobj.CaptureRoleOutputValue(rows, roleOutput, value); err != nil {
-				return err
-			}
-			if err := regobj.CaptureACLItemOutputValue(rows, aclOutput, value); err != nil {
-				return err
-			}
-			if err := regobj.CaptureClassOutputValue(rows, auth.Catalog, path, value); err != nil {
-				return err
-			}
-		}
-	}
-	if rows.Source != nil {
-		for i := 0; i < rows.Count; i++ {
-			index := i
-			if rows.Selection != nil {
-				index = rows.Selection[i]
-			}
-			row := rows.Source.Row(index)
-			for _, slot := range rows.Slots {
-				if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, row[slot]); err != nil {
-					return err
-				}
-				if err := regobj.CaptureRoleOutputValue(rows, roleOutput, row[slot]); err != nil {
-					return err
-				}
-				if err := regobj.CaptureACLItemOutputValue(rows, aclOutput, row[slot]); err != nil {
-					return err
-				}
-				if err := regobj.CaptureClassOutputValue(rows, auth.Catalog, path, row[slot]); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
+	collationPath := func() ([]ids.ObjectAddress, error) { return lookupPath(auth, analyze.CollationLookup) }
+	return regobj.CaptureRowsOutput(rows, auth.Catalog, e.catalog.owner(), auth.Roles, path, collationPath)
 }
 
 // String output uses the same captured namespace presentation as exec.FinalRows,
