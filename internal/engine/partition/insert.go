@@ -41,6 +41,71 @@ type InsertState struct {
 	Order       []*InsertGroup
 }
 
+// CaptureInsertLocked returns the routing state of an INSERT or COPY into
+// target, a member of a partition hierarchy, read through read with the
+// captured authority and its environment. It records the segment layout of
+// target, of each descendant (preorder) and of each ancestor. regTS runs
+// before the layout of every partitioned level whose key contains a
+// regconfig or regdictionary type; leaf runs for each physical leaf after the
+// layouts.
+//
+// The caller holds Engine.mu; CaptureInsertLocked takes no lock, and neither
+// callback may wait.
+func CaptureInsertLocked(read catalog.Read, authority access.View, env access.Environment, target *catalog.Relation, regTS func() error, leaf func(*catalog.Relation) error) (*InsertState, error) {
+	state := &InsertState{Catalog: read, Authority: authority, Env: env, Target: target}
+	var captureLayouts func(*catalog.Relation) error
+	captureLayout := func(d *catalog.Relation) error {
+		if d.Partition != nil {
+			for _, key := range d.Partition.Keys {
+				if key.Usage.Type.ContainsRegTS() {
+					if err := regTS(); err != nil {
+						return err
+					}
+					break
+				}
+			}
+		}
+		layout, err := catalog.InheritanceQueryLayout(d, target)
+		if err != nil {
+			return err
+		}
+		if layout != nil {
+			if state.Layouts == nil {
+				state.Layouts = make(map[ids.ObjectAddress]*exec.InheritanceQuerySegment)
+			}
+			state.Layouts[d.Address()] = &exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, len(layout))}
+		}
+		return nil
+	}
+	captureLayouts = func(d *catalog.Relation) error {
+		if err := captureLayout(d); err != nil {
+			return err
+		}
+		if d.Partition != nil {
+			for _, address := range d.Partition.Children {
+				if err := captureLayouts(read.MustRelation(address)); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := captureLayouts(target); err != nil {
+		return nil, err
+	}
+	for child := target; child.Membership != nil; {
+		parent := read.MustRelation(child.Membership.Parent)
+		if err := captureLayout(parent); err != nil {
+			return nil, err
+		}
+		child = parent
+	}
+	if err := PhysicalDescendants(read, target, leaf); err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
 // Route walks the partition tree from Target to the leaf that accepts row,
 // failing with MissingPartition when a level has no matching child.
 func (state *InsertState) Route(evaluation *exec.Context, row []sqltype.Value, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*catalog.Relation, error) {
