@@ -21,9 +21,6 @@ func (a AuthorizationView) definitionLookup(key ids.NameKey) ids.ObjectAddress {
 	}
 	return a.Catalog.NameAddress(key)
 }
-func (a AuthorizationView) definitionProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
-	return catalog.DefinitionProceduresNamedAt(a.Catalog, a.definition, namespace, name)
-}
 
 func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return catalog.DefinitionTypeAt(a.Catalog, a.definition, id)

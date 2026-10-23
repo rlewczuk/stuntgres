@@ -1,11 +1,9 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
@@ -62,13 +60,4 @@ func (e *Engine) registerCatalogSource(d *catalog.Relation) {
 	}
 	e.catalog.state.SetDescriptor(d.Address(), d)
 	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
-}
-
-func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
-	produce, ok := pgcatalog.ProducerFor(source.Address().ObjectID)
-	if !ok {
-		return nil, fmt.Errorf("stuntgres: unknown catalog source")
-	}
-	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: e.catalog.owner(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
-	return captureCatalogSourceRows(in, produce)
 }

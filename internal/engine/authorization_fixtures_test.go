@@ -131,3 +131,60 @@ func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 	}
 	return refs
 }
+
+// SetObjectACL publishes acl on ref directly, outside GRANT and REVOKE,
+// with the validation, revision and publication steps of a grant.
+func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() {
+		return fmt.Errorf("stuntgres: foreign or stale ACL object")
+	}
+	addr := ref.Address
+	addr.SubID = 0
+	d, ok := e.catalog.state.Find(addr)
+	if !ok {
+		return fmt.Errorf("stuntgres: missing ACL object")
+	}
+	if !acl.Explicit && len(acl.Entries) != 0 {
+		return fmt.Errorf("stuntgres: entries in absent ACL")
+	}
+	acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
+	next, err := access.WithObjectACL(d, ref.Address.SubID, acl)
+	if err != nil {
+		return err
+	}
+	if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
+		return err
+	}
+	if e.roles.published.Revision == ^uint64(0) {
+		return fmt.Errorf("stuntgres: authorization revision exhausted")
+	}
+	state := catalog.CloneState(e.catalog.state)
+	if parameter, ok := next.(*catalog.Parameter); ok {
+		catalog.InstallParameterGrant(state, parameter)
+	} else {
+		state.SetDescriptor(addr, next)
+	}
+	roles := e.roles.published.Advance()
+	databaseRoots := e.databaseProjectionLocked(state)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if n, ok := next.(*catalog.Relation); ok && n.RelationKind == catalog.SequenceRelation && ref.Address.SubID == 0 {
+		stamp, err := e.catalog.revisionLocked()
+		if err != nil {
+			return err
+		}
+		n.SequencePlanStamp = stamp
+	}
+	if _, ok := next.(*catalog.Namespace); ok {
+		if err := state.AdvanceNamespaceGeneration(); err != nil {
+			return err
+		}
+	}
+	e.catalog.state = state
+	installDatabaseProjectionLocked(databaseRoots)
+	e.roles.published = roles
+	return nil
+}

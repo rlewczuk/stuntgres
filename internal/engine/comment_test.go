@@ -3,9 +3,11 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -168,4 +170,27 @@ func TestCommentAuthorizationAndLookup(t *testing.T) {
 	commentFailure(t, e, other, "COMMENT ON COLUMN s.t.missing IS NULL", "42501", "permission denied for schema s", "")
 	roleExecute(t, e, other, "SET search_path TO s")
 	commentFailure(t, e, other, "COMMENT ON TABLE t IS NULL", "42P01", `relation "t" does not exist`, "")
+}
+
+// Comment reads immutable metadata from r, a view e owns, without applying an
+// ACL to its text.
+func (e *Engine) Comment(r catalog.Read, ref ids.ObjectRef) (string, bool, error) {
+	if r.Owner() == nil {
+		return "", false, fmt.Errorf("stuntgres: foreign catalog view")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := e.catalog.validateObjectRefLocked(r, ref); err != nil {
+		return "", false, err
+	}
+	a := ref.Address
+	sub := a.SubID
+	a.SubID = 0
+	switch r.Get(a).(type) {
+	case *catalog.Namespace, *catalog.Type, *catalog.Relation:
+	default:
+		return "", false, fmt.Errorf("stuntgres: object class has no comment metadata")
+	}
+	text := pgcatalog.DescriptorComment(r.Get(a), sub)
+	return text, text != "", nil
 }

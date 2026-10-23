@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -481,3 +482,18 @@ func validateCatalogSourceProducers(entries []pgcatalog.Registration) error {
 	}
 	return nil
 }
+
+// captureCatalogSourceLocked runs source's registered producer over view and
+// roles, without the per-source policy of openCatalogSourceLocked.
+func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
+	produce, ok := pgcatalog.ProducerFor(source.Address().ObjectID)
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: unknown catalog source")
+	}
+	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: e.catalog.owner(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
+	return captureCatalogSourceRows(in, produce)
+}
+
+// explicitCatalogSource reports the sources openCatalogSourceLocked captures
+// without a registered producer: pg_locks and pg_sequences.
+func explicitCatalogSource(oid ids.OID) bool { return oid == pgcatalog.LocksOID || oid == 12048 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"iter"
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
@@ -361,4 +362,10 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// definitionProceduresNamed lists the procedures named name in namespace as
+// a's definition reader sees them.
+func (a AuthorizationView) definitionProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+	return catalog.DefinitionProceduresNamedAt(a.Catalog, a.definition, namespace, name)
 }

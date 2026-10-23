@@ -466,9 +466,6 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	s.lifecycle = catalogValidated
 	return &PreparedCatalogPublication{stage: s, epoch: s.Base.Epoch(), ctx: ctx}, nil
 }
-func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
-	return e.publishCatalog(nil, nil, p, token)
-}
 func (e *Engine) publishCatalogOperation(op *session.Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if op != nil && op.Session.Transactions.RetainsTransaction() {
 		return e.stageMessageCatalog(op, p, token)
@@ -1073,11 +1070,6 @@ func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 	if s != nil && s.owner == e && s.lifecycle != catalogPublished {
 		s.lifecycle = catalogDiscarded
 	}
-}
-func (e *Engine) ValidateObjectRef(view catalog.Read, ref ids.ObjectRef) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.catalog.validateObjectRefLocked(view, ref)
 }
 
 // ReplaceCatalog installs replacement, a catalog view that source owns, with

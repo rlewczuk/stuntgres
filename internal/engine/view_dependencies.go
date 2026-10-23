@@ -2,16 +2,11 @@ package engine
 
 import (
 	"slices"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
-
-func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, stage *CatalogStage) []view.DependencyEdge {
-	return view.DependentViews(&dropProvider{base: catalog, stage: stage}, targets)
-}
 
 func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {
 	edges := view.DependentViews(provider, targets)

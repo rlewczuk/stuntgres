@@ -111,7 +111,6 @@ library, and never the engine, `analyze`'s binder or another upper feature.
 
 `Engine.mu` and its unlock/relock windows, lock waits, `AuthorizationView`
 capture, `roleStore` publication and `installOperationRolesLocked`,
-`SetObjectACL` (its per-kind switch is `access.WithObjectACL`) and
 `SetRoleReferences`, the host adapter (`role_host.go`) and the
 `*CatalogStage` adapters (`owned_stage.go`), the `ParameterProvider`
 registration, the `roleRetirementPreflightLocked` adapter, and the
