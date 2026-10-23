@@ -61,10 +61,10 @@ func ClosedPgcryptoDefault(node expr.Expr) bool {
 	}
 	switch n := node.(type) {
 	case plan.InstalledCryptoExpr:
-		if n.Procedure == nil || extension.PgcryptoProviderOf(n.Procedure) != extension.StockPgcrypto || n.Ref.Address != n.Procedure.Address() || n.Ref.Epoch == 0 || n.Plan.Name() != n.Procedure.Name() || n.Validate() != nil {
+		if n.Procedure == nil || extension.PgcryptoProviderOf(n.Procedure) != extension.StockPgcrypto || n.Ref.Address != n.Procedure.Address() || n.Ref.Epoch == 0 || n.Validate() != nil {
 			return false
 		}
-		member, ok := functions.PgcryptoLookup(n.Procedure.Name(), string(CryptoExpressionSignature(n)))
+		member, ok := functions.PgcryptoLookup(n.Plan.Name(), string(CryptoExpressionSignature(n)))
 		if !ok || string(n.Procedure.Signature) != member.Signature || n.Procedure.Result != member.Result || n.Procedure.Volatility != member.Volatility || n.Procedure.Strict != member.Strict {
 			return false
 		}
@@ -267,7 +267,7 @@ func ValidInstalledUUIDOsspShape(n plan.InstalledUUIDOsspExpr) bool {
 	if n.Procedure == nil {
 		return false
 	}
-	member, selected := functions.UUIDOsspLookup(n.Procedure.Name())
+	member, selected := functions.UUIDOsspLookupSelector(n.Name)
 	if !selected || string(n.Procedure.Signature) != member.Signature || n.RoutineReference != n.Procedure || extension.UUIDOsspProviderOf(n.Procedure) != extension.StockUUIDOssp || n.Ref.Address != n.Procedure.Address() || n.Ref.Epoch == 0 || n.Name != member.Selector || n.Timestamp != nil || n.Addition != (sqltype.Arithmetic{}) || n.ResultUsage().Type == nil || n.ResultUsage().Type.ID() != sqltype.UUID || !n.ResultUsage().Valid() {
 		return false
 	}
@@ -340,11 +340,11 @@ func SQLRoutineDefaultClosure(node expr.Expr) (valid, containsSQL bool) {
 // Validate provider-specific captured authority without assuming a dictionary.
 func ValidInstalledText(n plan.InstalledTextExpr) bool {
 	p := n.Procedure
-	if p == nil || n.Arg == nil || n.Usage.Type == nil || n.Arg.ResultUsage().Type == nil || p.Signature != catalog.UnaccentTextSignature || n.Arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.Usage.Type.ID()) != p.Result {
+	if p == nil || n.RoutineReference != p || n.Arg == nil || n.Usage.Type == nil || n.Arg.ResultUsage().Type == nil || p.Signature != catalog.UnaccentTextSignature || n.Arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.Usage.Type.ID()) != p.Result {
 		return false
 	}
 	if extension.FuzzystrmatchProviderOf(p) != nil {
-		return extension.FuzzystrmatchProviderOf(p) == extension.StockFuzzystrmatch && p.Name() == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.Dictionary == nil && n.Template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
+		return extension.FuzzystrmatchProviderOf(p) == extension.StockFuzzystrmatch && n.Function == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.Dictionary == nil && n.Template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
 	}
 	return extension.UnaccentProviderOf(p) == extension.StockUnaccent && p.Conversion.Name() == "" && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.Dictionary != nil && n.Template != nil && p.Dictionary == n.Dictionary.Address() && n.Dictionary.Template == n.Template.Address() && extension.UnaccentProviderOf(p) == extension.UnaccentDictionaryProviderOf(n.Dictionary) && extension.UnaccentDictionaryProviderOf(n.Dictionary) == extension.UnaccentTemplateProviderOf(n.Template)
 }

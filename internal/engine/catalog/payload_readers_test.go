@@ -11,8 +11,9 @@ import (
 
 type fakeRules []RuleFact
 
-func (r fakeRules) Validate(Read, *Relation) error { return nil }
-func (r fakeRules) Len() int                       { return len(r) }
+func (r fakeRules) Validate(Read, *Relation) error         { return nil }
+func (r fakeRules) Len() int                               { return len(r) }
+func (r fakeRules) RoutineRecipe(ids.OID, int) ViewPayload { return nil }
 func (r fakeRules) Visit(visit func(RuleFact) error) error {
 	for _, rule := range r {
 		if err := visit(rule); err != nil {

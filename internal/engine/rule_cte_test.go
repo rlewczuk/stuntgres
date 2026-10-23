@@ -49,7 +49,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	definition := &plan.CTEDefinition{Statement: original.Syntax(), Mutation: &originalBinding, Schema: plan.QuerySchema(src.Columns), Owner: 1}
 	t.Run("complete_executable_tuple", func(t *testing.T) {
 		action := ruleUnitInsert(e, sink, 1, 11)
-		src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{Name: "redirect", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{action}})})
+		src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "redirect", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{action}})})
 		defer func() { src.Rules = nil }()
 		parent := analyze.Binding{CTEs: []*plan.CTEDefinition{definition}}
 		e.mu.Lock()
@@ -199,7 +199,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		owned := &plan.CTEDefinition{Statement: auxiliary.Syntax(), Mutation: &auxiliaryBinding, Owner: 1, Name: "ignored"}
 		b := original.Binding()
 		b.CTEs = []*plan.CTEDefinition{owned}
-		mapped, err := stored.RemapRuleBinding(auth.Catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+		mapped, err := stored.RemapRuleBinding(auth.Catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

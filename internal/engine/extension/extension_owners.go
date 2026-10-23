@@ -13,9 +13,11 @@ import (
 	"unicode/utf8"
 )
 
-const OwnersMarker = "stuntgres-extension-owners-v1"
+const OwnersMarker = "stuntgres-extension-owners-v2"
 
 type MemberOwner struct {
+	Slot      int    `json:"slot"`
+	Schema    string `json:"schema"`
 	Kind      string `json:"kind"`
 	Name      string `json:"name"`
 	Signature string `json:"signature"`
@@ -49,45 +51,37 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			return "", err
 		}
 	}
-	for _, a := range ext.Members {
+	for slot, a := range ext.Members {
 		d := view.Get(a)
 		var member MemberOwner
 		var principal authorization.PrincipalRef
 		switch d := d.(type) {
 		case *catalog.Procedure:
+			symbol, err := ProcedureSymbol(view, d)
+			if err != nil {
+				return "", err
+			}
 			member = MemberOwner{Kind: "procedure", Name: d.Name(), Signature: string(d.Signature)}
-			if IntarrayProviderOf(d) != nil && d.Name() == "bqarr_out" {
+			if IntarrayProviderOf(d) != nil && symbol == "bqarr_out" {
 				member.Signature = "query_int"
 			}
 			if CubeProviderOf(d) != nil {
-				base, ok := view.Type(ext.Members[0])
-				if !ok {
-					return "", fmt.Errorf("stuntgres: missing cube ownership type")
+				var valid bool
+				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
+				if !valid {
+					return "", fmt.Errorf("stuntgres: invalid cube ownership signature")
 				}
-				parts := strings.Split(member.Signature, ",")
-				for i, part := range parts {
-					if part == string(CubeSignature(base.SQLType.ID())) {
-						parts[i] = "cube"
-					}
-				}
-				member.Signature = strings.Join(parts, ",")
 			}
-			if CitextProviderOf(d) != nil && d.Name() == "citextout" {
+			if CitextProviderOf(d) != nil && symbol == "citextout" {
 				member.Signature = "citext"
 			}
 			principal = d.Owner
 		case *catalog.Operator:
-			known := cubeSpatialOwnerName(d.Name(), true) || cubeCoordinateOwnerName(d.Name())
-			for _, name := range cubeOperatorNames {
-				known = known || d.Name() == name
-			}
-			if ext.Name() != "cube" || !known || d.Extension != ext.Address() {
+			name, signature, known := cubeOwnerOperatorIdentity(slot)
+			if ext.Name() != "cube" || !known || d.Name() != name || d.Extension != ext.Address() {
 				return "", fmt.Errorf("stuntgres: invalid extension operator owner")
 			}
-			member = MemberOwner{Kind: "operator", Name: d.Name(), Signature: "cube,cube"}
-			if cubeCoordinateOwnerName(d.Name()) {
-				member.Signature = "cube,23"
-			}
+			member = MemberOwner{Kind: "operator", Name: d.Name(), Signature: signature}
 			principal = d.Owner
 		case *catalog.OperatorClass:
 			if d.Method != 403 {
@@ -116,6 +110,12 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 		default:
 			return "", fmt.Errorf("stuntgres: missing extension owner member")
 		}
+		member.Slot = slot
+		namespace, ok := view.Namespace(d.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing member namespace")
+		}
+		member.Schema = namespace.Name()
 		role, err := roles.Descriptor(principal)
 		if err != nil {
 			return "", err
@@ -230,75 +230,53 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	}
 	seen := map[string]bool{}
 	for _, data := range members {
-		fields, err := extensionOwnerFields(data, "kind", "name", "signature", "owner")
+		fields, err := extensionOwnerFields(data, "slot", "schema", "kind", "name", "signature", "owner")
 		if err != nil {
 			return invalid()
 		}
 		var member MemberOwner
-		for key, target := range map[string]*string{"kind": &member.Kind, "name": &member.Name, "signature": &member.Signature, "owner": &member.Owner} {
+		if err := json.Unmarshal(fields["slot"], &member.Slot); err != nil {
+			return invalid()
+		}
+		for key, target := range map[string]*string{"schema": &member.Schema, "kind": &member.Kind, "name": &member.Name, "signature": &member.Signature, "owner": &member.Owner} {
 			if err := json.Unmarshal(fields[key], target); err != nil {
 				return invalid()
 			}
 		}
-		identity := member.Kind + ":" + member.Name + ":" + member.Signature
-		if member.Name == "" || member.Owner == "" || seen[identity] {
+		identity := fmt.Sprint(member.Slot)
+		slots := expectedMembers
+		if record.Name == "unaccent" {
+			slots++
+		}
+		if member.Slot < 0 || member.Slot >= slots || member.Schema == "" || member.Name == "" || member.Owner == "" || seen[identity] {
 			return invalid()
 		}
 		seen[identity] = true
 		switch member.Kind {
 		case "procedure":
-			valid := false
-			switch record.Name {
-			case "unaccent":
-				valid = member.Name == "unaccent" && (member.Signature == string(catalog.UnaccentTextSignature) || member.Signature == string(catalog.UnaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(catalog.UnaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(catalog.UnaccentLexizeSignature)
-			case "intarray":
-				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
-			case "cube":
-				valid = cubeSpatialOwnerName(member.Name, false) && member.Signature == "cube,cube"
-				for _, spec := range cubeRoutines {
-					if member.Name == spec.name && member.Signature == spec.ownerSignature() {
-						valid = true
-						break
-					}
-				}
-			case "citext":
-				valid = member.Name == "citextin" && member.Signature == "2275" || member.Name == "citextout" && member.Signature == "citext"
-			case "pgrowlocks":
-				valid = member.Name == "pgrowlocks" && member.Signature == "25"
-			case "intagg":
-				for _, selected := range IntaggMembers {
-					if member.Name == selected.Name && member.Signature == string(selected.Signature) {
-						valid = true
-						break
-					}
-				}
-			case "pgcrypto":
-				_, valid = functions.PgcryptoLookup(member.Name, member.Signature)
-			case "uuid-ossp":
-				memberSpec, selected := functions.UUIDOsspLookup(member.Name)
-				valid = selected && member.Signature == memberSpec.Signature
+			// Mutable procedure labels are checked against the current installed
+			// slot by ImportOwners, not used as installation identity.
+			if record.Name == "earthdistance" || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "intarray" || record.Name == "cube" || record.Name == "citext") && member.Slot == 0 {
+				return invalid()
 			}
-			if record.Name == "fuzzystrmatch" {
-				valid = fuzzystrmatchResult(member.Name, catalog.ProcedureSignature(member.Signature)) != 0 && (record.Version != "1.1" || member.Name != "daitch_mokotoff")
-			}
-			if !valid {
+			if signature, ok := ownerProcedureSignature(record.Name, record.Version, member.Slot); !ok || signature != member.Signature {
 				return invalid()
 			}
 		case "operator":
-			valid := cubeSpatialOwnerName(member.Name, true)
-			for _, name := range cubeOperatorNames {
-				valid = valid || member.Name == name
-			}
-			valid = valid && member.Signature == "cube,cube" || cubeCoordinateOwnerName(member.Name) && member.Signature == "cube,23"
-			if record.Name != "cube" || !valid {
+			name, signature, valid := cubeOwnerOperatorIdentity(member.Slot)
+			if record.Name != "cube" || !valid || member.Name != name || member.Signature != signature {
 				return invalid()
 			}
 		case "operator_class", "operator_family":
-			if record.Name != "cube" || member.Name != "cube_ops" || member.Signature != "btree" {
+			slot := 16
+			if member.Kind == "operator_class" {
+				slot = 17
+			}
+			if record.Name != "cube" || member.Slot != slot || member.Name != "cube_ops" || member.Signature != "btree" {
 				return invalid()
 			}
 		case "dictionary":
-			if record.Name != "unaccent" || member.Name != "unaccent" || member.Signature != "" {
+			if record.Name != "unaccent" || member.Slot != 5 || member.Name != "unaccent" || member.Signature != "" {
 				return invalid()
 			}
 		case "type":
@@ -314,4 +292,70 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		return invalid()
 	}
 	return record, true, nil
+}
+
+// The codec admits mutable labels but never mutable executable declarations.
+func ownerProcedureSignature(name, version string, slot int) (string, bool) {
+	switch name {
+	case "pgcrypto":
+		if slot < len(functions.PgcryptoMembers) {
+			return functions.PgcryptoMembers[slot].Signature, true
+		}
+	case "uuid-ossp":
+		if slot < len(functions.UUIDOsspMembers) {
+			return functions.UUIDOsspMembers[slot].Signature, true
+		}
+	case "intagg":
+		if slot < len(IntaggMembers) {
+			return string(IntaggMembers[slot].Signature), true
+		}
+	case "fuzzystrmatch":
+		if version == "1.1" {
+			slot++
+		}
+		if slot < len(FuzzystrmatchMembers) {
+			return string(FuzzystrmatchMembers[slot].Signature), true
+		}
+	case "pgrowlocks":
+		return "25", slot == 0
+	case "unaccent":
+		signatures := [...]catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}
+		if slot < len(signatures) {
+			return string(signatures[slot]), true
+		}
+	case "cube":
+		if version != StockCube.control.Version {
+			return "", false
+		}
+		if spec, ok := cubeRoutineForMember(slot); ok {
+			return spec.ownerSignature(), true
+		}
+		if slot >= cubeSpatialProcedureStart && slot < cubeSpatialOperatorStart {
+			return "cube,cube", true
+		}
+	case "intarray", "citext":
+		if slot == 1 {
+			return "2275", true
+		}
+		if slot == 2 {
+			if name == "intarray" {
+				return "query_int", true
+			}
+			return name, true
+		}
+	}
+	return "", false
+}
+
+func cubeOwnerOperatorIdentity(slot int) (string, string, bool) {
+	if slot >= 10 && slot < 10+len(cubeOperatorNames) {
+		return cubeOperatorNames[slot-10], "cube,cube", true
+	}
+	if slot >= cubeCoordinateOperatorStart && slot < cubeSpatialProcedureStart {
+		return cubeCoordinateOperators[slot-cubeCoordinateOperatorStart], "cube,23", true
+	}
+	if slot >= cubeSpatialOperatorStart && slot < CubeMemberCount {
+		return cubeSpatialMembers[slot-cubeSpatialOperatorStart].operator, "cube,cube", true
+	}
+	return "", "", false
 }

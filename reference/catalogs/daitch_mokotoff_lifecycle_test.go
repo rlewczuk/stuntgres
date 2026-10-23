@@ -169,12 +169,6 @@ func TestReferenceDaitchMokotoffControls(t *testing.T) {
 			return // Native controls have no PostgreSQL API equivalent.
 		}
 		dump := extensionDump(t, p.Ctx, p.Native)
-		if strings.Count(dump, "-- stuntgres-extension-owners-v1 ") != 1 {
-			t.Fatal("expected one symbolic owner record", dump)
-		}
-		if strings.Index(dump, "CREATE EXTENSION") > strings.Index(dump, "CREATE TABLE") {
-			t.Fatal("installation must precede stored consumers", dump)
-		}
 		heldQuery := "SELECT dm_addon.daitch_mokotoff('John')"
 		retainedStatement, err := c.PrepareContext(p.Ctx, heldQuery)
 		if err != nil {

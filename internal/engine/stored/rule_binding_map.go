@@ -1,12 +1,61 @@
 package stored
 
 import (
+	"fmt"
 	"slices"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
+
+// GraftRuleRoutineRecipes borrows each original action/condition manifest only
+// from its actual live rule slot. Run before NEW substitution: producer nodes
+// grafted later keep their own direct-source lifetime.
+func GraftRuleRoutineRecipes(view catalog.Read, owner *catalog.Relation, rule Rule) (Rule, error) {
+	graft := func(binding analyze.Binding, action int, presentation *View) (analyze.Binding, error) {
+		payload := ViewPayload(presentation)
+		if owner == nil || owner.Rules == nil || payload == nil || owner.Rules.RoutineRecipe(rule.OID, action) != payload {
+			return binding, fmt.Errorf("stuntgres: invalid rule routine recipe slot")
+		}
+		recipe := &catalog.RuleRoutineRecipe{Owner: owner, Rule: rule.OID, Action: action, Presentation: payload}
+		mapper := NewRuleTreeMapper(view, nil, 0, nil, RuleTreeMapping{
+			Recipe: recipe,
+			Mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
+				binding, ok := analyze.MutationBinding(definition)
+				if !ok {
+					return analyze.Binding{}, fmt.Errorf("stuntgres: invalid rule routine mutation")
+				}
+				return *binding, nil
+			},
+		})
+		return MapRuleBindingRecipes(binding, mapper)
+	}
+	parts := rule.Parts()
+	if parts.Condition != nil {
+		if parts.ConditionBinding == nil {
+			return rule, fmt.Errorf("stuntgres: missing rule condition binding")
+		}
+		binding, err := graft(*parts.ConditionBinding, -1, parts.ConditionPresentation)
+		if err != nil {
+			return rule, err
+		}
+		parts.ConditionBinding = &binding
+		parts.Condition = binding.Query.Root.(*plan.ProjectNode).Expressions[0]
+	}
+	parts.Actions = slices.Clone(parts.Actions)
+	for i, action := range parts.Actions {
+		binding, err := graft(action.binding, i, action.presentation)
+		if err != nil {
+			return rule, err
+		}
+		copy := action
+		copy.binding = binding
+		parts.Actions[i] = copy
+	}
+	return NewRule(parts), nil
+}
 
 func MapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Binding, error) {
 	originalReturning := b.Returning

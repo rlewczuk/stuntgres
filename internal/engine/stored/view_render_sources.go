@@ -67,6 +67,7 @@ type QueryRenderer struct {
 	aliases         map[viewRenderAlias]string
 	Presentation    Presentation
 	simple          bool
+	simpleQualifier string
 	functionSources bool // Public presentation of a frame admitting FunctionFrom.
 	// Summary names follow current attributes independently of literal presentation.
 	CurrentNames bool
@@ -75,9 +76,10 @@ type QueryRenderer struct {
 }
 
 type viewRenderFrame struct {
-	namespace int
-	base      [analyze.ViewRegexpNamespace + 1]int
-	seen      [analyze.ViewRegexpNamespace + 1]bool
+	namespace  int
+	base       [analyze.ViewRegexpNamespace + 1]int
+	seen       [analyze.ViewRegexpNamespace + 1]bool
+	correlated bool
 }
 type viewRenderAlias struct {
 	depth, ordinal  int
@@ -139,6 +141,22 @@ func NewQueryRenderer(v *View) *QueryRenderer {
 			for _, c := range q.Columns {
 				r.reserved[c.Name] = true
 			}
+		}
+	}
+	// A sole source is not lexically simple when this frame supplies or uses
+	// a correlated column. Keep its qualified bridge slots so nested sources
+	// cannot capture an otherwise unqualified outer reference.
+	for path, column := range v.columns {
+		if column.RuleSide != 0 || column.Frame == path.Query {
+			continue
+		}
+		if r.renderFrames == nil {
+			r.renderFrames = make(map[uint32]viewRenderFrame)
+		}
+		for _, id := range [2]uint32{column.Frame, path.Query} {
+			frame := r.renderFrames[id]
+			frame.correlated = true
+			r.renderFrames[id] = frame
 		}
 	}
 	return r
@@ -462,6 +480,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			}
 			from := viewRenderFrom{text: name, root: root, slots: make(map[int]string)}
 			from.wholeSQL = catalog.Identifier(d.Name())
+			v.simpleQualifier = v.Presentation.identifier(d.Name())
 			if v.rowTargets != nil {
 				key := n.Name.Parts[len(n.Name.Parts)-1].Text
 				from.rowTarget, from.rowSource = key, true
@@ -534,6 +553,34 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		from, err := v.renderFromSQL(ctx, catalogView, n.Input)
 		if err != nil {
 			return viewRenderFrom{}, err
+		}
+		if v.simple && v.Presentation.Deparse {
+			// PostgreSQL keeps a sole table's alias but suppresses redundant
+			// column aliases and qualification, including replay's bridge.
+			identifier := v.Presentation.identifier
+			labels := make([]string, len(n.Columns))
+			renamed := false
+			for i, column := range n.Columns {
+				labels[i] = identifier(column.Text)
+				if i < len(from.columns) {
+					renamed = renamed || column.Text != from.columns[i].name
+					from.columns[i].name = column.Text
+					from.slots[from.columns[i].slot] = labels[i]
+				}
+			}
+			if n.Name.Text != "" {
+				alias := identifier(n.Name.Text)
+				v.simpleQualifier = alias
+				from.text += " " + alias
+				from.wholeSQL = alias
+				if from.rowSource {
+					from.rowTarget, from.rowTargetSQL = n.Name.Text, alias
+				}
+			}
+			if renamed {
+				from.text += "(" + strings.Join(labels, ", ") + ")"
+			}
+			return from, nil
 		}
 		if n.Name.Text == "" {
 			alias := v.namespaceAlias(ns)

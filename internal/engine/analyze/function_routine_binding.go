@@ -46,8 +46,9 @@ func (b *Binder) selectedBuiltinRoutineInfo(info expr.Info, declaration *catalog
 func (b *Binder) captureBuiltinRoutineDeclaration(declaration *catalog.BuiltinRoutineDeclaration) (*catalog.Procedure, ids.ObjectRef, error) {
 	view := b.BindingCatalog()
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID}
-	d, ok := view.Procedure(address)
-	if !ok || d.Builtin != declaration {
+	descriptor, present := catalog.DescriptorAt(view, b.DefinitionReader(), address)
+	d, ok := descriptor.(*catalog.Procedure)
+	if !present || !ok || d.Builtin != declaration {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.Identity.Name)
 	}
 	ref := view.Owner().Domain.Ref(view.Epoch(), address)

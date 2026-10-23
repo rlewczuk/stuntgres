@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -403,12 +404,17 @@ func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 	}
 }
 
-// Owner transfer changes the definition revision. Declaration compatibility is
-// not permission to rescue an old graph from its stale original manifest.
+// Owner transfer changes the definition revision. Original-source admission
+// remains fenced; a hard recipe may follow the same immutable declaration only
+// through its original full manifest and current privileges.
 func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 	e, op, scope := jsonbRecordRoutineUnitFixture(t)
 	other := New()
 	foreignOwner := other.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	readerOp, readerDone := roleOperation(t, e, "jsonb_authority_reader")
+	defer readerDone()
+	ownerOp, ownerDone := roleOperation(t, e, "jsonb_authority_owner")
+	defer ownerDone()
 	for _, expression := range []string{
 		"jsonb_populate_record(NULL::strict_null_rows,'{}'::jsonb)",
 		"jsonb_populate_recordset(NULL::strict_null_rows,'[]'::jsonb)",
@@ -423,8 +429,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		}
 		original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 		base := e.CatalogRead()
-		// Reusing a live, same-domain principal is a genuine owner-COW, even
-		// though the SQL surface does not offer ALTER FUNCTION OWNER here.
+		// Reusing a live, same-domain principal is a genuine owner-COW.
 		target := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
 		stage := e.BeginCatalogStage(base)
 		if err := role.StageOwnership(stage, captured, target); err != nil {
@@ -437,9 +442,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			t.Fatal("owner COW/source immutability")
 		}
 		auth := eMustJSONBRoutineAuthority(t, e, op)
-		ownerOp, ownerDone := roleOperation(t, e, "jsonb_authority_owner")
 		ownerAuth := eMustJSONBRoutineAuthority(t, e, ownerOp)
-		ownerDone()
 		if got, err := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil || got != current {
 			t.Fatal("compatible owner declaration", err)
 		}
@@ -455,8 +458,11 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		}
 		probe := evaluation
 		probe.RoutineAuthority = auth
-		if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
-			t.Fatal("owner revision rescued old graph")
+		if err := exec.AdmitRoutineDescriptor(auth.AdmissionAccess(), original, captured, nil); err == nil {
+			t.Fatal("owner revision rescued direct original graph")
+		}
+		if err := exec.AdmitRoutineCall(&probe, node, false, false); err != nil {
+			t.Fatal("original hard manifest lost immutable owner-COW identity", err)
 		}
 		fresh, freshBinder, freshEvaluation := strictNullUnitBind(t, e, op, scope, expression)
 		freshDescriptor, err := exec.ExpressionRoutineDescriptor(fresh)
@@ -475,6 +481,39 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		}
 		if !found {
 			t.Fatal("fresh original manifest")
+		}
+		// The hard lane follows identity, never the old descriptor's ACL.
+		for _, dep := range original {
+			if dep.Ref.Address != captured.Address() {
+				continue
+			}
+			// An explicit ACL also replaces the owner's implicit EXECUTE.
+			// Keep that privilege genuinely granted to the current owner while
+			// revoking PUBLIC/the reader, rather than assuming ownership alone
+			// supplies execution rights through an explicitly empty ACL.
+			acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+				objectACLUnitEntry(target, target, authorization.ExecutePrivilege, 0),
+			}}
+			if err := e.SetObjectACL(context.Background(), dep.Ref, acl); err != nil {
+				t.Fatal(err)
+			}
+		}
+		denied := evaluation
+		deniedAuth := eMustJSONBRoutineAuthority(t, e, readerOp)
+		denied.RoutineAuthority = deniedAuth
+		err = exec.CheckRecipeRoutineDescriptor(&denied, deniedAuth.AdmissionAccess(), original, captured)
+		var state interface{ SQLState() string }
+		if !errors.As(err, &state) || state.SQLState() != "42501" {
+			t.Fatal("hard owner-COW capture did not enforce current EXECUTE", err)
+		}
+		owned := evaluation
+		currentOwnerAuth := eMustJSONBRoutineAuthority(t, e, ownerOp)
+		owned.RoutineAuthority = currentOwnerAuth
+		if err := exec.CheckRecipeRoutineDescriptor(&owned, currentOwnerAuth.AdmissionAccess(), original, captured); err != nil {
+			t.Fatal("hard owner-COW capture lost current owner authority", err)
+		}
+		if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
+			t.Fatal("hard owner-COW changed retained original snapshot", err)
 		}
 		// Foreign and zero owners travel through the same actual COW seam.
 		// Validate the staged carrier against genuine authority; never forge a

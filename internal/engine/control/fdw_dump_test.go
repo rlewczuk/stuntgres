@@ -322,7 +322,7 @@ func TestFDWReplacementRemap(t *testing.T) {
 			}
 			applyAddress := func() {
 				current := catalog.NewRead(nil, state)
-				if err := RemapReplacementIdentities(current, state, nil, mapping, nil, nil); err != nil {
+				if err := RemapReplacementIdentities(current, state, nil, mapping, nil, nil, nil); err != nil {
 					t.Fatal(err)
 				}
 			}

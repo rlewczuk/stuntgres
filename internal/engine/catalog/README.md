@@ -116,6 +116,10 @@ private frames, not catalog authority.
   `Candidate.Definitions`) implements it over a candidate: the base with the
   candidate's removals hidden and its descriptors laid over.
   `DescriptorAt` and the typed `Definition*At` reads serve the binder and DDL.
+  Procedure lookup and provider-override membership stay sparse: staged
+  source/destination spelling changes are visible without scanning the catalog
+  or reviving a vacated released-provider name. These reads grant no execution
+  or ACL authority.
 - **Diagnostic names** (`diagnostic_names.go`): `QuoteIdentifier` always quotes;
   `Identifier` quotes only when the grammar needs it (deparse, dump);
   `DependencyIdentifier` follows PostgreSQL `quote_identifier`;
@@ -130,6 +134,22 @@ private frames, not catalog authority.
   ownerless kinds stay unchanged, unknown kinds fail), reg\* references
   (`alias_references.go`), extension version paths (`extension_versions.go`) and
   `AdvanceRevisionFrontier`.
+  Principal remapping recursively reprovenances procedure body declarations
+  through the same owner/ACL mappers, preserving original revisions and
+  shared/cyclic associations rather than substituting a newer current descriptor
+  at an old address. Source graphs remain immutable.
+  Proof: `make check RUN='^TestRoutineBodyPrincipalRemap$'`.
+  `NewProcedureRemapper` exposes that same operation-scoped memo for original
+  declarations held by query nodes; the host supplies the identical real
+  principal policy to descriptor and query rewriting. The memo recognizes its
+  produced private clones, not arbitrary foreign target-owner copies.
+  `RoutineRemap` shares original SQL-definition/body/default mappings through
+  the existing two-phase rewrite, never acquiring authority by destination lookup.
+  Its Type and Collation functions are the operation's complete transformation:
+  declaration/PL usages, body/default rebinding and other stored consumers share
+  the same anonymous-record occurrence memo and destination capabilities.
+  `RoutineProgram.Rebind` and `RoutineDefaults.Rebind` receive that context,
+  not a procedure-only callback that could reconstruct a different type map.
 
 ## Invariants
 

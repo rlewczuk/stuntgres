@@ -435,11 +435,14 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 	protocolLiterals(t, b, want)
 	frames, queries := analyze.CollectQueryFrames(query.Root)
 	definition := stored.NewView(stored.ViewParts{Syntax: raw, Query: query, Frames: frames, Queries: queries, Namespaces: b.Capture.Namespaces, Literals: b.Capture.Literals, Columns: b.Capture.Columns, CastUsages: b.Capture.CastUsages})
+	definition = definition.With(func(p *stored.ViewParts) {
+		p.RoutineRefs, p.Dependencies = b.Capture.RoutineRefs, b.Dependencies
+	})
 	if err := definition.ValidateLiterals(b.BindingCatalog()); err != nil {
 		t.Fatal(err)
 	}
 	fresh := jsonObjectUnitTypes()
-	remapped, err := stored.RemapView(b.BindingCatalog(), definition, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] }, nil)
+	remapped, err := stored.RemapView(b.BindingCatalog(), definition, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] }, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

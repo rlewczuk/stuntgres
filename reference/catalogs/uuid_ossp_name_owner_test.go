@@ -10,7 +10,7 @@ import (
 // Mutate the existing public dump owner recipe, never the catalog itself.
 func uuidNameInvalidSignature(t *testing.T, dump string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v1 "
+	const marker = "-- stuntgres-extension-owners-v2 "
 	for _, line := range strings.Split(dump, "\n") {
 		if !strings.HasPrefix(line, marker) {
 			continue

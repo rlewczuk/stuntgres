@@ -32,7 +32,11 @@ func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 		if len(declared) == 0 {
 			return candidate, false
 		}
-		family, ok := functions.Lookup(d.Name())
+		symbol, err := callableProviderSymbol(view, d)
+		if err != nil {
+			return candidate, false
+		}
+		family, ok := functions.Lookup(symbol)
 		if !ok || family.NamedCall == nil {
 			return candidate, false
 		}
@@ -110,10 +114,15 @@ func AppendSQLCallable(candidates []SQLCallable, candidate SQLCallable) []SQLCal
 
 func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.Argument, candidate *SQLCallable) bool {
 	if candidate.NamedDeclaration != nil {
-		family, ok := functions.Lookup(candidate.Procedure.Name())
+		symbol, err := callableProviderSymbol(b.BindingCatalog(), candidate.Procedure)
+		if err != nil {
+			return false
+		}
+		family, ok := functions.Lookup(symbol)
 		if !ok || family.NamedCall == nil {
 			return false
 		}
+		raw = providerFunctionSyntax(raw, symbol)
 		var valid bool
 		candidate.Inputs, candidate.Targets, valid = family.NamedCall(b, raw, operands, candidate.NamedDeclaration)
 		return valid
@@ -136,7 +145,11 @@ func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.
 		}
 	}
 	operands = probe
-	name := candidate.Procedure.Name()
+	name, err := callableProviderSymbol(b.BindingCatalog(), candidate.Procedure)
+	if err != nil {
+		return false
+	}
+	raw = providerFunctionSyntax(raw, name)
 	if candidate.Procedure.RoutineKind == catalog.WindowRoutine {
 		if family, ok := functions.LookupWindowFunction(name); ok && family.ProbeCall != nil {
 			return family.ProbeCall(b, raw, operands, candidate.Inputs, candidate.Targets)

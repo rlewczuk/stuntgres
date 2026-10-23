@@ -33,6 +33,17 @@ func UUIDOsspLookup(name string) (UUIDOsspMember, bool) {
 	return UUIDOsspMember{}, false
 }
 
+// UUIDOsspLookupSelector checks an executable selector independently of its
+// mutable public catalog label.
+func UUIDOsspLookupSelector(selector string) (UUIDOsspMember, bool) {
+	for _, member := range UUIDOsspMembers {
+		if member.Selector == selector {
+			return member, true
+		}
+	}
+	return UUIDOsspMember{}, false
+}
+
 func uuidOsspConstant(name string) ([16]byte, bool) {
 	var discriminator byte
 	switch name {

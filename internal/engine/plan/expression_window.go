@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -69,7 +70,8 @@ type WindowCall struct {
 	Expression   *WindowExpr
 	Spec         WindowSpec
 	Operation    WindowOperation
-	Routine      ids.ObjectRef // Selected callable, independently of peer/partition equality.
+	Routine      ids.ObjectRef      // Selected callable, independently of peer/partition equality.
+	Procedure    *catalog.Procedure // Original checked declaration, not a refreshed revision.
 	Argument     expr.Expr
 	Ordinal      expr.Expr
 	DefaultValue expr.Expr

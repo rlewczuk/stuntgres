@@ -155,14 +155,14 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			consumer := &catalog.Relation{ObjectAddress: address, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.Ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.Ref}}}}}
 			next.SetDescriptor(address, consumer)
 			next.SetEpoch(next.Epoch() + 1)
-			if err := stored.ReownExpressions(e.catalog.read(next), next, mapping, false); err != nil {
+			if err := stored.ReownExpressions(e.catalog.read(next), next, mapping, false, stored.NewRoutineRemap(e.catalog.read(next), mapping, nil, extension.ProcedureRemapper(mapping, nil, nil), false)); err != nil {
 				t.Fatal(err)
 			}
 			view := e.catalog.read(next)
 			relocated := next.MustRelation(address)
 			for _, node := range []expr.Expr{relocated.ColumnMeta.Defaults[1].Expression, relocated.ColumnMeta.Generations[2].Expression, relocated.ColumnMeta.Generations[2].Planned} {
 				n := node.(plan.InstalledSoundexExpr)
-				if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
+				if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || !exec.SameRoutineDeclaration(next.MustProcedure(n.Ref.Address), n.Procedure) || n.Procedure.Revision() != call.Procedure.Revision() {
 					t.Fatal("stale remapped authority", n.Ref)
 				}
 				if err := stored.ValidateInstalledSoundex(n, view); err != nil {

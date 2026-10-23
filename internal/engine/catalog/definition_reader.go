@@ -19,4 +19,5 @@ type DefinitionReader interface {
 	Descriptors() iter.Seq2[ids.ObjectAddress, Descriptor]
 	ProceduresNamed(ids.ObjectAddress, string) iter.Seq[*Procedure]
 	HasDynamicProcedureName(string) bool
+	HasProviderProcedureOverride(string) bool
 }

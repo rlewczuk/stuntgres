@@ -92,14 +92,14 @@ func StageCreateCast(h DDLHost, a ddl.Authority, s *parser.CreateCast) error {
 		var signature catalog.ProcedureSignature
 		var canonical string
 		if s.Function.SignatureSpecified {
-			signature, canonical, _, err = dropRoutineArguments(h, a, s.Function)
+			signature, canonical, _, err = utilityRoutineArguments(h, a, s.Function)
 			if err != nil {
 				return err
 			}
 			exact = &signature
 		}
 		name := s.Function.Name.Parts[len(s.Function.Name.Parts)-1].Text
-		p, count := selectDropRoutine(v, namespaces, name, "routine", exact)
+		p, count := selectUtilityRoutine(v, namespaces, name, "routine", exact)
 		display := catalog.ObjectNameText(s.Function.Name)
 		if count == 0 {
 			return sqlError("42883", "function "+display+"("+canonical+") does not exist")

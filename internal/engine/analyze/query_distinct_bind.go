@@ -13,9 +13,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *Binder) groupingRoutineReference(usage sqltype.Usage) (ids.ObjectRef, bool, error) {
+func (b *Binder) groupingRoutineReference(usage sqltype.Usage) (ids.ObjectRef, *catalog.Procedure, bool, error) {
 	if PrivateTreeGrouping(usage.Type) {
-		return ids.ObjectRef{}, true, nil
+		return ids.ObjectRef{}, nil, true, nil
 	}
 	base := usage.Type.BaseType()
 	var declaration *catalog.Procedure
@@ -24,20 +24,20 @@ func (b *Binder) groupingRoutineReference(usage sqltype.Usage) (ids.ObjectRef, b
 		var err error
 		declaration, _, err = b.captureBuiltinRoutineDeclaration(builtin)
 		if err != nil {
-			return ids.ObjectRef{}, false, err
+			return ids.ObjectRef{}, nil, false, err
 		}
 	} else {
 		var err error
 		declaration, _, err = b.comparisonRoutineDeclaration("=", base, base)
 		if err != nil {
-			return ids.ObjectRef{}, false, err
+			return ids.ObjectRef{}, nil, false, err
 		}
 	}
 	if declaration == nil {
-		return ids.ObjectRef{}, false, fmt.Errorf("stuntgres: missing query equality routine association")
+		return ids.ObjectRef{}, nil, false, fmt.Errorf("stuntgres: missing query equality routine association")
 	}
 	ref := b.BindingCatalog().Owner().Domain.Ref(b.BindingCatalog().Epoch(), declaration.Address())
-	return ref, false, nil
+	return ref, declaration, false, nil
 }
 
 func (b *Binder) bindDistinctGrouping(expression expr.Expr) (plan.Grouping, error) {
@@ -80,6 +80,6 @@ func (b *Binder) bindDistinctGrouping(expression expr.Expr) (plan.Grouping, erro
 			usage = target
 		}
 	}
-	group.Routine, group.PrivateTree, err = b.groupingRoutineReference(usage)
+	group.Routine, group.Procedure, group.PrivateTree, err = b.groupingRoutineReference(usage)
 	return group, err
 }

@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"context"
+	"fmt"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -159,9 +160,17 @@ func (b *Binder) AnalyzeAggregateFilter(raw parser.AggregateExpr) (expr.Expr, er
 }
 
 func (b *Binder) FinishAggregate(raw parser.AggregateExpr, call functions.AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
+	// The function-owned carrier was selected in this immutable binding
+	// snapshot. Retain that declaration now, before any later catalog COW.
+	descriptor, present := catalog.DescriptorAt(b.BindingCatalog(), b.DefinitionReader(), call.Routine.Address)
+	procedure, ok := descriptor.(*catalog.Procedure)
+	if !present || !ok || procedure.Builtin == nil {
+		return nil, fmt.Errorf("stuntgres: missing captured builtin aggregate declaration")
+	}
 	result, err := b.finishAggregate(raw, plan.AggregateCall{
 		Provider:     call.Provider,
 		Routine:      call.Routine,
+		Procedure:    procedure,
 		Arguments:    call.Arguments,
 		Direct:       call.Direct,
 		StageWidth:   call.StageWidth,

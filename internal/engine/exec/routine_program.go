@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -15,9 +16,11 @@ type RoutineCall struct {
 	Routine          *catalog.Procedure
 	Reference        ids.ObjectRef
 	Consumer         *catalog.Relation
+	Recipe           expr.RoutineRecipeReference
 	body             RoutineBodyContext
 	Actor            authorization.PrincipalRef
 	SupportAggregate *catalog.Procedure // Only top-level support EXECUTE uses its current owner.
+	followIdentity   bool               // Original checked recipe, not original SQL source.
 }
 
 type RoutineProgram struct{ Calls []RoutineCall }
@@ -33,6 +36,11 @@ func (p *RoutineProgram) Record(c *Context, dependencies []catalog.ExpressionDep
 // RecordActor records support EXECUTE under its owner without changing the
 // invocation/body role of the evaluation context.
 func (p *RoutineProgram) RecordActor(c *Context, dependencies []catalog.ExpressionDependency, routine *catalog.Procedure, actor authorization.PrincipalRef, aggregate *catalog.Procedure) error {
+	followIdentity := c.RoutineChecks != nil || c.RoutineReferences != nil
+	var recipe expr.RoutineRecipeReference
+	if c.RoutineGraft {
+		recipe = c.RoutineGraftSource
+	}
 	var ref ids.ObjectRef
 	if c.RoutineReferences != nil {
 		for _, candidate := range c.RoutineReferences {
@@ -56,11 +64,11 @@ func (p *RoutineProgram) RecordActor(c *Context, dependencies []catalog.Expressi
 		return fmt.Errorf("stuntgres: missing consumed routine lifetime")
 	}
 	for _, call := range p.Calls {
-		if call.Reference == ref && call.Consumer == c.RoutineConsumer && call.Actor == actor && call.SupportAggregate == aggregate {
+		if call.Reference == ref && call.Routine == routine && call.Recipe == recipe && call.Consumer == c.RoutineConsumer && call.Actor == actor && call.SupportAggregate == aggregate && call.followIdentity == followIdentity {
 			return nil
 		}
 	}
-	p.Calls = append(p.Calls, RoutineCall{Routine: routine, Reference: ref, Consumer: c.RoutineConsumer, body: c.RoutineBodyContext, Actor: actor, SupportAggregate: aggregate})
+	p.Calls = append(p.Calls, RoutineCall{Routine: routine, Reference: ref, Consumer: c.RoutineConsumer, Recipe: recipe, body: c.RoutineBodyContext, Actor: actor, SupportAggregate: aggregate, followIdentity: followIdentity})
 	return nil
 }
 
@@ -79,7 +87,7 @@ func (p *RoutineProgram) Readmit(auth RoutineAccess) error {
 			return err
 		}
 		dependency := [1]catalog.ExpressionDependency{{Ref: call.Reference, Revision: call.Routine.Revision()}}
-		if err := AdmitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer); err != nil {
+		if err := admitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer, call.followIdentity); err != nil {
 			return call.body.Annotate(err)
 		}
 	}
@@ -99,7 +107,7 @@ func (p *RoutineProgram) InitializePhase(original *RoutineProgram, auth RoutineA
 			current.State.CurrentUser = aggregate.Owner
 		}
 		dependency := [1]catalog.ExpressionDependency{{Ref: call.Reference, Revision: call.Routine.Revision()}}
-		if err := AdmitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer); err != nil {
+		if err := admitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer, call.followIdentity); err != nil {
 			return call.body.Annotate(err)
 		}
 		call.Actor = current.State.CurrentUser
@@ -112,7 +120,7 @@ func (p *RoutineProgram) Include(other *RoutineProgram) {
 	for _, call := range other.Calls {
 		found := false
 		for _, old := range p.Calls {
-			if old.Reference == call.Reference && old.Consumer == call.Consumer && old.Actor == call.Actor && old.SupportAggregate == call.SupportAggregate {
+			if old.Reference == call.Reference && old.Routine == call.Routine && old.Recipe == call.Recipe && old.Consumer == call.Consumer && old.Actor == call.Actor && old.SupportAggregate == call.SupportAggregate && old.followIdentity == call.followIdentity {
 				found = true
 				break
 			}

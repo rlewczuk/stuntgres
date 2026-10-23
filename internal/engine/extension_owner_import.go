@@ -21,8 +21,9 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 		return fmt.Errorf("stuntgres: invalid extension owner import authority")
 	}
 	candidate := catalog.CloneState(e.catalog.state)
-	roles := e.roles.read(e.catalog.owner(), e.catalog.read(candidate), e.roles.published)
-	ownersChanged, err := extension.ImportOwners(ctx, candidate, e.catalog.read(candidate), roles, records)
+	view := e.catalog.read(candidate)
+	roles := e.roles.read(e.catalog.owner(), view, e.roles.published)
+	ownersChanged, err := extension.ImportOwners(ctx, view, roles, records)
 	if err != nil {
 		return err
 	}
@@ -32,7 +33,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 	// Ownership changes replace provider generations even when all SQL types are
 	// unchanged. Refresh stored CHECK/view/policy/default captures through the
 	// ordinary catalog expression remapper, not its type-only rename fast path.
-	if err := stored.ReownExpressions(e.catalog.read(candidate), candidate, nil, false); err != nil {
+	if err := stored.ReownExpressions(e.catalog.read(candidate), candidate, nil, false, nil); err != nil {
 		return err
 	}
 	e.catalog.state = candidate

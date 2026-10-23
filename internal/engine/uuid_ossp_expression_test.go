@@ -124,6 +124,10 @@ func TestUUIDOsspControls(t *testing.T) {
 	for _, name := range []string{"uuid_generate_v3", "uuid_generate_v5"} {
 		record.Members = append(record.Members, extension.MemberOwner{Kind: "procedure", Name: name, Signature: "2950,25", Owner: "postgres"})
 	}
+	for slot := range record.Members {
+		record.Members[slot].Slot = slot
+		record.Members[slot].Schema = "public"
+	}
 	encode := func(r extension.OwnerRecord) string {
 		data, err := json.Marshal(r)
 		if err != nil {
@@ -135,11 +139,21 @@ func TestUUIDOsspControls(t *testing.T) {
 	if err != nil || !recognized || !reflect.DeepEqual(got, record) {
 		t.Fatal("zero-signature owner roundtrip", got, recognized, err)
 	}
+	renamed := record
+	renamed.Members = slices.Clone(record.Members)
+	renamed.Members[0].Name, renamed.Members[0].Schema = "uuidv4", "moved"
+	if got, recognized, err := extension.DecodeOwners(encode(renamed)); err != nil || !recognized || !reflect.DeepEqual(got, renamed) {
+		t.Fatal("mutable label/schema rejected by codec", got, err)
+	}
 	for _, mutate := range []func(*extension.OwnerRecord){
 		func(r *extension.OwnerRecord) { r.Version = "missing" },
 		func(r *extension.OwnerRecord) { r.Members = nil },
 		func(r *extension.OwnerRecord) { r.Members = append(r.Members, r.Members[0]) },
-		func(r *extension.OwnerRecord) { r.Members[0].Name = "uuidv4" },
+		func(r *extension.OwnerRecord) { r.Members[0].Name = "" },
+		func(r *extension.OwnerRecord) { r.Members[0].Schema = "" },
+		func(r *extension.OwnerRecord) { r.Members[0].Slot = -1 },
+		func(r *extension.OwnerRecord) { r.Members[0].Slot = len(r.Members) },
+		func(r *extension.OwnerRecord) { r.Members[1].Slot = r.Members[0].Slot },
 		func(r *extension.OwnerRecord) { r.Members[0].Signature = "25" },
 		func(r *extension.OwnerRecord) { r.Members[0].Kind = "dictionary" },
 		func(r *extension.OwnerRecord) { r.Members[0].Owner = "" },
@@ -341,16 +355,15 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		}
 		return ref
 	}
-	relocated, err := stored.RemapExpression(node, remap, nil)
+	mapper := stored.ViewQueryRemapper{Catalog: view, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "value", Usage: node.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{node}}
+	remapped, err := mapper.Query(query)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal("remap original selected uuid declaration", err)
 	}
-	relocated, _, err = stored.RetagTypes(view, relocated, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
-	if err != nil {
-		t.Fatal("retag must resolve selected remapped address", err)
-	}
+	relocated := remapped.(*plan.ProjectNode).Expressions[0]
 	current, err := exec.ExpressionRoutineDescriptor(relocated)
-	if err != nil || current != state.Get(mapping[n.Ref.Address]) || !analyze.ValidInstalledUUIDOsspShape(relocated.(plan.InstalledUUIDOsspExpr)) {
+	if err != nil || !exec.SameRoutineDeclaration(state.MustProcedure(mapping[n.Ref.Address]), current) || current.Revision() != captured.Revision() || !analyze.ValidInstalledUUIDOsspShape(relocated.(plan.InstalledUUIDOsspExpr)) {
 		t.Fatal("remapped common and installed carriers diverged", err)
 	}
 	auth := catalogAuthorization(e, view)
@@ -374,15 +387,15 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignNode, _, err = stored.RetagTypes(foreignView, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	_, _, err = stored.RetagTypes(foreignView, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil
 		}
 		typ, _ := foreignView.LookupType(d.ID())
 		return typ
 	})
-	if err != nil {
-		t.Fatal("foreign structural retag", err)
+	if err == nil {
+		t.Fatal("foreign structural retag acquired principal authority")
 	}
 	foreignAuth := catalogAuthorization(other, foreignView)
 	probe = evaluation

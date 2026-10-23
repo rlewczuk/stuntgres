@@ -22,7 +22,8 @@ func (namedDefinitionReader) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.
 func (namedDefinitionReader) ProceduresNamed(ids.ObjectAddress, string) iter.Seq[*catalog.Procedure] {
 	return func(func(*catalog.Procedure) bool) {}
 }
-func (namedDefinitionReader) HasDynamicProcedureName(string) bool { return false }
+func (namedDefinitionReader) HasDynamicProcedureName(string) bool      { return false }
+func (namedDefinitionReader) HasProviderProcedureOverride(string) bool { return false }
 
 type foreignAuthority struct{}
 

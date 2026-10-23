@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -68,7 +69,8 @@ func TestStringIdentBinding(t *testing.T) {
 }
 
 func TestStringIdentReconstruction(t *testing.T) {
-	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+	source := New()
+	b := newTestExpressionBinder(t, context.Background(), source, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, `SELECT parse_ident(strict=>false,str=>'A.B[]')`).(*parser.Select).Targets[0]
 	bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
@@ -107,6 +109,12 @@ func TestStringIdentReconstruction(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
+	mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(source, target)}
+	query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{rebound}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rebound = query.(*plan.ValuesNode).Rows[0][0]
 	copy := rebound.(functions.String)
 	if copy.Textual != n.Textual || copy.Textual[0] || !copy.Textual[1] {
 		t.Fatal(copy.Textual)

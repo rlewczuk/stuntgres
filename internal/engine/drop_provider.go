@@ -696,6 +696,10 @@ func (prepared *preparedDrop) HasDynamicProcedureName(name string) bool {
 	return prepared.discovery.State().HasDynamicProcedureName(name) || prepared.input != nil && prepared.input.HasDynamicProcedureName(name)
 }
 
+func (prepared *preparedDrop) HasProviderProcedureOverride(name string) bool {
+	return prepared.discovery.State().HasProviderProcedureOverride(name) || prepared.input != nil && prepared.input.HasProviderProcedureOverride(name)
+}
+
 func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name string) string {
 	if p.stage != nil {
 		return associatedArrayName(p.stage, namespace, name)

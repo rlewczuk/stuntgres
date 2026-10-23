@@ -69,10 +69,21 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if err := stored.ValidateInstalledMetaphone(n, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
+	renamed := *n.Procedure
+	renamed.ObjectName = "relabeled_metaphone"
+	renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	currentState := catalog.CloneState(e.catalog.state)
+	currentState.UnbindName(catalog.DescriptorNameKey(n.Procedure))
+	currentState.SetDescriptor(renamed.Address(), &renamed)
+	currentState.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
+	if err := stored.ValidateInstalledMetaphone(n, e.catalog.read(currentState)); err != nil {
+		t.Fatal("genuine relabel rejected", err)
+	}
 	nonmember := *n.Procedure
 	nonmember.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
 	foreignState := catalog.CloneState(e.catalog.state)
 	foreignState.SetDescriptor(nonmember.Address(), &nonmember)
+	foreignState.BindName(catalog.DescriptorNameKey(&nonmember), nonmember.Address())
 	if err := extension.StockFuzzystrmatch.ValidateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
@@ -101,16 +112,17 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) { p.Result = 23 },
 		func(p *catalog.Procedure) { p.Signature = "25,25" },
-		func(p *catalog.Procedure) { p.ObjectName = "dmetaphone" },
 		func(p *catalog.Procedure) {
 			p.Implementation = new(*extension.StockFuzzystrmatch)
 		},
 		func(p *catalog.Procedure) { p.Implementation = extension.StockPgcrypto },
 	} {
 		state := catalog.CloneState(e.catalog.state)
+		state.UnbindName(catalog.DescriptorNameKey(n.Procedure))
 		bad := *n.Procedure
 		mutate(&bad)
 		state.SetDescriptor(n.Ref.Address, &bad)
+		state.BindName(catalog.DescriptorNameKey(&bad), bad.Address())
 		forged := n
 		forged.Procedure = &bad
 		if err := stored.ValidateInstalledMetaphone(forged, e.catalog.read(state)); err == nil {
@@ -158,7 +170,17 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
 	}
-	for _, kind := range []string{"old", "duplicate", "foreign_signature", "foreign_name"} {
+	relabeled := record
+	relabeled.Members = append([]extension.MemberOwner(nil), record.Members...)
+	relabeled.Members[1].Name = "text_soundex"
+	encoded, err := json.Marshal(relabeled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := extension.DecodeOwners(" " + extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString(encoded)); err != nil || !found {
+		t.Fatal("genuine symbolic relabel rejected", err)
+	}
+	for _, kind := range []string{"old", "duplicate", "foreign_signature", "missing_schema"} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 		switch kind {
@@ -168,8 +190,8 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 			bad.Members[1] = bad.Members[0]
 		case "foreign_signature":
 			bad.Members[1].Signature = "25"
-		case "foreign_name":
-			bad.Members[1].Name = "text_soundex"
+		case "missing_schema":
+			bad.Members[1].Schema = ""
 		}
 		encoded, err := json.Marshal(bad)
 		if err != nil {
@@ -203,14 +225,14 @@ func TestMetaphoneRemap(t *testing.T) {
 	consumer := &catalog.Relation{ObjectAddress: address, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.Ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.Ref}}}}}
 	next.SetDescriptor(address, consumer)
 	next.SetEpoch(next.Epoch() + 1)
-	if err := stored.ReownExpressions(e.catalog.read(next), next, mapping, false); err != nil {
+	if err := stored.ReownExpressions(e.catalog.read(next), next, mapping, false, stored.NewRoutineRemap(e.catalog.read(next), mapping, nil, extension.ProcedureRemapper(mapping, nil, nil), false)); err != nil {
 		t.Fatal(err)
 	}
 	view := e.catalog.read(next)
 	relocated := next.MustRelation(address)
 	for _, node := range []expr.Expr{relocated.ColumnMeta.Defaults[1].Expression, relocated.ColumnMeta.Generations[2].Expression, relocated.ColumnMeta.Generations[2].Planned} {
 		n := node.(plan.InstalledMetaphoneExpr)
-		if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
+		if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || !exec.SameRoutineDeclaration(next.MustProcedure(n.Ref.Address), n.Procedure) || n.Procedure.Revision() != call.Procedure.Revision() {
 			t.Fatal("stale remapped authority", n.Ref)
 		}
 		if err := stored.ValidateInstalledMetaphone(n, view); err != nil {

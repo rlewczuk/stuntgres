@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -97,7 +98,7 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 		t.Fatal("dump owner metadata", records, err)
 	}
 	record := records[0]
-	expectedMember := extension.MemberOwner{Kind: "procedure", Name: "pgrowlocks", Signature: "25", Owner: memberOwner.Name}
+	expectedMember := extension.MemberOwner{Slot: 0, Schema: "public", Kind: "procedure", Name: "pgrowlocks", Signature: "25", Owner: memberOwner.Name}
 	if record.Name != "pgrowlocks" || record.Schema != "public" || record.Version != "1.2" || record.Owner != "postgres" || len(record.Members) != 1 || record.Members[0] != expectedMember {
 		t.Fatal("dump owner metadata", record)
 	}
@@ -142,16 +143,15 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 		}
 		return ref
 	}
-	mapped, err := stored.RemapExpression(n, remap, nil)
+	mapper := stored.ViewQueryRemapper{Catalog: destination, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "locks", Usage: n.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{n}}
+	remapped, err := mapper.Query(query)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped, _, err = stored.RetagTypes(destination, mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
-	if err != nil {
-		t.Fatal(err)
-	}
+	mapped := remapped.(*plan.ProjectNode).Expressions[0]
 	m := mapped.(plan.InstalledPgrowlocksExpr)
-	if m.Ref != remap(n.Ref) || m.Procedure != destination.Get(m.Ref.Address) || n.Procedure != view.Get(n.Ref.Address) {
+	if m.Ref != remap(n.Ref) || !exec.SameRoutineDeclaration(destination.MustProcedure(m.Ref.Address), m.Procedure) || m.Procedure.Revision() != n.Procedure.Revision() || n.Procedure != view.Get(n.Ref.Address) {
 		t.Fatal("remapped installed authority", m)
 	}
 	text, err := (stored.Deparser{View: destination}).SQL(context.Background(), m, stored.DeparseParent{})

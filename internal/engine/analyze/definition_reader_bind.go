@@ -17,6 +17,13 @@ func (b *Binder) hasDynamicProcedureName(name string) bool {
 	return b.BindingCatalog().State().HasDynamicProcedureName(name)
 }
 
+func (b *Binder) hasProviderProcedureOverride(name string) bool {
+	if reader := b.DefinitionReader(); reader != nil {
+		return reader.HasProviderProcedureOverride(name)
+	}
+	return b.BindingCatalog().State().HasProviderProcedureOverride(name)
+}
+
 func (b *Binder) definitionDescriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	if reader := b.DefinitionReader(); reader != nil {
 		return reader.Descriptor(address)

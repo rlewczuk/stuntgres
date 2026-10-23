@@ -60,6 +60,36 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   and descriptor extraction, revalidation and the SQL-body walk
   (`WalkRoutineBody`), shared with `analyze` and the engine. Admission reads
   `RoutineAccess`: the captured `access.View` and `access.Environment`.
+  Public labels/owners are mutable COW metadata, not immutable declaration
+  identity. Address, kind, exact signature/result, payload/provider/body links
+  and original domain/epoch/SubID manifests remain checked. Hard recipes prove
+  their captured declaration and original revision while following current
+  labels/ownership; original-source calls retain their revision fence and
+  prepared reanalysis. `RoutineProgram` preserves this distinction through
+  readmission and phase initialization without retaining granted rights.
+  Grafted rules borrow the original manifest only after validating the live
+  relation's exact rule/action-or-condition presentation. Ancestry is per
+  occurrence, not the whole rewritten command; substituted fresh inputs return
+  to their own source lane. Consumed-call dedup retains recipe and original
+  declaration identity in addition to reference, consumer and actor.
+  Aggregate/window admission receives the original checked declaration, including
+  every independently captured alias sharing aggregate state. An old manifest
+  stamp is never paired with a borrowed current descriptor. Only the existing
+  hard lane follows mutable revisions; direct and genuinely ref-only lanes stay
+  strict. Each occurrence, including each alias, still checks current EXECUTE.
+  Query grouping and window peer equality use that same original-declaration
+  fence, with recipe ancestry selected by the owning query key rather than its
+  possibly substituted expression. The nil-carrier revision rejection remains
+  intentional for genuinely reference-only consumers; no current descriptor
+  can supply proof beside an old manifest stamp.
+  Strict NULL suppresses invocation/EXECUTE demand, not original-source lifetime
+  validation. `TestJSONBRecordRoutineOwnershipCOW` contrasts stale direct
+  admission with an original-manifest hard capture after owner COW, including
+  current-owner success, revoked-reader denial and retained-root immutability.
+  `TestRoutineDirectStrictNullLifetime` uses the actual statement-host source
+  lane to require strict-NULL admission without EXECUTE while rejecting an
+  owner-revised current root and preserving the old snapshot. Selected proof:
+  `make check RUN='^(TestJSONBRecordRoutineOwnershipCOW|TestRoutineDirectStrictNullLifetime)$'`.
 - **Helpers the DML executors share**: constraint-violation DETAIL rows
   (`row_detail.go`), single-relation source capture (`source_capture.go`),
   CURRENT OF scans (`cursor_scan.go`), `pgrowlocks` values and the session

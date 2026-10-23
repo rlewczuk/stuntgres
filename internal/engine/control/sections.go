@@ -27,6 +27,7 @@ var dumpSections = [...]dumpSection{
 	{"preamble", emitDumpPreamble},
 	{"schemas", emitDumpSchemas},
 	{"conversion schemas", emitDumpConversionSchemas},
+	{"provider alterations", emitDumpProviderReplay},
 	{"collation seeds", emitDumpCollationSeeds},
 	{"conversion seeds", emitDumpConversionSeeds},
 	{"operator family seeds", emitDumpOperatorFamilySeeds},

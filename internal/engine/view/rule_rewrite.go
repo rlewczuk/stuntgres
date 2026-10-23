@@ -794,6 +794,19 @@ func (rw RuleRewriter) ExpandLocked(auth RuleAuthority, stmt parser.Statement, b
 			}
 		}
 	}
+	// Bind stored routine authority to exact original rule occurrences before
+	// composing them with fresh input. Current reference stamps below remain
+	// invalidation metadata, never the historical action's call manifest.
+	rules = slices.Clone(rules)
+	for i, rule := range rules {
+		if rule.Event() != event {
+			continue
+		}
+		rules[i], err = stored.GraftRuleRoutineRecipes(auth.Access().Catalog, current, rule)
+		if err != nil {
+			return -1, err
+		}
+	}
 	original := true
 	conditionalInstead := false
 	for _, r := range rules {

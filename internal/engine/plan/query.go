@@ -54,16 +54,18 @@ type FilterNode struct {
 }
 
 type SortKey struct {
-	Expression       expr.Expr
-	Comparison       sqltype.Comparison
-	EqualityRoutine  ids.ObjectRef // Caller-checked window peers only; ordinary ordering uses support functions.
-	Position         int           // Original ORDER reference character position, not reused output syntax.
-	OutputOrdinal    int           // One-based resolved output occurrence; zero is a SQL expression.
-	TargetIdentity   int           // Resolved ON/ORDER target, independent of physical cache sharing.
-	Slot, Cache      int
-	Desc, NullsFirst bool
-	Output           bool // This cache slot supplies a visible projection.
-	PeerDemand       bool // WITH TIES needs this cache identity after locked replacement.
+	Expression        expr.Expr
+	Comparison        sqltype.Comparison
+	EqualityRoutine   ids.ObjectRef // Caller-checked window peers only; ordinary ordering uses support functions.
+	EqualityProcedure *catalog.Procedure
+	EqualityRecipe    expr.RoutineRecipeReference // Original peer-equality occurrence, not the key expression's ancestry.
+	Position          int                         // Original ORDER reference character position, not reused output syntax.
+	OutputOrdinal     int                         // One-based resolved output occurrence; zero is a SQL expression.
+	TargetIdentity    int                         // Resolved ON/ORDER target, independent of physical cache sharing.
+	Slot, Cache       int
+	Desc, NullsFirst  bool
+	Output            bool // This cache slot supplies a visible projection.
+	PeerDemand        bool // WITH TIES needs this cache identity after locked replacement.
 }
 
 type SortNode struct {

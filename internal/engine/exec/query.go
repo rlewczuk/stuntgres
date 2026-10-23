@@ -62,7 +62,8 @@ type Source struct {
 	// view lifetime/provider validation. This immutable definition supplies its
 	// original manifest, never current rights or relation-owner substitution.
 	RoutineRecipe *catalog.Relation
-	// RoutineChecks is routineRecipe's captured expression manifest.
+	// RoutineChecks borrows a stored view or validated frozen SQL action's
+	// original manifest; a nil consumer does not turn an action into fresh SQL.
 	RoutineChecks []catalog.ExpressionDependency
 	Sources       []*Source
 	// Both inheritance and partition trees use named-layout physical prefixes.

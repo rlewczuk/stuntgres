@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/routine"
 )
 
@@ -12,8 +13,57 @@ import (
 // install lock against captured authorities. No callbacks, source lock or external
 // I/O run here. ReplaceCatalog already projected its immutable source into private
 // maps, so principal remapping does not need another catalog clone.
-func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalog.State, error) {
+func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalog.State, catalog.ProcedureRemapper, error) {
 	e.retainDatabaseLocked(state)
+	// Resolve configured destination capabilities before the principal graph
+	// memoizes private declarations. A later provider COW copy would otherwise
+	// look like a foreign-source declaration to that same strict source policy.
+	var foreignOriginals []*catalog.Procedure
+	for _, descriptor := range state.Descriptors() {
+		if procedure, ok := descriptor.(*catalog.Procedure); ok && procedure.Foreign != nil {
+			foreignOriginals = append(foreignOriginals, procedure)
+		}
+	}
+	if err := rebindReplacementForeignProviders(e.catalog.read(e.catalog.state), e.foreign, state); err != nil {
+		return nil, nil, err
+	}
+	var foreignTokens map[*catalog.ForeignProcedure]*catalog.ForeignProcedure
+	if len(foreignOriginals) != 0 {
+		foreignTokens = make(map[*catalog.ForeignProcedure]*catalog.ForeignProcedure, len(foreignOriginals))
+		for _, original := range foreignOriginals {
+			destination := state.MustProcedure(original.Address()).Foreign
+			foreignTokens[original.Foreign] = destination
+			foreignTokens[destination] = destination
+		}
+	}
+	policy := e.replacementPrincipalRemap(source, targetSnapshot, expected)
+	var graph catalog.ProcedureRemapper
+	policy.Procedure = func(original *catalog.Procedure) (*catalog.Procedure, error) {
+		mapped, err := graph(original)
+		if err != nil || mapped == nil || original.Foreign == nil {
+			return mapped, err
+		}
+		destination := foreignTokens[original.Foreign]
+		if destination == nil {
+			return nil, fmt.Errorf("stuntgres: replacement foreign provider is not installed in destination")
+		}
+		// graph owns this private clone. Historical carriers retain their own
+		// declaration/revision and acquire only the checked destination token;
+		// neither their original callback nor a current descriptor is borrowed.
+		mapped.Foreign = destination
+		return mapped, nil
+	}
+	graph = catalog.NewProcedureRemapper(policy)
+	if err := catalog.RemapPrincipals(state, policy); err != nil {
+		return nil, nil, err
+	}
+	if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), e.catalog.read(state)); err != nil {
+		return nil, nil, err
+	}
+	return state, policy.Procedure, nil
+}
+
+func (e *Engine) replacementPrincipalRemap(source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) catalog.PrincipalRemap {
 	remap := e.replacementPrincipalMapper(source, targetSnapshot, expected)
 	seedOwner := func(ref authorization.PrincipalRef, seeded bool) (authorization.PrincipalRef, error) {
 		if !seeded || ref.ID() != authorization.BootstrapPrincipalID {
@@ -31,13 +81,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 		}
 		return target, nil
 	}
-	if err := catalog.RemapPrincipals(state, catalog.PrincipalRemap{Principal: remap, SeededOwner: seedOwner, OperatorSeeded: routine.OperatorSeeded}); err != nil {
-		return nil, err
-	}
-	if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), e.catalog.read(state)); err != nil {
-		return nil, err
-	}
-	return state, nil
+	return catalog.PrincipalRemap{Principal: remap, SeededOwner: seedOwner, OperatorSeeded: routine.OperatorSeeded}
 }
 
 // Both authorization ACLs and typed ACL data use the same captured name mapping
@@ -101,4 +145,29 @@ func (e *Engine) restoreStage() *Engine {
 	stage.roles.published = &access.RoleRecord{Root: roles, Revision: sourceRoles.Revision}
 	stage.roles.nextPrincipal = nextPrincipal
 	return stage
+}
+
+// retainedRoutineProcedureRemapper is only for destination TEMP consumers
+// selected by replacement preflight, never imported-source containers.
+func (e *Engine) retainedRoutineProcedureRemapper(current catalog.Read) catalog.ProcedureRemapper {
+	roles := e.roles.read(e.catalog.owner(), current, e.roles.published)
+	identity := func(ref authorization.PrincipalRef) (authorization.PrincipalRef, error) {
+		if err := roles.ValidatePrincipal(ref); err != nil {
+			return authorization.PrincipalRef{}, err
+		}
+		return ref, nil
+	}
+	graph := catalog.NewProcedureRemapper(catalog.PrincipalRemap{
+		Principal:   identity,
+		SeededOwner: func(ref authorization.PrincipalRef, _ bool) (authorization.PrincipalRef, error) { return identity(ref) },
+	})
+	return func(original *catalog.Procedure) (*catalog.Procedure, error) {
+		if original == nil {
+			return nil, nil
+		}
+		if _, err := exec.ValidateStoredRoutineDescriptor(current, original); err != nil {
+			return nil, err
+		}
+		return graph(original)
+	}
 }

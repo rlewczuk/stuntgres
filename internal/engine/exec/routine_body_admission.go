@@ -68,7 +68,7 @@ func BodyRoutineDescriptor(c *Context, auth RoutineAccess, dependencies []catalo
 	if !ok || !SameRoutineDeclaration(current, edge.Routine) {
 		return nil, fmt.Errorf("stuntgres: stale SQL body declaration")
 	}
-	if revision != 0 && current.Revision() != revision {
+	if revision != 0 && c.RoutineChecks == nil && current.Revision() != revision {
 		return nil, catalog.Conflict{}
 	}
 	return current, nil

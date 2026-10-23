@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -181,8 +182,11 @@ func (b *Binder) bindWindow(raw parser.AggregateExpr, name parser.ObjectName) (b
 			formal[1], formalCount = sqltype.Int4, 2
 		}
 	}
-	var err error
-	call.Routine, err = b.builtinRoutineReference(functions.WindowRoutineProvider, raw.Name, formal[:formalCount]...)
+	declaration, err := routine.LookupBuiltinRoutineDeclaration(functions.WindowRoutineProvider, raw.Name, formal[:formalCount])
+	if err != nil {
+		return nil, err
+	}
+	call.Procedure, call.Routine, err = b.captureBuiltinRoutineDeclaration(declaration)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +256,14 @@ func (b *Binder) resolveWindows() error {
 }
 
 func (b *Binder) SameWindowCall(a, c plan.WindowCall) bool {
-	if a.Operation != c.Operation {
+	if a.Operation != c.Operation || a.Routine != c.Routine || a.Procedure != c.Procedure {
+		return false
+	}
+	if a.Expression == nil || c.Expression == nil {
+		if a.Expression != c.Expression {
+			return false
+		}
+	} else if a.Expression.RoutineRecipeReference != c.Expression.RoutineRecipeReference {
 		return false
 	}
 	// Arguments can own child queries hidden by the window leaf. This is
@@ -414,12 +425,12 @@ func (b *Binder) bindWindowSpec(raw parser.WindowSpec, names map[string]plan.Win
 			if signature.Left != base.ID() {
 				usage.Type = b.Type(signature.Left)
 			}
-			routine, _, err := b.groupingRoutineReference(usage)
+			routine, declaration, _, err := b.groupingRoutineReference(usage)
 			if err != nil {
 				return spec, err
 			}
 			index = len(spec.Order)
-			spec.Order = append(spec.Order, plan.SortKey{Expression: expr, Comparison: comparison, EqualityRoutine: routine, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
+			spec.Order = append(spec.Order, plan.SortKey{Expression: expr, Comparison: comparison, EqualityRoutine: routine, EqualityProcedure: declaration, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
 		}
 		spec.OrderMap[i] = index
 	}

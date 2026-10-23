@@ -45,6 +45,8 @@ func AdmitOperator[R any](_ R, _ *session.Operation, stmt parser.Statement) (Adm
 	switch stmt.(type) {
 	case *parser.CreateAccessMethod:
 		return Admitted, nil
+	case *parser.AlterRoutine:
+		return Admitted, nil
 	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
 		return Admitted, nil
 	}

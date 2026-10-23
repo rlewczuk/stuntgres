@@ -27,8 +27,8 @@ type Rendering struct {
 	Text string
 	// Name is the FormCall function name or the FormInfix operator spelling.
 	Name string
-	// Namespace is the FormInfix operator schema; "" and pg_catalog display
-	// the bare spelling, any other schema displays OPERATOR(schema.op).
+	// Namespace qualifies a captured FormCall. For FormInfix, "" and
+	// pg_catalog display the bare spelling; other schemas use OPERATOR.
 	Namespace string
 	// Quote is how the deparser quotes a FormCall Name.
 	Quote Quote

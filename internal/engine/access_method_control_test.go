@@ -136,7 +136,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 	}
 	destination := ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: catalogUnitOID(t, e)}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{method.Address(): destination}
-	if err := control.RemapReplacementIdentities(view, next, nil, mapping, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}); err != nil {
+	if err := control.RemapReplacementIdentities(view, next, nil, mapping, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	remapped := view.WithState(next)

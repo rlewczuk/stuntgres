@@ -61,7 +61,7 @@ func (e *Engine) bindSQLRoutineLocked(op *session.Operation, auth AuthorizationV
 					return last, resultPlan, err
 				}
 			}
-			last, err = analyze.DescribeRoutine(op.Context(), e.analysisHost(op), statement, authorityOf(auth), required, input, analyze.Expected{}, nil, d.SQL, sqltype.CollationRef{})
+			last, err = analyze.DescribeRoutine(op.Context(), e.analysisHost(op), statement, authorityOf(auth), required, input, analyze.Expected{}, nil, d.SQL, d.Name(), sqltype.CollationRef{})
 			if err != nil {
 				if d.SQL.Standard {
 					return last, resultPlan, err

@@ -6,8 +6,25 @@ import "stuntgres/internal/parser"
 // but its own token identifies the syntax occurrence. Lowering the child must
 // not erase an enclosing cast; deliberate cast lowering owns that token instead.
 func (b *Binder) storedExpressionSyntaxKey(raw parser.Expr) StoredExpressionSyntaxKey {
-	if cast, ok := raw.(parser.CastExpr); ok && cast.Syntax == parser.PostfixCast {
-		return StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: cast.Pos}
+	if cast, ok := raw.(parser.CastExpr); ok {
+		switch cast.Syntax {
+		case parser.PostfixCast:
+			return StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: cast.Pos}
+		case parser.FunctionCast:
+			// Legacy typename-call syntax can resolve to a genuine user
+			// function. It owns the same written call/input as FunctionExpr.
+			return StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: cast.Pos, Input: cast.Child.SourcePosition()}
+		}
+	}
+	var args []parser.Expr
+	switch call := raw.(type) {
+	case parser.FunctionExpr:
+		args = call.Args
+	case parser.AggregateExpr:
+		args = call.Args
+	}
+	if len(args) != 0 {
+		return StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition(), Input: args[0].SourcePosition()}
 	}
 	return StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}
 }
@@ -55,7 +72,8 @@ func (b *Binder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) 
 				}
 				b.normalizingSyntax[key] = true
 				defer delete(b.normalizingSyntax, key)
-				raw, changed = lowered, true
+				next, _ := b.NormalizeInListExpression(lowered)
+				return next, true
 			}
 		}
 	}
@@ -420,8 +438,13 @@ func (b *Binder) normalizeInListFrom(raw parser.FromItem) parser.FromItem {
 			return &next
 		}
 	case *parser.FunctionTable:
-		if calls := b.normalizeInListCalls(r.Calls); calls != nil {
+		written := parser.NormalizedFunctionCalls(r)
+		calls := b.normalizeInListCalls(written)
+		if calls != nil || len(written) != len(r.Calls) {
 			next := *r
+			if calls == nil {
+				calls = written
+			}
 			next.Calls = calls
 			return &next
 		}

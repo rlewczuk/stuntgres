@@ -146,8 +146,13 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for i, slot := range []int{0, 1, 2, 3, 5} {
+		if record.Members[i].Slot != slot || record.Members[i].Schema != "public" {
+			t.Fatal("owner metadata lost installed slot/schema", record.Members[i])
+		}
+	}
 	before := stage.catalog.state
-	for _, kind := range []string{"namespace", "version", "member_owner", "duplicate", "member_identity"} {
+	for _, kind := range []string{"namespace", "version", "member_owner", "duplicate", "member_identity", "member_name", "member_namespace", "member_slot", "duplicate_slot", "missing_member"} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 		records := []extension.OwnerRecord{bad}
@@ -162,6 +167,16 @@ func extensionOwnershipImportUnits(t *testing.T) {
 			records = append(records, bad)
 		case "member_identity":
 			records[0].Members[0].Signature = "invalid"
+		case "member_name":
+			records[0].Members[0].Name = "unreplayed_label"
+		case "member_namespace":
+			records[0].Members[0].Schema = "pg_catalog"
+		case "member_slot":
+			records[0].Members[0].Slot = len(ext.Members)
+		case "duplicate_slot":
+			records[0].Members[1].Slot = records[0].Members[0].Slot
+		case "missing_member":
+			records[0].Members = records[0].Members[1:]
 		}
 		if err := stage.importExtensionOwners(context.Background(), op, records); err == nil {
 			t.Fatal("invalid ownership import accepted", kind)

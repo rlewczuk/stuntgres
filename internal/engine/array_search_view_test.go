@@ -33,6 +33,15 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	targetCollation := publishCollation(targetEngine, 72000, "as_unit_target")
 	b := newTestExpressionBinder(t, ctx, sourceEngine, sqltype.InputEnvironment{}, nil)
 	targetBinder := newTestExpressionBinder(t, ctx, targetEngine, sqltype.InputEnvironment{}, nil)
+	statements, err := parser.Parse("SELECT array_replace('{1,2}'::integer[], 1::bigint, array_position('{1,2}'::integer[], 1::bigint)), array_positions(array_replace('{a,b,NULL}' COLLATE as_unit_source, 'a', 'b'), 'b')")
+	if err != nil {
+		t.Fatal(err)
+	}
+	syntax := statements[0].(*parser.Select)
+	raw := syntax.Targets[0].(parser.FunctionExpr)
+	rawInner := raw.Args[2].(parser.FunctionExpr)
+	rawText := syntax.Targets[1].(parser.FunctionExpr)
+	rawReplace := rawText.Args[0].(parser.FunctionExpr)
 	integer, wide, text := b.Type(sqltype.Int4), b.Type(sqltype.Int8), b.Type(sqltype.Text)
 	array, wideArray, textArray := b.Type(integer.AssociatedArray()), b.Type(wide.AssociatedArray()), b.Type(text.AssociatedArray())
 	literal := func(value sqltype.Value) expr.Expr {
@@ -53,23 +62,19 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rawArray := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "{1,2}"}}, TypeName: parser.TypeName{Name: "integer", ArrayBounds: []int32{-1}}}
 	arrayArgument := coerce(coerce(literal(payload), array, sqltype.Explicit), wideArray, sqltype.Implicit)
-	rawOne := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}
-	rawWide := parser.CastExpr{Child: rawOne, TypeName: parser.TypeName{Name: "bigint"}}
 	wideOne := coerce(literal(one), wide, sqltype.Explicit)
 	name := func(text string) parser.ObjectName {
 		return parser.ObjectName{Parts: []parser.Identifier{{Text: text}}}
 	}
-	inner, err := functions.ArraySearchNode(b, "array_position", name("array_position"), parser.Position{}, integer.Usage(), []expr.Expr{arrayArgument, wideOne})
+	inner, err := functions.ArraySearchNode(b, "array_position", name("array_position"), rawInner.Pos, integer.Usage(), []expr.Expr{arrayArgument, wideOne})
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, wideArray.Usage(), []expr.Expr{arrayArgument, wideOne, coerce(inner, wide, sqltype.Implicit)})
+	outer, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), raw.Pos, wideArray.Usage(), []expr.Expr{arrayArgument, wideOne, coerce(inner, wide, sqltype.Implicit)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw := parser.FunctionExpr{Name: name("array_replace"), Args: []parser.Expr{rawArray, rawWide, parser.FunctionExpr{Name: name("array_position"), Args: []parser.Expr{rawArray, rawWide}}}}
 	ref, err := sqltype.RegisteredCollation(uint32(sourceCollation.OID), sourceCollation.Semantics)
 	if err != nil {
 		t.Fatal(err)
@@ -80,27 +85,19 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	}
 	usage := textArray.Usage()
 	usage.Collation = ref
-	position := parser.Position{Character: 1}
+	position := rawReplace.Args[0].(parser.CollateExpr).Pos
 	info := b.Info(usage, position, expr.Properties{})
 	info.CollationExplicit = position
 	collated := plan.CollationExpr{Info: info, Child: literal(strings)}
 	search, replacement := literal(sqltype.String(text, "a")), literal(sqltype.String(text, "b"))
-	replace, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, textArray.Usage(), []expr.Expr{collated, search, replacement})
+	replace, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), rawReplace.Pos, textArray.Usage(), []expr.Expr{collated, search, replacement})
 	if err != nil {
 		t.Fatal(err)
 	}
-	positions, err := functions.ArraySearchNode(b, "array_positions", name("array_positions"), parser.Position{}, array.Usage(), []expr.Expr{replace, replacement})
+	positions, err := functions.ArraySearchNode(b, "array_positions", name("array_positions"), rawText.Pos, array.Usage(), []expr.Expr{replace, replacement})
 	if err != nil {
 		t.Fatal(err)
 	}
-	rawText := parser.FunctionExpr{Name: name("array_positions"), Args: []parser.Expr{
-		parser.FunctionExpr{Name: name("array_replace"), Args: []parser.Expr{
-			parser.CollateExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "{a,b,NULL}"}}, Name: name("as_unit_source"), Pos: position},
-			parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "a"}},
-			parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "b"}},
-		}},
-		parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "b"}},
-	}}
 	for i, capture := range []struct {
 		raw  parser.Expr
 		node expr.Expr
@@ -109,20 +106,20 @@ func TestArraySearchViewCoercions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	syntax := &parser.Select{Targets: []parser.Expr{raw, rawText}}
+	b.NormalizeStoredQuerySyntax(syntax)
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{outer, positions}, Frame: b.FrameID(), Syntax: syntax}
-	original := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages, Collations: b.Capture.Collations})
+	original := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Dependencies: b.Dependencies, RoutineRefs: b.Capture.RoutineRefs, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages, Collations: b.Capture.Collations})
+	original = original.With(func(p *stored.ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(project) })
+	if err := original.ValidateLiterals(sourceEngine.CatalogRead()); err != nil {
+		t.Fatal("invalid source recipe baseline", err)
+	}
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
-	render := func(view catalog.Read, definition *stored.View, target int, expression parser.Expr, want string) {
+	render := func(view catalog.Read, definition *stored.View, target int) {
 		r := stored.QueryRenderer{View: definition, Frame: b.FrameID(), Presentation: stored.Presentation{Deparse: true, Pretty: true, Path: path}}
-		got, err := r.ExpressionSQL(ctx, view, expression, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: target})
-		if err != nil || got != want {
-			t.Fatalf("rendered %q want %q: %v", got, want, err)
+		if _, err := r.ExpressionSQL(ctx, view, definition.Syntax().Targets[target], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: target}); err != nil {
+			t.Fatal(err)
 		}
 	}
-	const numericSQL = "array_replace('{1,2}'::integer[]::integer[]::bigint[], 1::bigint, array_position('{1,2}'::integer[]::integer[]::bigint[], 1::bigint)::bigint)"
-	const sourceTextSQL = "array_positions(array_replace(('{a,b,NULL}'::text[] COLLATE as_unit_source), 'a'::text, 'b'::text), 'b'::text)"
-	const targetTextSQL = "array_positions(array_replace(('{a,b,NULL}'::text[] COLLATE as_unit_target), 'a'::text, 'b'::text), 'b'::text)"
 	assertValue := func(node expr.Expr, typ *sqltype.Descriptor, want string) sqltype.Value {
 		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		if err != nil {
@@ -140,8 +137,8 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		return value
 	}
 	sourceView, targetView := sourceEngine.CatalogRead(), targetEngine.CatalogRead()
-	render(sourceView, original, 0, raw, numericSQL)
-	render(sourceView, original, 1, rawText, sourceTextSQL)
+	render(sourceView, original, 0)
+	render(sourceView, original, 1)
 	oldNumeric := assertValue(outer, wideArray, "{1,2}")
 	oldPositions := assertValue(positions, array, "{1,2}")
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{sourceCollation.Address(): targetCollation.Address()}
@@ -152,17 +149,30 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		}
 		return targetBinder.Type(d.ID())
 	}
-	identity := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
-	mapped, err := stored.RemapView(targetView, original, mapping, identity, types, collation)
+	identity := func(ref ids.ObjectRef) ids.ObjectRef {
+		address := ref.Address
+		if mapped, ok := mapping[address]; ok {
+			address = mapped
+		}
+		return targetEngine.catalog.Domain.Ref(targetView.Epoch(), address)
+	}
+	routineRemap := stored.NewRoutineRemap(targetView, mapping, types, replacementProcedurePolicyFixture(sourceEngine, targetEngine), false)
+	mapped, err := stored.RemapView(targetView, original, mapping, identity, types, collation, routineRemap.Procedure)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if err := routineRemap.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if err := mapped.ValidateLiterals(targetView); err != nil {
+		t.Fatal("invalid remapped recipe", err)
 	}
 	mappedProject := mapped.Query().Root.(*plan.ProjectNode)
 	if mappedProject == project || mappedProject.Schema()[0].Usage.Type == wideArray || mappedProject.Schema()[1].Usage.Type == array {
 		t.Fatal("descriptor transition did not produce target-owned schema")
 	}
-	render(targetView, mapped, 0, raw, numericSQL)
-	render(targetView, mapped, 1, rawText, targetTextSQL)
+	render(targetView, mapped, 0)
+	render(targetView, mapped, 1)
 	assertValue(mappedProject.Expressions[0], targetBinder.Type(wideArray.ID()), "{1,2}")
 	assertValue(mappedProject.Expressions[1], targetBinder.Type(array.ID()), "{1,2}")
 	newPlan := mappedProject.Expressions[1].(functions.ArraySearch).Plan
@@ -172,8 +182,8 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	}
 	// Re-render and execute the original after the real remap: its presentation,
 	// scalar/array generations, equality authority and owned rows stay intact.
-	render(sourceView, original, 0, raw, numericSQL)
-	render(sourceView, original, 1, rawText, sourceTextSQL)
+	render(sourceView, original, 0)
+	render(sourceView, original, 1)
 	assertValue(outer, wideArray, "{1,2}")
 	assertValue(positions, array, "{1,2}")
 	oldRef, conflict := positions.(functions.ArraySearch).Plan.InputCollation()

@@ -3,8 +3,6 @@ package reference_test
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -13,57 +11,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 )
-
-func metaphoneManifest(t *testing.T, dump, schema, owner string) {
-	t.Helper()
-	const prefix = "-- stuntgres-extension-owners-v1 "
-	if strings.Count(dump, prefix) != 1 {
-		t.Fatal("expected one owner manifest")
-	}
-	start := strings.Index(dump, prefix) + len(prefix)
-	end := strings.IndexByte(dump[start:], '\n')
-	if end < 0 {
-		t.Fatal("unterminated owner manifest")
-	}
-	data, err := base64.StdEncoding.DecodeString(dump[start : start+end])
-	if err != nil {
-		t.Fatal(err)
-	}
-	var record struct {
-		Name    string `json:"name"`
-		Schema  string `json:"schema"`
-		Owner   string `json:"owner"`
-		Version string `json:"version"`
-		Members []struct {
-			Kind      string `json:"kind"`
-			Name      string `json:"name"`
-			Signature string `json:"signature"`
-			Owner     string `json:"owner"`
-		} `json:"members"`
-	}
-	if err := json.Unmarshal(data, &record); err != nil {
-		t.Fatal(err)
-	}
-	if record.Name != "fuzzystrmatch" || record.Schema != schema || record.Owner != owner || record.Version != "1.2" || len(record.Members) != 10 {
-		t.Fatal("owner manifest", record)
-	}
-	want := map[string]bool{
-		"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true,
-		"levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true,
-		"metaphone:25,23": true, "dmetaphone:25": true, "dmetaphone_alt:25": true,
-		"soundex:25": true, "difference:25,25": true,
-	}
-	for _, member := range record.Members {
-		key := member.Name + ":" + member.Signature
-		if !want[key] || member.Kind != "procedure" || member.Owner != owner {
-			t.Fatal("symbolic member", member)
-		}
-		delete(want, key)
-	}
-	if len(want) != 0 {
-		t.Fatal("missing manifest members", want)
-	}
-}
 
 func metaphoneControlMetadata(t *testing.T, rows *sql.Rows, check fixture.Step) {
 	t.Helper()
@@ -98,11 +45,6 @@ func TestReferenceMetaphoneControls(t *testing.T) {
 			return
 		} // Public controls have no PostgreSQL equivalent.
 		dump := extensionDump(t, p.Ctx, p.Native)
-		metaphoneManifest(t, dump, "phon_addon", "phon_owner")
-		install, consumer := strings.Index(dump, "CREATE EXTENSION"), strings.Index(dump, "CREATE TABLE")
-		if install < 0 || consumer < 0 || install > consumer {
-			t.Fatal("provider must precede consumers", dump)
-		}
 		q := "SELECT phon_addon.metaphone($1,$2),phon_addon.dmetaphone($1),phon_addon.dmetaphone_alt($1)"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {

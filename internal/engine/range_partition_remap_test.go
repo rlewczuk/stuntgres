@@ -311,7 +311,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 		mapped, err := stored.RemapPartitionDescriptor(e.catalog.read(next), source,
 			func(ref ids.ObjectRef) ids.ObjectRef { return ref },
 			func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ },
-			mapping, typesOnly, collation)
+			mapping, typesOnly, collation, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

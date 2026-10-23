@@ -13,7 +13,7 @@ func IntaggDefinition(function, transition, final ids.OID) catalog.AggregateDefi
 
 func validateOwnedAggregate(view catalog.Read, proc *catalog.Procedure) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg aggregate metadata") }
-	if proc.Name() != "int_array_aggregate" {
+	if proc.RoutineKind != catalog.AggregateRoutine {
 		if proc.Aggregate != nil {
 			return invalid()
 		}
@@ -28,7 +28,8 @@ func validateOwnedAggregate(view catalog.Read, proc *catalog.Procedure) error {
 		if i == 1 {
 			name, signature = "int_agg_final_array", "2281"
 		}
-		if helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper.Namespace != proc.Namespace().ObjectID || helper.Name != name || helper.Signature != signature {
+		ext, ok := view.Extension(proc.Extension)
+		if !ok || helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper.Namespace != ext.TargetNamespace.ObjectID || helper.Name != name || helper.Signature != signature {
 			return invalid()
 		}
 		if _, builtin := catalog.BuiltinRoutineIdentityByOID(helper.ID); builtin {
@@ -46,14 +47,14 @@ func validateOwnedAggregate(view catalog.Read, proc *catalog.Procedure) error {
 				}
 			}
 		}
-		if view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: proc.Namespace(), Name: helper.Name, Signature: string(helper.Signature)}) != (ids.ObjectAddress{}) {
+		if view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.Namespace}, Name: helper.Name, Signature: string(helper.Signature)}) != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 	}
 	return nil
 }
 
-func remapOwnedAggregate(owned *catalog.OwnedAggregate, owner, namespace ids.ObjectAddress, mapping map[ids.ObjectAddress]ids.ObjectAddress) *catalog.OwnedAggregate {
+func remapOwnedAggregate(owned *catalog.OwnedAggregate, owner ids.ObjectAddress, mapping map[ids.ObjectAddress]ids.ObjectAddress) *catalog.OwnedAggregate {
 	if owned == nil {
 		return nil
 	}
@@ -63,7 +64,9 @@ func remapOwnedAggregate(owned *catalog.OwnedAggregate, owner, namespace ids.Obj
 		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}]; ok {
 			helper.ID = destination.ObjectID
 		}
-		helper.Namespace = namespace.ObjectID
+		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.Namespace}]; ok {
+			helper.Namespace = destination.ObjectID
+		}
 		n.Helpers[i] = helper
 	}
 	n.Definition.Functions[0], n.Definition.Functions[1] = n.Helpers[0].ID, n.Helpers[1].ID

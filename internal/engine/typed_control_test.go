@@ -45,7 +45,7 @@ func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 	state, oid, revision, stored := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.storage.Relations[table.Address()]
 	next := catalog.CloneState(New().catalog.state)
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, nil)
 	e.mu.Unlock()
 	if err == nil || err.Error() != typedef.TemporaryTypedReplacementError {
 		t.Fatal(err)
@@ -67,10 +67,11 @@ func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	e.mu.Lock()
 	e.storage.InstallRelationLocked(table.Address(), &storage.Relation{})
 	e.mu.Unlock()
-	next := catalog.CloneState(New().catalog.state)
+	imported := New()
+	next := catalog.CloneState(imported.catalog.state)
 	relations := map[ids.ObjectAddress]*storage.Relation{}
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(imported, e))
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

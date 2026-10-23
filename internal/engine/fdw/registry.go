@@ -63,6 +63,7 @@ func ValidateValidator(def ValidatorDefinition) (ValidatorDefinition, error) {
 type Registry struct {
 	wrappers    []WrapperDefinition
 	validators  []ValidatorDefinition
+	procedures  []*catalog.ForeignProcedure  // Immutable installation tokens, in definition order.
 	namespaces  map[ids.ObjectAddress]string // Immutable auto-installed namespace identities.
 	importValue exec.ForeignValueImporter
 	exportValue exec.ForeignValueExporter
@@ -74,12 +75,31 @@ func (r *Registry) Install(wrappers []WrapperDefinition, validators []ValidatorD
 	r.exportValue = exporter
 	r.wrappers = append([]WrapperDefinition(nil), wrappers...)
 	r.validators = append([]ValidatorDefinition(nil), validators...)
+	r.procedures = make([]*catalog.ForeignProcedure, 0, len(wrappers)+len(validators))
+	for _, definition := range wrappers {
+		r.procedures = append(r.procedures, &catalog.ForeignProcedure{Name: definition.HandlerName, Wrapper: definition.Wrapper})
+	}
+	for _, definition := range validators {
+		r.procedures = append(r.procedures, &catalog.ForeignProcedure{Name: definition.Name, Validator: definition.Validate})
+	}
 }
 
 // Definitions returns the installed definitions in InstallForeignDefinitions'
 // argument order, for re-installing them into a fresh Engine.
 func (r *Registry) Definitions() ([]WrapperDefinition, []ValidatorDefinition, exec.ForeignValueImporter, exec.ForeignValueExporter) {
 	return r.wrappers, r.validators, r.importValue, r.exportValue
+}
+
+// ProcedureTokens yields the destination installation's immutable capabilities.
+// Catalog DROP retires a SQL declaration, not these driver registrations.
+func (r *Registry) ProcedureTokens() iter.Seq[*catalog.ForeignProcedure] {
+	return func(yield func(*catalog.ForeignProcedure) bool) {
+		for _, procedure := range r.procedures {
+			if !yield(procedure) {
+				return
+			}
+		}
+	}
 }
 
 // AddNamespace records a namespace that installation created. It runs only

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -36,16 +37,20 @@ func routineCaptureFixture(t *testing.T) (catalog.Read, *catalog.Relation, *sqlt
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 901}, ObjectNamespace: ns.Address(), ObjectName: "target", ObjectRevision: 1, Columns: []catalog.Column{{Name: "v", Usage: integer.Usage()}}, Attributes: []int32{1}}
 	state.SetDescriptor(ns.Address(), ns)
 	state.SetDescriptor(relation.Address(), relation)
-	return catalog.NewRead(&catalog.Owner{Domain: new(ids.Domain)}, state), relation, integer, boolean
+	return catalog.NewRead(&catalog.Owner{Domain: new(ids.Domain), Principals: new(authorization.Domain)}, state), relation, integer, boolean
 }
 
 func routineLiteralAction(t *testing.T, typ *sqltype.Descriptor) RuleAction {
+	return routineValueAction(t, typ, 1)
+}
+
+func routineValueAction(t *testing.T, typ *sqltype.Descriptor, number int64) RuleAction {
 	t.Helper()
-	value, err := sqltype.Integer(typ, 1)
+	value, err := sqltype.Integer(typ, number)
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}
+	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: number}}
 	syntax := &parser.Select{Targets: []parser.Expr{raw}}
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 	root := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: typ.Usage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{literal}, Syntax: syntax, Frame: 1}
@@ -121,7 +126,7 @@ func TestRoutineProgramCaptureValidation(t *testing.T) {
 			if err := p.Validate(read); err == nil {
 				t.Fatal("corrupt whole-program dependency set admitted")
 			}
-			if _, err := p.Rebind(read, nil); err == nil {
+			if _, err := p.Rebind(read, nil, NewRoutineRemap(read, nil, nil, nil, false)); err == nil {
 				t.Fatal("corrupt dependency set published by replacement")
 			}
 		})
@@ -178,6 +183,7 @@ func routineMergeCaptureFixture(t *testing.T) (catalog.Read, *RoutineProgram, *c
 	t.Helper()
 	read, relation, integer, boolean := routineCaptureFixture(t)
 	callee := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 902}, ObjectNamespace: relation.Namespace(), ObjectRevision: 1, ObjectName: "dormant", RoutineKind: catalog.FunctionRoutine, Result: ids.OID(integer.ID()), Volatility: expr.Volatile, SQL: &proc.Definition{Result: integer.Usage(), Source: "SELECT 1"}}
+	callee.Owner = read.Owner().Principals.Principal(10)
 	read.State().SetDescriptor(callee.Address(), callee)
 	ref := read.Owner().Domain.Ref(read.Epoch(), callee.Address())
 	call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: callee, Property: expr.Properties{Volatility: expr.Volatile}}, Ref: ref, Procedure: callee}
@@ -239,7 +245,7 @@ func TestRoutineMergeCaptureValidation(t *testing.T) {
 			if _, err := p.StatementSQL(context.Background(), read, 0); err == nil {
 				t.Fatal("unexecuted-arm corrupt capture rendered")
 			}
-			if _, err := p.Rebind(read, nil); err == nil {
+			if _, err := p.Rebind(read, nil, NewRoutineRemap(read, nil, nil, nil, false)); err == nil {
 				t.Fatal("unexecuted-arm corrupt capture published by replacement")
 			}
 		})
@@ -249,13 +255,14 @@ func TestRoutineMergeCaptureValidation(t *testing.T) {
 		copy := *callee
 		copy.ObjectAddress.ObjectID = 903
 		read.State().SetDescriptor(copy.Address(), &copy)
-		rebound, err := p.Rebind(read, map[ids.ObjectAddress]ids.ObjectAddress{callee.Address(): copy.Address()})
+		mapping := map[ids.ObjectAddress]ids.ObjectAddress{callee.Address(): copy.Address()}
+		rebound, err := p.Rebind(read, mapping, NewRoutineRemap(read, mapping, nil, nil, false))
 		if err != nil {
 			t.Fatal(err)
 		}
 		next := rebound.(*RoutineProgram)
 		call := next.Action(0).Binding().Merge.Arms[0].Input.Update.Assignments[0].(plan.SQLRoutineExpr)
-		if call.Ref.Address != copy.Address() || call.Procedure != &copy {
+		if call.Ref.Address != copy.Address() || call.Procedure.Address() != copy.Address() || call.Procedure.SQL != callee.SQL || call.Procedure.Revision() != callee.Revision() {
 			t.Fatal("unexecuted-arm selected callee not remapped", call.Ref)
 		}
 		original := p.Action(0).Binding().Merge.Arms[0].Input.Update.Assignments[0].(plan.SQLRoutineExpr)

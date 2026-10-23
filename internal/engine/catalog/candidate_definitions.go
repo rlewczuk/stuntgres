@@ -110,3 +110,23 @@ func (r CandidateDefinitions) HasDynamicProcedureName(name string) bool {
 	}
 	return count > 0
 }
+
+// HasProviderProcedureOverride preserves published vacated-name tombstones and
+// the live provider relabels that State will apply to the derived name index.
+// It reads only candidate deltas, never materializing or mutating either root.
+func (r CandidateDefinitions) HasProviderProcedureOverride(name string) bool {
+	if r.candidate.Base.State().HasProviderProcedureOverride(name) {
+		return true
+	}
+	for address, descriptor := range r.candidate.Descriptors() {
+		if _, removed := r.candidate.Removal(address); removed {
+			continue
+		}
+		current, ok := descriptor.(*Procedure)
+		original, existed := r.candidate.Base.Procedure(address)
+		if ok && existed && providerProcedureRelabeled(original, current) && (original.Name() == name || current.Name() == name) {
+			return true
+		}
+	}
+	return false
+}

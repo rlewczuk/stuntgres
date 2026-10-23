@@ -275,7 +275,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 				return ref
 			}
 			return source
-		}, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+		}, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -13,6 +14,17 @@ import (
 )
 
 func ValidateInstalledCube(n plan.InstalledCubeExpr, view catalog.Read) error {
+	captured, err := exec.ExpressionRoutineDescriptor(n)
+	if err != nil {
+		return err
+	}
+	if captured == nil || captured != n.Procedure {
+		return fmt.Errorf("stuntgres: invalid stored cube identity")
+	}
+	proc, symbol, err := currentInstalledProcedure(view, n.Ref, captured)
+	if err != nil {
+		return err
+	}
 	if err := n.Validate(); err != nil {
 		return err
 	}
@@ -26,8 +38,7 @@ func ValidateInstalledCube(n plan.InstalledCubeExpr, view catalog.Read) error {
 	if !ok || result != n.ResultUsage().Type {
 		return fmt.Errorf("stuntgres: foreign stored cube result generation")
 	}
-	proc, ok := view.Procedure(n.Ref.Address)
-	if !ok || proc != n.Procedure || extension.CubeProviderOf(proc) != extension.StockCube || proc.Name() != n.Name() || string(proc.Signature) != n.Signature() || proc.Result != ids.OID(n.ResultUsage().Type.ID()) {
+	if extension.CubeProviderOf(proc) != extension.StockCube || symbol != n.Name() || string(proc.Signature) != n.Signature() || proc.Result != ids.OID(n.ResultUsage().Type.ID()) {
 		return fmt.Errorf("stuntgres: invalid stored cube identity")
 	}
 	ext, ok := view.Extension(proc.Extension)

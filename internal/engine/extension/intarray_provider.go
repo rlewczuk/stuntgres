@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -29,6 +28,9 @@ func QueryIntSignature(id sqltype.ID) catalog.ProcedureSignature {
 
 func (p *IntarrayProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intarray manifest") }
+	if !currentManifest(v, ext) {
+		return invalid()
+	}
 	if p != StockIntarray || ext.Name() != "intarray" || ext.Version != p.control.Version || len(ext.Members) != 3 {
 		return invalid()
 	}
@@ -46,23 +48,22 @@ func (p *IntarrayProvider) ValidateExtension(v catalog.Read, ext *catalog.Extens
 	if err := validateRegisteredType(v, array); err != nil {
 		return err
 	}
-	for i, address := range ext.Members[1:] {
+	for _, address := range ext.Members[1:] {
 		proc, ok := v.Procedure(address)
-		if !ok || proc.Address() != address || IntarrayProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
+		if !ok {
 			return invalid()
 		}
-		name, signature, result := "bqarr_in", catalog.ProcedureSignature("2275"), ids.OID(base.SQLType.ID())
-		if i == 1 {
-			name, signature, result = "bqarr_out", QueryIntSignature(base.SQLType.ID()), 2275
-		}
-		if proc.Name() != name || proc.Signature != signature || proc.Result != result || !proc.Strict || proc.Volatility != expr.Immutable || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) {
-			return invalid()
+		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
 func (p *IntarrayProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
+	if _, err := ProcedureSymbol(v, proc); err != nil {
+		return err
+	}
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing intarray codec installation")

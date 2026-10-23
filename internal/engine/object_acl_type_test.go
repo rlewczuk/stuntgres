@@ -116,7 +116,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("owner remap lost raw absence", d)
 	}
 	other := New()
-	remapped, err := other.remapPreparedCatalog(catalog.CloneState(view.State()), e.roles.published.Root.Read(authorization.PrincipalRef{}), other.roles.published.Root.Read(authorization.PrincipalRef{}), nil)
+	remapped, _, err := other.remapPreparedCatalog(catalog.CloneState(view.State()), e.roles.published.Root.Read(authorization.PrincipalRef{}), other.roles.published.Root.Read(authorization.PrincipalRef{}), nil)
 	if err != nil {
 		t.Fatal("principal remap", err)
 	}

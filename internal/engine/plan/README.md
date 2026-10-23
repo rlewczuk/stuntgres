@@ -29,6 +29,13 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   `CycleRecipe`, `CTEDefinition`, `CTEMutation`, `FunctionCorrelation`,
   `SetTemplate`, `SetStep`, `SetStepKind`, `SetSlot`, `RowMark` and
   `SQLJSONArrayQuery`.
+  Aggregate calls and independently admitted aliases retain opaque defining
+  recipe identity; windows carry it on their original occurrence's `Info`.
+  The token separates graft ancestry, not catalog permission or execution.
+  Query `Grouping` keys and window peer `SortKey`s retain their selected original
+  equality declaration beside its reference and defining recipe in the existing
+  key allocation. This proof is independent of a substituted key expression.
+  Private semantic-tree groupings retain no callable declaration or recipe.
 - **Expression nodes** (`expression*.go`, `assignment_value.go`, the `series_*`,
   `subscripts_*` and `unnest_*` files): the `XxxExpr` types (`LiteralExpr`,
   `ColumnExpr`, `ParameterExpr`, `CoercionExpr`, `CaseExpr`, `RowExpr`,

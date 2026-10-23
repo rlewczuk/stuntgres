@@ -47,13 +47,12 @@ func (e *Engine) InstallForeignDefinitions(wrappers []fdw.WrapperDefinition, val
 		e.catalog.state.BindName(key, d.Address())
 		return nil
 	}
-	for _, def := range wrappers {
-		if err := install(def.HandlerName, &catalog.ForeignProcedure{Name: def.HandlerName, Wrapper: def.Wrapper}, 3115, catalog.ForeignHandlerSignature); err != nil {
-			return err
+	for token := range e.foreign.ProcedureTokens() {
+		result, signature := ids.OID(2278), catalog.ForeignValidatorSignature
+		if token.Wrapper != nil {
+			result, signature = 3115, catalog.ForeignHandlerSignature
 		}
-	}
-	for _, def := range validators {
-		if err := install(def.Name, &catalog.ForeignProcedure{Name: def.Name, Validator: def.Validate}, 2278, catalog.ForeignValidatorSignature); err != nil {
+		if err := install(token.Name, token, result, signature); err != nil {
 			return err
 		}
 	}

@@ -651,7 +651,12 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				b.Consumer.CatalogSnapshot = b.Consumer.CatalogSnapshot || demand
 			}
 			if r.Window != nil {
-				return nil, expr.ErrorAt("42809", "OVER specified, but "+catalog.ObjectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
+				// Live catalog selection can rebind ordinary FunctionExpr
+				// syntax to a window provider through its immutable symbol.
+				// Keep that bound shape; scalar providers still reject OVER.
+				if _, window := node.(*plan.WindowExpr); !window {
+					return nil, expr.ErrorAt("42809", "OVER specified, but "+catalog.ObjectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
+				}
 			}
 		case parser.CallExpr:
 			var err error
@@ -1786,7 +1791,7 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 			if err != nil {
 				return nil, err
 			}
-			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: request.TypeNameCallPosition}] = parser.CastExpr{
+			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: request.TypeNameCallPosition, Input: argument.Raw.SourcePosition()}] = parser.CastExpr{
 				Child: argument.Raw,
 				TypeName: parser.TypeName{
 					Name: target.Name(), Schema: &parser.Identifier{Text: schema}, Pos: request.TypeNameCallPosition,

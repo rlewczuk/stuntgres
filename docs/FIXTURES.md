@@ -76,3 +76,28 @@ target's contents; it never merges. Empty input clears all user relations.
   target Driver (see [DRIVER.md](DRIVER.md#foreign-data-wrappers)).
 - Commit timestamp history is cleared by Reset and Restore; the startup
   `track_commit_timestamp` mode is kept.
+
+## Routine identity replay
+
+Routine rename/schema/owner changes preserve hard captured identities. Owned
+SQL declarations render current qualified names and owners, actual body forms
+and checked dependencies, never evaluated results, frames or granted authority.
+Quoted source remains soft/original; standard bodies retain checked identities.
+Changed released/installed providers emit genuine ALTER FUNCTION after required
+schema/extension creation and before dependent definitions. Free destination
+keys move first; cycles or blocked intermediate keys may need a checked
+temporary name. Stable extension slots plus validated current schema/name/signature
+identify owner records, not a mutable member name in the extension target schema.
+
+Provider-only streams need no SQL-body replay directive. Restore rebuilds
+canonical destination providers before changes, remaps checked captures and
+retains destination-configured foreign capabilities. Unchanged provider streams
+remain unchanged. Roles are destination prerequisites; Reset preserves them.
+Explicit SQL-routine/aggregate ACL serialization still fails before output,
+rather than dropping grants. Read errors, cancellation or late invalid
+identity/owner replay publish nothing.
+
+The [shared routine ALTER proof](../reference/query_core/README.md#routine-alter-proof)
+checks repeated native replay, a fresh independent Driver, retained results and
+the actual emitted SQL on pinned PostgreSQL. These controls are native logical
+replacement, not PostgreSQL physical persistence.

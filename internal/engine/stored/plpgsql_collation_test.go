@@ -64,7 +64,7 @@ func plpgsqlLocalUsageFixture(t *testing.T) (catalog.Read, *catalog.Procedure, [
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 98000}, ObjectNamespace: relation.Namespace(), ObjectRevision: 1, ObjectName: definition.Name, Result: ids.OID(integer.ID()), SQL: definition}
+	source := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 98000}, ObjectNamespace: relation.Namespace(), ObjectRevision: 1, ObjectName: definition.Name, Owner: read.Owner().Principals.Principal(10), Result: ids.OID(integer.ID()), SQL: definition}
 	read.State().SetDescriptor(source.Address(), source)
 	read.State().BindName(catalog.DescriptorNameKey(source), source.Address())
 	return read, source, types, collations
@@ -93,7 +93,22 @@ func TestPLpgSQLLocalUsageReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := routine.RebindSQLDefinitions(read, read.State(), mapping, typedef.RemappedCollationCapabilities(read.State(), mapping)); err != nil {
+			typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+				if old == nil {
+					return nil
+				}
+				address, changed := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}]
+				if !changed {
+					return old
+				}
+				target, ok := read.Type(address)
+				if !ok {
+					return nil
+				}
+				return target.SQLType
+			}
+			remap := NewRoutineRemap(read, mapping, typ, nil, false)
+			if err := routine.RebindSQLDefinitions(read.State(), remap); err != nil {
 				t.Fatal(err)
 			}
 			next, ok := read.Procedure(source.Address())
@@ -103,7 +118,7 @@ func TestPLpgSQLLocalUsageReplacement(t *testing.T) {
 			if got := next.SQL.PL.Variables[0].Usage; got != want {
 				t.Fatalf("local Usage after replacement %#v, want %#v", got, want)
 			}
-			if next.SQL == source.SQL || next.SQL.PL == source.SQL.PL || source.SQL.PL.Variables[0].Usage != original || next.SQL.PL.Variables[0].Usage.Collation.CaseMode() != original.Collation.CaseMode() {
+			if source.SQL.PL.Variables[0].Usage != original || next.SQL.PL.Variables[0].Usage.Collation.CaseMode() != original.Collation.CaseMode() {
 				t.Fatal("replacement mutated source/shared program or changed collation execution semantics")
 			}
 		})
@@ -111,7 +126,8 @@ func TestPLpgSQLLocalUsageReplacement(t *testing.T) {
 	t.Run("incompatible_collation", func(t *testing.T) {
 		read, source, _, collations := plpgsqlLocalUsageFixture(t)
 		mapping := map[ids.ObjectAddress]ids.ObjectAddress{collations[0].Address(): {ClassID: ids.CollationClassID, ObjectID: 950}}
-		if err := routine.RebindSQLDefinitions(read, read.State(), mapping, typedef.RemappedCollationCapabilities(read.State(), mapping)); err == nil {
+		remap := NewRoutineRemap(read, mapping, func(old *sqltype.Descriptor) *sqltype.Descriptor { return old }, nil, false)
+		if err := routine.RebindSQLDefinitions(read.State(), remap); err == nil {
 			t.Fatal("incompatible real collation provider accepted")
 		}
 		if current, ok := read.Procedure(source.Address()); !ok || current != source {

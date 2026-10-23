@@ -461,7 +461,7 @@ package parser
 %type <element> typed_element
 %type <stmt> create_collation alter_collation drop_collation
 %type <stmt> create_conversion alter_conversion drop_conversion
-%type <stmt> create_function create_aggregate drop_routine
+%type <stmt> create_function create_aggregate drop_routine alter_routine
 %type <stmt> create_language
 %type <createLanguage> language_head language_flags
 %type <objectName> language_inline language_validator
@@ -862,7 +862,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
  | alter_operator | drop_operator
- | drop_routine
+ | drop_routine | alter_routine
  | create_cast | drop_cast
  | alter_operator_family | drop_operator_family
  | alter_operator_class | drop_operator_class
@@ -1663,6 +1663,9 @@ drop_operator: DROP OPERATOR operator_signatures drop_mode {$$=&DropOperator{Sig
  | DROP OPERATOR IF EXISTS operator_signatures drop_mode {$$=&DropOperator{Signatures:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 drop_routine: DROP grant_routine_kind grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($3),Mode:$4,Pos:$1.pos}}
  | DROP grant_routine_kind IF EXISTS grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($5),IfExists:true,Mode:$6,Pos:$1.pos}} ;
+alter_routine: ALTER grant_routine_kind grant_routine RENAME TO name {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"rename",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER grant_routine_kind grant_routine SET SCHEMA name {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"schema",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER grant_routine_kind grant_routine OWNER TO schema_owner {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"owner",Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}} ;
 method_word: KW_U {if $1.text!="method" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 access_method_kind: INDEX {$$=$1} | TABLE {$$=$1} ;
 create_access_method: CREATE ACCESS method_word name TYPE access_method_kind FDW_HANDLER relation_name {$$=&CreateAccessMethod{Name:Identifier{Text:$4.text,Pos:$4.pos},MethodKind:$6.text,Handler:$8,Pos:$1.pos}} ;

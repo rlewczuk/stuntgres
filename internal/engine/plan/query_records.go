@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -179,11 +180,13 @@ func (c *CycleRecipe) Augment(ctx context.Context, row []sqltype.Value, parent s
 // consumers and index support keep ordinary sqltype.Grouping.
 type Grouping struct {
 	sqltype.Grouping
-	Routine     ids.ObjectRef
-	PrivateTree bool
-	Conversion  sqltype.CoercionPlan
-	Converted   sqltype.Grouping
-	Convert     bool
+	Routine       ids.ObjectRef
+	Procedure     *catalog.Procedure
+	RoutineRecipe expr.RoutineRecipeReference // Exact original query-owned occurrence when grafted.
+	PrivateTree   bool
+	Conversion    sqltype.CoercionPlan
+	Converted     sqltype.Grouping
+	Convert       bool
 }
 
 func (g Grouping) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {

@@ -83,6 +83,7 @@ func TestVersionInformationRemap(t *testing.T) {
 	ctx := context.Background()
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
+	mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(source, target)}
 	for _, kind := range []functions.VersionInformationKind{functions.VersionInformationServer, functions.VersionInformationUnicode, functions.VersionInformationICU} {
 		leaf := versionInformationUnitLeaf(t, b, kind)
 		retagged, changed, err := stored.RetagTypes(target.CatalogRead(), leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {
@@ -92,6 +93,11 @@ func TestVersionInformationRemap(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
+		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{retagged}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		retagged = query.(*plan.ValuesNode).Rows[0][0]
 		remapped, err := stored.RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { t.Fatal("leaf invented row dependency", ref); return ref }, nil)
 		if err != nil {
 			t.Fatal(err)

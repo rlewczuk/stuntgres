@@ -203,7 +203,7 @@ func TestReferenceIntaggControls(t *testing.T) {
 
 func intaggRestoreFailures(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, dump string, checks []fixture.Step, held func()) {
 	t.Helper()
-	const prefix = "-- stuntgres-extension-owners-v1 "
+	const prefix = "-- stuntgres-extension-owners-v2 "
 	start := strings.Index(dump, prefix)
 	if start < 0 {
 		t.Fatal("missing extension owners")

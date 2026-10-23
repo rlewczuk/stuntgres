@@ -22,7 +22,7 @@ func NamespaceChildren(base Read, namespaces map[ids.ObjectAddress]bool) ([]ids.
 			selected[address] = true
 			for _, member := range ext.Members {
 				d := base.Get(member)
-				if d == nil || d.Namespace() != ext.TargetNamespace || ExtensionMembership(d) != address {
+				if d == nil || ExtensionMembership(d) != address {
 					return nil, fmt.Errorf("stuntgres: invalid namespace extension membership")
 				}
 				selected[member] = true

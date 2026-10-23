@@ -269,7 +269,7 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		}
 		for i, call := range n.Calls {
 			other := o.Calls[i]
-			if call.Operation != other.Operation || !same(call.Argument, other.Argument) || !same(call.Ordinal, other.Ordinal) || !same(call.DefaultValue, other.DefaultValue) || !same(call.Expression, other.Expression) || !c.window(b, call.Spec, other.Spec) {
+			if call.Routine != other.Routine || !plan.SameIntaggIdentity(call.Procedure, call.Routine, other.Procedure, other.Routine) || call.Operation != other.Operation || !same(call.Argument, other.Argument) || !same(call.Ordinal, other.Ordinal) || !same(call.DefaultValue, other.DefaultValue) || !same(call.Expression, other.Expression) || !c.window(b, call.Spec, other.Spec) {
 				return false
 			}
 		}

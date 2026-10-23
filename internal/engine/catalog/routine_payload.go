@@ -4,6 +4,8 @@ import (
 	"context"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/sqltype"
 )
 
 // RoutineProgram is a checked immutable SQL-standard body. Implementations live
@@ -14,7 +16,7 @@ type RoutineProgram interface {
 	Dependencies() []ExpressionDependency
 	ValidateDefinition(*Procedure) error
 	Validate(Read) error
-	Rebind(Read, map[ids.ObjectAddress]ids.ObjectAddress) (RoutineProgram, error)
+	Rebind(Read, map[ids.ObjectAddress]ids.ObjectAddress, *RoutineRemap) (RoutineProgram, error)
 }
 
 // RoutineDefaults is the checked declaration recipe, distinct from a body.
@@ -25,5 +27,18 @@ type RoutineDefaults interface {
 	DefaultSQL(context.Context, Read, int) (string, error)
 	ValidateDefinition(*Procedure) error
 	Validate(Read) error
-	Rebind(Read, map[ids.ObjectAddress]ids.ObjectAddress) (RoutineDefaults, error)
+	Rebind(Read, map[ids.ObjectAddress]ids.ObjectAddress, *RoutineRemap) (RoutineDefaults, error)
+}
+
+// RoutineRemap is one private replacement's original-payload mapping. The
+// callbacks share immutable payload identities between declarations and captures.
+type RoutineRemap struct {
+	Type         func(*sqltype.Descriptor) *sqltype.Descriptor
+	Collation    func(sqltype.CollationRef) (sqltype.CollationRef, error)
+	Procedure    ProcedureRemapper
+	Definition   func(*proc.Definition) (*proc.Definition, error)
+	Body         func(RoutineProgram) (RoutineProgram, error)
+	Defaults     func(RoutineDefaults) (RoutineDefaults, error)
+	Finish       func() error
+	Declarations func() error
 }

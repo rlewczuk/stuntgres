@@ -95,9 +95,10 @@ type EvalStatement struct {
 // zero. Recipe-owned manifests are borrowed only by a local admission copy and
 // never replace the live scope's authority or another recipe's owner.
 type EvalAdmission struct {
-	RoutineAuthority   AdmissionAuthority // Borrowed local serial DDL admission only; never retained.
-	RoutineRecipe      bool               // Distinguishes an empty owning manifest from the statement manifest.
-	RoutineGraft       bool               // Local ancestry phase only; nil user nodes resume the statement manifest.
+	RoutineAuthority   AdmissionAuthority          // Borrowed local serial DDL admission only; never retained.
+	RoutineRecipe      bool                        // Distinguishes an empty owning manifest from the statement manifest.
+	RoutineGraft       bool                        // Local ancestry phase only; nil user nodes resume the statement manifest.
+	RoutineGraftSource expr.RoutineRecipeReference // Exact view or rule-action ancestry; never a permission cache.
 	RoutineChecks      []catalog.ExpressionDependency
 	RoutineReferences  []ids.ObjectRef
 	RoutineConsumer    *catalog.Relation

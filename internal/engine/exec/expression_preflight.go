@@ -42,7 +42,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 	if err != nil {
 		return nil, false, err
 	}
-	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
+	if recipe != nil && (!c.RoutineGraft || c.RoutineGraftSource != recipe) || recipe == nil && c.RoutineGraft {
 		parent := c
 		local := *c
 		if err := SelectExpressionRecipe(&local, recipe); err != nil {

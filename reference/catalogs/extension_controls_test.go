@@ -27,12 +27,12 @@ func extensionControlsFailures(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	if again := extensionDump(t, p.Ctx, p.Native); again != dump {
 		t.Fatal("redump changed installed symbolic identities")
 	}
-	start := strings.Index(dump, "-- stuntgres-extension-owners-v1 ")
+	start := strings.Index(dump, "-- stuntgres-extension-owners-v2 ")
 	if start < 0 {
 		t.Fatal("missing owner metadata")
 	}
 	end := start + strings.Index(dump[start:], "\n")
-	payload := strings.TrimPrefix(dump[start:end], "-- stuntgres-extension-owners-v1 ")
+	payload := strings.TrimPrefix(dump[start:end], "-- stuntgres-extension-owners-v2 ")
 	data, err := base64.StdEncoding.DecodeString(payload)
 	if err != nil {
 		t.Fatal(err)
@@ -51,11 +51,11 @@ func extensionControlsFailures(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 		if err != nil {
 			t.Fatal(err)
 		}
-		return dump[:start] + "-- stuntgres-extension-owners-v1 " + base64.StdEncoding.EncodeToString(b) + dump[end:]
+		return dump[:start] + "-- stuntgres-extension-owners-v2 " + base64.StdEncoding.EncodeToString(b) + dump[end:]
 	}
 	for _, script := range []string{
-		strings.Replace(dump, "stuntgres-extension-owners-v1", "stuntgres-extension-owners-v2", 1),
-		dump[:start] + "-- stuntgres-extension-owners-v1 !!!!" + dump[end:],
+		strings.Replace(dump, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1),
+		dump[:start] + "-- stuntgres-extension-owners-v2 !!!!" + dump[end:],
 		mutate("owner", "ext_missing_owner"), mutate("schema", "wrong_namespace"), mutate("version", "missing"), mutate("members", []any{}),
 		dump + dump[start:end] + "\n", "CREATE EXTENSION nonexistent_provider;",
 	} {

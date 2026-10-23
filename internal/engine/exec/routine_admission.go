@@ -17,36 +17,53 @@ import (
 // descriptor identifies the declaration; neither its ACL nor its address alone
 // supplies authority. Admission borrows the immutable manifest without copying.
 func AdmitRoutineDescriptor(auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation) error {
-	current, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured)
+	return admitRoutineDescriptor(auth, dependencies, captured, consumer, false)
+}
+
+// A hard stored recipe proves its original manifest and immutable declaration.
+// Mutable name/schema/owner revisions do not reinterpret that captured call.
+// Original-source binding keeps its existing current-revision fence.
+func admitRoutineDescriptor(auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation, followIdentity bool) error {
+	ref, err := routineDescriptorLifetime(auth, dependencies, captured, consumer, followIdentity)
 	if err != nil {
 		return err
+	}
+	return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege})
+}
+
+// Lifetime validation is independent of invocation demand. A strict NULL call
+// can avoid EXECUTE, but cannot rehabilitate a stale direct-analysis graph.
+func routineDescriptorLifetime(auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation, followIdentity bool) (ids.ObjectRef, error) {
+	current, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured)
+	if err != nil {
+		return ids.ObjectRef{}, err
 	}
 	for _, dependency := range dependencies {
 		if dependency.Ref.Address != captured.Address() {
 			continue
 		}
 		if dependency.Revision != captured.Revision() {
-			return fmt.Errorf("stuntgres: mismatched routine lifetime manifest")
+			return ids.ObjectRef{}, fmt.Errorf("stuntgres: mismatched routine lifetime manifest")
 		}
 		ref := dependency.Ref
 		if consumer != nil {
 			if !preparation.StoredReferenceValid(auth.Catalog, consumer, ref) {
-				return ids.ErrCatalogReplaced
+				return ids.ObjectRef{}, ids.ErrCatalogReplaced
 			}
 			ref.Epoch = auth.Catalog.Epoch()
 		}
 		if ref.Epoch != auth.Catalog.Epoch() {
-			return ids.ErrCatalogReplaced
+			return ids.ObjectRef{}, ids.ErrCatalogReplaced
 		}
 		if _, err := auth.Object(ref); err != nil {
-			return err
+			return ids.ObjectRef{}, err
 		}
-		if current.Revision() != dependency.Revision {
-			return catalog.Conflict{}
+		if !followIdentity && current.Revision() != dependency.Revision {
+			return ids.ObjectRef{}, catalog.Conflict{}
 		}
-		return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege})
+		return ref, nil
 	}
-	return fmt.Errorf("stuntgres: missing routine lifetime manifest")
+	return ids.ObjectRef{}, fmt.Errorf("stuntgres: missing routine lifetime manifest")
 }
 
 // Called during serial planning admission, never by per-row Eval. Retset calls
@@ -57,7 +74,7 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	if recipeErr != nil {
 		return recipeErr
 	}
-	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
+	if recipe != nil && (!c.RoutineGraft || c.RoutineGraftSource != recipe) || recipe == nil && c.RoutineGraft {
 		local := *c
 		if err := SelectExpressionRecipe(&local, recipe); err != nil {
 			return err
@@ -114,6 +131,10 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 			}
 		})
 		if null {
+			if c.RoutineChecks == nil && c.RoutineReferences == nil && !c.RoutineRecipe {
+				_, err := routineDescriptorLifetime(auth, dependencies, captured, nil, false)
+				return err
+			}
 			return nil
 		}
 	}
@@ -149,7 +170,7 @@ func AdmitRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies [
 
 func CheckRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
 	if c.RoutineChecks != nil {
-		return AdmitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer)
+		return admitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer, true)
 	}
 	if c.RoutineReferences != nil {
 		if _, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
@@ -198,10 +219,10 @@ func RoutineAdmissionAuthority(c *Context) (RoutineAccess, []catalog.ExpressionD
 	return auth, dependencies, nil
 }
 
-// Aggregate/window carriers already contain the actual provenance-bearing ref.
-// Their admission is once per executable graph occurrence, including empty
-// inputs, and is independent of any comparator or aggregate support function.
-func AdmitRoutineReference(c *Context, ref ids.ObjectRef, noun string) error {
+// Aggregate/window carriers contain their original ref. Where they also retain
+// the original descriptor, hard recipes can follow a checked immutable
+// declaration across mutable revisions. Ref-only and source lanes stay strict.
+func AdmitRoutineReference(c *Context, ref ids.ObjectRef, captured *catalog.Procedure, noun string) error {
 	auth, dependencies, err := RoutineAdmissionAuthority(c)
 	if err != nil || !auth.Live() {
 		return err
@@ -226,7 +247,15 @@ func AdmitRoutineReference(c *Context, ref ids.ObjectRef, noun string) error {
 		if err != nil {
 			return err
 		}
-		if d.Revision() != dependency.Revision {
+		if captured != nil {
+			if captured.Address() != ref.Address || captured.Revision() != dependency.Revision {
+				return fmt.Errorf("stuntgres: mismatched callable lifetime manifest")
+			}
+			if _, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
+				return err
+			}
+		}
+		if d.Revision() != dependency.Revision && (captured == nil || c.RoutineChecks == nil && c.RoutineReferences == nil) {
 			return catalog.Conflict{}
 		}
 		rights, err := auth.Effective(ref, false)
@@ -260,26 +289,51 @@ func EvaluatePlanningExpression(c *Context, node expr.Expr) (sqltype.Value, erro
 
 // Only evaluator-local stack copies select graft ancestry. A user replacement
 // cannot inherit the enclosing stored node's manifest or relation owner.
-func SelectExpressionRecipe(c *Context, recipe *catalog.Relation) error {
-	c.RoutineGraft = recipe != nil
-	c.RoutineRecipe = recipe != nil
+func SelectExpressionRecipe(c *Context, reference expr.RoutineRecipeReference) error {
+	c.RoutineGraft = reference != nil
+	c.RoutineGraftSource = reference
+	c.RoutineRecipe = reference != nil
 	c.RoutineReferences = nil
 	c.RoutineChecks = nil
-	c.RoutineConsumer = recipe
-	if recipe == nil {
+	c.RoutineConsumer = nil
+	if reference == nil {
 		return nil
+	}
+	owner, presentation, err := routineRecipeParts(reference)
+	if err != nil {
+		return err
 	}
 	auth, _, err := RoutineAdmissionAuthority(c)
 	if err != nil {
 		return err
 	}
+	if _, rule := reference.(*catalog.RuleRoutineRecipe); rule && !auth.Live() {
+		return ids.ErrCatalogReplaced
+	}
 	if auth.Live() {
-		current, ok := auth.Catalog.Relation(recipe.Address())
-		if !ok || current.View != recipe.View || recipe.Owner.ID() == 0 || recipe.Owner != auth.Owner.Principals.Principal(recipe.Owner.ID()) {
+		current, ok := auth.Catalog.Relation(owner.Address())
+		if !ok || owner.Owner.ID() == 0 || auth.Roles.ValidatePrincipal(owner.Owner) != nil {
 			return ids.ErrCatalogReplaced
 		}
+		switch recipe := reference.(type) {
+		case *catalog.Relation:
+			if current.View != presentation {
+				return ids.ErrCatalogReplaced
+			}
+		case *catalog.RuleRoutineRecipe:
+			if current.Rules == nil || current.Rules.RoutineRecipe(recipe.Rule, recipe.Action) != presentation {
+				return ids.ErrCatalogReplaced
+			}
+			if consumer, temporary := presentation.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) || temporary != (ids.SessionToken{}) {
+				namespace, ok := auth.Catalog.Namespace(current.Namespace())
+				if !ok || consumer != current.Address() || temporary == (ids.SessionToken{}) || temporary != namespace.Temporary || temporary.Domain() != auth.Owner.Domain {
+					return ids.ErrCatalogReplaced
+				}
+			}
+		}
 	}
-	c.RoutineChecks = recipe.View.Dependencies()
+	c.RoutineConsumer = owner
+	c.RoutineChecks = presentation.Dependencies()
 	return nil
 }
 

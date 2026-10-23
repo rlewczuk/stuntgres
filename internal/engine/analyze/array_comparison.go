@@ -212,6 +212,9 @@ func (b *Binder) InListHasVar(node expr.Expr) bool {
 type StoredExpressionSyntaxKey struct {
 	Frame    uint32
 	Position parser.Position
+	// FROM-only multiargument calls lower to unary occurrences sharing their
+	// function token, but each still owns a distinct written input.
+	Input parser.Position
 }
 
 func (b *Binder) bindInList(raw parser.InListExpr) (expr.Expr, error) {

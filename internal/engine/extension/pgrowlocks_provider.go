@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -26,20 +25,18 @@ func PgrowlocksProviderOf(p *catalog.Procedure) *PgrowlocksProvider {
 
 func (p *PgrowlocksProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid pgrowlocks manifest") }
+	if !currentManifest(v, ext) {
+		return invalid()
+	}
 	if p != StockPgrowlocks || v.Owner() == nil || ext.Name() != "pgrowlocks" || ext.Version != "1.2" || len(ext.Members) != 1 {
 		return invalid()
 	}
-	address := ext.Members[0]
-	proc, ok := v.Procedure(address)
-	if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 ||
-		proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() ||
-		proc.Revision() == 0 || proc.Implementation != p || proc.Name() != "pgrowlocks" || proc.Signature != "25" ||
-		proc.Result != 2249 || !proc.Strict || proc.Volatility != expr.Volatile || proc.RoutineKind != catalog.FunctionRoutine ||
-		proc.SQL != nil || proc.Builtin != nil || proc.Foreign != nil || proc.Aggregate != nil ||
-		proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) ||
-		v.NameAddress(catalog.DescriptorNameKey(proc)) != address || proc.Owner.ID() == 0 ||
-		proc.Owner != v.Owner().Principals.Principal(proc.Owner.ID()) {
+	proc, ok := v.Procedure(ext.Members[0])
+	if !ok {
 		return invalid()
+	}
+	if _, err := ProcedureSymbol(v, proc); err != nil {
+		return err
 	}
 	return nil
 }

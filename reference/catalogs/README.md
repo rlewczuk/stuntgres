@@ -153,6 +153,11 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
 - fuzzystrmatch: `RUN='^TestReferenceDaitchMokotoff'`, `RUN='^TestReferenceLevenshtein'`, `RUN='^TestReferenceMetaphone'`, `RUN='^TestReferenceSoundex'`
+- Mutable routine/provider names and schemas retain genuine OID/kind and
+  extension associations; this does not promote lookup-only catalog identities
+  to execution. Cross-family ALTER metadata and replay proof lives in
+  [query_core](../query_core/README.md#routine-alter-proof), selected in both
+  native and `REFERENCE=1` modes.
 
 - pgcrypto digest, HMAC, installation and controls:
   `RUN='^TestReferencePgcrypto(Digest|HMAC|Installed|Overloads|Diagnostics|Consumers|Control|Replay|Forced|FeatureSmoke)'`

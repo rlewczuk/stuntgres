@@ -1,6 +1,9 @@
 package stored
 
-import "stuntgres/internal/engine/catalog"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 // RuleList is the catalog.RulesPayload of a relation. It keeps the slice
 // value semantics the rules always had, so copy-on-write sharing is
@@ -18,6 +21,22 @@ func (r RuleList) Visit(visit func(catalog.RuleFact) error) error {
 		if err := visit(catalog.RuleFact{OID: rule.OID, Name: rule.Name, Event: ruleEventCode(rule.event), Instead: rule.instead, References: rule.references}); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (r RuleList) RoutineRecipe(oid ids.OID, action int) catalog.ViewPayload {
+	for _, rule := range r {
+		if rule.OID != oid {
+			continue
+		}
+		if action == -1 {
+			return ViewPayload(rule.conditionPresentation)
+		}
+		if action >= 0 && action < len(rule.actions) {
+			return ViewPayload(rule.actions[action].presentation)
+		}
+		return nil
 	}
 	return nil
 }

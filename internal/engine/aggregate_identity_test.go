@@ -250,7 +250,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	target.catalog.nextOID = 30000
 	next := catalog.CloneState(source.catalog.state)
 	target.mu.Lock()
-	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
+	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target))
 	target.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -269,5 +269,49 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	}
 	if err := catalog.ValidateDefinitionOIDs(target.catalog.read(next)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPGAggregateIntaggRelabelIdentity(t *testing.T) {
+	e, ext := intaggUnitInstalled(t)
+	view := e.CatalogRead()
+	original := view.MustProcedure(ext.Members[0])
+	if symbol, err := extension.ProcedureSymbol(view, original); err != nil || symbol != "int_array_aggregate" {
+		t.Fatal("invalid relabel baseline", symbol, err)
+	}
+	renamed := *original
+	renamed.ObjectName = "relabeled_intagg"
+	renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	state := catalog.CloneState(view.State())
+	state.UnbindName(catalog.DescriptorNameKey(original))
+	state.SetDescriptor(renamed.Address(), &renamed)
+	state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
+	current := e.catalog.read(state)
+	if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != "int_array_aggregate" {
+		t.Fatal(symbol, err)
+	}
+	if err := extension.StockIntagg.ValidateExtension(current, ext); err != nil {
+		t.Fatal("moved aggregate rejected", err)
+	}
+	if renamed.Aggregate != original.Aggregate || renamed.Aggregate.Helpers[0].Namespace != ext.TargetNamespace.ObjectID {
+		t.Fatal("move rewrote hidden helper authority")
+	}
+	mapped := extension.RemapDescriptor(&renamed, map[ids.ObjectAddress]ids.ObjectAddress{
+		renamed.Namespace(): {ClassID: ids.NamespaceClassID, ObjectID: 910001},
+	}).(*catalog.Procedure)
+	if mapped.Namespace().ObjectID != 910001 || mapped.Aggregate != original.Aggregate {
+		t.Fatal("routine-only namespace remap changed hidden helpers")
+	}
+	copy := *ext
+	copy.Members = append([]ids.ObjectAddress(nil), ext.Members...)
+	if err := extension.StockIntagg.ValidateExtension(current, &copy); err != nil {
+		t.Fatal("equivalent COW manifest rejected", err)
+	}
+	copy.Members[0], copy.Members[1] = copy.Members[1], copy.Members[0]
+	if err := extension.StockIntagg.ValidateExtension(current, &copy); err == nil {
+		t.Fatal("reordered manifest accepted")
+	}
+	if view.Get(original.Address()) != original || ext.TargetNamespace != original.Namespace() {
+		t.Fatal("source installation mutated")
 	}
 }

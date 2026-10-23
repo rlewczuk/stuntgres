@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqltype"
 )
 
 // RoutineDefaults owns typed immutable declaration expressions and their hard
@@ -21,6 +20,10 @@ type RoutineDefaults struct {
 }
 
 func NewRoutineDefaults(ctx context.Context, view catalog.Read, reader catalog.DefinitionReader, entries []expr.Expr) (*RoutineDefaults, error) {
+	return routineDefaultsWithChecks(ctx, view, reader, entries, nil)
+}
+
+func routineDefaultsWithChecks(ctx context.Context, view catalog.Read, reader catalog.DefinitionReader, entries []expr.Expr, checks []catalog.ExpressionDependency) (*RoutineDefaults, error) {
 	if view.Owner() == nil {
 		return nil, fmt.Errorf("missing routine default catalog owner")
 	}
@@ -30,7 +33,7 @@ func NewRoutineDefaults(ctx context.Context, view catalog.Read, reader catalog.D
 			continue
 		}
 		var refs []ids.ObjectRef
-		if _, err := (ScalarRenderer{Definition: reader, RoutineDefault: true, Dependencies: &refs}).SQL(ctx, view, node); err != nil {
+		if _, err := (ScalarRenderer{Definition: reader, RoutineDefault: true, Dependencies: &refs, CapturedChecks: checks}).SQL(ctx, view, node); err != nil {
 			return nil, err
 		}
 		for _, ref := range refs {
@@ -38,7 +41,14 @@ func NewRoutineDefaults(ctx context.Context, view catalog.Read, reader catalog.D
 			if !ok {
 				return nil, fmt.Errorf("missing routine default dependency")
 			}
-			p.dependencies = append(p.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: d.Revision()})
+			revision := d.Revision()
+			for _, check := range checks {
+				if check.Ref == ref {
+					revision = check.Revision
+					break
+				}
+			}
+			p.dependencies = append(p.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})
 		}
 	}
 	p.dependencies = routineDependencySet(p.dependencies)
@@ -77,7 +87,7 @@ func (p *RoutineDefaults) Validate(view catalog.Read) error {
 	if view.Owner() == nil || p.domain != view.Owner().Domain || p.epoch != view.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	next, err := NewRoutineDefaults(context.Background(), view, nil, p.entries)
+	next, err := routineDefaultsWithChecks(context.Background(), view, nil, p.entries, p.dependencies)
 	if err != nil {
 		return err
 	}
@@ -91,7 +101,7 @@ func (p *RoutineDefaults) Validate(view catalog.Read) error {
 	}
 	return nil
 }
-func (p *RoutineDefaults) Rebind(view catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress) (catalog.RoutineDefaults, error) {
+func (p *RoutineDefaults) Rebind(view catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, remap *catalog.RoutineRemap) (catalog.RoutineDefaults, error) {
 	if p.domain == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -118,17 +128,8 @@ func (p *RoutineDefaults) Rebind(view catalog.Read, mapping map[ids.ObjectAddres
 		}
 		return view.Owner().Domain.Ref(view.Epoch(), addressMapper(old.Address))
 	}
-	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
-		if old == nil {
-			return nil
-		}
-		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}
-		if next, ok := mapping[address]; ok {
-			address = next
-		}
-		current, _ := view.LookupType(sqltype.ID(address.ObjectID))
-		return current
-	}
+	typ, collation, procedure := remap.Type, remap.Collation, remap.Procedure
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: procedure, addressMapper: addressMapper}
 	entries := make([]expr.Expr, len(p.entries))
 	for i, old := range p.entries {
 		if old == nil {
@@ -136,11 +137,11 @@ func (p *RoutineDefaults) Rebind(view catalog.Read, mapping map[ids.ObjectAddres
 		}
 		// Regclass datum OIDs are address projections, not lifetime-bearing
 		// references. Only real captured ObjectRefs enter the checked mapper.
-		node, err := remapScalar(old, ref, ref, nil, nil, 0, addressMapper)
+		node, err := remapScalar(old, ref, ref, nil, mapper.Nested, 0, addressMapper)
 		if err != nil {
 			return nil, err
 		}
-		entries[i], _, err = RetagTypes(view, node, typ)
+		entries[i], _, err = mapper.retag(node, typ)
 		if err != nil {
 			return nil, err
 		}
@@ -148,5 +149,16 @@ func (p *RoutineDefaults) Rebind(view catalog.Read, mapping map[ids.ObjectAddres
 	if invalid {
 		return nil, ids.ErrCatalogReplaced
 	}
-	return NewRoutineDefaults(context.Background(), view, nil, entries)
+	dependencies := slices.Clone(p.dependencies)
+	for i := range dependencies {
+		dependencies[i].Ref = ref(dependencies[i].Ref)
+	}
+	next, err := routineDefaultsWithChecks(context.Background(), view, nil, entries, dependencies)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.Equal(next.dependencies, routineDependencySet(dependencies)) {
+		return nil, fmt.Errorf("foreign routine default capture")
+	}
+	return next, nil
 }

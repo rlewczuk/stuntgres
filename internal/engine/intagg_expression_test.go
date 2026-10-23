@@ -247,29 +247,54 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		return old
 	}
 	root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "a", Usage: call.Provider.ResultUsage()}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{call}}
-	mapped, err := stored.RemapViewQuery(view, root, ref, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	mapper := &stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+	mapped, err := mapper.Query(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	remapped := mapped.(*plan.AggregateNode).Calls[0]
-	if remapped.Procedure != next.Get(mapping[call.Ref.Address]) || remapped.Ref != ref(call.Ref) || remapped.Provider == call.Provider {
+	if !exec.SameRoutineDeclaration(next.MustProcedure(mapping[call.Ref.Address]), remapped.Procedure) || remapped.Procedure.Revision() != call.Procedure.Revision() || remapped.Ref != ref(call.Ref) || remapped.Provider == call.Provider {
 		t.Fatal("aggregate remap authority", remapped)
 	}
-	node, err := stored.RemapExpression(enum, ref, nil)
+	enumRoot := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: enum.ResultUsage()}}, Child: &plan.ValuesNode{}, Expressions: []expr.Expr{enum}}
+	enumQuery, err := mapper.Nested(enumRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	node, _, err = stored.RetagTypes(view, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
-	if err != nil {
-		t.Fatal(err)
-	}
-	n := node.(plan.UnnestExpr)
-	if n.Ref != ref(enum.Ref) || n.Procedure != next.Get(n.Ref.Address) {
+	n := enumQuery.(*plan.ProjectNode).Expressions[0].(plan.UnnestExpr)
+	if n.Ref != ref(enum.Ref) || !exec.SameRoutineDeclaration(next.MustProcedure(n.Ref.Address), n.Procedure) || n.Procedure.Revision() != enum.Procedure.Revision() {
 		t.Fatal("enum remap authority", n.Ref)
 	}
 	text, err := (stored.Deparser{View: view}).SQL(context.Background(), n, stored.DeparseParent{})
 	if err != nil || !strings.Contains(text, "int_array_enum") || strings.Contains(text, "unnest") {
 		t.Fatal("wrapper renderer", text, err)
+	}
+	if err := extension.ValidateIntaggIdentity(view, n.Procedure, n.Ref, "int_array_enum"); err == nil {
+		t.Fatal("exact-current provider guard accepted a retained original clone")
+	}
+	for _, kind := range []string{"stale reference", "different Info carrier", "different result generation"} {
+		bad := n
+		switch kind {
+		case "stale reference":
+			bad.Ref.Epoch--
+		case "different Info carrier":
+			bad.RoutineReference = remapped.Procedure
+		case "different result generation":
+			generation := *n.ResultUsage().Type
+			bad.Usage.Type = &generation
+		}
+		if _, err := (stored.Deparser{View: view}).SQL(context.Background(), bad, stored.DeparseParent{}); err == nil {
+			t.Fatal("incoherent original enum capture accepted", kind)
+		}
+	}
+	invalidMapper := &stored.ViewQueryRemapper{Catalog: view, Ref: ref, Procedure: mapper.Procedure, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		if d == enum.Args[0].ResultUsage().Type {
+			return nil
+		}
+		return d
+	}}
+	if _, err := invalidMapper.Nested(enumRoot); err == nil || err.Error() != "stuntgres: invalid remapped expression type" {
+		t.Fatal("enum child type diagnostic was replaced by a provider identity error", err)
 	}
 	if call.Procedure != before.Get(call.Ref.Address) || enum.Ref.Epoch != before.Epoch() {
 		t.Fatal("source authority mutated")

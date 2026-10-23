@@ -141,9 +141,17 @@ func TestAccessMethodHandlerRegistration(t *testing.T) {
 				t.Fatal("heap routed to Btree placeholder")
 			}
 		}
+		renamed := *p
+		renamed.ObjectName = "relabeled_" + tc.name
+		state := catalog.CloneState(view.State())
+		state.UnbindName(catalog.DescriptorNameKey(p))
+		state.SetDescriptor(renamed.Address(), &renamed)
+		state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
+		if err := (stored.ProcedureProvider{}).Validate(view.WithState(state), &renamed); err != nil {
+			t.Fatal("genuine handler relabel rejected", err)
+		}
 		for _, change := range []func(*catalog.Procedure){
 			func(d *catalog.Procedure) { d.ObjectAddress.ObjectID = 90000 },
-			func(d *catalog.Procedure) { d.ObjectName = "forged" },
 			func(d *catalog.Procedure) { d.Signature = "23" },
 			func(d *catalog.Procedure) { d.Result = 23 },
 			func(d *catalog.Procedure) { d.Strict = false },

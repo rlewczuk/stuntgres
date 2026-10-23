@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/routine"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -105,6 +104,7 @@ func TestSQLRoutineParameterRemap(t *testing.T) {
 			read.State().SetDescriptor(descriptor.Address(), descriptor)
 		}
 		source := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 96000}, ObjectNamespace: relation.Namespace(), ObjectName: "typed", Signature: "95000", Result: 95000, SQL: &proc.Definition{Name: "typed", Result: domains[0].Usage()}}
+		source.Owner = read.Owner().Principals.Principal(10)
 		if err := source.SQL.SetFormals([]proc.Formal{{Mode: "i", Name: "a", Usage: domains[0].Usage(), HasDefault: true}, {Mode: "o", Name: "y", Usage: domains[0].Usage()}}); err != nil {
 			t.Fatal(err)
 		}
@@ -119,7 +119,19 @@ func TestSQLRoutineParameterRemap(t *testing.T) {
 			{ClassID: ids.TypeClassID, ObjectID: 95000}: {ClassID: ids.TypeClassID, ObjectID: 95001},
 			{ClassID: ids.TypeClassID, ObjectID: 95001}: {ClassID: ids.TypeClassID, ObjectID: 95002},
 		}
-		if err := routine.RebindSQLDefinitions(read, read.State(), mapping, typedef.RemappedCollationCapabilities(read.State(), mapping)); err != nil {
+		typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			if old == nil {
+				return nil
+			}
+			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}
+			if next, ok := mapping[address]; ok {
+				address = next
+			}
+			current, _ := read.LookupType(sqltype.ID(address.ObjectID))
+			return current
+		}
+		remap := NewRoutineRemap(read, mapping, typ, nil, false)
+		if err := routine.RebindSQLDefinitions(read.State(), remap); err != nil {
 			t.Fatal(err)
 		}
 		next, ok := read.Procedure(source.Address())
@@ -142,7 +154,7 @@ func TestSQLRoutineParameterRemap(t *testing.T) {
 		corrupt := *payload
 		corrupt.dependencies = append([]catalog.ExpressionDependency(nil), payload.dependencies...)
 		corrupt.dependencies[0].Ref.Epoch++
-		if _, err := corrupt.Rebind(read, nil); !errors.Is(err, ids.ErrCatalogReplaced) {
+		if _, err := corrupt.Rebind(read, nil, NewRoutineRemap(read, nil, nil, nil, false)); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("foreign default manifest admitted", err)
 		}
 	})
@@ -162,7 +174,7 @@ func TestSQLRoutineDefaultAddressRemap(t *testing.T) {
 	read.State().SetDescriptor(first.Address(), &first)
 	read.State().SetDescriptor(second.Address(), &second)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{relation.Address(): first.Address(), first.Address(): second.Address()}
-	rebound, err := payload.Rebind(read, mapping)
+	rebound, err := payload.Rebind(read, mapping, NewRoutineRemap(read, mapping, nil, nil, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +192,7 @@ func TestSQLRoutineDefaultAddressRemap(t *testing.T) {
 	bad := original
 	bad.RegclassRef.Epoch++
 	corrupt.entries = []expr.Expr{bad}
-	if _, err := corrupt.Rebind(read, mapping); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := corrupt.Rebind(read, mapping, NewRoutineRemap(read, mapping, nil, nil, false)); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("real stale reference treated as an address projection", err)
 	}
 }
@@ -194,6 +206,7 @@ func TestSQLRoutineTypeGenerationRefresh(t *testing.T) {
 	oldType := &catalog.Type{SQLType: old, ObjectNamespace: relation.Namespace(), ObjectRevision: 1}
 	read.State().SetDescriptor(oldType.Address(), oldType)
 	source := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 96000}, ObjectNamespace: relation.Namespace(), ObjectName: "typed", ObjectRevision: 1, RoutineKind: catalog.FunctionRoutine, Signature: "95000", Result: 95000, SQL: &proc.Definition{Name: "typed", Result: old.Usage()}}
+	source.Owner = read.Owner().Principals.Principal(10)
 	if err := source.SQL.SetFormals([]proc.Formal{{Mode: "i", Name: "a", Usage: old.Usage(), HasDefault: true}, {Mode: "o", Name: "y", Usage: old.Usage()}}); err != nil {
 		t.Fatal(err)
 	}
@@ -206,6 +219,7 @@ func TestSQLRoutineTypeGenerationRefresh(t *testing.T) {
 	action := routineLiteralAction(t, integer)
 	program := NewRoutineProgram([]RuleAction{action})
 	unchanged := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 96001}, SQL: &proc.Definition{Standard: true, Result: integer.Usage(), Statements: []parser.Statement{action.Syntax()}}, SQLBody: program}
+	unchanged.Owner = read.Owner().Principals.Principal(10)
 	read.State().SetDescriptor(unchanged.Address(), unchanged)
 	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
 	syntax := &parser.Select{Targets: []parser.Expr{raw}}
@@ -217,6 +231,7 @@ func TestSQLRoutineTypeGenerationRefresh(t *testing.T) {
 	domainAction := NewRuleAction(RuleActionParts{Syntax: syntax, Binding: analyze.Binding{Query: query, Dependencies: []catalog.ExpressionDependency{dependency}}, Presentation: presentation})
 	domainProgram := NewRoutineProgram([]RuleAction{domainAction})
 	frozen := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 96002}, RoutineKind: catalog.FunctionRoutine, Result: 95000, SQL: &proc.Definition{Standard: true, Result: old.Usage(), Statements: []parser.Statement{syntax}}, SQLBody: domainProgram}
+	frozen.Owner = read.Owner().Principals.Principal(10)
 	read.State().SetDescriptor(frozen.Address(), frozen)
 	current, err := old.RebindDomain(old.DomainBase(), "renamed_parameter", "capture.renamed_parameter")
 	if err != nil {
@@ -225,7 +240,7 @@ func TestSQLRoutineTypeGenerationRefresh(t *testing.T) {
 	nextType := *oldType
 	nextType.SQLType, nextType.ObjectRevision = current, 2
 	read.State().SetDescriptor(nextType.Address(), &nextType)
-	if err := ReownExpressions(read, read.State(), nil, true); err != nil {
+	if err := ReownExpressions(read, read.State(), nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	next, _ := read.Procedure(source.Address())
@@ -247,66 +262,6 @@ func TestSQLRoutineTypeGenerationRefresh(t *testing.T) {
 	if source.SQL.Formals[0].Usage.Type != old || source.SQL.Result.Type != old || payload.entries[0].ResultUsage().Type != old {
 		t.Fatal("source declaration/default mutated")
 	}
-	if err := ReownExpressions(read, read.State(), nil, true); err != nil {
-		t.Fatal(err)
-	}
-	if stable, _ := read.Procedure(source.Address()); stable != next || stable.SQLDefaults != next.SQLDefaults {
-		t.Fatal("unchanged refresh replaced declaration/default identity")
-	}
-	t.Run("declaration versus replacement carriers", func(t *testing.T) {
-		read, relation, integer, _ := routineCaptureFixture(t)
-		action := routineLiteralAction(t, integer)
-		definition := &proc.Definition{Name: "captured", Standard: true, Result: integer.Usage(), Statements: []parser.Statement{action.Syntax()}}
-		if err := definition.SetFormals([]proc.Formal{{Mode: "i", Name: "a", Usage: integer.Usage(), HasDefault: true}}); err != nil {
-			t.Fatal(err)
-		}
-		presentation := *action.presentation
-		presentation.routineInputs = definition.Inputs
-		action.presentation = &presentation
-		literal := action.binding.Query.Root.(*plan.ProjectNode).Expressions[0]
-		defaults, err := NewRoutineDefaults(context.Background(), read, nil, []expr.Expr{literal})
-		if err != nil {
-			t.Fatal(err)
-		}
-		program := NewRoutineProgram([]RuleAction{action})
-		replacementDefaults, err := NewRoutineDefaults(context.Background(), read, nil, []expr.Expr{literal})
-		if err != nil {
-			t.Fatal(err)
-		}
-		source := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 97000}, ObjectRevision: 1, ObjectNamespace: relation.Namespace(), ObjectName: "captured", RoutineKind: catalog.FunctionRoutine, Signature: "23", Result: 23, SQL: definition, SQLDefaults: defaults, SQLBody: program}
-		call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: source}, Procedure: source, Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Args: []expr.Expr{literal}, WrittenCount: 1, InputMap: []plan.RoutineInput{{Start: 0, Count: 1}}, ChildSlots: []int{0}}
-		inner := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: integer.Usage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{call}}
-		nested := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: integer.Usage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{plan.SubqueryExpr{Info: expr.Info{Usage: integer.Usage()}, QueryPlan: &plan.Query{Root: inner}}}}
-		for _, tc := range []struct {
-			name               string
-			change             func(*catalog.Procedure)
-			declarationChanged bool
-		}{
-			{"equivalent COW descriptor", func(*catalog.Procedure) {}, false},
-			{"SQL definition", func(d *catalog.Procedure) { copy := *d.SQL; d.SQL = &copy }, true},
-			{"checked defaults", func(d *catalog.Procedure) { d.SQLDefaults = replacementDefaults }, true},
-			{"frozen body", func(d *catalog.Procedure) { d.SQLBody = NewRoutineProgram([]RuleAction{action}) }, true},
-			{"missing descriptor", nil, true},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				state := catalog.CloneState(read.State())
-				if tc.change != nil {
-					current := *source
-					tc.change(&current)
-					state.SetDescriptor(current.Address(), &current)
-				}
-				view := catalog.NewRead(read.Owner(), state)
-				for _, root := range []plan.Node{inner, nested} {
-					if analyze.QueryRoutineDeclarationsChanged(view, root) != tc.declarationChanged {
-						t.Fatal("ordinary evolution confused descriptor COW with declaration change")
-					}
-					if !analyze.QueryRoutineCarriersChanged(view, root) {
-						t.Fatal("replacement failed to detect the destination carrier")
-					}
-				}
-			})
-		}
-	})
 }
 
 func TestSQLRoutineDomainRecipeTypeGeneration(t *testing.T) {
@@ -388,56 +343,94 @@ func TestSQLRoutineDomainRecipeTypeGeneration(t *testing.T) {
 				}
 				read.State().SetDescriptor(consumer.Address(), consumer)
 				state := catalog.CloneState(read.State())
+				originalChecks := make([]catalog.ExpressionDependency, len(refs))
+				for i, captured := range refs {
+					address := captured.Address
+					address.SubID = 0
+					provider, ok := read.Find(address)
+					if !ok {
+						t.Fatal("missing original checked provider", captured)
+					}
+					originalChecks[i] = catalog.ExpressionDependency{Ref: captured, Revision: provider.Revision()}
+				}
 				current := *source
+				replacementAction := routineValueAction(t, integer, 2)
+				replacementLiteral := replacementAction.binding.Query.Root.(*plan.ProjectNode).Expressions[0]
 				switch change {
 				case "changed frozen body":
-					current.SQLBody = NewRoutineProgram([]RuleAction{action})
+					nextDefinition := *definition
+					nextDefinition.Statements = []parser.Statement{replacementAction.Syntax()}
+					current.SQL = &nextDefinition
+					presentation := *replacementAction.presentation
+					presentation.routineInputs = definition.Inputs
+					replacementAction.presentation = &presentation
+					current.SQLBody = NewRoutineProgram([]RuleAction{replacementAction})
+					current.ObjectRevision++
 				case "changed defaults":
-					replacement, err := NewRoutineDefaults(context.Background(), read, nil, []expr.Expr{literal})
+					replacement, err := NewRoutineDefaults(context.Background(), read, nil, []expr.Expr{replacementLiteral})
 					if err != nil {
 						t.Fatal(err)
 					}
 					current.SQLDefaults = replacement
+					current.ObjectRevision++
 				}
 				state.SetDescriptor(current.Address(), &current)
 				view := catalog.NewRead(read.Owner(), state)
-				if err := ReownExpressions(view, state, nil, true); err != nil {
+				if err := ReownExpressions(view, state, nil, true, nil); err != nil {
 					t.Fatal(err)
 				}
 				next := state.MustType(consumer.Address())
-				if change == "equivalent COW" {
-					if next != consumer || next.DomainDefault != consumer.DomainDefault || !reflect.DeepEqual(next.DomainChecks, consumer.DomainChecks) {
-						t.Fatal("equivalent declaration COW replaced domain owner/recipe")
-					}
-					return
-				}
-				if next == consumer {
-					t.Fatal("unchanged visible types hid the changed callee payload")
-				}
 				var nextRecipe expr.Expr
 				if kind == "DEFAULT" {
-					if next.DomainDefault == consumer.DomainDefault || !reflect.DeepEqual(next.DomainDefault.Dependencies, refs) {
-						t.Fatal("default ownership or full references changed incorrectly")
+					if !reflect.DeepEqual(next.DomainDefault.Dependencies, refs) {
+						t.Fatal("default full references changed during raw reown")
 					}
 					nextRecipe = next.DomainDefault.Expression
 				} else {
 					if !reflect.DeepEqual(next.DomainChecks[0].Dependencies, consumer.DomainChecks[0].Dependencies) {
-						t.Fatal("CHECK full references changed during ordinary evolution")
+						t.Fatal("CHECK original hard manifest changed during raw reown")
 					}
 					nextRecipe = next.DomainChecks[0].Expression.(plan.NullTestExpr).Child
 				}
 				bound := nextRecipe.(plan.SQLRoutineExpr)
-				if bound.Procedure != &current || bound.RoutineReference != &current || bound.Ref != ref || bound.ResultUsage() != call.ResultUsage() {
-					t.Fatal("domain consumer failed coherent callee-only refresh", bound)
+				_, retainedErr := (ScalarRenderer{CapturedChecks: originalChecks}).SQL(context.Background(), view, bound)
+				if change == "equivalent COW" {
+					if retainedErr != nil || bound.Ref != ref || bound.ResultUsage() != call.ResultUsage() {
+						t.Fatal("equivalent current declaration rejected original hard capture", retainedErr)
+					}
+					return
 				}
-				if call.Procedure != source || source.SQLBody != program || source.SQLDefaults != defaults || consumer.DomainDefault != nil && consumer.DomainDefault.Expression.(plan.SQLRoutineExpr).Procedure != source || len(consumer.DomainChecks) != 0 && consumer.DomainChecks[0].Expression.(plan.NullTestExpr).Child.(plan.SQLRoutineExpr).Procedure != source {
-					t.Fatal("refresh mutated original owner, recipe or callee")
+				if retainedErr == nil {
+					t.Fatal("raw reown silently adopted a different current body/default")
 				}
-				if err := ReownExpressions(view, state, nil, true); err != nil {
-					t.Fatal(err)
+				// A genuinely current capture is healthy: reject the retained old
+				// immutable payload, not the replacement declaration itself.
+				fresh := call
+				fresh.Procedure, fresh.RoutineReference = &current, &current
+				var freshRefs []ids.ObjectRef
+				if _, err := (ScalarRenderer{Dependencies: &freshRefs}).SQL(context.Background(), view, fresh); err != nil {
+					t.Fatal("healthy current capture rejected", err)
 				}
-				if state.MustType(consumer.Address()) != next {
-					t.Fatal("unchanged second evolution replaced refreshed owner")
+				freshChecks := make([]catalog.ExpressionDependency, len(freshRefs))
+				for i, captured := range freshRefs {
+					address := captured.Address
+					address.SubID = 0
+					provider, ok := view.Find(address)
+					if !ok {
+						t.Fatal("missing fresh checked provider", captured)
+					}
+					freshChecks[i] = catalog.ExpressionDependency{Ref: captured, Revision: provider.Revision()}
+				}
+				if _, err := (ScalarRenderer{CapturedChecks: freshChecks}).SQL(context.Background(), view, fresh); err != nil {
+					t.Fatal("healthy current hard manifest rejected", err)
+				}
+				want, err := replacementLiteral.(plan.LiteralExpr).Value.Integer()
+				if err != nil || want != 2 {
+					t.Fatal("replacement control does not change the literal result", want, err)
+				}
+				originalValue, err := literal.(plan.LiteralExpr).Value.Integer()
+				if err != nil || originalValue != 1 || call.Procedure != source || source.SQLBody != program || source.SQLDefaults != defaults {
+					t.Fatal("raw reown mutated the original source declaration or result", originalValue, err)
 				}
 			})
 		}

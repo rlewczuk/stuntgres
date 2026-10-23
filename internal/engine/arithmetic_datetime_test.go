@@ -92,6 +92,12 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
+	mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(source, target)}
+	query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{rebound}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rebound = query.(*plan.ValuesNode).Rows[0][0]
 	n := rebound.(plan.ArithmeticExpr)
 	typ, _ := target.CatalogRead().LookupType(sqltype.Timestamptz)
 	if n.ResultUsage().Type != typ || n.Provider.ResultType() != typ || !n.Provider.SessionDependent() || exec.PlannedVolatility(n) != expr.Stable {

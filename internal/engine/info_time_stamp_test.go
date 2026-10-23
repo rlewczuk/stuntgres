@@ -89,7 +89,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if err := stored.ReownExpressions(source.catalog.read(next), next, nil, true); err != nil {
+	if err := stored.ReownExpressions(source.catalog.read(next), next, nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	view := source.catalog.read(next)
@@ -112,7 +112,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if d.SQLType.SQLName() != "information_schema.time_stamp" || original.Get(d.Namespace()).Name() != "information_schema" {
 		t.Fatal("source generation mutated")
 	}
-	remapped, err := target.remapPreparedCatalog(catalog.CloneState(source.catalog.state), source.Roles(), target.Roles(), nil)
+	remapped, _, err := target.remapPreparedCatalog(catalog.CloneState(source.catalog.state), source.Roles(), target.Roles(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

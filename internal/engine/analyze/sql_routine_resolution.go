@@ -63,7 +63,8 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name)
-	if !cubeFamily && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !b.BindingCatalog().HasCasts() {
+	providerOverride := b.hasProviderProcedureOverride(name)
+	if !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -89,10 +90,10 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if seen != nil {
 				seen[d.Signature] = true
 			}
-			if d.DynamicCallable() || extension.CubeProviderOf(d) == extension.StockCube && extension.CubeComparisonName(d.Name()) {
+			if d.DynamicCallable() {
 				hasSQL = true
 			}
-			if cubeFamily && extension.CubeProviderOf(d) == extension.StockCube {
+			if (cubeFamily || extension.CubeComparisonName(name)) && extension.CubeProviderOf(d) == extension.StockCube {
 				hasCube = true
 			}
 			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil {
@@ -105,7 +106,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			}
 		}
 	}
-	if !hasSQL && !hasCube && !b.BindingCatalog().HasCasts() {
+	if !providerOverride && !hasSQL && !hasCube && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	issue := functions.FunctionLabels(raw)
@@ -408,8 +409,23 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	}
 	d := selected.Procedure
 	if d != nil && extension.CubeProviderOf(d) == extension.StockCube {
-		if extension.CubeComparisonName(d.Name()) {
-			return b.bindSelectedCubeComparison(raw, selected)
+		symbol, err := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+		if err != nil {
+			return nil, err
+		}
+		if extension.CubeComparisonName(symbol) {
+			node, err := b.bindSelectedCubeComparison(raw, selected, symbol)
+			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+				// Scalar comparison lowering owns the same checked source
+				// occurrence, including aggregate-shaped written identifiers.
+				frozen := raw
+				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
+				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+			}
+			return node, err
 		}
 		// Diagnose the written name before the selected gateway qualifies it.
 		if err := functions.ValidateCallSyntax(b, raw); err != nil {
@@ -494,6 +510,13 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	previous, previousSyntax, previousArguments := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments
 	previousReentry, previousCallee := b.Clause.selectedCallReentry, b.Clause.selectedWindowCallee
 	previousAggregate := b.Clause.selectedAggregate
+	previousProcedure := b.Clause.selectedProcedure
+	b.Clause.selectedProcedure = d
+	symbol, err := callableProviderSymbol(selected.auth.ReadCatalog(), d)
+	if err != nil {
+		b.Clause.selectedProcedure = previousProcedure
+		return nil, err
+	}
 	if d != nil && d.Aggregate != nil && d.DynamicCallable() {
 		b.Clause.selectedAggregate = d
 	}
@@ -510,6 +533,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		b.Clause.selectedAggregate = previousAggregate
 		b.Clause.selectedCallReentry = previousReentry
 		b.Clause.selectedWindowCallee = previousCallee
+		b.Clause.selectedProcedure = previousProcedure
 	}()
 	args := append([]parser.Expr(nil), raw.Args...)
 	for i, arg := range selected.args {
@@ -531,19 +555,40 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	if aggregate, ok := original.(parser.AggregateExpr); ok {
 		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 		aggregate.Schema = &parser.Identifier{Text: namespace.Name()}
+		aggregate.Name = symbol
 		aggregate.Args = args
 		return b.Bind(aggregate, policy)
 	}
 	if d.RoutineKind == catalog.AggregateRoutine || d.RoutineKind == catalog.WindowRoutine {
 		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
-		return b.Bind(parser.AggregateExpr{
-			Name: d.Name(), Schema: &parser.Identifier{Text: namespace.Name()}, Args: args, Pos: raw.Pos,
+		lowered := parser.AggregateExpr{
+			Name: symbol, Schema: &parser.Identifier{Text: namespace.Name()}, Args: args, Pos: raw.Pos,
 			Star: raw.Star, Distinct: raw.Distinct, Variadic: raw.Variadic, Order: raw.Order,
 			Filter: raw.Filter, Window: raw.Window, Within: raw.Within, WithinPos: raw.WithinPos,
-		}, policy)
+		}
+		node, err := b.Bind(lowered, policy)
+		if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			// Ordinary written names can select aggregates and windows after a
+			// relabel. Capture their checked lowering at the same occurrence,
+			// but retain written operands rather than binder-local placeholders.
+			key := b.storedExpressionSyntaxKey(raw)
+			if _, normalized := b.Stored.Syntax[key]; !normalized {
+				lowered.Name = raw.Name.Parts[len(raw.Name.Parts)-1].Text
+				lowered.Schema = nil
+				if len(raw.Name.Parts) == 2 {
+					lowered.Schema = &raw.Name.Parts[0]
+				}
+				lowered.Args = raw.Args
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
+				b.Stored.Syntax[key] = lowered
+			}
+		}
+		return node, err
 	}
 	namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
-	raw.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: d.Name()}}}
+	raw.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: symbol}}}
 	raw.Args = args
 	return b.BindFunctionProvider(raw)
 }

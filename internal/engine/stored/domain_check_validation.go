@@ -90,18 +90,17 @@ func validateCubeDomainCheckOperator(view catalog.Read, node expr.Expr, ref ids.
 		if !cube || !ok {
 			return
 		}
-		current, err := remapCubeComparisonRoutine(view, nil, captured, capture, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
-		if err != nil {
+		if err := remapCubeComparisonRoutine(view, nil, captured, captured, capture, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }); err != nil {
 			failure = err
 			return
 		}
-		installation, exists := view.Extension(current.Extension)
-		if !exists || operator.Extension != installation.Address() || operator.Namespace() != current.Namespace() || operator.Namespace() != installation.TargetNamespace || operator.Left != ids.OID(capture.left.ID()) || operator.Right != ids.OID(capture.right.ID()) || operator.Result != ids.OID(sqltype.Bool) || operator.Function != current.Address().ObjectID {
+		installation, exists := view.Extension(captured.Extension)
+		if !exists || operator.Extension != installation.Address() || operator.Namespace() != installation.TargetNamespace || operator.Left != ids.OID(capture.left.ID()) || operator.Right != ids.OID(capture.right.ID()) || operator.Result != ids.OID(sqltype.Bool) || operator.Function != captured.Address().ObjectID {
 			failure = fmt.Errorf("stuntgres: invalid domain CHECK cube operator declaration")
 			return
 		}
 		for i := range 6 {
-			if len(installation.Members) == extension.CubeMemberCount && installation.Members[3+i] == current.Address() && installation.Members[10+i] == operator.Address() {
+			if len(installation.Members) == extension.CubeMemberCount && installation.Members[3+i] == captured.Address() && installation.Members[10+i] == operator.Address() {
 				found = true
 				return
 			}

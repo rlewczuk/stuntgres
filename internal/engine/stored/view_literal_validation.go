@@ -5,7 +5,6 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -233,18 +232,25 @@ func (v *View) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path a
 	}
 	path.Node = *ordinal
 	(*ordinal)++
-	if call, ok := raw.(parser.FunctionExpr); ok && call.StoredSQLRoutine {
+	provider := false
+	switch call := raw.(type) {
+	case parser.FunctionExpr:
+		provider = call.StoredProviderRoutine
+	case parser.AggregateExpr:
+		provider = call.StoredProviderRoutine
+	}
+	if provider {
+		if _, err := v.ProviderRecipeProcedure(catalog, path, raw); err != nil {
+			return err
+		}
+		(*routineCount)++
+	} else if call, ok := raw.(parser.FunctionExpr); ok && call.StoredSQLRoutine {
 		if _, err := v.SQLRoutineRecipeProcedure(catalog, path, call); err != nil {
 			return err
 		}
 		(*routineCount)++
 	} else if call, ok := raw.(parser.AggregateExpr); ok && call.StoredAggregate {
 		if _, err := v.AggregateRecipeProcedure(catalog, path, call); err != nil {
-			return err
-		}
-		(*routineCount)++
-	} else if name := extension.IntaggRecipeFunction(raw); name != "" {
-		if _, err := v.IntaggRecipeProcedure(catalog, path, name); err != nil {
 			return err
 		}
 		(*routineCount)++

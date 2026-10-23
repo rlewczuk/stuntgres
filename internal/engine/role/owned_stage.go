@@ -72,7 +72,7 @@ func StageOwned(h StageHost, auth ddl.Authority, plan OwnedPlan) error {
 	}
 	read := h.StageRead()
 	candidate := read.State()
-	if err := stored.ReownExpressions(read, candidate, nil, false); err != nil {
+	if err := stored.ReownExpressions(read, candidate, nil, false, nil); err != nil {
 		return err
 	}
 	for a, d := range candidate.Descriptors() {

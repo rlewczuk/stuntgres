@@ -26,6 +26,13 @@ driver import it.
   the schema to `public`); their errors carry the engine's
   `RegistrationError` prefix. `Registry` holds the installed definitions, the
   auto-installed namespaces and the value codecs.
+  Immutable ordered `ProcedureTokens` supply destination installation authority
+  for bootstrap and replacement. SQL DROP does not unregister a driver's
+  capability; a foreign source cannot supply its callback. Tokens are selected
+  while constructing a private candidate, never by runtime name fallback.
+  Replacement rebinds imported tokens before the single strict source-principal
+  graph memo is constructed. Historical original carriers use that same scoped
+  source-to-destination token map; retained destination TEMP authority stays separate.
 - **Options** (`options.go`): `TransformOptions` applies ADD/SET/DROP option
   lists with PostgreSQL 18 diagnostics.
 - **Row identity** (`identity.go`): `IdentitySet`, the keyed membership of
@@ -182,3 +189,9 @@ foreign tables, foreign DML), `^TestReferenceObjectGrant` (the GRANT warnings
 `PlanGrant` shares through `authorization.GrantWarning`),
 `^TestReferenceTruncate` (foreign TRUNCATE's server grouping and participant
 admission) and `^TestReferenceDumpRoundTrip$`.
+
+Destination-owned registration lifecycle proof:
+`make check RUN='^TestRestoreForeignProvider'`.
+Public Reset/callback observations use
+`make check RUN='^TestReferenceFDWNativeControls$'` in native and `REFERENCE=1`
+modes; replacement does not invoke application callbacks to reconstruct tokens.

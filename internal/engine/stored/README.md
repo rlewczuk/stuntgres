@@ -41,6 +41,96 @@ host methods.
   `RoutineDefaults` owns an immutable input-indexed declaration-default recipe
   and its source-domain/epoch manifest, never evaluated values. Default
   dependencies are hard even for quoted bodies.
+  Routine public name/namespace/owner are mutable presentation. Same-address
+  declaration checks retain kind, exact signature/result, SQL/default/body and
+  provider association. Installed captures validate their real manifest slot
+  through `extension.ProcedureSymbol`; labels never select executable capability.
+  Scalar serialization and deparse validate the original carrier, then format
+  checked current labels without refreshing its pointer or dependency revision.
+  Mutation-rule VALUES expressions use the same checked current-label projection
+  while preserving their original OLD/NEW bindings and callable input assembly.
+  `RetagTypes` is a structural generation rewrite, not a presentation refresh.
+  `StoredProviderRoutine` is distinct from SQL-body/owned-aggregate markers and
+  reuses the existing `routineRefs` occurrence map and dependency manifest.
+  `StoredProviderSymbol` records immutable symbols to reject substituted captures;
+  written names, syntax flags, named/default argument shape and SQL/JSON options
+  stay intact. Ordinary relabelled calls use checked current names. SQL/JSON
+  ARRAYAGG/OBJECTAGG retain constructor grammar after implementation rename/move,
+  matching PostgreSQL18.6. Display omits canonical defaults and uses OBJECTAGG's
+  colon separator; portable replay retains written FORMAT, null policy,
+  uniqueness and RETURNING with captured types. Neither path drops the checked
+  implementation ref or converts constructor grammar to a mutable routine call.
+  Family validation preserves admitted named slots/redundant VARIADIC. Missing,
+  extra, foreign, stale-epoch/SubID and wrong-provider captures remain errors.
+  Quoted source stays soft/original; no SQL-source rewrite or alias registry.
+  `ValidateRoutineCallIdentities` validates frozen SQL calls without replacing
+  original handles: a captured descriptor and its dependency revision form one
+  lifetime. Admission checks the original manifest, current immutable declaration
+  and current EXECUTE; only hard recipes follow mutable revisions. Original-source
+  revision fences remain. `TestRoutineAlterFrozenManifestRetention` covers
+  retained handles/manifests and rejection of changed result/signature/SQL payloads.
+  Frozen action planning/runtime sources borrow that original manifest.
+  Rule conditions/actions select their exact live rule slot and original
+  presentation before NEW substitution. Grafted scalar, window, aggregate and
+  independent alias occurrences carry that recipe identity; fresh producer
+  nodes keep their own direct manifest, even at the same routine address.
+  Quoted/rebound source does not inherit hard-recipe policy. Aggregate admission
+  uses its captured descriptor and exact original ref/revision; ref-only carriers
+  retain their revision fence. Transition support retains recipe provenance while
+  checking EXECUTE as the current aggregate owner, not the invoker.
+  `TestRoutineAlterFrozenExecutionAuthority` checks hard/default/soft values,
+  current callee revoke/regrant and dormant explicit-argument defaults.
+  Hidden arguments select their declaration-default manifest through the shared
+  `SelectRoutineDefault` boundary in preflight, conditional simplification,
+  scalar admission and runtime. Written actuals keep the caller's manifest;
+  an entire source call is never promoted to hard-recipe policy. Local planning
+  contexts propagate prepared domain checks without leaking default origin or
+  changing invoker authority.
+  `TestRoutineAlterAggregateHardPhaseAuthority` checks renamed aggregate/support
+  execution under a support-denied invoker and owner EXECUTE revoke/regrant.
+- **Historical routine remapping.** Raw mapping preserves original declaration
+  carriers and exact dependency revisions; an address change is not SQL reanalysis.
+  Builtin aggregate primaries, paired aliases, windows and scalar/body captures
+  share the scoped original-procedure callback, never current-descriptor
+  substitution. Each alias maps its own ref and declaration independently.
+  `NewRoutineRemap` shares original SQL-definition/body/default mappings with the
+  existing two-phase rewrite. Keys are original immutable payload identities,
+  not names, addresses or revisions: relabel-only COW versions share mapped
+  payloads, distinct original bodies remain distinct. The existing graph memo
+  preserves sharing/cycles and source immutability; pending payloads complete and
+  validate before publication. Normal type evolution rebinds affected current
+  payloads while leaving unaffected originals intact.
+  The same operation memo owns original `proc.PLProgram` identities and maps
+  complete formal/result/non-RECORD local Usages, including typmod and collation
+  capabilities. PL lexical names belong to immutable `Definition.Name`, not the
+  descriptor's mutable public label; relabelling does not recompile the body.
+  Imported containers use captured source-principal/name/incarnation policy only.
+  Preflight-retained TEMP containers use a separate checked destination lane:
+  genuine historical owners/grantees require nonzero principal-domain provenance,
+  not continued role existence; foreign/mixed domains fail. TEMP presentations
+  accompany rule/policy remapping without import address mapping.
+  Full-reference mapping stays separate from datum/address mapping. Frozen
+  view/default/CHECK manifests keep original routine stamps rather than recapturing
+  current revisions. Structural copies mint no destination authority; admission
+  still rejects foreign originals. Non-SQL mapped-original numeric signatures
+  must match the destination immutable declaration; SQL uses typed symbolic
+  comparison. Current EXECUTE remains independent.
+  Standalone remap boundaries that accept a procedure-mapper callback take it
+  explicitly; no zero-or-one variadic compatibility form remains. Where such
+  a boundary permits `nil`, it selects only verified same-domain/structural
+  policy, never guessed import principal authority. Body/default
+  `catalog.RoutineProgram.Rebind` and `catalog.RoutineDefaults.Rebind` instead
+  require the same complete nonnil `*catalog.RoutineRemap`, including its Type,
+  Collation and Procedure mappings. Cross-domain callers supply the actual host
+  source policy and shared payload context; graph preparation likewise takes
+  one explicit callback.
+  Installed intagg enumeration validates the complete mapped ref, original
+  Procedure/Info pair and argument/result generations before resolving its
+  current immutable association. The unchanged exact-current provider guard
+  validates that current declaration; the stored carrier and hard stamp remain
+  original. Deparsing uses the validated current name/namespace without replacing
+  the original proof. `TestIntaggIdentityRemap` covers direct, frozen and retained
+  TEMP remapping, rejects incoherent captures and preserves child type diagnostics.
 - **Renderers.** `Deparser`/`DeparseParent` (`deparse_*.go`): expressions in
   the style of PostgreSQL's `ruleutils.c`, plus constraint SQL
   (`constraint_sql.go`) and `DeparseAttribute`. `ScalarRenderer`
@@ -49,6 +139,13 @@ host methods.
   `QueryRenderer` and `Presentation` (`view_deparse*.go`,
   `view_render_sources.go`, `sqljson_deparse.go`): whole queries,
   `View.SelectSQL`, `ViewDefinitionSQL` (`pg_get_viewdef`) and `PolicySQL`.
+  Public display of a sole noncorrelated aliased table uses current relation/
+  attribute names, unqualified columns and only nonredundant column aliases.
+  Correlation-participating frames retain lexical qualification; local keys use
+  the actual emitted alias, never a relation name hidden by it. Portable replay
+  keeps its qualified positional hygiene bridge. Consequently the exact
+  PostgreSQL canonical definition of an emitted replay can retain a table alias
+  absent from the original definition; canonical display is not dump SQL.
 - **Rule and policy dumps.** `RuleDumpGroups`/`RuleActionSQL`,
   `PolicyDumpGroups` and `RowSecurityDumpGroups`.
 - **Retag and remap.** `MapExpression`, `RetagTypes`, `RetagTypesWithQuery`
@@ -66,6 +163,19 @@ host methods.
   `RefreshRuleBinding`) is shared with rule rewriting. `ReownScalarTypes`
   points relation column types and stored datums at current type generations;
   `ReownVersions` applies it after an enum or domain change.
+  `NewRoutineRemap` initializes one scoped `analyze.RecordTypeMapper` before
+  any current/historical payload, query or scalar transform. Its existing
+  `catalog.RoutineRemap` carries the complete Type/Collation transformation,
+  as well as the original procedure and SQL-definition/body/default memos.
+  Bodies and defaults consume that same context, including binding, frozen and
+  modifier presentations, PL locals and presentation collation inventories;
+  no payload creates its own occurrence mapper or destination type lookup.
+  `ReownExpressions` consumes a supplied prebound replacement context, or
+  creates and binds one for a standalone full-remap entry. Type-only entries
+  retain their selective affected-payload rewrite. Independent exported view,
+  rule and policy remap entries initialize their own occurrence boundary, while
+  the internal operation seams reuse the complete mapper. Retained TEMP rules
+  keep their separate target-container policy; import mappings never enter it.
 - **Readers of stored definitions.** `pg_depend` references
   (`ExpressionDependRefs`, `QueryDependRefs`, `IndexDependRefs`,
   `PartitionDependRefs`, `DependPinned`); temporary provenance and reference
@@ -245,6 +355,22 @@ Renderer, retag, remap, `pg_depend`, provenance and validator tests build an
 `Engine` or catalog fixture and live in `internal/engine`. Public behavior
 belongs in `reference/`; follow [docs/TESTING.md](../../../docs/TESTING.md) and
 add `REFERENCE=1` for the oracle.
+
+Provider occurrence/shape proof:
+`make check RUN='^(TestProviderRoutineOccurrenceIdentity|TestRegexpScalarViewPrefix|TestViewLiteralProtocolQueryBoundaries|TestStoredProviderCallShape)$'`.
+Existing EXTRACT, OVERLAPS, SUBSTRING, SIMILAR, sleep and SQL/JSON aggregate
+reference definitions retain independent PostgreSQL expectations.
+
+Scoped historical graph/payload and imported-versus-TEMP principal proof:
+
+```sh
+make check RUN='^TestRoutineHistorical(BuiltinReplacementRemap|TemporaryPrincipalRemap|PayloadRemap)$'
+make check RUN='^TestRoutineHistorical(BuiltinReplacementRemap|TemporaryPrincipalRemap|PayloadRemap)$' RACE=1
+```
+
+`TestSQLRoutineDomainRecipeTypeGeneration` distinguishes genuinely changed
+current body/default semantics from valid equivalent COW: old hard captures
+reject, while healthy fresh current manifests remain usable.
 
 - Payload API and stored row marks: `RUN='^Test(ViewPartsRoundTrip|RulePartsRoundTrip|QuerySetStoredInheritedMarks)$'`
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`

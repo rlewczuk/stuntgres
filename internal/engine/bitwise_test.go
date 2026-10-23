@@ -80,12 +80,18 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 		x, _ := replacement.CatalogRead().LookupType(d.ID())
 		return x
 	}
+	mapper := stored.ViewQueryRemapper{Catalog: replacement.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(e, replacement)}
 	for _, attribute := range []int32{1, 2, 3} {
 		original := old.ColumnMeta.Defaults[attribute].Expression
 		rebound, changed, err := stored.RetagTypes(replacement.CatalogRead(), original, retag)
 		if err != nil || !changed || rebound.ResultUsage().Type == original.ResultUsage().Type {
 			t.Fatal(rebound, changed, err)
 		}
+		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{rebound}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rebound = query.(*plan.ValuesNode).Rows[0][0]
 		a, err := original.Eval(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -116,6 +122,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 		typ, _ := replacement.CatalogRead().LookupType(d.ID())
 		return typ
 	}
+	mapper := stored.ViewQueryRemapper{Catalog: replacement.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(e, replacement)}
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	for _, attribute := range []int32{1, 2} {
 		original := table.ColumnMeta.Defaults[attribute].Expression
@@ -123,6 +130,11 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(rebound, changed, err)
 		}
+		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{rebound}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rebound = query.(*plan.ValuesNode).Rows[0][0]
 		for _, node := range []expr.Expr{original, rebound} {
 			value, err := node.Eval(ctx)
 			if err != nil {

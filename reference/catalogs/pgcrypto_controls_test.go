@@ -226,7 +226,7 @@ func pgcryptoReplayFailure(t *testing.T, script, name string) string {
 	case "version":
 		return strings.Replace(script, "VERSION '1.4'", "VERSION 'missing'", 1)
 	case "metadata":
-		return strings.Replace(script, "stuntgres-extension-owners-v1", "stuntgres-extension-owners-v2", 1)
+		return strings.Replace(script, "stuntgres-extension-owners-v2", "stuntgres-extension-owners-v999", 1)
 	case "provider":
 		return script + "\nCREATE EXTENSION nonexistent_provider;"
 	case "sql":
@@ -242,12 +242,12 @@ func pgcryptoReplayFailure(t *testing.T, script, name string) string {
 }
 
 func pgcryptoInvalidOwnerKinds() []string {
-	return []string{"missing", "extra", "duplicate", "name", "signature", "dictionary", "type", "empty_owner", "missing_owner"}
+	return []string{"missing", "extra", "duplicate", "slot", "schema", "name", "signature", "dictionary", "type", "empty_owner", "missing_owner"}
 }
 
 func pgcryptoInvalidOwnerDump(t *testing.T, dump, kind string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v1 "
+	const marker = "-- stuntgres-extension-owners-v2 "
 	var line string
 	for _, candidate := range strings.Split(dump, "\n") {
 		if strings.HasPrefix(candidate, marker) {
@@ -264,6 +264,8 @@ func pgcryptoInvalidOwnerDump(t *testing.T, dump, kind string) string {
 	}
 	type member struct {
 		Kind      string `json:"kind"`
+		Slot      int    `json:"slot"`
+		Schema    string `json:"schema"`
 		Name      string `json:"name"`
 		Signature string `json:"signature"`
 		Owner     string `json:"owner"`
@@ -289,14 +291,22 @@ func pgcryptoInvalidOwnerDump(t *testing.T, dump, kind string) string {
 		record.Members = append(record.Members, record.Members[0])
 	case "duplicate":
 		record.Members[1] = record.Members[0]
+	case "slot":
+		record.Members[0].Slot = -1
+	case "schema":
+		record.Members[0].Schema = "pgcrypto_absent_schema"
 	case "name":
 		record.Members[0].Name = "unaccent"
 	case "signature":
 		record.Members[0].Signature = "17,25,25"
 	case "dictionary":
-		record.Members[0] = member{Kind: "dictionary", Name: "unaccent", Owner: "pgcrypto_owner"}
+		record.Members[0].Kind = "dictionary"
+		record.Members[0].Name = "unaccent"
+		record.Members[0].Signature = ""
 	case "type":
-		record.Members[0] = member{Kind: "type", Name: "query_int", Owner: "pgcrypto_owner"}
+		record.Members[0].Kind = "type"
+		record.Members[0].Name = "query_int"
+		record.Members[0].Signature = ""
 	case "empty_owner":
 		record.Members[0].Owner = ""
 	case "missing_owner":

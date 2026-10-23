@@ -1,0 +1,223 @@
+package extension
+
+import (
+	"fmt"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
+)
+
+// ProcedureSymbol returns the executable installation symbol, never a mutable
+// public label. Membership order is the versioned manifest, preserved by remap.
+// This low-level authority deliberately does not call provider validators.
+func ProcedureSymbol(v catalog.Read, p *catalog.Procedure) (string, error) {
+	return procedureSymbol(v, p, false)
+}
+
+// allowDetached is reserved for incumbent provider metadata validation.
+// It never grants installed execution or portable replay authority.
+func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (string, error) {
+	invalid := func() (string, error) { return "", fmt.Errorf("stuntgres: invalid installed procedure identity") }
+	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
+		return invalid()
+	}
+	if _, ok := v.Namespace(p.Namespace()); !ok {
+		return invalid()
+	}
+	// Detached unaccent declarations are an incumbent script-provider capability.
+	// Its four exact signatures distinguish every released symbol without labels.
+	if p.Extension == (ids.ObjectAddress{}) {
+		if !allowDetached {
+			return invalid()
+		}
+		if p.Implementation != StockUnaccent || p.RoutineKind != catalog.FunctionRoutine || p.Aggregate != nil || p.Dictionary != (ids.ObjectAddress{}) {
+			return invalid()
+		}
+		switch p.Signature {
+		case catalog.UnaccentTextSignature, catalog.UnaccentDictionarySignature:
+			if p.Result == 25 && p.Volatility == expr.Stable && p.Strict {
+				return "unaccent", nil
+			}
+		case catalog.UnaccentInitSignature:
+			if p.Result == 2281 && p.Volatility == expr.Volatile && !p.Strict {
+				return "unaccent_init", nil
+			}
+		case catalog.UnaccentLexizeSignature:
+			if p.Result == 2281 && p.Volatility == expr.Volatile && !p.Strict {
+				return "unaccent_lexize", nil
+			}
+		}
+		return invalid()
+	}
+	ext, ok := v.Extension(p.Extension)
+	if !ok || ext.Address().ClassID != ids.ExtensionClassID || ext.Address().SubID != 0 || ext.Address().ObjectID == 0 || ext.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(ext)) != ext.Address() {
+		return invalid()
+	}
+	if ext.Owner.ID() == 0 || ext.Owner != v.Owner().Principals.Principal(ext.Owner.ID()) {
+		return invalid()
+	}
+	if _, ok := v.Namespace(ext.TargetNamespace); !ok {
+		return invalid()
+	}
+	implementation, ok := v.Owner().Extensions[ext.Name()]
+	if !ok || implementation != p.Implementation || implementation.Versions().InstallPath(ext.Version) == nil {
+		return invalid()
+	}
+	slot := -1
+	for i, a := range ext.Members {
+		for _, b := range ext.Members[:i] {
+			if a == b {
+				return invalid()
+			}
+		}
+		if a == p.Address() {
+			slot = i
+		}
+	}
+	if slot < 0 {
+		return invalid()
+	}
+	name, signature, result := "", catalog.ProcedureSignature(""), ids.OID(0)
+	kind, volatility, strict := catalog.FunctionRoutine, expr.Immutable, true
+	count := 0
+	switch p.Implementation {
+	case StockPgcrypto:
+		count = len(functions.PgcryptoMembers)
+		if slot >= count {
+			return invalid()
+		}
+		m := functions.PgcryptoMembers[slot]
+		name, signature, result, volatility, strict = m.Name, catalog.ProcedureSignature(m.Signature), m.Result, m.Volatility, m.Strict
+	case StockUUIDOssp:
+		count = len(functions.UUIDOsspMembers)
+		if slot >= count {
+			return invalid()
+		}
+		m := functions.UUIDOsspMembers[slot]
+		name, signature, result, volatility = m.Name, catalog.ProcedureSignature(m.Signature), 2950, m.Volatility
+	case StockFuzzystrmatch:
+		count = len(FuzzystrmatchMembers)
+		index := slot
+		if ext.Version == "1.1" {
+			count--
+			index++
+		}
+		if slot >= count {
+			return invalid()
+		}
+		m := FuzzystrmatchMembers[index]
+		name, signature, result = m.Name, m.Signature, m.Result
+	case StockIntagg:
+		count = len(IntaggMembers)
+		if slot >= count {
+			return invalid()
+		}
+		m := IntaggMembers[slot]
+		name, signature, result, strict, kind = m.Name, m.Signature, m.Result, m.Strict, m.Kind
+	case StockCube:
+		count = CubeMemberCount
+		if ext.Version != StockCube.control.Version || slot < 1 || slot >= cubeSpatialOperatorStart {
+			return invalid()
+		}
+		base, ok := v.Type(ext.Members[0])
+		if !ok || base.SQLType == nil || !base.SQLType.IsCube() || base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 {
+			return invalid()
+		}
+		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+			return invalid()
+		}
+		if slot >= cubeSpatialProcedureStart {
+			member := cubeSpatialMembers[slot-cubeSpatialProcedureStart]
+			name, signature, result = member.operation.Routine(), CubeBinarySignature(base.SQLType.ID()), ids.OID(member.operation.ResultID())
+		} else {
+			spec, ok := cubeRoutineForMember(slot)
+			if !ok {
+				return invalid()
+			}
+			name, signature, result = spec.name, spec.signature(base.SQLType.ID()), spec.resultOID(base.SQLType.ID())
+		}
+	case StockIntarray, StockCitext:
+		count = 3
+		if slot < 1 || slot > 2 {
+			return invalid()
+		}
+		base, ok := v.Type(ext.Members[0])
+		if !ok || base.SQLType == nil {
+			return invalid()
+		}
+		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
+			return invalid()
+		}
+		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+			return invalid()
+		}
+		signature, result = "2275", ids.OID(base.SQLType.ID())
+		switch p.Implementation {
+		case StockIntarray:
+			name = "bqarr_in"
+			if slot == 2 {
+				name = "bqarr_out"
+			}
+		case StockCitext:
+			name = "citextin"
+			if slot == 2 {
+				name = "citextout"
+			}
+		}
+		if slot == 2 {
+			signature, result = QueryIntSignature(base.SQLType.ID()), 2275
+		}
+	case StockPgrowlocks:
+		count = 1
+		name, signature, result, volatility = "pgrowlocks", "25", 2249, expr.Volatile
+	case StockUnaccent:
+		count = 6
+		if len(ext.Members) != count || slot > 3 {
+			return invalid()
+		}
+		name = "unaccent"
+		signature = []catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}[slot]
+		result, volatility = 25, expr.Stable
+		if slot >= 2 {
+			result, volatility, strict = 2281, expr.Volatile, false
+			if slot == 2 {
+				name = "unaccent_init"
+			} else {
+				name = "unaccent_lexize"
+			}
+		}
+		if slot < 2 && p.Dictionary != ext.Members[5] {
+			return invalid()
+		}
+	default:
+		return invalid()
+	}
+	if len(ext.Members) != count || p.Signature != signature || p.Result != result || p.RoutineKind != kind || p.Volatility != volatility || p.Strict != strict || kind != catalog.AggregateRoutine && p.Aggregate != nil || p.Implementation != StockUnaccent && p.Dictionary != (ids.ObjectAddress{}) {
+		return invalid()
+	}
+	return name, nil
+}
+
+// A supplied manifest may be a detached COW copy, but must describe the exact
+// current installation and ordered inventory in the view being validated.
+func currentManifest(v catalog.Read, ext *catalog.Extension) bool {
+	if ext == nil {
+		return false
+	}
+	current, ok := v.Extension(ext.Address())
+	if !ok || current.Name() != ext.Name() || current.Version != ext.Version || current.Revision() != ext.Revision() || current.TargetNamespace != ext.TargetNamespace || current.Owner != ext.Owner || len(current.Members) != len(ext.Members) {
+		return false
+	}
+	for i, a := range ext.Members {
+		if a != current.Members[i] {
+			return false
+		}
+		for _, previous := range ext.Members[:i] {
+			if previous == a {
+				return false
+			}
+		}
+	}
+	return true
+}

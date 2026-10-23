@@ -21,6 +21,7 @@ import (
 
 type sqlRoutineAnalysis struct {
 	definition     *proc.Definition
+	name           string // Current qualifier; declaration/source payload stays immutable.
 	descriptions   []StatementDescription
 	statements     []parser.Statement   // Immutable invocation syntax shares retained occurrence keys.
 	inputCollation sqltype.CollationRef // Quoted aggregate-support analysis context, not caller explicitness.
@@ -48,8 +49,10 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(parent.op)
 	if err == nil {
-		_, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
+		var current *catalog.Procedure
+		current, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
 		if err == nil {
+			d = current
 			if supportOwner != nil {
 				current, failure := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, supportOwner)
 				if failure != nil {
@@ -99,8 +102,8 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 			return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
 		}
 	}
-	if retained.definition != d.SQL || retained.inputCollation != inputCollation || len(retained.descriptions) != len(statements) {
-		retained = sqlRoutineAnalysis{definition: d.SQL, statements: statements, descriptions: make([]StatementDescription, len(statements)), inputCollation: inputCollation}
+	if retained.definition != d.SQL || retained.name != d.Name() || retained.inputCollation != inputCollation || len(retained.descriptions) != len(statements) {
+		retained = sqlRoutineAnalysis{definition: d.SQL, name: d.Name(), statements: statements, descriptions: make([]StatementDescription, len(statements)), inputCollation: inputCollation}
 	}
 	value = sqltype.Null(resultUsage.Type)
 	for i, statement := range statements {
@@ -123,6 +126,7 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 	restore := s.activateSQLRoutine(d.SQL.Inputs, read)
 	defer func() { err = restore(err) }()
 	s.sqlRoutine.definition, s.sqlRoutine.terminal = d.SQL, terminal
+	s.sqlRoutine.name = d.Name()
 	s.sqlRoutine.inputCollation = inputCollation
 	_, selecting := statement.(*parser.Select)
 	s.sqlRoutine.scalar, s.sqlRoutine.result = terminal && selecting, resultUsage
@@ -226,7 +230,7 @@ func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *s
 		}
 		b.Storage = auth.StorageLocked(b.Ref.Address)
 	}
-	b, err = stored.RefreshRoutineCalls(auth.Catalog, b)
+	err = stored.ValidateRoutineCallIdentities(auth.Catalog, b)
 	if err != nil {
 		e.mu.Unlock()
 		return err

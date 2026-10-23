@@ -1117,7 +1117,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if sequenceErr != nil {
 			return ChangeSet{}, sequenceErr
 		}
-		if err := e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes); err != nil {
+		if err := e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes, nil); err != nil {
 			return ChangeSet{}, err
 		}
 		nextRevision, err := e.replacementACLsLocked(next)
@@ -1181,11 +1181,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	}
 	replacement.State().SetACLItemImport(e.aclItemImporter(source, sourceRoles, targetRoles, source.importTargets))
 	defer func() { replacement.State().SetACLItemImport(nil) }()
-	next, err = e.remapPreparedCatalog(replacement.State(), sourceRoles, targetRoles, source.importTargets)
+	var procedure catalog.ProcedureRemapper
+	next, procedure, err = e.remapPreparedCatalog(replacement.State(), sourceRoles, targetRoles, source.importTargets)
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	if err = e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes); err != nil {
+	if err = e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes, procedure); err != nil {
 		return ChangeSet{}, err
 	}
 	nextRevision, err := e.replacementACLsLocked(next)

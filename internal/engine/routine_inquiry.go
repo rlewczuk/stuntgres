@@ -32,7 +32,7 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 	if err != nil {
 		return err
 	}
-	if recipe != nil && (!local.RoutineGraft || local.RoutineConsumer != recipe) || recipe == nil && local.RoutineGraft {
+	if recipe != nil && (!local.RoutineGraft || local.RoutineGraftSource != recipe) || recipe == nil && local.RoutineGraft {
 		if err = exec.SelectExpressionRecipe(&local, recipe); err != nil {
 			return err
 		}

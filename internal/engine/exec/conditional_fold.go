@@ -18,7 +18,17 @@ func simplifyCompositeNode(c *Context, node expr.Composite, decisiveDefaults boo
 	if strict == expr.StrictBefore && anyRandomLiteralNull(node.Children()) {
 		return strictNullLiteral(node, strict), true, true, nil
 	}
+	call, sqlCall := node.(plan.SQLRoutineExpr)
+	childIndex := -1
 	next, changed, err := expr.Map(node, func(child expr.Expr) (expr.Expr, bool, error) {
+		childIndex++
+		if sqlCall && childIndex >= call.WrittenCount {
+			local := *c
+			local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies())
+			next, changed, err := SimplifyConditional(&local, child, decisiveDefaults)
+			c.PreparedDomainChecks = local.PreparedDomainChecks
+			return next, changed, err
+		}
 		return SimplifyConditional(c, child, decisiveDefaults)
 	})
 	if err != nil {

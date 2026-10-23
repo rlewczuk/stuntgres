@@ -1997,9 +1997,13 @@ type FunctionExpr struct {
 	// StoredSQLRoutine marks binder-owned copied syntax for a selected SQL
 	// scalar routine. Source parsing never sets it; it is not dispatch authority.
 	StoredSQLRoutine bool
-	Syntax           FunctionSyntax
-	StringSyntax     StringSyntax
-	Window           *WindowSpec
+	// StoredProviderRoutine requires a checked released/installed capture,
+	// never SQL-body capability or a public-name fallback.
+	StoredProviderRoutine bool
+	StoredProviderSymbol  string // Checked recipe data, never name-resolution authority.
+	Syntax                FunctionSyntax
+	StringSyntax          StringSyntax
+	Window                *WindowSpec
 	// Selected time providers retain modifiers only for ordinary-function
 	// diagnostics; these fields never authorize aggregate/window execution.
 	Star      bool
@@ -2128,21 +2132,23 @@ func (e JSONPredicateExpr) SourcePosition() Position { return e.Pos }
 type AggregateExpr struct {
 	// StoredAggregate marks binder-owned copied syntax for a real owned
 	// aggregate. Source parsing never sets it; captured identity is required.
-	StoredAggregate bool
-	Name            string
-	Star            bool
-	Args            []Expr
-	Order           []OrderKey
-	Distinct        bool
-	Variadic        bool
-	Within          bool
-	WithinPos       Position
-	Filter          Expr
-	Schema          *Identifier
-	Window          *WindowSpec
-	FilterPos       Position
-	Pos             Position
-	JSON            *JSONAggregateOptions
+	StoredAggregate       bool
+	StoredProviderRoutine bool   // Checked provider capture; not an owned aggregate.
+	StoredProviderSymbol  string // Preserves the written syntax independently of executable identity.
+	Name                  string
+	Star                  bool
+	Args                  []Expr
+	Order                 []OrderKey
+	Distinct              bool
+	Variadic              bool
+	Within                bool
+	WithinPos             Position
+	Filter                Expr
+	Schema                *Identifier
+	Window                *WindowSpec
+	FilterPos             Position
+	Pos                   Position
+	JSON                  *JSONAggregateOptions
 }
 
 func (AggregateExpr) expression()                {}

@@ -7,7 +7,6 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -98,6 +97,15 @@ func cubeRoutineMember(index int) int {
 	return CubeComparisonMemberCount + index - 2 - len(CubeComparisonNames)
 }
 
+func cubeRoutineForMember(slot int) (cubeRoutineSpec, bool) {
+	for i, spec := range cubeRoutines {
+		if cubeRoutineMember(i) == slot {
+			return spec, true
+		}
+	}
+	return cubeRoutineSpec{}, false
+}
+
 func (s cubeRoutineSpec) signature(cube sqltype.ID) catalog.ProcedureSignature {
 	var parts [3]string
 	for i := range s.nargs {
@@ -131,6 +139,9 @@ func (s cubeRoutineSpec) resultOID(cube sqltype.ID) ids.OID {
 
 func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid cube manifest") }
+	if !currentManifest(v, ext) {
+		return invalid()
+	}
 	if p != StockCube || ext.Name() != "cube" || ext.Version != p.control.Version || len(ext.Members) != CubeMemberCount {
 		return invalid()
 	}
@@ -148,15 +159,14 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	if err := validateRegisteredType(v, array); err != nil {
 		return err
 	}
-	for i, spec := range cubeRoutines {
+	for i := range cubeRoutines {
 		address := ext.Members[cubeRoutineMember(i)]
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || proc.Address() != address || CubeProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
+		if !ok || address.ClassID != ids.ProcedureClassID || proc.Address() != address {
 			return invalid()
 		}
-		name, signature, result := spec.name, spec.signature(base.SQLType.ID()), spec.resultOID(base.SQLType.ID())
-		if proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address || proc.RoutineKind != catalog.FunctionRoutine || proc.Aggregate != nil || proc.Foreign != nil || proc.Builtin != nil || proc.Name() != name || proc.Signature != signature || proc.Result != result || !proc.Strict || proc.Volatility != expr.Immutable || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) {
-			return invalid()
+		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
 		}
 	}
 	for i, address := range ext.Members[10:16] {
@@ -196,6 +206,9 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 }
 
 func (p *CubeProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
+	if _, err := ProcedureSymbol(v, proc); err != nil {
+		return err
+	}
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing cube routine installation")

@@ -90,8 +90,25 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	if members != 10 {
 		t.Fatal("membership edges", members)
 	}
+	renamed := *proc
+	renamed.ObjectName = "text_soundex"
+	renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	state := catalog.CloneState(view.State())
+	state.UnbindName(catalog.DescriptorNameKey(proc))
+	state.SetDescriptor(proc.Address(), &renamed)
+	state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
+	current := e.catalog.read(state)
+	if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != "daitch_mokotoff" {
+		t.Fatal("relabel lost installed symbol", symbol, err)
+	}
+	if err := extension.StockFuzzystrmatch.ValidateExtension(current, ext); err != nil {
+		t.Fatal("genuine relabel rejected", err)
+	}
+	if ext.TargetNamespace != proc.Namespace() || view.Get(proc.Address()) != proc {
+		t.Fatal("relabel mutated installation/source")
+	}
 	for _, mutate := range []func(*catalog.Procedure){
-		func(p *catalog.Procedure) { p.ObjectName = "text_soundex" }, func(p *catalog.Procedure) { p.Signature = "23" },
+		func(p *catalog.Procedure) { p.ObjectAddress.SubID = 1 }, func(p *catalog.Procedure) { p.Signature = "23" },
 		func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) { p.Volatility = expr.Stable },
 		func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Implementation = extension.StockUnaccent },
 		func(p *catalog.Procedure) { p.Implementation = extension.StockIntarray }, func(p *catalog.Procedure) {
@@ -101,9 +118,11 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		func(p *catalog.Procedure) { p.Dictionary = ext.Address() }, func(p *catalog.Procedure) { p.ObjectRevision = 0 },
 	} {
 		state := catalog.CloneState(e.catalog.state)
+		state.UnbindName(catalog.DescriptorNameKey(proc))
 		bad := *proc
 		mutate(&bad)
 		state.SetDescriptor(proc.Address(), &bad)
+		state.BindName(catalog.DescriptorNameKey(&bad), bad.Address())
 		if err := extension.StockFuzzystrmatch.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid procedure admitted", bad)
 		}
@@ -137,9 +156,9 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		t.Fatal("symbolic ownership", records, err)
 	}
 	symbolic := map[string]bool{"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true, "levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true, "metaphone:25,23": true, "dmetaphone:25": true, "dmetaphone_alt:25": true, "soundex:25": true, "difference:25,25": true}
-	for _, member := range records[0].Members {
+	for slot, member := range records[0].Members {
 		key := member.Name + ":" + member.Signature
-		if member.Kind != "procedure" || member.Owner != "postgres" || !symbolic[key] {
+		if member.Slot != slot || member.Schema != "public" || member.Kind != "procedure" || member.Owner != "postgres" || !symbolic[key] {
 			t.Fatal("symbolic member identity", member)
 		}
 		delete(symbolic, key)
@@ -317,32 +336,34 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
-	mapped, err := stored.RemapExpression(old, func(ref ids.ObjectRef) ids.ObjectRef {
-		if ref.Address == ext.Members[0] {
-			ref.Address = imported.Members[0]
-		}
-		ref = target.catalog.Domain.Ref(ref.Epoch, ref.Address)
-		ref.Epoch = target.CatalogRead().Epoch()
-		return ref
-	}, nil)
-	if err != nil {
-		t.Fatal(err)
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): imported.Address()}
+	for i, address := range ext.Members {
+		mapping[address] = imported.Members[i]
 	}
-	mapped, changed, err := stored.RetagTypes(target.CatalogRead(), mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor {
-		owned, ok := target.CatalogRead().LookupType(d.ID())
+	view := target.CatalogRead()
+	mapper := stored.ViewQueryRemapper{Catalog: view, Ref: func(ref ids.ObjectRef) ids.ObjectRef {
+		if address, ok := mapping[ref.Address]; ok {
+			ref.Address = address
+		}
+		return target.catalog.Domain.Ref(view.Epoch(), ref.Address)
+	}, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		owned, ok := view.LookupType(d.ID())
 		if !ok {
 			t.Fatal("missing target type", d.ID())
 		}
 		return owned
-	})
-	if err != nil || !changed {
-		t.Fatal("retag", changed, err)
+	}, Procedure: extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil)}
+	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "codes", Usage: old.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{old}}
+	remapped, err := mapper.Query(query)
+	if err != nil {
+		t.Fatal("remap original provider", err)
 	}
+	mapped := remapped.(*plan.ProjectNode).Expressions[0]
 	n := mapped.(plan.InstalledTextExpr)
 	v, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	ownedArray, _ := target.CatalogRead().LookupType(1009)
 	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)
-	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.Procedure != target.catalog.state.Get(imported.Members[0]) || n.Dictionary != nil || n.Template != nil {
+	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || !exec.SameRoutineDeclaration(view.MustProcedure(imported.Members[0]), n.Procedure) || n.Procedure.Revision() != sourceProcedure.Revision() || n.Dictionary != nil || n.Template != nil {
 		t.Fatal("remapped provider/generations", v, err)
 	}
 	// Foreign import can share immutable builtin TEXT/text[] descriptors.
@@ -353,7 +374,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if source.CatalogRead().State() != sourceView.State() || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.Procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.Ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
-	if n.Procedure == sourceProcedure || n.Ref.Address != n.Procedure.Address() || n.Ref.Domain() != target.catalog.Domain || n.Ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
+	if n.Ref.Address != n.Procedure.Address() || n.Ref.Domain() != target.catalog.Domain || n.Ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
 		t.Fatal("remapped installed authority still belongs to source")
 	}
 	retainedText, err := sourceArray.Output(context.Background(), oldValue)
@@ -377,5 +398,21 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	}
 	if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), target.CatalogRead(), n); err != nil {
 		t.Fatal("remapped stored expression", err)
+	}
+}
+
+func TestFuzzystrmatchManifestSlotAuthority(t *testing.T) {
+	e, _, ext := extensionVersionUnitInstalled(t, "1.1")
+	view := e.CatalogRead()
+	copy := *ext
+	copy.Members = append([]ids.ObjectAddress(nil), ext.Members...)
+	if err := extension.StockFuzzystrmatch.ValidateExtension(view, &copy); err != nil {
+		t.Fatal("equivalent base manifest rejected", err)
+	}
+	// dmetaphone/dmetaphone_alt have the same signature/result.
+	// Supplied slot order must still match the authoritative inventory.
+	copy.Members[5], copy.Members[6] = copy.Members[6], copy.Members[5]
+	if err := extension.StockFuzzystrmatch.ValidateExtension(view, &copy); err == nil {
+		t.Fatal("same-shape supplied slots reordered")
 	}
 }

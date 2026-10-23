@@ -2,6 +2,7 @@ package stored
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -12,6 +13,11 @@ import (
 func (r ScalarRenderer) descriptor(view catalog.Read, address ids.ObjectAddress) catalog.Descriptor {
 	descriptor, _ := catalog.DescriptorAt(view, r.Definition, address)
 	return descriptor
+}
+
+func (r ScalarRenderer) sameRoutineDescriptor(view catalog.Read, address ids.ObjectAddress, captured *catalog.Procedure) bool {
+	declaration, ok := r.descriptor(view, address).(*catalog.Procedure)
+	return ok && exec.SameRoutineDeclaration(declaration, captured)
 }
 
 // Both stored-expression capture and provider validation require the same live

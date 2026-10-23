@@ -49,7 +49,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		putFixtureRole(roles, authorization.RoleDescriptor{Ref: replacement, Name: "default_reader", Login: true})
 
 		target.e.roles.published = roles
-		if _, err := target.e.remapPreparedCatalog(candidate, source.e.Roles(), snapshot, nil); err == nil {
+		if _, _, err := target.e.remapPreparedCatalog(candidate, source.e.Roles(), snapshot, nil); err == nil {
 			t.Fatal("recycled recipient incarnation imported")
 		}
 	})

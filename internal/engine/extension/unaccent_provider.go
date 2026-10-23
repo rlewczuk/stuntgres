@@ -24,6 +24,9 @@ var StockUnaccent = &UnaccentProvider{control: catalog.ExtensionControl{Version:
 
 func (p *UnaccentProvider) ValidateExtension(v catalog.Read, d *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid unaccent manifest") }
+	if !currentManifest(v, d) {
+		return invalid()
+	}
 	if p != StockUnaccent || len(d.Members) != 6 {
 		return invalid()
 	}
@@ -38,6 +41,9 @@ func (p *UnaccentProvider) ValidateExtension(v catalog.Read, d *catalog.Extensio
 		proc, ok := v.Procedure(d.Members[i])
 		if !ok || proc.Signature != signature || proc.Implementation != p {
 			return invalid()
+		}
+		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
 		}
 	}
 	tmpl, ok := v.TSTemplate(d.Members[4])

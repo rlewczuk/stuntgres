@@ -111,6 +111,9 @@ func (r ScalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 		if replay.Name != "" {
 			name = replay.Name
 		}
+		if spec.Namespace != "" {
+			return catalog.QuoteIdentifier(spec.Namespace) + "." + catalog.QuoteIdentifier(name) + "(" + strings.Join(parts, ", ") + ")", nil
+		}
 		return "pg_catalog." + name + "(" + strings.Join(parts, ", ") + ")", nil
 	case expr.FormInfix:
 		if len(parts) != 2 {

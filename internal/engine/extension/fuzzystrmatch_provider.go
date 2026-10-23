@@ -3,7 +3,6 @@ package extension
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -35,50 +34,25 @@ var FuzzystrmatchMembers = [...]struct {
 	{"difference", "25,25", 23},
 }
 
-func fuzzystrmatchResult(name string, signature catalog.ProcedureSignature) ids.OID {
-	for _, member := range FuzzystrmatchMembers {
-		if member.Name == name && member.Signature == signature {
-			return member.Result
-		}
-	}
-	return 0
-}
-
 func (p *FuzzystrmatchProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
 	count := len(FuzzystrmatchMembers)
 	if ext.Version == "1.1" {
 		count--
 	}
+	if !currentManifest(v, ext) {
+		return invalid()
+	}
 	if v.Owner() == nil || p != StockFuzzystrmatch || ext.Name() != "fuzzystrmatch" || (ext.Version != "1.1" && ext.Version != "1.2") || len(ext.Members) != count {
 		return invalid()
 	}
-	var seen [len(FuzzystrmatchMembers)]bool
 	for _, address := range ext.Members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Volatility != expr.Immutable || !proc.Strict || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
+		if !ok {
 			return invalid()
 		}
-		found := false
-		for j, member := range FuzzystrmatchMembers {
-			if ext.Version == "1.1" && j == 0 {
-				continue
-			}
-			if proc.Name() == member.Name && proc.Signature == member.Signature && proc.Result == member.Result {
-				if seen[j] {
-					return invalid()
-				}
-				seen[j], found = true, true
-				break
-			}
-		}
-		if !found {
-			return invalid()
-		}
-		// Membership fixes the exact provider, not separately transferable
-		// function ownership. Every member retains real typed provenance.
-		if proc.Owner.ID() == 0 || proc.Owner != v.Owner().Principals.Principal(proc.Owner.ID()) {
-			return invalid()
+		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
 		}
 	}
 	return nil

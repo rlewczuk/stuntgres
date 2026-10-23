@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -234,7 +235,8 @@ func TestCreateAggregatePolymorphicTransitionRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	mapper := &ViewQueryRemapper{Catalog: next, Type: func(source *sqltype.Descriptor) *sqltype.Descriptor {
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{aggregate.Address(): destination.Address()}
+	mapper := &ViewQueryRemapper{Catalog: next, Procedure: extension.ProcedureRemapper(mapping, nil, nil), Type: func(source *sqltype.Descriptor) *sqltype.Descriptor {
 		target, _ := next.LookupType(source.ID())
 		return target
 	}, addressMapper: func(source ids.ObjectAddress) ids.ObjectAddress {
@@ -251,9 +253,8 @@ func TestCreateAggregatePolymorphicTransitionRemap(t *testing.T) {
 	newArray, _ := next.LookupType(1021)
 	newOID, _ := next.LookupType(sqltype.Oid)
 	newReal, _ := next.LookupType(sqltype.Float4)
-	newSupport, _ := next.Procedure(support.Address())
-	if mapped.Aggregate != destination || mapped.Support != newSupport || mapped.Usage != newArray.Usage() || mapped.Inputs[1] != newOID.Usage() || mapped.Formals[0] != newArray.Usage() || mapped.Formals[1] != newReal.Usage() {
-		t.Fatal("transition remap retained foreign declaration or frame ownership")
+	if mapped.Aggregate == aggregate || mapped.Aggregate == destination || mapped.Aggregate.Address() != destination.Address() || mapped.Support != support || mapped.Usage != newArray.Usage() || mapped.Inputs[1] != newOID.Usage() || mapped.Formals[0] != newArray.Usage() || mapped.Formals[1] != newReal.Usage() {
+		t.Fatal("transition remap replaced an original declaration or lost frame ownership")
 	}
 	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	state, err := mapped.InitWithContext(context.Background(), evaluation)

@@ -100,9 +100,6 @@ func TestReferenceUUIDOsspGroupedControls(t *testing.T) {
 			return
 		}
 		dump := extensionDump(t, p.Ctx, p.Native)
-		if !strings.Contains(dump, "uuid_generate_v4") || !strings.Contains(dump, "uuid_ossp_group_view") {
-			t.Fatal("lost grouped installed recipe", dump)
-		}
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}

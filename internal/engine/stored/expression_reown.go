@@ -1,11 +1,10 @@
 package stored
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -13,9 +12,8 @@ import (
 // its objects were renumbered by mapping (or, with typesOnly, after only
 // their types changed). view is the catalog view of next; its owner supplies
 // the reference domain.
-func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
+func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, routineRemap *catalog.RoutineRemap) error {
 	domain := view.Owner().Domain
-	collation := typedef.RemappedCollationCapabilities(next, mapping)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		if old == (ids.ObjectRef{}) || typesOnly {
 			return old
@@ -30,21 +28,34 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		old.Epoch = next.Epoch()
 		return old
 	}
-	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
-		if old == nil {
-			return nil
+	if routineRemap == nil {
+		leaf := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			if old == nil {
+				return nil
+			}
+			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}
+			if target, ok := mapping[address]; ok {
+				address = target
+			}
+			if d, ok := next.Type(address); ok {
+				return d.SQLType
+			}
+			return old
 		}
-		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}
-		if target, ok := mapping[address]; ok {
-			address = target
+		routineRemap = NewRoutineRemap(view, mapping, leaf, nil, typesOnly)
+		if !typesOnly {
+			if err := routine.RebindSQLDefinitions(next, routineRemap); err != nil {
+				return err
+			}
 		}
-		if d, ok := next.Type(address); ok {
-			return d.SQLType
-		}
-		return old
+	}
+	typ, collation, procedure := routineRemap.Type, routineRemap.Collation, routineRemap.Procedure
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: func(ref ids.ObjectRef) ids.ObjectRef { return ref }, Type: typ, Collation: collation, Procedure: procedure}
+	retag := func(node expr.Expr) (expr.Expr, bool, error) {
+		return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, procedure, collation)
 	}
 	if typesOnly {
-		if err := reownSQLRoutineTypes(view, next, typ); err != nil {
+		if err := reownSQLRoutineTypes(view, next, typ, routineRemap); err != nil {
 			return err
 		}
 	}
@@ -72,7 +83,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				node, _, err = RetagTypes(view, node, typ, collation)
+				node, _, err = retag(node)
 				if err != nil {
 					return err
 				}
@@ -82,7 +93,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 					check.Dependencies[j].Ref = ref(check.Dependencies[j].Ref)
 					address := check.Dependencies[j].Ref.Address
 					address.SubID = 0
-					if provider, exists := view.Descriptor(address); exists {
+					if provider, exists := view.Descriptor(address); exists && address.ClassID != ids.ProcedureClassID {
 						check.Dependencies[j].Revision = provider.Revision()
 					}
 				}
@@ -93,7 +104,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				node, _, err = RetagTypes(view, node, typ, collation)
+				node, _, err = retag(node)
 				if err != nil {
 					return err
 				}
@@ -113,7 +124,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		if len(RulesOf(d)) != 0 {
 			var err error
-			d, err = RemapRules(view, d, mapping, ref, typ, collation)
+			d, err = remapRules(view, d, mapping, ref, typ, collation, procedure)
 			if err != nil {
 				return err
 			}
@@ -130,7 +141,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				node, _, err = RetagTypes(view, node, typ, collation)
+				node, _, err = retag(node)
 				if err != nil {
 					return err
 				}
@@ -152,7 +163,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				node, _, err = RetagTypes(view, node, typ, collation)
+				node, _, err = retag(node)
 				if err != nil {
 					return err
 				}
@@ -161,7 +172,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				planned, _, err = RetagTypes(view, planned, typ, collation)
+				planned, _, err = retag(planned)
 				if err != nil {
 					return err
 				}
@@ -184,7 +195,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				node, _, err = RetagTypes(view, node, typ, collation)
+				node, _, err = retag(node)
 				if err != nil {
 					return err
 				}
@@ -192,13 +203,6 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				c.Dependencies = append([]catalog.ExpressionDependency(nil), c.Dependencies...)
 				for j := range c.Dependencies {
 					c.Dependencies[j].Ref = ref(c.Dependencies[j].Ref)
-					if c.Dependencies[j].Ref.Address.ClassID == ids.ProcedureClassID {
-						provider, exists := view.Descriptor(c.Dependencies[j].Ref.Address)
-						if !exists {
-							return fmt.Errorf("stuntgres: missing reconstructed CHECK routine")
-						}
-						c.Dependencies[j].Revision = provider.Revision()
-					}
 				}
 			}
 			if err := RefreshGenerationChecks(&copy, view); err != nil {
@@ -230,7 +234,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				node, _, err = RetagTypes(view, node, typ, collation)
+				node, _, err = retag(node)
 				if err != nil {
 					return err
 				}
@@ -239,7 +243,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				node, _, err = RetagTypes(view, node, typ, collation)
+				node, _, err = retag(node)
 				if err != nil {
 					return err
 				}
@@ -256,7 +260,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				p.Definition, _, err = RetagTypes(view, node, typ, collation)
+				p.Definition, _, err = retag(node)
 				if err != nil {
 					return err
 				}
@@ -264,7 +268,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				if err != nil {
 					return err
 				}
-				p.Execution, _, err = RetagTypes(view, node, typ, collation)
+				p.Execution, _, err = retag(node)
 				if err != nil {
 					return err
 				}
@@ -280,7 +284,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		if catalog.HierarchyRelation(d) {
 			var err error
-			d, err = RemapPartitionDescriptor(view, d, ref, typ, mapping, typesOnly, collation)
+			d, err = RemapPartitionDescriptor(view, d, ref, typ, mapping, typesOnly, collation, procedure)
 			if err != nil {
 				return err
 			}
@@ -288,7 +292,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		if len(d.Security.Policies) != 0 {
 			var err error
-			d, err = RemapPolicies(view, d, mapping, ref, typ, collation)
+			d, err = remapPolicies(view, d, mapping, ref, typ, collation, procedure)
 			if err != nil {
 				return err
 			}
@@ -297,13 +301,16 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		if d.View == nil {
 			continue
 		}
-		definition, err := RemapView(view, ViewOf(d), mapping, ref, typ, collation)
+		definition, err := remapView(view, ViewOf(d), mapping, ref, typ, collation, nil, procedure)
 		if err != nil {
 			return err
 		}
 		copy := *d
 		copy.View = ViewPayload(definition)
 		next.SetDescriptor(address, &copy)
+	}
+	if routineRemap != nil {
+		return routineRemap.Finish()
 	}
 	return nil
 }

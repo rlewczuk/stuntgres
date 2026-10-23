@@ -78,14 +78,38 @@ func currentRoutineDeclaration(view catalog.Read, captured *catalog.Procedure) (
 
 func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 	return current != nil && captured != nil &&
-		current.Name() == captured.Name() && current.Signature == captured.Signature &&
+		current.Address() == captured.Address() && current.Signature == captured.Signature &&
 		current.RoutineKind == captured.RoutineKind && current.Result == captured.Result &&
 		current.Strict == captured.Strict && current.Volatility == captured.Volatility &&
 		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
 		current.Language == captured.Language && current.PLHandler == captured.PLHandler &&
 		slices.Equal(current.DeclarationDependencies, captured.DeclarationDependencies) &&
 		current.Conversion == captured.Conversion && current.SQL == captured.SQL && current.SQLBody == captured.SQLBody &&
-		current.SQLDefaults == captured.SQLDefaults && sameAggregateDefinition(current.Aggregate, captured.Aggregate)
+		current.SQLDefaults == captured.SQLDefaults && current.Extension == captured.Extension &&
+		current.AccessMethod == captured.AccessMethod && current.Dictionary == captured.Dictionary &&
+		current.Foreign == captured.Foreign && sameRoutineBody(current.Body, captured.Body) && sameAggregateDefinition(current.Aggregate, captured.Aggregate)
+}
+
+func sameRoutineBody(a, b []catalog.RoutineBodyEdge) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, left := range a {
+		right := b[i]
+		if left.Demand != right.Demand {
+			return false
+		}
+		if left.Routine == nil || right.Routine == nil {
+			if left.Routine != right.Routine {
+				return false
+			}
+			continue
+		}
+		if left.Routine.Address() != right.Routine.Address() || left.Routine.Builtin != right.Routine.Builtin || left.Routine.Signature != right.Routine.Signature || left.Routine.RoutineKind != right.Routine.RoutineKind || left.Routine.Result != right.Routine.Result || left.Routine.Implementation != right.Routine.Implementation || left.Routine.SQL != right.Routine.SQL {
+			return false
+		}
+	}
+	return true
 }
 
 func sameAggregateDefinition(a, b *catalog.OwnedAggregate) bool {
@@ -95,22 +119,43 @@ func sameAggregateDefinition(a, b *catalog.OwnedAggregate) bool {
 	return *a == *b
 }
 
-func ExpressionRecipeDescriptor(node any) (*catalog.Relation, error) {
+func ExpressionRecipeDescriptor(node any) (expr.RoutineRecipeReference, error) {
 	carrier, ok := node.(interface {
 		CallRoutineRecipeReference() expr.RoutineRecipeReference
 	})
 	if !ok || carrier.CallRoutineRecipeReference() == nil {
 		return nil, nil
 	}
-	recipe, ok := carrier.CallRoutineRecipeReference().(*catalog.Relation)
-	if !ok || recipe == nil || recipe.View == nil || recipe.RelationKind != catalog.ViewRelation || recipe.Address().ClassID != ids.RelationClassID || recipe.Address().ObjectID == 0 {
-		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
+	reference := carrier.CallRoutineRecipeReference()
+	_, _, err := routineRecipeParts(reference)
+	return reference, err
+}
+
+func routineRecipeParts(reference expr.RoutineRecipeReference) (*catalog.Relation, catalog.ViewPayload, error) {
+	var owner *catalog.Relation
+	var presentation catalog.ViewPayload
+	switch recipe := reference.(type) {
+	case *catalog.Relation:
+		if recipe == nil || recipe.RelationKind != catalog.ViewRelation {
+			return nil, nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
+		}
+		owner, presentation = recipe, recipe.View
+	case *catalog.RuleRoutineRecipe:
+		if recipe == nil || recipe.Rule == 0 || recipe.Action < -1 {
+			return nil, nil, fmt.Errorf("stuntgres: invalid grafted rule routine recipe")
+		}
+		owner, presentation = recipe.Owner, recipe.Presentation
+	default:
+		return nil, nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
-	if consumer, temporary := recipe.View.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) && consumer != recipe.Address() ||
-		temporary != (ids.SessionToken{}) && consumer != recipe.Address() {
-		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
+	if owner == nil || presentation == nil || owner.Address().ClassID != ids.RelationClassID || owner.Address().ObjectID == 0 {
+		return nil, nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
-	return recipe, nil
+	if consumer, temporary := presentation.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) && consumer != owner.Address() ||
+		temporary != (ids.SessionToken{}) && consumer != owner.Address() {
+		return nil, nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
+	}
+	return owner, presentation, nil
 }
 
 func PolymorphicBodyArgument(node expr.Expr, id ids.OID) expr.Expr {

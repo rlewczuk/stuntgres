@@ -79,7 +79,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(next)
-	mapped, err := stored.RemapRuleBinding(view, b, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+	mapped, err := stored.RemapRuleBinding(view, b, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -111,6 +111,15 @@ ordinary SQL errors leave the connection reusable.
   Go `Stmt` handles; closing a `Stmt` or `Rows` neither deallocates a name nor moves
   a cursor.
 
+Routine rename/schema/owner DDL has no parameter/result signature; Prepare stays
+effect-free and Execute owns authorization and read-only/autocommit admission.
+Affected original Go/SQL prepared source reanalyzes: an old spelling may fail
+42883, and recreating it legitimately binds the replacement. Hard stored calls
+instead retain checked callee identity with current owner/EXECUTE checks.
+Returned Rows retain captured values/metadata across these changes. See the
+[routine contract](../internal/engine/routine/README.md#routine-alter-contract)
+and [selected proof](../reference/query_core/README.md#routine-alter-proof).
+
 ### Go values
 
 | SQL type | Non-NULL Go value |

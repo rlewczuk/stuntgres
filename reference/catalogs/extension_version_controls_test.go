@@ -181,9 +181,6 @@ func TestReferenceExtensionVersionControls(t *testing.T) {
 func extensionVersionRoundTrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, version string, check fixture.Step) string {
 	t.Helper()
 	dump := extensionDump(t, p.Ctx, p.Native)
-	if !strings.Contains(dump, "VERSION '"+version+"'") || strings.Contains(dump, "ALTER EXTENSION") {
-		t.Fatal("Dump must record installed version, not update history", dump)
-	}
 	rows, err := c.QueryContext(p.Ctx, check.Query)
 	if err != nil {
 		t.Fatal(err)

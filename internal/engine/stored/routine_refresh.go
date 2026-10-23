@@ -13,25 +13,20 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// RefreshRoutineCalls refreshes descriptor handles by captured identity only.
-// A rename never reselects the callee or an overload from original SQL names.
-func RefreshRoutineCalls(read catalog.Read, b analyze.Binding) (analyze.Binding, error) {
+// ValidateRoutineCallIdentities checks frozen calls against current declarations
+// without replacing their captured handles. A handle and its lifetime manifest
+// belong to the same original binding; relabeling must not mix generations.
+func ValidateRoutineCallIdentities(read catalog.Read, b analyze.Binding) error {
 	mapper := NewRuleTreeMapper(read, nil, 0, nil, RuleTreeMapping{Leaf: func(node expr.Expr) (expr.Expr, bool, error) {
 		call, ok := node.(plan.SQLRoutineExpr)
 		if !ok {
 			return node, false, nil
 		}
-		current, err := currentRoutineCall(read, call)
-		if err != nil {
-			return nil, false, err
-		}
-		if current == call.Procedure {
-			return node, false, nil
-		}
-		call.Procedure, call.Info.RoutineReference = current, current
-		return call, true, nil
+		_, err := currentRoutineCall(read, call)
+		return node, false, err
 	}})
-	return MapRuleBindingRecipes(b, mapper)
+	_, err := MapRuleBindingRecipes(b, mapper)
+	return err
 }
 
 func currentRoutineCall(read catalog.Read, call plan.SQLRoutineExpr) (*catalog.Procedure, error) {
@@ -39,7 +34,7 @@ func currentRoutineCall(read catalog.Read, call plan.SQLRoutineExpr) (*catalog.P
 		return nil, ids.ErrCatalogReplaced
 	}
 	current, ok := read.Procedure(call.Ref.Address)
-	if !ok || current.SQL == nil || current.SQL != call.Procedure.SQL || current.SQLDefaults != call.Procedure.SQLDefaults || current.Signature != call.Procedure.Signature || current.Result != call.Procedure.Result || current.RoutineKind != catalog.FunctionRoutine {
+	if !ok || current.SQL == nil || !exec.SameRoutineDeclaration(current, call.Procedure) || current.RoutineKind != catalog.FunctionRoutine {
 		return nil, ids.ErrCatalogReplaced
 	}
 	derived, err := call.Collate(func(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
@@ -62,7 +57,7 @@ func currentRoutineCall(read catalog.Read, call plan.SQLRoutineExpr) (*catalog.P
 // Type evolution keeps logical identities and references, but every affected
 // declaration and capture must own the destination descriptor generation.
 // Unchanged declarations and payloads retain their immutable pointer identity.
-func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltype.Descriptor) *sqltype.Descriptor) error {
+func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltype.Descriptor) *sqltype.Descriptor, remap *catalog.RoutineRemap) error {
 	type refresh struct {
 		source         *catalog.Procedure
 		definition     *proc.Definition
@@ -75,7 +70,7 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 		if !ok || d.SQL == nil {
 			continue
 		}
-		definition, err := reownRoutineDefinition(d.SQL, typ)
+		definition, err := remap.Definition(d.SQL)
 		if err != nil {
 			return err
 		}
@@ -157,31 +152,38 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 	}
 	// Stabilize all affected callee handles before remapping either payload.
 	for address, change := range changes {
-		next := *change.source
+		mapped, err := remap.Procedure(change.source)
+		if err != nil {
+			return err
+		}
+		next := *mapped
 		next.SQL = change.definition
 		state.SetDescriptor(address, &next)
+	}
+	if err := remap.Declarations(); err != nil {
+		return err
 	}
 	for address, change := range changes {
 		current, _ := state.Procedure(address)
 		if change.defaults {
-			payload, err := change.source.SQLDefaults.Rebind(view, nil)
+			payload, err := remap.Defaults(change.source.SQLDefaults)
 			if err != nil {
 				return err
 			}
 			current.SQLDefaults = payload
 		}
 		if change.body {
-			payload, err := change.source.SQLBody.Rebind(view, nil)
+			payload, err := remap.Body(change.source.SQLBody)
 			if err != nil {
 				return err
 			}
 			current.SQLBody = payload
 		}
 	}
-	return nil
+	return remap.Finish()
 }
 
-func reownRoutineDefinition(source *proc.Definition, typ func(*sqltype.Descriptor) *sqltype.Descriptor) (*proc.Definition, error) {
+func reownRoutineDefinition(source *proc.Definition, usage func(sqltype.Usage) (sqltype.Usage, error), programs map[*proc.PLProgram]*proc.PLProgram) (*proc.Definition, error) {
 	next := source
 	detach := func() {
 		if next == source {
@@ -190,16 +192,19 @@ func reownRoutineDefinition(source *proc.Definition, typ func(*sqltype.Descripto
 		}
 	}
 	for i, formal := range source.Formals {
-		mapped := typ(formal.Usage.Type)
-		if mapped == nil || !mapped.Concrete() {
+		mapped, err := usage(formal.Usage)
+		if err != nil {
+			return nil, err
+		}
+		if mapped.Type == nil || !mapped.Type.Concrete() {
 			return nil, fmt.Errorf("stuntgres: missing SQL routine formal generation")
 		}
-		if mapped != formal.Usage.Type {
+		if mapped != formal.Usage {
 			detach()
 			if next.Formals == nil || &next.Formals[0] == &source.Formals[0] {
 				next.Formals = slices.Clone(source.Formals)
 			}
-			next.Formals[i].Usage.Type = mapped
+			next.Formals[i].Usage = mapped
 		}
 	}
 	for i, formal := range source.InputFormals {
@@ -211,32 +216,46 @@ func reownRoutineDefinition(source *proc.Definition, typ func(*sqltype.Descripto
 			next.Inputs[i] = next.Formals[formal].Usage
 		}
 	}
-	result := typ(source.Result.Type)
-	if result == nil || !result.Concrete() {
+	result, err := usage(source.Result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Type == nil || !result.Type.Concrete() {
 		return nil, fmt.Errorf("stuntgres: missing SQL routine result generation")
 	}
-	if result != source.Result.Type {
+	if result != source.Result {
 		detach()
-		next.Result.Type = result
+		next.Result = result
 	}
 	if source.PL != nil {
-		for i, variable := range source.PL.Variables {
-			if variable.Record {
-				continue
-			}
-			mapped := typ(variable.Usage.Type)
-			if mapped == nil || !mapped.Concrete() {
-				return nil, fmt.Errorf("stuntgres: missing PL local type generation")
-			}
-			if mapped != variable.Usage.Type {
-				detach()
-				if next.PL == source.PL {
-					program := *source.PL
-					program.Variables = slices.Clone(source.PL.Variables)
-					next.PL = &program
+		program, found := programs[source.PL]
+		if !found {
+			program = source.PL
+			for i, variable := range source.PL.Variables {
+				if variable.Record {
+					continue
 				}
-				next.PL.Variables[i].Usage.Type = mapped
+				mapped, err := usage(variable.Usage)
+				if err != nil {
+					return nil, err
+				}
+				if mapped.Type == nil || !mapped.Type.Concrete() {
+					return nil, fmt.Errorf("stuntgres: missing PL local type generation")
+				}
+				if mapped != variable.Usage {
+					if program == source.PL {
+						copy := *source.PL
+						copy.Variables = slices.Clone(source.PL.Variables)
+						program = &copy
+					}
+					program.Variables[i].Usage = mapped
+				}
 			}
+			programs[source.PL] = program
+		}
+		if program != source.PL {
+			detach()
+			next.PL = program
 		}
 	}
 	return next, nil

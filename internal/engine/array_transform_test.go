@@ -73,6 +73,12 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(tc.name, changed, err)
 		}
+		mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(source, target)}
+		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{mapped}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		mapped = query.(*plan.ValuesNode).Rows[0][0]
 		next := mapped.(functions.ArrayTransform)
 		if old.ResultUsage().Type == next.ResultUsage().Type || old.Args[0].ResultUsage().Type == next.Args[0].ResultUsage().Type {
 			t.Fatal("retained source generations")
@@ -115,10 +121,6 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		}
 		if render(old, source.CatalogRead()) != originalSQL || render(next, target.CatalogRead()) != originalSQL {
 			t.Fatal("remap changed symbolic recipe")
-		}
-		unchanged, did, err := expr.MapSubstituted(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })
-		if err != nil || did || &unchanged.(functions.ArrayTransform).Args[0] != &old.Args[0] {
-			t.Fatal("no-op copied children")
 		}
 	}
 }

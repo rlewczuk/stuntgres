@@ -83,7 +83,7 @@ func TestRoutineNestedRemapExactlyOnce(t *testing.T) {
 	})
 	t.Run("mutation", func(t *testing.T) {
 		binding := analyze.Binding{Update: &analyze.UpdateBinding{Assignments: []expr.Expr{subquery}}}
-		mapped, err := remapRuleBinding(catalog.Read{}, binding, ref, nonidempotentType, nil, 1, nil)
+		mapped, err := remapRuleBinding(catalog.Read{}, binding, ref, nonidempotentType, nil, 1, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -94,7 +94,7 @@ func TestRoutineNestedRemapExactlyOnce(t *testing.T) {
 			t.Fatal("generic expression admitted nested routine formals")
 		}
 		binding := analyze.Binding{Update: &analyze.UpdateBinding{Assignments: []expr.Expr{subquery}}}
-		if _, err := RemapRuleBinding(catalog.Read{}, binding, ref, nonidempotentType, nil); err == nil {
+		if _, err := RemapRuleBinding(catalog.Read{}, binding, ref, nonidempotentType, nil, nil); err == nil {
 			t.Fatal("generic mutation admitted nested routine formals")
 		}
 	})

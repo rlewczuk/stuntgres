@@ -145,7 +145,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.CreateCast, *parser.DropCast, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.DropRoutine, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
+	case *parser.CreateCast, *parser.DropCast, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
 		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
 		if err == nil {
 			scope.completed = true
@@ -565,6 +565,10 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
 	if scope.sqlRoutine.binding != nil {
 		evaluation.PlanStaticOperators, evaluation.SpecializeRuleParameters = true, true
+		// This binding is the validated frozen SQL-standard action, not newly
+		// analyzed source. Retain its original call lifetimes through planning.
+		evaluation.RoutineRecipe = true
+		evaluation.RoutineChecks = scope.sqlRoutine.binding.Dependencies
 	}
 	var err error
 	var creationStage *CatalogStage

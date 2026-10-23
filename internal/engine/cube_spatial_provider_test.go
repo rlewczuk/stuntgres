@@ -274,21 +274,22 @@ func TestCubeSpatialProviderControls(t *testing.T) {
 		old.Epoch = next.Epoch()
 		return old
 	}
-	mapped, err := stored.RemapExpression(call, ref, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mapped, _, err = stored.RetagTypes(view, mapped, func(old *sqltype.Descriptor) *sqltype.Descriptor {
-		if n := types[old]; n != nil {
-			return n
+	typeMapper := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		if target := types[old]; target != nil {
+			return target
 		}
 		return old
-	})
+	}
+	procedure := extension.ProcedureRemapper(mapping, nil, nil)
+	mapper := stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: typeMapper, Procedure: procedure}
+	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "distance", Usage: call.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{call}}
+	remapped, err := mapper.Query(query)
 	if err != nil {
 		t.Fatal(err)
 	}
+	mapped := remapped.(*plan.ProjectNode).Expressions[0]
 	actual, ok := mapped.(plan.InstalledCubeSpatialExpr)
-	if !ok || actual.Ref.Address != mapping[call.Ref.Address] || actual.Procedure != next.Get(actual.Ref.Address) || actual.Args[0].ResultUsage().Type != newType {
+	if !ok || actual.Ref.Address != mapping[call.Ref.Address] || !exec.SameRoutineDeclaration(next.MustProcedure(actual.Ref.Address), actual.Procedure) || actual.Procedure.Revision() != call.Procedure.Revision() || actual.Args[0].ResultUsage().Type != newType {
 		t.Fatal("remapped expression authority", mapped)
 	}
 	v, err := actual.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}})
@@ -307,12 +308,6 @@ func TestCubeSpatialProviderControls(t *testing.T) {
 		t.Fatal("stale installed reference executed")
 	}
 	t.Run("cached_projection_identity", func(t *testing.T) {
-		typeMapper := func(old *sqltype.Descriptor) *sqltype.Descriptor {
-			if target := types[old]; target != nil {
-				return target
-			}
-			return old
-		}
 		for _, mode := range []string{"order_key", "order_output", "bounded_output", "distinct_on"} {
 			t.Run(mode, func(t *testing.T) {
 				source := &plan.ValuesNode{Rows: [][]expr.Expr{{}}}
@@ -340,20 +335,18 @@ func TestCubeSpatialProviderControls(t *testing.T) {
 					t.Fatal("cache slot acquired producer identity or lost value metadata", projection[0])
 				}
 				query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "distance", Usage: call.ResultUsage()}}, Child: producer, Expressions: projection}
-				mapper := stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: typeMapper}
+				mapper := stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: typeMapper, Procedure: procedure}
 				reowned, failure := mapper.Query(query)
 				if failure != nil {
 					t.Fatal("remint cached projection and its owning call", failure)
 				}
-				calls := 0
 				plan.VisitCTEQuery(reowned, func(plan.Node) {}, func(node expr.Expr) {
 					plan.WalkExpression(node, func(node expr.Expr) {
 						if cache, ok := node.(plan.CachedOrderExpr); ok && (cache.CallRoutineReference() != nil || cache.CallRoutineRecipeReference() != nil) {
 							t.Fatal("remapped cache slot owns a callable", cache)
 						}
 						if owned, ok := node.(plan.InstalledCubeSpatialExpr); ok {
-							calls++
-							if owned.Ref.Address != mapping[call.Ref.Address] || owned.Procedure != next.Get(owned.Ref.Address) || owned.Args[0].ResultUsage().Type != newType {
+							if owned.Ref.Address != mapping[call.Ref.Address] || !exec.SameRoutineDeclaration(next.MustProcedure(owned.Ref.Address), owned.Procedure) || owned.Procedure.Revision() != call.Procedure.Revision() || owned.Args[0].ResultUsage().Type != newType {
 								t.Fatal("producer lost reminted callable authority", owned)
 							}
 							value, failure := owned.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}})
@@ -367,8 +360,8 @@ func TestCubeSpatialProviderControls(t *testing.T) {
 						}
 					})
 				}, true)
-				if calls != 1 || call.Procedure != before.Get(call.Ref.Address) || call.Args[0].ResultUsage().Type != base.SQLType {
-					t.Fatal("cache duplicated the executable call or changed its source", calls)
+				if call.Procedure != before.Get(call.Ref.Address) || call.Args[0].ResultUsage().Type != base.SQLType {
+					t.Fatal("remap changed its source expression")
 				}
 			})
 		}

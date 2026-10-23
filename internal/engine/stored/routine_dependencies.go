@@ -64,7 +64,7 @@ func (r ScalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) e
 		}
 		// Body links describe immutable declarations; only this renderer's
 		// original captured manifest can supply the remapped owning lifetime.
-		return r.recordStoredRoutineDescriptor(view, current)
+		return r.recordStoredRoutineDescriptor(view, body)
 	})
 }
 
@@ -85,7 +85,7 @@ func (r ScalarRenderer) recordStoredRoutineDescriptor(view catalog.Read, capture
 	}
 	for _, old := range r.CapturedChecks {
 		if old.Ref.Address == ref.Address {
-			if !ReferenceEpochValid(view, r.retainedConsumer(), old.Ref) || current.Revision() != old.Revision {
+			if !ReferenceEpochValid(view, r.retainedConsumer(), old.Ref) || captured.Revision() != old.Revision {
 				return fmt.Errorf("stuntgres: stale stored routine dependency")
 			}
 			r.record(old.Ref)

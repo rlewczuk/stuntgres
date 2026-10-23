@@ -10,6 +10,59 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// ProcedureRemapper maps the original declaration graph without resolving its
+// addresses through a newer catalog root. The memo is shared by all consumers
+// in one replacement.
+func ProcedureRemapper(mapping map[ids.ObjectAddress]ids.ObjectAddress, principal catalog.ProcedureRemapper, prepare func(*catalog.Procedure) error) catalog.ProcedureRemapper {
+	procedures := make(map[*catalog.Procedure]*catalog.Procedure)
+	var procedure catalog.ProcedureRemapper
+	procedure = func(p *catalog.Procedure) (*catalog.Procedure, error) {
+		if p == nil {
+			return nil, nil
+		}
+		if n := procedures[p]; n != nil {
+			return n, nil
+		}
+		original := p
+		if principal != nil {
+			var err error
+			p, err = principal(p)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if n := procedures[p]; n != nil {
+			procedures[original] = n
+			return n, nil
+		}
+		remapped := RemapDescriptor(p, mapping).(*catalog.Procedure)
+		if len(p.Body) == 0 && prepare == nil {
+			procedures[original] = remapped
+			return remapped, nil
+		}
+		n := *remapped
+		procedures[original] = &n
+		procedures[&n] = &n
+		if prepare != nil {
+			if err := prepare(&n); err != nil {
+				return nil, err
+			}
+		}
+		n.Body = append([]catalog.RoutineBodyEdge(nil), p.Body...)
+		for i := range p.Body {
+			var err error
+			// Principal remapping has its own memo; recurse from the source
+			// graph so composition never reapplies a domain conversion.
+			n.Body[i].Routine, err = procedure(original.Body[i].Routine)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return &n, nil
+	}
+	return procedure
+}
+
 func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) catalog.Descriptor {
 	address := func(a ids.ObjectAddress) ids.ObjectAddress {
 		if next, ok := mapping[a]; ok {
@@ -133,7 +186,7 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 				n.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
 			}
 		} else {
-			n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), n.Namespace(), mapping)
+			n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), mapping)
 		}
 		if CubeProviderOf(&n) != nil {
 			n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
@@ -146,7 +199,7 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 			n.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
 		}
 		if IntarrayProviderOf(&n) != nil || CitextProviderOf(&n) != nil {
-			if n.Name() == "bqarr_in" || n.Name() == "citextin" {
+			if d.Signature == "2275" {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {
 				parts := strings.Split(string(n.Signature), ",")

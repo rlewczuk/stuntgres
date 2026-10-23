@@ -14,6 +14,9 @@ type RulesPayload interface {
 	// Visit calls visit for each rule in stored order and stops at the first
 	// error, which it returns.
 	Visit(visit func(RuleFact) error) error
+	// RoutineRecipe returns the original presentation of an action slot;
+	// action -1 selects the condition. Missing rules or slots return nil.
+	RoutineRecipe(rule ids.OID, action int) ViewPayload
 }
 
 // RuleFact is the catalog-visible identity of one rewrite rule: its
@@ -26,6 +29,18 @@ type RuleFact struct {
 	Instead     bool
 	References  []ids.ObjectAddress
 }
+
+// RuleRoutineRecipe identifies a genuine stored rule occurrence grafted into
+// a command. The live rule slot must still own this exact presentation before
+// its original manifest can be borrowed; this token grants no permissions.
+type RuleRoutineRecipe struct {
+	Owner        *Relation
+	Rule         ids.OID
+	Action       int
+	Presentation ViewPayload
+}
+
+func (r *RuleRoutineRecipe) RoutineRecipeOID() uint32 { return uint32(r.Rule) }
 
 // HasRules reports whether d carries at least one rewrite rule.
 func (d *Relation) HasRules() bool {

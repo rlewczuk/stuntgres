@@ -71,6 +71,12 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			if err != nil || !changed || rebound.ResultUsage().Type == node.ResultUsage().Type {
 				t.Fatal(changed, err)
 			}
+			mapper := stored.ViewQueryRemapper{Catalog: replacement.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(e, replacement)}
+			query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{rebound}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rebound = query.(*plan.ValuesNode).Rows[0][0]
 			after, err := rebound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)

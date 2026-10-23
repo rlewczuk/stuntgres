@@ -48,6 +48,7 @@ func (h ddlHost) BindRuleCondition(a ddl.Authority, ns *analyze.RuleNamespace, r
 	if err := binder.CaptureViewLiterals(normalized, condition, analyze.ViewTargetLiteral, 0); err != nil {
 		return condition, nil, analyze.Binding{}, err
 	}
+	normalized = binder.NormalizeStoredExpression(normalized)
 	query := &parser.Select{Targets: []parser.Expr{normalized}}
 	b := analyze.Binding{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{condition}, Frame: binder.FrameID(), Syntax: query}}, Dependencies: binder.Dependencies, QuerySources: binder.Query.Sources, Capture: analyze.ViewCapture{Columns: binder.Capture.Columns, Literals: binder.Capture.Literals, CastUsages: binder.Capture.CastUsages, Composites: binder.Capture.Composites, Collations: binder.Capture.Collations, Namespaces: binder.Capture.Namespaces}, Prepared: analyze.PreparedCaptures{SequenceConstants: binder.Prepared.SequenceConstants, RegtypeConstants: binder.Prepared.RegtypeConstants}}
 	b.Capture.RoutineRefs = binder.Capture.RoutineRefs

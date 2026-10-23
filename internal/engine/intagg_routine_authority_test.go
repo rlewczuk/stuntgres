@@ -133,7 +133,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			}
 			admit := func(c *exec.Context, n expr.Expr, r ids.ObjectRef) error {
 				if aggregate {
-					return exec.AdmitRoutineReference(c, r, "aggregate")
+					return exec.AdmitRoutineReference(c, r, captured, "aggregate")
 				}
 				return exec.AdmitRoutineCall(c, n, false, false)
 			}
@@ -141,7 +141,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("original admission", err)
 			}
 			if aggregate {
-				if err := exec.AdmitRoutineReference(&evaluation, ids.ObjectRef{}, "aggregate"); err == nil {
+				if err := exec.AdmitRoutineReference(&evaluation, ids.ObjectRef{}, captured, "aggregate"); err == nil {
 					t.Fatal("missing aggregate identity admitted")
 				}
 			}
@@ -204,12 +204,10 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				if _, err := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err == nil {
 					t.Fatal("incompatible provider/kind declaration accepted")
 				}
-				if !aggregate {
-					probe = evaluation
-					probe.RoutineAuthority = &auth
-					if err := admit(&probe, node, ref); err == nil {
-						t.Fatal("enum admitted incompatible current declaration")
-					}
+				probe = evaluation
+				probe.RoutineAuthority = &auth
+				if err := admit(&probe, node, ref); err == nil {
+					t.Fatal("call admitted incompatible current declaration")
 				}
 			}
 			if !aggregate {
@@ -239,19 +237,19 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					foreignEnum := node.(plan.UnnestExpr)
 					foreignEnum.Ref = other.catalog.Domain.Ref(foreignEnum.Ref.Epoch, foreignEnum.Ref.Address)
 					foreignEnum.Ref.Epoch = foreign.Catalog.Epoch()
-					foreignNode, _, err := stored.RetagTypes(foreign.Catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+					_, _, err = stored.RetagTypes(foreign.Catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
 							return nil
 						}
 						current, _ := foreign.Catalog.LookupType(d.ID())
 						return current
 					})
-					if err != nil {
-						t.Fatal("structural foreign parameter retag", err)
+					if err == nil {
+						t.Fatal("structural foreign parameter retag acquired principal authority")
 					}
 					probe = evaluation
 					probe.RoutineAuthority = foreign.RoutineAuthority
-					if err := exec.AdmitRoutineCall(&probe, foreignNode, false, false); err == nil {
+					if err := exec.AdmitRoutineCall(&probe, foreignEnum, false, false); err == nil {
 						t.Fatal("foreign parameter retag acquired original authority")
 					}
 				} else {
@@ -267,8 +265,8 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err := exec.AdmitRoutineCall(&reboundEvaluation, rebound, false, false); err != nil {
 						t.Fatal("literal render/rebind authority", err)
 					}
-					// Transfer the actual selected ref before descriptor retagging; no old OID
-					// can resolve in this relocated catalog.
+					// Map the actual original declaration and its paired selected ref;
+					// no old OID can resolve in this relocated catalog.
 					mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ids.ExtensionClassID, 900000, 0}}
 					for i, a := range ext.Members {
 						mapping[a] = ids.ObjectAddress{ids.ProcedureClassID, ids.OID(900001 + i), 0}
@@ -292,17 +290,16 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						}
 						return r
 					}
-					relocated, err := stored.RemapExpression(node, remap, nil)
+					mapper := stored.ViewQueryRemapper{Catalog: view, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+					query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "value", Usage: node.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{node}}
+					remapped, err := mapper.Query(query)
 					if err != nil {
-						t.Fatal(err)
+						t.Fatal("remap original selected enum", err)
 					}
-					relocated, _, err = stored.RetagTypes(view, relocated, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
-					if err != nil {
-						t.Fatal("remapped selected-ref retag", err)
-					}
+					relocated := remapped.(*plan.ProjectNode).Expressions[0]
 					current, err := exec.ExpressionRoutineDescriptor(relocated)
-					if err != nil || current != state.Get(mapping[ref.Address]) {
-						t.Fatal("retag resolved stale captured address", err)
+					if err != nil || !exec.SameRoutineDeclaration(state.MustProcedure(mapping[ref.Address]), current) || current.Revision() != captured.Revision() {
+						t.Fatal("remap lost original selected declaration", err)
 					}
 					// Use the existing private catalog-authority constructor: the paired
 					// catalog and role read must both belong to this relocated root.
@@ -329,15 +326,15 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					foreignNode, _, err = stored.RetagTypes(foreign.Catalog, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+					_, _, err = stored.RetagTypes(foreign.Catalog, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
 							return nil
 						}
 						v, _ := foreign.Catalog.LookupType(d.ID())
 						return v
 					})
-					if err != nil {
-						t.Fatal("foreign retag fixture", err)
+					if err == nil {
+						t.Fatal("foreign structural retag acquired principal authority")
 					}
 					probe = evaluation
 					probe.RoutineAuthority = foreign.RoutineAuthority

@@ -465,6 +465,11 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf,
 
 func borrowQueryAuthority(s *exec.Source, scope *StatementScope) {
 	s.Authority = scope.authority
+	if scope.sqlRoutine.binding != nil && s.RoutineRecipe == nil {
+		// Borrow the same original frozen action manifest for runtime demand.
+		// Nested stored views install their own consumer/manifest separately.
+		s.RoutineChecks = scope.sqlRoutine.binding.Dependencies
+	}
 	s.Host = nil
 	if s.Authority == nil {
 		s.Host = hostOf(scope)

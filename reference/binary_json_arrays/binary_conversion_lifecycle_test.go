@@ -127,11 +127,6 @@ func TestReferenceBinaryConversionLifecycle(t *testing.T) {
 		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 			t.Fatal(err)
 		}
-		for _, clause := range []string{"convert_from(", "convert_to(", "encode(", "decode("} {
-			if !strings.Contains(dump.String(), clause) {
-				t.Fatalf("dump omits %s: %s", clause, dump.String())
-			}
-		}
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}

@@ -12,7 +12,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func RemapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation typedef.CollationRemapper) (*catalog.Relation, error) {
+func RemapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (*catalog.Relation, error) {
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, mapping, procedure)}
 	next := *d
 	if d.Partition != nil {
 		definition := *d.Partition
@@ -52,19 +53,19 @@ func RemapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 			}
 			if key.Derived != nil {
 				derived := *key.Derived
-				derived.Definition, _, err = RetagTypes(view, derived.Definition, typ, collation)
+				derived.Definition, err = RemapExpressionWithQuery(derived.Definition, ref, nil, mapper.Nested, nil)
 				if err != nil {
 					return nil, err
 				}
-				derived.Definition, err = RemapExpression(derived.Definition, ref, nil)
+				derived.Definition, _, err = mapper.retag(derived.Definition, typ)
 				if err != nil {
 					return nil, err
 				}
-				derived.Execution, _, err = RetagTypes(view, derived.Execution, typ, collation)
+				derived.Execution, err = RemapExpressionWithQuery(derived.Execution, ref, nil, mapper.Nested, nil)
 				if err != nil {
 					return nil, err
 				}
-				derived.Execution, err = RemapExpression(derived.Execution, ref, nil)
+				derived.Execution, _, err = mapper.retag(derived.Execution, typ)
 				if err != nil {
 					return nil, err
 				}

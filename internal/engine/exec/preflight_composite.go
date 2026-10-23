@@ -21,7 +21,17 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 			return plan.LiteralExpr{Info: foldedExpressionInfo(node), Value: sqltype.Null(node.ResultUsage().Type)}, true, nil
 		}
 	}
+	call, sqlCall := node.(plan.SQLRoutineExpr)
+	childIndex := -1
 	mapped, changed, err := expr.MapSubstituted(node, func(child expr.Expr) (expr.Expr, bool, error) {
+		childIndex++
+		if sqlCall && childIndex >= call.WrittenCount {
+			local := *c
+			local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies())
+			next, changed, err := PreflightCoercionsWithPolicy(&local, child, decisiveDefaults)
+			c.PreparedDomainChecks = local.PreparedDomainChecks
+			return next, changed, err
+		}
 		return PreflightCoercionsWithPolicy(c, child, decisiveDefaults)
 	})
 	if err != nil {

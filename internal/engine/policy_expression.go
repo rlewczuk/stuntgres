@@ -46,6 +46,7 @@ func (h ddlHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw 
 	if err = b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 		return nil, err
 	}
+	raw = b.NormalizeStoredExpression(raw)
 	source := &plan.SourceNode{QuerySchema: d.Columns, Ref: ref, Occurrence: 0}
 	root := &plan.ProjectNode{Child: source, Expressions: []expr.Expr{node}, Frame: 1, QuerySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
 	capture := analyze.Binding{

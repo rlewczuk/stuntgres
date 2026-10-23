@@ -55,7 +55,9 @@ func ruleUnitInt(d *catalog.Relation, n int64) expr.Expr {
 	return plan.LiteralExpr{Info: expr.Info{Usage: d.Columns[0].Usage, Pos: parser.Position{Offset: -1}}, Value: value}
 }
 func ruleUnitInsert(e *Engine, d *catalog.Relation, id, v int64) stored.RuleAction {
-	return stored.NewRuleAction(stored.RuleActionParts{Syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, Binding: analyze.Binding{Relation: d, Ref: ruleUnitRef(e, d), Targets: []int{0, 1}, Expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}})
+	binding := analyze.Binding{Relation: d, Ref: ruleUnitRef(e, d), Targets: []int{0, 1}, Expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}
+	presentation := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(d.Columns), Child: &plan.SingletonNode{}, Expressions: binding.Expressions[0]}}})
+	return stored.NewRuleAction(stored.RuleActionParts{Syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, Binding: binding, Presentation: presentation})
 }
 
 func TestRuleTemplateSubstitution(t *testing.T) {
@@ -547,7 +549,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 		old.Epoch = next.Epoch()
 		return old
 	}
-	mapped, err := stored.RemapRules(e.catalog.read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
+	mapped, err := stored.RemapRules(e.catalog.read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

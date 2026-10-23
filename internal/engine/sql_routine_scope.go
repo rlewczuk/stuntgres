@@ -148,6 +148,7 @@ type sqlRoutineDemand struct {
 	result         sqltype.Usage
 	resultPlan     sqltype.CoercionPlan
 	definition     *proc.Definition
+	name           string // Live declaration qualifier, separate from immutable body syntax.
 	terminal       bool
 	binding        *analyze.Binding
 	inputCollation sqltype.CollationRef // Only quoted aggregate-support formal annotation.

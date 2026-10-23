@@ -12,7 +12,13 @@ func ValidateInstalledPgrowlocks(n plan.InstalledPgrowlocksExpr, v catalog.Read)
 	if n.Procedure == nil || n.RoutineReference != n.Procedure || n.Arg == nil || n.Arg.ResultUsage().Type == nil || n.Arg.ResultUsage().Type.BaseType().ID() != sqltype.Text {
 		return fmt.Errorf("stuntgres: invalid pgrowlocks expression")
 	}
-	if err := extension.ValidatePgrowlocksIdentity(v, n.Procedure, n.Ref); err != nil {
+	// The carrier remains the original hard capture. Only the current
+	// declaration validated against it enters the exact-current provider gate.
+	current, _, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
+	if err != nil {
+		return err
+	}
+	if err := extension.ValidatePgrowlocksIdentity(v, current, n.Ref); err != nil {
 		return err
 	}
 	shape := n.Usage.Type

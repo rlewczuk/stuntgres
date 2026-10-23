@@ -20,8 +20,8 @@ func ValidateInstalledSoundex(n plan.InstalledSoundexExpr, v catalog.Read) error
 	if n.Function == "difference" {
 		result = 23
 	}
-	proc, ok := v.Procedure(n.Ref.Address)
-	if !ok || proc != n.Procedure || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.Result != result {
+	proc, symbol, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
+	if err != nil || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || symbol != n.Function || proc.Signature != catalog.ProcedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.Result != result {
 		return fmt.Errorf("stuntgres: invalid stored Soundex identity")
 	}
 	if err := extension.StockFuzzystrmatch.ValidateProcedure(v, proc); err != nil {

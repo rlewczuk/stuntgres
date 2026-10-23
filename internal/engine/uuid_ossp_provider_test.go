@@ -74,6 +74,23 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	if count != 10 {
 		t.Fatal("membership count", count)
 	}
+	renamed := *proc
+	renamed.ObjectName = "uuidv4"
+	renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	state := catalog.CloneState(view.State())
+	state.UnbindName(catalog.DescriptorNameKey(proc))
+	state.SetDescriptor(address, &renamed)
+	state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
+	current := e.catalog.read(state)
+	if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != "uuid_generate_v4" {
+		t.Fatal("relabel lost UUID symbol", symbol, err)
+	}
+	if err := extension.StockUUIDOssp.ValidateExtension(current, ext); err != nil {
+		t.Fatal("genuine UUID relabel rejected", err)
+	}
+	if ext.TargetNamespace != proc.Namespace() || view.Get(address) != proc {
+		t.Fatal("relabel mutated installation/source")
+	}
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) {
 			p.Implementation = new(*extension.StockUUIDOssp)
@@ -87,7 +104,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		func(p *catalog.Procedure) { p.Implementation = extension.StockIntagg },
 		func(p *catalog.Procedure) { p.Aggregate = &catalog.OwnedAggregate{} },
 		func(p *catalog.Procedure) { p.Foreign = &catalog.ForeignProcedure{} },
-		func(p *catalog.Procedure) { p.ObjectName = "uuidv4" },
+		func(p *catalog.Procedure) { p.ObjectAddress.SubID = 1 },
 		func(p *catalog.Procedure) { p.Signature = "25" },
 		func(p *catalog.Procedure) { p.Result = 25 },
 		func(p *catalog.Procedure) { p.Volatility = expr.Immutable },
@@ -98,10 +115,13 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	} {
 		bad := *proc
 		mutate(&bad)
-		view.State().SetDescriptor(address, &bad)
-		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
-		manifest := extension.StockUUIDOssp.ValidateExtension(view, ext)
-		view.State().SetDescriptor(address, proc)
+		state := catalog.CloneState(view.State())
+		state.UnbindName(catalog.DescriptorNameKey(proc))
+		state.SetDescriptor(address, &bad)
+		state.BindName(catalog.DescriptorNameKey(&bad), bad.Address())
+		current := e.catalog.read(state)
+		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(current, &bad)
+		manifest := extension.StockUUIDOssp.ValidateExtension(current, ext)
 		if failure == nil || manifest == nil {
 			t.Fatal("corrupt UUID member accepted", bad)
 		}
@@ -171,5 +191,30 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	}
 	if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42723" {
 		t.Fatal("wrong collision diagnostic", err)
+	}
+}
+
+func TestUUIDOsspManifestSlotAuthority(t *testing.T) {
+	e, ext := uuidOsspUnitInstalled(t)
+	view := e.CatalogRead()
+	copy := *ext
+	copy.Members = slices.Clone(ext.Members)
+	if err := extension.StockUUIDOssp.ValidateExtension(view, &copy); err != nil {
+		t.Fatal("equivalent detached manifest rejected", err)
+	}
+	for _, kind := range []string{"duplicate", "reordered", "foreign"} {
+		bad := copy
+		bad.Members = slices.Clone(copy.Members)
+		switch kind {
+		case "duplicate":
+			bad.Members[1] = bad.Members[0]
+		case "reordered":
+			bad.Members[1], bad.Members[2] = bad.Members[2], bad.Members[1]
+		case "foreign":
+			bad.Members[1].ObjectID++
+		}
+		if err := extension.StockUUIDOssp.ValidateExtension(view, &bad); err == nil {
+			t.Fatal("forged manifest admitted", kind)
+		}
 	}
 }

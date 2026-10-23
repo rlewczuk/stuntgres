@@ -447,6 +447,38 @@ func jsonSlotMapping(raw parser.FunctionExpr, spec slotSpec) ([7]int, [5]bool, b
 	return slots, supplied, true
 }
 
+// StoredProviderCallShape checks the written syntax of families whose existing
+// binder contract is richer than catalog arity (named slots or redundant
+// VARIADIC). The caller must independently prove the captured provider identity.
+func StoredProviderCallShape(symbol string, raw parser.FunctionExpr) (known, valid bool) {
+	if raw.Star || raw.Within || len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) || CallLabelError(raw) != nil {
+		return true, false
+	}
+	if spec, ok := jsonSlotSpecification(symbol); ok {
+		_, _, valid := jsonSlotMapping(raw, spec)
+		return true, valid && CallDecorationError(raw) == nil
+	}
+	if member, ok := UUIDOsspLookupSelector(symbol); ok {
+		count := 0
+		if member.Signature != "" {
+			count = 2
+		}
+		_, valid := namedSlots(raw, member.ArgumentNames[:count], count)
+		return true, valid && !raw.Variadic && CallDecorationError(raw) == nil
+	}
+	// JSONFunctionCall owns the legacy processing families' label and arity
+	// contract, including from_json and redundant VARIADIC single operands.
+	_, family := JSONFunctionCall(symbol, true, 1, 0)
+	if family == Resolved {
+		call := raw
+		parts := [1]parser.Identifier{{Text: symbol}}
+		call.Name = parser.ObjectName{Parts: parts[:]}
+		_, resolution := JSONFunctionCall(symbol, true, len(raw.Args), jsonNamedCount(call))
+		return true, resolution == Resolved && CallDecorationError(raw) == nil
+	}
+	return false, false
+}
+
 func namedJSONCall(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if spec, known := jsonSlotSpecification(name); known {

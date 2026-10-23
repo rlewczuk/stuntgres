@@ -3,18 +3,24 @@ package extension
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
-// ImportOwners applies Restore's extension owner records to
-// candidate, a private clone. Each record must name an installed extension
-// once, with its version, schema and installation owner; each member must
-// belong to it. It reports whether any member owner changed.
-func ImportOwners(ctx context.Context, candidate *catalog.State, view catalog.Read, roles authorization.Read, records []OwnerRecord) (bool, error) {
+// ImportOwners applies Restore's extension owner records to candidateView's
+// private cloned state. Its real catalog owner and paired role domain retain
+// provider/provenance authority while records change member ownership.
+func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authorization.Read, records []OwnerRecord) (bool, error) {
+	if len(records) == 0 {
+		return false, nil
+	}
+	candidate := candidateView.State()
+	if candidate == nil || candidateView.Owner() == nil || !roles.BelongsTo(candidateView.Owner().Principals) {
+		return false, fmt.Errorf("stuntgres: invalid extension owner import authority")
+	}
 	seen := map[ids.ObjectAddress]bool{}
 	ownersChanged := false
 	for _, record := range records {
@@ -47,128 +53,113 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, view catalog.Re
 		if record.Name == "cube" && (len(record.Members) != CubeMemberCount || len(ext.Members) != CubeMemberCount) {
 			return false, fmt.Errorf("stuntgres: incomplete cube ownership manifest")
 		}
-		membersSeen := map[ids.ObjectAddress]bool{}
+		expected := len(ext.Members)
+		if record.Name == "unaccent" {
+			expected--
+		}
+		if len(record.Members) != expected {
+			return false, fmt.Errorf("stuntgres: incomplete extension owners")
+		}
+		memberSlots := make(map[int]bool, expected)
+		membersSeen := make(map[ids.ObjectAddress]bool, expected)
 		for _, member := range record.Members {
 			owner, ok := roles.Lookup(member.Owner)
 			if !ok {
 				return false, fmt.Errorf("stuntgres: extension member owner %q does not exist", member.Owner)
 			}
-			var class ids.OID
-			switch member.Kind {
-			case "procedure":
-				class = ids.ProcedureClassID
-			case "dictionary":
-				class = ids.TSDictionaryClassID
-			case "type":
-				class = ids.TypeClassID
-			case "operator":
-				class = ids.OperatorClassID
-			case "operator_class":
-				class = ids.OperatorClassCatalogID
-			case "operator_family":
-				class = ids.OperatorFamilyClassID
-			default:
-				return false, fmt.Errorf("stuntgres: invalid extension ownership kind")
+			if member.Slot < 0 || member.Slot >= len(ext.Members) || memberSlots[member.Slot] {
+				return false, fmt.Errorf("stuntgres: invalid extension ownership slot")
 			}
-			signature := member.Signature
-			var expectedCubeMember ids.ObjectAddress
-			if member.Kind == "procedure" && (record.Name == "intarray" && member.Name == "bqarr_out" || record.Name == "citext" && member.Name == "citextout") {
-				base, ok := candidate.Type(ext.Members[0])
-				if !ok || record.Name == "intarray" && !base.SQLType.IsQueryInt() || record.Name == "citext" && !base.SQLType.IsCitext() {
-					return false, fmt.Errorf("stuntgres: missing installed owner type")
-				}
-				signature = string(QueryIntSignature(base.SQLType.ID()))
-			}
-			if record.Name == "cube" && (member.Kind == "procedure" || member.Kind == "operator") {
-				base, ok := candidate.Type(ext.Members[0])
-				if !ok || !base.SQLType.IsCube() {
-					return false, fmt.Errorf("stuntgres: missing cube ownership type")
-				}
-				parts := strings.Split(signature, ",")
-				for i, part := range parts {
-					if part == "cube" {
-						parts[i] = string(CubeSignature(base.SQLType.ID()))
-					}
-				}
-				signature = strings.Join(parts, ",")
-				valid := false
-				if member.Kind == "procedure" {
-					for i, spec := range cubeRoutines {
-						if spec.name == member.Name && member.Signature == spec.ownerSignature() && string(spec.signature(base.SQLType.ID())) == signature {
-							valid = true
-							expectedCubeMember = ext.Members[cubeRoutineMember(i)]
-							break
-						}
-					}
-				} else if member.Signature == "cube,cube" {
-					for i, name := range cubeOperatorNames {
-						if member.Name == name {
-							valid = true
-							expectedCubeMember = ext.Members[10+i]
-							break
-						}
-					}
-				}
-				if member.Kind == "operator" && member.Signature == "cube,23" {
-					for i, name := range cubeCoordinateOperators {
-						if member.Name == name {
-							valid = true
-							expectedCubeMember = ext.Members[cubeCoordinateOperatorStart+i]
-						}
-					}
-				}
-				if member.Signature == "cube,cube" {
-					for i, spatial := range cubeSpatialMembers {
-						if member.Kind == "procedure" && member.Name == spatial.operation.Routine() {
-							valid = true
-							expectedCubeMember = ext.Members[cubeSpatialProcedureStart+i]
-						} else if member.Kind == "operator" && member.Name == spatial.operator {
-							valid = true
-							expectedCubeMember = ext.Members[cubeSpatialOperatorStart+i]
-						}
-					}
-				}
-				if !valid {
-					return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
-				}
-			}
-			if member.Kind == "operator_class" || member.Kind == "operator_family" {
-				if record.Name != "cube" || member.Name != "cube_ops" || member.Signature != "btree" {
-					return false, fmt.Errorf("stuntgres: invalid extension ownership method")
-				}
-				signature = "403"
-				if member.Kind == "operator_class" {
-					expectedCubeMember = ext.Members[17]
-				} else {
-					expectedCubeMember = ext.Members[16]
-				}
-			}
-			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.TargetNamespace, Name: member.Name, Signature: signature})
-			if member.Kind == "type" {
-				roleName, base, err := InstalledType(view, ext)
-				if err != nil {
-					return false, err
-				}
-				if base == nil {
-					return false, fmt.Errorf("stuntgres: missing installed ownership role")
-				}
-				switch member.Name {
-				case roleName:
-					a = base.Address()
-				case roleName + "[]":
-					if ext.Name() != "earthdistance" {
-						return false, fmt.Errorf("stuntgres: invalid installed array ownership role")
-					}
-					a = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}
-				default:
-					return false, fmt.Errorf("stuntgres: invalid installed ownership role")
-				}
-			}
+			memberSlots[member.Slot] = true
+			a := ext.Members[member.Slot]
 			d := candidate.Get(a)
-			if d == nil || catalog.ExtensionMembership(d) != ext.Address() || membersSeen[a] || expectedCubeMember != (ids.ObjectAddress{}) && a != expectedCubeMember {
+			if d == nil || d.Address() != a || catalog.ExtensionMembership(d) != ext.Address() || membersSeen[a] {
 				return false, fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
 			membersSeen[a] = true
+			namespace, ok := candidate.Namespace(d.Namespace())
+			if !ok || namespace.Name() != member.Schema {
+				return false, fmt.Errorf("stuntgres: mismatching member namespace")
+			}
+			name, signature, kind := d.Name(), "", ""
+			switch selected := d.(type) {
+			case *catalog.Procedure:
+				symbol, err := ProcedureSymbol(candidateView, selected)
+				if err != nil {
+					return false, err
+				}
+				kind, signature = "procedure", string(selected.Signature)
+				if IntarrayProviderOf(selected) != nil && symbol == "bqarr_out" {
+					signature = "query_int"
+				}
+				if CubeProviderOf(selected) != nil {
+					var valid bool
+					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
+					if !valid {
+						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
+					}
+				}
+				if CitextProviderOf(selected) != nil && symbol == "citextout" {
+					signature = "citext"
+				}
+			case *catalog.Operator:
+				expectedName, portableSignature, valid := cubeOwnerOperatorIdentity(member.Slot)
+				if record.Name != "cube" || !valid {
+					return false, fmt.Errorf("stuntgres: invalid extension operator owner")
+				}
+				base, ok := candidate.Type(ext.Members[0])
+				if !ok || base.SQLType == nil || !base.SQLType.IsCube() || selected.Namespace() != ext.TargetNamespace || selected.Name() != expectedName || selected.Left != ids.OID(base.SQLType.ID()) || candidate.NameAddress(catalog.DescriptorNameKey(selected)) != selected.Address() {
+					return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
+				}
+				switch {
+				case member.Slot >= cubeCoordinateOperatorStart && member.Slot < cubeSpatialProcedureStart:
+					i := member.Slot - cubeCoordinateOperatorStart
+					backing := ext.Members[cubeRoutineMember(len(cubeRoutines)-len(cubeCoordinateOperators)+i)]
+					if selected.Right != ids.OID(sqltype.Int4) || selected.Result != ids.OID(sqltype.Float8) || selected.Function != backing.ObjectID || selected.Commutator != 0 || selected.Negator != 0 || selected.Restriction != 0 || selected.Join != 0 || selected.Hash || selected.Merge {
+						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
+					}
+				case member.Slot >= cubeSpatialOperatorStart:
+					spatial := cubeSpatialMembers[member.Slot-cubeSpatialOperatorStart]
+					if selected.Right != selected.Left || selected.Result != ids.OID(spatial.operation.ResultID()) || selected.Function != ext.Members[cubeSpatialProcedureStart+member.Slot-cubeSpatialOperatorStart].ObjectID {
+						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
+					}
+				default:
+					i := member.Slot - 10
+					if selected.Right != selected.Left || selected.Result != 16 || selected.Function != ext.Members[i+3].ObjectID || selected.Commutator != ext.Members[10+cubeCommutators[i]].ObjectID || selected.Negator != ext.Members[10+cubeNegators[i]].ObjectID || selected.Hash || selected.Merge != (i == 0) || selected.Restriction != cubeRestrictions[i] || selected.Join != cubeJoins[i] {
+						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
+					}
+				}
+				kind, signature = "operator", portableSignature
+			case *catalog.OperatorClass:
+				base, ok := candidate.Type(ext.Members[0])
+				if record.Name != "cube" || member.Slot != 17 || !ok || base.SQLType == nil || selected.Namespace() != ext.TargetNamespace || selected.Name() != "cube_ops" || selected.Method != 403 || selected.Family != ext.Members[16].ObjectID || selected.InputType != ids.OID(base.SQLType.ID()) || selected.StorageType != 0 || !selected.Default || candidate.NameAddress(catalog.DescriptorNameKey(selected)) != selected.Address() {
+					return false, fmt.Errorf("stuntgres: invalid extension ownership method")
+				}
+				kind, signature = "operator_class", "btree"
+			case *catalog.OperatorFamily:
+				if record.Name != "cube" || member.Slot != 16 || selected.Namespace() != ext.TargetNamespace || selected.Name() != "cube_ops" || selected.Method != 403 || candidate.NameAddress(catalog.DescriptorNameKey(selected)) != selected.Address() {
+					return false, fmt.Errorf("stuntgres: invalid extension ownership method")
+				}
+				kind, signature = "operator_family", "btree"
+			case *catalog.Type:
+				kind = "type"
+				var err error
+				name, err = MemberTypeRole(candidateView, ext, selected)
+				if err != nil {
+					return false, err
+				}
+				if record.Name == "earthdistance" && selected.SQLType.IsArray() {
+					domain, ok := candidate.Type(ext.Members[0])
+					if !ok || !domain.SQLType.IsDomain() || a != ext.Members[1] || ids.OID(domain.Array) != a.ObjectID || selected.SQLType.Element() != domain.SQLType || selected.Namespace() != domain.Namespace() {
+						return false, fmt.Errorf("stuntgres: invalid earth ownership companion")
+					}
+				}
+			case *catalog.TSDictionary:
+				kind = "dictionary"
+			}
+			if member.Name != name || member.Signature != signature || member.Kind != kind || kind == "" {
+				return false, fmt.Errorf("stuntgres: mismatching extension ownership identity")
+			}
 			switch d := d.(type) {
 			case *catalog.Type:
 				if d.Owner != owner.Ref {

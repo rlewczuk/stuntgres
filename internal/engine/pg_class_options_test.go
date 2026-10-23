@@ -44,7 +44,7 @@ func TestPgClassOptionHistory(t *testing.T) {
 	}
 	e := New()
 	original := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.SingletonNode{}}, Options: old, Barrier: true, Invoker: false, CheckOption: stored.CheckNone, Rule: 200001})
-	mapped, err := stored.RemapView(e.CatalogRead(), original, nil, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+	mapped, err := stored.RemapView(e.CatalogRead(), original, nil, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil)
 	if err != nil || mapped == original || mapped.RuleOID() != original.RuleOID() || mapped.Barrier() != original.Barrier() || mapped.Invoker() != original.Invoker() || !reflect.DeepEqual(mapped.Options(), old) {
 		t.Fatal("remap lost installed options", mapped, err)
 	}

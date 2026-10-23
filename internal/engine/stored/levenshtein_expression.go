@@ -14,8 +14,8 @@ func ValidateInstalledLevenshtein(n plan.InstalledLevenshteinExpr, v catalog.Rea
 			return fmt.Errorf("stuntgres: missing stored Levenshtein argument")
 		}
 	}
-	proc, ok := v.Procedure(n.Ref.Address)
-	if !ok || proc != n.Procedure || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.LevenshteinSignature(n.Function, len(n.Args))) || proc.Result != 23 {
+	proc, symbol, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
+	if err != nil || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || symbol != n.Function || proc.Signature != catalog.ProcedureSignature(functions.LevenshteinSignature(n.Function, len(n.Args))) || proc.Result != 23 {
 		return fmt.Errorf("stuntgres: invalid stored Levenshtein identity")
 	}
 	if err := extension.StockFuzzystrmatch.ValidateProcedure(v, proc); err != nil {

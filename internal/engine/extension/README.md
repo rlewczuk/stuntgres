@@ -28,6 +28,17 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
 - **Accessors** (`extension_implementation.go`): `CitextProviderOf` …
   `UnaccentDictionaryProviderOf` return a descriptor's implementation when it
   has that concrete type, and nil otherwise.
+- **Routine identity**: `ProcedureSymbol(view, procedure)` checks current
+  descriptor/address/index and typed owner provenance, installation/version,
+  unique member addresses and versioned slot signature/kind/result/capability.
+  Public name/namespace are presentation; `ProviderOf` alone is not installed
+  authority. Supplied COW manifests must match current identity, version,
+  revision, target namespace, owner and unique ordered inventory; pointer
+  equality neither proves authority nor excuses corruption. An individual move
+  changes no sibling or extension target. Fuzzystrmatch 1.1 omits slot-zero
+  daitch_mokotoff; 1.2 inserts it while retaining incumbent addresses. Detached
+  unaccent retains exact immutable metadata shape admission, not installed
+  execution or replay authority; `ProcedureSymbol` rejects detached declarations.
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider` validates
   the extension, text search template and dictionary classes and installed
   member procedures; `ValidateProviderHeader` is the identity check it shares
@@ -47,7 +58,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `RemapDescriptor` delegates class, family and class-owned row relocation to the
   catalog remappers, preserving immutable source descriptors.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
-  `ValidateIntaggIdentity`, `IntaggRecipeFunction`, `IntaggDefinition` and the
+  `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
   identities).
 - **pgrowlocks** (`pgrowlocks_provider.go`, `pgrowlocks_stage.go`): the
@@ -102,6 +113,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   explicit-empty ACL distinctions survive; malformed baselines still fail the
   ordinary provider validator.
   Shared untrusted-extension creation rejects nonsuperusers with 42501.
+  Owner metadata v2 records current schema, portable signature, owner and
+  versioned manifest slot. Procedure entries retain current public names;
+  installed type entries retain validated recipe roles, not mutable spellings.
+  Restore replays actual routine alterations first; import validates labels
+  against that destination slot, not names in the extension target schema.
+  Output type signatures stay symbolic across OID remapping. Duplicate slots,
+  corrupt/unknown fields and obsolete name-only records fail.
 - **Owners, remap, errors**: the owner metadata codec (`OwnerMetadata`,
   `DecodeOwners`, `OwnerRecord`, `MemberOwner`, `OwnersMarker`;
   `extension_owners.go`), `RemapDescriptor` (`extension_remap.go`),
@@ -185,3 +203,12 @@ collision evidence.
 make check RUN='^Test(Extension|CitextProvider|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
 make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```
+
+
+Routine slot/label/provenance proof (no SQL execution):
+`make check RUN='^Test(InstalledProcedure(RelabelIdentity|Forgery|VersionTransition|RemapIdentity)|DetachedUnaccentImmutableCapability|ExtensionOwner(SlotCodec|ImportCurrentSlotIdentity|ImportTransfer))$'`.
+Engine caller witnesses additionally cover current v2 metadata, unreplayed/
+foreign import labels, COW inventory corruption and genuine provider relabeling.
+Public provider/replay behavior uses shared `TestReferenceRoutineAlter*`
+definitions in native and `REFERENCE=1` modes; see
+[routine proof](../../../reference/query_core/README.md#routine-alter-proof).

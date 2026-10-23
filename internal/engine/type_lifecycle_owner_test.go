@@ -48,7 +48,7 @@ func TestTypeLifecycleOwnerImportACL(t *testing.T) {
 			}
 			candidate := catalog.CloneState(view.State())
 			next := e.catalog.read(candidate)
-			changed, err := extension.ImportOwners(context.Background(), candidate, next, roles, []extension.OwnerRecord{record})
+			changed, err := extension.ImportOwners(context.Background(), next, roles, []extension.OwnerRecord{record})
 			if err != nil || !changed {
 				t.Fatal("owner import", changed, err)
 			}
@@ -76,7 +76,7 @@ func TestTypeLifecycleOwnerImportACL(t *testing.T) {
 			bad.ACL = authorization.ACLValue{Explicit: true}
 			corrupt.SetDescriptor(base.Address(), &bad)
 			invalid := e.catalog.read(corrupt)
-			_, err = extension.ImportOwners(context.Background(), corrupt, invalid, roles, []extension.OwnerRecord{record})
+			_, err = extension.ImportOwners(context.Background(), invalid, roles, []extension.OwnerRecord{record})
 			if err == nil {
 				err = e.catalog.owner().Provider(ids.TypeClassID).Validate(invalid, invalid.MustType(base.Address()))
 			}

@@ -2,6 +2,7 @@ package control
 
 import (
 	"fmt"
+	"maps"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
@@ -18,14 +19,18 @@ import (
 // address. current is the published catalog the caller holds under
 // Engine.mu; exact immutable providers retained for temporary consumers are
 // kept as they are. It does nothing when mapping is empty.
-func RemapReplacementIdentities(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator) error {
+func RemapReplacementIdentities(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, procedure catalog.ProcedureRemapper) error {
 	if len(mapping) == 0 {
 		return nil
 	}
 	catalog.RemapDefaultSchemas(next, mapping)
 	capacity := next.DescriptorCount() + len(temporary)
+	procedureNames := next.ProcedureNames()
 	originals := next.ResetMaps()
 	next.BeginBulkLoad(capacity)
+	if procedure == nil {
+		procedure = extension.ProcedureRemapper(mapping, nil, nil)
+	}
 	err := func() error {
 		defer next.EndBulkLoad()
 		for a, d := range originals {
@@ -43,7 +48,14 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 			if err != nil {
 				return err
 			}
-			d = extension.RemapDescriptor(remapped, mapping)
+			if p, ok := remapped.(*catalog.Procedure); ok {
+				d, err = procedure(p)
+				if err != nil {
+					return err
+				}
+			} else {
+				d = extension.RemapDescriptor(remapped, mapping)
+			}
 			next.SetDescriptor(target, d)
 			next.BindName(catalog.DescriptorNameKey(d), target)
 		}
@@ -53,7 +65,14 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 		return err
 	}
 	next.SetOperatorNames(catalog.RebuildOperatorNames(next.Descriptors()))
-	next.SetProcedureNames(catalog.RebuildProcedureNames(next.Descriptors()))
+	procedureIndex := catalog.RebuildProcedureNames(next.Descriptors())
+	if procedureNames != nil {
+		// OID remapping changes membership addresses, not public spellings.
+		// Retain vacated-provider tombstones so registry fallback cannot
+		// resurrect a declaration whose public identity was altered.
+		procedureIndex.ProviderOverrides = maps.Clone(procedureNames.ProviderOverrides)
+	}
+	next.SetProcedureNames(procedureIndex)
 	remapStorageRoots(mapping, relations, sequences)
 	return nil
 }

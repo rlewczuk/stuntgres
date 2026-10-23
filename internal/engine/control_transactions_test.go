@@ -150,7 +150,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				defer target.replacementMu.Unlock()
 				target.mu.Lock()
 				defer target.mu.Unlock()
-				next, err := target.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
+				next, _, err := target.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 				if err != nil {
 					return err
 				}

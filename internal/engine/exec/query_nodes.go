@@ -196,10 +196,9 @@ func (s *State) Evaluation(ctx context.Context) Context {
 	if s.Source != nil && s.Source.View != nil {
 		evaluation.Catalog = s.Source.View.Catalog()
 	}
-	if s.Source != nil && s.Source.RoutineRecipe != nil {
-		recipe := s.Source.RoutineRecipe
+	if s.Source != nil && (s.Source.RoutineRecipe != nil || s.Source.RoutineChecks != nil) {
 		evaluation.RoutineRecipe = true
-		evaluation.RoutineChecks, evaluation.RoutineConsumer = s.Source.RoutineChecks, recipe
+		evaluation.RoutineChecks, evaluation.RoutineConsumer = s.Source.RoutineChecks, s.Source.RoutineRecipe
 	}
 	evaluation.setContext(ctx)
 	return evaluation

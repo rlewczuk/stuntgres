@@ -275,7 +275,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.Do, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.CreateCast, *parser.DropCast:
+	case *parser.Do, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateCast, *parser.DropCast:
 		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return StatementDescription{}, nil
@@ -462,7 +462,7 @@ func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, au
 		return analyze.DescribePL(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, &scope.queryLockAdmission, scope.sqlRoutine.lexical)
 	}
 	if scope.sqlRoutine.definition != nil {
-		return analyze.DescribeRoutine(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.inputCollation)
+		return analyze.DescribeRoutine(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.name, scope.sqlRoutine.inputCollation)
 	}
 	return analyze.Describe(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, false, scope.initialParameters)
 }

@@ -22,23 +22,22 @@ func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
 	if len(aliases) != 1 {
 		t.Fatal("shared Boolean aliases lost or duplicated", aliases)
 	}
-	aliasRef := aliases[0]
+	aliasRef := aliases[0].Ref
+	if aliases[0].Procedure == nil || aliases[0].Procedure.Address() != aliasRef.Address || node.Calls[1].Procedure == nil {
+		t.Fatal("shared builtin declaration proof missing", node.Calls[1])
+	}
 	alias, ok := engine.CatalogRead().Procedure(aliasRef.Address)
 	if !ok || alias.Name() != "every" {
 		t.Fatal("wrong shared Boolean alias", alias)
 	}
-	mappings := 0
 	mapped, err := stored.RemapViewQuery(engine.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef {
-		if ref == aliasRef {
-			mappings++
-		}
 		return ref
 	}, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
-	if err != nil || mappings != 1 {
-		t.Fatal("shared alias remap", mappings, err)
+	if err != nil {
+		t.Fatal("shared alias remap", err)
 	}
-	mapped.(*plan.AggregateNode).Calls[1].RoutineAliases[0] = node.Calls[0].Routine
-	if node.Calls[1].RoutineAliases[0] != aliasRef {
+	mapped.(*plan.AggregateNode).Calls[1].RoutineAliases[0].Ref = node.Calls[0].Routine
+	if node.Calls[1].RoutineAliases[0].Ref != aliasRef {
 		t.Fatal("alias remap mutated source")
 	}
 	for i, c := range q.Root.Schema() {

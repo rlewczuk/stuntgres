@@ -30,7 +30,7 @@ func TestReferenceCubeConstructorCatalog(t *testing.T) {
 			{"cube_is_point", ns + ".cube", "boolean", 1},
 		} {
 			signature := ns + "." + tc.name + "(" + tc.arguments + ")"
-			q := "SELECT p.proname,p.pronargs,p.prorettype=" + cubeLiteral(tc.result) + "::regtype::oid AS result_identity,p.proisstrict,p.provolatile,p.proparallel,n.nspname,p.proowner=e.extowner AS same_owner,d.deptype FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_depend d ON d.classid=1255 AND d.objid=p.oid AND d.refclassid=3079 JOIN pg_extension e ON e.oid=d.refobjid WHERE p.oid=" + cubeLiteral(signature) + "::regprocedure::oid AND e.extname='cube'"
+			q := "SELECT p.proname,p.pronargs,p.prorettype=" + cubeLiteral(tc.result) + "::regtype::oid AS result_identity,p.proisstrict,p.provolatile,p.proparallel,n.nspname,p.proowner=e.extowner AS same_owner,d.deptype FROM (SELECT * FROM pg_proc WHERE oid=" + cubeLiteral(signature) + "::regprocedure::oid) p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_depend d ON d.classid=1255 AND d.objid=p.oid AND d.refclassid=3079 JOIN pg_extension e ON e.oid=d.refobjid WHERE e.extname='cube'"
 			s := fixture.Select(q, []string{"proname", "pronargs", "result_identity", "proisstrict", "provolatile", "proparallel", "nspname", "same_owner", "deptype"}, []string{"NAME", "INT2", "BOOL", "BOOL", "CHAR", "CHAR", "NAME", "BOOL", "CHAR"}, [][]any{{tc.name, tc.nargs, true, true, "i", "s", ns, true, "e"}})
 			run(s)
 			run(fixture.Prepared(s))

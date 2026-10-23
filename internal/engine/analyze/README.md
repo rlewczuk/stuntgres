@@ -31,6 +31,39 @@ library, and never the root engine or `session`. The engine, the root driver
 - **`Host`** (`host.go`): the engine services the binder calls (name and type
   resolution, privileges, definition reads, captures, stored views). The engine
   implements it as `bindingHost`.
+  Relabelled builtin/installed calls select through current catalog name buckets,
+  then bind their checked immutable provider symbol. COW source/destination
+  provider-name overrides prevent registry fallback from resurrecting vacated
+  signatures, including parser-lowered aggregate, window and function-cast
+  syntax routed through the same callable selector. Sparse readers expose the
+  same membership without catalog scans.
+  Quoted bodies receive the current routine qualifier separately from immutable
+  `proc.Definition`; invocation reuse includes that qualifier. Standard formals
+  stay checked slots. Stored provider normalization uses existing occurrence
+  captures, not a public alias or capability for lookup-only metadata.
+  `StoredProviderSymbol` is checked recipe data, not a resolver alias; annotation
+  preserves written names, syntax flags and SQL/JSON options. Function and
+  aggregate keys include the first written input position, retaining distinct
+  generated unary UNNEST occurrences at one token. Selected ordinary names that
+  lower to aggregate/window syntax retain that checked occurrence with written
+  operands for capture and replay. Owned aggregates keep their stronger
+  source-call normalization when operands replace binder-local slots.
+  `FunctionCast` and its selected `FunctionExpr` share the key, so a type-named
+  SQL routine remains checked rather than reverting to builtin cast selection;
+  standard/postfix cast occurrences remain separate. Guarded normalization
+  follows substituted roots, including cast-to-call lowering, and children
+  without mutating shared syntax. Proof:
+  `make check RUN='^(TestCreateAggregateStoredSyntaxCastOwnership|TestStoredProviderSyntax(GeneratedOccurrences|SubstitutedRoot|OwnedAggregateOccurrence|FunctionCastOccurrence)|TestSQLRoutineFrozenPresentation)$'`.
+  Builtin aggregate/window plans retain original checked declarations from the
+  binding snapshot alongside refs. Shared `bool_and`/`every` computation retains
+  separate declaration/ref pairs and EXECUTE proofs; COUNT star/input identities
+  are separate too. Literal capture selects this occurrence inventory, not a new
+  spelling lookup. Frozen views/standard bodies prove originals after relabel,
+  relocation or owner COW; direct source resolves current public identity.
+  The same capture pair belongs to DISTINCT (including ON), GROUP BY, set and
+  recursive CYCLE-mark grouping keys, and window partition/peer equality.
+  Equality selection keeps the checked declaration after any existing coercion;
+  it does not perform a later lookup by the routine's mutable name.
 - **`Binding`** (`binding*.go`, `payloads.go`): the statement header, the kind
   payloads (`InsertBinding`, `UpdateBinding`, `MergeBinding`, ...) and
   `ParameterInfo`.

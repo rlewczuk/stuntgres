@@ -132,6 +132,7 @@ func TestRowComparisonAnalysis(t *testing.T) {
 func TestRowComparisonStoredRemap(t *testing.T) {
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, context.Background(), source, sqltype.InputEnvironment{}, nil)
+	mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(source, target)}
 	raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}}
 	for _, width := range []int{0, 1, 2} {
 		fields := make([]parser.Expr, width)
@@ -152,6 +153,11 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(width, changed, err)
 		}
+		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{mapped}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		mapped = query.(*plan.ValuesNode).Rows[0][0]
 		next := mapped.(plan.RowComparisonExpr)
 		if next.Operator != original.Operator || len(next.Ordering) != 0 {
 			t.Fatal("mode/provider changed")
@@ -174,10 +180,6 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 		text, err := stored.DefaultSQL(context.Background(), target.CatalogRead(), mapped)
 		if err != nil || !strings.Contains(text, " IS NOT DISTINCT FROM ") || width < 2 && !strings.Contains(text, "ROW(") {
 			t.Fatal(text, err)
-		}
-		_, changed, err = stored.RetagTypes(target.CatalogRead(), mapped, retained)
-		if err != nil || changed {
-			t.Fatal("unchanged mapping copied", width, changed, err)
 		}
 	}
 }

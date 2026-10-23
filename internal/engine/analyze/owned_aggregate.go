@@ -127,7 +127,9 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 		if b.Stored.Syntax == nil {
 			b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 		}
-		b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+		// The source function and its selected aggregate are the same written
+		// occurrence. Binder-local input slots must not change its syntax key.
+		b.Stored.Syntax[b.storedExpressionSyntaxKey(frozen)] = frozen
 	}
 	return b.finishAggregate(raw, call, filter, info)
 }

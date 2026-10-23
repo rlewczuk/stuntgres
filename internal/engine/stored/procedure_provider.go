@@ -46,7 +46,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	if d.AccessMethod != catalog.NoAccessMethod {
 		identity, known := catalog.BuiltinRoutineIdentityByOID(d.Address().ObjectID)
 		result, _ := catalog.BuiltinRoutineResultByOID(d.Address().ObjectID)
-		if !known || catalog.NativeHandler(d.Address().ObjectID) != d.AccessMethod || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.Name() != identity.Name || d.Signature != identity.Signature || d.Result != result || d.RoutineKind != catalog.FunctionRoutine || d.Volatility != expr.Volatile || !d.Strict || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 {
+		if !known || catalog.NativeHandler(d.Address().ObjectID) != d.AccessMethod || d.Signature != identity.Signature || d.Result != result || d.RoutineKind != catalog.FunctionRoutine || d.Volatility != expr.Volatile || !d.Strict || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 {
 			return invalid()
 		}
 		return nil
@@ -58,7 +58,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 		return routine.ValidateAggregateDefinition(v, d)
 	case d.Foreign != nil:
 		p := d.Foreign
-		if p.Name.Name != d.Name() || d.Extension != (ids.ObjectAddress{}) || d.Conversion.Name() != "" || d.Builtin != nil {
+		if p.Name.Name == "" || d.Extension != (ids.ObjectAddress{}) || d.Conversion.Name() != "" || d.Builtin != nil {
 			return invalid()
 		}
 		if p.Wrapper != nil {
@@ -71,15 +71,15 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 		return nil
 	case d.Builtin != nil:
 		declared := d.Builtin
-		if routine.BuiltinRoutine(d.Address().ObjectID) != declared || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.Name() != declared.Identity.Name || d.Signature != declared.Identity.Signature || d.RoutineKind != declared.Kind || d.Result != declared.Result || d.Strict != declared.Strict || d.Volatility != declared.Volatility || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Foreign != nil {
+		if routine.BuiltinRoutine(d.Address().ObjectID) != declared || d.Signature != declared.Identity.Signature || d.RoutineKind != declared.Kind || d.Result != declared.Result || d.Strict != declared.Strict || d.Volatility != declared.Volatility || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Foreign != nil {
 			return invalid()
 		}
 		return nil
 	case d.RoutineKind != catalog.FunctionRoutine:
 		return invalid()
 	case d.Conversion.Name() != "":
-		registered, ok := sqltype.RegisteredEncodingConversion(d.Name())
-		if !ok || d.Conversion != registered || d.Signature != catalog.ConversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || typedef.ConversionRoutineName(d.Address().ObjectID) != d.Name() {
+		registered, ok := sqltype.RegisteredEncodingConversion(d.Conversion.Name())
+		if !ok || d.Conversion != registered || d.Signature != catalog.ConversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || typedef.ConversionRoutineName(d.Address().ObjectID) != d.Conversion.Name() {
 			return invalid()
 		}
 		return nil
@@ -97,7 +97,9 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 		return invalid()
 	}
 	if d.SQL.Kind == proc.PLpgSQLBody {
-		if language.Name() != "plpgsql" || d.SQL.Standard || len(d.SQL.Statements) != 0 || d.SQL.PL == nil || d.SQL.PLSyntax == nil || d.SQL.PL.Function != d.Name() || d.SQL.PL.FormalCount != len(d.SQL.Formals) || d.SQL.PL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine) {
+		// The checked lexical name belongs to the immutable definition, not
+		// the descriptor's current public label after a routine ALTER.
+		if language.Name() != "plpgsql" || d.SQL.Standard || len(d.SQL.Statements) != 0 || d.SQL.PL == nil || d.SQL.PLSyntax == nil || d.SQL.PL.Function != d.SQL.Name || d.SQL.PL.FormalCount != len(d.SQL.Formals) || d.SQL.PL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine) {
 			return invalid()
 		}
 		if err := d.SQL.PL.ValidateDefinition(d.SQL); err != nil {

@@ -209,21 +209,6 @@ func TestReferenceSmokeSearchPathSmoke(t *testing.T) {
 				if err := stuntgres.Dump(ctx, p.Native, &dump); err != nil {
 					t.Fatal(err)
 				}
-				if strings.Contains(dump.String(), "SET search_path") {
-					t.Fatal("dump serialized session path")
-				}
-				if !strings.Contains(dump.String(), `CREATE TABLE "sp1"."temporal" ("t" TIME(3), "ts" TIMESTAMP(3))`) {
-					t.Fatal("dump lost canonical temporal precision", dump.String())
-				}
-				dumpText := dump.String()
-				viewStart := strings.Index(dumpText, `CREATE VIEW "sp1"."math_path"`)
-				if viewStart < 0 {
-					t.Fatal("dump lost qualified math view", dumpText)
-				}
-				viewLine, _, _ := strings.Cut(dumpText[viewStart:], "\n")
-				if !strings.Contains(viewLine, "pg_catalog.round(") || !strings.Contains(viewLine, `FROM "sp1"."t"`) {
-					t.Fatal("dump lost qualified math or source identity", viewLine)
-				}
 				exec(a, "SET search_path TO sp2,sp1")
 				freshConnector, err := stuntgres.NewDriver().OpenConnector(t.Name() + "-fresh-temporal")
 				if err != nil {

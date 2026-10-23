@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -9,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -247,6 +249,13 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			if n.Call < 0 || n.Call >= len(b.Grouping.WindowCalls) {
 				return fmt.Errorf("stuntgres: invalid stored window occurrence")
 			}
+			call := b.Grouping.WindowCalls[n.Call]
+			if call.Procedure == nil {
+				return fmt.Errorf("stuntgres: missing captured window declaration")
+			}
+			if err := b.captureProviderReference(path, r, call.Procedure, call.Routine); err != nil {
+				return err
+			}
 			if call := b.Grouping.WindowCalls[n.Call]; call.Argument != nil {
 				if err := child(r.Args[0], call.Argument); err != nil {
 					return err
@@ -285,7 +294,7 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		}
 		if n, ok := bound.(plan.AggregateExpr); ok {
 			if call, ok := b.aggregateCallAt(n); ok {
-				if call.Procedure != nil {
+				if call.Procedure != nil && call.Procedure.Builtin == nil {
 					if call.Procedure.DynamicCallable() && call.Procedure.Aggregate != nil {
 						if !r.StoredAggregate {
 							return fmt.Errorf("stuntgres: missing normalized aggregate syntax")
@@ -300,7 +309,29 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 						if err := b.Capture.CaptureRoutineReference(path, call.Ref); err != nil {
 							return err
 						}
-					} else if err := b.captureIntaggReference(path, call.Procedure, call.Ref, "int_array_aggregate"); err != nil {
+					} else if extension.IntaggProviderOf(call.Procedure) != nil {
+						if err := b.captureIntaggReference(path, call.Procedure, call.Ref, "int_array_aggregate"); err != nil {
+							return err
+						}
+						if err := b.captureProviderReference(path, r, call.Procedure, call.Ref); err != nil {
+							return err
+						}
+					} else if err := b.captureProviderReference(path, r, call.Procedure, call.Ref); err != nil {
+						return err
+					}
+				}
+				if call.Procedure != nil && call.Procedure.Builtin != nil {
+					p, ref := call.Procedure, call.Routine
+					// Select the written occurrence only from the independently
+					// captured declarations sharing this computation.
+					for _, alias := range call.RoutineAliases {
+						candidate := alias.Procedure
+						if candidate != nil && (candidate.Name() == r.Name || candidate.Builtin != nil && candidate.Builtin.Identity.Name == r.Name) {
+							p, ref = candidate, alias.Ref
+							break
+						}
+					}
+					if err := b.captureProviderReference(path, r, p, ref); err != nil {
 						return err
 					}
 				}
@@ -565,6 +596,14 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return protocol(expr.CaptureFunction, r.Args)
 		}
+		if p, err := exec.ExpressionRoutineDescriptor(bound); err != nil {
+			return err
+		} else if p != nil {
+			ref := b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), p.Address())
+			if err := b.captureProviderReference(path, r, p, ref); err != nil {
+				return err
+			}
+		}
 		if n, ok := bound.(plan.SeriesExpr); ok {
 			return children(r.Args, n.Args)
 		}
@@ -604,7 +643,7 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			if len(r.ArgNames) == 0 {
 				return children(r.Args, n.Args)
 			}
-			member, ok := functions.UUIDOsspLookup(n.Procedure.Name())
+			member, ok := functions.UUIDOsspLookupSelector(n.Name)
 			if !ok || len(r.Args) != 2 || len(n.Args) != 2 {
 				return fmt.Errorf("stuntgres: mismatched named UUID arguments")
 			}
@@ -727,4 +766,52 @@ func (b *Binder) captureRowComparisonFields(row parser.RowExpr, pairs []plan.Com
 		}
 		return pairs[i].Left
 	}, expansions, memberCasts, path, ordinal)
+}
+
+// Provider occurrences reuse the existing checked routine-ref map and syntax
+// normalization. A separate immutable symbol checks capture substitution;
+// written names and syntax stay intact, while relabels follow the captured address.
+func (b *Binder) captureProviderReference(path ViewLiteralPath, raw parser.Expr, p *catalog.Procedure, ref ids.ObjectRef) error {
+	if p.Builtin == nil && (p.Implementation == nil || p.Extension == (ids.ObjectAddress{})) {
+		return nil
+	}
+	read := b.BindingCatalog()
+	if ref != b.Host.CatalogOwner().Domain.Ref(read.Epoch(), p.Address()) {
+		return fmt.Errorf("stuntgres: invalid frozen provider reference")
+	}
+	if _, err := exec.ValidateStoredRoutineDescriptor(read, p); err != nil {
+		return err
+	}
+	symbol := ""
+	if p.Builtin != nil {
+		if routine.BuiltinRoutine(p.Address().ObjectID) != p.Builtin {
+			return fmt.Errorf("stuntgres: invalid frozen builtin association")
+		}
+		symbol = p.Builtin.Identity.Name
+	} else {
+		var err error
+		symbol, err = extension.ProcedureSymbol(read, p)
+		if err != nil {
+			return err
+		}
+	}
+	var normalized parser.Expr
+	switch call := raw.(type) {
+	case parser.FunctionExpr:
+		call.StoredProviderRoutine, call.StoredProviderSymbol = true, symbol
+		normalized = call
+	case parser.AggregateExpr:
+		call.StoredProviderRoutine, call.StoredProviderSymbol = true, symbol
+		normalized = call
+	default:
+		return fmt.Errorf("stuntgres: invalid frozen provider syntax")
+	}
+	if err := b.Capture.CaptureRoutineReference(path, ref); err != nil {
+		return err
+	}
+	if b.Stored.Syntax == nil {
+		b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+	}
+	b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = normalized
+	return nil
 }

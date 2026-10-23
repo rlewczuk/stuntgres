@@ -89,11 +89,11 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					t.Fatal(err)
 				}
 				for generation := range 3 {
-					binding, err := stored.RemapRuleBinding(current, mapped.Binding(), func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+					binding, err := stored.RemapRuleBinding(current, mapped.Binding(), func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil)
 					if err != nil {
 						t.Fatal(err)
 					}
-					presentation, err := stored.RemapView(current, mapped.Presentation(), nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+					presentation, err := stored.RemapView(current, mapped.Presentation(), nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil)
 					if err != nil {
 						t.Fatal(err)
 					}

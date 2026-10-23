@@ -19,6 +19,9 @@ type ProcedureNameKey struct {
 type ProcedureNameIndex struct {
 	Buckets      map[ProcedureNameKey][]ids.ObjectAddress
 	DynamicNames map[string]int
+	// Relabelled provider spellings (including vacated names) must resolve
+	// against the catalog, never resurrect a released registry fallback.
+	ProviderOverrides map[string]bool
 }
 type ProcedureIndexEdit struct {
 	Index   *ProcedureNameIndex
@@ -32,6 +35,7 @@ func (edit *ProcedureIndexEdit) detach() {
 	index := &ProcedureNameIndex{Buckets: make(map[ProcedureNameKey][]ids.ObjectAddress), DynamicNames: make(map[string]int)}
 	if edit.Index != nil {
 		index.Buckets, index.DynamicNames = cloneMap(edit.Index.Buckets), cloneMap(edit.Index.DynamicNames)
+		index.ProviderOverrides = cloneMap(edit.Index.ProviderOverrides)
 	}
 	edit.Index = index
 	edit.touched = make(map[ProcedureNameKey]bool)
@@ -47,6 +51,11 @@ func (edit *ProcedureIndexEdit) bucket(key ProcedureNameKey, extra int) []ids.Ob
 	}
 	return addresses
 }
+func providerProcedureRelabeled(before, after *Procedure) bool {
+	return before != nil && after != nil && (before.Builtin != nil || before.Implementation != nil) &&
+		(before.Address() != after.Address() || before.Namespace() != after.Namespace() || before.Name() != after.Name())
+}
+
 func (edit *ProcedureIndexEdit) Replace(old, next Descriptor) {
 	before, was := old.(*Procedure)
 	after, is := next.(*Procedure)
@@ -58,6 +67,13 @@ func (edit *ProcedureIndexEdit) Replace(old, next Descriptor) {
 		return
 	}
 	edit.detach()
+	if providerProcedureRelabeled(before, after) {
+		if edit.Index.ProviderOverrides == nil {
+			edit.Index.ProviderOverrides = make(map[string]bool)
+		}
+		edit.Index.ProviderOverrides[before.Name()] = true
+		edit.Index.ProviderOverrides[after.Name()] = true
+	}
 	if was && before.DynamicCallable() {
 		edit.Index.DynamicNames[before.Name()]--
 		if edit.Index.DynamicNames[before.Name()] == 0 {
@@ -109,6 +125,10 @@ func (s *State) ProcedureNames() *ProcedureNameIndex         { return s.procedur
 func (s *State) SetProcedureNames(index *ProcedureNameIndex) { s.procedureNames = index }
 func (s *State) HasDynamicProcedureName(name string) bool {
 	return s.procedureNames != nil && s.procedureNames.DynamicNames[name] != 0
+}
+
+func (s *State) HasProviderProcedureOverride(name string) bool {
+	return s.procedureNames != nil && s.procedureNames.ProviderOverrides[name]
 }
 func (s *State) ProceduresNamed(namespace ids.ObjectAddress, name string) []ids.ObjectAddress {
 	if s.procedureNames == nil {

@@ -280,7 +280,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 	candidate := catalog.CloneState(source.catalog.state)
 	sourceRoles, targetRoles := source.Roles(), target.Roles()
 	target.mu.Lock()
-	remapped, err := target.remapPreparedCatalog(candidate, sourceRoles, targetRoles, nil)
+	remapped, _, err := target.remapPreparedCatalog(candidate, sourceRoles, targetRoles, nil)
 	target.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -337,7 +337,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	next := catalog.CloneState(source.catalog.state)
 	target.catalog.nextOID = 100000
 	target.mu.Lock()
-	err = target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
+	err = target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target))
 	target.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

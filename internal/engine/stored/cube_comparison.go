@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -74,42 +75,47 @@ func cubeComparisonCaptureOf(node expr.Expr) (cubeComparisonCapture, bool) {
 	return capture, direct || capture.ref != (ids.ObjectRef{}) || capture.left.IsCube() || capture.right.IsCube()
 }
 
-// The reference is already mapped. Never look up a source address or recover a
-// selected routine from its spelling. Stock registration and the exact member
-// connect the operation to its real declaration and both destination operands.
-func remapCubeComparisonRoutine(view catalog.Read, reader catalog.DefinitionReader, captured *catalog.Procedure, capture cubeComparisonCapture, typ func(*sqltype.Descriptor) *sqltype.Descriptor) (*catalog.Procedure, error) {
+// The reference is already mapped. The scoped callback supplies the mapped
+// ORIGINAL; current descriptors are used only to validate destination authority.
+func remapCubeComparisonRoutine(view catalog.Read, reader catalog.DefinitionReader, captured, original *catalog.Procedure, capture cubeComparisonCapture, typ func(*sqltype.Descriptor) *sqltype.Descriptor) error {
 	owner := view.Owner()
 	if owner == nil || capture.ref.Domain() != owner.Domain || capture.ref.Epoch != view.Epoch() || capture.ref.Address.ClassID != ids.ProcedureClassID || capture.ref.Address.SubID != 0 {
-		return nil, fmt.Errorf("stuntgres: invalid captured cube comparison declaration (reference %v, epoch %v/current %v, registered owner %t)", capture.ref.Address, capture.ref.Epoch, view.Epoch(), owner != nil)
+		return fmt.Errorf("stuntgres: invalid captured cube comparison reference")
 	}
 	if !capture.left.IsCube() || capture.left != capture.right {
-		return nil, fmt.Errorf("stuntgres: invalid captured cube comparison declaration (operand descriptors %v/%v)", capture.left, capture.right)
+		return fmt.Errorf("stuntgres: invalid captured cube comparison operands")
 	}
-	if captured == nil {
-		return nil, fmt.Errorf("stuntgres: invalid captured cube comparison declaration (missing procedure)")
+	if captured == nil || original == nil || captured.Revision() == 0 || captured.Revision() != original.Revision() || captured.Implementation != extension.StockCube || captured.Signature != extension.CubeComparisonSignature(capture.left.ID()) || captured.Result != ids.OID(capture.result) || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Builtin != nil {
+		return fmt.Errorf("stuntgres: invalid captured cube comparison declaration")
 	}
-	if captured.Implementation != extension.StockCube || owner.Extensions["cube"] != captured.Implementation {
-		return nil, fmt.Errorf("stuntgres: invalid captured cube comparison declaration (stock registration for %s)", captured.Name())
+	capture.left, capture.right = typ(capture.left), typ(capture.right)
+	descriptor, _ := catalog.DescriptorAt(view, reader, capture.ref.Address)
+	declaration, ok := descriptor.(*catalog.Procedure)
+	if !ok || !exec.SameRoutineDeclaration(declaration, original) {
+		return fmt.Errorf("stuntgres: missing remapped cube comparison declaration")
 	}
-	if captured.Name() != capture.name || captured.Signature != extension.CubeComparisonSignature(capture.left.ID()) || captured.Result != ids.OID(capture.result) || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Builtin != nil {
-		return nil, fmt.Errorf("stuntgres: invalid captured cube comparison declaration (selected %s(%s) result %v; expected %s(%s) result %v; kind %v strict %t volatility %v builtin %t)", captured.Name(), captured.Signature, captured.Result, capture.name, extension.CubeComparisonSignature(capture.left.ID()), capture.result, captured.RoutineKind, captured.Strict, captured.Volatility, captured.Builtin != nil)
-	}
-	left, right := typ(capture.left), typ(capture.right)
-	if !left.IsCube() || left != right {
+	_, err := currentCubeComparisonProcedure(view, original, capture)
+	return err
+}
+
+func currentCubeComparisonProcedure(view catalog.Read, original *catalog.Procedure, capture cubeComparisonCapture) (*catalog.Procedure, error) {
+	if !capture.left.IsCube() || capture.left != capture.right {
 		return nil, fmt.Errorf("stuntgres: invalid mapped cube comparison operands")
 	}
-	base, exists := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(left.ID())})
-	if !exists || base.SQLType != left {
-		return nil, fmt.Errorf("stuntgres: foreign mapped cube comparison type")
+	current, symbol, err := currentInstalledProcedure(view, capture.ref, original)
+	if err != nil {
+		return nil, err
 	}
-	descriptor, _ := catalog.DescriptorAt(view, reader, capture.ref.Address)
-	current, ok := descriptor.(*catalog.Procedure)
-	if !ok || current.Address() != capture.ref.Address || current.Name() != capture.name || current.Signature != extension.CubeComparisonSignature(left.ID()) || current.Result != ids.OID(capture.result) || current.RoutineKind != captured.RoutineKind || !current.Strict || current.Volatility != expr.Immutable || current.Implementation != captured.Implementation || current.Builtin != nil {
-		return nil, fmt.Errorf("stuntgres: missing remapped cube comparison declaration")
+	if current.Implementation != extension.StockCube || symbol != capture.name || current.Signature != extension.CubeComparisonSignature(capture.left.ID()) || current.Result != ids.OID(capture.result) || current.RoutineKind != catalog.FunctionRoutine || !current.Strict || current.Volatility != expr.Immutable || current.Builtin != nil {
+		return nil, fmt.Errorf("stuntgres: invalid mapped cube comparison declaration")
 	}
 	installation, exists := view.Extension(current.Extension)
 	if !exists || len(installation.Members) != extension.CubeMemberCount {
 		return nil, fmt.Errorf("stuntgres: missing mapped cube comparison installation")
+	}
+	base, exists := view.Type(installation.Members[0])
+	if !exists || base.SQLType != capture.left || base.Extension != installation.Address() {
+		return nil, fmt.Errorf("stuntgres: foreign mapped cube comparison type")
 	}
 	member := -1
 	for i, name := range extension.CubeComparisonNames {
@@ -118,11 +124,39 @@ func remapCubeComparisonRoutine(view catalog.Read, reader catalog.DefinitionRead
 			break
 		}
 	}
-	if member < 0 || installation.Members[member] != current.Address() || base.Extension != installation.Address() {
+	if member < 0 || installation.Members[member] != current.Address() {
 		return nil, fmt.Errorf("stuntgres: invalid mapped cube comparison member")
 	}
-	if err := owner.Extensions["cube"].ValidateExtension(view, installation); err != nil {
+	if err := extension.StockCube.ValidateProcedure(view, current); err != nil {
 		return nil, err
 	}
 	return current, nil
+}
+
+func currentCubeComparison(n plan.CubeComparisonExpr, view catalog.Read) (*catalog.Procedure, error) {
+	if err := n.ValidateStoredProvider(); err != nil {
+		return nil, err
+	}
+	original, err := exec.ExpressionRoutineDescriptor(n)
+	if err != nil {
+		return nil, err
+	}
+	capture, _ := cubeComparisonCaptureOf(n)
+	result, ok := view.LookupType(capture.result)
+	if !ok || n.ResultUsage().Type != result {
+		return nil, fmt.Errorf("stuntgres: foreign cube comparison result")
+	}
+	return currentCubeComparisonProcedure(view, original, capture)
+}
+
+func cubeComparisonRendering(n plan.CubeComparisonExpr, name string) (expr.Rendering, error) {
+	spec, err := n.Render()
+	if err != nil {
+		return expr.Rendering{}, err
+	}
+	if spec.Name != name {
+		spec.Name = name
+		spec.Replay.Pieces[0] = expr.TextPiece(name + "(")
+	}
+	return spec, nil
 }

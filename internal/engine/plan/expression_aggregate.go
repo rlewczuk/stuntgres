@@ -11,11 +11,12 @@ import (
 )
 
 type AggregateCall struct {
-	Provider functions.AggregateProvider
-	Routine  ids.ObjectRef // Selected owning declaration; fresh caller ACL at admission.
+	Provider      functions.AggregateProvider
+	Routine       ids.ObjectRef               // Selected owning declaration; fresh caller ACL at admission.
+	RoutineRecipe expr.RoutineRecipeReference // Original stored occurrence, independently of shared computation.
 	// RoutineAliases retains distinct written builtin aliases sharing this
 	// operation's state. Published slices are immutable; every alias is admitted.
-	RoutineAliases []ids.ObjectRef
+	RoutineAliases []AggregateRoutineAlias
 	Arguments      []expr.Expr
 	Direct         []expr.Expr
 	Order          []SortKey
@@ -26,6 +27,21 @@ type AggregateCall struct {
 	IncludeNulls   bool // Non-strict providers must see SQL NULL, including ordered replay.
 	Procedure      *catalog.Procedure
 	Ref            ids.ObjectRef
+}
+
+// AggregateRoutineAlias preserves the independently checked declaration behind
+// a written alias even when its computation shares another aggregate's state.
+type AggregateRoutineAlias struct {
+	Ref       ids.ObjectRef
+	Procedure *catalog.Procedure
+	Recipe    expr.RoutineRecipeReference
+}
+
+func (call AggregateCall) CallRoutineRecipeReference() expr.RoutineRecipeReference {
+	return call.RoutineRecipe
+}
+func (alias AggregateRoutineAlias) CallRoutineRecipeReference() expr.RoutineRecipeReference {
+	return alias.Recipe
 }
 
 // Every analyzed aggregate expression participates in ownership, dependence,

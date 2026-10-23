@@ -3,19 +3,21 @@ package stored
 import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
-func RemapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*View, error) {
-	return remapView(view, original, mapping, ref, typ, collation, nil)
+func RemapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (*View, error) {
+	typ = analyze.RecordTypeMapper(typ, collation)
+	return remapView(view, original, mapping, ref, typ, collation, nil, procedure)
 }
 
-func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, addressMapper func(ids.ObjectAddress) ids.ObjectAddress) (*View, error) {
-	typ = analyze.RecordTypeMapper(typ, collation)
+func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, addressMapper func(ids.ObjectAddress) ids.ObjectAddress, procedure catalog.ProcedureRemapper) (*View, error) {
 	definition := *original
 	definition.routineInputs = slices.Clone(original.routineInputs)
 	for i, usage := range definition.routineInputs {
@@ -66,7 +68,8 @@ func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 	if len(original.literals) != 0 {
 		definition.literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(original.literals))
 		for path, literal := range original.literals {
-			node, _, err := RetagTypes(view, literal, typ, collation)
+			mapper := &ViewQueryRemapper{Catalog: view, Type: typ, Collation: collation, Procedure: procedure}
+			node, _, err := mapper.retag(literal, typ)
 			if err != nil {
 				return nil, err
 			}
@@ -112,15 +115,8 @@ func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 	definition.dependencies = append([]catalog.ExpressionDependency(nil), original.dependencies...)
 	for i := range definition.dependencies {
 		definition.dependencies[i].Ref = ref(definition.dependencies[i].Ref)
-		if definition.dependencies[i].Ref.Address.ClassID == ids.ProcedureClassID {
-			procedure, ok := view.Procedure(definition.dependencies[i].Ref.Address)
-			if !ok {
-				return nil, ids.ErrCatalogReplaced
-			}
-			definition.dependencies[i].Revision = procedure.Revision()
-		}
 	}
-	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, routineFormals: len(original.routineInputs), addressMapper: addressMapper}
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, mapping, procedure), routineFormals: len(original.routineInputs), addressMapper: addressMapper}
 	var root plan.Node
 	var err error
 	if _, project := original.query.Root.(*plan.ProjectNode); project {
@@ -139,4 +135,22 @@ func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 		definition.frames[project.Frame] = project
 	}
 	return &definition, nil
+}
+
+// Without an explicit import policy only target-domain principals may survive.
+// Numeric IDs are used to verify identity, never to fabricate a mapping.
+func originalProcedureMapper(view catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, supplied catalog.ProcedureRemapper) catalog.ProcedureRemapper {
+	if supplied != nil {
+		return supplied
+	}
+	principal := func(ref authorization.PrincipalRef) (authorization.PrincipalRef, error) {
+		if view.Owner() == nil || view.Owner().Principals == nil || ref != view.Owner().Principals.Principal(ref.ID()) || ref.ID() == 0 {
+			return authorization.PrincipalRef{}, ids.ErrCatalogReplaced
+		}
+		return ref, nil
+	}
+	policy := catalog.PrincipalRemap{Principal: principal, SeededOwner: func(ref authorization.PrincipalRef, _ bool) (authorization.PrincipalRef, error) {
+		return principal(ref)
+	}}
+	return extension.ProcedureRemapper(mapping, catalog.NewProcedureRemapper(policy), nil)
 }

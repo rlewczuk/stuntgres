@@ -207,6 +207,10 @@ func (prepared *preparedIdentityDrop) ProceduresNamed(namespace ids.ObjectAddres
 func (prepared *preparedIdentityDrop) HasDynamicProcedureName(name string) bool {
 	return prepared.drop.HasDynamicProcedureName(name)
 }
+
+func (prepared *preparedIdentityDrop) HasProviderProcedureOverride(name string) bool {
+	return prepared.drop.HasProviderProcedureOverride(name)
+}
 func (prepared *preparedIdentityDrop) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	return prepared.drop.IndexLayout(address)
 }

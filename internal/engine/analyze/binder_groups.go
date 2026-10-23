@@ -117,6 +117,7 @@ type ClauseState struct {
 	selectedCallReentry    bool              // Only the immediate selected occurrence skips selection once.
 	selectedWindowCallee   parser.ObjectName // Diagnostic spelling, never lookup authority.
 	selectedAggregate      *catalog.Procedure
+	selectedProcedure      *catalog.Procedure // Live catalog winner; provider symbol is not a public alias.
 }
 
 // GroupingState collects the aggregates, grouping sets and window calls of

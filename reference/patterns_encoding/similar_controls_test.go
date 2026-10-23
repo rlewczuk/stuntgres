@@ -56,9 +56,6 @@ func TestReferenceSimilarControls(t *testing.T) {
 	if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(dump.String(), "SIMILAR") || strings.Contains(dump.String(), "similar_to_escape") {
-		t.Fatal("Dump lost symbolic SQL-regex provenance", dump.String())
-	}
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}

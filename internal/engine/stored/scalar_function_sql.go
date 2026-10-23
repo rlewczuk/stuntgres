@@ -33,99 +33,128 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		r.record(n.Ref)
 		return routineCallSQL(n, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), catalog.QuoteIdentifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
 	case plan.InstalledCubeExpr:
-		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored cube reference")
 		}
 		if err := ValidateInstalledCube(n, view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored cube namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
 	case plan.InstalledSoundexExpr:
-		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored Soundex reference")
 		}
 		if err := ValidateInstalledSoundex(n, view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored Soundex namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
 	case plan.InstalledMetaphoneExpr:
-		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored Metaphone reference")
 		}
 		if err := ValidateInstalledMetaphone(n, view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored Metaphone namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
 	case plan.InstalledLevenshteinExpr:
-		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored Levenshtein reference")
 		}
 		if err := ValidateInstalledLevenshtein(n, view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored Levenshtein namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
 	case plan.InstalledUUIDOsspExpr:
-		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored uuid-ossp reference")
 		}
 		if err := ValidateInstalledUUIDOssp(n, view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored uuid-ossp namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
 	case plan.InstalledCryptoExpr:
-		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored crypto reference")
 		}
 		if err := ValidateInstalledCrypto(n, view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored crypto namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
-	case plan.InstalledCubeSpatialExpr:
-		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
-			return "", fmt.Errorf("stuntgres: invalid stored cube spatial reference")
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
+	case plan.CubeComparisonExpr:
+		original, ok := n.RoutineReference.(*catalog.Procedure)
+		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, original) {
+			return "", fmt.Errorf("stuntgres: invalid stored cube comparison reference")
 		}
-		if err := ValidateInstalledCubeSpatial(n, view); err != nil {
+		procedure, err := currentCubeComparison(n, view)
+		if err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored cube comparison namespace")
+		}
+		spec, err := cubeComparisonRendering(n, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()))
+		if err != nil {
+			return "", err
+		}
+		r.record(n.Ref)
+		return r.rendering(ctx, view, spec)
+	case plan.InstalledCubeSpatialExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored cube spatial reference")
+		}
+		procedure, err := currentCubeSpatialProcedure(n, view)
+		if err != nil {
+			return "", err
+		}
+		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored cube spatial namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args[:])
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args[:])
 	case plan.InstalledTextExpr:
+		if err := ValidateInstalledText(n, view); err != nil {
+			return "", err
+		}
 		proc, ok := r.descriptor(view, n.Ref.Address).(*catalog.Procedure)
-		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !analyze.ValidInstalledText(n) || proc.Name() != n.Procedure.Name() || proc.Signature != n.Procedure.Signature || proc.RoutineKind != n.Procedure.RoutineKind || proc.Result != n.Procedure.Result || proc.Strict != n.Procedure.Strict || proc.Volatility != n.Procedure.Volatility || extension.UnaccentProviderOf(proc) != extension.UnaccentProviderOf(n.Procedure) || extension.IntarrayProviderOf(proc) != extension.IntarrayProviderOf(n.Procedure) || extension.PgcryptoProviderOf(proc) != extension.PgcryptoProviderOf(n.Procedure) || extension.FuzzystrmatchProviderOf(proc) != extension.FuzzystrmatchProviderOf(n.Procedure) || proc.Dictionary != n.Procedure.Dictionary || proc.Extension != n.Procedure.Extension || proc.Namespace() != n.Procedure.Namespace() {
+		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !analyze.ValidInstalledText(n) || !exec.SameRoutineDeclaration(proc, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
 		if n.Dictionary != nil {
@@ -141,7 +170,8 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		if extension.FuzzystrmatchProviderOf(proc) == nil && n.Dictionary == nil {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
-		namespace, ok := r.descriptor(view, proc.Namespace()).(*catalog.Namespace)
+		proc, _ = view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(proc.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored function namespace")
 		}
@@ -151,12 +181,13 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		if err := ValidateInstalledPgrowlocks(n, view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored pgrowlocks namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), []expr.Expr{n.Arg})
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), []expr.Expr{n.Arg})
 	case plan.ExtensionPathsExpr:
 		if r.CommentSnapshot != nil {
 			*r.CommentSnapshot = true
@@ -170,6 +201,10 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		// Function nodes describe their stored form; engine wrappers that embed
 		// one keep their explicit cases above.
 		spec, err := n.Render()
+		if err != nil {
+			return "", err
+		}
+		spec, err = currentRoutineRendering(view, node, spec)
 		if err != nil {
 			return "", err
 		}

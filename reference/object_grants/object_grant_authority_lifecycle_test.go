@@ -172,11 +172,11 @@ func TestReferenceObjectGrantAuthorityLifecycle(t *testing.T) {
 	})
 }
 
-// Reuse the public named-owner Restore format, as the ownership provider
-// witnesses do; native has no direct ALTER FUNCTION OWNER grammar.
+// Reuse the public named-owner Restore format to transfer selected members
+// while preserving their installed slot and current schema identities.
 func objectGrantMemberOwnerScript(t *testing.T, script, owner string) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v1 "
+	const marker = "-- stuntgres-extension-owners-v2 "
 	lines := strings.Split(script, "\n")
 	encodedOwner, err := json.Marshal(owner)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -98,9 +99,13 @@ func selectNativeIndexSupport(view catalog.Read, family, left, right uint32, slo
 		if err := cube.ValidateExtension(view, installation); err != nil {
 			return sqltype.IndexSupport{}, err
 		}
+		symbol, err := extension.ProcedureSymbol(view, proc)
+		if err != nil {
+			return sqltype.IndexSupport{}, err
+		}
 		single := strconv.FormatUint(uint64(left), 10)
 		fact, exists := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(family)})
-		if !exists || fact.Method != 403 || fact.Extension != proc.Extension || slot != 1 || left != right || proc.Name() != "cube_cmp" || string(proc.Signature) != single+","+single || proc.Result != 23 || member.OwningClass == 0 {
+		if !exists || fact.Method != 403 || fact.Extension != proc.Extension || slot != 1 || left != right || symbol != "cube_cmp" || string(proc.Signature) != single+","+single || proc.Result != 23 || member.OwningClass == 0 {
 			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed cube support selection")
 		}
 		class, exists := view.OperatorClass(member.OwningClass)

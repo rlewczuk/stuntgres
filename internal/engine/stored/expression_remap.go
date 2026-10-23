@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -499,6 +498,7 @@ type ViewQueryRemapper struct {
 	queries        map[*plan.ProjectNode]plan.Node
 	Collation      typedef.CollationRemapper
 	Catalog        catalog.Read
+	Procedure      catalog.ProcedureRemapper
 	referencesOnly bool
 	ctes           map[*plan.CTEDefinition]*plan.CTEDefinition
 	Mutation       func(*plan.CTEDefinition) (analyze.Binding, error)
@@ -568,7 +568,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		if !m.referencesOnly {
 			// Nested owns both reference and type replacement. Its output is
 			// opaque to this scalar-only type pass, even for routine formals.
-			next, _, failure = RetagTypesWithQuery(m.Catalog, next, typ, nil, m.Collation)
+			next, _, failure = m.retag(next, typ)
 			if failure != nil {
 				err = failure
 				return old
@@ -581,6 +581,24 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		for i, n := range old {
 			next[i] = expression(n)
 		}
+		return next
+	}
+	grouping := func(old plan.Grouping) plan.Grouping {
+		if err != nil {
+			return old
+		}
+		next := old
+		next.Routine = ref(old.Routine)
+		next.Procedure, err = m.procedure(old.Procedure)
+		return next
+	}
+	equality := func(old plan.SortKey) plan.SortKey {
+		if err != nil || old.EqualityRoutine == (ids.ObjectRef{}) {
+			return old
+		}
+		next := old
+		next.EqualityRoutine = ref(old.EqualityRoutine)
+		next.EqualityProcedure, err = m.procedure(old.EqualityProcedure)
 		return next
 	}
 	var next plan.Node
@@ -688,8 +706,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 				if definition != nil && definition.Cycle != nil && i == definition.UserWidth {
 					slot = definition.Cycle.MarkSlot
 				}
-				copy.Grouping[i] = set.Grouping[i]
-				copy.Grouping[i].Routine = ref(set.Grouping[i].Routine)
+				copy.Grouping[i] = grouping(set.Grouping[i])
 				if err == nil {
 					copy.Grouping[i].Grouping, err = sqltype.BindGrouping(schema[slot].Usage)
 				}
@@ -711,8 +728,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		copy.Expressions = expressions(n.Expressions)
 		copy.Grouping = make([]plan.Grouping, len(copy.Expressions))
 		for i, expression := range copy.Expressions {
-			copy.Grouping[i] = n.Grouping[i]
-			copy.Grouping[i].Routine = ref(n.Grouping[i].Routine)
+			copy.Grouping[i] = grouping(n.Grouping[i])
 			if err == nil {
 				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
 			}
@@ -725,8 +741,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		copy.Expressions = expressions(n.Expressions)
 		copy.Grouping = make([]plan.Grouping, len(copy.Expressions))
 		for i, expression := range copy.Expressions {
-			copy.Grouping[i] = n.Grouping[i]
-			copy.Grouping[i].Routine = ref(n.Grouping[i].Routine)
+			copy.Grouping[i] = grouping(n.Grouping[i])
 			if err == nil {
 				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
 			}
@@ -741,6 +756,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		copy.Keys = append([]plan.SortKey(nil), n.Keys...)
 		copy.Outputs = expressions(n.Outputs)
 		for i, key := range copy.Keys {
+			copy.Keys[i] = equality(key)
 			copy.Keys[i].Expression = expression(key.Expression)
 			if err == nil && !copy.Keys[i].Expression.CollationIndeterminate() {
 				copy.Keys[i].Comparison, err = sqltype.BindOrdering(copy.Keys[i].Expression.ResultUsage())
@@ -756,16 +772,15 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 			spec.Partition = expressions(spec.Partition)
 			spec.Grouping = make([]plan.Grouping, len(spec.Partition))
 			for j, key := range spec.Partition {
-				spec.Grouping[j] = n.Specs[i].Grouping[j]
-				spec.Grouping[j].Routine = ref(n.Specs[i].Grouping[j].Routine)
+				spec.Grouping[j] = grouping(n.Specs[i].Grouping[j])
 				if err == nil {
 					spec.Grouping[j].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
 				}
 			}
 			spec.Order = append([]plan.SortKey(nil), spec.Order...)
 			for j, key := range spec.Order {
+				spec.Order[j] = equality(key)
 				spec.Order[j].Expression = expression(key.Expression)
-				spec.Order[j].EqualityRoutine = ref(key.EqualityRoutine)
 				if err == nil {
 					spec.Order[j].Comparison, err = sqltype.BindOrdering(spec.Order[j].Expression.ResultUsage())
 				}
@@ -781,6 +796,9 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		copy.Calls = append([]plan.WindowCall(nil), n.Calls...)
 		for i, call := range copy.Calls {
 			copy.Calls[i].Routine = ref(call.Routine)
+			if err == nil {
+				copy.Calls[i].Procedure, err = m.procedure(call.Procedure)
+			}
 			copy.Calls[i].Expression = expression(call.Expression).(*plan.WindowExpr)
 			copy.Calls[i].Argument = expression(call.Argument)
 			copy.Calls[i].Ordinal = expression(call.Ordinal)
@@ -797,8 +815,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		copy.Keys = expressions(n.Keys)
 		copy.Grouping = make([]plan.Grouping, len(copy.Keys))
 		for i, key := range copy.Keys {
-			copy.Grouping[i] = n.Grouping[i]
-			copy.Grouping[i].Routine = ref(n.Grouping[i].Routine)
+			copy.Grouping[i] = grouping(n.Grouping[i])
 			if err == nil {
 				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
 			}
@@ -806,28 +823,21 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		copy.Calls = make([]plan.AggregateCall, len(n.Calls))
 		for i, call := range n.Calls {
 			copy.Calls[i] = call
-			if call.Procedure != nil && ref != nil {
+			if call.Ref != (ids.ObjectRef{}) && ref != nil {
 				copy.Calls[i].Ref = ref(call.Ref)
-				if !m.referencesOnly {
-					proc, ok := m.Catalog.Procedure(copy.Calls[i].Ref.Address)
-					if !ok {
-						return nil, fmt.Errorf("stuntgres: missing remapped intagg aggregate")
-					}
-					copy.Calls[i].Procedure = proc
-					if proc.Aggregate != nil && proc.DynamicCallable() {
-						if failure := routine.ValidateAggregateDefinition(m.Catalog, proc); failure != nil {
-							return nil, failure
-						}
-					} else if failure := extension.ValidateIntaggIdentity(m.Catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
-						return nil, failure
-					}
-				}
+			}
+			if err == nil {
+				copy.Calls[i].Procedure, err = m.procedure(call.Procedure)
 			}
 			copy.Calls[i].Routine = ref(call.Routine)
 			if len(call.RoutineAliases) != 0 {
-				copy.Calls[i].RoutineAliases = make([]ids.ObjectRef, len(call.RoutineAliases))
+				copy.Calls[i].RoutineAliases = make([]plan.AggregateRoutineAlias, len(call.RoutineAliases))
 				for j, alias := range call.RoutineAliases {
-					copy.Calls[i].RoutineAliases[j] = ref(alias)
+					copy.Calls[i].RoutineAliases[j] = alias
+					copy.Calls[i].RoutineAliases[j].Ref = ref(alias.Ref)
+					if err == nil {
+						copy.Calls[i].RoutineAliases[j].Procedure, err = m.procedure(alias.Procedure)
+					}
 				}
 			}
 			provider, ok := call.Provider.(functions.RemappableProvider)
@@ -848,8 +858,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 			}
 			copy.Calls[i].Distinct = make([]plan.Grouping, len(call.Distinct))
 			for k := range call.Distinct {
-				copy.Calls[i].Distinct[k] = call.Distinct[k]
-				copy.Calls[i].Distinct[k].Routine = ref(call.Distinct[k].Routine)
+				copy.Calls[i].Distinct[k] = grouping(call.Distinct[k])
 				arg := copy.Calls[i].Arguments[k]
 				if err == nil {
 					copy.Calls[i].Distinct[k].Grouping, err = sqltype.BindGrouping(arg.ResultUsage())
@@ -860,6 +869,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 			}
 			copy.Calls[i].Order = append([]plan.SortKey(nil), call.Order...)
 			for k, key := range call.Order {
+				copy.Calls[i].Order[k] = equality(key)
 				copy.Calls[i].Order[k].Expression = expression(key.Expression)
 				if err == nil {
 					usage := copy.Calls[i].Order[k].Expression.ResultUsage()
@@ -877,6 +887,23 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		return nil, fmt.Errorf("stuntgres: unpersistable view query %T", node)
 	}
 	return next, err
+}
+
+func (m *ViewQueryRemapper) retag(node expr.Expr, typ func(*sqltype.Descriptor) *sqltype.Descriptor) (expr.Expr, bool, error) {
+	procedure := m.Procedure
+	if procedure == nil {
+		// Structural type-only mapping preserves existing authority; it does
+		// not acquire destination principal or catalog provenance.
+		procedure = func(original *catalog.Procedure) (*catalog.Procedure, error) { return original, nil }
+	}
+	return mapExpressionWithProcedure(m.Catalog, nil, node, typ, nil, nil, false, nil, procedure, m.Collation)
+}
+
+func (m *ViewQueryRemapper) procedure(original *catalog.Procedure) (*catalog.Procedure, error) {
+	if original == nil || m.Procedure == nil {
+		return original, nil
+	}
+	return m.Procedure(original)
 }
 
 // usage maps a usage's type and collation to their remapped generations.
@@ -899,15 +926,7 @@ func (m *ViewQueryRemapper) provider(slot *functions.AggregateProvider, provider
 		if !ok || old == nil {
 			return nil, fmt.Errorf("stuntgres: invalid transition routine reference")
 		}
-		if m.referencesOnly {
-			return old, nil
-		}
-		address := remapAddress(old.Address(), m.Ref, m.addressMapper)
-		next, ok := m.Catalog.Procedure(address)
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing remapped aggregate support declaration")
-		}
-		return next, nil
+		return m.procedure(old)
 	}
 	remap.Expression = m.transitionExpression
 	if argument != nil {
@@ -945,7 +964,7 @@ func (m *ViewQueryRemapper) transitionExpression(old expr.Expr, source, destinat
 		return nil, err
 	}
 	if !m.referencesOnly {
-		next, _, err = RetagTypesWithQuery(m.Catalog, next, m.Type, nil, m.Collation)
+		next, _, err = m.retag(next, m.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -1138,7 +1157,7 @@ func (m *ViewQueryRemapper) cycle(old *plan.CycleRecipe) (*plan.CycleRecipe, err
 			return nil, err
 		}
 		if !m.referencesOnly {
-			next, _, err = RetagTypesWithQuery(m.Catalog, next, m.Type, nil, m.Collation)
+			next, _, err = m.retag(next, m.Type)
 		}
 		return next, err
 	}

@@ -343,13 +343,18 @@ func TestExtensionOwnerMetadata(t *testing.T) {
 	if err != nil || !recognized || len(record.Members) != 5 || record.Owner != "postgres" {
 		t.Fatal("owner record", record, recognized, err)
 	}
+	for i, slot := range []int{0, 1, 2, 3, 5} {
+		if record.Members[i].Slot != slot || record.Members[i].Schema != "public" {
+			t.Fatal("owner record lost manifest slot/current schema", record.Members[i])
+		}
+	}
 	for _, payload := range []string{`{}`, `{"name":null}`, `{"name":"unaccent","name":"unaccent"}`, `[]`} {
 		_, recognized, err := extension.DecodeOwners(extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString([]byte(payload)))
 		if !recognized || err == nil {
 			t.Fatal("invalid ownership metadata accepted", payload)
 		}
 	}
-	for _, comment := range []string{"stuntgres-extension-owners-v2 YQ==", extension.OwnersMarker + " !!!!"} {
+	for _, comment := range []string{"stuntgres-extension-owners-v1 YQ==", extension.OwnersMarker + " !!!!"} {
 		if _, _, err := extension.DecodeOwners(comment); err == nil {
 			t.Fatal("invalid marker/base64")
 		}
@@ -418,5 +423,57 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 		if members == 0 {
 			t.Fatal("no implementation-bearing members", tc.name)
 		}
+	}
+}
+
+func TestExtensionProviderRelabelIdentity(t *testing.T) {
+	e, _, ext := extensionUnitInstalled(t)
+	view := e.CatalogRead()
+	for slot, want := range []string{"unaccent", "unaccent", "unaccent_init", "unaccent_lexize"} {
+		t.Run(fmt.Sprint(slot), func(t *testing.T) {
+			original := view.MustProcedure(ext.Members[slot])
+			if symbol, err := extension.ProcedureSymbol(view, original); err != nil || symbol != want {
+				t.Fatal("invalid relabel baseline", symbol, err)
+			}
+			renamed := *original
+			renamed.ObjectName = "relabeled_" + want
+			renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+			state := catalog.CloneState(view.State())
+			state.UnbindName(catalog.DescriptorNameKey(original))
+			state.SetDescriptor(renamed.Address(), &renamed)
+			state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
+			current := e.catalog.read(state)
+			if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != want {
+				t.Fatal(symbol, err)
+			}
+			if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(current, &renamed); err != nil {
+				t.Fatal("relabel rejected", err)
+			}
+			copy := *ext
+			copy.Members = slices.Clone(ext.Members)
+			if err := extension.StockUnaccent.ValidateExtension(current, &copy); err != nil {
+				t.Fatal("equivalent detached manifest rejected", err)
+			}
+			copy.Members[0], copy.Members[1] = copy.Members[1], copy.Members[0]
+			if err := extension.StockUnaccent.ValidateExtension(current, &copy); err == nil {
+				t.Fatal("reordered manifest accepted")
+			}
+			detached := renamed
+			detached.Extension, detached.Dictionary = ids.ObjectAddress{}, ids.ObjectAddress{}
+			state.SetDescriptor(detached.Address(), &detached)
+			if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(current, &detached); err != nil {
+				t.Fatal("incumbent detached metadata rejected", err)
+			}
+			if _, err := extension.ProcedureSymbol(current, &detached); err == nil {
+				t.Fatal("detached metadata acquired installed capability")
+			}
+			detached.Strict = !detached.Strict
+			if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(current, &detached); err == nil {
+				t.Fatal("forged detached declaration accepted")
+			}
+			if view.Get(original.Address()) != original || ext.TargetNamespace != original.Namespace() {
+				t.Fatal("source installation mutated")
+			}
+		})
 	}
 }

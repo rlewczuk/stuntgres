@@ -8,8 +8,8 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -653,14 +653,15 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		}
 		name := catalog.Identifier("unnest")
 		if n.Procedure != nil {
-			if err := extension.ValidateIntaggIdentity(r.View, n.Procedure, n.Ref, "int_array_enum"); err != nil {
+			current, err := currentIntaggEnumerator(r.View, n)
+			if err != nil {
 				return "", err
 			}
-			namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+			namespace, ok := r.View.Namespace(current.Namespace())
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing intagg namespace")
 			}
-			name = catalog.Identifier(namespace.Name()) + "." + catalog.Identifier(n.Procedure.Name())
+			name = catalog.Identifier(namespace.Name()) + "." + catalog.Identifier(current.Name())
 		}
 		return name + "(" + arg + ")", nil
 	case plan.ComparisonExpr:
@@ -746,11 +747,21 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		text.WriteString("\nEND")
 		return text.String(), nil
 	case plan.SQLRoutineExpr:
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		if err := n.ValidateStoredProvider(); err != nil {
+			return "", err
+		}
+		if n.Ref.Address.SubID != 0 || !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
+			return "", fmt.Errorf("stuntgres: invalid stored SQL routine reference")
+		}
+		procedure, err := exec.ValidateStoredRoutineDescriptor(r.View, n.Procedure)
+		if err != nil {
+			return "", err
+		}
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
 		}
-		return routineCallSQL(n, r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), r.Identifier, func(arg expr.Expr) (string, error) {
+		return routineCallSQL(n, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), r.Identifier, func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.ShowImplicit = true
 			return argRenderer.SQL(ctx, arg, DeparseParent{})
@@ -762,68 +773,109 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if err := ValidateInstalledCube(n, r.View); err != nil {
 			return "", err
 		}
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing cube function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
 	case plan.InstalledSoundexExpr:
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		if err := ValidateInstalledSoundex(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Soundex function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
 	case plan.InstalledMetaphoneExpr:
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		if err := ValidateInstalledMetaphone(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Metaphone function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
 	case plan.InstalledLevenshteinExpr:
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		if err := ValidateInstalledLevenshtein(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Levenshtein function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
 	case plan.InstalledUUIDOsspExpr:
 		if err := ValidateInstalledUUIDOssp(n, r.View); err != nil {
 			return "", err
 		}
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing uuid-ossp function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
 	case plan.InstalledCryptoExpr:
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		if err := ValidateInstalledCrypto(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing crypto function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
-	case plan.InstalledCubeSpatialExpr:
-		if err := extension.ValidateCubeSpatialCall(r.View, n.Procedure, n.CubeSpatial); err != nil {
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
+	case plan.CubeComparisonExpr:
+		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
+			return "", fmt.Errorf("stuntgres: invalid stored cube comparison reference")
+		}
+		procedure, err := currentCubeComparison(n, r.View)
+		if err != nil {
 			return "", err
 		}
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing cube comparison namespace")
+		}
+		spec, err := cubeComparisonRendering(n, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()))
+		if err != nil {
+			return "", err
+		}
+		return r.rendering(ctx, n, spec, parent)
+	case plan.InstalledCubeSpatialExpr:
+		procedure, err := currentCubeSpatialProcedure(n, r.View)
+		if err != nil {
+			return "", err
+		}
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing cube spatial function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args[:], true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args[:], true)
 	case plan.InstalledTextExpr:
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		if err := ValidateInstalledText(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), []expr.Expr{n.Arg}, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), []expr.Expr{n.Arg}, true)
 	case plan.InstalledPgrowlocksExpr:
 		if err := ValidateInstalledPgrowlocks(n, r.View); err != nil {
 			return "", err
 		}
-		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing pgrowlocks namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), []expr.Expr{n.Arg}, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), []expr.Expr{n.Arg}, true)
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one
 		// keep their explicit cases above.

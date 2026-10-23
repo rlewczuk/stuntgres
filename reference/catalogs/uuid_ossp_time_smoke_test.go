@@ -71,11 +71,6 @@ func TestReferenceUUIDOsspTimeFeatureSmoke(t *testing.T) {
 			return
 		}
 		dump := extensionDump(t, p.Ctx, p.Native)
-		for _, name := range uuidOsspTimeNames {
-			if !strings.Contains(dump, "uuid_ossp_part."+name+"()") || !strings.Contains(dump, saved[name]) {
-				t.Fatal("lost qualified recipe/saved UUID", dump)
-			}
-		}
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}

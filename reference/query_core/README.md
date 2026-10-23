@@ -1,7 +1,7 @@
 # reference/query_core
 
 Core query and routine behavior: SQL routines (CREATE FUNCTION/PROCEDURE with
-quoted and SQL-standard bodies, overload resolution against builtins, DROP),
+quoted and SQL-standard bodies, overload resolution against builtins, ALTER/DROP),
 WITH queries including recursive CTEs, CYCLE and SEARCH, subqueries, row
 comparison, joins, FROM VALUES, aliases, set operations, CREATE TABLE AS,
 expression indexes, parallel SELECT scans, and scalar expressions (BETWEEN,
@@ -65,3 +65,106 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Expression indexes: `RUN='^TestReferenceExpressionIndex'`
 - Parallel SELECT scans: `RUN='^TestReferenceQueryParallel'`
 - Scalar expressions: `RUN='^TestReference(Between|Conditional|Logical|ExpressionCore|QueryCore|Smoke(Between|Compare|Conditional|ExpressionCore|Logical|QueryCore))'`
+
+### Routine ALTER proof
+
+`TestReferenceRoutineAlter*` shares independently specified SQL observations
+between native and pinned PostgreSQL18.6: exact overload/domain/mode identity and
+unchanged OIDs; hard view/standard/default/CHECK/rule references versus soft
+quoted source; original Go/SQL held prepared reanalysis; current qualified
+formals; collision/publication atomicity; schema/owner/SET ROLE/ACL authority;
+released scalar/window and installed extension/aggregate execution; repeated
+native persistence. Procedure declarations use real metadata, not CALL.
+
+Run the full focused definitions in both modes (external 900-second deadlines):
+
+```sh
+make check RUN='^TestReferenceRoutineAlter(Identity|Signatures|Dependencies|Prepared|FormalQualifier|Atomicity|Authority|OwnerACL|Providers|ProviderPersistence|Persistence|SchemaBoundaries|OwnerOperands|ExplicitACLPersistenceBoundary)$'
+make check RUN='^TestReferenceRoutineAlter(Identity|Signatures|Dependencies|Prepared|FormalQualifier|Atomicity|Authority|OwnerACL|Providers|ProviderPersistence|Persistence|SchemaBoundaries|OwnerOperands|ExplicitACLPersistenceBoundary)$' REFERENCE=1
+make check RUN='^TestRoutineAlter(Parser|DeclarationIdentity|ProviderOverrideIndex|RevisionAtomicity|HardCaptureAdmission)$'
+```
+
+The temporary oracle-discovery filter is removed; tests use `routineScenario`.
+Public values and metadata are expected independently, never inferred from
+backend parity. Qualified-formal failures keep exact SQLSTATE/message and both
+diagnostic records: native body-relative Position8/statement1 Context versus
+observed PostgreSQL InternalPosition8/InternalQuery/inlining Context. Repair is
+DROP/CREATE, not OR REPLACE; native claims no PostgreSQL optimizer phase.
+
+Persistence checks two native replays, a fresh Driver with provisioned roles,
+provider-only streams without a SQL-body directive, retained Rows and
+read/cancellation/late-invalid atomicity; real mode replays the actual emitted
+stream. Explicit routine ACL serialization retains its explicit error.
+Reset preserves roles. See [native replay](../../docs/FIXTURES.md#routine-identity-replay)
+and the [owning contract and limits](../../internal/engine/routine/README.md#routine-alter-contract).
+
+Additional shared routine-identity definitions:
+
+- `TestReferenceRoutineAlterEqualityCaptures` and
+  `TestReferenceRoutineAlterEqualityCapturePersistence` create independent
+  DISTINCT, GROUP BY, UNION/INTERSECT/EXCEPT, window partition and peer consumers
+  before equality-routine ALTER. Direct/prepared checks retain exact values and
+  types, original operator lifetime versus a fresh same-name SQL function, and
+  the selected operator's current EXECUTE denial/regrant. Real rule-action
+  DISTINCT keys retain their original equality proof when NEW receives a fresh
+  producer expression. Two native replays, a fresh engine and actual emitted
+  PostgreSQL SQL cover persistent equality captures. These scenarios do not
+  infer implicit grouping-helper ACL behavior from explicit operator calls.
+- `TestReferenceRoutineAlterBuiltinCaptures` and
+  `TestReferenceRoutineAlterBuiltinCapturePersistence` retain aggregate, window
+  and independently admitted boolean-alias declarations created before ALTER.
+  They distinguish hard captures from fresh source lookup, keep current EXECUTE
+  revoke/regrant checks and cover native plus actual emitted-SQL replay.
+  The persistence witness keeps six pre-ALTER TEMP views on the same physical
+  connection across Restore without Reset, checking direct/prepared values and
+  types separately from imported persistent declarations. It explicitly drops
+  those TEMP views before the two Reset/replay rounds, so retained destination
+  identity and imported-source identity exercise distinct replacement policies.
+  Fresh controls use the raw native pool; independent recorded SQL checks retain
+  both Context/non-Context and direct/prepared routes over the same connector.
+- `TestReferenceRoutineAlterRuleBuiltinCaptures` retains pre-ALTER rule action
+  windows, SUM, both COUNT orders and both independent boolean-alias orders.
+  Direct/prepared INSERTs keep their original results after rename/move/owner,
+  while current EXECUTE denial and regrant remain effective. Dependencies also
+  composes an original stored callee with a fresh same-address producer call;
+  those separate lifetimes yield 2001 rather than rebinding the stored call.
+- `TestReferenceRoutineAlterProviders` also covers Cube's existing constructor,
+  dimension, spatial, equality and btree-support members through rename/schema/
+  owner transitions: original OIDs, stored direct/operator/CASE views, fresh
+  direct/prepared calls, current owners and sibling overloads. Ordering, grouping
+  and subsequent indexed writes exercise the existing support graph. Native
+  restoration and the actual emitted PostgreSQL stream use the actual versioned,
+  noncontiguous member slots and operator/family/class associations, not names.
+  Existing procedural declarations also retain integer overload OIDs, views and
+  untouched text siblings after rename/schema/owner, two native replays and
+  actual PostgreSQL stream replay. Shared checks assert values, types and owner;
+  the extra PostgreSQL language-column assertion stays external-only because
+  native `pg_proc` does not expose `prolang`.
+- `TestReferenceRoutineAlterSQLJSONArray` and
+  `TestReferenceRoutineAlterSQLJSONObject` create views before selected
+  implementation aggregate rename/move. Exact PostgreSQL18.6 canonical
+  `pg_get_viewdef` keeps constructor syntax independently of implementation names.
+  Expectations distinguish FORMAT JSON/quoted text, NULL/ABSENT, TEXT/JSON/BYTEA
+  RETURNING and OBJECT VALUE/unique-key checks even for omitted nulls. Two native
+  replays, fresh Driver and actual PostgreSQL stream replay retain values, types,
+  canonical definitions and options; ordinary qualified implementation calls
+  remain executable. Exact canonical assertions distinguish the original
+  before/after-ALTER definition from actual emitted-stream PostgreSQL18.6
+  canonical: replay retains its table hygiene alias, but omits redundant column
+  aliases, quotes and visible schema qualification. Fresh Restore uses a raw
+  native control pool; SQL observations use a separate sqlmw-recorded pool over
+  the same connector/engine namespace. CALL remains unsupported, not ALTER.
+
+```sh
+make check RUN='^TestReferenceRoutineAlter(BuiltinCaptures|BuiltinCapturePersistence|RuleBuiltinCaptures|Dependencies|SQLJSONArray|SQLJSONObject)$'
+make check RUN='^TestReferenceRoutineAlter(BuiltinCaptures|BuiltinCapturePersistence|RuleBuiltinCaptures|Dependencies|SQLJSONArray|SQLJSONObject)$' REFERENCE=1
+```
+
+No redundant permanent feature-smoke matrix is added. After whole-project
+`make quickcheck`, root materializes the throwaway public `database/sql` program,
+runs `go run /tmp/stuntgres-routine-rename-owner-smoke.go`, records actual output
+and removes its scaffold. Expected observations include5/INT4 and sibling104,
+held6/10 and metadata, stable OID/procedure kindp, hard1001 versus fresh2001,
+collision42723/unauthorized-owner42501, genuine renamed builtin4/window maximum2,
+SHA256 of `abc`, and two restored owner/provider/data rechecks. Readiness is
+not verification; only exercised commands/output are evidence.

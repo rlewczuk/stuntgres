@@ -141,9 +141,13 @@ func AggregateSupportTypes(v catalog.Read, reader catalog.DefinitionReader, supp
 	for i, input := range inputs {
 		operands[i].Usage = input
 	}
-	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: support.Name()}}}, Args: make([]parser.Expr, len(inputs))}
+	symbol := support.Name()
+	if support.Builtin != nil {
+		symbol = support.Builtin.Identity.Name
+	}
+	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: symbol}}}, Args: make([]parser.Expr, len(inputs))}
 	targets := append([]sqltype.Usage(nil), declared...)
-	if family, found := functions.Lookup(support.Name()); found && family.ProbeCall != nil {
+	if family, found := functions.Lookup(symbol); found && family.ProbeCall != nil {
 		if !family.ProbeCall(context, raw, operands, declared, targets) {
 			return invalid()
 		}
@@ -157,7 +161,7 @@ func AggregateSupportTypes(v catalog.Read, reader catalog.DefinitionReader, supp
 			}
 		}
 	} else if support.Builtin != nil && support.Builtin.Providers&functions.EnumRoutineProvider != 0 {
-		selected, resolution := functions.ResolveEnum(support.Name(), true, operands)
+		selected, resolution := functions.ResolveEnum(symbol, true, operands)
 		if resolution != functions.Resolved || selected.Descriptor == nil {
 			return invalid()
 		}

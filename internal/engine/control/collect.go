@@ -263,43 +263,29 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		c.OwnedRoutines = append(c.OwnedRoutines, t)
 		return nil
 	}
-	// Native foreign and conversion capabilities belong to the bootstrap
-	// principal (10).
 	if t.Foreign != nil {
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
-		if t.ACL.Explicit || t.Owner != c.source.Bootstrap {
-			return fmt.Errorf("stuntgres: dump cannot serialize altered native foreign capability authority")
-		}
-		return nil
+		return c.collectProvider(t)
 	}
 	if t.Builtin != nil {
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
-		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
-			return fmt.Errorf("stuntgres: dump cannot serialize altered builtin routine authority")
-		}
-		return nil
+		return c.collectProvider(t)
 	}
 	if t.AccessMethod != catalog.NoAccessMethod {
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
-		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
-			return fmt.Errorf("stuntgres: dump cannot serialize altered native access method handler authority")
-		}
-		return nil
+		return c.collectProvider(t)
 	}
 	if t.Conversion.Name() != "" {
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
-		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
-			return fmt.Errorf("stuntgres: dump cannot serialize altered builtin conversion routine authority")
-		}
-		return nil
+		return c.collectProvider(t)
 	}
 	if t.ACL.Explicit {
 		return fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
@@ -307,7 +293,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 	if catalog.ExtensionMembership(t) == (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
 	}
-	return nil
+	return c.collectProvider(t)
 }
 
 func collectTextSearchDump(_ context.Context, _ *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {

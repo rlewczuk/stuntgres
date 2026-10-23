@@ -17,6 +17,19 @@ type PrincipalRemap struct {
 	SeededOwner func(ref authorization.PrincipalRef, seeded bool) (authorization.PrincipalRef, error)
 	// OperatorSeeded reports whether an operator is a seeded builtin.
 	OperatorSeeded func(*Operator) bool
+	// Procedure shares the scoped original-declaration graph with stored queries.
+	Procedure ProcedureRemapper
+}
+
+// ProcedureRemapper reprovenances an original immutable declaration, never a
+// lookup of the current declaration at its address.
+type ProcedureRemapper func(*Procedure) (*Procedure, error)
+
+// NewProcedureRemapper retains sharing and cycles across all original carriers
+// mapped with this principal policy.
+func NewProcedureRemapper(m PrincipalRemap) ProcedureRemapper {
+	_, procedure := principalMappings(m)
+	return procedure
 }
 
 // RemapPrincipals rewrites every owner, ACL and policy role of an
@@ -27,28 +40,11 @@ type PrincipalRemap struct {
 func RemapPrincipals(state *State, m PrincipalRemap) error {
 	state.BeginBulkLoad(0)
 	defer state.EndBulkLoad()
-	remap, seedOwner := m.Principal, m.SeededOwner
-	acl := func(a authorization.ACLValue) (authorization.ACLValue, error) {
-		if len(a.Entries) == 0 {
-			return a, nil
-		}
-		n := authorization.ACLValue{Explicit: a.Explicit, Entries: make([]authorization.ACLEntry, len(a.Entries))}
-		for i, x := range a.Entries {
-			var err error
-			x.Grantor, err = remap(x.Grantor)
-			if err != nil {
-				return authorization.ACLValue{}, err
-			}
-			if !x.Grantee.Public {
-				x.Grantee.Role, err = remap(x.Grantee.Role)
-				if err != nil {
-					return authorization.ACLValue{}, err
-				}
-			}
-			n.Entries[i] = x
-		}
-		return n, nil
+	acl, procedure := principalMappings(m)
+	if m.Procedure != nil {
+		procedure = m.Procedure
 	}
+	remap, seedOwner := m.Principal, m.SeededOwner
 	for addr, d := range state.Descriptors() {
 		switch d := d.(type) {
 		case *Database, *AccessMethod, *TSTemplate, *OperatorFamilyOperator, *OperatorFamilySupport, *Cast:
@@ -89,17 +85,11 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 			}
 			state.SetDescriptor(addr, &n)
 		case *Procedure:
-			n := *d
-			var err error
-			n.Owner, err = seedOwner(d.Owner, d.Seeded() || d.Foreign != nil)
+			n, err := procedure(d)
 			if err != nil {
 				return err
 			}
-			n.ACL, err = acl(d.ACL)
-			if err != nil {
-				return err
-			}
-			state.SetDescriptor(addr, &n)
+			state.SetDescriptor(addr, n)
 		case *Language:
 			n := *d
 			var err error
@@ -279,4 +269,68 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 		state.SetDefaultACLs(next)
 	}
 	return nil
+}
+
+func principalMappings(m PrincipalRemap) (func(authorization.ACLValue) (authorization.ACLValue, error), ProcedureRemapper) {
+	acl := func(a authorization.ACLValue) (authorization.ACLValue, error) {
+		if len(a.Entries) == 0 {
+			return a, nil
+		}
+		n := authorization.ACLValue{Explicit: a.Explicit, Entries: make([]authorization.ACLEntry, len(a.Entries))}
+		for i, x := range a.Entries {
+			var err error
+			x.Grantor, err = m.Principal(x.Grantor)
+			if err != nil {
+				return authorization.ACLValue{}, err
+			}
+			if !x.Grantee.Public {
+				x.Grantee.Role, err = m.Principal(x.Grantee.Role)
+				if err != nil {
+					return authorization.ACLValue{}, err
+				}
+			}
+			n.Entries[i] = x
+		}
+		return n, nil
+	}
+	var procedures map[*Procedure]*Procedure
+	var procedure ProcedureRemapper
+	procedure = func(d *Procedure) (*Procedure, error) {
+		if d == nil {
+			return nil, nil
+		}
+		if n := procedures[d]; n != nil {
+			return n, nil
+		}
+		n := *d
+		var err error
+		n.Owner, err = m.SeededOwner(d.Owner, d.Seeded() || d.Foreign != nil)
+		if err != nil {
+			return nil, err
+		}
+		n.ACL, err = acl(d.ACL)
+		if err != nil {
+			return nil, err
+		}
+		if procedures == nil {
+			procedures = make(map[*Procedure]*Procedure)
+		}
+		procedures[d] = &n
+		procedures[&n] = &n
+		if len(d.Body) != 0 {
+			n.Body = append([]RoutineBodyEdge(nil), d.Body...)
+			for i, edge := range d.Body {
+				recurse := procedure
+				if m.Procedure != nil {
+					recurse = m.Procedure
+				}
+				n.Body[i].Routine, err = recurse(edge.Routine)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		return &n, nil
+	}
+	return acl, procedure
 }

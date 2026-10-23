@@ -312,7 +312,7 @@ func TestViewCheckControlRemap(t *testing.T) {
 	for _, mode := range []stored.CheckMode{stored.CheckNone, stored.CheckLocal, stored.CheckCascaded} {
 		f.view.View = stored.ViewOf(f.view).With(func(p *stored.ViewParts) { p.CheckOption = mode })
 		ref := func(old ids.ObjectRef) ids.ObjectRef { old.Epoch++; return old }
-		copy, err := stored.RemapView(f.e.CatalogRead(), stored.ViewOf(f.view), nil, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
+		copy, err := stored.RemapView(f.e.CatalogRead(), stored.ViewOf(f.view), nil, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

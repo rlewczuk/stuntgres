@@ -18,6 +18,11 @@ func (r Deparser) rendering(ctx context.Context, node expr.Expr, spec expr.Rende
 }
 
 func (r Deparser) renderingWithReturning(ctx context.Context, node expr.Expr, spec expr.Rendering, parent DeparseParent, returning sqltype.Usage) (string, error) {
+	var identityErr error
+	spec, identityErr = currentRoutineRendering(r.View, node, spec)
+	if identityErr != nil {
+		return "", identityErr
+	}
 	if spec.OwnedReturning.Type != nil {
 		returning = spec.OwnedReturning
 	}
@@ -39,7 +44,11 @@ func (r Deparser) renderingWithReturning(ctx context.Context, node expr.Expr, sp
 			}
 			parts[i] = text
 		}
-		return r.renderingName(spec.Name, spec.Quote) + "(" + strings.Join(parts, ", ") + ")", nil
+		name := r.renderingName(spec.Name, spec.Quote)
+		if spec.Namespace != "" {
+			name = r.Identifier(spec.Namespace) + "." + name
+		}
+		return name + "(" + strings.Join(parts, ", ") + ")", nil
 	case expr.FormInfix:
 		return r.renderingInfix(ctx, spec, parent)
 	case expr.FormTemplate:

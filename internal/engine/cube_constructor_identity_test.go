@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -86,6 +87,7 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 		}
 		return next
 	}
+	procedureMapper := extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil)
 	for operation := first; operation <= last; operation++ {
 		formals, count := functions.CubeFormals(operation, base.SQLType, floating, array, integer)
 		args := make([]expr.Expr, count)
@@ -170,21 +172,20 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 		if sql, err := (stored.ScalarRenderer{}).SQL(ctx, before, node); err != nil || !strings.Contains(sql, "public") || !strings.Contains(sql, node.Name()) {
 			t.Fatal("qualified stored call", sql, err)
 		}
-		mapped, err := stored.RemapExpression(node, mapRef, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "cube", Usage: node.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{node}}
 		if operation >= sqltype.CubeExtend {
-			if _, _, err := stored.RetagTypes(after, mapped, mapType); err == nil {
+			mapper := stored.ViewQueryRemapper{Catalog: after, Ref: mapRef, Type: mapType, Procedure: procedureMapper}
+			if _, err := mapper.Query(query); err == nil {
 				t.Fatal("published catalog authorized a new cross-OID scalar import")
 			}
 		}
-		retagged, _, err := stored.RetagTypes(importView, mapped, mapType)
+		mapper := stored.ViewQueryRemapper{Catalog: importView, Ref: mapRef, Type: mapType, Procedure: procedureMapper}
+		remapped, err := mapper.Query(query)
 		if err != nil {
 			t.Fatal(err)
 		}
-		actual := retagged.(plan.InstalledCubeExpr)
-		if actual.Procedure != after.Get(mapRef(node.Ref).Address) || actual.Ref != mapRef(node.Ref) || actual.CubeType != imported.SQLType || actual.Operation != operation {
+		actual := remapped.(*plan.ProjectNode).Expressions[0].(plan.InstalledCubeExpr)
+		if !exec.SameRoutineDeclaration(after.MustProcedure(mapRef(node.Ref).Address), actual.Procedure) || actual.Procedure.Revision() != procedure.Revision() || actual.Ref != mapRef(node.Ref) || actual.CubeType != imported.SQLType || actual.Operation != operation {
 			t.Fatal("remap lost authority", actual)
 		}
 		if err := stored.ValidateInstalledCube(actual, after); err != nil {

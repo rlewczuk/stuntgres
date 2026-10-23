@@ -1,7 +1,7 @@
 # internal/engine/routine
 
 Builtin routine and operator inventories and their lookups, registered index
-support binding, the operator, cast, CREATE/DROP routine and ordinary aggregate
+support binding, the operator, cast, CREATE/ALTER/DROP routine and ordinary aggregate
 DDL handlers, and operator/owned-routine dump statements. Immutable SQL routine
 definitions and invocation frames are in [`proc`](../proc/README.md); call
 resolution and SQL body binding stay in the engine.
@@ -9,6 +9,39 @@ resolution and SQL body binding stay in the engine.
 SQL and PL declarations share formal/default/staging authority. DO and CREATE
 check language USAGE; calls check EXECUTE, not language USAGE again. Dump renders
 the actual language and orders real declaration prerequisites before PL source.
+
+## Routine ALTER contract
+
+`ALTER FUNCTION`, `ALTER PROCEDURE` and `ALTER ROUTINE` support RENAME TO,
+SET SCHEMA and OWNER TO. Selection uses exact input identity, not call-site
+coercion or default expansion: IN/INOUT/VARIADIC types identify inputs and OUT
+arguments are ignored before lookup. FUNCTION includes ordinary, aggregate and
+window kinds; PROCEDURE selects procedures; ROUTINE selects all kinds.
+Name-only selection must be unambiguous. Changes preserve the routine address,
+overload siblings and immutable declaration/provider association. Collision keys
+are namespace/name/input signature, regardless of result or routine kind.
+
+ALTER requires actual routine ownership, not DROP's schema-owner allowance.
+Rename checks source CREATE; relocation checks destination CREATE even for a
+same-schema lookup. OWNER resolves role keywords separately from quoted names,
+checks SET ROLE eligibility and recipient schema CREATE, and rewrites existing
+owner ACL entries without applying creation defaults. Superuser and same-owner
+no-op behavior remains ordinary; recipient/target resolution precedes that no-op.
+Failures publish no partial descriptor, name index, ownership or dependency edit.
+
+Hard view, standard-body, declaration-default, CHECK and rule calls retain
+checked identity. Quoted bodies keep soft original source; qualified formals
+bind against the current routine name while standard formals retain checked
+slots. Held original SQL reanalyzes rather than acquiring an old-name alias.
+Released builtin/window and installed extension execution stays attached to its
+genuine provider. Moving one installed member changes neither membership nor
+the extension target namespace or siblings.
+
+Existing read-only/autocommit DDL boundaries remain. This ALTER work does not
+add CALL, OR REPLACE, external ABIs, new declaration/result forms or a complete
+pg_proc/pg_language projection. See
+[native replay](../../../docs/FIXTURES.md#routine-identity-replay) and
+[selected public proof](../../../reference/query_core/README.md#routine-alter-proof).
 
 ## Imports
 
@@ -56,7 +89,7 @@ package or the engine.
   `operator_options.go`): `StageCreateOperator`, `StageAlterOperator`,
   `StageDropOperator`, commutator/negator links and forward shells.
 - **Routine DDL** (`function_ddl.go`, `function_restore.go`, `drop.go`,
-  `language.go`): `StageCreateFunction` binds checked defaults against the
+  `alter.go`, `utility_identity.go`, `language.go`): `StageCreateFunction` binds checked defaults against the
   pre-declaration stage, then stages the declaration for body validation and
   self-recursion; Restore (`RestoreDirective`, `ReplayDirective`,
   `RebindSQLDefinitions`) stabilizes all formal types before checked defaults.
@@ -94,6 +127,8 @@ error with its outer provenance intact. Preparation stays quiet.
 - **Seeding order.** `BuiltinProcedures` and `BuiltinOperatorDescriptors` are
   pure constructors returning fresh descriptors in installation order; OIDs,
   names, signatures, providers and metadata are fixed release facts.
+  Installed SQL labels/owners may change; bootstrap facts and immutable provider
+  associations do not.
 - **Stable dumps.** Dump output is byte-stable.
 - **No locks, no engine state.** The package has no mutex and reads the catalog
   only through `catalog.Read` and the DDL host.

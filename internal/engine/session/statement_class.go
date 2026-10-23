@@ -145,6 +145,8 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "CREATE FUNCTION"
 	case *parser.CreateLanguage:
 		return "CREATE LANGUAGE"
+	case *parser.AlterRoutine:
+		return routineAlterCommandTag(stmt.(*parser.AlterRoutine).Kind)
 	case *parser.DropRoutine:
 		return routineDropCommandTag(stmt.(*parser.DropRoutine).Kind)
 	case *parser.CreateOperator:
@@ -238,7 +240,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
-	case *parser.CreateCast, *parser.DropCast, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
+	case *parser.CreateCast, *parser.DropCast, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
 		return true
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
 		return true

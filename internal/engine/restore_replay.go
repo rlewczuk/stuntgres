@@ -74,7 +74,7 @@ func restoreTableDestination(stmt parser.Statement) bool {
 	case *parser.CreateTable, *parser.CreateDomain, *parser.CreateEnum, *parser.CreateComposite,
 		*parser.CreatePolicy, *parser.CreateRule, *parser.CreateSequence, *parser.CreateView,
 		*parser.CreateIndex, *parser.CreateCollation, *parser.CreateConversion, *parser.AlterConversion,
-		*parser.CreateOperator, *parser.AlterOperator, *parser.CreateExtension:
+		*parser.CreateOperator, *parser.AlterOperator, *parser.CreateExtension, *parser.AlterRoutine:
 		return true
 	case *parser.CreateQueryTable:
 		return s.Form == parser.CreateMaterializedView

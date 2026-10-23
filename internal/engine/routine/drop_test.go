@@ -39,7 +39,7 @@ func TestRoutineDropSelection(t *testing.T) {
 		{"routine", new(catalog.ProcedureSignature("20")), a, 1},
 		{"routine", new(catalog.ProcedureSignature("")), nil, 0},
 	} {
-		got, count := selectDropRoutine(view, path, "pick", tc.kind, tc.signature)
+		got, count := selectUtilityRoutine(view, path, "pick", tc.kind, tc.signature)
 		if count != tc.count || count == 1 && got != tc.want {
 			t.Fatalf("%s: got %p/%d want %p/%d", tc.kind, got, count, tc.want, tc.count)
 		}

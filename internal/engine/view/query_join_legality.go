@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -93,7 +94,7 @@ func ValidateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 	if err != nil {
 		return err
 	}
-	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
+	if recipe != nil && (!c.RoutineGraft || c.RoutineGraftSource != recipe) || recipe == nil && c.RoutineGraft {
 		local := *c
 		if err := exec.SelectExpressionRecipe(&local, recipe); err != nil {
 			return err
@@ -135,6 +136,22 @@ func ValidateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 			}
 		}
 		return ValidateExpressionJoinExecution(c, logical.Right, catalog)
+	}
+	if call, ok := expression.(plan.SQLRoutineExpr); ok {
+		for i, child := range call.Args {
+			if i < call.WrittenCount {
+				if err := ValidateExpressionJoinExecution(c, child, catalog); err != nil {
+					return err
+				}
+				continue
+			}
+			local := *c
+			local.SelectRoutineDefault(call.Ref, call.ChildSlots[i], call.Procedure.SQLDefaults.Dependencies())
+			if err := ValidateExpressionJoinExecution(&local, child, catalog); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	var failure error
 	plan.ExpressionChildren(expression, func(child expr.Expr) {
@@ -186,19 +203,39 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				return err
 			}
 			for _, call := range n.Calls {
-				if err := exec.AdmitRoutineReference(c, call.Routine, "aggregate"); err != nil {
+				local := *c
+				recipe, err := exec.ExpressionRecipeDescriptor(call)
+				if err != nil {
 					return err
 				}
-				for _, alias := range call.RoutineAliases {
-					if err := exec.AdmitRoutineReference(c, alias, "aggregate"); err != nil {
+				if recipe != nil && (!local.RoutineGraft || local.RoutineGraftSource != recipe) || recipe == nil && local.RoutineGraft {
+					if err := exec.SelectExpressionRecipe(&local, recipe); err != nil {
 						return err
 					}
 				}
-				if err := exec.AdmitAggregateSupport(c, call.Provider); err != nil {
+				if err := exec.AdmitRoutineReference(&local, call.Routine, call.Procedure, "aggregate"); err != nil {
+					return err
+				}
+				for _, alias := range call.RoutineAliases {
+					aliasContext := *c
+					recipe, err := exec.ExpressionRecipeDescriptor(alias)
+					if err != nil {
+						return err
+					}
+					if recipe != nil && (!aliasContext.RoutineGraft || aliasContext.RoutineGraftSource != recipe) || recipe == nil && aliasContext.RoutineGraft {
+						if err := exec.SelectExpressionRecipe(&aliasContext, recipe); err != nil {
+							return err
+						}
+					}
+					if err := exec.AdmitRoutineReference(&aliasContext, alias.Ref, alias.Procedure, "aggregate"); err != nil {
+						return err
+					}
+				}
+				if err := exec.AdmitAggregateSupport(&local, call.Provider); err != nil {
 					return err
 				}
 				if len(call.Distinct) > 1 {
-					if err := admitQueryGroupings(c, call.Distinct, call.Arguments); err != nil {
+					if err := admitQueryGroupings(&local, call.Distinct, call.Arguments); err != nil {
 						return err
 					}
 				}
@@ -209,7 +246,17 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 			if call.AnalysisOnly {
 				continue
 			}
-			if err := exec.AdmitRoutineReference(c, call.Routine, "function"); err != nil {
+			local := *c
+			recipe, err := exec.ExpressionRecipeDescriptor(call.Expression)
+			if err != nil {
+				return err
+			}
+			if recipe != nil && (!local.RoutineGraft || local.RoutineGraftSource != recipe) || recipe == nil && local.RoutineGraft {
+				if err := exec.SelectExpressionRecipe(&local, recipe); err != nil {
+					return err
+				}
+			}
+			if err := exec.AdmitRoutineReference(&local, call.Routine, call.Procedure, "function"); err != nil {
 				return err
 			}
 		}
@@ -222,9 +269,12 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 			}
 			for _, key := range spec.Order {
 				if analyze.PrivateTreeGrouping(key.Expression.ResultUsage().Type) {
+					if key.EqualityRoutine != (ids.ObjectRef{}) || key.EqualityProcedure != nil || key.EqualityRecipe != nil {
+						return fmt.Errorf("stuntgres: native tree ordering has a callable equality identity")
+					}
 					continue
 				}
-				if err := exec.AdmitRoutineReference(c, key.EqualityRoutine, "function"); err != nil {
+				if err := admitQueryEquality(c, key.EqualityRoutine, key.EqualityProcedure, key.EqualityRecipe); err != nil {
 					return err
 				}
 			}
@@ -400,14 +450,26 @@ func admitQueryGroupings(c *exec.Context, groups []plan.Grouping, keys []expr.Ex
 			return fmt.Errorf("stuntgres: changed query grouping capability")
 		}
 		if private {
-			if group.Routine.Address.ObjectID != 0 {
+			if group.Routine != (ids.ObjectRef{}) || group.Procedure != nil || group.RoutineRecipe != nil {
 				return fmt.Errorf("stuntgres: native tree grouping has a callable identity")
 			}
 			continue
 		}
-		if err := exec.AdmitRoutineReference(c, group.Routine, "function"); err != nil {
+		if err := admitQueryEquality(c, group.Routine, group.Procedure, group.RoutineRecipe); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// Equality belongs to the query key, not to an expression substituted into it.
+// In particular a rule's NEW producer cannot supply the key's historical recipe.
+func admitQueryEquality(c *exec.Context, ref ids.ObjectRef, original *catalog.Procedure, recipe expr.RoutineRecipeReference) error {
+	local := *c
+	if recipe != nil && (!local.RoutineGraft || local.RoutineGraftSource != recipe) || recipe == nil && local.RoutineGraft {
+		if err := exec.SelectExpressionRecipe(&local, recipe); err != nil {
+			return err
+		}
+	}
+	return exec.AdmitRoutineReference(&local, ref, original, "function")
 }

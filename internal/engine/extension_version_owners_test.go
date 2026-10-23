@@ -27,6 +27,18 @@ func extensionVersionOwnerImports(t *testing.T) {
 			if err != nil || !found || len(record.Members) != want {
 				t.Fatal("version owner manifest", record, err)
 			}
+			firstName := "levenshtein"
+			if version == "1.2" {
+				firstName = "daitch_mokotoff"
+			}
+			if record.Members[0].Name != firstName {
+				t.Fatal("version slot-zero symbol", record.Members[0])
+			}
+			for slot, member := range record.Members {
+				if member.Slot != slot || member.Schema != "public" {
+					t.Fatal("versioned slot/schema lost", version, member)
+				}
+			}
 			stage := e.restoreStage()
 			op, done := roleOperation(t, stage, "postgres")
 			defer done()
@@ -34,7 +46,7 @@ func extensionVersionOwnerImports(t *testing.T) {
 				t.Fatal(err)
 			}
 			before := stage.catalog.state
-			for _, kind := range []string{"graph_only", "unknown", "member_owner", "extension_owner", "duplicate", "signature", "namespace"} {
+			for _, kind := range []string{"graph_only", "unknown", "member_owner", "extension_owner", "duplicate", "signature", "namespace", "member_name", "member_schema", "slot", "duplicate_slot", "swapped_slots"} {
 				bad := record
 				bad.Members = slices.Clone(record.Members)
 				records := []extension.OwnerRecord{bad}
@@ -53,6 +65,16 @@ func extensionVersionOwnerImports(t *testing.T) {
 					records[0].Members[0].Signature = "invalid"
 				case "namespace":
 					records[0].Schema = "foreign_schema"
+				case "member_name":
+					records[0].Members[0].Name = "unreplayed_label"
+				case "member_schema":
+					records[0].Members[0].Schema = "pg_catalog"
+				case "slot":
+					records[0].Members[0].Slot = want
+				case "duplicate_slot":
+					records[0].Members[1].Slot = records[0].Members[0].Slot
+				case "swapped_slots":
+					records[0].Members[0].Slot, records[0].Members[1].Slot = records[0].Members[1].Slot, records[0].Members[0].Slot
 				}
 				if err := stage.importExtensionOwners(context.Background(), op, records); err == nil {
 					t.Fatal("invalid version owners admitted", kind)

@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// DDLHost is what the operator and CREATE/DROP routine handlers need from the
+// DDLHost is what the operator and CREATE/ALTER/DROP routine handlers need from the
 // engine for one schema statement: the shared ddl.Host plus the routine
 // methods below. Every method runs with Engine.mu held and never takes or
 // releases it.

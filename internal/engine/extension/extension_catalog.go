@@ -63,8 +63,14 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			if member == nil || catalog.ExtensionMembership(member) != d.Address() {
 				return invalid()
 			}
-			if _, mutableType := member.(*catalog.Type); !mutableType && member.Namespace() != d.TargetNamespace {
-				return invalid()
+			switch member.(type) {
+			case *catalog.Type, *catalog.Procedure:
+				// Their public namespace may change independently of the
+				// installation. Provider manifests retain identity authority.
+			default:
+				if member.Namespace() != d.TargetNamespace {
+					return invalid()
+				}
 			}
 		}
 		if err := implementation.ValidateExtension(v, d); err != nil {
@@ -91,7 +97,7 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		ext = d.Extension
 		for i, a := range [2]ids.ObjectAddress{d.Init, d.Lexize} {
 			proc, ok := v.Procedure(a)
-			if !ok || ext != (ids.ObjectAddress{}) && proc.Namespace() != d.Namespace() || proc.Extension != ext || proc.Signature != [2]catalog.ProcedureSignature{catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}[i] {
+			if !ok || proc.Extension != ext || proc.Signature != [2]catalog.ProcedureSignature{catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}[i] {
 				return invalid()
 			}
 		}
@@ -109,7 +115,7 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	}
 	if ext != (ids.ObjectAddress{}) {
 		parent, ok := v.Extension(ext)
-		if !ok || parent.TargetNamespace != namespace {
+		if !ok || d.Address().ClassID != ids.ProcedureClassID && parent.TargetNamespace != namespace {
 			return invalid()
 		}
 		found := false
@@ -160,23 +166,27 @@ func validateInstalledProcedure(v catalog.Read, d *catalog.Procedure) (ids.Objec
 		return invalid()
 	}
 	ext := d.Extension
+	symbol, err := procedureSymbol(v, d, true)
+	if err != nil {
+		return invalid()
+	}
 	switch d.Signature {
 	case catalog.UnaccentTextSignature, catalog.UnaccentDictionarySignature:
-		if d.Name() != "unaccent" || d.Result != 25 || d.Volatility != expr.Stable || !d.Strict {
+		if symbol != "unaccent" || d.Result != 25 || d.Volatility != expr.Stable || !d.Strict {
 			return invalid()
 		}
 		if ext != (ids.ObjectAddress{}) {
 			dict, ok := v.TSDictionary(d.Dictionary)
-			if !ok || dict.Namespace() != d.Namespace() || dict.Extension != ext {
+			if !ok || dict.Extension != ext {
 				return invalid()
 			}
 		}
 	case catalog.UnaccentInitSignature:
-		if d.Name() != "unaccent_init" || d.Result != 2281 || d.Volatility != expr.Volatile || d.Strict {
+		if symbol != "unaccent_init" || d.Result != 2281 || d.Volatility != expr.Volatile || d.Strict {
 			return invalid()
 		}
 	case catalog.UnaccentLexizeSignature:
-		if d.Name() != "unaccent_lexize" || d.Result != 2281 || d.Volatility != expr.Volatile || d.Strict {
+		if symbol != "unaccent_lexize" || d.Result != 2281 || d.Volatility != expr.Volatile || d.Strict {
 			return invalid()
 		}
 	default:

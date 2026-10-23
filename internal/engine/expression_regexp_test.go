@@ -232,7 +232,8 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 				Query: query, Syntax: raw, Literals: b.Capture.Literals,
 				CastUsages: b.Capture.CastUsages, Columns: b.Capture.Columns,
 				Stars: b.Capture.Stars, Namespaces: b.Capture.Namespaces,
-				Collations: b.Capture.Collations,
+				Collations:  b.Capture.Collations,
+				RoutineRefs: b.Capture.RoutineRefs, Dependencies: b.Dependencies,
 			})
 			definition = definition.With(func(p *stored.ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(query.Root) })
 			text, err := definition.SelectSQL(context.Background(), auth.Catalog, stored.Presentation{})

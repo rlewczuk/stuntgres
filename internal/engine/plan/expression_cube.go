@@ -79,13 +79,18 @@ func (e CubeComparisonExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.
 	return e, err
 }
 func (e CubeComparisonExpr) ValidateStoredProvider() error {
-	names := [7]string{"cube_eq", "cube_ne", "cube_lt", "cube_le", "cube_gt", "cube_ge", "cube_cmp"}
+	// This is catalog-free structural validation. The owning catalog boundary
+	// separately proves the immutable member selected by Kind.
 	p, ok := e.RoutineReference.(*catalog.Procedure)
-	if !ok || p == nil || e.Kind >= 7 || p.Name() != names[e.Kind] || !p.Strict || p.Implementation == nil || p.Builtin != nil || e.Args[0] == nil || e.Args[1] == nil {
+	if !ok || p == nil || e.Kind >= 7 || !p.Strict || p.RoutineKind != catalog.FunctionRoutine || p.Volatility != expr.Immutable || p.Implementation == nil || p.Builtin != nil || e.Args[0] == nil || e.Args[1] == nil || e.Ref.Address != p.Address() || e.Ref.Address.ClassID != ids.ProcedureClassID || e.Ref.Address.SubID != 0 || p.Revision() == 0 {
 		return fmt.Errorf("stuntgres: invalid captured cube routine")
 	}
 	left, right := e.Args[0].ResultUsage().Type, e.Args[1].ResultUsage().Type
-	if !left.IsCube() || left != right || sqltype.ID(p.Result) != e.Usage.Type.ID() {
+	result := sqltype.Bool
+	if e.Kind == 6 {
+		result = sqltype.Int4
+	}
+	if !left.IsCube() || left != right || e.Usage.Type == nil || e.Usage.Type.ID() != result || sqltype.ID(p.Result) != result {
 		return fmt.Errorf("stuntgres: invalid cube routine types")
 	}
 	signature := strconv.FormatUint(uint64(left.ID()), 10)
@@ -109,6 +114,16 @@ func (e CubeComparisonExpr) Render() (expr.Rendering, error) {
 	args := []expr.RenderArg{{Expr: e.Args[0], Transport: expr.TransportCast, TransportType: e.Args[0].ResultUsage()}, {Expr: e.Args[1], Transport: expr.TransportCast, TransportType: e.Args[1].ResultUsage()}}
 	pieces := []expr.Piece{expr.TextPiece(name + "("), expr.ArgPiece(0), expr.TextPiece(", "), expr.ArgPiece(1), expr.TextPiece(")")}
 	return expr.Rendering{Tree: "CubeComparison " + name, Inputs: e.Args[:], Form: expr.FormCall, Name: name, Quote: expr.QuoteVerbatim, Args: args, Replay: expr.Replay{Pieces: pieces}}, nil
+}
+
+func (e CubeComparisonExpr) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	if err := e.ValidateStoredProvider(); err != nil {
+		return expr.CaptureOperands{}, false, err
+	}
+	return expr.CaptureOperands{Inline: e.Args, Count: 2, SelectedImplicit: true}, true, nil
 }
 
 // InstalledCubeExpr retains procedure authority independently of type identity.

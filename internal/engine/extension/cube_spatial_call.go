@@ -18,8 +18,11 @@ func ValidateCubeSpatialCall(v catalog.Read, proc *catalog.Procedure, call funct
 	}
 	op := call.Plan.Operation()
 	ext, ok := v.Extension(proc.Extension)
-	if !ok || ext.Name() != "cube" || ext.Version != "1.5" || len(ext.Members) != CubeMemberCount || int(op) >= len(cubeSpatialMembers) || ext.Members[cubeSpatialProcedureStart+int(op)] != proc.Address() || proc.Name() != op.Routine() || proc.Result != ids.OID(op.ResultID()) {
+	if !ok || ext.Name() != "cube" || ext.Version != "1.5" || len(ext.Members) != CubeMemberCount || int(op) >= len(cubeSpatialMembers) || ext.Members[cubeSpatialProcedureStart+int(op)] != proc.Address() || v.NameAddress(catalog.DescriptorNameKey(proc)) != proc.Address() || proc.Result != ids.OID(op.ResultID()) {
 		return fmt.Errorf("stuntgres: invalid cube spatial installation")
+	}
+	if _, ok := v.Namespace(proc.Namespace()); !ok {
+		return fmt.Errorf("stuntgres: invalid cube spatial namespace")
 	}
 	base, ok := v.Type(ext.Members[0])
 	result, resultOK := v.LookupType(op.ResultID())

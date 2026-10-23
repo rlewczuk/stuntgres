@@ -36,6 +36,28 @@ source addresses once without converting replay prerequisites into hard edges.
   `dumpRelationCollectors` the same way. **Entry order is error precedence.**
   Feature packages own each entry's decision (`routine.OperatorDumped`,
   `stored.ProcedureProvider`, `stored.TypeProvider`).
+- **Provider differences** (`provider_replay.go`): immutable released builtin
+  identity and checked versioned extension slots, never mutable labels, select
+  real ALTER FUNCTION replay. Required schemas/extensions precede differences;
+  dependent definitions follow. Free destinations move first; only occupied
+  cycles/blocked intermediate keys need collision-checked temporary names.
+  Owner changes follow relabeling, then stable-slot owner metadata. Unchanged
+  provider streams stay unchanged; explicit routine ACLs remain a Dump error.
+  Restore/Reset starts from canonical destination providers and destination
+  foreign registrations, not source callbacks. Missing/incompatible capabilities
+  fail before publication. Replacement preserves provider-name tombstones so
+  registry fallback cannot resurrect vacated names.
+  Immutable destination registration authority survives SQL DROP: Reset can
+  reseed it without application callbacks or adopting a source token. Registry
+  lookup is replacement-only, never runtime public-name fallback.
+  Body-edge address and principal remapping preserve original declaration
+  revisions and shared/cyclic associations, not newer current descriptors at
+  historical addresses; owners/ACLs are remapped before recipe reconstruction.
+  ALTER argument rendering uses routine identity type spellings, including
+  released pseudotypes such as `internal`, not storage-column declaration
+  usage. Each argument OID must resolve to a real catalog type; non-keyword
+  names stay qualified, with no numeric missing-type fallback. Naming a
+  pseudotype enables neither SQL storage nor native ABI execution.
 - **Script** (`script.go`): `buildDumpScript` renders policies, rules,
   row-security and types, completes the event graph, decides default deferral
   and orders events with `dump.Order`.
@@ -150,6 +172,17 @@ and the `Engine.Dump`/`Engine.Restore` wrappers (`control.go`).
 Package units drive the Restore driver and hooks with a fake `Host`; engine
 units cover the collect, emit, remap and TEMP preservation callers. Public
 Dump/Restore behavior is in `reference/` ([docs/TESTING.md](../../../docs/TESTING.md)).
+
+Provider replay proof covers key cycles, move-before-rename, owner-last ordering,
+invalid identities, internal pseudotype signatures, missing argument types and
+the explicit-ACL boundary:
+`make check RUN='^TestProviderReplay'` and
+`make check RUN='^TestRestoreForeignProvider'`.
+Run `make check RUN='^TestReferenceRoutineAlter(ProviderPersistence|Persistence|ExplicitACLPersistenceBoundary)$'`
+in native and `REFERENCE=1` modes: actual emitted SQL is replayed on PostgreSQL;
+native proof also covers repeated Restore and fresh-target identity remapping.
+Body/ownership remap proof:
+`make check RUN='^Test(RoutineBodyPrincipalRemap|ReplacementRoutineBodyRemap|JSONBRecordRoutineOwnershipCOW)$'`.
 
 Dump output must stay byte-identical unless a change intends otherwise. For
 collect, emit, section or script changes, write a throwaway program under

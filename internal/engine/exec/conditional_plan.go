@@ -30,7 +30,7 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 	if recipeErr != nil {
 		return nil, false, recipeErr
 	}
-	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
+	if recipe != nil && (!c.RoutineGraft || c.RoutineGraftSource != recipe) || recipe == nil && c.RoutineGraft {
 		parent := c
 		local := *c
 		if err := SelectExpressionRecipe(&local, recipe); err != nil {

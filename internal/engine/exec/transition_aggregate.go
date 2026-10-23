@@ -175,7 +175,7 @@ func AdmitAggregateSupport(c *Context, provider functions.AggregateProvider) err
 	if err = owner.Roles.ValidatePrincipal(current.Owner); err != nil {
 		return err
 	}
-	if err = AdmitRoutineDescriptor(owner, dependencies, p.Support, c.RoutineConsumer); err != nil {
+	if err = CheckRecipeRoutineDescriptor(c, owner, dependencies, p.Support); err != nil {
 		return err
 	}
 	if c.RoutineProgram != nil {

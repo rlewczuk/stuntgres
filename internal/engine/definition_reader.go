@@ -40,6 +40,23 @@ func stageDefinitions(stage *CatalogStage) stageDefinitionReader {
 	return stageDefinitionReader{stage.Definitions(), stage}
 }
 
+func (r stageDefinitionReader) HasProviderProcedureOverride(name string) bool {
+	if r.stage.Base.State().HasProviderProcedureOverride(name) {
+		return true
+	}
+	for address, descriptor := range r.stage.Descriptors() {
+		current, ok := descriptor.(*catalog.Procedure)
+		original, existed := r.stage.Base.Procedure(address)
+		if !ok || !existed || original.Builtin == nil && original.Implementation == nil {
+			continue
+		}
+		if (original.Name() != current.Name() || original.Namespace() != current.Namespace()) && (original.Name() == name || current.Name() == name) {
+			return true
+		}
+	}
+	return false
+}
+
 func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {
 	return catalog.DefinitionNamespaceAt(a.Catalog, a.definition, address)
 }

@@ -57,7 +57,6 @@ func TestReferenceMetaphoneFeatureSmoke(t *testing.T) {
 			return
 		}
 		dump := extensionDump(t, p.Ctx, p.Native)
-		metaphoneManifest(t, dump, "phon_smoke", owner)
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}

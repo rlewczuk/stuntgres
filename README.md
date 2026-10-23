@@ -175,6 +175,9 @@ run in parallel without sharing mutations. `t.Helper` attributes setup failures
 to the calling test; `t.Cleanup` closes the pool even when an assertion fails.
 For larger fixtures, [native Reset, Dump and Restore](docs/FIXTURES.md) can clear
 or replace database contents. Those controls require a native stuntgres pool.
+Routine rename, schema and owner behavior is documented by its
+[owning contract](internal/engine/routine/README.md#routine-alter-contract) and
+[shared PostgreSQL proof](reference/query_core/README.md#routine-alter-proof).
 
 ## Running the server
 

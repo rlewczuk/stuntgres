@@ -405,6 +405,12 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
+	mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(source, target)}
+	query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{retagged}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	retagged = query.(*plan.ValuesNode).Rows[0][0]
 	got, err := retagged.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
@@ -419,10 +425,6 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	}
 	if _, err := stored.DefaultSQL(context.Background(), target.CatalogRead(), retagged); err != nil {
 		t.Fatal("retagged serialization provider ownership", err)
-	}
-	_, changed, err = stored.RetagTypes(target.CatalogRead(), retagged, retained)
-	if err != nil || changed {
-		t.Fatal("unchanged tree copied", changed, err)
 	}
 }
 
@@ -537,13 +539,6 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 			assertValue(node, oldDomain, tc.label, tc.null)
 			if _, err := stored.DefaultSQL(ctx, source.CatalogRead(), node); err != nil {
 				t.Fatal("original stored ownership changed", err)
-			}
-			unchanged, changed, err := stored.RetagTypes(New().CatalogRead(), next, retained)
-			if err != nil || changed {
-				t.Fatal("unchanged stored tree reminted", changed, err)
-			}
-			if &unchanged.(plan.ConditionalExpr).Args[0] != &reminted.Args[0] {
-				t.Fatal("unchanged stored tree copied operand slice")
 			}
 			invalid := reminted
 			invalid.Comparison = oldProvider

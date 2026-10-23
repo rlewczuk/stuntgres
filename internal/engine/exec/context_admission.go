@@ -104,14 +104,21 @@ func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, er
 func (c *Context) evalRoutineDefault(owner ids.ObjectRef, slot int, dependencies []catalog.ExpressionDependency, node expr.Expr) (sqltype.Value, error) {
 	quote, recipe, graft := c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft
 	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
-	c.QuoteOrigin = QuoteOrigin{Owner: owner, Attribute: int32(slot + 1)}
-	c.RoutineRecipe, c.RoutineGraft = true, false
-	c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = dependencies, nil, nil
+	c.SelectRoutineDefault(owner, slot, dependencies)
 	defer func() {
 		c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft = quote, recipe, graft
 		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = checks, refs, consumer
 	}()
 	return node.Eval(c)
+}
+
+// SelectRoutineDefault selects the declaration's original hidden-argument
+// recipe. Written arguments stay with their caller; this boundary is shared by
+// planning traversal, scalar admission and actual default evaluation.
+func (c *Context) SelectRoutineDefault(owner ids.ObjectRef, slot int, dependencies []catalog.ExpressionDependency) {
+	c.QuoteOrigin = QuoteOrigin{Owner: owner, Attribute: int32(slot + 1)}
+	c.RoutineRecipe, c.RoutineGraft = true, false
+	c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = dependencies, nil, nil
 }
 
 func SQLRoutineContext(err error, name string, runtime bool) error {

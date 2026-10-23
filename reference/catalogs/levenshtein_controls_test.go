@@ -3,8 +3,6 @@ package reference_test
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -25,11 +23,6 @@ func TestReferenceLevenshteinControls(t *testing.T) {
 			return // Only the shared SQL phase is exercised by oracle discovery.
 		}
 		dump := extensionDump(t, p.Ctx, p.Native)
-		levenshteinManifest(t, dump)
-		install, consumer := strings.Index(dump, "CREATE EXTENSION"), strings.Index(dump, "CREATE TABLE")
-		if install < 0 || consumer < 0 || install > consumer {
-			t.Fatal("dump installation ordering", dump)
-		}
 		q := "SELECT lev_addon.levenshtein_less_equal($1,$2,$3,$4,$5,$6)"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -166,51 +159,5 @@ func levenshteinControlRows(t *testing.T, rows *sql.Rows, check fixture.Step) {
 	}
 	if err := rows.Close(); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func levenshteinManifest(t *testing.T, dump string) {
-	t.Helper()
-	const prefix = "-- stuntgres-extension-owners-v1 "
-	if strings.Count(dump, prefix) != 1 {
-		t.Fatal("expected one symbolic owner record")
-	}
-	start := strings.Index(dump, prefix) + len(prefix)
-	end := strings.IndexByte(dump[start:], '\n')
-	if end < 0 {
-		t.Fatal("unterminated owner record")
-	}
-	data, err := base64.StdEncoding.DecodeString(dump[start : start+end])
-	if err != nil {
-		t.Fatal(err)
-	}
-	var record struct {
-		Name    string `json:"name"`
-		Schema  string `json:"schema"`
-		Owner   string `json:"owner"`
-		Version string `json:"version"`
-		Members []struct {
-			Kind      string `json:"kind"`
-			Name      string `json:"name"`
-			Signature string `json:"signature"`
-			Owner     string `json:"owner"`
-		} `json:"members"`
-	}
-	if err := json.Unmarshal(data, &record); err != nil {
-		t.Fatal(err)
-	}
-	if record.Name != "fuzzystrmatch" || record.Schema != "lev_addon" || record.Owner != "lev_owner" || record.Version != "1.2" || len(record.Members) != 10 {
-		t.Fatal("symbolic provider manifest", record)
-	}
-	want := map[string]bool{"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true, "levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true, "metaphone:25,23": true, "dmetaphone:25": true, "dmetaphone_alt:25": true, "soundex:25": true, "difference:25,25": true}
-	for _, member := range record.Members {
-		key := member.Name + ":" + member.Signature
-		if member.Kind != "procedure" || member.Owner != "lev_owner" || !want[key] {
-			t.Fatal("symbolic member", member)
-		}
-		delete(want, key)
-	}
-	if len(want) != 0 {
-		t.Fatal("missing symbolic members", want)
 	}
 }

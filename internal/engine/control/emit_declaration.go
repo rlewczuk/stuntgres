@@ -24,6 +24,9 @@ import (
 // wins, then an index, a view or extension, and finally a table.
 func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	oid := event.OID
+	if _, emitted := s.extensionMetadata[oid]; emitted {
+		return nil
+	}
 	if s.rawFloat4 {
 		if final, ok := s.CatalogView.Cast(sqltype.Xid, sqltype.Float4); ok && final.Method != "b" && final.OID == oid {
 			return nil

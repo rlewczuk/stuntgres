@@ -20,6 +20,7 @@ func TestMACBitwiseReownership(t *testing.T) {
 	ctx := context.Background()
 	e, replacement := New(), New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	mapper := stored.ViewQueryRemapper{Catalog: replacement.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(e, replacement)}
 	for _, width := range []struct {
 		name, input string
 		id          sqltype.ID
@@ -53,6 +54,11 @@ func TestMACBitwiseReownership(t *testing.T) {
 			if err != nil || !changed || rebound.ResultUsage().Type == root.ResultUsage().Type {
 				t.Fatal(changed, err)
 			}
+			query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{rebound}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rebound = query.(*plan.ValuesNode).Rows[0][0]
 			next := rebound.(plan.BitwiseExpr)
 			if next.MAC == root.MAC || next.CallRoutineReference() == nil || next.CallRoutineReference().RoutineOID() != root.CallRoutineReference().RoutineOID() {
 				t.Fatal("retag authority")
@@ -138,6 +144,11 @@ func TestMACBitwiseReownership(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
+	query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{rebound}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rebound = query.(*plan.ValuesNode).Rows[0][0]
 	next := rebound.(functions.MACUnary)
 	if next.Arg.ResultUsage().Type.ID() != sqltype.Macaddr || next.ResultUsage().Type.ID() != sqltype.Macaddr8 || next.Provider == root.Provider {
 		t.Fatal("function-owned expansion retag")

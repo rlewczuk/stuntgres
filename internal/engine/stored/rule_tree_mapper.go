@@ -1,6 +1,7 @@
 package stored
 
 import (
+	"fmt"
 	"slices"
 
 	"stuntgres/internal/engine/analyze"
@@ -16,6 +17,7 @@ type ruleTreeMapper struct {
 }
 
 type RuleTreeMapping struct {
+	Recipe     expr.RoutineRecipeReference
 	OwnerFrame func(uint32) uint32
 	Leaf       func(expr.Expr) (expr.Expr, bool, error)
 	Boundary   func(plan.Node) (plan.Node, bool)
@@ -85,7 +87,7 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		return &copy, nil
 	}
 	mapper.Expression = func(bound expr.Expr) (expr.Expr, bool, error) {
-		return RewriteViewExpression(view, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+		return RewriteViewExpression(view, bound, mapping.Recipe, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if mapping.Leaf != nil {
 				next, changed, err := mapping.Leaf(expr)
 				if changed || err != nil {
@@ -145,6 +147,36 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			return mapper.Query(root)
 		})
 	}
+	groupings := func(original []plan.Grouping) []plan.Grouping {
+		if mapping.Recipe == nil || len(original) == 0 {
+			return original
+		}
+		copy := slices.Clone(original)
+		for i := range copy {
+			if !copy[i].PrivateTree {
+				copy[i].RoutineRecipe = mapping.Recipe
+			}
+		}
+		return copy
+	}
+	order := func(original []plan.SortKey) []plan.SortKey {
+		if mapping.Recipe == nil || len(original) == 0 {
+			return original
+		}
+		var copy []plan.SortKey
+		for i, key := range original {
+			if key.EqualityProcedure != nil && key.EqualityRecipe != mapping.Recipe {
+				if copy == nil {
+					copy = slices.Clone(original)
+				}
+				copy[i].EqualityRecipe = mapping.Recipe
+			}
+		}
+		if copy == nil {
+			return original
+		}
+		return copy
+	}
 	var rewriteNode func(plan.Node) (plan.Node, error)
 	rewriteNode = func(original plan.Node) (plan.Node, error) {
 		if mapping.Boundary != nil {
@@ -163,6 +195,69 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		}
 		mapped := original
 		switch node := original.(type) {
+		case *plan.AggregateNode:
+			if mapping.Recipe != nil {
+				copy := *node
+				copy.Grouping = groupings(node.Grouping)
+				copy.Calls = slices.Clone(node.Calls)
+				for i, call := range copy.Calls {
+					call.RoutineRecipe = mapping.Recipe
+					call.Distinct = groupings(call.Distinct)
+					call.Order = order(call.Order)
+					call.RoutineAliases = slices.Clone(call.RoutineAliases)
+					for j := range call.RoutineAliases {
+						call.RoutineAliases[j].Recipe = mapping.Recipe
+					}
+					copy.Calls[i] = call
+				}
+				mapped = &copy
+			}
+		case *plan.WindowNode:
+			if mapping.Recipe != nil {
+				copy := *node
+				copy.Specs = slices.Clone(node.Specs)
+				for i, spec := range copy.Specs {
+					spec.Grouping = groupings(spec.Grouping)
+					spec.Order = order(spec.Order)
+					copy.Specs[i] = spec
+				}
+				copy.Calls = slices.Clone(node.Calls)
+				for i, call := range copy.Calls {
+					if call.Expression == nil {
+						return nil, fmt.Errorf("stuntgres: missing stored window occurrence")
+					}
+					occurrence, _, err := mapper.Expression(call.Expression)
+					if err != nil {
+						return nil, err
+					}
+					copy.Calls[i].Expression = occurrence.(*plan.WindowExpr)
+				}
+				mapped = &copy
+			}
+		case *plan.DistinctNode:
+			if mapping.Recipe != nil {
+				copy := *node
+				copy.Grouping = groupings(node.Grouping)
+				mapped = &copy
+			}
+		case *plan.DistinctOnNode:
+			if mapping.Recipe != nil {
+				copy := *node
+				copy.Grouping = groupings(node.Grouping)
+				mapped = &copy
+			}
+		case *plan.SetNode:
+			if mapping.Recipe != nil {
+				copy := *node
+				copy.Grouping = groupings(node.Grouping)
+				mapped = &copy
+			}
+		case *plan.SortNode:
+			if mapping.Recipe != nil {
+				copy := *node
+				copy.Keys = order(node.Keys)
+				mapped = &copy
+			}
 		case *plan.SourceNode:
 			if offset != 0 {
 				copy := *node
@@ -272,6 +367,7 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			mapped = &copy
 		case *plan.RecursiveUnionNode:
 			copy := *node
+			copy.Grouping = groupings(node.Grouping)
 			var err error
 			copy.Definition, err = mapper.Definition(node.Definition)
 			if err != nil {

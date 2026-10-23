@@ -55,6 +55,10 @@ func TestPgcryptoOwnerMetadata(t *testing.T) {
 		{Kind: "procedure", Name: "gen_random_uuid", Signature: "", Owner: "postgres"},
 		{Kind: "procedure", Name: "fips_mode", Signature: "", Owner: "postgres"},
 	}}
+	for slot := range expected.Members {
+		expected.Members[slot].Slot = slot
+		expected.Members[slot].Schema = "public"
+	}
 	if err != nil || len(records) != 1 || !reflect.DeepEqual(records[0], expected) {
 		t.Fatal("owner metadata", records, err)
 	}
@@ -92,7 +96,8 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 					if record.Name != "fuzzystrmatch" || record.Version != "1.1" {
 						return
 					}
-					bad.Members[0] = extension.MemberOwner{Kind: "procedure", Name: "daitch_mokotoff", Signature: "25", Owner: "postgres"}
+					bad.Members[0].Name = "daitch_mokotoff"
+					bad.Members[0].Signature = "25"
 				case "missing":
 					bad.Members = bad.Members[1:]
 				case "extra":
@@ -100,18 +105,23 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 				case "duplicate":
 					bad.Members[1] = bad.Members[0]
 				case "name":
-					bad.Members[0].Name = "hmac"
+					selected := 0
+					if bad.Members[selected].Kind != "procedure" {
+						selected++
+					}
+					bad.Members[selected].Name = "unreplayed_label"
 				case "signature":
 					bad.Members[0].Signature = "17,25,25"
 				case "foreign_procedure":
-					bad.Members[0] = extension.MemberOwner{Kind: "procedure", Name: "unaccent", Signature: "25", Owner: "postgres"}
+					bad.Members[0].Name = "unaccent"
+					bad.Members[0].Signature = "25"
 					if record.Name == "unaccent" {
-						bad.Members[0] = extension.MemberOwner{Kind: "procedure", Name: "digest", Signature: "25,25", Owner: "postgres"}
+						bad.Members[0].Name, bad.Members[0].Signature = "digest", "25,25"
 					}
 				case "foreign_dictionary":
-					bad.Members[0] = extension.MemberOwner{Kind: "dictionary", Name: "query_int", Owner: "postgres"}
+					bad.Members[0].Kind, bad.Members[0].Name = "dictionary", "query_int"
 				case "foreign_type":
-					bad.Members[0] = extension.MemberOwner{Kind: "type", Name: "unaccent", Owner: "postgres"}
+					bad.Members[0].Kind, bad.Members[0].Name = "type", "unaccent"
 				case "owner":
 					bad.Members[0].Owner = ""
 				}
@@ -119,8 +129,28 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, found, err := extension.DecodeOwners(extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString(data)); !found || err == nil {
-					t.Fatal("invalid manifest accepted", bad)
+				decoded, found, decodeErr := extension.DecodeOwners(extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString(data))
+				if !found {
+					t.Fatal("owner marker not recognized")
+				}
+				if kind == "name" {
+					// Labels are mutable; only the installed slot can authorize
+					// that label after actual replay reconstructs it.
+					if decodeErr != nil {
+						t.Fatal("mutable label rejected by codec", decodeErr)
+					}
+					if _, err := extension.ImportOwners(context.Background(), catalog.NewRead(installed.e.CatalogRead().Owner(), catalog.CloneState(installed.e.CatalogRead().State())), installed.e.Roles(), []extension.OwnerRecord{decoded}); err == nil {
+						t.Fatal("unreplayed label accepted by import", bad)
+					}
+				} else if decodeErr == nil {
+					// A foreign provider spelling with an identical declaration
+					// is indistinguishable from a rename until slot import.
+					if kind != "foreign_procedure" {
+						t.Fatal("invalid manifest accepted", bad)
+					}
+					if _, err := extension.ImportOwners(context.Background(), catalog.NewRead(installed.e.CatalogRead().Owner(), catalog.CloneState(installed.e.CatalogRead().State())), installed.e.Roles(), []extension.OwnerRecord{decoded}); err == nil {
+						t.Fatal("foreign label accepted by import", bad)
+					}
 				}
 			})
 		}
@@ -192,14 +222,14 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	next.SetDescriptor(address, consumer)
 	next.SetEpoch(next.Epoch() + 1)
-	if err := stored.ReownExpressions(e.catalog.read(next), next, mapping, false); err != nil {
+	if err := stored.ReownExpressions(e.catalog.read(next), next, mapping, false, nil); err != nil {
 		t.Fatal("relocated consumer", err)
 	}
 	relocated := next.MustRelation(address)
 	assertCall := func(node expr.Expr) {
 		t.Helper()
 		actual := node.(plan.InstalledCryptoExpr)
-		if actual.Ref.Address != mapping[call.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) {
+		if actual.Ref.Address != mapping[call.Ref.Address] || actual.Ref.Epoch != next.Epoch() || !exec.SameRoutineDeclaration(next.MustProcedure(actual.Ref.Address), actual.Procedure) || actual.Procedure.Revision() != call.Procedure.Revision() {
 			t.Fatal("stale relocated provider", actual.Ref)
 		}
 		if err := stored.ValidateInstalledCrypto(actual, view); err != nil {
@@ -236,7 +266,8 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		ref.Epoch = next.Epoch()
 		return ref
 	}
-	query, err := stored.RemapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+	mapper := &stored.ViewQueryRemapper{Catalog: view, Ref: ref, Type: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
+	query, err := mapper.Nested(project)
 	if err != nil {
 		t.Fatal("relocated query", err)
 	}
@@ -255,12 +286,12 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		}
 		original := node.(plan.InstalledCryptoExpr)
 		project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "value", Usage: original.ResultUsage()}}, Child: &plan.ValuesNode{}, Expressions: []expr.Expr{original}}
-		query, err := stored.RemapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+		query, err := mapper.Nested(project)
 		if err != nil {
 			t.Fatal(name, err)
 		}
 		actual := query.(*plan.ProjectNode).Expressions[0].(plan.InstalledCryptoExpr)
-		if actual.Ref.Address != mapping[original.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || exec.PlannedVolatility(actual) != expr.Volatile || !analyze.ClosedPgcryptoDefault(actual) {
+		if actual.Ref.Address != mapping[original.Ref.Address] || actual.Ref.Epoch != next.Epoch() || !exec.SameRoutineDeclaration(next.MustProcedure(actual.Ref.Address), actual.Procedure) || actual.Procedure.Revision() != original.Procedure.Revision() || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || exec.PlannedVolatility(actual) != expr.Volatile || !analyze.ClosedPgcryptoDefault(actual) {
 			t.Fatal("relocated random/FIPS recipe", name, actual)
 		}
 		if err := stored.ValidateInstalledCrypto(actual, view); err != nil {

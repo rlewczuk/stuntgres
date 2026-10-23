@@ -51,7 +51,8 @@ func TestRoutineAddressProjectionRemapBoundary(t *testing.T) {
 			replacement.Columns = append([]catalog.Column(nil), source.Columns...)
 			replacement.Columns[0].OriginTable = uint32(replacement.Address().ObjectID)
 			read.State().SetDescriptor(replacement.Address(), &replacement)
-			next, err := program.Rebind(read, map[ids.ObjectAddress]ids.ObjectAddress{source.Address(): replacement.Address()})
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{source.Address(): replacement.Address()}
+			next, err := program.Rebind(read, mapping, NewRoutineRemap(read, mapping, nil, nil, false))
 			if foreign {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatalf("foreign retained source acquired local authority: %v", err)

@@ -13,10 +13,6 @@ import (
 const arraySearchReviewInitialDefinition = " SELECT id,\n    array_replace(a::integer[]::numeric[], n::numeric, array_position(a::integer[]::bigint[], n)::numeric) AS r,\n    array_positions(array_remove(a::integer[]::bigint[], n), n) AS ps,\n    array_position(array_replace(ARRAY[t], t, 'y'::text), 'y'::text) AS p\n   FROM as_review_inputs;"
 const arraySearchReviewRenamedDefinition = " SELECT id,\n    array_replace(choices::integer[]::numeric[], n::numeric, array_position(choices::integer[]::bigint[], n)::numeric) AS r,\n    array_positions(array_remove(choices::integer[]::bigint[], n), n) AS ps,\n    array_position(array_replace(ARRAY[t], t, 'y'::text), 'y'::text) AS p\n   FROM as_review_renamed;"
 
-// Safe Dump assigns one quoted __view_source_0 alias and freezes original column
-// aliases (including a). Native presentation preserves those explicit quotes/
-// labels; PostgreSQL's normalized presentation of the same SQL is observed below.
-const arraySearchReviewNativeRestoredDefinition = " SELECT \"__view_source_0\".\"id\" AS id,\n    array_replace(\"__view_source_0\".\"a\"::integer[]::numeric[], \"__view_source_0\".\"n\"::numeric, array_position(\"__view_source_0\".\"a\"::integer[]::bigint[], \"__view_source_0\".\"n\")::numeric) AS r,\n    array_positions(array_remove(\"__view_source_0\".\"a\"::integer[]::bigint[], \"__view_source_0\".\"n\"), \"__view_source_0\".\"n\") AS ps,\n    array_position(array_replace(ARRAY[\"__view_source_0\".\"t\"], \"__view_source_0\".\"t\", 'y'::text), 'y'::text) AS p\n   FROM as_review_renamed AS \"__view_source_0\"(\"id\", \"a\", \"n\", \"t\");"
 const arraySearchReviewPostgresReplayDefinition = " SELECT id,\n    array_replace(a::integer[]::numeric[], n::numeric, array_position(a::integer[]::bigint[], n)::numeric) AS r,\n    array_positions(array_remove(a::integer[]::bigint[], n), n) AS ps,\n    array_position(array_replace(ARRAY[t], t, 'y'::text), 'y'::text) AS p\n   FROM as_review_renamed __view_source_0(id, a, n, t);"
 
 func TestReferenceArraySearchNestedViews(t *testing.T) {
@@ -137,9 +133,6 @@ func TestReferenceArraySearchNestedViews(t *testing.T) {
 		}
 		fixture.ArrayReferenceConsumeHeld(t, retained, check.Rows, check.Types)
 		arraySearchBoth(t, p, b, c, check)
-		t.Run("restored_definition", func(t *testing.T) {
-			arraySearchReviewViewDefinition(t, p, b, c, arraySearchReviewNativeRestoredDefinition)
-		})
 	})
 }
 

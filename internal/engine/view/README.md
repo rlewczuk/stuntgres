@@ -115,6 +115,16 @@ opening (`view_source.go`), refresh row production and staging,
   fixed order, with recursion detection by object and event ancestry, a fixed
   command count and RETURNING provider. The composed action runs as the rule
   owner; the caller's authority is restored for the residual.
+  Stored call lifetimes belong to each original condition/action presentation,
+  checked against its actual live rule slot before composition. NEW substitution
+  does not promote fresh producer calls into stored authority. Current generic
+  rule-reference revisions serve invalidation, not historical call admission.
+  Query-owned grouping and window peer-equality keys keep their own original
+  declaration/reference/recipe even when NEW replaces the key's expression.
+  Admission selects that exact occurrence's recipe on a local context copy and
+  passes the original declaration to the shared executor fence. An unmarked
+  fresh key cannot inherit enclosing graft authority. Private semantic-tree
+  keys have no callable equality authority.
 - Messages, SQLSTATEs, details and hints are stable, including the first error
   when several rules or policies fail.
 - Concurrent refresh keeps the unique-index requirement, duplicate detection and

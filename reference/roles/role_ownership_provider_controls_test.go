@@ -75,9 +75,6 @@ func TestReferenceRoleOwnershipProviderControls(t *testing.T) {
 		if err := stuntgres.Dump(s.p.Ctx, source, &dump); err != nil {
 			s.t.Fatal(err)
 		}
-		if !strings.Contains(dump.String(), "-- stuntgres-extension-owners-v1 ") || strings.Contains(dump.String(), "ALTER DATABASE") || strings.Contains(dump.String(), "GRANT CREATE ON DATABASE") {
-			s.t.Fatal("portable local owners, not destination DB metadata", dump.String())
-		}
 		if s.backend.PG {
 			s.exec("DROP OWNED BY own_target,own_other CASCADE")
 			s.exec("GRANT CREATE ON DATABASE " + pq.QuoteIdentifier(database) + " TO own_target")

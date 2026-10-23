@@ -68,6 +68,29 @@ func cubeComparisonExpressionRemap(t *testing.T) {
 		current, _ := view.LookupType(old.ID())
 		return current
 	}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{sourceExtension.Address(): installation.Address()}
+	for i, address := range sourceExtension.Members {
+		mapping[address] = installation.Members[i]
+	}
+	mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sourceType.Array)}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.Array)}
+	mapper := stored.ViewQueryRemapper{
+		Catalog: view, Type: mapType,
+		Ref: func(ref ids.ObjectRef) ids.ObjectRef {
+			address := ref.Address
+			if mapped, ok := mapping[address]; ok {
+				address = mapped
+			}
+			return view.Owner().Domain.Ref(view.Epoch(), address)
+		},
+		Procedure: extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil),
+	}
+	mapOriginal := func(node expr.Expr) (expr.Expr, error) {
+		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{node}}})
+		if err != nil {
+			return nil, err
+		}
+		return query.(*plan.ValuesNode).Rows[0][0], nil
+	}
 	for kind, name := range []string{"cube_eq", "cube_ne", "cube_lt", "cube_le", "cube_gt", "cube_ge", "cube_cmp"} {
 		t.Run(name, func(t *testing.T) {
 			captured := sourceView.MustProcedure(sourceExtension.Members[3+kind])
@@ -95,12 +118,13 @@ func cubeComparisonExpressionRemap(t *testing.T) {
 			if _, _, err := stored.RetagTypes(view.WithState(published), relocated, mapType); err == nil {
 				t.Fatal("descriptor mapping alone authorized a cross-ID source literal")
 			}
-			rebound, changed, err := stored.RetagTypes(view, relocated, mapType)
-			if err != nil || !changed {
-				t.Fatal("mapped cube declaration and signature", changed, err)
+			rebound, err := mapOriginal(original)
+			if err != nil {
+				t.Fatal("mapped cube declaration and signature", err)
 			}
 			mapped := rebound.(plan.CubeComparisonExpr)
-			if mapped.Ref != mappedRef || mapped.RoutineReference != current || mapped.Kind != original.Kind || mapped.Properties() != original.Properties() || mapped.SourcePosition() != original.SourcePosition() {
+			mappedRoutine, ok := mapped.RoutineReference.(*catalog.Procedure)
+			if !ok || mapped.Ref != mappedRef || !exec.SameRoutineDeclaration(current, mappedRoutine) || mappedRoutine.Revision() != captured.Revision() || mapped.Kind != original.Kind || mapped.Properties() != original.Properties() || mapped.SourcePosition() != original.SourcePosition() {
 				t.Fatal("lost selected routine capture", mapped)
 			}
 			for _, argument := range mapped.Args {
@@ -130,7 +154,9 @@ func cubeComparisonExpressionRemap(t *testing.T) {
 				wrong := *current
 				wrong.Signature = signature
 				candidate.SetDescriptor(wrong.Address(), &wrong)
-				if _, _, err := stored.RetagTypes(view.WithState(candidate), relocated, mapType); err == nil {
+				badMapper := mapper
+				badMapper.Catalog = view.WithState(candidate)
+				if _, err := badMapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{original}}}); err == nil {
 					t.Fatal("admitted an incorrect mapped signature slot", signature)
 				}
 			}
@@ -194,20 +220,23 @@ func cubeComparisonExpressionRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			mapped, changed, err := stored.RetagTypes(view, relocated, mapType)
-			if err != nil || !changed {
-				t.Fatal("shared carrier relocation", changed, err)
+			mapped, err := mapOriginal(tc.node)
+			if err != nil {
+				t.Fatal("shared carrier relocation", err)
 			}
 			plan.WalkExpression(mapped, func(node expr.Expr) {
-				if ref := expr.InfoOf(node).RoutineReference; ref != nil && ref != current {
-					t.Fatal("source routine retained", ref)
+				if ref := expr.InfoOf(node).RoutineReference; ref != nil {
+					captured, ok := ref.(*catalog.Procedure)
+					if !ok || !exec.SameRoutineDeclaration(current, captured) || captured.Revision() != procedure.Revision() {
+						t.Fatal("incoherent original routine", ref)
+					}
 				}
 				if node.ResultUsage().Type == sourceType.SQLType {
 					t.Fatal("source operand type retained")
 				}
 				if branch, ok := node.(plan.CaseExpr); ok {
 					for _, arm := range branch.Arms {
-						if arm.Routine != current || arm.RoutineRef != view.Owner().Domain.Ref(view.Epoch(), current.Address()) {
+						if !exec.SameRoutineDeclaration(current, arm.Routine) || arm.Routine.Revision() != procedure.Revision() || arm.RoutineRef != view.Owner().Domain.Ref(view.Epoch(), current.Address()) {
 							t.Fatal("source CASE branch capture retained")
 						}
 					}
@@ -220,7 +249,8 @@ func cubeComparisonExpressionRemap(t *testing.T) {
 			}
 			if row, ok := mapped.(plan.RowComparisonExpr); ok {
 				for _, pair := range row.Comparisons {
-					if pair.RoutineReference != current || pair.RoutineRef != view.Owner().Domain.Ref(view.Epoch(), current.Address()) {
+					captured, ok := pair.RoutineReference.(*catalog.Procedure)
+					if !ok || !exec.SameRoutineDeclaration(current, captured) || captured.Revision() != procedure.Revision() || pair.RoutineRef != view.Owner().Domain.Ref(view.Epoch(), current.Address()) {
 						t.Fatal("source row-pair routine capture retained")
 					}
 				}
@@ -496,7 +526,7 @@ func TestCubeRuleConditionRemap(t *testing.T) {
 		}
 		return old
 	}
-	if _, err := stored.RemapRules(mapped, relation, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, typ, nil); err == nil {
+	if _, err := stored.RemapRules(mapped, relation, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, typ, nil, nil); err == nil {
 		t.Fatal("rule condition accepted an unmapped source lifetime")
 	}
 }

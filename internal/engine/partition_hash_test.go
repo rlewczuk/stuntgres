@@ -125,7 +125,7 @@ func TestHashPartitionRemap(t *testing.T) {
 			return replacement
 		}
 		return typ
-	}, nil, true, nil)
+	}, nil, true, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

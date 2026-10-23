@@ -196,7 +196,7 @@ func ownershipProviderMemberOwners(s *membershipScenario, owner string, selected
 }
 func ownershipProviderOwnerScript(t *testing.T, script, memberOwner string, selected ...ownershipProviderMember) string {
 	t.Helper()
-	const marker = "-- stuntgres-extension-owners-v1 "
+	const marker = "-- stuntgres-extension-owners-v2 "
 	start := strings.Index(script, marker)
 	if start < 0 {
 		t.Fatal("missing real member owner metadata")

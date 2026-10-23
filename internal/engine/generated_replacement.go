@@ -8,11 +8,13 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // The caller retains replacementMu throughout, but providers must never run
@@ -51,13 +53,25 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	candidate := catalog.CloneState(next)
 	stage.mu.Lock()
-	_, err := stage.remapPreparedCatalog(candidate, e.roles.read(e.catalog.owner(), e.catalog.read(next), roles), stage.roles.read(stage.catalog.owner(), stage.catalog.read(stage.catalog.state), stage.roles.published), nil)
+	_, procedure, err := stage.remapPreparedCatalog(candidate, e.roles.read(e.catalog.owner(), e.catalog.read(next), roles), stage.roles.read(stage.catalog.owner(), stage.catalog.read(stage.catalog.state), stage.roles.published), nil)
 	if err == nil {
 		// ReownExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
 		stage.catalog.state = catalog.CloneState(stage.catalog.state)
 		stage.catalog.state.SetEpoch(candidate.Epoch() - 1)
-		err = stored.ReownExpressions(stage.catalog.read(candidate), candidate, nil, false)
+		view := stage.catalog.read(candidate)
+		typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			if old == nil {
+				return nil
+			}
+			current, _ := view.LookupType(old.ID())
+			return current
+		}
+		remap := stored.NewRoutineRemap(view, nil, typ, procedure, false)
+		err = routine.RebindSQLDefinitions(candidate, remap)
+		if err == nil {
+			err = stored.ReownExpressions(view, candidate, nil, false, remap)
+		}
 	}
 	if err == nil {
 		stage.catalog.state = candidate

@@ -55,6 +55,7 @@ type Capture struct {
 	AccessMethods       []*catalog.AccessMethod
 	OperatorFamilies    []catalog.Descriptor
 	OwnedRoutines       []*catalog.Procedure
+	Providers           []providerReplay
 	Tables              []table.DumpRelation
 	LargeObjects        []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.
 	Materialized        []table.DumpRelation

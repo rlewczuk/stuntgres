@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -31,33 +30,22 @@ var IntaggMembers = [...]struct {
 
 func (p *IntaggProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
+	if !currentManifest(v, ext) {
+		return invalid()
+	}
 	if p != StockIntagg || v.Owner() == nil || ext.Name() != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(IntaggMembers) {
 		return invalid()
 	}
-	var seen [len(IntaggMembers)]bool
 	for _, address := range ext.Members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.Volatility != expr.Immutable || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
+		if !ok {
 			return invalid()
+		}
+		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
 		}
 		if err := validateOwnedAggregate(v, proc); err != nil {
 			return err
-		}
-		found := false
-		for j, member := range IntaggMembers {
-			if proc.Name() == member.Name && proc.Signature == member.Signature && proc.Result == member.Result && proc.Strict == member.Strict && proc.RoutineKind == member.Kind {
-				if seen[j] {
-					return invalid()
-				}
-				seen[j], found = true, true
-				break
-			}
-		}
-		if !found {
-			return invalid()
-		}
-		if proc.Owner.ID() == 0 || proc.Owner != v.Owner().Principals.Principal(proc.Owner.ID()) {
-			return invalid()
 		}
 	}
 	return nil

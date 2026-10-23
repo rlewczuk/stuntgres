@@ -14,13 +14,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func RemapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (analyze.Binding, error) {
-	return remapRuleBinding(view, b, ref, typ, collation, 0, nil)
+func RemapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (analyze.Binding, error) {
+	typ = analyze.RecordTypeMapper(typ, collation)
+	return remapRuleBinding(view, b, ref, typ, collation, 0, nil, procedure)
 }
 
-func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, routineFormals int, addressMapper func(ids.ObjectAddress) ids.ObjectAddress) (analyze.Binding, error) {
-	typ = analyze.RecordTypeMapper(typ, collation)
-	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, routineFormals: routineFormals, addressMapper: addressMapper}
+func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, routineFormals int, addressMapper func(ids.ObjectAddress) ids.ObjectAddress, procedure catalog.ProcedureRemapper) (analyze.Binding, error) {
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, nil, procedure), routineFormals: routineFormals, addressMapper: addressMapper}
 	mapper.Mutation = func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		return remapRuleBindingMapped(view, *mutation, ref, typ, collation, mapper)
@@ -39,7 +39,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 			return nil, err
 		}
 		// Nested already replaced query identities and types exactly once.
-		node, _, err = RetagTypesWithQuery(view, node, typ, nil, collation)
+		node, _, err = mapper.retag(node, typ)
 		return node, err
 	}
 	mapTargetExpr := func(expr expr.Expr) (expr.Expr, bool, error) {
@@ -302,7 +302,12 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	return b, nil
 }
 
-func RemapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*catalog.Relation, error) {
+func RemapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, supplied catalog.ProcedureRemapper) (*catalog.Relation, error) {
+	typ = analyze.RecordTypeMapper(typ, collation)
+	return remapRules(view, d, mapping, ref, typ, collation, supplied)
+}
+
+func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, supplied catalog.ProcedureRemapper) (*catalog.Relation, error) {
 	if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {
@@ -313,7 +318,9 @@ func RemapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 			old.Epoch = view.Epoch()
 			return old
 		}
-		typ = func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		// This is the distinct retained-target lane: import address mapping
+		// must not reach its types. Preserve its occurrence records as well.
+		typ = analyze.RecordTypeMapper(func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == nil {
 				return nil
 			}
@@ -321,31 +328,33 @@ func RemapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 				return d.SQLType
 			}
 			return old
-		}
+		})
 	}
+	procedure := originalProcedureMapper(view, mapping, supplied)
 	copy := *d
 	copy.Rules = RulesPayload(slices.Clone(RulesOf(d)))
 	for i := range RulesOf(&copy) {
 		r := &RulesOf(&copy)[i]
 		var err error
 		if r.condition != nil {
-			r.condition, err = RemapExpression(r.condition, ref, nil)
+			mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: procedure}
+			r.condition, err = RemapExpressionWithQuery(r.condition, ref, nil, mapper.Nested, nil)
 			if err != nil {
 				return nil, err
 			}
-			r.condition, _, err = RetagTypes(view, r.condition, typ, collation)
+			r.condition, _, err = mapper.retag(r.condition, typ)
 			if err != nil {
 				return nil, err
 			}
 		}
 		if r.conditionPresentation != nil {
-			r.conditionPresentation, err = RemapView(view, r.conditionPresentation, mapping, ref, typ, collation)
+			r.conditionPresentation, err = remapView(view, r.conditionPresentation, mapping, ref, typ, collation, nil, procedure)
 			if err != nil {
 				return nil, err
 			}
 		}
 		if r.conditionBinding != nil {
-			next, err := RemapRuleBinding(view, *r.conditionBinding, ref, typ, collation)
+			next, err := remapRuleBinding(view, *r.conditionBinding, ref, typ, collation, 0, nil, procedure)
 			if err != nil {
 				return nil, err
 			}
@@ -354,19 +363,19 @@ func RemapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 		r.actions = slices.Clone(r.actions)
 		for j := range r.actions {
 			action := &r.actions[j]
-			action.binding, err = RemapRuleBinding(view, action.binding, ref, typ, collation)
+			action.binding, err = remapRuleBinding(view, action.binding, ref, typ, collation, 0, nil, procedure)
 			if err != nil {
 				return nil, err
 			}
 			if action.presentation != nil {
-				action.presentation, err = RemapView(view, action.presentation, mapping, ref, typ, collation)
+				action.presentation, err = remapView(view, action.presentation, mapping, ref, typ, collation, nil, procedure)
 				if err != nil {
 					return nil, err
 				}
 			}
 			action.modifierPresentations = maps.Clone(action.modifierPresentations)
 			for statement, presentation := range action.modifierPresentations {
-				mapped, err := RemapView(view, presentation, mapping, ref, typ, collation)
+				mapped, err := remapView(view, presentation, mapping, ref, typ, collation, nil, procedure)
 				if err != nil {
 					return nil, err
 				}

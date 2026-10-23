@@ -27,10 +27,23 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		return nil, err
 	}
 	text := name.Parts[len(name.Parts)-1].Text
-	if family == functions.CubeExtension && signature == "" {
+	spatial := family == functions.CubeExtension && signature == ""
+	if spatial {
 		if _, selected := sqltype.CubeSpatialKind(text); !selected {
 			return nil, nil
 		}
+	}
+	var proc *catalog.Procedure
+	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil && (string(selected.Signature) == signature || spatial && extension.CubeProviderOf(selected) == extension.StockCube) {
+		symbol, failure := extension.ProcedureSymbol(auth.ReadCatalog(), selected)
+		if failure != nil {
+			return nil, failure
+		}
+		if symbol == text {
+			proc = selected
+		}
+	}
+	if spatial && proc == nil {
 		// Discover only an authentic binary cube signature, then apply the
 		// ordinary path/signature winner so a preceding shadow is never skipped.
 		for i := range path.Count() {
@@ -47,8 +60,9 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		}
 		return nil, nil
 	}
-	var proc *catalog.Procedure
-	if family == functions.PgcryptoExtension {
+	if proc != nil {
+		// The shared callable selector already resolved the live public name.
+	} else if family == functions.PgcryptoExtension {
 		for i := range path.Count() {
 			namespace := path.At(i)
 			// The implicit catalog precedes ordinary paths; explicit ordering

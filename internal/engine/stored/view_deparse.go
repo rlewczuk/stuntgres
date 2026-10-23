@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -66,6 +65,7 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 	}
 	previous, previousFrame, previousSimple, previousNamespace := renderer.query, renderer.Frame, renderer.simple, renderer.namespace
 	previousFunctionSources := renderer.functionSources
+	previousSimpleQualifier := renderer.simpleQualifier
 	renderer.query, renderer.Frame = &plan.Query{Root: project}, project.Frame
 	renderer.namespace = len(renderer.namespaces)
 	if frame, ok := renderer.renderFrames[project.Frame]; ok {
@@ -75,14 +75,21 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 	defer func() {
 		renderer.query, renderer.Frame, renderer.simple, renderer.namespace = previous, previousFrame, previousSimple, previousNamespace
 		renderer.functionSources = previousFunctionSources
+		renderer.simpleQualifier = previousSimpleQualifier
 		renderer.depth--
 	}()
 	presentation := renderer.Presentation
 	presentation.Columns = columns
 	renderer.functionSources = presentation.Deparse && viewHasFunctionSource(s.From)
-	_, renderer.simple = s.From.(*parser.TableReference)
-	renderer.simple = renderer.simple && (presentation.Deparse || renderer.CurrentNames)
-	if table, ok := s.From.(*parser.TableReference); ok && ViewCTETable(analyze.ViewFromRoot(project), table) != nil {
+	simpleFrom := s.From
+	if alias, ok := simpleFrom.(*parser.AliasReference); ok && presentation.Deparse && !setOperand {
+		// A sole table still needs no column qualification when it has an
+		// explicit alias. Portable replay keeps its positional bridge.
+		simpleFrom = alias.Input
+	}
+	_, renderer.simple = simpleFrom.(*parser.TableReference)
+	renderer.simple = renderer.simple && (presentation.Deparse || renderer.CurrentNames) && !renderer.renderFrames[project.Frame].correlated
+	if table, ok := simpleFrom.(*parser.TableReference); ok && ViewCTETable(analyze.ViewFromRoot(project), table) != nil {
 		renderer.simple = false
 	}
 	v := renderer
@@ -593,28 +600,18 @@ func (v *QueryRenderer) columnSQL(ctx context.Context, catalog catalog.Read, pat
 	if path.Clause == analyze.ViewValuesOrderLiteral && column.Frame == path.Query {
 		root = viewValuesAt(v.query.Root, path.Source)
 	}
-	// Current simple-source names require owner qualification for correlated
-	// columns and source keys that could collide with output labels.
-	// Frozen expression frames have slots but no SELECT syntax.
-	currentNames := v.Presentation.Deparse || v.CurrentNames
-	ownerSimple := false
-	if currentNames && column.Frame != path.Query && owner.Syntax != nil {
-		_, ownerSimple = owner.Syntax.From.(*parser.TableReference)
-	}
-	if currentNames && ((column.Frame == path.Query && v.simple && (path.Clause == analyze.ViewOrderLiteral || path.Clause == analyze.ViewGroupLiteral || path.Clause == analyze.ViewDistinctOnLiteral)) || (column.Frame != path.Query && ownerSimple)) {
-		source, ok := root.(*plan.SourceNode)
-		if !ok {
-			return "", fmt.Errorf("stuntgres: missing simple view source")
-		}
-		relation := catalog.MustRelation(source.Ref.Address)
+	// Only local simple-source keys need extra qualification to distinguish
+	// source attributes from output labels. Correlated frames retain their
+	// qualified lexical slots, and an explicit alias hides the relation name.
+	if column.Frame == path.Query && v.simple && (path.Clause == analyze.ViewOrderLiteral || path.Clause == analyze.ViewGroupLiteral || path.Clause == analyze.ViewDistinctOnLiteral) {
 		text, err := v.SlotSQL(ctx, catalog, root, column.Slot)
 		if err != nil {
 			return "", err
 		}
-		if strings.HasPrefix(text, v.Presentation.identifier(relation.Name())+".") {
+		if strings.HasPrefix(text, v.simpleQualifier+".") {
 			return text, nil
 		}
-		return v.Presentation.identifier(relation.Name()) + "." + text, nil
+		return v.simpleQualifier + "." + text, nil
 	}
 	return v.SlotSQL(ctx, catalog, root, column.Slot)
 }
@@ -625,14 +622,14 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 	}
 	path.Node = *ordinal
 	(*ordinal)++
-	if _, captured := v.routineRefs[path]; captured && extension.IntaggRecipeFunction(raw) == "" && !pgrowlocksRecipe(raw) {
+	if _, captured := v.routineRefs[path]; captured && !pgrowlocksRecipe(raw) {
 		switch call := raw.(type) {
 		case parser.FunctionExpr:
-			if !call.StoredSQLRoutine {
+			if !call.StoredSQLRoutine && !call.StoredProviderRoutine {
 				return "", fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
 			}
 		case parser.AggregateExpr:
-			if !call.StoredAggregate {
+			if !call.StoredAggregate && !call.StoredProviderRoutine {
 				return "", fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
 			}
 		default:
@@ -701,8 +698,31 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		}
 		return "CAST(" + text + " AS " + declaration + ")", nil
 	}
-	if call, ok := raw.(parser.FunctionExpr); ok && call.StoredSQLRoutine {
-		name, err := v.sqlRoutineRecipeName(catalogView, path, call)
+	// Provider provenance is checked for every occurrence, but an unchanged
+	// builtin still owns its established SQL syntax and canonical presentation.
+	providerCall := false
+	var providerProcedure *catalog.Procedure
+	if call, ok := raw.(parser.FunctionExpr); ok && call.StoredProviderRoutine {
+		procedure, err := v.ProviderRecipeProcedure(catalogView, path, call)
+		if err != nil {
+			return "", err
+		}
+		providerProcedure = procedure
+		providerCall = procedure.Builtin == nil || procedure.Name() != procedure.Builtin.Identity.Name || procedure.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
+		// A recipe may have been captured while the builtin had another public
+		// label, then restored to its released label. Do not replay that old alias.
+		if call.Syntax == parser.OrdinaryFunctionSyntax && (call.Name.Parts[len(call.Name.Parts)-1].Text != call.StoredProviderSymbol || len(call.Name.Parts) > 1 && call.Name.Parts[len(call.Name.Parts)-2].Text != "pg_catalog") {
+			providerCall = true
+		}
+	}
+	if call, ok := raw.(parser.FunctionExpr); ok && (call.StoredSQLRoutine || providerCall) {
+		var name string
+		var err error
+		if call.StoredProviderRoutine {
+			name, err = v.providerProcedureName(catalogView, providerProcedure)
+		} else {
+			name, err = v.sqlRoutineRecipeName(catalogView, path, call)
+		}
 		if err != nil {
 			return "", err
 		}
@@ -1182,17 +1202,33 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		if e.Schema != nil {
 			name = catalog.QuoteIdentifier(e.Schema.Text) + "." + catalog.QuoteIdentifier(e.Name)
 		}
-		if e.StoredAggregate {
+		if e.StoredProviderRoutine {
+			procedure, err := v.ProviderRecipeProcedure(catalogView, path, e)
+			if err != nil {
+				return "", err
+			}
+			// SQL/JSON constructors retain their grammar independently of the
+			// checked implementation's mutable name. Ordinary aggregate calls
+			// still follow the current qualified callable name.
+			if e.JSON == nil && (procedure.Builtin == nil || procedure.Name() != procedure.Builtin.Identity.Name || procedure.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || e.Name != e.StoredProviderSymbol || e.Schema != nil && e.Schema.Text != "pg_catalog") {
+				name, err = v.providerProcedureName(catalogView, procedure)
+				if err != nil {
+					return "", err
+				}
+			}
+		} else if e.StoredAggregate {
 			var err error
 			name, err = v.aggregateRecipeName(catalogView, path, e)
 			if err != nil {
 				return "", err
 			}
-		} else if e.Name == "int_array_aggregate" {
-			var err error
-			name, err = v.intaggRecipeName(catalogView, path, e.Name)
-			if err != nil {
-				return "", err
+		}
+		if e.JSON != nil && v.Presentation.Deparse {
+			switch e.Name {
+			case "json_arrayagg":
+				name = "JSON_ARRAYAGG"
+			case "json_objectagg":
+				name = "JSON_OBJECTAGG"
 			}
 		}
 		var text string
@@ -1209,7 +1245,11 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 				if valueErr != nil {
 					return "", valueErr
 				}
-				text = "(" + key + ") VALUE " + value
+				if v.Presentation.Deparse {
+					text = key + " : " + value
+				} else {
+					text = "(" + key + ") VALUE " + value
+				}
 			} else if e.Within {
 				for i, arg := range e.Args {
 					part, failure := operand(arg, DeparseParent{functionArgument: true, orderedSetDirect: true})
@@ -1250,7 +1290,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 				text += part
 				if key.Desc {
 					text += " DESC"
-				} else {
+				} else if e.JSON == nil || !v.Presentation.Deparse {
 					text += " ASC"
 				}
 				if key.Nulls == parser.NullsFirst {
@@ -1261,14 +1301,18 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			}
 		}
 		if e.JSON != nil {
-			if e.JSON.NullPos.Character > 0 {
+			emitNullPolicy := e.JSON.NullPos.Character > 0
+			if v.Presentation.Deparse {
+				emitNullPolicy = e.Name == "json_arrayagg" && !e.JSON.Absent || e.Name == "json_objectagg" && e.JSON.Absent
+			}
+			if emitNullPolicy {
 				if e.JSON.Absent {
 					text += " ABSENT ON NULL"
 				} else {
 					text += " NULL ON NULL"
 				}
 			}
-			if e.JSON.UniquePos.Character > 0 {
+			if e.JSON.UniquePos.Character > 0 && (!v.Presentation.Deparse || e.JSON.Unique) {
 				if e.JSON.Unique {
 					text += " WITH UNIQUE KEYS"
 				} else {
@@ -1280,11 +1324,20 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 				if !ok {
 					return "", fmt.Errorf("stuntgres: missing SQL/JSON returning usage")
 				}
-				declaration, err := regobj.TypeDeclaration(catalogView, usage)
+				var declaration string
+				if v.Presentation.Deparse {
+					r := Deparser{View: catalogView, Path: v.Presentation.Path, Pretty: v.Presentation.Pretty, Output: v.Presentation.Output}
+					declaration, err = r.typeSQL(usage)
+				} else {
+					declaration, err = regobj.TypeDeclaration(catalogView, usage)
+				}
 				if err != nil {
 					return "", err
 				}
-				text += " RETURNING " + declaration + functions.JSONFormatSQL(e.JSON.Output)
+				text += " RETURNING " + declaration
+				if !v.Presentation.Deparse {
+					text += functions.JSONFormatSQL(e.JSON.Output)
+				}
 			}
 		}
 		text = name + "(" + text + ")"
@@ -1380,14 +1433,6 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 				parts[i] = text
 			}
 			return catalog.ObjectNameText(e.Name) + "(" + strings.Join(parts, ", ") + ")", nil
-		}
-		if name == "int_array_enum" {
-			qualified, err := v.intaggRecipeName(catalogView, path, name)
-			if err != nil {
-				return "", err
-			}
-			text, err := args(e.Args)
-			return qualified + "(" + text + ")", err
 		}
 		if name == "pgrowlocks" {
 			qualified, err := v.pgrowlocksRecipeName(catalogView, path)

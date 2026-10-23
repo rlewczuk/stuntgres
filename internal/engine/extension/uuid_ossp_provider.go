@@ -3,10 +3,8 @@ package extension
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
 )
 
 type UUIDOsspProvider struct{ control catalog.ExtensionControl }
@@ -21,31 +19,28 @@ var StockUUIDOssp = &UUIDOsspProvider{control: catalog.ExtensionControl{Version:
 
 func (p *UUIDOsspProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid uuid-ossp manifest") }
+	if !currentManifest(v, ext) {
+		return invalid()
+	}
 	if p != StockUUIDOssp || ext.Name() != "uuid-ossp" || ext.Version != p.control.Version || len(ext.Members) != len(functions.UUIDOsspMembers) {
 		return invalid()
 	}
-	var seen [len(functions.UUIDOsspMembers)]bool
 	for _, address := range ext.Members {
 		proc, ok := v.Procedure(address)
 		if !ok {
 			return invalid()
 		}
-		memberIndex := -1
-		for i, member := range functions.UUIDOsspMembers {
-			if proc.Name() == member.Name && string(proc.Signature) == member.Signature && proc.Volatility == member.Volatility {
-				memberIndex = i
-				break
-			}
+		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
 		}
-		if memberIndex < 0 || seen[memberIndex] || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Builtin != nil || proc.Implementation != p || proc.Aggregate != nil || proc.Foreign != nil || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || proc.Result != 2950 || !proc.Strict || proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
-			return invalid()
-		}
-		seen[memberIndex] = true
 	}
 	return nil
 }
 
 func (p *UUIDOsspProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
+	if _, err := ProcedureSymbol(v, proc); err != nil {
+		return err
+	}
 	if v.Get(proc.Address()) != proc || UUIDOsspProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: invalid uuid-ossp procedure identity")
 	}

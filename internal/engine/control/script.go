@@ -45,6 +45,8 @@ type dumpScript struct {
 	largeObjectRecords                        []largeObjectDump
 	foreignDefaultStatements                  []foreignDefaultStatement
 	lateForeignCasts                          map[ids.OID]bool
+	providerStatements                        []string
+	extensionMetadata                         map[ids.OID]string
 }
 
 // buildDumpScript renders the captured groups and statements and orders
@@ -85,6 +87,9 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if err := s.renderForeignDefaults(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.prepareProviderReplay(); err != nil {
 		return nil, err
 	}
 	return s, nil

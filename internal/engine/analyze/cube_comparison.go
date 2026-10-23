@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *Binder) bindSelectedCubeComparison(raw parser.FunctionExpr, selected sqlCallableSelection) (expr.Expr, error) {
+func (b *Binder) bindSelectedCubeComparison(raw parser.FunctionExpr, selected sqlCallableSelection, symbol string) (expr.Expr, error) {
 	p := selected.Procedure
 	view := selected.auth.ReadCatalog()
 	if err := extension.StockCube.ValidateProcedure(view, p); err != nil {
@@ -44,12 +44,15 @@ func (b *Binder) bindSelectedCubeComparison(raw parser.FunctionExpr, selected sq
 		}
 		properties = expr.MergeProperties(properties, args[i].Properties())
 	}
-	kind := uint8(0)
+	kind := uint8(len(extension.CubeComparisonNames))
 	for i, name := range extension.CubeComparisonNames {
-		if name == p.Name() {
+		if name == symbol {
 			kind = uint8(i)
 			break
 		}
+	}
+	if int(kind) == len(extension.CubeComparisonNames) {
+		return nil, fmt.Errorf("stuntgres: invalid installed cube comparison operation")
 	}
 	result := b.Type(sqltype.ID(p.Result))
 	info := b.Info(result.Usage(), raw.Pos, properties)

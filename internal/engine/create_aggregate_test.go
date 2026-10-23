@@ -274,7 +274,7 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 				auth, bindErr := e.authorizationLocked(op)
 				var binding analyze.Binding
 				if bindErr == nil {
-					binding, bindErr = analyze.DescribeRoutine(op.Context(), e.analysisHost(op), raw, authorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, provider.Support.SQL, provider.InputCollation)
+					binding, bindErr = analyze.DescribeRoutine(op.Context(), e.analysisHost(op), raw, authorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, provider.Support.SQL, provider.Support.Name(), provider.InputCollation)
 				}
 				e.mu.Unlock()
 				if bindErr != nil {
@@ -357,7 +357,7 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 			auth, authErr := e.authorizationLocked(op)
 			var binding analyze.Binding
 			if authErr == nil {
-				binding, authErr = analyze.DescribeRoutine(op.Context(), e.analysisHost(op), raw, authorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, &definition, input)
+				binding, authErr = analyze.DescribeRoutine(op.Context(), e.analysisHost(op), raw, authorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, &definition, definition.Name, input)
 			}
 			e.mu.Unlock()
 			if authErr != nil {

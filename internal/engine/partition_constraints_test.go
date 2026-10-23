@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
@@ -43,7 +44,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	root.ObjectName = "unit_root"
 	root.RelationKind = catalog.PartitionedRelation
 	keyClass, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	comparison, err := operatorFamilyTestOrdering(root.Columns[0].Usage, keyClass)
+	comparison, err := routine.BindIndexOrdering(e.catalog.read(&state), root.Columns[0].Usage, keyClass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,11 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	root.Partition.Children = []ids.ObjectAddress{leaf.Address()}
 	root.Partition.DefaultChild = leaf.Address()
 	for a, d := range catalogSnapshot.Descriptors() {
-		state.SetDescriptor(a, d)
+		// The reduced fixture uses a different engine's immutable seed.
+		// Retain this engine's genuine callable and principal authority.
+		if state.Get(a) == nil {
+			state.SetDescriptor(a, d)
+		}
 	}
 	state.SetDescriptor(leaf.Address(), &leaf)
 	view := e.catalog.read(&state)
@@ -381,7 +386,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 		next := catalog.CloneState(source.catalog.state)
 		relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
 		e.mu.Lock()
-		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
+		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e))
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -504,7 +509,7 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	next := catalog.CloneState(f.view.State())
 	relations := map[ids.ObjectAddress]*storage.Relation{f.leaf.Address(): {}}
 	destination.mu.Lock()
-	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
+	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(f.e, destination))
 	destination.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -103,6 +103,10 @@ func (r InheritanceDefinitionReader) ProceduresNamed(namespace ids.ObjectAddress
 func (r InheritanceDefinitionReader) HasDynamicProcedureName(name string) bool {
 	return r.Base.State().HasDynamicProcedureName(name)
 }
+
+func (r InheritanceDefinitionReader) HasProviderProcedureOverride(name string) bool {
+	return r.Base.State().HasProviderProcedureOverride(name)
+}
 func (r InheritanceDefinitionReader) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	for effect := r.effects; effect != nil; effect = effect.previous {
 		if effect.delta != nil {

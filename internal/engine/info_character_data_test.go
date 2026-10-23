@@ -75,7 +75,7 @@ func TestInfoCharacterDataBuiltinBaseRebind(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}
-	if err := stored.ReownExpressions(source.catalog.read(next), next, nil, true); err != nil {
+	if err := stored.ReownExpressions(source.catalog.read(next), next, nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	mapped := infoCharacterDataUnitCatalog(t, source, source.catalog.read(next))

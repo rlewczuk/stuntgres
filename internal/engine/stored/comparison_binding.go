@@ -16,11 +16,11 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr) (ids.ObjectAd
 	var namespace ids.ObjectAddress
 	var visit func(expr.Expr) error
 	add := func(captured *catalog.Procedure, capture cubeComparisonCapture) error {
-		current, err := remapCubeComparisonRoutine(view, nil, captured, capture, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
-		if err != nil {
+		if err := remapCubeComparisonRoutine(view, nil, captured, captured, capture, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }); err != nil {
 			return err
 		}
-		ns, ok := view.Namespace(current.Namespace())
+		installation, _ := view.Extension(captured.Extension)
+		ns, ok := view.Namespace(installation.TargetNamespace)
 		if !ok || ns.Temporary != (ids.SessionToken{}) || ns.Name() == "$user" || ns.Name() == "pg_temp" {
 			return fmt.Errorf("stuntgres: invalid comparison binding namespace")
 		}

@@ -1,6 +1,7 @@
 package stored
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -8,7 +9,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func RemapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*catalog.Relation, error) {
+func RemapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (*catalog.Relation, error) {
+	typ = analyze.RecordTypeMapper(typ, collation)
+	return remapPolicies(view, d, mapping, ref, typ, collation, procedure)
+}
+
+func remapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (*catalog.Relation, error) {
 	if len(d.Security.Policies) == 0 {
 		return d, nil
 	}
@@ -21,7 +27,7 @@ func RemapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.Objec
 				continue
 			}
 			expression := PolicyOf(*slot)
-			frozen, err := RemapView(view, expression.Presentation(), mapping, ref, typ, collation)
+			frozen, err := remapView(view, expression.Presentation(), mapping, ref, typ, collation, nil, procedure)
 			if err != nil {
 				return nil, err
 			}

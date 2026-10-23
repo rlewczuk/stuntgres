@@ -75,7 +75,14 @@ func (p *CubeProvider) stageSpatial(stage Stage, ext *catalog.Extension, owner a
 func (p *CubeProvider) validateSpatial(v catalog.Read, ext *catalog.Extension, base *catalog.Type) error {
 	for i, member := range cubeSpatialMembers {
 		proc, ok := v.Procedure(ext.Members[cubeSpatialProcedureStart+i])
-		if !ok || proc.Address().ClassID != ids.ProcedureClassID || proc.Address() != ext.Members[cubeSpatialProcedureStart+i] || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != proc.Address() || CubeProviderOf(proc) != p || proc.Name() != member.operation.Routine() || !cubeBinaryInputs(proc.Signature, base.SQLType.ID()) || proc.Result != ids.OID(member.operation.ResultID()) || proc.RoutineKind != catalog.FunctionRoutine || !proc.Strict || proc.Volatility != expr.Immutable || proc.SQL != nil || proc.Builtin != nil || proc.Aggregate != nil || proc.Foreign != nil || proc.Dictionary != (ids.ObjectAddress{}) || proc.Conversion.Name() != "" {
+		if !ok {
+			return fmt.Errorf("stuntgres: invalid cube spatial procedure")
+		}
+		symbol, err := ProcedureSymbol(v, proc)
+		if err != nil {
+			return err
+		}
+		if proc.Address().ClassID != ids.ProcedureClassID || proc.Address() != ext.Members[cubeSpatialProcedureStart+i] || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != proc.Address() || CubeProviderOf(proc) != p || symbol != member.operation.Routine() || !cubeBinaryInputs(proc.Signature, base.SQLType.ID()) || proc.Result != ids.OID(member.operation.ResultID()) || proc.RoutineKind != catalog.FunctionRoutine || !proc.Strict || proc.Volatility != expr.Immutable || proc.SQL != nil || proc.Builtin != nil || proc.Aggregate != nil || proc.Foreign != nil || proc.Dictionary != (ids.ObjectAddress{}) || proc.Conversion.Name() != "" {
 			return fmt.Errorf("stuntgres: invalid cube spatial procedure")
 		}
 		op, ok := v.Operator(ext.Members[cubeSpatialOperatorStart+i])

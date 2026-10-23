@@ -67,6 +67,12 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	if err != nil || !changed || next.ResultUsage().Type == original.Usage.Type {
 		t.Fatal("pi result owner retag", next, changed, err)
 	}
+	mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(source, target)}
+	query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{next}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	next = query.(*plan.ValuesNode).Rows[0][0]
 	reminted := next.(functions.Math)
 	if reminted.Plan.ResultUsage() != reminted.Usage || original.Plan.ResultUsage() != original.Usage {
 		t.Fatal("retag mutated or retained old provider")

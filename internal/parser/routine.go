@@ -99,6 +99,19 @@ type DropRoutine struct {
 
 func (*DropRoutine) statement() {}
 
+// AlterRoutine retains the requested command kind and exact utility identity.
+// OwnerIdentity distinguishes role keywords from identically spelled names.
+type AlterRoutine struct {
+	Kind          string
+	Routine       GrantRoutineTarget
+	Action        string
+	Target        Identifier
+	OwnerIdentity bool
+	Pos           Position
+}
+
+func (*AlterRoutine) statement() {}
+
 // Routine and cast utility notices retain PostgreSQL's alias-normalized
 // TypeName syntax, unlike canonical catalog signature diagnostics.
 func routineUtilityTarget(target GrantRoutineTarget) GrantRoutineTarget {

@@ -18,13 +18,16 @@ import (
 
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
-func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, restoreOp *session.Operation, indexes *index.Snapshot) error {
+func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, restoreOp *session.Operation, indexes *index.Snapshot, principal catalog.ProcedureRemapper) error {
 	e.retainDatabaseLocked(next)
 	current := e.catalog.read(e.catalog.state)
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
 	}
 	if err := control.CheckTemporaryRuleSourcesLocked(current); err != nil {
+		return err
+	}
+	if err := rebindReplacementForeignProviders(current, e.foreign, next); err != nil {
 		return err
 	}
 	temporary, err := control.TemporarySet(current, next)
@@ -60,14 +63,27 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			return err
 		}
 	}
-	if err := control.RemapReplacementIdentities(current, next, temporary, mapping, relations, sequences); err != nil {
-		return err
-	}
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
-	if err := routine.RebindSQLDefinitions(e.catalog.read(next), next, mapping, typedef.RemappedCollationCapabilities(next, mapping)); err != nil {
+	candidate := e.catalog.read(next)
+	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		if old == nil {
+			return nil
+		}
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}
+		if target, ok := mapping[address]; ok {
+			address = target
+		}
+		current, _ := candidate.LookupType(sqltype.ID(address.ObjectID))
+		return current
+	}
+	routineRemap := stored.NewRoutineRemap(candidate, mapping, typ, principal, false)
+	if err := control.RemapReplacementIdentities(current, next, temporary, mapping, relations, sequences, routineRemap.Procedure); err != nil {
 		return err
 	}
-	if err := stored.ReownExpressions(e.catalog.read(next), next, mapping, false); err != nil {
+	if err := routine.RebindSQLDefinitions(next, routineRemap); err != nil {
+		return err
+	}
+	if err := stored.ReownExpressions(candidate, next, mapping, false, routineRemap); err != nil {
 		return err
 	}
 	if err := index.RebindImportedExclusions(next); err != nil {
@@ -110,9 +126,12 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	}
 	next.SetOperatorNames(operators.Index)
 	next.SetProcedureNames(procedures.Index)
+	// These consumers originate in the captured destination, not the import.
+	// Verify their principal provenance without applying source-name mapping.
+	targetProcedure := e.retainedRoutineProcedureRemapper(current)
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || len(relation.Security.Policies) == 0 && len(stored.RulesOf(relation)) == 0 {
+		if !ok || relation.View == nil && len(relation.Security.Policies) == 0 && len(stored.RulesOf(relation)) == 0 {
 			continue
 		}
 		view := e.catalog.read(next)
@@ -122,18 +141,42 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		// enter the candidate after imported expressions have been remapped,
 		// so advance their frozen definition refs without applying import IDs.
 		if len(relation.Security.Policies) != 0 {
-			replacement, err := stored.RemapPolicies(view, relation, nil, remap, typ, nil)
+			replacement, err := stored.RemapPolicies(view, relation, nil, remap, typ, nil, targetProcedure)
 			if err != nil {
 				return err
 			}
 			relation = replacement
 		}
 		if len(stored.RulesOf(relation)) != 0 {
-			replacement, err := stored.RemapRules(view, relation, nil, remap, typ, nil)
+			replacement, err := stored.RemapRules(view, relation, nil, remap, typ, nil, targetProcedure)
 			if err != nil {
 				return err
 			}
 			relation = replacement
+		}
+		if relation.View != nil {
+			original := stored.ViewOf(relation)
+			retained := true
+			for ref, captured := range original.References() {
+				if procedure, ok := captured.(*catalog.Procedure); ok {
+					if _, err := targetProcedure(procedure); err != nil {
+						return err
+					}
+				}
+				retained = retained && stored.ViewReferenceValid(view, relation, ref)
+			}
+			// Preserve the exact contextual TEMP lifetime when its original
+			// references already bridge this candidate. Only a real lifetime
+			// conversion requires a new presentation/consumer descriptor.
+			if !retained {
+				definition, err := stored.RemapView(view, original, nil, remap, typ, nil, targetProcedure)
+				if err != nil {
+					return err
+				}
+				copy := *relation
+				copy.View = stored.ViewPayload(definition)
+				relation = &copy
+			}
 		}
 		next.SetDescriptor(address, relation)
 	}

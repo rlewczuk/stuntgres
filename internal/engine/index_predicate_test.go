@@ -557,7 +557,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	target := New()
 	next := catalog.CloneState(f.e.catalog.state)
 	next.SetEpoch(target.catalog.state.Epoch() + 1)
-	if err := stored.ReownExpressions(target.catalog.read(next), next, nil, false); err != nil {
+	if err := stored.ReownExpressions(target.catalog.read(next), next, nil, false, stored.NewRoutineRemap(target.catalog.read(next), nil, nil, replacementProcedurePolicyFixture(f.e, target), false)); err != nil {
 		t.Fatal(err)
 	}
 	remapped := next.MustRelation(f.index.Address()).SQLIndex.Predicate

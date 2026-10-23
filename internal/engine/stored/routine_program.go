@@ -7,7 +7,6 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqltype"
 )
 
 // RoutineProgram retains immutable analyzed recipes, never an opened executor,
@@ -120,7 +119,7 @@ func (p *RoutineProgram) ValidateAction(view catalog.Read, i int) error {
 	}
 	return nil
 }
-func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress) (catalog.RoutineProgram, error) {
+func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, remap *catalog.RoutineRemap) (catalog.RoutineProgram, error) {
 	if err := p.validateDependencySet(); err != nil {
 		return nil, err
 	}
@@ -149,17 +148,7 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 		}
 		return view.Owner().Domain.Ref(view.Epoch(), addressMapper(old.Address))
 	}
-	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
-		if old == nil {
-			return nil
-		}
-		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}
-		if mapped, ok := mapping[address]; ok {
-			address = mapped
-		}
-		current, _ := view.LookupType(sqltype.ID(address.ObjectID))
-		return current
-	}
+	typ, collation, procedure := remap.Type, remap.Collation, remap.Procedure
 	actions := slices.Clone(p.actions)
 	for i := range actions {
 		a := &actions[i]
@@ -176,11 +165,11 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 		if err := validateRoutineActionScalars(*a, catalog.Read{}); err != nil {
 			return nil, err
 		}
-		a.binding, err = remapRuleBinding(view, a.binding, ref, typ, nil, len(a.presentation.routineInputs), addressMapper)
+		a.binding, err = remapRuleBinding(view, a.binding, ref, typ, collation, len(a.presentation.routineInputs), addressMapper, procedure)
 		if err != nil {
 			return nil, err
 		}
-		a.presentation, err = remapView(view, a.presentation, mapping, ref, typ, nil, addressMapper)
+		a.presentation, err = remapView(view, a.presentation, mapping, ref, typ, collation, addressMapper, procedure)
 		if err != nil {
 			return nil, err
 		}
@@ -189,7 +178,7 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 			if err := validateRoutineScalars(presentation, catalog.Read{}); err != nil {
 				return nil, err
 			}
-			a.modifierPresentations[statement], err = remapView(view, presentation, mapping, ref, typ, nil, addressMapper)
+			a.modifierPresentations[statement], err = remapView(view, presentation, mapping, ref, typ, collation, addressMapper, procedure)
 			if err != nil {
 				return nil, err
 			}
