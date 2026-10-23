@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"errors"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -15,6 +17,7 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -42,7 +45,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot plan.Node
 	_, deleting := stmt.(*parser.Delete)
-	if ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite || scope.sqlRoutine.lexical != nil || scope.sqlRoutine.assignment != nil || scope.sqlRoutine.assignmentPlanning {
+	if ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite || scope.sqlRoutine.lexical != nil || scope.sqlRoutine.cursor != nil || scope.sqlRoutine.assignment != nil || scope.sqlRoutine.assignmentPlanning {
 		// Plan closed immutable recipes before executor startup, retaining
 		// imported-parameter, PL-local, row, domain and volatile demand barriers.
 		// The private folded graph is also the graph retained by live portals.
@@ -150,7 +153,24 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				root, err = plAssignmentProjection(root)
 			}
 			if err == nil {
-				queryRoot, err = view.PreflightQuery(&evaluation, root)
+				if scope.sqlRoutine.lexical != nil && scope.sqlRoutine.cursor == nil {
+					preflight := evaluation
+					preflight.PLPreflightOrigin = true
+					queryRoot, err = view.PreflightQuery(&preflight, root)
+					evaluation.PreparedDomainChecks = preflight.PreparedDomainChecks
+					if err != nil {
+						var origin interface{ PreflightParameterEvaluation() bool }
+						if errors.As(err, &origin) && origin.PreflightParameterEvaluation() {
+							// Imported-parameter computation is execution even when a
+							// coercion reaches it during query preflight. Constants
+							// and admission failures retain their planning callback.
+							scope.sqlRoutine.plPlanning = false
+							err = &plExpressionExecutionError{error: err, simple: !scope.sqlRoutine.plArgumentRow && plSimpleExpression(b.Query.Root)}
+						}
+					}
+				} else {
+					queryRoot, err = view.PreflightQuery(&evaluation, root)
+				}
 			}
 			if err == nil {
 				err = view.ValidateQueryJoinExecution(&evaluation, queryRoot, auth.Catalog, 0)
@@ -444,10 +464,22 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	return e.executePreparedCommandLocked(scope, stmt, &execution, canonical, creationStage, creationDescriptor)
 }
 
-func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (Result, error) {
-	// Planning/folding and execution can both fail before eager rows are
-	// returned. Preserve the real phase for procedural error decoration.
+func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
+	// Preparation provenance normally ends at this shared executor handoff,
+	// including expressions reached from EXCEPTION handlers. Imported-parameter
+	// computations reached during preflight record their own execution origin.
 	scope.sqlRoutine.plPlanning = false
+	// PL preparation retains its expression traceback. Once a checked simple
+	// scalar enters execution, PostgreSQL's simple-expression route has no SPI
+	// query callback; complex query expressions retain that callback. Record
+	// this actual boundary only on failure, without changing error identity.
+	plExpression := scope.sqlRoutine.lexical != nil && scope.sqlRoutine.cursor == nil
+	simplePL := plExpression && !scope.sqlRoutine.plArgumentRow && execution.binding.Query != nil && plSimpleExpression(execution.binding.Query.Root)
+	defer func() {
+		if failure != nil && plExpression {
+			failure = &plExpressionExecutionError{error: failure, simple: simplePL}
+		}
+	}()
 	previousRLSCommand := scope.rlsCommand
 	scope.rlsCommand = execution
 	defer func() { scope.rlsCommand = previousRLSCommand }()
@@ -615,12 +647,32 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		return scope.installSQLCursor(s, queryRoot, source, canonical)
 	case *parser.Select:
+		if scope.sqlRoutine.cursor != nil && scope.queryLocks == nil {
+			scope.queryLocks = &exec.LockContext{IdentityOnly: true}
+		}
 		source, sourceErr := e.captureQuerySourcesLocked(scope, b.QuerySources, s.From == nil && s.Values == nil)
 		e.mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}
 		if err := exec.SelectQuerySources(ctx, source); err != nil {
+			source.Close()
+			return Result{}, err
+		}
+		if cursor := scope.sqlRoutine.cursor; cursor != nil {
+			scroll := cursor.Scroll == parser.CursorScrollEnabled
+			if source.Locks.RowMarked() {
+				if scroll {
+					source.Close()
+					err := sqlError("0A000", "DECLARE SCROLL CURSOR ... FOR UPDATE/SHARE is not supported").(*sqlstate.Error)
+					err.Detail = "Scrollable cursors must be READ ONLY."
+					return Result{}, err
+				}
+			} else if cursor.Scroll == parser.CursorScrollDefault {
+				scroll = exec.SupportsBackwardCursor(queryRoot, source)
+			}
+			installed, name, err := scope.installCursor(cursor, scope.sqlRoutine.cursorName, queryRoot, source, canonical, scroll)
+			scope.sqlRoutine.openedCursor, scope.sqlRoutine.openedCursorName = installed, name
 			return Result{}, err
 		}
 		if b.Rule.Template {
@@ -633,8 +685,8 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			rows, err := openRewriteQueryRows(ctx, queryRoot, source, canonical)
 			return Result{Rows: rows}, err
 		}
-		if scope.sqlRoutine.scalar {
-			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical)
+		if scope.sqlRoutine.scalar || scope.sqlRoutine.plArgumentRow {
+			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical, scope.sqlRoutine.scalar)
 			return Result{Count: int64(count), Rows: rows}, err
 		}
 		rows, count, queryErr := exec.FinalizeSelect(ctx, queryRoot, source, canonical, op.ParallelWorkers)

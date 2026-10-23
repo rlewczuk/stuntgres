@@ -299,7 +299,6 @@ func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor
 	if err = s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
-	s.completed, s.sessionCompleted = true, true
 	result.Count = moved
 	if rows != nil {
 		result.Rows = rows

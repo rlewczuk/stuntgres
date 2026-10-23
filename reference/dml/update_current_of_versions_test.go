@@ -130,15 +130,16 @@ func TestReferenceUpdateCurrentOfVersionsAndArbitration(t *testing.T) {
 					pp = fixture.LockPID(t, ctx, peer)
 					cp = fixture.LockPID(t, ctx, c)
 				}
-				started := make(chan struct{})
+				completed := make(chan struct{})
 				await := fixture.LockOperation(t, ctx, func(ctx context.Context) fixture.RelationOutcome {
-					close(started)
+					defer close(completed)
 					r, e := peer.ExecContext(ctx, "UPDATE t SET v=v||'-peer' WHERE id=1")
 					return fixture.RelationOutcome{Result: r, Err: e}
 				})
-				<-started
 				if b.PG {
 					currentOfWaitRow(t, ctx, pp, cp)
+				} else {
+					fixture.NativeUpdateRowWait(t, ctx, completed)
 				}
 				run(fixture.Exec("COMMIT", 0))
 				o := await()

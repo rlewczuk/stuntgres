@@ -690,7 +690,7 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 			if d.element.BaseType().ID() == PgSnapshot {
 				d.lookupOnly = true
 			}
-			if IsFTS(d.element.ID()) || d.element.ID() == Box || d.element.ID() == Point || d.element.ID() == Lseg || d.element.ID() == Circle || d.element.ID() == Line || d.element.ID() == Path || d.element.ID() == Polygon {
+			if d.element.ID() == Refcursor || IsFTS(d.element.ID()) || d.element.ID() == Box || d.element.ID() == Point || d.element.ID() == Lseg || d.element.ID() == Circle || d.element.ID() == Line || d.element.ID() == Path || d.element.ID() == Polygon {
 				d.lookupOnly = true
 			}
 		}

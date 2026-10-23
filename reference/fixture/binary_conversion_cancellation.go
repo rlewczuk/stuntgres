@@ -88,31 +88,7 @@ func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, 
 				t.Fatal("conversion admission", err)
 			}
 		} else {
-			n := runtime.Stack(stacks, true)
-			for n == len(stacks) {
-				stacks = make([]byte, len(stacks)*2)
-				n = runtime.Stack(stacks, true)
-			}
-			remaining := stacks[:n]
-			for len(remaining) != 0 {
-				end := bytes.Index(remaining, []byte("\n\n"))
-				if end < 0 {
-					end = len(remaining)
-				}
-				frames := remaining[:end]
-				// Creation metadata is not a live frame of this goroutine.
-				if created := bytes.Index(frames, []byte("\ncreated by ")); created >= 0 {
-					frames = frames[:created]
-				}
-				if bytes.Contains(frames, providerSymbol) && bytes.Contains(frames, workerSymbol) {
-					observed = true
-					break
-				}
-				if end == len(remaining) {
-					break
-				}
-				remaining = remaining[end+2:]
-			}
+			observed, stacks = nativeOperationStack(stacks, providerSymbol, workerSymbol)
 			if !observed {
 				// Stack(all=true) stops the world. Wait after each unsuccessful
 				// complete sample so observation cannot monopolize worker progress.
@@ -162,5 +138,99 @@ func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, 
 		AssertDiagnostic(t, outcome.Err, &Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request", Context: postgresContext})
 	} else {
 		LexicalOrdinary(t, outcome.Err, context.Canceled)
+	}
+}
+
+// nativeOperationStack matches only live frames from one complete goroutine,
+// never creation metadata or frames belonging to an unrelated worker.
+func nativeOperationStack(stacks []byte, symbols ...[]byte) (bool, []byte) {
+	stacks = stacks[:cap(stacks)]
+	n := runtime.Stack(stacks, true)
+	for n == len(stacks) {
+		stacks = make([]byte, len(stacks)*2)
+		n = runtime.Stack(stacks, true)
+	}
+	remaining := stacks[:n]
+	for len(remaining) != 0 {
+		end := bytes.Index(remaining, []byte("\n\n"))
+		if end < 0 {
+			end = len(remaining)
+		}
+		frames := remaining[:end]
+		if created := bytes.Index(frames, []byte("\ncreated by ")); created >= 0 {
+			frames = frames[:created]
+		}
+		matches := true
+		for _, symbol := range symbols {
+			if !bytes.Contains(frames, symbol) {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return true, stacks[:n]
+		}
+		if end == len(remaining) {
+			break
+		}
+		remaining = remaining[end+2:]
+	}
+	return false, stacks[:n]
+}
+
+// NativeUpdateRowWait proves the actual LockOperation worker is parked in the
+// mutation's row-request wait before its holder commits. The unified lock owner
+// names this parked frame relationRequest.wait, including row resources.
+func NativeUpdateRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
+	t.Helper()
+	nativeMutationRowWait(t, ctx, completed, "(*StatementScope).acquireUpdateRowMode")
+}
+
+// NativeDeleteRowWait observes the actual LockOperation delete worker parked on
+// a row request before its holder releases the conflicting transaction.
+func NativeDeleteRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
+	t.Helper()
+	nativeMutationRowWait(t, ctx, completed, "(*StatementScope).acquireRow")
+}
+
+func nativeMutationRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}, owner string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	stacks := make([]byte, 64<<10)
+	symbols := [][]byte{[]byte("(*relationRequest).wait"), []byte(owner), []byte("fixture.LockOperation.func")}
+	var poll *time.Timer
+	defer func() {
+		if poll != nil {
+			poll.Stop()
+		}
+	}()
+	for {
+		select {
+		case <-completed:
+			t.Fatal("native mutation completed before row-wait admission")
+		case <-ctx.Done():
+			t.Fatalf("native mutation row-wait admission: %v\n%s", ctx.Err(), stacks)
+		default:
+		}
+		var observed bool
+		observed, stacks = nativeOperationStack(stacks, symbols...)
+		if observed {
+			return
+		}
+		// Preserve the existing observer's scheduling courtesy after a
+		// stop-the-world sample; elapsed time never establishes admission.
+		if poll == nil {
+			poll = time.NewTimer(time.Millisecond)
+		} else {
+			poll.Reset(time.Millisecond)
+		}
+		select {
+		case <-completed:
+			t.Fatal("native mutation completed before row-wait admission")
+		case <-ctx.Done():
+			t.Fatalf("native mutation row-wait admission: %v\n%s", ctx.Err(), stacks)
+		case <-poll.C:
+		}
 	}
 }

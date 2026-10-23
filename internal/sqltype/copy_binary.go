@@ -160,7 +160,7 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 	case Bytea:
 		v.text = string(p)
 		n = len(p)
-	case Text, VarChar, BPChar, Name, JSON, JSONB, JSONPath:
+	case Refcursor, Text, VarChar, BPChar, Name, JSON, JSONB, JSONPath:
 		data := p
 		if d.id == JSONB || d.id == JSONPath {
 			if len(p) == 0 {
@@ -185,6 +185,8 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 				return v, 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42622", Message: "identifier too long", Detail: "Identifier must be less than 64 characters."}
 			}
 			v.text = text
+		case Refcursor:
+			v = String(d, text)
 		case Text, VarChar, BPChar:
 			v, err = sizeCharacter(String(d, text), typmod, false)
 		case JSON, JSONB:
@@ -287,7 +289,7 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		return binary64(dst, math.Float64bits(v.circle.radius)), nil
 	case UUID:
 		return append(dst, v.uuid[:]...), nil
-	case Text, VarChar, BPChar, Name, Bytea, JSON:
+	case Refcursor, Text, VarChar, BPChar, Name, Bytea, JSON:
 		return append(dst, v.text...), nil
 	case JSONB, JSONPath:
 		dst = append(dst, 1)

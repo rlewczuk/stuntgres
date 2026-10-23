@@ -270,7 +270,19 @@ func AdmitRoutineReference(c *Context, ref ids.ObjectRef, captured *catalog.Proc
 	return fmt.Errorf("stuntgres: missing callable routine lifetime manifest")
 }
 
-// A planning-only computation boundary, not a runtime expression wrapper.
+// A preflight computation can consume this execution's imported parameters.
+// At an opted-in PL diagnostic boundary, record the actual failing Eval,
+// including constants, so an outer computation cannot accidentally inherit
+// an inner callee's parameter-execution origin.
+type planningEvaluationError struct {
+	error
+	parameters bool
+}
+
+func (e *planningEvaluationError) Unwrap() error                      { return e.error }
+func (e *planningEvaluationError) PreflightParameterEvaluation() bool { return e.parameters }
+
+// A preflight computation boundary, not a row expression wrapper.
 // Child folds have already discarded non-invocations and cleared their carrier;
 // still-live callable children must be admitted before an enclosing Eval can
 // invoke them. No permission lookup is added to row evaluation.
@@ -284,7 +296,11 @@ func EvaluatePlanningExpression(c *Context, node expr.Expr) (sqltype.Value, erro
 	if failure != nil {
 		return sqltype.Value{}, failure
 	}
-	return node.Eval(c)
+	value, err := node.Eval(c)
+	if err != nil && c != nil && c.PLPreflightOrigin {
+		err = &planningEvaluationError{error: err, parameters: node.Properties().ParameterDependent}
+	}
+	return value, err
 }
 
 // Only evaluator-local stack copies select graft ancestry. A user replacement

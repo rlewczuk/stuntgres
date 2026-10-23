@@ -40,7 +40,7 @@ func TestPGTypeBuiltinFacts(t *testing.T) {
 			t.Fatal(c.id, got, ok, c.want)
 		}
 	}
-	for _, id := range []ID{142, 143, 22, 1006, 30, 1013, 1790, 2201, 4533, 4534, 4535, 6152, 6153, 6155, 2276, 2281} {
+	for _, id := range []ID{142, 143, 22, 1006, 30, 1013, 2201, 4533, 4534, 4535, 6152, 6153, 6155, 2276, 2281} {
 		if got, ok := types[id].PGTypeMetadata(); ok {
 			t.Fatal("unsupported family metadata", id, got)
 		}

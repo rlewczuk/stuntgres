@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -151,6 +152,7 @@ type sqlRoutineDemand struct {
 	assignment         *analyze.PLAssignment // Reached semantic-datum projection, never retained.
 	assignmentPlanning bool                  // Borrowed PL origin for a called SQL body, not its destination.
 	scalar             bool                  // Internal single-row SELECT demand, never public finalization.
+	plArgumentRow      bool                  // NonSTRICT bound-argument projection: one row, always SPI.
 	rewrite            bool                  // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
 	result             sqltype.Usage
 	resultPlan         sqltype.CoercionPlan
@@ -159,4 +161,8 @@ type sqlRoutineDemand struct {
 	terminal           bool
 	binding            *analyze.Binding
 	inputCollation     sqltype.CollationRef // Only quoted aggregate-support formal annotation.
+	cursor             *parser.DeclareCursor
+	cursorName         *string // nil means allocate only at actual installation; explicit empty stays distinct.
+	openedCursor       *sqlCursor
+	openedCursorName   string
 }

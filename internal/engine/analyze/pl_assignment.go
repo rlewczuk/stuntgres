@@ -83,7 +83,12 @@ func (b *Binder) plAssignmentConversion(child expr.Expr, target sqltype.Usage) (
 }
 
 func (b *Binder) bindPLAssignmentProjection(child expr.Expr) (expr.Expr, error) {
-	assignment := b.plAssignmentDatum
+	return b.PLAssignmentTargetExpression(child, b.plAssignmentDatum)
+}
+
+// PLAssignmentTargetExpression binds one reached semantic datum without publishing
+// activation state. Query projections and detached FETCH values share this owner.
+func (b *Binder) PLAssignmentTargetExpression(child expr.Expr, assignment *PLAssignment) (expr.Expr, error) {
 	if len(assignment.Steps) == 0 {
 		return b.PLAssignmentExpression(child, assignment.Usage)
 	}

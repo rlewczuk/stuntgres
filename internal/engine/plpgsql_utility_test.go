@@ -31,7 +31,14 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 					if scope.completed || scope.sessionCompleted {
 						t.Fatal("child inherited parent's completion outcomes")
 					}
-					frame := proc.NewPLFrame(&proc.PLProgram{}, &proc.Definition{}, &proc.Frame{}, sqltype.CollationRef{})
+					boolean, ok := e.CatalogRead().LookupType(sqltype.Bool)
+					if !ok {
+						t.Fatal("missing boolean")
+					}
+					program := &proc.PLProgram{FoundSlot: 0, Variables: []proc.PLVariable{
+						{Name: "found", Usage: boolean.Usage(), Role: proc.PLFoundSlot},
+					}}
+					frame := proc.NewPLFrame(program, &proc.Definition{}, &proc.Frame{}, sqltype.CollationRef{})
 					defer frame.Close()
 					syntax, err := parser.ParsePLpgSQL("BEGIN RETURN ex_put(2); END", parser.PLReturnPolicy{})
 					if err != nil {

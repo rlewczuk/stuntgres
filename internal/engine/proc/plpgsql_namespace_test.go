@@ -7,7 +7,6 @@ import (
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func TestPLpgSQLFormalNamespaceCompiler(t *testing.T) {
@@ -27,7 +26,7 @@ func TestPLpgSQLFormalNamespaceCompiler(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = CompilePL(d, raw, false, func(parser.PLType) (sqltype.Usage, bool, error) { return integer.Usage(), false, nil })
+			_, err = CompilePL(d, raw, false, plUnitCollation(t), plUnitResolver(t, integer.Usage()))
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P13" || diagnostic.Message != fmt.Sprintf("parameter name %q used more than once", tc.duplicate) {
 				t.Fatalf("PL duplicate formal namespace: %v", err)
@@ -47,7 +46,7 @@ func TestPLpgSQLFormalNamespaceValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := CompilePL(d, raw, false, func(parser.PLType) (sqltype.Usage, bool, error) { return integer.Usage(), false, nil })
+	p, err := CompilePL(d, raw, false, plUnitCollation(t), plUnitResolver(t, integer.Usage()))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -157,6 +157,9 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 			if !exists || typ != variable.Usage.Type {
 				return invalid()
 			}
+			if err := ValidateUsageCollation(v, variable.Usage); err != nil {
+				return err
+			}
 		}
 	} else if d.SQL.Kind != proc.SQLBody || language.Name() != "sql" || d.SQL.PL != nil || d.SQL.PLSyntax != nil || len(d.DeclarationDependencies) != 0 {
 		return invalid()

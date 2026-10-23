@@ -233,7 +233,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 				if tc.name == "producer_context" {
 					original.Context = tc.context
 				}
-				var cause error = original
+				var cause error = &plExpressionExecutionError{error: original, simple: true}
 				if tc.planning {
 					cause = &plExpressionPlanningError{original}
 				}

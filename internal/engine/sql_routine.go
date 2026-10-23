@@ -281,7 +281,7 @@ func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *s
 
 // Query demand is selected before opening producers. Sort/aggregate semantics
 // remain query-owned; only unnecessary later projected output is not requested.
-func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value) (rows exec.RowResult, count int, err error) {
+func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value, scalar bool) (rows exec.RowResult, count int, err error) {
 	defer source.Close()
 	defer func() {
 		finishErr := exec.FinishForeignSources(ctx, source)
@@ -290,7 +290,7 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.S
 		}
 	}()
 	project, ok := root.(*plan.ProjectNode)
-	if !ok || len(project.Schema()) != 1 {
+	if !ok || scalar && len(project.Schema()) != 1 {
 		return nil, 0, fmt.Errorf("invalid SQL routine projection")
 	}
 	state := exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
@@ -308,7 +308,7 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.S
 			err = closeErr
 		}
 	}()
-	row := make([]sqltype.Value, 1)
+	row := make([]sqltype.Value, len(project.Schema()))
 	present, err := stage.NextProjected(ctx, row)
 	if err != nil {
 		return nil, 0, err

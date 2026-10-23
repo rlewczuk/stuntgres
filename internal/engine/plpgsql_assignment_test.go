@@ -267,7 +267,8 @@ func TestPLpgSQLAssignmentTargetUsage(t *testing.T) {
 			if err != nil {
 				t.Fatal("concrete composite array local rejected", err)
 			}
-			usage := d.SQL.PL.Variables[0].Usage
+			local := d.SQL.PL.Root.Statements[0].Block.Bindings["a"]
+			usage := d.SQL.PL.Variables[local].Usage
 			element := domainUnitType(t, read, "pa_unit_local").SQLType
 			if !usage.Valid() || !usage.Type.IsArray() || usage.Type.Element() != element || len(d.DeclarationDependencies) == 0 {
 				t.Fatal("local array lost type ownership or dependencies", usage)

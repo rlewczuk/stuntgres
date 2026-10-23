@@ -2,7 +2,6 @@ package engine
 
 import (
 	"errors"
-	"strconv"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
@@ -46,7 +45,7 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 			if checked.Search != nil && expressionError {
 				err = plCaseExpressionError(err, branch, first.Start)
 			}
-			return sqltype.Value{}, false, plRuntimeError(err, read, d, first.Start, arm.Conditions[len(arm.Conditions)-1].End, instruction.Syntax.Pos, action, expressionError)
+			return sqltype.Value{}, false, plRuntimeError(err, read, d, first.Start, arm.Conditions[len(arm.Conditions)-1].End, instruction.Syntax.Pos, action, expressionError && checked.Search == nil)
 		}
 		if value.IsNull() {
 			continue
@@ -70,26 +69,16 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 // The operator has its own disjoint coordinate; original WHEN children retain
 // their original byte/character coordinates. Neither source is reparsed.
 func plCaseExpressionError(err error, branch proc.PLBranch, start parser.Position) error {
-	var original *sqlstate.Error
-	if !errors.As(err, &original) {
+	if !plExpressionCallback(err) {
 		return err
 	}
-	next := *original
-	if next.Position != "" {
-		position, failure := strconv.Atoi(next.Position)
-		if failure == nil {
-			if position == branch.OperatorPosition.Character {
-				position = branch.DiagnosticOperator
-			} else {
-				position = position - start.Character + branch.DiagnosticItems
-			}
-			next.InternalPosition = strconv.Itoa(position)
-			next.InternalQuery = branch.DiagnosticQuery
-			next.Position = ""
-		}
+	query := plDiagnosticQuery{
+		Text:     branch.DiagnosticQuery,
+		Offset:   start.Character - branch.DiagnosticItems,
+		Callback: plExpressionCallbackKind,
 	}
-	if plExpressionContext(err, &next) {
-		next.Context = "PL/pgSQL expression \"" + branch.DiagnosticQuery + "\""
+	if branch.OperatorPosition.Character > 0 {
+		query.Positions = []plDiagnosticPosition{{Start: branch.OperatorPosition.Character, End: branch.OperatorPosition.Character + 1, Output: branch.DiagnosticOperator}}
 	}
-	return sqlstate.WithDiagnostic(err, &next)
+	return plFormatError(err, query, "")
 }

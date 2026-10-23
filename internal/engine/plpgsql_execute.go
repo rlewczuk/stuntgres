@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/regobj"
@@ -56,6 +57,8 @@ func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame
 type plExpressionBindingError struct{ error }
 
 func (e *plExpressionBindingError) Unwrap() error { return e.error }
+
+func (*plExpressionBindingError) plCallback() bool { return true }
 
 func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, block *proc.PLBlock, read catalog.Read) (sqltype.Value, bool, error) {
 	f.Enter(block)
@@ -136,6 +139,13 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			}
 			continue
 		}
+		if instruction.Cursor != nil {
+			value, returned, err := s.executePLCursor(d, f, instruction, read)
+			if err != nil || returned {
+				return value, returned, err
+			}
+			continue
+		}
 		statement := instruction.Syntax
 		if statement.Rethrow {
 			if diagnostic := f.HandledError(); diagnostic != nil {
@@ -180,33 +190,18 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 		if err != nil {
 			var diagnostic *sqlstate.Error
 			var domainError *plan.AssignmentDomainError
-			var bindingError *plExpressionBindingError
-			if !errors.As(err, &domainError) && errors.As(err, &diagnostic) && ((!expressionError || d.SQL.Trigger) && strings.HasPrefix(diagnostic.Context, "SQL function ") || d.SQL.Trigger && errors.As(err, &bindingError)) {
-				copy := *diagnostic
-				start := statement.Pos.Offset
-				end := statement.ExpressionStart.Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.ExpressionStart, statement.ExpressionEnd))
-				if copy.Context != "" {
-					copy.Context += "\n"
+			query := plDiagnosticQuery{}
+			triggerBinding := d.SQL.Trigger && plTriggerExpressionBinding(err)
+			if !errors.As(err, &domainError) && errors.As(err, &diagnostic) && ((!expressionError || d.SQL.Trigger) && strings.HasPrefix(diagnostic.Context, "SQL function ") || triggerBinding) {
+				callback := plAssignmentContext
+				if triggerBinding {
+					callback = plAssignmentBinding
 				}
-				copy.Context += "PL/pgSQL assignment \"" + strings.TrimSpace(d.SQL.Source[start:end]) + "\""
-				err = sqlstate.WithDiagnostic(err, &copy)
+				query = plBodyDiagnostic(d.SQL.Source, statement.Pos, statement.ExpressionEnd, callback)
+			} else if expressionError && !d.SQL.Trigger && plExpressionCallback(err) {
+				query = plBodyDiagnostic(d.SQL.Source, statement.Pos, statement.ExpressionEnd, plAssignmentCallback)
 			}
-			if expressionError && !d.SQL.Trigger && errors.As(err, &diagnostic) {
-				copy := *diagnostic
-				start := statement.Pos.Offset
-				end := statement.ExpressionStart.Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.ExpressionStart, statement.ExpressionEnd))
-				assignment := strings.TrimSpace(d.SQL.Source[start:end])
-				if n, parseErr := strconv.Atoi(copy.Position); parseErr == nil {
-					copy.InternalPosition = strconv.Itoa(n - statement.Pos.Character + 1)
-					copy.InternalQuery, copy.Position = assignment, ""
-				}
-				var planning *plExpressionPlanningError
-				if errors.As(err, &planning) && copy.Context == "" && copy.Code == "22012" {
-					copy.Context = "PL/pgSQL assignment \"" + assignment + "\""
-				}
-				err = sqlstate.WithDiagnostic(err, &copy)
-			}
-			return sqltype.Value{}, false, plRuntimeError(err, read, d, statement.ExpressionStart, statement.ExpressionEnd, statement.Pos, "at assignment", expressionError)
+			return sqltype.Value{}, false, plRuntimeQueryError(err, read, d, statement.Pos, "at assignment", query)
 		}
 	}
 	return sqltype.Value{}, false, nil
@@ -216,21 +211,25 @@ type plExpressionPlanningError struct{ error }
 
 func (e *plExpressionPlanningError) Unwrap() error { return e.error }
 
-func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment) (value sqltype.Value, usage sqltype.Usage, present bool, err error) {
-	restore := s.activateSQLRoutine(nil, read)
-	defer func() { err = restore(err) }()
-	s.sqlRoutine.lexical = f
+func (*plExpressionPlanningError) plCallback() bool { return true }
+
+// Admission and the real executor handoff are shared by scalar expressions and
+// bound-argument row projections. Destinations never participate in binding the
+// argument projection, so every output is evaluated before formal conversion.
+func (s *StatementScope) executePLExpressionQuery(f *proc.PLFrame, statement *parser.Select, assignment *analyze.PLAssignment) (Result, error) {
+	// PL scalar cardinality is checked by its consumer, not SQL functions'
+	// one-column first-row demand. Only plArgumentRow requests a first row.
+	s.sqlRoutine.scalar = false
 	s.sqlRoutine.plPlanning = true
 	s.sqlRoutine.assignment = assignment
-	s.sqlRoutine.scalar = false
 	admission := statement
 	if assignment != nil && assignment.Raw != nil {
 		copy := *statement
 		copy.Targets = append(slices.Clone(statement.Targets), assignment.Raw)
 		admission = &copy
 	}
-	if err = s.acquireRelation(admission, true); err != nil {
-		return value, usage, false, &plExpressionPlanningError{err}
+	if err := s.acquireRelation(admission, true); err != nil {
+		return Result{}, &plExpressionPlanningError{err}
 	}
 	if admission != statement {
 		s.queryLockAdmission.SelectQuery = statement
@@ -245,8 +244,19 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 	})
 	if err != nil {
 		if s.sqlRoutine.plPlanning {
-			return value, usage, false, &plExpressionPlanningError{err}
+			return Result{}, &plExpressionPlanningError{err}
 		}
+		return Result{}, err
+	}
+	return result, nil
+}
+
+func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment) (value sqltype.Value, usage sqltype.Usage, present bool, err error) {
+	restore := s.activateSQLRoutine(nil, read)
+	defer func() { err = restore(err) }()
+	s.sqlRoutine.lexical = f
+	result, err := s.executePLExpressionQuery(f, statement, assignment)
+	if err != nil {
 		return value, usage, false, err
 	}
 	if result.Rows == nil {
@@ -337,7 +347,7 @@ func (s *StatementScope) convertPLTargetValue(value sqltype.Value, target sqltyp
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	evaluation.Input.DomainChecks = &evaluation
 	if selected {
 		return node.Eval(&evaluation)
@@ -370,7 +380,7 @@ func (s *StatementScope) finishPLComposite(candidate sqltype.Value, target *sqlt
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.output}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 		evaluation.Input.DomainChecks = &evaluation
 		if err := target.CheckDomainInput(s.op.Context(), candidate, evaluation.Input); err != nil {
 			return sqltype.Value{}, &plan.AssignmentDomainError{Err: err}
@@ -380,6 +390,15 @@ func (s *StatementScope) finishPLComposite(candidate sqltype.Value, target *sqlt
 }
 
 func (s *StatementScope) assignPLVariable(f *proc.PLFrame, slot int, value sqltype.Value) (sqltype.Value, error) {
+	value, err := s.preparePLVariable(f, slot, value)
+	if err == nil {
+		f.Values[slot] = value
+	}
+	return value, err
+}
+
+// Whole-slot preparation is detached; its caller owns atomic publication.
+func (s *StatementScope) preparePLVariable(f *proc.PLFrame, slot int, value sqltype.Value) (sqltype.Value, error) {
 	variable := f.Program.Variables[slot]
 	var err error
 	if variable.Record {
@@ -401,7 +420,6 @@ func (s *StatementScope) assignPLVariable(f *proc.PLFrame, slot int, value sqlty
 	if variable.NotNull && (value.Type() == nil || value.IsNull()) {
 		return sqltype.Value{}, sqlError("22004", fmt.Sprintf("null value cannot be assigned to variable %q declared NOT NULL", variable.Name))
 	}
-	f.Values[slot] = value
 	return value, nil
 }
 
@@ -417,42 +435,150 @@ func plRoutineDiagnosticIdentity(read catalog.Read, d *catalog.Procedure) string
 	return text.String()
 }
 
+type plDiagnosticCallback uint8
+
+const (
+	plNoCallback plDiagnosticCallback = iota
+	plExpressionCallbackKind
+	plSQLCallback
+	plAssignmentCallback
+	plAssignmentContext // Existing semantic-datum projection/conversion frame, no SPI position mapping.
+	plAssignmentBinding // Trigger's actual binder: preserve its ASSIGN frame and source mapping.
+	plQueryDetail       // Existing scalar assignment cardinality's unquoted "query: " frame.
+)
+
+type plDiagnosticPosition struct{ Start, End, Output int }
+
+// Text is diagnostic provenance, never executable syntax. Positions maps
+// declaration-reordered actuals or a CASE operator into a synthesized query.
+type plDiagnosticQuery struct {
+	Text      string
+	Offset    int
+	Positions []plDiagnosticPosition
+	Callback  plDiagnosticCallback
+}
+
+func plBodyDiagnostic(source string, start, end parser.Position, callback plDiagnosticCallback) plDiagnosticQuery {
+	return plDiagnosticQuery{Text: parser.PLExpressionSource(source, start, end), Offset: start.Character - 1, Callback: callback}
+}
+
 func plRuntimeError(err error, read catalog.Read, d *catalog.Procedure, start, end, origin parser.Position, action string, expression bool) error {
+	query := plDiagnosticQuery{}
+	if expression && plExpressionCallback(err) && (!d.SQL.Trigger || plTriggerExpressionBinding(err)) {
+		query = plBodyDiagnostic(d.SQL.Source, start, end, plExpressionCallbackKind)
+	}
+	return plRuntimeQueryError(err, read, d, origin, action, query)
+}
+
+func plRuntimeQueryError(err error, read catalog.Read, d *catalog.Procedure, origin parser.Position, action string, query plDiagnosticQuery) error {
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) {
+		return err
+	}
+	line := strings.Count(d.SQL.Source[:origin.Offset], "\n") + 1
+	context := fmt.Sprintf("PL/pgSQL function %s line %d %s", plRoutineDiagnosticIdentity(read, d), line, action)
+	return plFormatError(err, query, context)
+}
+
+// This is the single SPI/query and PL action formatter. Eligibility is the
+// actual producer phase and ORIGINAL positive Position, never SQLSTATE, a
+// previously mapped InternalPosition, existing Context, or source-text guesses.
+func plFormatError(err error, query plDiagnosticQuery, action string) error {
 	var original *sqlstate.Error
 	if !errors.As(err, &original) {
 		return err
 	}
-	copy := *original
-	source := parser.PLExpressionSource(d.SQL.Source, start, end)
-	offset := origin.Offset
-	characterOffset := start.Character - 1
-	if expression && copy.Position != "" {
-		if n, e := strconv.Atoi(copy.Position); e == nil {
-			copy.InternalPosition = strconv.Itoa(n - characterOffset)
-			copy.InternalQuery = source
-			copy.Position = ""
+	next := *original
+	if query.Callback != plNoCallback {
+		position, _ := strconv.Atoi(original.Position)
+		positioned := position > 0 && query.Callback != plAssignmentContext && query.Callback != plQueryDetail
+		if positioned {
+			mapped := position - query.Offset
+			for _, span := range query.Positions {
+				if position >= span.Start && position < span.End {
+					mapped = position - span.Start + span.Output
+					break
+				}
+			}
+			next.InternalPosition, next.InternalQuery, next.Position = strconv.Itoa(mapped), query.Text, ""
+		}
+		if !positioned || query.Callback == plAssignmentBinding {
+			prefix := "PL/pgSQL expression "
+			switch query.Callback {
+			case plSQLCallback:
+				prefix = "SQL statement "
+			case plAssignmentCallback, plAssignmentContext, plAssignmentBinding:
+				prefix = "PL/pgSQL assignment "
+			case plQueryDetail:
+				prefix = "query: "
+			}
+			if next.Context != "" {
+				next.Context += "\n"
+			}
+			if query.Callback == plQueryDetail {
+				next.Context += prefix + query.Text
+			} else {
+				next.Context += prefix + "\"" + query.Text + "\""
+			}
 		}
 	}
-	var bindingError *plExpressionBindingError
-	if expression && (!d.SQL.Trigger && plExpressionContext(err, &copy) || d.SQL.Trigger && copy.Context == "" && errors.As(err, &bindingError) && (copy.Code == "55000" || copy.Code == "42703" || copy.Code == "22012" || copy.Code == "21000")) {
-		copy.Context = "PL/pgSQL expression \"" + source + "\""
+	if action != "" {
+		if next.Context != "" {
+			next.Context += "\n"
+		}
+		next.Context += action
 	}
-	line := strings.Count(d.SQL.Source[:offset], "\n") + 1
-	context := fmt.Sprintf("PL/pgSQL function %s line %d %s", plRoutineDiagnosticIdentity(read, d), line, action)
-	if copy.Context != "" {
-		copy.Context += "\n"
-	}
-	copy.Context += context
-	return sqlstate.WithDiagnostic(err, &copy)
+	return sqlstate.WithDiagnostic(err, &next)
 }
 
-// Context presentation depends on the producer's phase, not SQLSTATE alone.
-// Use the already-mapped diagnostic so positioned missing-column failures keep
-// their ordinary source context rather than acquiring a planning expression.
-func plExpressionContext(err error, diagnostic *sqlstate.Error) bool {
-	if diagnostic.Context != "" {
+// Every real handoff records the CURRENT route, including complex execution.
+// An outer SPI/planning marker therefore shadows an inner callee's simple
+// route instead of accidentally inheriting it through errors.As.
+type plExpressionExecutionError struct {
+	error
+	simple bool
+}
+
+func (e *plExpressionExecutionError) Unwrap() error    { return e.error }
+func (e *plExpressionExecutionError) plCallback() bool { return !e.simple }
+
+func plExpressionCallback(err error) bool {
+	var phase interface{ plCallback() bool }
+	return !errors.As(err, &phase) || phase.plCallback()
+}
+
+// Only the current owner's binding boundary grants the trigger traceback.
+// An inner trigger's binding failure under an outer execution/planning callback
+// must not make that outer callback look like its own lexical binder.
+func plTriggerExpressionBinding(err error) bool {
+	var phase interface{ plCallback() bool }
+	if !errors.As(err, &phase) {
 		return false
 	}
-	var planning *plExpressionPlanningError
-	return diagnostic.Code == "21000" || errors.As(err, &planning) && (diagnostic.Code == "55000" || diagnostic.Code == "42703" && diagnostic.InternalPosition == "" || diagnostic.Code == "22012")
+	switch current := phase.(type) {
+	case *plExpressionBindingError:
+		return true
+	case *plExpressionPlanningError:
+		_, binding := current.error.(*plExpressionBindingError)
+		return binding
+	default:
+		return false
+	}
+}
+
+func plSimpleExpression(root plan.Node) bool {
+	project, ok := root.(*plan.ProjectNode)
+	if !ok || len(project.Expressions) != 1 || project.HasTargetSet {
+		return false
+	}
+	if _, ok := project.Child.(*plan.SingletonNode); !ok {
+		return false
+	}
+	simple := true
+	plan.WalkExpression(project.Expressions[0], func(node expr.Expr) {
+		if _, subquery := node.(plan.SubqueryExpr); subquery || node.Properties().StageDependent {
+			simple = false
+		}
+	})
+	return simple
 }

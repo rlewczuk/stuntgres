@@ -19,9 +19,15 @@ func TestPLpgSQLConditionalRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := source.SQL.PL.Variables[0].Usage
+	original := source.SQL.PL.Variables[source.SQL.PL.Root.Statements[0].Block.Bindings["x"]].Usage
 	definition.PLSyntax = raw
-	definition.PL, err = proc.CompilePL(&definition, raw, false, func(parser.PLType) (sqltype.Usage, bool, error) { return original, false, nil })
+	definition.PL, err = proc.CompilePL(&definition, raw, false, plpgsqlUnitCollation(t, read), func(raw parser.PLType) (sqltype.Usage, bool, error) {
+		if raw.Type.Name == "boolean" || raw.Type.Name == "bool" {
+			boolean, _ := read.LookupType(sqltype.Bool)
+			return boolean.Usage(), false, nil
+		}
+		return original, false, nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +80,8 @@ func TestPLpgSQLConditionalRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(next.SQL.PL.Variables) != 1 || next.SQL.PL.SearchCount != 1 || next.SQL.PL.Variables[0].Usage != want || source.SQL.PL.Variables[0].Usage != original || frame.Searches[0].Usage != original {
+	local := definition.PL.Root.Statements[0].Block.Bindings["x"]
+	if len(next.SQL.PL.Variables) != 2 || next.SQL.PL.SearchCount != 1 || next.SQL.PL.Variables[local].Usage != want || source.SQL.PL.Variables[local].Usage != original || frame.Searches[0].Usage != original {
 		t.Fatal("search state polluted declaration remap or captured frame mutated")
 	}
 	fresh := proc.NewPLFrame(next.SQL.PL, next.SQL, input, sqltype.CollationRef{})

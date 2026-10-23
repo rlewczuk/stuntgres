@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -37,6 +38,7 @@ type sqlCursor struct {
 	ordinal                                     uint64
 	epoch                                       ids.CatalogEpoch
 	hold, promoted                              bool
+	pinned                                      bool // Active cursor FOR owns user-drop protection.
 	statement                                   string
 	created                                     sqltype.Value
 	values                                      []sqltype.Value
@@ -44,6 +46,7 @@ type sqlCursor struct {
 	storeOffset                                 int64
 	root                                        *plan.ProjectNode
 	schema                                      []catalog.Column
+	recordShape                                 *sqltype.Descriptor // Lazy FETCH record descriptor, immutable after publication.
 	source                                      *exec.Source
 	state                                       exec.State
 	stage                                       *exec.Stage
@@ -126,8 +129,11 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	return c.cleanupError
 }
 func (c *sqlCursor) dispose(ctx context.Context) error {
+	// Terminal/owner cleanup must retire even a protected loop portal.
+	c.pinned = false
 	err := c.releaseProducer(ctx)
 	c.values = nil
+	c.schema, c.recordShape = nil, nil
 	c.count, c.storeOffset = 0, 0
 	return err
 }
@@ -185,6 +191,16 @@ func forwardSQLCursorError() error {
 }
 
 func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, root plan.Node, source *exec.Source, parameters []sqltype.Value) (Result, error) {
+	_, _, err := s.installCursor(declaration, &declaration.Name.Text, root, source, parameters, declaration.Scroll == parser.CursorScrollEnabled)
+	if err == nil {
+		s.completed, s.sessionCompleted = !(declaration.Hold && s.implicit), true
+	}
+	return Result{}, err
+}
+
+// installCursor transfers captured producer ownership without completing the
+// containing command. SQL DECLARE and PL OPEN have separate policy wrappers.
+func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, requestedName *string, root plan.Node, source *exec.Source, parameters []sqltype.Value, scroll bool) (*sqlCursor, string, error) {
 	keep := false
 	defer func() {
 		s.routineAuth = AuthorizationView{}
@@ -196,28 +212,25 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	}()
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
-		return Result{}, fmt.Errorf("stuntgres: cursor query lacks final projection")
+		return nil, "", fmt.Errorf("stuntgres: cursor query lacks final projection")
 	}
 	r := payloadOf(s.op.Session).cursors
-	if r.ordinal == ^uint64(0) {
-		return Result{}, fmt.Errorf("stuntgres: cursor declaration counter exhausted")
-	}
 	timestampType, ok := s.inquiry.commentCatalog.LookupType(sqltype.Timestamptz)
 	if !ok {
-		return Result{}, fmt.Errorf("stuntgres: missing cursor creation timestamp type")
+		return nil, "", fmt.Errorf("stuntgres: missing cursor creation timestamp type")
 	}
 	created, err := sqltype.TimestampFromTime(timestampType, s.statementStart)
 	if err != nil {
-		return Result{}, err
+		return nil, "", err
 	}
-	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), hold: declaration.Hold, ordinal: r.ordinal + 1, root: project, schema: project.Schema(), source: source, authority: s.authority,
+	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), hold: declaration.Hold, root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.inquiry.commentCatalog, roles: s.inquiry.commentRoles,
 		routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
 		deparseAuth: s.inquiry.deparseAuth, deparsePath: s.inquiry.deparsePath, collationPath: s.inquiry.collationPath, visibilityCatalog: s.inquiry.visibilityCatalog,
 		visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
 	c.currentSnapshot, c.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
 	c.statement, c.created = declaration.Source, created
-	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
+	c.scroll = scroll
 	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	// Presentation readers stored in query frames must not retain this admission.
@@ -230,14 +243,40 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
 	regobj.DetachCursorInput(&c.state.Input, c.authority)
 	if err := s.sessionPublicationPreflight(); err != nil {
-		return Result{}, err
+		return nil, "", err
 	}
+	// All user expression, planning and publication callbacks have completed.
+	// A NULL request gets its identity here, never a reservation made by OPEN.
+	if r.ordinal == ^uint64(0) {
+		return nil, "", fmt.Errorf("stuntgres: cursor declaration counter exhausted")
+	}
+	inUse := func(name string) bool {
+		return name == "" || r.entries[name] != nil || protocolPortalExists(s.op.Session, name)
+	}
+	name := ""
+	if requestedName == nil {
+		for number := r.ordinal + 1; ; number++ {
+			if number == 0 {
+				return nil, "", fmt.Errorf("stuntgres: cursor name counter exhausted")
+			}
+			name = "<unnamed cursor " + strconv.FormatUint(number, 10) + ">"
+			if !inUse(name) {
+				break
+			}
+		}
+	} else {
+		name = *requestedName
+		if inUse(name) {
+			return nil, "", sqlError("42P03", fmt.Sprintf("cursor %q already exists", name))
+		}
+	}
+	c.ordinal = r.ordinal + 1
 	c.foreignOwner = s.foreignTablesSlot.takeOwner()
 	s.takeRowSecurityPrograms(c)
-	r.entries[declaration.Name.Text] = c
+	r.entries[name] = c
 	r.ordinal = c.ordinal
-	s.completed, s.sessionCompleted, keep = !(declaration.Hold && s.implicit), true, true
-	return Result{}, nil
+	keep = true
+	return c, name, nil
 }
 
 // The operation, ticket, owner, command and write roots belong to the freshly
@@ -290,15 +329,46 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	c := payloadOf(s.op.Session).cursors.entries[fetch.Name.Text]
-	if c == nil || (!c.promoted && c.tx != s.txRef) {
-		return Result{}, missingSQLCursor(fetch.Name.Text)
+	result, err = s.fetchCursor(fetch)
+	if err == nil {
+		s.completed, s.sessionCompleted = true, true
+	}
+	return result, err
+}
+
+func (s *StatementScope) fetchCursor(fetch *parser.FetchCursor) (result Result, err error) {
+	return s.fetchCursorPortal(payloadOf(s.op.Session).cursors.entries[fetch.Name.Text], fetch)
+}
+
+// Identity movement is shared by named SQL/PL commands and implicit FOR NEXT.
+// A retained handle must still be this physical session's exact registered
+// portal; matching names cannot redirect it to a replacement.
+func (s *StatementScope) validateCursorPortal(c *sqlCursor, name string) error {
+	if c == nil || payloadOf(s.op.Session).cursors.entries[name] != c || (!c.promoted && c.tx != s.txRef) {
+		return missingSQLCursor(name)
 	}
 	if c.epoch != s.txRef.Epoch() {
-		return Result{}, ids.ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if c.position == cursorFailed {
-		return Result{}, sqlError("55000", fmt.Sprintf("portal %q cannot be run", fetch.Name.Text))
+		return sqlError("55000", fmt.Sprintf("portal %q cannot be run", name))
+	}
+	return nil
+}
+
+// Resolve without admitting sources or moving the producer. PL counts execute
+// only after this validation and retain this exact identity for later motion.
+func (s *StatementScope) resolveCursorPortal(name string) (*sqlCursor, error) {
+	c := payloadOf(s.op.Session).cursors.entries[name]
+	if err := s.validateCursorPortal(c, name); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCursor) (result Result, err error) {
+	if err := s.validateCursorPortal(c, fetch.Name.Text); err != nil {
+		return Result{}, err
 	}
 	if c.promoted {
 		return s.fetchHeldCursor(c, fetch)
@@ -338,7 +408,6 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
-	s.completed, s.sessionCompleted = true, true
 	result.Count = moved
 	if rows != nil {
 		result.Rows = rows
@@ -349,10 +418,27 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
+	result, err := s.closeCursor(close)
+	if err == nil {
+		s.completed, s.sessionCompleted = true, true
+	}
+	return result, err
+}
+
+func (s *StatementScope) closeCursor(close *parser.CloseCursor) (Result, error) {
 	r := payloadOf(s.op.Session).cursors
 	c := r.entries[close.Name.Text]
 	if !close.All && c == nil && !protocolPortalExists(s.op.Session, close.Name.Text) {
 		return Result{}, missingSQLCursor(close.Name.Text)
+	}
+	if close.All {
+		for name, cursor := range r.entries {
+			if cursor.pinned {
+				return Result{}, sqlError("24000", fmt.Sprintf("cannot drop pinned portal %q", name))
+			}
+		}
+	} else if c != nil && c.pinned {
+		return Result{}, sqlError("24000", fmt.Sprintf("cannot drop pinned portal %q", close.Name.Text))
 	}
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
@@ -380,6 +466,5 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	if cleanupErr != nil {
 		return Result{}, cleanupErr
 	}
-	s.completed, s.sessionCompleted = true, true
 	return Result{}, nil
 }

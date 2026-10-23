@@ -63,6 +63,7 @@ const (
 	Bit              ID = 1560
 	VarBit           ID = 1562
 	Numeric          ID = 1700
+	Refcursor        ID = 1790
 	Regprocedure     ID = 2202
 	Regoper          ID = 2203
 	Regoperator      ID = 2204
@@ -273,6 +274,7 @@ func Builtins() []*Descriptor {
 		{id: Int2, name: "int2", sql: "SMALLINT", database: "INT2", associatedArray: 1005},
 		{id: Int4, name: "int4", sql: "INTEGER", database: "INT4", associatedArray: 1007},
 		{id: Text, name: "text", sql: "TEXT", database: "TEXT", associatedArray: 1009},
+		{id: Refcursor, name: "refcursor", sql: "REFCURSOR", database: "REFCURSOR", associatedArray: 2201},
 		{id: Oid, name: "oid", sql: "OID", database: "OID", associatedArray: 1028},
 		{id: Tid, name: "tid", sql: "TID", database: "TID"},
 		{id: Macaddr, name: "macaddr", sql: "MACADDR", database: "MACADDR", associatedArray: 1040},
@@ -588,7 +590,7 @@ func Boolean(d *Descriptor, b bool) Value {
 	return Value{typ: d, boolean: b}
 }
 func String(d *Descriptor, s string) Value {
-	if d == nil || (!IsCharacter(d.id) && !d.IsCitext() && d.id != Name && d.id != Regclass && d.id != Regtype && d.id != Char) {
+	if d == nil || (!IsCharacter(d.id) && !d.IsCitext() && d.id != Refcursor && d.id != Name && d.id != Regclass && d.id != Regtype && d.id != Char) {
 		panic("invalid string descriptor")
 	}
 	v := Value{typ: d, text: s}
@@ -655,7 +657,7 @@ func (v Value) Boolean() (bool, error) {
 	return v.boolean, nil
 }
 func (v Value) Text() (string, error) {
-	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && !v.typ.IsCitext() && v.typ.id != Name && v.typ.id != Regclass && v.typ.id != Regtype && v.typ.id != Char) {
+	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && !v.typ.IsCitext() && v.typ.id != Refcursor && v.typ.id != Name && v.typ.id != Regclass && v.typ.id != Regtype && v.typ.id != Char) {
 		return "", fmt.Errorf("not a text value")
 	}
 	if v.typ.id == Regtype {
@@ -749,7 +751,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || IsCharacter(d.id) || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -844,6 +846,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.numericInput(text, typmod)
 	case Timestamp, Timestamptz:
 		return d.civilInput(text, typmod, env)
+	case Refcursor:
+		return String(d, text), nil
 	case Text, BPChar, VarChar:
 		return sizeCharacter(String(d, text), typmod, false)
 	case Regconfig, Regdictionary:
@@ -1221,7 +1225,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return env.Regclass.FormatRegclass(uint32(n))
 		}
 		return v.Text()
-	case Text, BPChar, VarChar, Name, JSON:
+	case Refcursor, Text, BPChar, VarChar, Name, JSON:
 		return v.text, nil
 	case JSONB:
 		if v.jsonb == nil {
@@ -1449,7 +1453,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
-	case Text, BPChar, VarChar, Name, JSON:
+	case Refcursor, Text, BPChar, VarChar, Name, JSON:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case JSONB, JSONPath:
 		text, err := d.Output(ctx, v)
@@ -1763,7 +1767,7 @@ func BaselineCastType(id ID) bool {
 // Admission of a type does not add conversion edges to PlanCoercion.
 func StoredScalarCastType(id ID) bool {
 	switch id {
-	case TSVector, TSQuery, Box, Point, Lseg, Circle, Line, Path, Polygon:
+	case Refcursor, TSVector, TSQuery, Box, Point, Lseg, Circle, Line, Path, Polygon:
 		return true
 	case PgSnapshot:
 		return true
@@ -1825,6 +1829,16 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if source.Type.id == Refcursor || target.Type.id == Refcursor {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
 	if source.Type.IsCitext() || target.Type.IsCitext() {
 		return p.planCitext()
 	}

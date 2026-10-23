@@ -149,6 +149,9 @@ func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltyp
 		return false, nil
 	}
 	if captured.SQL.PL != nil {
+		if !captured.SQL.PL.SameLayout(current.SQL.PL) {
+			return false, nil
+		}
 		if len(current.SQL.PL.Variables) != len(captured.SQL.PL.Variables) {
 			return false, nil
 		}

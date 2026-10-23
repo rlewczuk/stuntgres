@@ -111,6 +111,18 @@ assignment-target tokens, not SQL AST node kinds. It shares identifier/Unicode
 decoding with the lexer and applies PL's reserved-word list and greedy,
 non-overlapping names of at most three parts; a following call parenthesis does
 not change recognition.
+Cursor declarations and OPEN/FETCH/MOVE/CLOSE/FOR statements have explicit
+positioned payloads. Motion counts remain expressions; counted multirow FETCH
+syntax remains distinguishable from single-row motion for checked compilation.
+Bound actuals preserve names, separator positions and original expression spans.
+Declaration/open queries, dynamic commands, each USING expression, motion counts
+and FETCH target lists retain the same grammar-owned token-content boundaries as
+ordinary PL expressions. Spans exclude leading/trailing trivia and delimiters,
+preserve grouping/interior comments, and distinguish UTF8 byte/character offsets.
+The statement keyword position remains separate from its operand/query origin.
+Fixed FIRST/LAST token ends do not depend on scanner lookahead. Dynamic OPEN
+retains an expression and ordered USING list, not a second SQL parser; diagnostic
+text is sliced from these boundaries and never rescanned into executable syntax.
 
 ## Testing
 

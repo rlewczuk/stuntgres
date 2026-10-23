@@ -464,7 +464,9 @@ func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, au
 	if scope.sqlRoutine.definition != nil {
 		return analyze.DescribeRoutine(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.name, scope.sqlRoutine.inputCollation)
 	}
-	return analyze.Describe(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, false, scope.initialParameters)
+	// Dynamic cursor USING is a closed positional frame, not a public
+	// parameter-inference request. Static PL queries returned above.
+	return analyze.Describe(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, scope.sqlRoutine.cursor != nil, scope.initialParameters)
 }
 
 // Resolution helpers run under e.mu, using the supplied coherent view.

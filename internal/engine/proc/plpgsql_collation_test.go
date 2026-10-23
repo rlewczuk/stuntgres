@@ -26,7 +26,7 @@ func TestPLpgSQLFrameInputCollation(t *testing.T) {
 	}
 	fixed := text.Usage()
 	fixed.Collation = c
-	d := &Definition{Kind: PLpgSQLBody, Name: "frame_collation", Result: text.Usage(), Source: "DECLARE a ALIAS FOR $1; y text := x; z y%TYPE; u source.s%TYPE; v u%TYPE; BEGIN RETURN a; END"}
+	d := &Definition{Kind: PLpgSQLBody, Name: "frame_collation", Result: text.Usage(), Source: "DECLARE a ALIAS FOR $1; y text := x; z y%TYPE; u source.s%TYPE; v u%TYPE; e text COLLATE \"C\"; f y%TYPE COLLATE \"C\"; g source.s%TYPE COLLATE pg_catalog.pg_unicode_fast; h e%TYPE; BEGIN RETURN a; END"}
 	if err := d.SetFormals([]Formal{{Mode: "i", Name: "x", Usage: text.Usage()}}); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,11 @@ func TestPLpgSQLFrameInputCollation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := CompilePL(d, raw, false, func(raw parser.PLType) (sqltype.Usage, bool, error) {
+	boolean := plUnitBuiltin(t, sqltype.Bool).Usage()
+	p, err := CompilePL(d, raw, false, plUnitCollation(t), func(raw parser.PLType) (sqltype.Usage, bool, error) {
+		if raw.Type.Name == "boolean" || raw.Type.Name == "bool" {
+			return boolean, false, nil
+		}
 		if len(raw.Copy.Parts) != 0 {
 			return fixed, false, nil
 		}
@@ -75,17 +79,21 @@ func TestPLpgSQLFrameInputCollation(t *testing.T) {
 			t.Fatal("activation mutated published usage")
 		}
 	}
-	for _, name := range []string{"u", "v"} {
+	for _, name := range []string{"u", "v", "e", "f", "h"} {
 		slot := body.Bindings[name]
 		if p.Variables[slot].InheritInputCollation || first.Usage(slot) != fixed || second.Usage(slot) != fixed {
 			t.Fatal("column/local copy lost fixed source provenance", name)
 		}
 	}
+	g := body.Bindings["g"]
+	if p.Variables[g].InheritInputCollation || first.Usage(g).Collation != unicode || second.Usage(g).Collation != unicode || second.Usage(body.Bindings["u"]) != fixed {
+		t.Fatal("copied explicit override mutated source or inherited invocation")
+	}
 	second.Close()
 	if second.InputCollation.ID != 0 || len(second.Values) != 0 || first.Usage(0).Collation != unicode || input.Parameters[0] != value {
 		t.Fatal("nested/sibling Close leaked authority or mutated caller")
 	}
-	for _, name := range []string{"y", "z", "u", "v"} {
+	for _, name := range []string{"y", "z", "u", "v", "e", "f", "g", "h"} {
 		slot := body.Bindings[name]
 		p.Variables[slot].InheritInputCollation = !p.Variables[slot].InheritInputCollation
 		if err := p.ValidateDefinition(d); err == nil {
@@ -93,4 +101,21 @@ func TestPLpgSQLFrameInputCollation(t *testing.T) {
 		}
 		p.Variables[slot].InheritInputCollation = !p.Variables[slot].InheritInputCollation
 	}
+	for _, decl := range raw.Declarations {
+		if decl.Collation != nil {
+			pos := decl.Collation.Parts[0].Pos.Offset
+			if pos < 0 || pos+7 > len(d.Source) || d.Source[pos:pos+7] != "COLLATE" {
+				t.Fatal("lost collation keyword position", pos)
+			}
+		}
+	}
+	slot := body.Bindings["e"]
+	saved := p.Variables[slot].Usage.Collation
+	for _, bad := range []sqltype.CollationRef{{}, {ID: 97000}} {
+		p.Variables[slot].Usage.Collation = bad
+		if err := p.ValidateDefinition(d); err == nil {
+			t.Fatal("forged explicit collation accepted", bad)
+		}
+	}
+	p.Variables[slot].Usage.Collation = saved
 }

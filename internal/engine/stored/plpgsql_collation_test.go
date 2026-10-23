@@ -12,6 +12,22 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+func plpgsqlUnitCollation(t *testing.T, read catalog.Read) proc.PLCollationResolver {
+	t.Helper()
+	return func(usage sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {
+		t.Helper()
+		for _, descriptor := range read.Descriptors() {
+			if collation, ok := descriptor.(*catalog.Collation); ok && collation.Name() == raw.Parts[len(raw.Parts)-1].Text {
+				ref, err := collation.Usage()
+				usage.Collation = ref
+				return usage, err
+			}
+		}
+		t.Fatalf("missing fixture collation %v", raw)
+		return sqltype.Usage{}, nil
+	}
+}
+
 func plpgsqlLocalUsageFixture(t *testing.T) (catalog.Read, *catalog.Procedure, []*sqltype.Descriptor, []*catalog.Collation) {
 	t.Helper()
 	read, relation, integer, _ := routineCaptureFixture(t)
@@ -32,8 +48,10 @@ func plpgsqlLocalUsageFixture(t *testing.T) (catalog.Read, *catalog.Procedure, [
 	}
 	types := make([]*sqltype.Descriptor, 3)
 	collations := make([]*catalog.Collation, 3)
+	base := varchar.Usage()
+	base.Typmod = 16
 	for i, name := range []string{"source", "destination", "second"} {
-		typ, err := sqltype.Domain(sqltype.ID(96000+i), name+"_text", name+"_text", varchar.Usage())
+		typ, err := sqltype.Domain(sqltype.ID(96000+i), name+"_text", name+"_text", base)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,19 +66,27 @@ func plpgsqlLocalUsageFixture(t *testing.T) (catalog.Read, *catalog.Procedure, [
 		read.State().SetDescriptor(collation.Address(), &collation)
 	}
 	usage := types[0].Usage()
-	usage.Typmod = 16
 	var err error
 	usage.Collation, err = collations[0].Usage()
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition := &proc.Definition{Kind: proc.PLpgSQLBody, Name: "copied_usage", Source: "DECLARE x local_type; BEGIN RETURN 1; END", Result: integer.Usage()}
+	if !usage.Valid() || usage.Typmod != -1 || usage.Type.DomainBase().Type != varchar || usage.Type.DomainBase().Typmod != 16 {
+		t.Fatal("invalid domain/base Usage fixture", usage)
+	}
+	definition := &proc.Definition{Kind: proc.PLpgSQLBody, Name: "copied_usage", Source: "DECLARE x local_type COLLATE source_unicode; BEGIN RETURN 1; END", Result: integer.Usage()}
 	raw, err := parser.ParsePLpgSQL(definition.Source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	definition.PLSyntax = raw
-	definition.PL, err = proc.CompilePL(definition, raw, false, func(parser.PLType) (sqltype.Usage, bool, error) { return usage, false, nil })
+	definition.PL, err = proc.CompilePL(definition, raw, false, plpgsqlUnitCollation(t, read), func(raw parser.PLType) (sqltype.Usage, bool, error) {
+		if raw.Type.Name == "boolean" || raw.Type.Name == "bool" {
+			boolean, _ := read.LookupType(sqltype.Bool)
+			return boolean.Usage(), false, nil
+		}
+		return usage, false, nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +104,8 @@ func TestPLpgSQLLocalUsageReplacement(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			read, source, types, collations := plpgsqlLocalUsageFixture(t)
-			original := source.SQL.PL.Variables[0].Usage
+			local := source.SQL.PL.Root.Statements[0].Block.Bindings["x"]
+			original := source.SQL.PL.Variables[local].Usage
 			want := original
 			mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
 			if remapped {
@@ -115,10 +142,14 @@ func TestPLpgSQLLocalUsageReplacement(t *testing.T) {
 			if !ok {
 				t.Fatal("replacement lost procedure")
 			}
-			if got := next.SQL.PL.Variables[0].Usage; got != want {
+			if got := next.SQL.PL.Variables[local].Usage; got != want {
 				t.Fatalf("local Usage after replacement %#v, want %#v", got, want)
 			}
-			if source.SQL.PL.Variables[0].Usage != original || next.SQL.PL.Variables[0].Usage.Collation.CaseMode() != original.Collation.CaseMode() {
+			got := next.SQL.PL.Variables[local].Usage
+			if !got.Valid() || got.Typmod != -1 || got.Type.DomainBase().Typmod != 16 {
+				t.Fatal("domain/base Usage changed during replacement", got)
+			}
+			if remapped && (next.SQL == source.SQL || next.SQL.PL == source.SQL.PL) || source.SQL.PL.Variables[local].Usage != original || next.SQL.PL.Variables[local].Usage.Collation.CaseMode() != original.Collation.CaseMode() {
 				t.Fatal("replacement mutated source/shared program or changed collation execution semantics")
 			}
 		})
@@ -138,6 +169,7 @@ func TestPLpgSQLLocalUsageReplacement(t *testing.T) {
 
 func TestPLpgSQLLocalUsageEquivalence(t *testing.T) {
 	read, source, types, collations := plpgsqlLocalUsageFixture(t)
+	local := source.SQL.PL.Root.Statements[0].Block.Bindings["x"]
 	identity := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
 	current := *source
 	definition := *source.SQL
@@ -152,17 +184,17 @@ func TestPLpgSQLLocalUsageEquivalence(t *testing.T) {
 	if !ok {
 		t.Fatal("missing text")
 	}
-	program.Variables[0].Usage.Collation = text.Usage().Collation
+	program.Variables[local].Usage.Collation = text.Usage().Collation
 	if same, err := sameMappedSQLRoutine(&current, source, identity, nil); err != nil || same {
 		t.Fatal("collation-only local semantic change accepted as equivalent", err)
 	}
-	if source.SQL.PL.Variables[0].Usage.Collation == program.Variables[0].Usage.Collation {
+	if source.SQL.PL.Variables[local].Usage.Collation == program.Variables[local].Usage.Collation {
 		t.Fatal("equivalence fixture mutated original lexical usage")
 	}
-	program.Variables[0].Usage = source.SQL.PL.Variables[0].Usage
-	program.Variables[0].Usage.Type = types[1]
+	program.Variables[local].Usage = source.SQL.PL.Variables[local].Usage
+	program.Variables[local].Usage.Type = types[1]
 	var err error
-	program.Variables[0].Usage.Collation, err = collations[1].Usage()
+	program.Variables[local].Usage.Collation, err = collations[1].Usage()
 	if err != nil {
 		t.Fatal(err)
 	}

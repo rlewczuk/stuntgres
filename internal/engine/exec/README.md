@@ -148,6 +148,14 @@ OVERLAPS route. Preflight reaches the engine only through `Preparation` and runs
 outside engine and publication locks. Conditional planning keeps every analyzed
 dependency and authorization even when it removes a branch; held parameters are
 reconsidered on every execution, never stored as planning facts.
+Only a private PL query-preflight context opts into failure provenance: actual
+`Eval` failures retain whether that computation consumed imported parameters or
+SQL constants, and the current computation shadows a nested callee's origin.
+The original context is not marked or retained; prepared domain checks propagate
+back through the existing copyback seam. Routine-admission failures occur before
+this boundary and remain unmarked. Ordinary preflight returns the original provider
+error unchanged, including its direct SQL error interface. Opted-in failure wrappers
+preserve the original cause for diagnostic decoration.
 
 `StrictRoutineArguments` maps expression children to actual nullable call
 formals for both permission admission and parameter-NULL folding. Expanded

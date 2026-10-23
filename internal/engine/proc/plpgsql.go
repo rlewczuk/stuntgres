@@ -22,21 +22,26 @@ type PLProgram struct {
 	Procedure   bool
 	SearchCount int
 	Trigger     bool
+	FoundSlot   int
+	Source      string
 }
 type PLVariable struct {
 	Name                      string
 	Usage                     sqltype.Usage
 	Constant, NotNull, Record bool
 	InheritInputCollation     bool
+	Role                      PLSlotRole
+	Cursor                    *PLCursorRecipe
 }
 type PLBlock struct {
-	Syntax       *parser.PLBlock
-	Label        string
-	Bindings     map[string]int
-	Declarations []PLInitializer
-	Statements   []PLInstruction
-	HandlerScope *PLBlock
-	Handlers     []PLHandler
+	Syntax        *parser.PLBlock
+	Label         string
+	FunctionScope bool // Implicit FOUND overlay; Bindings remains the canonical formal namespace.
+	Bindings      map[string]int
+	Declarations  []PLInitializer
+	Statements    []PLInstruction
+	HandlerScope  *PLBlock
+	Handlers      []PLHandler
 }
 type PLCondition struct {
 	Codes  []string
@@ -67,6 +72,7 @@ type PLInstruction struct {
 	Target PLTarget
 	If     *PLConditional
 	Case   *PLConditional
+	Cursor *PLCursorInstruction
 }
 type PLConditional struct {
 	Search     *parser.Select
@@ -127,12 +133,17 @@ func PLReturnPolicy(result sqltype.Usage, outputs int, procedure bool) parser.PL
 }
 
 type PLTypeResolver func(parser.PLType) (sqltype.Usage, bool, error)
+type PLCollationResolver func(sqltype.Usage, *parser.ObjectName) (sqltype.Usage, error)
 
-func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, resolve PLTypeResolver) (*PLProgram, error) {
-	p := &PLProgram{Syntax: syntax, FormalCount: len(definition.Formals), Function: definition.Name, Procedure: procedure}
+func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, collate PLCollationResolver, resolve PLTypeResolver) (*PLProgram, error) {
+	if resolve == nil || collate == nil {
+		return nil, fmt.Errorf("stuntgres: missing PL declaration resolver")
+	}
+	p := &PLProgram{Syntax: syntax, FormalCount: len(definition.Formals), Function: definition.Name, Procedure: procedure, Source: definition.Source}
 	returnPolicy := PLReturnPolicy(definition.Result, len(definition.OutputFormals), procedure)
 	var diagnostics plDiagnosticDatums
-	outer := &PLBlock{Label: definition.Name, Bindings: make(map[string]int)}
+	outer := &PLBlock{Label: definition.Name, Bindings: make(map[string]int), FunctionScope: true}
+	p.Root = outer
 	if definition.Trigger {
 		if procedure || len(definition.Formals) != 0 || definition.Result.Type == nil || definition.Result.Type.ID() != 2279 {
 			return nil, fmt.Errorf("stuntgres: invalid PL trigger declaration")
@@ -159,6 +170,15 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 			outer.Bindings[name] = i
 		}
 	}
+	found, record, err := resolve(parser.PLType{Type: parser.TypeName{Name: "bool", Schema: &parser.Identifier{Text: "pg_catalog"}}})
+	if err != nil {
+		return nil, err
+	}
+	if record || found.Type == nil || found.Type.ID() != sqltype.Bool {
+		return nil, fmt.Errorf("stuntgres: missing PL FOUND boolean type")
+	}
+	p.FoundSlot = len(p.Variables)
+	p.Variables = append(p.Variables, PLVariable{Name: "found", Usage: found, Role: PLFoundSlot})
 	var compile func(*parser.PLBlock, []*PLBlock) (*PLBlock, error)
 	var compileStatements func([]parser.PLStatement, []*PLBlock) ([]PLInstruction, error)
 	var compileConditional func(*parser.PLConditional, bool, []*PLBlock) (*PLConditional, error)
@@ -209,7 +229,7 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 			return nil, err
 		}
 		if simple {
-			checked.SearchName = diagnostics.finishCase(len(p.Variables))
+			checked.SearchName = diagnostics.finishCase(len(p.Variables) - 1) // FOUND already has a real slot.
 			prefix := "\"" + checked.SearchName + "\" IN ("
 			for i, arm := range raw.Arms {
 				branch := &checked.Arms[i]
@@ -235,6 +255,26 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 			}
 			var err error
 			switch {
+			case statement.Cursor != nil:
+				cursor, err := p.compileCursor(statement.Cursor, scopes, statement.Pos)
+				if err != nil {
+					return nil, err
+				}
+				instruction.Cursor = cursor
+				if err := diagnostics.cursor(p, definition.Source, statement.Cursor, cursor, scopes); err != nil {
+					return nil, err
+				}
+				if statement.Cursor.Loop != nil {
+					loopSlot := len(p.Variables)
+					p.Variables = append(p.Variables, PLVariable{Name: statement.Cursor.LoopName.Text, Record: true, Role: PLLoopRecordSlot})
+					loopScope := &PLBlock{Bindings: map[string]int{statement.Cursor.LoopName.Text: loopSlot}}
+					loop, err := compile(statement.Cursor.Loop, append(scopes, loopScope))
+					if err != nil {
+						return nil, err
+					}
+					loopScope.Statements = []PLInstruction{{Block: loop}}
+					cursor.Loop, cursor.LoopSlot = loopScope, loopSlot
+				}
 			case statement.Block != nil:
 				instruction.Block, err = compile(statement.Block, scopes)
 			case statement.If != nil:
@@ -261,7 +301,9 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 				}
 			default:
 				instruction.Target, err = p.ResolveTarget(statement.Target, scopes)
-				if err == nil && p.Variables[instruction.Target.Slot].Constant {
+				if err != nil {
+					return nil, plUnknownTargetError(statement.Target, err)
+				} else if p.Variables[instruction.Target.Slot].Constant {
 					err = parser.PLPositionError("22005", fmt.Sprintf("variable %q is declared CONSTANT", p.Variables[instruction.Target.Slot].Name), statement.Pos)
 				}
 			}
@@ -279,6 +321,12 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 			if _, exists := block.Bindings[decl.Name.Text]; exists {
 				return nil, parser.PLPositionError("42601", fmt.Sprintf("duplicate declaration at or near %q", decl.Name.Text), decl.Name.Pos)
 			}
+			if decl.Cursor != nil {
+				if err := p.compileCursorDeclaration(decl, block, scopes, collate, resolve, &diagnostics); err != nil {
+					return nil, err
+				}
+				continue
+			}
 			if decl.Alias != nil {
 				target, err := p.ResolveTarget(decl.Alias, scopes)
 				if err != nil {
@@ -290,25 +338,7 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 				block.Bindings[decl.Name.Text] = target.Slot
 				continue
 			}
-			var usage sqltype.Usage
-			var record bool
-			var err error
-			inherit := false
-			if len(decl.Type.Copy.Parts) > 0 && !decl.Type.Row {
-				names := plNames(decl.Type.Copy)
-				if slot, found := p.Lookup(names, scopes); found {
-					usage = p.Variables[slot].Usage
-					record = p.Variables[slot].Record
-					inherit = p.Variables[slot].InheritInputCollation
-				} else if len(names) == 1 {
-					return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: fmt.Sprintf("variable %q does not exist", names[0]), Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line %d", definition.Name, strings.Count(definition.Source[:decl.Name.Pos.Offset], "\n")+1)}
-				} else {
-					usage, record, err = resolve(decl.Type)
-				}
-			} else {
-				usage, record, err = resolve(decl.Type)
-				inherit = !record && usage.Collation.ID != 0 && len(decl.Type.Copy.Parts) == 0
-			}
+			usage, record, inherit, err := p.resolvePLVariableType(decl, scopes, collate, resolve)
 			if err != nil {
 				return nil, err
 			}
@@ -371,7 +401,6 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 	}
 	// Function formals retain their implicit outer label for expression lookup.
 	outer.Statements = []PLInstruction{{Block: root}}
-	p.Root = outer
 	return p, nil
 }
 func plNames(name parser.ObjectName) []string {
@@ -387,6 +416,9 @@ func (p *PLProgram) Lookup(names []string, scopes []*PLBlock) (int, bool) {
 	}
 	if len(names) == 1 {
 		for i := len(scopes) - 1; i >= 0; i-- {
+			if names[0] == "found" && scopes[i].FunctionScope {
+				return p.FoundSlot, true
+			}
 			if slot, ok := scopes[i].Bindings[names[0]]; ok {
 				return slot, true
 			}
@@ -395,6 +427,9 @@ func (p *PLProgram) Lookup(names []string, scopes []*PLBlock) (int, bool) {
 	if len(names) == 2 {
 		for i := len(scopes) - 1; i >= 0; i-- {
 			if scopes[i].Label == names[0] {
+				if names[1] == "found" && scopes[i].FunctionScope {
+					return p.FoundSlot, true
+				}
 				slot, ok := scopes[i].Bindings[names[1]]
 				return slot, ok
 			}
@@ -460,6 +495,24 @@ func plTargetPath(raw parser.Expr) (parser.Expr, []parser.TargetStep, bool) {
 	}
 }
 
+// Field targets now retain ordered steps instead of a flattened ColumnExpr.
+// Keep the same complete unknown-variable diagnostic for either representation.
+func plUnknownTargetError(raw parser.Expr, fallback error) error {
+	root, steps, ok := plTargetPath(raw)
+	column, named := root.(parser.ColumnExpr)
+	if !ok || !named {
+		return fallback
+	}
+	names := plNames(column.Name)
+	for _, step := range steps {
+		if step.Field == nil {
+			return fallback
+		}
+		names = append(names, step.Field.Text)
+	}
+	return parser.PLPositionError("42601", fmt.Sprintf("%q is not a known variable", strings.Join(names, ".")), raw.SourcePosition())
+}
+
 // PLFrame owns all invocation values; definitions and caller parameters remain
 // immutable. Exiting a block erases only its declarations, not aliased slots.
 type PLFrame struct {
@@ -488,11 +541,17 @@ func NewPLFrame(p *PLProgram, d *Definition, input *Frame, collation sqltype.Col
 			f.Values[formal] = input.Parameters[index]
 		}
 	}
+	f.SetFound(false)
 	return f
 }
 func (f *PLFrame) Enter(block *PLBlock) { f.Scopes = append(f.Scopes, block) }
 func (f *PLFrame) Leave(block *PLBlock) {
 	for _, decl := range block.Declarations {
+		if recipe := f.Program.Variables[decl.Slot].Cursor; recipe != nil {
+			for _, slot := range recipe.Arguments {
+				f.Values[slot] = sqltype.Value{}
+			}
+		}
 		f.Values[decl.Slot] = sqltype.Value{}
 	}
 	f.Scopes = f.Scopes[:len(f.Scopes)-1]
@@ -540,4 +599,35 @@ func plExpressionQuery(raw parser.Expr) *parser.Select {
 		return nil
 	}
 	return &parser.Select{Targets: []parser.Expr{raw}, Pos: raw.SourcePosition()}
+}
+
+func (p *PLProgram) resolvePLVariableType(decl parser.PLDeclaration, scopes []*PLBlock, collate PLCollationResolver, resolve PLTypeResolver) (sqltype.Usage, bool, bool, error) {
+	var usage sqltype.Usage
+	var record, inherit, local bool
+	if len(decl.Type.Copy.Parts) > 0 && !decl.Type.Row {
+		names := plNames(decl.Type.Copy)
+		if slot, found := p.Lookup(names, scopes); found {
+			v := p.Variables[slot]
+			usage, record, inherit, local = v.Usage, v.Record, v.InheritInputCollation, true
+		} else if len(names) == 1 {
+			return sqltype.Usage{}, false, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: fmt.Sprintf("variable %q does not exist", names[0]), Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line %d", p.Function, strings.Count(p.Source[:decl.Name.Pos.Offset], "\n")+1)}
+		}
+	}
+	if !local {
+		var err error
+		usage, record, err = resolve(decl.Type)
+		if err != nil {
+			return usage, record, false, err
+		}
+		inherit = !record && usage.Collation.ID != 0 && len(decl.Type.Copy.Parts) == 0
+	}
+	if decl.Collation != nil {
+		var err error
+		usage, err = collate(usage, decl.Collation)
+		if err != nil {
+			return usage, record, false, err
+		}
+		inherit = false
+	}
+	return usage, record, inherit, nil
 }

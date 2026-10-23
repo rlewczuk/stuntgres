@@ -87,6 +87,9 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if v != nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: unnormalized byte argument")
 		}
+		if target.Type.BaseType().ID() == sqltype.Refcursor {
+			return sqltype.Null(target.Type), nil
+		}
 		if target.Type.ContainsRegproc() {
 			return sqltype.Null(target.Type), nil
 		}
@@ -274,7 +277,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Integer()
 	case sqltype.Float4, sqltype.Float8:
 		return v.Float()
-	case sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.Regclass:
+	case sqltype.Refcursor, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.Regclass:
 		return v.Text()
 	case sqltype.Bool:
 		return v.Boolean()
@@ -304,6 +307,8 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
+	case sqltype.Refcursor:
+		return reflect.TypeFor[string]()
 	case sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Regtype, sqltype.Regproc, sqltype.Regprocedure, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary, sqltype.Char:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:

@@ -9,20 +9,21 @@ import (
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"unicode/utf8"
 )
 
-// ValidateDefinition checks slot bounds and exact parser/block associations.
-// Catalog ownership of each typed Usage remains the procedure provider's job.
+// ValidateDefinition validates the complete immutable checked layout. Typed
+// descriptor ownership is checked separately by the catalog procedure provider.
 func (p *PLProgram) ValidateDefinition(d *Definition) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid checked PL program") }
-	if p == nil || d == nil || d.Kind != PLpgSQLBody || d.PL != p || p.Syntax == nil || p.Syntax != d.PLSyntax || p.Root == nil || p.Root.Syntax != nil || len(p.Root.Statements) != 1 || p.Root.Statements[0].Block == nil || p.FormalCount != len(d.Formals) || len(p.Variables) < p.FormalCount || p.Function != d.Name || p.SearchCount < 0 {
+	if p == nil || d == nil || d.Kind != PLpgSQLBody || d.PL != p || p.Syntax == nil || p.Syntax != d.PLSyntax || p.Root == nil || !p.Root.FunctionScope || p.Root.Syntax != nil || len(p.Root.Statements) != 1 || p.Root.Statements[0].Block == nil || p.FormalCount != len(d.Formals) || p.Function != d.Name || p.Source != d.Source || p.SearchCount < 0 {
 		return invalid()
 	}
-	outer := p.Root.Statements[0]
-	if p.Root.Label != p.Function || len(p.Root.Declarations) != 0 || len(p.Root.Handlers) != 0 || p.Root.HandlerScope != nil || outer.Syntax != nil || outer.Query != nil || outer.Target.Slot != 0 || len(outer.Target.Steps) != 0 {
+	if p.Root.Label != p.Function || len(p.Root.Declarations) != 0 || len(p.Root.Handlers) != 0 || p.Root.HandlerScope != nil || p.Root.Statements[0].Syntax != nil || !emptyPLInstructionPayload(p.Root.Statements[0]) {
 		return invalid()
 	}
 	bindings := p.FormalCount
+	formalBindings := make(map[string]int)
 	if p.Trigger != d.Trigger || d.Trigger && (p.Procedure || len(d.Formals) != 0 || d.Result.Type == nil || d.Result.Type.ID() != 2279 || len(p.Variables) < TriggerSlotCount) {
 		return invalid()
 	}
@@ -30,9 +31,10 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		bindings = TriggerSlotCount
 		for i, name := range triggerNames {
 			v := p.Variables[i]
-			if v.Name != name || p.Root.Bindings[name] != i || v.Record != (i < 2) || v.Constant || v.NotNull || v.InheritInputCollation {
+			if v.Name != name || v.Record != (i < 2) || v.Constant || v.NotNull || v.InheritInputCollation || v.Role != PLOrdinarySlot || v.Cursor != nil {
 				return invalid()
 			}
+			formalBindings[name] = i
 			if i >= 2 {
 				if v.Usage.Type == nil || uint32(v.Usage.Type.ID()) != triggerTypes[i] || v.Usage != v.Usage.Type.Usage() {
 					return invalid()
@@ -40,29 +42,35 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			}
 		}
 	}
-	for i, formal := range d.Formals {
-		variable := p.Variables[i]
-		positional := "$" + strconv.Itoa(i+1)
-		bound, exists := p.Root.Bindings[positional]
-		if !exists || variable.Name != formal.Name || variable.Usage != formal.Usage || variable.Record || variable.Constant || variable.NotNull || variable.InheritInputCollation != (formal.Usage.Collation.ID != 0) || bound != i {
-			return invalid()
-		}
-		if formal.Name != "" {
-			bindings++
-			named, exists := p.Root.Bindings[formal.Name]
-			if !exists || named != i || formal.Name == positional {
-				return invalid()
-			}
-		}
-	}
-	if len(p.Root.Bindings) != bindings {
+	if p.FoundSlot != bindings || len(p.Variables) <= bindings {
 		return invalid()
 	}
-	slot := p.FormalCount
-	var diagnostics plDiagnosticDatums
-	if d.Trigger {
-		slot = TriggerSlotCount
+	for i, formal := range d.Formals {
+		v := p.Variables[i]
+		if v.Name != formal.Name || v.Usage != formal.Usage || v.Record || v.Constant || v.NotNull || v.Role != PLOrdinarySlot || v.Cursor != nil || v.InheritInputCollation != (formal.Usage.Collation.ID != 0) {
+			return invalid()
+		}
+		positional := "$" + strconv.Itoa(i+1)
+		if _, exists := formalBindings[positional]; exists {
+			return invalid()
+		}
+		formalBindings[positional] = i
+		if formal.Name != "" {
+			if _, exists := formalBindings[formal.Name]; exists {
+				return invalid()
+			}
+			formalBindings[formal.Name] = i
+		}
 	}
+	if !maps.Equal(formalBindings, p.Root.Bindings) || p.Root.Label != p.Function || len(p.Root.Declarations) != 0 {
+		return invalid()
+	}
+	var diagnostics plDiagnosticDatums
+	found := p.Variables[p.FoundSlot]
+	if found.Name != "found" || found.Role != PLFoundSlot || found.Record || found.Constant || found.NotNull || found.Cursor != nil || found.InheritInputCollation || !found.Usage.Valid() || found.Usage.Type.ID() != sqltype.Bool {
+		return invalid()
+	}
+	slot := bindings + 1
 	var walk func(*PLBlock, *parser.PLBlock, []*PLBlock) error
 	searches := 0
 	queries := make(map[*parser.Select]bool)
@@ -137,7 +145,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			return err
 		}
 		if simple {
-			if checked.SearchName != diagnostics.finishCase(slot) {
+			if checked.SearchName != diagnostics.finishCase(slot-1) {
 				return invalid()
 			}
 			prefix := "\"" + checked.SearchName + "\" IN ("
@@ -168,7 +176,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			variants := 0
-			for _, present := range []bool{raw.Block != nil, raw.If != nil, raw.Case != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
+			for _, present := range []bool{raw.Block != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
 				if present {
 					variants++
 				}
@@ -177,12 +185,44 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			switch {
+			case raw.Cursor != nil:
+				if instruction.Block != nil || instruction.If != nil || instruction.Case != nil || instruction.Query != nil || instruction.Cursor == nil || instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 || raw.Expression != nil {
+					return invalid()
+				}
+				if !p.validCursorInstruction(raw.Cursor, instruction.Cursor, scopes) {
+					return invalid()
+				}
+				if err := diagnostics.cursor(p, d.Source, raw.Cursor, instruction.Cursor, scopes); err != nil {
+					return invalid()
+				}
+				if query := instruction.Cursor.ArgumentQuery; query != nil {
+					if queries[query] {
+						return invalid()
+					}
+					queries[query] = true
+				}
+				if raw.Cursor.Loop != nil {
+					loop := instruction.Cursor.Loop
+					if slot >= len(p.Variables) || instruction.Cursor.LoopSlot != slot || loop == nil || loop.FunctionScope || loop.Syntax != nil || loop.Label != "" || len(loop.Declarations) != 0 || len(loop.Statements) != 1 || loop.Statements[0].Syntax != nil || !emptyPLInstructionPayload(loop.Statements[0]) || len(loop.Bindings) != 1 || loop.Bindings[raw.Cursor.LoopName.Text] != slot || loop.HandlerScope != nil || len(loop.Handlers) != 0 {
+						return invalid()
+					}
+					v := p.Variables[slot]
+					if v.Name != raw.Cursor.LoopName.Text || !v.Record || v.Role != PLLoopRecordSlot || v.Usage != (sqltype.Usage{}) || v.Constant || v.NotNull || v.Cursor != nil || v.InheritInputCollation {
+						return invalid()
+					}
+					slot++
+					if err := walk(loop.Statements[0].Block, raw.Cursor.Loop, append(scopes, loop)); err != nil {
+						return err
+					}
+				} else if instruction.Cursor.Loop != nil || instruction.Cursor.LoopSlot != -1 {
+					return invalid()
+				}
 			case raw.Block != nil:
-				if instruction.Query != nil || instruction.If != nil || instruction.Case != nil || walk(instruction.Block, raw.Block, scopes) != nil {
+				if !emptyPLInstructionPayload(instruction) || walk(instruction.Block, raw.Block, scopes) != nil {
 					return invalid()
 				}
 			case raw.If != nil || raw.Case != nil:
-				if instruction.Query != nil || instruction.Block != nil {
+				if instruction.Query != nil || instruction.Block != nil || instruction.Cursor != nil || instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 || raw.Expression != nil {
 					return invalid()
 				}
 				checked, conditional := instruction.If, raw.If
@@ -198,11 +238,11 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 					return err
 				}
 			case raw.Rethrow:
-				if raw.Return || raw.Target != nil || raw.Expression != nil || instruction.Block != nil || instruction.If != nil || instruction.Case != nil || instruction.Query != nil || instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 {
+				if raw.Expression != nil || instruction.Block != nil || !emptyPLInstructionPayload(instruction) {
 					return invalid()
 				}
 			default:
-				if instruction.Block != nil || instruction.If != nil || instruction.Case != nil || !query(instruction.Query, raw.Expression) {
+				if instruction.Block != nil || instruction.If != nil || instruction.Case != nil || instruction.Cursor != nil || !query(instruction.Query, raw.Expression) {
 					return invalid()
 				}
 				if !raw.Return {
@@ -225,19 +265,20 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		return nil
 	}
 	walk = func(block *PLBlock, raw *parser.PLBlock, scopes []*PLBlock) error {
-		if block == nil || raw == nil || block.Syntax != raw || block.Label != raw.Label.Text || len(block.Statements) != len(raw.Statements) {
+		if block == nil || raw == nil || block.FunctionScope || block.Syntax != raw || block.Label != raw.Label.Text || len(block.Statements) != len(raw.Statements) {
 			return invalid()
 		}
-		for _, bound := range block.Bindings {
-			if bound < 0 || bound >= len(p.Variables) {
-				return invalid()
-			}
-		}
-		initial := 0
 		visible := &PLBlock{Label: block.Label, Bindings: make(map[string]int)}
 		scopes = append(scopes, visible)
+		initial := 0
 		for _, decl := range raw.Declarations {
+			if _, exists := visible.Bindings[decl.Name.Text]; exists {
+				return invalid()
+			}
 			if decl.Alias != nil {
+				if decl.Collation != nil {
+					return invalid()
+				}
 				target, err := p.ResolveTarget(decl.Alias, scopes)
 				if err != nil || len(target.Steps) != 0 || block.Bindings[decl.Name.Text] != target.Slot {
 					return invalid()
@@ -249,36 +290,97 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			initializer := block.Declarations[initial]
-			variable := p.Variables[slot]
-			if initializer.Slot != slot || initializer.Start != decl.DefaultStart || initializer.End != decl.DefaultEnd || initializer.Delimiter != decl.DefaultDelimiter || block.Bindings[decl.Name.Text] != slot || variable.Name != decl.Name.Text || variable.Constant != decl.Constant || variable.NotNull != decl.NotNull || !reflect.DeepEqual(initializer.Expression, decl.Default) || !query(initializer.Query, decl.Default) {
+			v := p.Variables[slot]
+			if initializer.Slot != slot || initializer.Start != decl.DefaultStart || initializer.End != decl.DefaultEnd || initializer.Delimiter != decl.DefaultDelimiter || block.Bindings[decl.Name.Text] != slot || v.Name != decl.Name.Text || v.Role != PLOrdinarySlot || v.Constant != decl.Constant || v.NotNull != decl.NotNull || !reflect.DeepEqual(initializer.Expression, decl.Default) || !query(initializer.Query, decl.Default) {
 				return invalid()
 			}
 			if !plSourceSpan(d.Source, decl.Default, decl.DefaultStart, decl.DefaultEnd, decl.DefaultDelimiter) {
 				return invalid()
 			}
-			inherit := !variable.Record && variable.Usage.Collation.ID != 0 && len(decl.Type.Copy.Parts) == 0
-			if len(decl.Type.Copy.Parts) > 0 && !decl.Type.Row {
-				if source, found := p.Lookup(plNames(decl.Type.Copy), scopes); found {
-					inherit = p.Variables[source].InheritInputCollation
+			if decl.Default == nil {
+				if initializer.Scope != nil {
+					return invalid()
 				}
-			}
-			if variable.InheritInputCollation != inherit {
-				return invalid()
-			}
-			if initializer.Query != nil && (initializer.Scope == nil || initializer.Scope.Label != visible.Label || !maps.Equal(initializer.Scope.Bindings, visible.Bindings)) {
+			} else if !samePLScope(initializer.Scope, visible) {
 				return invalid()
 			}
 			if err := diagnostics.expression(p, d.Source, decl.DefaultStart, decl.DefaultEnd, scopes); err != nil {
 				return invalid()
 			}
-			visible.Bindings[decl.Name.Text] = slot
+			if decl.Cursor != nil {
+				recipe := v.Cursor
+				if decl.Collation != nil || recipe == nil || recipe.Syntax != decl.Cursor || recipe.Slot != slot || v.Record || v.Usage.Type == nil || v.Usage.Type.ID() != sqltype.Refcursor || v.InheritInputCollation || len(recipe.Arguments) != len(decl.Cursor.Arguments) || len(recipe.Scopes) != len(scopes)+1 {
+					return invalid()
+				}
+				if !plQuerySpan(d.Source, decl.Cursor.Query, decl.Cursor.QueryStart, decl.Cursor.QueryEnd, decl.Cursor.QueryDelimiter) {
+					return invalid()
+				}
+				for i, scope := range scopes {
+					if !samePLScope(recipe.Scopes[i], scope) {
+						return invalid()
+					}
+				}
+				argumentScope := recipe.Scopes[len(scopes)]
+				if argumentScope == nil || argumentScope.Label != decl.Name.Text || len(argumentScope.Bindings) != len(recipe.Arguments) {
+					return invalid()
+				}
+				cursorSlot := slot
+				slot++
+				argumentVisible := &PLBlock{Label: decl.Name.Text, Bindings: make(map[string]int)}
+				argumentScopes := append(scopes, argumentVisible)
+				for i, arg := range decl.Cursor.Arguments {
+					if slot >= len(p.Variables) || recipe.Arguments[i] != slot {
+						return invalid()
+					}
+					argument := p.Variables[slot]
+					bound, ok := argumentScope.Bindings[arg.Name.Text]
+					inherit := argument.Usage.Collation.ID != 0 && len(arg.Type.Copy.Parts) == 0
+					if len(arg.Type.Copy.Parts) > 0 && !arg.Type.Row {
+						if source, found := p.Lookup(plNames(arg.Type.Copy), argumentScopes); found {
+							inherit = p.Variables[source].InheritInputCollation
+						}
+					}
+					if arg.Collation != nil || !ok || bound != slot || argument.Name != arg.Name.Text || argument.Role != PLCursorArgumentSlot || argument.Record || argument.Constant || argument.NotNull || argument.Cursor != nil || argument.InheritInputCollation != inherit {
+						return invalid()
+					}
+					if _, exists := argumentVisible.Bindings[arg.Name.Text]; exists {
+						return invalid()
+					}
+					argumentVisible.Bindings[arg.Name.Text] = slot
+					slot++
+				}
+				if !samePLScope(argumentScope, argumentVisible) {
+					return invalid()
+				}
+				if err := diagnostics.cursorDeclaration(p, d.Source, decl.Cursor, argumentScopes); err != nil {
+					return invalid()
+				}
+				visible.Bindings[decl.Name.Text] = cursorSlot
+			} else {
+				if v.Cursor != nil || v.Record && v.Usage != (sqltype.Usage{}) {
+					return invalid()
+				}
+				inherit := !v.Record && v.Usage.Collation.ID != 0 && len(decl.Type.Copy.Parts) == 0
+				if len(decl.Type.Copy.Parts) > 0 && !decl.Type.Row {
+					if source, found := p.Lookup(plNames(decl.Type.Copy), scopes); found {
+						inherit = p.Variables[source].InheritInputCollation
+					}
+				}
+				if decl.Collation != nil {
+					if v.Record || !v.Usage.Valid() || v.Usage.Type.Usage().Collation.ID == 0 || v.Usage.Collation.ID == 0 || !v.Usage.Collation.Valid() {
+						return invalid()
+					}
+					inherit = false
+				}
+				if v.InheritInputCollation != inherit {
+					return invalid()
+				}
+				visible.Bindings[decl.Name.Text] = slot
+				slot++
+			}
 			initial++
-			slot++
 		}
-		if initial != len(block.Declarations) {
-			return invalid()
-		}
-		if !maps.Equal(visible.Bindings, block.Bindings) {
+		if initial != len(block.Declarations) || !maps.Equal(visible.Bindings, block.Bindings) {
 			return invalid()
 		}
 		if err := walkList(block.Statements, raw.Statements, scopes); err != nil {
@@ -294,7 +396,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			return nil
 		}
 		scope := block.HandlerScope
-		if scope == nil || scope.Syntax != nil || scope.Label != "" || len(scope.Bindings) != 2 || len(scope.Declarations) != 0 || len(scope.Statements) != 0 || len(scope.Handlers) != 0 || scope.HandlerScope != nil {
+		if scope == nil || scope.FunctionScope || scope.Syntax != nil || scope.Label != "" || len(scope.Bindings) != 2 || len(scope.Declarations) != 0 || len(scope.Statements) != 0 || len(scope.Handlers) != 0 || scope.HandlerScope != nil {
 			return invalid()
 		}
 		for _, name := range []string{"sqlstate", "sqlerrm"} {
@@ -303,7 +405,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			}
 			v := p.Variables[slot]
 			bound, found := scope.Bindings[name]
-			if !found || bound != slot || v.Name != name || !v.Constant || v.Record || v.NotNull || v.InheritInputCollation || !v.Usage.Valid() || v.Usage.Type.ID() != sqltype.Text {
+			if !found || bound != slot || v.Name != name || !v.Constant || v.Record || v.NotNull || v.InheritInputCollation || v.Role != PLOrdinarySlot || v.Cursor != nil || !v.Usage.Valid() || v.Usage.Type.ID() != sqltype.Text {
 				return invalid()
 			}
 			slot++
@@ -370,11 +472,28 @@ func plSourceSpan(source string, raw parser.Expr, start, end, delimiter parser.P
 	if raw == nil {
 		return start == (parser.Position{}) && end == (parser.Position{}) && delimiter == (parser.Position{})
 	}
+	return plSourceRange(source, raw.SourcePosition(), start, end, delimiter)
+}
+
+func plSourceRange(source string, position, start, end, delimiter parser.Position) bool {
 	if start.Character <= 0 || end.Character < start.Character || delimiter.Character < end.Character || start.Offset < 0 || start.Offset >= end.Offset || end.Offset > delimiter.Offset || delimiter.Offset > len(source) {
 		return false
 	}
-	position := raw.SourcePosition()
-	return position.Offset >= start.Offset && position.Offset < end.Offset
+	if position.Offset < start.Offset || position.Offset >= end.Offset {
+		return false
+	}
+	// Check local character deltas without recounting the preceding body.
+	// The positioned raw node anchors the immutable grammar-owned span.
+	return position.Character == start.Character+utf8.RuneCountInString(source[start.Offset:position.Offset]) &&
+		end.Character == position.Character+utf8.RuneCountInString(source[position.Offset:end.Offset]) &&
+		delimiter.Character == end.Character+utf8.RuneCountInString(source[end.Offset:delimiter.Offset])
+}
+
+func plQuerySpan(source string, raw *parser.Select, start, end, delimiter parser.Position) bool {
+	if raw == nil {
+		return plSourceSpan(source, nil, start, end, delimiter)
+	}
+	return plSourceRange(source, raw.Pos, start, end, delimiter)
 }
 
 func samePLTargetStep(a, b parser.TargetStep) bool {
@@ -382,4 +501,104 @@ func samePLTargetStep(a, b parser.TargetStep) bool {
 		return false
 	}
 	return a.Field == nil || *a.Field == *b.Field
+}
+
+func samePLScope(a, b *PLBlock) bool {
+	return a != nil && b != nil && a.Label == b.Label && a.FunctionScope == b.FunctionScope && a.Syntax == nil && len(a.Declarations) == 0 && len(a.Statements) == 0 && a.HandlerScope == nil && len(a.Handlers) == 0 && maps.Equal(a.Bindings, b.Bindings)
+}
+
+// SameLayout excludes typed Usage, which the caller compares through its mapping
+// authority; every cursor recipe, target and implicit namespace remains semantic.
+func (p *PLProgram) SameLayout(other *PLProgram) bool {
+	if p == nil || other == nil {
+		return p == other
+	}
+	if p.FormalCount != other.FormalCount || p.FoundSlot != other.FoundSlot || p.SearchCount != other.SearchCount || p.Trigger != other.Trigger || p.Function != other.Function || p.Procedure != other.Procedure || p.Source != other.Source || len(p.Variables) != len(other.Variables) || !reflect.DeepEqual(p.Root, other.Root) {
+		return false
+	}
+	for i, v := range p.Variables {
+		if v.Role != other.Variables[i].Role || !reflect.DeepEqual(v.Cursor, other.Variables[i].Cursor) {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *PLProgram) validCursorInstruction(raw *parser.PLCursorStatement, in *PLCursorInstruction, scopes []*PLBlock) bool {
+	if !plQuerySpan(p.Source, raw.Query, raw.QueryStart, raw.QueryEnd, raw.QueryDelimiter) ||
+		!plSourceSpan(p.Source, raw.Command, raw.CommandStart, raw.CommandEnd, raw.CommandDelimiter) ||
+		!plSourceSpan(p.Source, raw.Motion.Count, raw.Motion.CountStart, raw.Motion.CountEnd, raw.Motion.CountDelimiter) {
+		return false
+	}
+	for _, value := range raw.Using {
+		if value.Expression == nil || !plSourceSpan(p.Source, value.Expression, value.Start, value.End, value.Delimiter) {
+			return false
+		}
+	}
+	for _, actual := range raw.Arguments {
+		if actual.Expression == nil || !plSourceSpan(p.Source, actual.Expression, actual.Start, actual.End, actual.Delimiter) {
+			return false
+		}
+	}
+	var targetSource parser.Expr
+	if len(raw.Targets) != 0 {
+		targetSource = raw.Targets[0]
+	}
+	if !plSourceSpan(p.Source, targetSource, raw.TargetsStart, raw.TargetsEnd, raw.TargetsDelimiter) {
+		return false
+	}
+	target, err := p.ResolveTarget(raw.Variable, scopes)
+	if err != nil || len(target.Steps) != 0 || target.Slot != in.Slot || in.Slot < 0 || in.Slot >= len(p.Variables) {
+		return false
+	}
+	v := p.Variables[in.Slot]
+	if v.Record || !v.Usage.Valid() || v.Usage.Type.ID() != sqltype.Refcursor || raw.Action < parser.PLOpenCursor || raw.Action > parser.PLForCursor {
+		return false
+	}
+	if raw.Action == parser.PLFetchCursor && raw.Motion.Counted {
+		return false
+	}
+	if len(raw.Targets) != len(in.Targets) {
+		return false
+	}
+	for i, source := range raw.Targets {
+		target, err := p.ResolveTarget(source, scopes)
+		if err != nil || !reflect.DeepEqual(target, in.Targets[i]) || p.Variables[target.Slot].Constant {
+			return false
+		}
+	}
+	if raw.Action != parser.PLOpenCursor && raw.Action != parser.PLForCursor {
+		return len(in.Arguments) == 0 && in.ArgumentQuery == nil
+	}
+	if v.Cursor == nil {
+		return raw.Action != parser.PLForCursor && !raw.HasArguments && len(in.Arguments) == 0 && in.ArgumentQuery == nil && (raw.Query != nil || raw.Command != nil)
+	}
+	recipe := v.Cursor
+	if raw.Query != nil || raw.Command != nil || len(in.Arguments) != len(recipe.Arguments) || len(raw.Arguments) != len(recipe.Arguments) || raw.HasArguments != (len(recipe.Arguments) > 0) {
+		return false
+	}
+	for j, slot := range recipe.Arguments {
+		found := false
+		for i, actual := range raw.Arguments {
+			matches := actual.Name.Text == p.Variables[slot].Name
+			if actual.Name.Text == "" {
+				matches = i == j
+			}
+			if !matches {
+				continue
+			}
+			if found || in.Arguments[j].Slot != slot || in.Arguments[j].Scope != nil || in.Arguments[j].Query != nil || in.Arguments[j].Start != actual.Start || in.Arguments[j].End != actual.End || in.Arguments[j].Delimiter != actual.Delimiter || !reflect.DeepEqual(in.Arguments[j].Expression, actual.Expression) {
+				return false
+			}
+			found = true
+		}
+		if !found {
+			return false
+		}
+	}
+	return reflect.DeepEqual(in.ArgumentQuery, p.cursorArgumentQuery(in.Arguments, raw.Arguments)) && (in.ArgumentQuery == nil || plPrivateReferences(in.ArgumentQuery, ""))
+}
+
+func emptyPLInstructionPayload(in PLInstruction) bool {
+	return in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
 }

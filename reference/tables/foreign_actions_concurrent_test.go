@@ -58,11 +58,16 @@ func TestReferenceForeignActionsConcurrent(t *testing.T) {
 						}
 						fixture.RowAffected(t, p.Ctx, holder, holdQ, prepared, 1)
 						started := make(chan struct{})
+						finished := make(chan struct{})
 						join := fixture.LockOperation(t, p.Ctx, func(ctx context.Context) fixture.RelationOutcome {
+							defer close(finished)
 							close(started)
 							return fixture.RowExecute(ctx, waiter, waitQ, prepared)
 						})
 						<-started
+						if childFirst && !b.PG {
+							fixture.NativeDeleteRowWait(t, p.Ctx, finished)
+						}
 						foreignActionsWait(t, p, b, waiterPID, holderPID)
 						run(fixture.Exec("UPDATE p SET note='independent' WHERE id=2", 1))
 						if childFirst {

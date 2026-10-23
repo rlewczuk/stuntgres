@@ -68,7 +68,7 @@ func plDiagnosticParent(program *PLProgram, parts []parser.Identifier, scopes []
 	}
 	for i := len(scopes) - 1; i >= 0; i-- {
 		scope := scopes[i]
-		if slot, exists := scope.Bindings[parts[0].Text]; exists {
+		if slot, exists := program.Lookup([]string{parts[0].Text}, scopes[i:i+1]); exists {
 			eligible, err := plDiagnosticEligible(program, slot, len(parts) > 1)
 			if err != nil {
 				return 0, 0, false, err
@@ -78,7 +78,7 @@ func plDiagnosticParent(program *PLProgram, parts []parser.Identifier, scopes []
 			}
 		}
 		if len(parts) > 1 && scope.Label == parts[0].Text {
-			if slot, exists := scope.Bindings[parts[1].Text]; exists {
+			if slot, exists := program.Lookup([]string{parts[0].Text, parts[1].Text}, scopes[i:i+1]); exists {
 				eligible, err := plDiagnosticEligible(program, slot, len(parts) > 2)
 				if err != nil {
 					return 0, 0, false, err
@@ -109,4 +109,52 @@ func (d *plDiagnosticDatums) finishCase(realVariables int) string {
 	name := fmt.Sprintf("__Case__Variable_%d__", realVariables+d.extra+1)
 	d.extra++
 	return name
+}
+
+// Cursor ROWs are parser-private PostgreSQL datums, not executable Variables.
+// Bound query lexing precedes publication of the cursor in its enclosing scope.
+func (d *plDiagnosticDatums) cursorDeclaration(program *PLProgram, source string, raw *parser.PLCursorDeclaration, scopes []*PLBlock) error {
+	if len(raw.Arguments) != 0 {
+		d.extra++
+	}
+	return d.expression(program, source, raw.QueryStart, raw.QueryEnd, scopes)
+}
+
+func (d *plDiagnosticDatums) cursor(program *PLProgram, source string, raw *parser.PLCursorStatement, checked *PLCursorInstruction, scopes []*PLBlock) error {
+	// Actuals are lexed in WRITTEN order in the caller's namespace, before a
+	// FOR's implicit loop RECORD exists. Runtime projection order is separate.
+	for _, actual := range raw.Arguments {
+		if err := d.expression(program, source, actual.Start, actual.End, scopes); err != nil {
+			return err
+		}
+	}
+	if err := d.expression(program, source, raw.QueryStart, raw.QueryEnd, scopes); err != nil {
+		return err
+	}
+	if err := d.expression(program, source, raw.CommandStart, raw.CommandEnd, scopes); err != nil {
+		return err
+	}
+	for _, value := range raw.Using {
+		if err := d.expression(program, source, value.Start, value.End, scopes); err != nil {
+			return err
+		}
+	}
+	if err := d.expression(program, source, raw.Motion.CountStart, raw.Motion.CountEnd, scopes); err != nil {
+		return err
+	}
+	if err := d.expression(program, source, raw.TargetsStart, raw.TargetsEnd, scopes); err != nil {
+		return err
+	}
+	if raw.Action == parser.PLFetchCursor {
+		wholeRecord := false
+		if len(checked.Targets) == 1 {
+			target := checked.Targets[0]
+			variable := program.Variables[target.Slot]
+			wholeRecord = len(target.Steps) == 0 && (variable.Record || variable.Usage.Type != nil && variable.Usage.Type.BaseType().IsComposite())
+		}
+		if !wholeRecord {
+			d.extra++
+		} // One ROW per scalar target list, even singleton.
+	}
+	return nil
 }

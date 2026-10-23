@@ -99,6 +99,11 @@ production dependency is involved.
   optional completion channel is only for self-timing SQL (return then means
   observed *or* already completed); callers still join and validate the outcome.
   External cancellation barriers omit the channel.
+  `NativeUpdateRowWait` and `NativeDeleteRowWait` require the mutation's actual
+  parked row-request frame and the `LockOperation` worker in one complete live
+  native stack before its holder commits or rolls back. A started channel or
+  elapsed delay is not admission; premature worker completion fails, and the
+  caller still joins and validates its outcome.
 - **Active cancellation.** `BinaryConversionActiveCancel` and `SleepActiveCancel`
   cancel only after real admission: natively, the exact provider and fixture worker
   frames in one complete live goroutine stack (creation metadata does not count);

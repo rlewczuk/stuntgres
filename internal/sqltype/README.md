@@ -50,6 +50,13 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   severity fields; callers may attach literal positions or parameter context.
   Scalar text I/O and explicit text casts do not grant array, comparison or
   binary-codec capabilities.
+- REFCURSOR is the noncollatable OID 1790 scalar with immutable portal-name text,
+  text/binary I/O and genuine REFCURSOR metadata. Its OID 2201 array identity is a
+  catalog fact, not array execution admission. Sharing text representation grants
+  neither character operators nor implicit TEXT casts. A name carries no portal
+  ownership; physical-session lookup belongs to the engine.
+  `SameDatum` compares its immutable physical text carrier without granting any
+  SQL equality, grouping or ordering operator.
 
 ### Type identity generations
 
@@ -327,3 +334,4 @@ match engine tests of the same mechanism):
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
 - Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
+- Refcursor scalar codecs and admission: `RUN='^TestPLpgSQLCursorCodec$'`

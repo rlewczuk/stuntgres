@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 func TestPLpgSQLAssignmentTargetValidation(t *testing.T) {
@@ -15,7 +14,7 @@ func TestPLpgSQLAssignmentTargetValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := CompilePL(d, raw, false, func(parser.PLType) (sqltype.Usage, bool, error) { return integer.Usage(), false, nil })
+	p, err := CompilePL(d, raw, false, plUnitCollation(t), plUnitResolver(t, integer.Usage()))
 	if err != nil {
 		t.Fatal(err)
 	}

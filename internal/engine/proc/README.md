@@ -23,6 +23,12 @@ zero-based text-array arguments. The engine validates final trigger row returns
 strictly, separately from ordinary permissive PL row assignment.
 Engine-created scalar TG slots resolve fixed `pg_catalog` types regardless of
 search_path or shadow types; user-written declarations keep ordinary lookup.
+The twelve canonical OLD/NEW/TG slots retain their fixed identities. One separate
+BOOL FOUND follows that prefix, rather than a formal slot or a replacement TG
+datum. It is invocation-private and exposed through the same function-scope
+overlay as ordinary routines; the canonical trigger binding map contains only
+its twelve names. Validation reconstructs both layouts exactly, and layout
+equivalence retains the trigger contract as well as the FOUND owner.
 Trigger assignment diagnostics retain binding-versus-execution provenance:
 binding failures identify the complete assignment, while an executed arithmetic
 failure retains its causal error and PL statement frame.
@@ -83,20 +89,35 @@ Frozen engine syntax marks selected SQL calls only after binding; that marker
 cannot authorize a call or replace its checked occurrence reference.
 
 PL definitions retain a distinct body kind, complete positioned syntax and a
-checked immutable `PLProgram`. Fixed slots identify all formals, locals and
-handler-local constant TEXT intrinsics; aliases share their original constrained
-slot. Initializer namespaces retain declaration-order visibility. Ordered handler
-conditions and bodies are checked against the positioned syntax, including
-unreachable branches. The released error-condition inventory preserves aliases.
-Every initializer, body and handler expression query must match the compiler's
-complete synthetic single-target SELECT, including its parser expression and
-position; extra query clauses are not a checked expression program.
+checked immutable `PLProgram`. Fixed slots identify all formals, implicit FOUND,
+locals, cursor arguments, loop RECORDs and handler-local constant TEXT intrinsics;
+aliases share their original constrained slot. Initializer and bound-query
+namespaces retain declaration-order visibility. Ordered handler conditions and
+bodies are checked against positioned syntax, including unreachable branches.
+The released error-condition inventory preserves aliases. Every initializer,
+body and handler expression query must match the compiler's complete synthetic
+single-target SELECT, including its parser expression and position; extra query
+clauses are not a checked expression program.
+Bound cursor actuals are the explicit row-projection exception: one ordinary
+multi-target SELECT matches the complete declaration-ordered expression list and
+optional formal aliases, without destination coercions. Each destination retains
+its original parsed span; no per-argument executable query is kept.
+Successful argument-query evaluation publishes invocation-private FOUND before
+formal conversion; query failure does not publish it. Declaration CONSTANT
+metadata remains intact for the runtime's late generated-name assignment check.
+Cursor operand admission does not ban constants: a non-NULL name needs no write,
+and declaration initialization retains its existing conversion contract.
 Checked targets retain one root slot and ordered parser field/subscript steps;
 validation checks their exact lexical and syntax association. Binding and bound
 values belong only to the reached invocation, never to the checked program.
-`PLFrame` owns values/scopes and the active handled diagnostic, restoring the
-previous diagnostic on nested handler exit. Closing it cannot mutate the program,
-caller arguments or already returned immutable values.
+Cursor operands require the actual REFCURSOR descriptor identity, not a domain's
+base identity, in both compilation and checked-program validation. Domains remain
+valid ordinary values and FETCH destinations through the shared conversion owner.
+Cursor recipes contain syntax and slot references only: every typed Usage stays
+in Variables for provider validation and replacement. `PLFrame` owns values/scopes
+and the active handled diagnostic,
+restoring the previous diagnostic on nested handler exit. Closing it cannot mutate
+the program, caller arguments, returned immutable values or transaction-owned portals.
 Replacement preserves complete local Usages, including typmods and once-mapped collation capabilities.
 Private effective Usages inherit checked call collation for formals/ordinary
 locals and their lexical `%TYPE` copies; column `%TYPE` stays fixed to its source.
@@ -108,8 +129,10 @@ The semantic assignment datum is the leading record field when present, otherwis
 the slot. Query projections reconstruct that datum per output row; empty results
 retain its typed NULL identity, while multiple rows never publish. Field ancestors
 are reconstructed once after cardinality admission, preserving their siblings.
-Every partial assignment enters that reached query projection; only whole-slot
-initialization and assignment accept an already evaluated value.
+Partial query assignments enter that reached projection. FETCH instead supplies
+an already detached typed value through the same semantic-target binding,
+selected conversion and ancestor publisher. Bounds precede leaf conversion;
+scalar lists stage every candidate, including repeated roots, before publication.
 The higher root owns reached SQL binding, conversion, handler admission and
 execution. PL VOID uses non-NULL `VoidValue`; procedure completion is separate.
 PL nesting borrows the same balanced SQL-body/root guard, not a second counter.
@@ -132,6 +155,36 @@ Diagnostic parent lookup searches one lexical level at a time: an eligible
 unqualified record precedes label qualification at that level. Scalar matches
 with a remaining field component are skipped. A two-part qualified match stops
 the search without adding a field datum; ordinary runtime lookup is unchanged.
+Each level uses the shared canonical lookup, including the function's implicit
+FOUND overlay, before applying component-sensitive record eligibility. The
+diagnostic CASE ledger accounts for that single real FOUND slot, not a duplicate.
+The same compilation/validation scratch ledger includes one parser-private ROW
+for a nonempty cursor formal list before bound-query lexing, and one ROW after
+each FETCH scalar target list (including singleton/field targets). Whole RECORD,
+named composite and composite-domain destinations add no FETCH ROW. These are
+diagnostic counts only, never Variables, Usages or executable search indices.
+Cursor query/command/USING/count/target spans use the shared original-token name
+visitor; actuals are visited in written order in their caller scope. Bound queries
+use the argument/declaration-visible scope before the cursor name is published.
+FOR actuals precede the new loop RECORD, so outer and loop fields keep distinct
+parent identities; repeated fields/aliases share the existing deduplication set.
+Provider validation reconstructs this ledger and rejects coherently forged display
+names, queries and rendered-coordinate metadata without trusting a stored counter.
+`ValidateDefinition` checks cursor recipe/argument/target associations, implicit
+slot roles and lexical scopes as well as the exact all-formal namespace.
+Canonical ordinary-routine root bindings retain only numeric/named formal slots;
+trigger roots retain their fixed OLD/NEW/TG namespace instead. The separate
+function-scope FOUND overlay shadows a formal named `found` for bare and
+function-qualified lookup, after inner locals; `$n` and OUT/INOUT return slots
+still address the original formal. Alias and `%TYPE` lookup use the same overlay.
+`SameLayout` compares the complete semantic layout independently of mapped Usages.
+Bound actuals map first into one uncoerced projection and evaluate once in
+declaration order before formal conversion; dynamic USING retains written order.
+Local declaration COLLATE retains positioned syntax and resolves after ordinary
+or copied `%TYPE` Usage through a mandatory collation resolver. It preserves
+type/typmod, fixes the local collation instead of inheriting invocation input,
+and remains part of checked Variables Usage for provider validation and remapping.
+Cursor argument syntax does not gain a COLLATE clause.
 
 
 ## Testing
@@ -141,6 +194,8 @@ in `internal/engine`. Public SQL routine scenarios live in
 [reference/query_core](../../../reference/query_core/README.md#testing) (core,
 SQL bodies, review) and [reference/operators](../../../reference/operators/README.md#testing)
 (parameters). Add `REFERENCE=1` to reference selectors for the oracle.
+PL cursor units use `RUN='^TestPLpgSQLCursor'`; public scenarios live in
+[reference/cursors](../../../reference/cursors/README.md#testing).
 
 ```sh
 make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'

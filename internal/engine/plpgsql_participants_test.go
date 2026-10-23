@@ -103,7 +103,15 @@ func TestPLExceptionParticipants(t *testing.T) {
 		tx.check = plExceptionUnlocked(t, e, s)
 		ownerExtensionOf(s.owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		program := &proc.PLProgram{Variables: []proc.PLVariable{{Usage: text.Usage()}, {Usage: text.Usage()}}}
+		boolean, ok := e.CatalogRead().LookupType(sqltype.Bool)
+		if !ok {
+			t.Fatal("missing boolean")
+		}
+		program := &proc.PLProgram{FoundSlot: 2, Variables: []proc.PLVariable{
+			{Usage: text.Usage()},
+			{Usage: text.Usage()},
+			{Name: "found", Usage: boolean.Usage(), Role: proc.PLFoundSlot},
+		}}
 		frame := proc.NewPLFrame(program, &proc.Definition{}, &proc.Frame{}, sqltype.CollationRef{})
 		defer frame.Close()
 		scope := &proc.PLBlock{Bindings: map[string]int{"sqlstate": 0, "sqlerrm": 1}}

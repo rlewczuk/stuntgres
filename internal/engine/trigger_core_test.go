@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
@@ -96,6 +97,26 @@ func TestTriggerCoreCatalog(t *testing.T) {
 func TestTriggerCoreFrame(t *testing.T) {
 	_, _, read, relation, d := triggerUnitFixture(t, "BEGIN RETURN NEW; END")
 	integer, _ := read.LookupType(sqltype.Int4)
+	boolean, _ := read.LookupType(sqltype.Bool)
+	program := d.SQL.PL
+	if program.FoundSlot != proc.TriggerSlotCount || len(program.Variables) != proc.TriggerSlotCount+1 || len(program.Root.Bindings) != proc.TriggerSlotCount {
+		t.Fatal("canonical trigger prefix and single implicit FOUND layout")
+	}
+	for slot, name := range [...]string{"old", "new", "tg_name", "tg_when", "tg_level", "tg_op", "tg_relid", "tg_table_name", "tg_table_schema", "tg_relname", "tg_nargs", "tg_argv"} {
+		bound, exists := program.Root.Bindings[name]
+		if !exists || bound != slot || program.Variables[slot].Name != name || program.Variables[slot].Role != proc.PLOrdinarySlot {
+			t.Fatal("trigger datum renumbered or replaced by FOUND", name, bound)
+		}
+	}
+	found := program.Variables[program.FoundSlot]
+	if found.Name != "found" || found.Role != proc.PLFoundSlot || found.Record || found.Usage != boolean.Usage() {
+		t.Fatal("trigger FOUND lacks canonical BOOL ownership")
+	}
+	for _, name := range [][]string{{"found"}, {program.Function, "found"}} {
+		if slot, exists := program.Lookup(name, []*proc.PLBlock{program.Root}); !exists || slot != program.FoundSlot {
+			t.Fatal("trigger implicit FOUND lookup replaced canonical TG namespace", name)
+		}
+	}
 	row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 5)}
 	f, err := newPLTriggerFrame(d, read, relation, "a", "INSERT", []string{"x", "7"}, nil, row)
 	if err != nil {
@@ -113,6 +134,11 @@ func TestTriggerCoreFrame(t *testing.T) {
 			t.Fatal(got, err)
 		}
 	}
+	initialFound, err := f.Values[program.FoundSlot].Boolean()
+	if err != nil || initialFound {
+		t.Fatal("trigger FOUND did not start false", err)
+	}
+	f.SetFound(true)
 	retained := f.Values[1]
 	row[1] = triggerUnitInt(t, integer, 99)
 	f.Close()
@@ -132,6 +158,10 @@ func TestTriggerCoreFrame(t *testing.T) {
 	if err != nil || count != 0 {
 		t.Fatal(count, err)
 	}
+	nextFound, err := noargs.Values[program.FoundSlot].Boolean()
+	if err != nil || nextFound || noargs.Values[program.FoundSlot].Type() != boolean {
+		t.Fatal("trigger FOUND leaked across invocations", err)
+	}
 	broken := *d.SQL.PL
 	broken.Variables = append([]proc.PLVariable(nil), broken.Variables...)
 	broken.Variables[10].Usage = integer.Usage()
@@ -141,6 +171,59 @@ func TestTriggerCoreFrame(t *testing.T) {
 	if err := broken.ValidateDefinition(&definition); err == nil {
 		t.Fatal("forged implicit slot type accepted")
 	}
+	for _, kind := range []string{"redirect_found", "wrong_found_usage", "wrong_found_role", "found_in_canonical_map", "redirect_old", "trigger_flag"} {
+		t.Run(kind, func(t *testing.T) {
+			candidate := *program
+			candidate.Variables = append([]proc.PLVariable(nil), program.Variables...)
+			root := *program.Root
+			root.Bindings = maps.Clone(root.Bindings)
+			candidate.Root = &root
+			switch kind {
+			case "redirect_found":
+				candidate.FoundSlot = root.Bindings["old"]
+			case "wrong_found_usage":
+				candidate.Variables[program.FoundSlot].Usage = integer.Usage()
+			case "wrong_found_role":
+				candidate.Variables[program.FoundSlot].Role = proc.PLOrdinarySlot
+			case "found_in_canonical_map":
+				root.Bindings["found"] = program.FoundSlot
+			case "redirect_old":
+				root.Bindings["old"] = root.Bindings["new"]
+			case "trigger_flag":
+				candidate.Trigger = false
+			}
+			definition := *d.SQL
+			definition.PL = &candidate
+			if err := candidate.ValidateDefinition(&definition); err == nil {
+				t.Fatal("forged trigger/FOUND composition accepted")
+			}
+			if err := program.ValidateDefinition(d.SQL); err != nil {
+				t.Fatal("fixture candidate mutated canonical trigger program", err)
+			}
+		})
+	}
+	t.Run("case_state_after_trigger_prefix", func(t *testing.T) {
+		_, _, read, relation, routine := triggerUnitFixture(t, "BEGIN CASE 1 WHEN true THEN RETURN NEW; ELSE RETURN OLD; END CASE; END")
+		program := routine.SQL.PL
+		conditional := program.Root.Statements[0].Block.Statements[0].Case
+		if program.SearchCount != 1 || conditional.SearchName != "__Case__Variable_13__" || conditional.SearchSlot < 0 || conditional.SearchSlot >= program.SearchCount {
+			t.Fatal("trigger diagnostic count displaced native CASE search ownership")
+		}
+		frame, err := newPLTriggerFrame(routine, read, relation, "case", "INSERT", nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer frame.Close()
+		if len(frame.Searches) != program.SearchCount || len(frame.Values) != proc.TriggerSlotCount+1 || frame.Searches[conditional.SearchSlot].Usage != (sqltype.Usage{}) || frame.Searches[conditional.SearchSlot].Value.Type() != nil {
+			t.Fatal("CASE invocation state became a trigger datum or retained a value")
+		}
+		if slot, exists := program.SearchSlot(proc.PLSearchName(conditional.SearchSlot)); !exists || slot != conditional.SearchSlot {
+			t.Fatal("trigger CASE search lost its native canonical index")
+		}
+		if err := program.ValidateDefinition(routine.SQL); err != nil {
+			t.Fatal("canonical trigger CASE program rejected", err)
+		}
+	})
 }
 
 func TestTriggerCoreReturn(t *testing.T) {

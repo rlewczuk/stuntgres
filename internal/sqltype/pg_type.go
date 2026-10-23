@@ -60,6 +60,9 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 		return PGTypeMetadata{}, false
 	}
 	if d.IsArray() {
+		if d.element.ID() == Refcursor {
+			return PGTypeMetadata{}, false
+		}
 		element, ok := d.element.PGTypeMetadata()
 		if !ok {
 			return PGTypeMetadata{}, false
@@ -100,6 +103,8 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 	var f PGTypeMetadata
 	// REL_18_6 pg_type.dat and pg_proc.dat. No lookup-identity fallback.
 	switch d.id {
+	case Refcursor:
+		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 46, Output: 47, Receive: 2414, Send: 2415}
 	case Point:
 		f = PGTypeMetadata{Kind: "b", Category: "G", Element: Float8, Subscript: 6180, Input: 117, Output: 118, Receive: 2428, Send: 2429}
 	case Box:

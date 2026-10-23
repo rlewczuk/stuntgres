@@ -853,6 +853,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 						token.code = PL_ELSIF
 					}
 				}
+			case "open":
+				token.code = PL_OPEN
+			case "loop":
+				token.code = PL_LOOP
+			case "next":
+				token.code = PL_NEXT
+			case "prior":
+				token.code = PL_PRIOR
+			case "last":
+				token.code = PL_LAST
 			}
 			if l.previousToken == '%' {
 				switch token.lexeme.text {
@@ -869,7 +879,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		case ">>":
 			token.code = PL_LABEL_CLOSE
 		case ":=":
-			token.code = PL_ASSIGN
+			if token.code == EQUALS_GREATER {
+				token.code = PL_ASSIGN
+			}
 		}
 	}
 	if l.typeInputMode && token.lexeme.keyword != nil && token.lexeme.text == "setof" {

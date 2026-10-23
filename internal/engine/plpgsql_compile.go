@@ -112,7 +112,21 @@ func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth Authorizatio
 		}
 		return usage, false, err
 	}
-	program, err := proc.CompilePL(d.SQL, raw, d.RoutineKind == catalog.ProcedureRoutine, checkedResolve)
+	checkedCollation := func(usage sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {
+		if usage.Type == nil {
+			var ok bool
+			usage.Type, ok = auth.Catalog.LookupType(2249)
+			if !ok {
+				return sqltype.Usage{}, fmt.Errorf("stuntgres: missing PL RECORD type")
+			}
+		}
+		usage, err := e.resolveColumnCollation(usage, raw, op)
+		if err == nil {
+			dependency(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(usage.Collation.ID)})
+		}
+		return usage, err
+	}
+	program, err := proc.CompilePL(d.SQL, raw, d.RoutineKind == catalog.ProcedureRoutine, checkedCollation, checkedResolve)
 	if err != nil {
 		var diagnostic *sqlstate.Error
 		if errors.As(err, &diagnostic) {

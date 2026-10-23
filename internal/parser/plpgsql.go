@@ -26,6 +26,7 @@ type PLType struct {
 type PLDeclaration struct {
 	Name              Identifier
 	Type              PLType
+	Collation         *ObjectName
 	Constant, NotNull bool
 	NotNullPos        Position
 	Default           Expr
@@ -33,6 +34,7 @@ type PLDeclaration struct {
 	DefaultEnd        Position
 	DefaultDelimiter  Position
 	Alias             Expr
+	Cursor            *PLCursorDeclaration
 }
 type PLStatement struct {
 	Block               *PLBlock
@@ -46,6 +48,7 @@ type PLStatement struct {
 	If                  *PLConditional
 	Case                *PLConditional
 	Pos                 Position
+	Cursor              *PLCursorStatement
 }
 type PLBlock struct {
 	Label        Identifier
@@ -171,8 +174,14 @@ func (l *lexer) plBoundExpression(raw PLExpression, predecessor lexeme) PLExpres
 	if raw.Expression == nil {
 		return raw
 	}
+	raw.Start = l.plSourceStart(raw.End, raw.Delimiter, predecessor)
+	return raw
+}
+
+// Expressions and cursor queries share the same grammar-supplied boundary.
+func (l *lexer) plSourceStart(end, delimiter Position, predecessor lexeme) Position {
 	probe := lexer{
-		input: l.input[:raw.Delimiter.Offset], offset: predecessor.pos.Offset,
+		input: l.input[:delimiter.Offset], offset: predecessor.pos.Offset,
 		positionOffset: predecessor.pos.Offset, positionCharacters: predecessor.pos.Character - 1,
 		options: Options{StandardConformingStrings: true},
 	}
@@ -181,12 +190,11 @@ func (l *lexer) plBoundExpression(raw PLExpression, predecessor lexeme) PLExpres
 	if first.code == 0 || probe.err != nil {
 		l.err = probe.err
 		if l.err == nil {
-			l.failAt("42601", "missing expression", raw.End.Offset)
+			l.failAt("42601", "missing expression", end.Offset)
 		}
-		return raw
+		return Position{}
 	}
-	raw.Start = first.lexeme.pos
-	return raw
+	return first.lexeme.pos
 }
 
 // ParsePLpgSQL uses the ordinary scanner and expression grammar. The private

@@ -35,6 +35,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// Polygon has no typelem/subscript authority; its companion remains
 		// visible metadata without admitting executable polygon arrays.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typelem,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=604", []string{"oid", "typname", "typelem", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "OID", "NAME", "OID"}, [][]any{{int64(604), "polygon", int64(0), int64(1027), int64(1027), "_polygon", int64(604)}}))
+		// The selected scalar has its genuine released identity and companion
+		// OID in both modes; this does not claim companion codec admission.
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,t.typcategory,t.typcollation,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=1790", []string{"oid", "typname", "typarray", "typcategory", "typcollation", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "CHAR", "OID", "OID", "NAME", "OID"}, [][]any{{int64(1790), "refcursor", int64(2201), "U", int64(0), int64(2201), "_refcursor", int64(1790)}}))
 		if b.PG {
 			return
 		} // PostgreSQL genuinely implements additional families.
@@ -64,6 +67,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		expected[602], expected[1019] = true, true
 		// Polygon604 is concrete; companion1027 has metadata but no codec.
 		expected[604], expected[1027] = true, true
+		// REFCURSOR is now a concrete scalar. Its canonical companion is
+		// advertised catalog metadata, not executable array admission.
+		expected[1790], expected[2201] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")
@@ -109,7 +115,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 			want = append(want, []any{id})
 		}
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type ORDER BY oid", []string{"oid"}, []string{"OID"}, want))
-		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (22,30,142,143,1006,1013,1790,2201,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (22,30,142,143,1006,1013,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
 		// Lookup identity is deliberately broader than SQL catalog/codec admission.
 		for _, id := range []int64{142, 4533} {
 			literal := fmt.Sprint(id)

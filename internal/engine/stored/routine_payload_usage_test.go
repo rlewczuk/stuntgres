@@ -27,11 +27,7 @@ func TestRoutinePayloadUsageRemap(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			read, source, types, collations := plpgsqlLocalUsageFixture(t)
-			leaf := source.SQL.PL.Variables[0].Usage
-			// The PL-copy fixture deliberately retains a typmod on its domain
-			// to test exact metadata copying. A stored domain datum instead uses
-			// the domain's own modifier (-1); varchar modifiers belong to its base.
-			leaf.Typmod = -1
+			leaf := source.SQL.PL.Variables[source.SQL.PL.Root.Statements[0].Block.Bindings["x"]].Usage
 			if !leaf.Valid() {
 				t.Fatal("invalid source domain usage")
 			}
@@ -146,8 +142,7 @@ func TestRoutinePayloadUsageRemap(t *testing.T) {
 
 func TestRoutinePayloadUsageRejectsIncompatibleCollation(t *testing.T) {
 	read, source, _, collations := plpgsqlLocalUsageFixture(t)
-	usage := source.SQL.PL.Variables[0].Usage
-	usage.Typmod = -1
+	usage := source.SQL.PL.Variables[source.SQL.PL.Root.Statements[0].Block.Bindings["x"]].Usage
 	if !usage.Valid() {
 		t.Fatal("invalid source domain usage")
 	}
@@ -173,8 +168,7 @@ func TestRoutinePayloadUsageRejectsIncompatibleCollation(t *testing.T) {
 
 func TestRoutinePayloadPLRecordUsageRemap(t *testing.T) {
 	read, source, types, collations := plpgsqlLocalUsageFixture(t)
-	leaf := source.SQL.PL.Variables[0].Usage
-	leaf.Typmod = -1
+	leaf := source.SQL.PL.Variables[source.SQL.PL.Root.Statements[0].Block.Bindings["x"]].Usage
 	if !leaf.Valid() {
 		t.Fatal("invalid source domain usage")
 	}
@@ -187,13 +181,28 @@ func TestRoutinePayloadPLRecordUsageRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition := *source.SQL
-	definition.PL, err = proc.CompilePL(&definition, definition.PLSyntax, false, func(parser.PLType) (sqltype.Usage, bool, error) {
-		return nested.Usage(), false, nil
-	})
+	if err := definition.SetFormals([]proc.Formal{{Mode: "i", Name: "value", Usage: nested.Usage()}}); err != nil {
+		t.Fatal(err)
+	}
+	// Slot zero is intentionally the formal here, not the shared fixture's
+	// local or the implicit FOUND slot. Compile the copied local consistently.
+	definition.Source = "DECLARE x value%TYPE; BEGIN RETURN 1; END"
+	definition.PLSyntax, err = parser.ParsePLpgSQL(definition.Source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := definition.SetFormals([]proc.Formal{{Mode: "i", Name: "value", Usage: nested.Usage()}}); err != nil {
+	definition.PL, err = proc.CompilePL(&definition, definition.PLSyntax, false, plpgsqlUnitCollation(t, read), func(raw parser.PLType) (sqltype.Usage, bool, error) {
+		if raw.Type.Name == "bool" || raw.Type.Name == "boolean" {
+			boolean, ok := read.LookupType(sqltype.Bool)
+			if !ok {
+				t.Fatal("missing implicit FOUND type")
+			}
+			return boolean.Usage(), false, nil
+		}
+		t.Fatalf("unexpected declaration type %v", raw)
+		return sqltype.Usage{}, false, nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	original := *source

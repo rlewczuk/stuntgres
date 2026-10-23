@@ -20,11 +20,18 @@ func TestPLExceptionExpressionProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	program := &proc.PLProgram{Variables: []proc.PLVariable{{Name: "x", Usage: integer.Usage()}}}
+	boolean, ok := e.CatalogRead().LookupType(sqltype.Bool)
+	if !ok {
+		t.Fatal("missing boolean")
+	}
+	program := &proc.PLProgram{FoundSlot: 0, Variables: []proc.PLVariable{
+		{Name: "found", Usage: boolean.Usage(), Role: proc.PLFoundSlot},
+		{Name: "x", Usage: integer.Usage()},
+	}}
 	frame := proc.NewPLFrame(program, &proc.Definition{}, &proc.Frame{}, sqltype.CollationRef{})
 	defer frame.Close()
-	frame.Values[0] = zero
-	frame.Enter(&proc.PLBlock{Bindings: map[string]int{"x": 0}})
+	frame.Values[1] = zero
+	frame.Enter(&proc.PLBlock{Bindings: map[string]int{"x": 1}})
 	for _, tc := range []struct {
 		expression string
 		planning   bool
@@ -33,6 +40,9 @@ func TestPLExceptionExpressionProvenance(t *testing.T) {
 		{"1/0", true},
 		{"(1+2)/(2-2)", true},
 		{"12/(x+0)", false},
+		{"(12/x)::text", false},
+		{"(12/(x+0))::text", false},
+		{"(1/0)::text", true},
 		{"12/x", false},
 	} {
 		syntax, err := parser.ParsePLpgSQL("BEGIN RETURN "+tc.expression+"; END", parser.PLReturnPolicy{})

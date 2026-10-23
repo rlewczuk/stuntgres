@@ -20,9 +20,15 @@ while preserving the originating diagnostic and secondary failure.
 PL and SQL context decoration uses `sqlstate.WithDiagnostic`: the decorated
 primary diagnostic is visible through `errors.As`, while the original cause,
 fatal cleanup classification and secondary failure remain traversable across calls.
-Simple CASE query/position mapping uses the same classification-preserving seam
-and phase-aware expression-context policy as ordinary PL expressions. Execution
-failures do not acquire a planning-only expression prefix.
+Simple CASE, cursor and assignment query/position mapping share one formatter
+and classification-preserving seam. Actual current-owner planning/simple/SPI
+markers survive scope restoration; an inner callee's simple route cannot suppress
+an outer ordinary query callback. Simple direct execution omits that callback.
+Diagnostic requests retain exact parsed spans or a synthesized query with explicit
+character-coordinate mapping. The original positive Position chooses translation
+before any rewrite; otherwise eligible expression, SQL or assignment callbacks
+append their frame even when an inner diagnostic already has Context/InternalQuery.
+The PL action line comes independently from the statement keyword.
 
 Accepted write events retain their actual predecessor/successor and command token.
 `sql_command_effects.go` completes only the active nested SQL command's pending
@@ -277,6 +283,65 @@ testing emptiness again. Original fetch errors remain distinct from prepare/open
 errors. The cursor closes before restoring caller scratch; outer publication
 remains eager.
 
+PL cursor execution uses the physical-session cursor registry and the ordinary
+query binder/capture/motion owners. Lower install/fetch/close primitives, including
+promoted holdable movement, do not complete the containing command; SQL cursor
+wrappers retain their own transaction gates and completion flags. PL OPEN captures
+a producer and immutable typed inputs inside balanced routine scratch without
+eager result materialization.
+
+Bound actuals form one ordinary uncoerced declaration-ordered projection: bind
+all targets before any evaluation, consume at most its first row through the
+shared producer, publish FOUND from that successful query's row presence, then
+convert/assign formal values. A formal conversion error retains the new FOUND;
+argument-query binding or evaluation failure leaves its previous value unchanged.
+Empty projection NULL-fills formals and sets FOUND false; a row containing NULL
+still sets it true. Ordinary PL scalar expressions check a second row and reject
+multiple rows; SQL scalar routines retain their separate one-column first-row
+demand. Original actual spans
+map errors into the whole comma-joined argument query, with formal aliases on every
+item when any argument is named. Dynamic USING remains individually written-order.
+
+An unnamed OPEN carries a nil requested name through nested actual/command/USING
+evaluation and query preparation. Only the shared installer allocates its unique
+name after callbacks and publication preflight, then returns the installed identity
+for successful variable publication. Explicit names retain the early collision
+check; installation also rejects collisions without replacing a live portal.
+Neither path mutates retained syntax or reserves a name before evaluation.
+An initially NULL cursor receives its generated name only after installation.
+That implicit assignment checks the declaration's CONSTANT metadata before
+publishing the typed name; earlier command, USING and query failures keep their
+precedence. A non-NULL constant cursor name requires no assignment and remains
+valid. Constant declaration initialization retains its ordinary conversion rules.
+
+
+Ordinary portals outlive routine frames and close at transaction/session end.
+Cursor FOR retains its opened portal identity and descriptor independently of
+subsequent cursor-variable assignments. It pins that portal against user CLOSE
+(including copied names), unpins and closes its exact portal on every exit.
+Explicit body FETCH/MOVE still resolve their supplied names and share position.
+Terminal transaction/session cleanup can forcibly retire protected portals.
+FETCH builds descriptor-shaped NULL rows for empty RECORD targets and publishes
+converted scalar targets atomically. FOUND remains invocation-private.
+FETCH/MOVE resolve and validate a physical-session portal before binding or
+evaluating their count. The retained identity survives count evaluation and is
+revalidated by the same motion owner, never redirected to a same-name replacement.
+Missing portals therefore beat NULL/error/volatile counts without their effects.
+Omitted SCROLL uses `exec.SupportsBackwardCursor` over the actual producer and
+captured source graph, independently of explicit options and rowmark restrictions.
+This is not PostgreSQL cost-planner replication; portable backward demand should
+request SCROLL explicitly.
+
+Dynamic USING binds a closed positional frame through ordinary analysis, so a
+missing placeholder retains its SQL position and diagnostic rather than becoming
+a public driver-arity error. Target conversion carries the current admitted
+routine authority explicitly, including fresh scalar/composite domain checks.
+PL expression diagnostics retain preparation versus simple-scalar execution
+provenance; complex query expressions retain their query traceback. A coercion's
+preflight computation of imported parameters records its actual execution origin,
+while SQL constants and routine admission retain their planning origin. The current
+query's simple/SPI route applies in both preflight and the executor, without a second
+expression evaluator or an error-code heuristic.
 
 ### Catalog inquiry and session identity
 
@@ -369,6 +434,7 @@ Root tests are package-level units of these contracts; public SQL behavior is
 tested only in `reference/` ([docs/TESTING.md](../../docs/TESTING.md)). SHOW ALL
 description rules are in the [`settings` README](settings/README.md#testing).
 Add `RACE=1` for lifecycle, cancellation and contention selections.
+PL cursor compiler/provider/ownership units: `RUN='^TestPLpgSQLCursor'`.
 
 - Fixtures never enter `Engine.Execute` while owning admission (that acquires
   its mutex recursively); create stored recipes before retaining admission.

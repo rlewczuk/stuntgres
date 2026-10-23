@@ -94,11 +94,12 @@ func plExceptionUnitProgram(t *testing.T) (*PLProgram, *Definition, *sqltype.Des
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := CompilePL(d, raw, false, func(raw parser.PLType) (sqltype.Usage, bool, error) {
+	resolve := plUnitResolver(t, integer.Usage())
+	p, err := CompilePL(d, raw, false, plUnitCollation(t), func(raw parser.PLType) (sqltype.Usage, bool, error) {
 		if raw.Type.Name == "text" {
 			return text.Usage(), false, nil
 		}
-		return integer.Usage(), false, nil
+		return resolve(raw)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -120,8 +121,12 @@ func TestPLExceptionProgramValidation(t *testing.T) {
 		{"missing_handler", func(p *PLProgram) { p.Root.Statements[0].Block.Handlers = nil }},
 		{"scope", func(p *PLProgram) { p.Root.Statements[0].Block.HandlerScope = nil }},
 		{"intrinsic_slot", func(p *PLProgram) { p.Root.Statements[0].Block.HandlerScope.Bindings["sqlstate"] = 0 }},
-		{"constant", func(p *PLProgram) { p.Variables[1].Constant = false }},
-		{"type", func(p *PLProgram) { p.Variables[1].Usage = plUnitInteger(t).Usage() }},
+		{"constant", func(p *PLProgram) {
+			p.Variables[p.Root.Statements[0].Block.HandlerScope.Bindings["sqlstate"]].Constant = false
+		}},
+		{"type", func(p *PLProgram) {
+			p.Variables[p.Root.Statements[0].Block.HandlerScope.Bindings["sqlstate"]].Usage = plUnitInteger(t).Usage()
+		}},
 		{"nested_rethrow", func(p *PLProgram) {
 			p.Root.Statements[0].Block.Handlers[0].Statements[0].Block.Statements[0].Query = &parser.Select{}
 		}},
@@ -194,7 +199,7 @@ func TestPLExceptionProgramValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = CompilePL(d, raw, false, func(parser.PLType) (sqltype.Usage, bool, error) { return text.Usage(), false, nil })
+	_, err = CompilePL(d, raw, false, plUnitCollation(t), plUnitResolver(t, text.Usage()))
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" {
 		t.Fatal("unknown condition not rejected at compilation", err)

@@ -19,11 +19,12 @@ func conditionalUnitDefinition(t *testing.T, source string) *Definition {
 		t.Fatal(err)
 	}
 	d.PLSyntax = raw
-	d.PL, err = CompilePL(d, raw, false, func(raw parser.PLType) (sqltype.Usage, bool, error) {
+	resolve := plUnitResolver(t, integer.Usage())
+	d.PL, err = CompilePL(d, raw, false, plUnitCollation(t), func(raw parser.PLType) (sqltype.Usage, bool, error) {
 		if raw.Type.Name == "record" {
 			return sqltype.Usage{}, true, nil
 		}
-		return integer.Usage(), false, nil
+		return resolve(raw)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -43,8 +44,12 @@ func TestPLpgSQLConditionalCompiler(t *testing.T) {
 	}
 	body := d.PL.Root.Statements[0].Block
 	branch := body.Statements[0].If.Arms[0].Statements[0].Case
-	if d.PL.SearchCount != 1 || len(d.PL.Variables) != 1 || branch.SearchSlot != 0 || branch.Arms[0].Statements[0].Target.Slot != body.Bindings["x"] || !reflect.DeepEqual(untouched, d.PLSyntax) {
+	if d.PL.SearchCount != 1 || len(d.PL.Variables) != d.PL.FormalCount+len(body.Declarations)+1 || branch.SearchSlot != 0 || branch.Arms[0].Statements[0].Target.Slot != body.Bindings["x"] || !reflect.DeepEqual(untouched, d.PLSyntax) {
 		t.Fatal("conditional compilation changed scopes/source or published a fake declaration")
+	}
+	found := d.PL.Variables[d.PL.FoundSlot]
+	if d.PL.FoundSlot != d.PL.FormalCount || found.Name != "found" || found.Role != PLFoundSlot || !found.Usage.Valid() || found.Usage.Type.ID() != sqltype.Bool {
+		t.Fatal("conditional compilation lost the canonical implicit FOUND")
 	}
 	if _, found := d.PL.Lookup([]string{PLSearchName(0)}, []*PLBlock{d.PL.Root, body}); found {
 		t.Fatal("private search exposed as an ordinary local")
@@ -60,7 +65,7 @@ func TestPLpgSQLConditionalCompiler(t *testing.T) {
 			t.Fatal("expected syntax-valid compile witness", err)
 		}
 		bad := &Definition{Name: "bad", Result: plUnitInteger(t).Usage(), Source: source}
-		if _, err := CompilePL(bad, raw, false, func(parser.PLType) (sqltype.Usage, bool, error) { return plUnitInteger(t).Usage(), false, nil }); err == nil {
+		if _, err := CompilePL(bad, raw, false, plUnitCollation(t), plUnitResolver(t, plUnitInteger(t).Usage())); err == nil {
 			t.Fatal("unreachable compile failure accepted", source)
 		}
 	}
@@ -109,7 +114,7 @@ func TestPLpgSQLConditionalCompiler(t *testing.T) {
 				}
 			}
 			walk(d.PL.Root.Statements)
-			if !slices.Equal(names, tc.names) || len(d.PL.Variables) != tc.variables || len(slots) != d.PL.SearchCount {
+			if !slices.Equal(names, tc.names) || len(d.PL.Variables) != tc.variables+1 || d.PL.FoundSlot != d.PL.FormalCount || d.PL.Variables[d.PL.FoundSlot].Role != PLFoundSlot || d.PL.Variables[d.PL.FoundSlot].Usage.Type.ID() != sqltype.Bool || len(slots) != d.PL.SearchCount {
 				t.Fatal("diagnostic/runtime datum namespace confusion", names, slots)
 			}
 			for i, slot := range slots {
@@ -291,9 +296,13 @@ func TestPLpgSQLConditionalValidation(t *testing.T) {
 		{"operator_origin", func(_ *PLProgram, c *PLConditional) { c.Arms[0].OperatorPosition.Character-- }},
 		{"rendered_origin", func(_ *PLProgram, c *PLConditional) { c.Arms[0].DiagnosticItems++ }},
 		{"rendered_query", func(_ *PLProgram, c *PLConditional) { c.Arms[0].DiagnosticQuery += "garbage" }},
-		{"redirected_target", func(_ *PLProgram, c *PLConditional) {
+		{"redirected_target", func(p *PLProgram, c *PLConditional) {
 			c.Arms[0].Statements = slices.Clone(c.Arms[0].Statements)
-			c.Arms[0].Statements[0].Target.Slot = 1
+			other, ok := p.Root.Statements[0].Block.Bindings["y"]
+			if !ok || other == c.Arms[0].Statements[0].Target.Slot {
+				t.Fatal("redirect witness does not name a distinct declared target")
+			}
+			c.Arms[0].Statements[0].Target.Slot = other
 		}},
 		{"foreign_items", func(_ *PLProgram, c *PLConditional) {
 			q := *c.Arms[0].Query
@@ -454,8 +463,13 @@ func TestPLpgSQLConditionalValidation(t *testing.T) {
 
 func TestPLpgSQLConditionalFrame(t *testing.T) {
 	d := conditionalUnitDefinition(t, "BEGIN CASE 1 WHEN 1 THEN CASE 2 WHEN 2 THEN RETURN 7; ELSE RETURN 8; END CASE; ELSE RETURN 9; END CASE; END")
-	if d.PL.SearchCount != 2 || len(d.PL.Variables) != 0 {
-		t.Fatal("private searches became declarations")
+	if d.PL.SearchCount != 2 || d.PL.FoundSlot != d.PL.FormalCount || d.PL.FoundSlot < 0 || d.PL.FoundSlot >= len(d.PL.Variables) {
+		t.Fatal("private search layout or canonical FOUND owner")
+	}
+	for slot, variable := range d.PL.Variables {
+		if slot != d.PL.FoundSlot || variable.Role != PLFoundSlot || !variable.Usage.Valid() || variable.Usage.Type.ID() != sqltype.Bool {
+			t.Fatal("private CASE search became an executable declaration")
+		}
 	}
 	input := NewFrame(nil)
 	defer input.Close()

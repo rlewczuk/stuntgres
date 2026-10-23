@@ -6,16 +6,49 @@ import (
 	"testing"
 )
 
-func plUnitInteger(t *testing.T) *sqltype.Descriptor {
+func plUnitBuiltin(t *testing.T, id sqltype.ID) *sqltype.Descriptor {
 	t.Helper()
 	for _, typ := range sqltype.Builtins() {
-		if typ.ID() == sqltype.Int4 {
+		if typ.ID() == id {
 			return typ
 		}
 	}
-	t.Fatal("missing integer")
+	t.Fatal("missing builtin", id)
 	return nil
 }
+func plUnitInteger(t *testing.T) *sqltype.Descriptor {
+	t.Helper()
+	return plUnitBuiltin(t, sqltype.Int4)
+}
+func plUnitResolver(t *testing.T, usage sqltype.Usage) PLTypeResolver {
+	t.Helper()
+	boolean := plUnitBuiltin(t, sqltype.Bool).Usage()
+	return func(raw parser.PLType) (sqltype.Usage, bool, error) {
+		if raw.Type.Name == "boolean" || raw.Type.Name == "bool" {
+			return boolean, false, nil
+		}
+		return usage, false, nil
+	}
+}
+func plUnitCollation(t *testing.T) PLCollationResolver {
+	t.Helper()
+	return func(usage sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {
+		t.Helper()
+		id := uint32(0)
+		switch raw.Parts[len(raw.Parts)-1].Text {
+		case "C":
+			id = 950
+		case "pg_unicode_fast":
+			id = 6411
+		default:
+			t.Fatalf("unexpected collation %v", raw)
+		}
+		ref, err := sqltype.RegisteredCollation(id, id)
+		usage.Collation = ref
+		return usage, err
+	}
+}
+
 func TestPLpgSQLFormalSlots(t *testing.T) {
 	integer := plUnitInteger(t)
 	d := &Definition{Name: "slots", Result: integer.Usage(), Source: "DECLARE a ALIAS FOR $1; BEGIN a := $2+1; RETURN; END"}
@@ -26,7 +59,7 @@ func TestPLpgSQLFormalSlots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := CompilePL(d, raw, false, func(parser.PLType) (sqltype.Usage, bool, error) { return integer.Usage(), false, nil })
+	p, err := CompilePL(d, raw, false, plUnitCollation(t), plUnitResolver(t, integer.Usage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +110,7 @@ func TestPLpgSQLFrameLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := CompilePL(d, raw, false, func(parser.PLType) (sqltype.Usage, bool, error) { return integer.Usage(), false, nil })
+	p, err := CompilePL(d, raw, false, plUnitCollation(t), plUnitResolver(t, integer.Usage()))
 	if err != nil {
 		t.Fatal(err)
 	}

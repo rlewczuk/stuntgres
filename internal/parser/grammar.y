@@ -68,6 +68,11 @@ package parser
  plElse plElse
  plArms []PLArm
  plArm PLArm
+ plCursor *PLCursorStatement
+ plQuery plCursorQuery
+ plMotion PLCursorMotion
+ plActual PLCursorActual
+ plActuals []PLCursorActual
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
@@ -234,6 +239,7 @@ package parser
 %token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN PL_EXCEPTION PL_RAISE PL_SQLSTATE PL_ELSIF
 %token <tok> PL_THEN PL_WHEN PL_WHEN_COMMA
 %token <tok> TRIGGER
+%token <tok> PL_OPEN PL_LOOP PL_NEXT PL_PRIOR PL_LAST
 %token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
@@ -514,6 +520,16 @@ package parser
 %type <plArm> pl_case_arm
 %type <tok> pl_name pl_declaration_name
 %type <tok> pl_if_head pl_elsif_head pl_when_head pl_case_head pl_when_separator
+%type <plCursor> pl_open_tail pl_cursor_actuals
+%type <plMotion> pl_cursor_motion
+%type <plActual> pl_cursor_actual
+%type <plActuals> pl_cursor_actual_list
+%type <plDeclarations> pl_cursor_arguments pl_cursor_argument_list
+%type <plDeclaration> pl_cursor_argument
+%type <plQuery> pl_cursor_query
+%type <tok> pl_cursor_for pl_cursor_from
+%type <row> pl_cursor_targets
+%type <plExpressions> pl_using pl_using_values
 %type <tok> cast_context
 %type <tok> returns_word
 %type <routineParameters> function_arguments function_declaration_argument_list
@@ -1671,8 +1687,9 @@ pl_declarations: /* empty */ {$$=nil}
  | DECLARE pl_declaration_list {$$=$2} ;
 pl_declaration_list: /* empty */ {$$=nil}
  | pl_declaration_list pl_declaration ';' {$$=append($1,$2)} ;
-pl_declaration: pl_declaration_name pl_constant pl_type pl_not_null pl_default {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Constant:$2,Type:$3,NotNull:$4.text!="",NotNullPos:$4.pos,Default:$5.Expression,DefaultStart:$5.Start,DefaultEnd:$5.End,DefaultDelimiter:$5.Delimiter}}
- | pl_declaration_name PL_ALIAS FOR pl_target {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Alias:$4}} ;
+pl_declaration: pl_declaration_name pl_constant pl_type column_collation pl_not_null pl_default {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Constant:$2,Type:$3,Collation:$4,NotNull:$5.text!="",NotNullPos:$5.pos,Default:$6.Expression,DefaultStart:$6.Start,DefaultEnd:$6.End,DefaultDelimiter:$6.Delimiter}}
+ | pl_declaration_name PL_ALIAS FOR pl_target {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Alias:$4}}
+ | pl_declaration_name cursor_scroll CURSOR pl_cursor_arguments pl_cursor_for pl_cursor_query {query:=sqllex.(*lexer).plBoundCursorQuery($6,$5);$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Cursor:&PLCursorDeclaration{Scroll:CursorScroll($2),Arguments:$4,Query:query.Query,QueryStart:query.Start,QueryEnd:query.End,QueryDelimiter:query.Delimiter}}} ;
 pl_constant: /* empty */ {$$=false} | PL_CONSTANT {$$=true} ;
 pl_not_null: /* empty */ {$$=lexeme{}} | NOT NULL {$$=$1} ;
 pl_type: declared_type {$$=PLType{Type:$1}}
@@ -1688,6 +1705,11 @@ pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_target '=' pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
  | PL_RETURN pl_return_value {value:=sqllex.(*lexer).plBoundExpression($2,$1);$$=PLStatement{Return:true,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
  | pl_if_head pl_if_condition pl_statements pl_elsif_arms pl_else END IF {condition:=sqllex.(*lexer).plBoundExpression($2,$1);arms:=append([]PLArm{{Conditions:[]PLExpression{condition},Statements:$3}},$4...);$$=PLStatement{If:&PLConditional{Arms:arms,HasElse:$5.HasElse,Else:$5.Else},Pos:$1.pos}}
+ | PL_OPEN pl_target pl_open_tail {$3.Action=PLOpenCursor;$3.Variable=$2;$$=PLStatement{Cursor:$3,Pos:$1.pos}}
+ | FETCH pl_cursor_motion pl_cursor_from pl_target INTO pl_cursor_targets {cursor:=sqllex.(*lexer).plCursorTargets(&PLCursorStatement{Action:PLFetchCursor,Variable:$4,Motion:$2,Targets:$6},$5);$$=PLStatement{Cursor:cursor,Pos:$1.pos}}
+ | MOVE pl_cursor_motion pl_cursor_from pl_target {$$=PLStatement{Cursor:&PLCursorStatement{Action:PLMoveCursor,Variable:$4,Motion:$2},Pos:$1.pos}}
+ | CLOSE pl_target {$$=PLStatement{Cursor:&PLCursorStatement{Action:PLCloseCursor,Variable:$2},Pos:$1.pos}}
+ | FOR pl_name IN pl_target pl_cursor_actuals PL_LOOP pl_statements END PL_LOOP {$5.Action=PLForCursor;$5.Variable=$4;$5.LoopName=Identifier{Text:$2.text,Pos:$2.pos};$5.Loop=&PLBlock{Statements:$7,Pos:$6.pos};$$=PLStatement{Cursor:$5,Pos:$1.pos}}
  | pl_case_head pl_search pl_case_arms pl_else END CASE {l:=sqllex.(*lexer);search:=l.plBoundExpression($2,$1);if search.Expression==nil {for _,arm:=range $3 {if len(arm.Conditions)!=1 {l.failAt("42601","syntax error at or near \",\"",arm.Conditions[0].Delimiter.Offset);return 1}}};$$=PLStatement{Case:&PLConditional{Search:search,Arms:$3,HasElse:$4.HasElse,Else:$4.Else},Pos:$1.pos}} ;
 pl_return_value: /* empty */ {$$=PLExpression{}} | pl_expression {$$=$1} ;
 pl_expression: pl_expression_start scalar_projection {l:=sqllex.(*lexer);l.plExpression=false;$$=l.plParsedExpression($2)} ;
@@ -1716,6 +1738,41 @@ pl_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.te
  | pl_target array_subscript {if base,ok:=$1.(SubscriptExpr);ok {base.Subscripts=append(base.Subscripts,$2);$$=base} else {$$=SubscriptExpr{Base:$1,Subscripts:[]ArraySubscript{$2},Pos:$1.SourcePosition()}}} ;
 pl_name: IDENT | KW_U | KW_C | KW_T | RETURN_BODY ;
 pl_declaration_name: pl_name | PL_ELSIF ;
+pl_cursor_arguments: /* empty */ {$$=nil}
+ | '(' pl_cursor_argument_list ')' {$$=$2} ;
+pl_cursor_argument_list: pl_cursor_argument {$$=[]PLDeclaration{$1}}
+ | pl_cursor_argument_list ',' pl_cursor_argument {$$=append($1,$3)} ;
+pl_cursor_argument: pl_name pl_type {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2}} ;
+pl_cursor_for: FOR | IS ;
+pl_cursor_query: pl_expression_start query_select {l:=sqllex.(*lexer);l.plExpression=false;$$=plCursorQuery{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
+pl_open_tail: pl_cursor_actuals {$$=$1}
+ | cursor_scroll FOR pl_cursor_query {query:=sqllex.(*lexer).plBoundCursorQuery($3,$2);$$=&PLCursorStatement{Scroll:CursorScroll($1),Query:query.Query,QueryStart:query.Start,QueryEnd:query.End,QueryDelimiter:query.Delimiter}}
+ | cursor_scroll FOR EXECUTE pl_expression pl_using {command:=sqllex.(*lexer).plBoundExpression($4,$3);$$=&PLCursorStatement{Scroll:CursorScroll($1),Command:command.Expression,CommandStart:command.Start,CommandEnd:command.End,CommandDelimiter:command.Delimiter,Using:$5}} ;
+pl_cursor_actuals: /* empty */ {$$=&PLCursorStatement{ArgumentsStart:sqllex.(*lexer).current.pos}}
+ | '(' pl_cursor_actual_list ')' {$2[0]=sqllex.(*lexer).plBoundCursorActual($2[0],$1);$$=&PLCursorStatement{Arguments:$2,HasArguments:true,ArgumentsStart:$1.pos,ArgumentsEnd:$3.pos}} ;
+pl_cursor_actual_list: pl_cursor_actual {$$=[]PLCursorActual{$1}}
+ | pl_cursor_actual_list ',' pl_cursor_actual {$3=sqllex.(*lexer).plBoundCursorActual($3,$2);$3.Separator=$2.pos;$$=append($1,$3)} ;
+pl_cursor_actual: pl_expression {$$=sqllex.(*lexer).plCursorActual($1)}
+ | pl_expression EQUALS_GREATER pl_expression {$$=sqllex.(*lexer).plNamedCursorActual($1,$3,$2);if sqllex.(*lexer).err!=nil{return 1}}
+ | pl_expression PL_ASSIGN pl_expression {$$=sqllex.(*lexer).plNamedCursorActual($1,$3,$2);if sqllex.(*lexer).err!=nil{return 1}} ;
+pl_using: /* empty */ {$$=nil} | USING pl_using_values {$2[0]=sqllex.(*lexer).plBoundExpression($2[0],$1);$$=$2} ;
+pl_using_values: pl_expression {$$=[]PLExpression{$1}} | pl_using_values ',' pl_expression {$$=append($1,sqllex.(*lexer).plBoundExpression($3,$2))} ;
+pl_cursor_targets: pl_target {$$=[]Expr{$1}} | pl_cursor_targets ',' pl_target {$$=append($1,$3)} ;
+pl_cursor_from: /* empty */ {$$=lexeme{}} | FROM | IN ;
+pl_cursor_motion: /* empty */ {$$=PLCursorMotion{}}
+ | PL_NEXT {$$=PLCursorMotion{}}
+ | PL_PRIOR {$$=PLCursorMotion{Direction:CursorBackward}}
+ | FIRST {$$=sqllex.(*lexer).plFixedCursorMotion(1,$1)}
+ | PL_LAST {$$=sqllex.(*lexer).plFixedCursorMotion(-1,$1)}
+ | ABSOLUTE pl_expression {$$=sqllex.(*lexer).plCursorMotion(CursorAbsolute,$2,false,$1)}
+ | RELATIVE pl_expression {$$=sqllex.(*lexer).plCursorMotion(CursorRelative,$2,false,$1)}
+ | FORWARD {$$=PLCursorMotion{}}
+ | BACKWARD {$$=PLCursorMotion{Direction:CursorBackward}}
+ | FORWARD pl_expression {$$=sqllex.(*lexer).plCursorMotion(CursorForward,$2,true,$1)}
+ | BACKWARD pl_expression {$$=sqllex.(*lexer).plCursorMotion(CursorBackward,$2,true,$1)}
+ | ALL {$$=PLCursorMotion{All:true,Counted:true}}
+ | FORWARD ALL {$$=PLCursorMotion{All:true,Counted:true}}
+ | BACKWARD ALL {$$=PLCursorMotion{Direction:CursorBackward,All:true,Counted:true}} ;
 routine_return_head: RETURN_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 routine_atomic_head: BEGIN ATOMIC_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 standard_routine_body: routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=[]Statement{&Select{Targets:[]Expr{$2},Pos:$1.pos}}}

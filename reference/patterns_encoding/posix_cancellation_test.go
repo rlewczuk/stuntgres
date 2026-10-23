@@ -116,11 +116,37 @@ func TestReferencePosixStatementTimeout(t *testing.T) {
 				t.Fatal(n, err)
 			}
 			for _, prepared := range []bool{false, true} {
-				fixture.StringCoreControlExec(t, b.DB, `SET statement_timeout='10ms'`)
-				s := fixture.ImplicitError(`UPDATE timeout_t SET sentinel=99 WHERE v ~ p`, fixture.Diagnostic{Code: "57014", Message: "canceling statement due to statement timeout"})
-				s.Prepared = prepared
-				s.ErrorStage = "execute"
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
+				func() {
+					conn, err := b.DB.Conn(p.Ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer func() {
+						if err := conn.Close(); err != nil {
+							t.Error("timeout connection close", err)
+						}
+					}()
+					const query = `UPDATE timeout_t SET sentinel=99 WHERE v ~ p`
+					var executor fixture.Executor = conn
+					if prepared {
+						// Preparation is not the cancellation witness. Finish it
+						// before arming the deadline on this physical session.
+						stmt, err := conn.PrepareContext(p.Ctx, query)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer func() {
+							if err := stmt.Close(); err != nil {
+								t.Error("timeout statement close", err)
+							}
+						}()
+						executor = fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: query}
+					}
+					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(`SET statement_timeout='10ms'`, 0))
+					s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "57014", Message: "canceling statement due to statement timeout"})
+					s.ErrorStage = "execute"
+					fixture.RunStep(t, p.Ctx, executor, b.Recorder, s)
+				}()
 				retireTimedSession()
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(`SELECT sentinel FROM timeout_t`, []string{"sentinel"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			}

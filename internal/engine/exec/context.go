@@ -90,6 +90,9 @@ type EvalStatement struct {
 	// Borrowed only while a PL assignment projection evaluates its child.
 	// Domain VALUE frames suppress propagation to their SQL CHECK routines.
 	PLAssignmentPlanning bool
+	// Requested only by a private PL query-preflight copy for its diagnostic
+	// owner. Ordinary preflight preserves the provider's original error API.
+	PLPreflightOrigin bool
 }
 
 // EvalAdmission is routine admission state for local serial DDL/recipe
