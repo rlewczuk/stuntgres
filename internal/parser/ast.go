@@ -312,6 +312,17 @@ type AlterEnum struct {
 
 func (*AlterEnum) statement() {}
 
+// AlterType changes identity only; enum labels and composite attributes have
+// their own statements and executable-definition lifetimes.
+type AlterType struct {
+	Name      ObjectName
+	Target    Identifier
+	SetSchema bool
+	Pos       Position
+}
+
+func (*AlterType) statement() {}
+
 type CreateComposite struct {
 	Name    ObjectName
 	Members []Column
@@ -333,14 +344,14 @@ type AlterComposite struct {
 
 func (*AlterComposite) statement() {}
 
-type DropComposite struct {
+type DropType struct {
 	Names    []ObjectName
 	IfExists bool
 	Mode     DropMode
 	Pos      Position
 }
 
-func (*DropComposite) statement() {}
+func (*DropType) statement() {}
 
 type AlterTableOf struct {
 	Name ObjectName

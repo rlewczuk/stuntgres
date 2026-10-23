@@ -34,7 +34,7 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 	}
 	if t.Extension != (ids.ObjectAddress{}) {
 		parent, ok := view.Extension(t.Extension)
-		if !ok || parent.TargetNamespace != t.Namespace() {
+		if !ok {
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}
 		var err error

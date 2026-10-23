@@ -21,6 +21,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is
 whose oracle loads the legacy OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 
+Type identity scenarios retain attribute privilege identities across rename and
+retire obsolete lookup names. Namespace controls replay nominal declarations and
+exercise owner-authorized type removal.
+
 - Helpers: family scenario and assertion helpers live in the family's
   `*_fixture_test.go` or `*_helpers_test.go` files (for example
   `vacuumScenario`, `partitionInfoScenario`, `pgcryptoCase`, `uuidOsspCase`,

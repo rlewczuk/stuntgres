@@ -49,7 +49,16 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 		if err := w.setOwner(view.Owner); err != nil {
 			return err
 		}
-		return s.emitBound(w, castConsumer{Event: event}, view.SQL)
+		if err := s.emitBound(w, castConsumer{Event: event}, view.SQL); err != nil {
+			return err
+		}
+		if oid == s.extensionTypeAfter && s.extensionTypeSQL != "" {
+			if err := w.setOwner("postgres"); err != nil {
+				return err
+			}
+			return w.emit(s.extensionTypeSQL)
+		}
+		return nil
 	}
 	return emitDumpTable(ctx, s, w, s.table(oid))
 }

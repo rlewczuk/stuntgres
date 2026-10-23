@@ -64,6 +64,9 @@ import it.
   because it walks `ClassReplayReferences` and `regobj` imports `typedef`).
 - **Type declarations and literals** (`catalog_literal.go`): `TypeDeclaration(At)`,
   `ColumnDeclaration`, `Literal`, `LiteralWithACL(At)`, `ConstantLiteral`.
+  Declaration rendering accepts canonical nominal-only domain/array metadata
+  only with exact catalog-owned provider pointers and reciprocal companions.
+  This does not admit those usages as executable codecs or stored values.
   Deep constructor literals reuse `float4_dump.go` for exact raw FLOAT4 and
   negative-circle leaves. Actual values gate recursive typed ROW/ARRAY SQL;
   ordinary canonical values retain text literals. `ConstructorArrayTargetBounds`

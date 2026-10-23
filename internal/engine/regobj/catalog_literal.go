@@ -19,10 +19,16 @@ func TypeDeclaration(view catalog.Read, u sqltype.Usage) (string, error) {
 	return TypeDeclarationAt(view, nil, u)
 }
 
+// Declaration rendering also serves provider-validated, metadata-only domains
+// and companions. Canonical nominal usage is not executable codec authority.
+func declarationUsageValid(u sqltype.Usage) bool {
+	return u.Valid() || u.Type != nil && !u.Type.Concrete() && u == u.Type.Usage()
+}
+
 func TypeDeclarationAt(view catalog.Read, reader catalog.DefinitionReader, u sqltype.Usage) (string, error) {
 	if u.Type.IsArray() {
 		array, ok := catalog.DefinitionArrayAt(view, reader, u.Type.Element())
-		if !ok || array != u.Type || !u.Valid() {
+		if !ok || array != u.Type || !declarationUsageValid(u) {
 			return "", fmt.Errorf("stuntgres: invalid array declaration authority")
 		}
 		element := u
@@ -37,7 +43,7 @@ func TypeDeclarationAt(view catalog.Read, reader catalog.DefinitionReader, u sql
 		return u.Declaration()
 	}
 	descriptor, ok := catalog.DescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
-	if !ok || descriptor.(*catalog.Type).SQLType != u.Type || !u.Valid() {
+	if !ok || descriptor.(*catalog.Type).SQLType != u.Type || !declarationUsageValid(u) {
 		return "", fmt.Errorf("stuntgres: invalid domain declaration authority")
 	}
 	namespace, ok := catalog.DescriptorAt(view, reader, descriptor.Namespace())

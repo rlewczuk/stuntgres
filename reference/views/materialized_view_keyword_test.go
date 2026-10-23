@@ -18,18 +18,6 @@ func TestReferenceMaterializedViewKeywordTypes(t *testing.T) {
 						}
 					}()
 					run := func(step fixture.Step) { step.Prepared = prepared; execute(step) }
-					dropType := func(name string) {
-						if backend.PG {
-							run(fixture.Exec("DROP TYPE "+name, 0))
-						} else {
-							// DROP TYPE is an existing native utility exclusion, not
-							// part of unreserved type-name legality. Fixture reset and
-							// supported schema CASCADE own native type cleanup.
-							run(fixture.ImplicitError("DROP TYPE "+name, fixture.Diagnostic{
-								Code: "0A000", Message: "statement is unsupported", Position: "1",
-							}))
-						}
-					}
 					run(fixture.Select("SELECT 7 AS materialized", []string{"materialized"}, []string{"INT4"}, [][]any{{int64(7)}}))
 					run(fixture.Exec("CREATE DOMAIN materialized AS integer", 0))
 					run(fixture.Exec("CREATE TABLE mv_keyword_domain(v materialized)", 0))
@@ -44,7 +32,7 @@ func TestReferenceMaterializedViewKeywordTypes(t *testing.T) {
 					run(fixture.Select("SELECT v::text AS v FROM mv_keyword_enum", []string{"v"}, []string{"TEXT"}, [][]any{{"keyword_value"}}))
 					run(fixture.Select("SELECT CAST('keyword_value' AS materialized)::text AS v", []string{"v"}, []string{"TEXT"}, [][]any{{"keyword_value"}}))
 					run(fixture.Exec("DROP TABLE mv_keyword_enum", 0))
-					dropType("materialized")
+					run(fixture.Exec("DROP TYPE materialized", 0))
 					run(fixture.Exec("CREATE SCHEMA materialized", 0))
 					run(fixture.Exec("CREATE DOMAIN materialized.mv_keyword_domain AS integer", 0))
 					run(fixture.Exec("CREATE TABLE mv_keyword_schema(v materialized.mv_keyword_domain)", 0))
@@ -59,7 +47,7 @@ func TestReferenceMaterializedViewKeywordTypes(t *testing.T) {
 					run(fixture.Select("SELECT v::text AS v FROM mv_keyword_schema_type", []string{"v"}, []string{"TEXT"}, [][]any{{"schema_value"}}))
 					run(fixture.Select("SELECT 'schema_value'::materialized.mv_keyword_type::text AS v", []string{"v"}, []string{"TEXT"}, [][]any{{"schema_value"}}))
 					run(fixture.Exec("DROP TABLE mv_keyword_schema_type", 0))
-					dropType("materialized.mv_keyword_type")
+					run(fixture.Exec("DROP TYPE materialized.mv_keyword_type", 0))
 					run(fixture.Exec("DROP SCHEMA materialized CASCADE", 0))
 				})
 			}

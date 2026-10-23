@@ -406,13 +406,21 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			if first.Clause.JSONBRecordBase || len(first.Prepared.Types) == 0 {
 				t.Fatal("base capture escaped or was absent")
 			}
+			specialized := 0
 			for _, captured := range first.Prepared.Types {
-				if captured.Kind != analyze.CompositeRecordArgument || captured.Base.Type != original {
+				if captured.Kind != analyze.CompositeRecordArgument {
+					continue
+				}
+				specialized++
+				if captured.Base.Type != original {
 					t.Fatal("wrong provider capture", captured)
 				}
 				if err := stored.ValidateCompositeOccurrence(captured, view); err != nil {
 					t.Fatal(err)
 				}
+			}
+			if specialized == 0 {
+				t.Fatal("specialized record argument authority missing")
 			}
 			// Use a now-absent spelling at the same analyzed cast occurrences.
 			// The real provider remains present under its current catalog name.

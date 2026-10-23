@@ -13,6 +13,9 @@ indexes. Related families: ALTER TABLE effects on dependent views in
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
 
+`TestReferenceMaterializedViewKeywordTypes` uses genuine enum DROP TYPE in both
+backends, preserving direct/prepared unreserved-name and namespace legality.
+
 - Helpers: `ruleRoutes`/`ruleRun` (`rule_helpers_test.go`), `viewCheckRoutes`/
   `viewCheckRun` (`view_check_helpers_test.go`), `recursiveViewReference`
   (`recursive_view_helpers_test.go`) and `deparseReviewNullableColumns`

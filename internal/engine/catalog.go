@@ -274,7 +274,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	case *catalog.Type:
 		t := d.(*catalog.Type)
 		if t.OwningRelation == (ids.ObjectAddress{}) && !t.SQLType.IsUserDefined() && !(t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined()) {
-			return fmt.Errorf("stuntgres: builtin types cannot be removed")
+			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, t.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *catalog.Collation:
 		if d.(*catalog.Collation).Seeded() {
@@ -393,7 +393,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	}
 	for address, descriptor := range s.Descriptors() {
 		typ, ok := descriptor.(*catalog.Type)
-		if !ok || !typ.SQLType.IsComposite() && !typ.SQLType.IsDomain() {
+		if !ok {
 			continue
 		}
 		old, _ := s.Base.Type(address)
@@ -900,7 +900,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if fence := s.domainAlter.ValidationFence(); err == nil && fence != nil && !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
 			err = catalog.Conflict{}
 		}
-		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(e.catalog.DatabaseAddress()) != s.databasePredecessor {
+		if err == nil && s.databasePredecessor != nil && !catalog.DatabaseAuthorityCompatible(e.catalog.state.Get(e.catalog.DatabaseAddress()), s.databasePredecessor) {
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {

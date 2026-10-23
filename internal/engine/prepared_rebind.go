@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 // Only immutable analysis identities and definition stamps survive a statement.
@@ -28,6 +29,7 @@ type preparedAnalysis struct {
 	targets         map[parser.Statement]ids.ObjectRef
 	sources         map[*parser.TableReference]analyze.PreparedSource
 	dependencies    []catalog.ExpressionDependency
+	types           map[ids.ObjectAddress]*catalog.Type
 	casts           map[catalog.CastPair]*catalog.Cast
 	needsReanalysis bool // A granted definition evolved after this attempt resolved names.
 }
@@ -83,8 +85,14 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 	}
 	for _, dep := range analysis.dependencies {
 		d := auth.Catalog.Get(dep.Ref.Address)
-		if d == nil || dep.Ref.Domain() != e.catalog.Domain || dep.Ref.Epoch != auth.Catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.Revision {
+		if d == nil || dep.Ref.Domain() != e.catalog.Domain || dep.Ref.Epoch != auth.Catalog.Epoch() {
 			return false
+		}
+		if preparedDefinitionStamp(d, auth.session) != dep.Revision {
+			current, ok := d.(*catalog.Type)
+			if !ok || !samePreparedTypeDefinition(analysis.types[dep.Ref.Address], current) {
+				return false
+			}
 		}
 	}
 	return true
@@ -130,6 +138,35 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 			return ids.ErrCatalogReplaced
 		}
 		cell.dependencies = append(cell.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: preparedDefinitionStamp(d, auth.session)})
+		if typ, ok := d.(*catalog.Type); ok {
+			if !typ.UsesDomainPlanStamp() && (typ.SQLType.IsUserDefined() || typ.SQLType.IsArray()) {
+				if cell.types == nil {
+					cell.types = make(map[ids.ObjectAddress]*catalog.Type)
+				}
+				cell.types[ref.Address] = typ
+			}
+			// Type usages form the precise executable provider closure. Record
+			// children in this cell rather than inventing a generic type stamp.
+			visitType := func(id sqltype.ID) error {
+				return visit(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}))
+			}
+			switch {
+			case typ.SQLType.IsDomain():
+				if err := visitType(typ.SQLType.DomainBase().Type.ID()); err != nil {
+					return err
+				}
+			case typ.SQLType.IsArray():
+				if err := visitType(typ.SQLType.Element().ID()); err != nil {
+					return err
+				}
+			case typ.SQLType.IsComposite():
+				for i := range typ.SQLType.CompositeLen() {
+					if err := visitType(typ.SQLType.CompositeMember(i).Usage.Type.ID()); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.ViewRelation && relation.View != nil {
 			for _, leaf := range stored.ViewOf(relation).Sources() {
 				child, err := stored.ViewUseReference(auth.Catalog, relation, leaf.Ref)
@@ -194,7 +231,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	// A domain conversion can be elided from the executable expression, but
 	// its resolved cast occurrence still belongs to this analysis lifetime.
 	for key, captured := range b.Prepared.Types {
-		if key.Kind != analyze.DomainCast || captured.Base.Type == nil {
+		if key.Kind != analyze.DomainCast && key.Kind != analyze.IdentityCast || captured.Base.Type == nil {
 			continue
 		}
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(captured.Base.Type.ID())})

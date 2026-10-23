@@ -30,10 +30,17 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		if mode == "isolated" {
 			e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
 		}
+		before := e.catalog.state
 		for _, raw := range []parser.TypeName{{Name: "char", Quoted: true}, {Name: "regclass"}, {Name: "regclass", ArrayBounds: []int32{0}}, {Name: "xid"}, {Name: "xid", Schema: &parser.Identifier{Text: "pg_catalog"}}, {Name: "cid"}, {Name: "xid8"}} {
 			e.mu.Lock()
 			usage, err := e.resolveTableColumnType(raw, op)
 			e.mu.Unlock()
+			if mode == "forged" {
+				if err == nil || usage.Type != nil || e.catalog.state != before {
+					t.Fatal("forged marker admitted a type or changed catalog state", raw, usage, err)
+				}
+				continue
+			}
 			if mode == "isolated" || raw.Name != "char" {
 				if err != nil {
 					t.Fatal(mode, raw, err)
@@ -50,10 +57,6 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 				}
 				if len(raw.ArrayBounds) == 0 && usage.Type != testUsage(e, id).Type || len(raw.ArrayBounds) != 0 && (!usage.Type.IsArray() || usage.Type.Element() != testUsage(e, id).Type) {
 					t.Fatal(mode, raw, usage)
-				}
-			} else if mode == "forged" {
-				if err == nil || err.Error() != "stuntgres: invalid trusted restore column authority" {
-					t.Fatal(mode, raw, err)
 				}
 			} else {
 				var diagnostic *sqlstate.Error
@@ -72,6 +75,17 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		_, xidArrayErr := e.resolveTableColumnType(parser.TypeName{Name: "xid", ArrayBounds: []int32{0}}, op)
 		_, xidModifierErr := e.resolveTableColumnType(parser.TypeName{Name: "xid", Modifiers: []parser.TypeModifier{{Integer: new(int32)}}}, op)
 		e.mu.Unlock()
+		if mode == "forged" {
+			for _, err := range []error{castErr, domainErr, arrayErr, xidCastErr, xidDomainErr, xidArrayErr, xidModifierErr} {
+				if err == nil {
+					t.Fatal("forged marker admitted ordinary type resolution")
+				}
+			}
+			if e.catalog.state != before {
+				t.Fatal("forged marker changed catalog state")
+			}
+			continue
+		}
 		if xidCastErr != nil || xidDomainErr != nil {
 			t.Fatal(mode, xidCastErr, xidDomainErr)
 		}

@@ -24,6 +24,13 @@ func pgTypeAdmitted(catalog catalog.Read, d *catalog.Type) bool {
 		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		return ok && element.SQLType == d.SQLType.Element() && element.Array == d.SQLType.ID() && pgTypeAdmitted(catalog, element)
 	}
+	if d.SQLType.IsDomain() && d.SQLType.IsUserDefined() {
+		// A genuine nominal domain has catalog facts even when its admitted
+		// immediate base has metadata but no executable codec.
+		usage := d.SQLType.DomainBase()
+		base, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		return ok && base.SQLType == usage.Type && pgTypeAdmitted(catalog, base)
+	}
 	if d.OwningRelation != (ids.ObjectAddress{}) {
 		r, ok := catalog.Relation(d.OwningRelation)
 		return ok && r.RowType == d.SQLType.ID()
@@ -44,7 +51,7 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 		}
 		return d.SQLType.PGTypeArrayMetadata(fact), nil
 	}
-	if d.SQLType.IsDomain() && d.SQLType.Concrete() {
+	if d.SQLType.IsDomain() && (d.SQLType.Concrete() || d.SQLType.IsUserDefined()) {
 		usage := d.SQLType.DomainBase()
 		base, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if !ok || base.SQLType != usage.Type {

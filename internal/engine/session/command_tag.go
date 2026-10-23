@@ -77,9 +77,9 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "ALTER TABLE"
 	case *parser.CreateEnum, *parser.CreateComposite:
 		base = "CREATE TYPE"
-	case *parser.AlterEnum, *parser.AlterComposite:
+	case *parser.AlterEnum, *parser.AlterComposite, *parser.AlterType:
 		base = "ALTER TYPE"
-	case *parser.DropComposite:
+	case *parser.DropType:
 		base = "DROP TYPE"
 	case *parser.CreateDomain:
 		base = "CREATE DOMAIN"

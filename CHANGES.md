@@ -68,6 +68,26 @@ fetch boundary without evaluating later batches unnecessarily.
 Direct rewrites preserve structural matching, multiplicity and empty-query
 semantics; stored consumers retain typed results through logical replay.
 
+## Type identity lifecycle
+
+`ALTER TYPE` rename, schema move and ownership changes retain logical identity,
+stored values and automatic companions for enum, domain, standalone composite
+and installed cube/query_int/citext/earth types. General `DROP TYPE` uses real
+dependency protection and column-only CASCADE where applicable. Held casts keep
+their analyzed identities until genuine invalidation. Native Dump/Restore
+reconstructs current names, provider graphs and individual owners, including
+domains over nominal-only installed arrays, without granting schema privileges.
+Type metadata retains immediate nominal-domain bases, while native owner replay
+preserves exact ACL baselines and raw NULL ACL semantics without mutating retained
+catalog roots.
+Explicit element/companion batches defer through genuine internal ownership
+without bypassing extension or system protection. Protected-target rename and
+schema moves retain action-specific ownership and destination error precedence,
+including base-name collisions before table-rowtype rejection.
+Type identity and compatible catalog publications tolerate maintenance-only
+database horizon updates without losing the new horizon or relaxing genuine
+database authority fences.
+
 ## MAC address operators and functions
 
 `macaddr` and `macaddr8` support fixed-width `~`, `&`, `|` and three-octet-prefix

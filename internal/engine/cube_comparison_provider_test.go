@@ -176,7 +176,7 @@ func cubeComparisonProviderRemap(t *testing.T) {
 		corrupt(&bad)
 		candidate := catalog.CloneState(e.catalog.state)
 		roles := e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published)
-		if _, err := extension.ImportOwners(context.Background(), candidate, roles, []extension.OwnerRecord{bad}); err == nil {
+		if _, err := extension.ImportOwners(context.Background(), candidate, e.catalog.read(candidate), roles, []extension.OwnerRecord{bad}); err == nil {
 			t.Fatal("corrupt owner record admitted", bad)
 		}
 		if err := extension.StockCube.ValidateExtension(e.CatalogRead(), ext); err != nil {

@@ -2,14 +2,13 @@ package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
 )
 
 func TestReferenceDomainDefaultStoredDeparseVisibility(t *testing.T) {
-	domainReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder, _ *[]fixture.Diagnostic) {
+	domainReferenceScenario(t, func(t *testing.T, p *fixture.Pair, _ fixture.Backend, c *sql.Conn, r *fixture.Recorder, _ *[]fixture.Diagnostic) {
 		run := func(q string) { fixture.RunStep(t, p.Ctx, c, r, fixture.Exec(q, 0)) }
 		run("SET search_path TO public,pg_catalog")
 		run("CREATE TYPE public.dd_visible_pair AS(a integer,b integer)")
@@ -52,23 +51,12 @@ func TestReferenceDomainDefaultStoredDeparseVisibility(t *testing.T) {
 			"ALTER TYPE public.dd_visible_pair RENAME TO dd_visible_pair_renamed",
 			"ALTER TYPE domain_s.dd_hidden_pair RENAME TO dd_hidden_pair_renamed",
 		} {
-			if b.PG {
-				// Released PG rename control; native type renaming is outside
-				// this part's admitted utility grammar.
-				run(query)
-			} else {
-				want := fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "TO"`)
-				want.Position = fixture.Position(strings.Index(query, " TO ") + 2)
-				for _, prepared := range []bool{false, true} {
-					step := fixture.ErrorDiagnostic(query, want)
-					step.Prepared, step.ErrorStage = prepared, "execute"
-					if prepared {
-						step.ErrorStage = "prepare"
-					}
-					fixture.RunStep(t, p.Ctx, c, r, step)
-				}
-			}
+			run(query)
 			check(true)
 		}
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT NULL::domain_s.dd_visible_default IS NULL AS nullable", []string{"nullable"}, []string{"BOOL"}, [][]any{{true}}))
+		run("CREATE TABLE domain_s.dd_after(v domain_s.dd_visible_child,h domain_s.dd_hidden_child)")
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO domain_s.dd_after DEFAULT VALUES", 1))
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT v,h FROM domain_s.dd_after", []string{"v", "h"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(9)}}))
 	})
 }

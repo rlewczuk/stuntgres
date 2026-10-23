@@ -8,6 +8,25 @@ import (
 	"testing"
 )
 
+func TestTypeLifecycleLookupDomainIdentity(t *testing.T) {
+	enum, err := Enum(45000, "mood", "public.mood", []string{"a", "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	array := LookupArray(45001, "_mood", enum)
+	domain := LookupDomain(45002, "wrapped", "public.wrapped", array.Usage(), true, true)
+	child := LookupDomain(45003, "child", "public.child", domain.Usage())
+	if !domain.IsUserDefined() || !child.IsUserDefined() || domain.IsBuiltin() || domain.Concrete() || child.Concrete() || domain.DomainBase().Type != array || child.DomainBase().Type != domain {
+		t.Fatal("metadata-only domain lost logical ownership or acquired a codec")
+	}
+	if !domain.ownDomainChecks || !domain.OwnDomainNotNull() || !child.HasDomainChecks() || !child.DomainNotNull() || child.ownDomainChecks || child.OwnDomainNotNull() {
+		t.Fatal("domain flags or inheritance lost")
+	}
+	if _, err := domain.Input(context.Background(), "{a}", -1); err == nil {
+		t.Fatal("lookup-only domain admitted array input")
+	}
+}
+
 func TestDomainLogicalIdentityAndInlineValues(t *testing.T) {
 	types := testTypes()
 	ctx := context.Background()

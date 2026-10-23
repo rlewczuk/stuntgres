@@ -60,7 +60,10 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			}
 			seen[a] = true
 			member := v.Get(a)
-			if member == nil || member.Namespace() != d.TargetNamespace || catalog.ExtensionMembership(member) != d.Address() {
+			if member == nil || catalog.ExtensionMembership(member) != d.Address() {
+				return invalid()
+			}
+			if _, mutableType := member.(*catalog.Type); !mutableType && member.Namespace() != d.TargetNamespace {
 				return invalid()
 			}
 		}

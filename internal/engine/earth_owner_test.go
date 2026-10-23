@@ -72,7 +72,7 @@ func earthOwnerCodecUnits(t *testing.T) {
 		t.Fatal("symbolic companion roles", record, err)
 	}
 	candidate := *view.State()
-	if _, err := extension.ImportOwners(context.Background(), &candidate, roles, []extension.OwnerRecord{record}); err != nil {
+	if _, err := extension.ImportOwners(context.Background(), &candidate, e.catalog.read(&candidate), roles, []extension.OwnerRecord{record}); err != nil {
 		t.Fatal("actual companion ownership resolution", err)
 	}
 	encode := func(record extension.OwnerRecord) string {
@@ -98,7 +98,7 @@ func earthOwnerCodecUnits(t *testing.T) {
 	bad := record
 	bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 	bad.Members[1].Owner = "inconsistent"
-	if _, err := extension.ImportOwners(context.Background(), &candidate, roles, []extension.OwnerRecord{bad}); err == nil {
+	if _, err := extension.ImportOwners(context.Background(), &candidate, e.catalog.read(&candidate), roles, []extension.OwnerRecord{bad}); err == nil {
 		t.Fatal("inconsistent owner records bypassed decoder")
 	}
 }

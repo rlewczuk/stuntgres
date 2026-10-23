@@ -52,6 +52,9 @@ type AuthorizationView struct {
 	pathPrefix ids.ObjectAddress
 	// Trusted replay permissions may elevate without changing $user semantics.
 	namespaceUser authorization.PrincipalRef
+	// Validated private Restore definition lookup only; it never changes the
+	// named destination owner, session identity, ACLs or creation authority.
+	restoreDefinitionLookup bool
 	// An owned TEMP table builder may see its namespace before session publication.
 	stagedTemporary        ids.ObjectAddress
 	session                *session.Session
@@ -228,7 +231,8 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 		view = e.privateCatalogLocked(s.Transactions.Catalog)
 	}
 	r := e.roles.read(e.catalog.owner(), view, e.operationRolesLocked(op))
-	if _, err := r.Descriptor(a.State.Authenticated); err != nil {
+	bootstrap, err := r.Descriptor(a.State.Authenticated)
+	if err != nil {
 		return AuthorizationView{}, err
 	}
 	// PREPARE can detach a newly created role while preserving SET ROLE's ID.
@@ -246,6 +250,12 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 		identity.CurrentUser = operationReplayOrZero(op).materializedOwner
 	}
 	authorization := e.operationAuthority(op, access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(e.catalog.owner().DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
+	if operationReplayOrZero(op).tableDestination {
+		if !bootstrap.Superuser || e.importTargets == nil {
+			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore definition lookup authority")
+		}
+		authorization.restoreDefinitionLookup = true
+	}
 	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.MissingCurrent = identity.CurrentUser
 	}

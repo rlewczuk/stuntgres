@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -22,6 +23,15 @@ func pathInput(auth AuthorizationView, searchPath bool) analyze.PathInput[Author
 		NamespaceUser:   auth.namespaceUser,
 		StagedTemporary: auth.stagedTemporary,
 		Restricted:      auth.materializedPopulation,
+	}
+	if auth.restoreDefinitionLookup {
+		// The live authority capture verified the authenticated bootstrap and
+		// isolated import marker. Elevate only lookup's permission view; keep
+		// $user and all destination ownership semantics on the named principal.
+		in.View.State.CurrentUser = auth.State.Authenticated
+		if in.NamespaceUser == (authorization.PrincipalRef{}) {
+			in.NamespaceUser = auth.State.CurrentUser
+		}
 	}
 	if !searchPath || auth.materializedPopulation {
 		return in

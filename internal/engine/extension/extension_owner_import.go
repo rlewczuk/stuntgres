@@ -14,7 +14,7 @@ import (
 // candidate, a private clone. Each record must name an installed extension
 // once, with its version, schema and installation owner; each member must
 // belong to it. It reports whether any member owner changed.
-func ImportOwners(ctx context.Context, candidate *catalog.State, roles authorization.Read, records []OwnerRecord) (bool, error) {
+func ImportOwners(ctx context.Context, candidate *catalog.State, view catalog.Read, roles authorization.Read, records []OwnerRecord) (bool, error) {
 	seen := map[ids.ObjectAddress]bool{}
 	ownersChanged := false
 	for _, record := range records {
@@ -136,15 +136,24 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				}
 			}
 			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.TargetNamespace, Name: member.Name, Signature: signature})
-			if record.Name == "earthdistance" && member.Name == "earth[]" {
-				domain, ok := candidate.Type(ext.Members[0])
-				if !ok || !domain.SQLType.IsDomain() {
-					return false, fmt.Errorf("stuntgres: missing earth ownership domain")
+			if member.Kind == "type" {
+				roleName, base, err := InstalledType(view, ext)
+				if err != nil {
+					return false, err
 				}
-				a = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.Array)}
-				array, ok := candidate.Type(a)
-				if !ok || array.SQLType.Element() != domain.SQLType || array.Namespace() != domain.Namespace() || a != ext.Members[1] {
-					return false, fmt.Errorf("stuntgres: invalid earth ownership companion")
+				if base == nil {
+					return false, fmt.Errorf("stuntgres: missing installed ownership role")
+				}
+				switch member.Name {
+				case roleName:
+					a = base.Address()
+				case roleName + "[]":
+					if ext.Name() != "earthdistance" {
+						return false, fmt.Errorf("stuntgres: invalid installed array ownership role")
+					}
+					a = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}
+				default:
+					return false, fmt.Errorf("stuntgres: invalid installed ownership role")
 				}
 			}
 			d := candidate.Get(a)
@@ -157,6 +166,7 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref
+					n.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, owner.Ref)
 					candidate.SetDescriptor(a, &n)
 					if d.Array != 0 {
 						arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}
@@ -166,6 +176,7 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 						}
 						mapped := *array
 						mapped.Owner = owner.Ref
+						mapped.ACL = authorization.SchemaACLOwner(array.ACL, array.Owner, owner.Ref)
 						candidate.SetDescriptor(arrayAddress, &mapped)
 					}
 					ownersChanged = true
@@ -174,6 +185,7 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref
+					n.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, owner.Ref)
 					candidate.SetDescriptor(a, &n)
 					ownersChanged = true
 				}

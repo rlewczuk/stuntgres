@@ -1,15 +1,14 @@
 package analyze
 
-// Environment and definition invalidation permanently retires domain and
-// selected geometric type-name casts; frozen composite identity keeps its
-// existing contract. Neither function mutates a map it is given: another
-// description or an admitted binder may share it.
+// Environment and definition invalidation retires explicit user-type and
+// selected geometric type-name casts. Frozen composite expansion identity keeps
+// its existing contract. Neither function mutates a map it is given.
 
 func domainCastKey(key PreparedTypeKey) bool {
-	return key.Kind == DomainCast || key.Kind == TypeNameCast
+	return key.Kind == DomainCast || key.Kind == IdentityCast || key.Kind == TypeNameCast
 }
 
-// RetireDomainCasts returns types without its domain and type-name casts and
+// RetireDomainCasts returns types without its identity/type-name cast group and
 // reports whether it had any. Without any it returns types itself.
 func RetireDomainCasts(types map[PreparedTypeKey]TypeOccurrence) (map[PreparedTypeKey]TypeOccurrence, bool) {
 	for key := range types {
@@ -27,9 +26,8 @@ func RetireDomainCasts(types map[PreparedTypeKey]TypeOccurrence) (map[PreparedTy
 	return types, false
 }
 
-// PublishDomainCasts returns types with its domain and type-name casts
-// replaced by those of a successful analysis' captures. Without a cast in
-// captures it returns types itself.
+// PublishDomainCasts replaces the identity/type-name cast group from a successful
+// analysis, preserving unrelated frozen composite occurrences.
 func PublishDomainCasts(types, captures map[PreparedTypeKey]TypeOccurrence) map[PreparedTypeKey]TypeOccurrence {
 	for key := range captures {
 		if !domainCastKey(key) {

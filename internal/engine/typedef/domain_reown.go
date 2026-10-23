@@ -239,9 +239,9 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			return fmt.Errorf("stuntgres: missing domain namespace")
 		}
 		declaration := catalog.DependencyIdentifier(ns.Name()) + "." + catalog.DependencyIdentifier(d.Name())
-		if d.SQLType.IsDomain() && !d.SQLType.Concrete() {
-			// Seeded domains carry lookup provenance, not a stored declaration.
-			// Preserve their spelling while rebinding the catalog base generation.
+		if d.SQLType.IsDomain() && d.SQLType.IsBuiltin() && !d.SQLType.Concrete() {
+			// Seeded domains carry builtin lookup provenance, not a stored
+			// declaration. User lookup-only domains still use their current name.
 			declaration = d.SQLType.SQLName()
 		}
 		previous := d.SQLType.DomainBase().Type
@@ -262,7 +262,7 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 					typ, err = sqltype.Array(sqltype.ID(target.ObjectID), d.Name(), base.Type)
 				}
 			} else if !d.SQLType.Concrete() {
-				typ = sqltype.LookupDomain(sqltype.ID(target.ObjectID), d.Name(), declaration, base)
+				typ = sqltype.LookupDomain(sqltype.ID(target.ObjectID), d.Name(), declaration, base, len(d.DomainChecks) != 0, d.SQLType.OwnDomainNotNull())
 			} else if d.SQLType.IsBuiltin() {
 				if target != address || associated != d.Array {
 					return fmt.Errorf("stuntgres: builtin domain identity cannot be remapped")

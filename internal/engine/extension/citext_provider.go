@@ -37,7 +37,7 @@ func (p *CitextProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 		return invalid()
 	}
 	base, ok := v.Type(ext.Members[0])
-	if !ok || base.SQLType == nil || base.Address() != ext.Members[0] || !base.SQLType.IsCitext() || base.Name() != "citext" || base.Extension != ext.Address() || base.Namespace() != ext.TargetNamespace || base.ObjectRevision == 0 || base.Array == 0 {
+	if !ok || base.SQLType == nil || base.Address() != ext.Members[0] || !base.SQLType.IsCitext() || base.Extension != ext.Address() || base.ObjectRevision == 0 || base.Array == 0 {
 		return invalid()
 	}
 	array, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})

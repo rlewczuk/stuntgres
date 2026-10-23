@@ -21,7 +21,7 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
 - **Stage handlers** (`collation_ddl.go`, `conversion_ddl.go`, `domain*.go`,
   `enum.go`, `composite.go`, `typed_type_drop.go`): CREATE/ALTER/DROP COLLATION
   and CONVERSION, CREATE/DROP DOMAIN, domain RENAME/SET SCHEMA, CREATE TYPE AS
-  ENUM and composite CREATE/DROP TYPE, as `Stage...Locked(h, auth, statement)`.
+  ENUM/composite, and general type identity/DROP, as `Stage...Locked(h, auth, statement)`.
   `StageAlterEnumLabelLocked` and `StageAlterDomainLocked` stage one ALTER TYPE
   ... VALUE or ALTER DOMAIN action and return an edit record; the executors stay
   in the engine.
@@ -29,6 +29,9 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   `ResolveAlterDomainLocked` resolve the target in diagnostic order (existence,
   kind, ownership; ALTER DOMAIN reads the reference path before the kind check)
   over `ddl.Host`, using only `SearchNamespaces` and `AccessView`.
+  TYPE and DOMAIN identity stages share lookup, authorization and collision
+  policy. Pure domain identity edits preserve the executable analysis stamp via
+  `StageHost.ReplaceDomainIdentity`; OWNER remains the role package's authority.
 - **Collations and conversions** (`collation_*.go`, `conversion_*.go`): SQL names,
   provider validation, the import remapper, the builtin conversion routine table
   and seed constructor `BuiltinConversionProcedures`, and the bootstrap seed dump
@@ -60,6 +63,50 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   state of the catalog journal, implementing `session.DomainSlot` and
   `session.EnumSlot`), with `DomainWritable`/`EnumWritable` and
   `DomainJournalOf`/`EnumJournalOf`/`EnumSlotOf`.
+
+## Type identity lifecycle
+
+Identity ALTER preserves logical IDs and stored values for enums, domains,
+standalone composites and installed cube/query_int/citext/earth. Arrays follow
+the reciprocal descriptor, never a guessed underscore name; standalone composite
+backing relations remain reciprocal. Relation-owned rowtypes use their relation's
+DDL instead. Rename may displace a genuine generated array; namespace moves must
+admit both existing base and companion names atomically. OWNER reuses the existing
+role/ACL authority and does not change unrelated contained-object owners.
+TYPE rename checks ownership before protected-kind rejection. TYPE schema moves
+check destination existence/CREATE and ownership before automatic-array
+protection. Namespace-switch restrictions and destination base-name collisions
+precede table-rowtype rejection; companion-name collisions follow it. A
+same-schema move still rejects a protected rowtype without mutation. Array
+ownership diagnostics identify the actual element.
+Direct catalog publication tolerates database maintenance-horizon drift only
+when identity, revision, owner and exact ACL authority remain unchanged. It
+composes against the current catalog root to retain the newest horizon; epoch,
+session and role fences remain strict.
+
+TYPE and DOMAIN drop share full-batch name/authorization preflight. Type or schema
+ownership admits DROP; schema ownership alone does not admit ALTER. Explicit roots
+receive actual internal/extension/pinned dependency protection before normal
+closure discovery. A canonical companion may defer to its genuine pending
+internal owner; that owner still faces its own protection. All explicit roots
+remain in the shared closure for batch diagnostics and idempotent retirement.
+RESTRICT reports genuine consumers; CASCADE prunes dependent columns and objects
+while retaining unrelated columns, holder rows and zero-column table cardinality.
+Installed membership does not prohibit identity ALTER, but
+direct DROP still requires the owning extension. No user base/range/multirange
+provider, temporal companion descriptors or general enum[]/installed-array codecs
+are added. The native range companion join retains its three integer/numeric
+relationships versus PostgreSQL's six temporal-inclusive relationships.
+
+Held casts retain logical captures until normal effective-path/dependency
+invalidation reanalyzes their original SQL; fresh lookup/metadata/diagnostics use
+current names. DROP/CREATE at the same spelling is a different identity and cannot
+retarget an old parameter/result signature. PostgreSQL may instead retain a
+retired physical parameter OID and report a cache-lookup error. Existing native
+explicit-transaction and arbitrary explicit-ACL portability limits remain.
+The SQL authority is [ALTER TYPE](https://www.postgresql.org/docs/18/sql-altertype.html)
+and [DROP TYPE](https://www.postgresql.org/docs/18/sql-droptype.html); public
+proof belongs in [reference/types](../../../reference/types/README.md#type-identity-lifecycle).
 
 ## The stage host
 
@@ -132,6 +179,10 @@ Package units pin the seeds, replay pairing, the scalar leaf callback contract
 copy-on-write, default snapshots and storage admission. Engine witnesses in
 `internal/engine` cover the `ddlHost` side, ALTER DOMAIN publication, the replay
 walk with the real leaf and the dump statements.
+Lifecycle units cover provider/companion ownership, pending-root protection,
+retained immutable graphs, publication fences and replay-name cycles.
+Family selector: `RUN='^TestTypeLifecycle'`.
+
 
 ```sh
 make check RUN='^Test(BuiltinConversionProcedures|BuiltinDomainSeeds|DomainDefaultReplayPairingInternal|DomainAlterDefaultReplayInternal|PGEnumSortInsertion|CatalogTypeJournalSlotsCopyOnWrite|RestoreDomainReplayScalarLeaf|MACADDR8?StorageAdmission)$$'

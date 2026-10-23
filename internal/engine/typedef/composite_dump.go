@@ -49,8 +49,7 @@ func compositeDumpStatement(ctx context.Context, p dump.Presenter, view catalog.
 
 // Render from the captured graph only. All row creators reserve their implicit
 // array names here, so domain-on-array replay follows the actual mixed order.
-func MixedDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, order []ids.OID, domains map[ids.OID]*catalog.Type, composites map[ids.OID]*catalog.Relation) (map[ids.OID]dump.Statement, error) {
-	replay := NewDomainReplayNames()
+func MixedDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, order []ids.OID, domains map[ids.OID]*catalog.Type, composites map[ids.OID]*catalog.Relation, replay *DomainReplayNames) (map[ids.OID]dump.Statement, error) {
 	result := make(map[ids.OID]dump.Statement, len(domains)+len(composites))
 	for _, id := range order {
 		if err := ctx.Err(); err != nil {

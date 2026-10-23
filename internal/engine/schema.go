@@ -49,7 +49,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		}
 	}
 	defer e.DiscardCatalogStage(stage)
-	_, droppingTypedSource := stmt.(*parser.DropComposite)
+	_, droppingTypedSource := stmt.(*parser.DropType)
 	if err := scope.acquireTypedSources(stage, droppingTypedSource); err != nil {
 		return Result{}, err
 	}
@@ -58,7 +58,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	switch s := stmt.(type) {
 	case *parser.DropAccessMethod:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
-	case *parser.DropComposite:
+	case *parser.DropType:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropDomain:
 		domainMode = s.Mode
@@ -272,8 +272,12 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		if err = typedef.StageDropDomainLocked(host, auth, s); err != nil {
 			return nil, err
 		}
-	case *parser.DropComposite:
-		if err = typedef.StageDropCompositeLocked(host, auth, s); err != nil {
+	case *parser.AlterType:
+		if err = typedef.StageAlterTypeIdentityLocked(host, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropType:
+		if err = typedef.StageDropTypeLocked(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateSchema:

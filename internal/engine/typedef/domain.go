@@ -103,7 +103,12 @@ func StageCreateDomainLocked(h StageHost, auth ddl.Authority, s *parser.CreateDo
 	for _, constraint := range s.Constraints {
 		hasChecks = hasChecks || constraint.Check != nil
 	}
-	typ, err := sqltype.Domain(sqltype.ID(oid), name, declaration, base, hasChecks, ownNotNull)
+	var typ *sqltype.Descriptor
+	if base.Type.Concrete() {
+		typ, err = sqltype.Domain(sqltype.ID(oid), name, declaration, base, hasChecks, ownNotNull)
+	} else {
+		typ = sqltype.LookupDomain(sqltype.ID(oid), name, declaration, base, hasChecks, ownNotNull)
+	}
 	if err != nil {
 		return err
 	}
@@ -114,7 +119,7 @@ func StageCreateDomainLocked(h StageHost, auth ddl.Authority, s *parser.CreateDo
 	}
 	arrayName := h.AssociatedArrayName(ns.Address, name)
 	var array *sqltype.Descriptor
-	if typ.BaseType().IsCube() || typ.BaseType().IsQueryInt() || typ.BaseType().IsCitext() || sqltype.IsNetwork(typ.BaseType().ID()) || sqltype.IsOperatorAlias(typ.BaseType().ID()) || sqltype.IsRegTS(typ.BaseType().ID()) {
+	if !typ.Concrete() || typ.BaseType().IsCube() || typ.BaseType().IsQueryInt() || typ.BaseType().IsCitext() || sqltype.IsNetwork(typ.BaseType().ID()) || sqltype.IsOperatorAlias(typ.BaseType().ID()) || sqltype.IsRegTS(typ.BaseType().ID()) {
 		array = sqltype.LookupArray(sqltype.ID(arrayOID), arrayName, typ)
 	} else {
 		array, err = sqltype.Array(sqltype.ID(arrayOID), arrayName, typ)
@@ -136,57 +141,5 @@ func StageCreateDomainLocked(h StageHost, auth ddl.Authority, s *parser.CreateDo
 }
 
 func StageDropDomainLocked(h StageHost, auth ddl.Authority, s *parser.DropDomain) error {
-	view := h.AccessView(auth)
-	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
-	for _, name := range s.Names {
-		path, err := domainUtilityPath(h, auth, name)
-		if err != nil {
-			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && diagnostic.Code == "3F000" {
-				ddl.Notice(h, "00000", diagnostic.Message+", skipping")
-				continue
-			}
-			return err
-		}
-		var found []ids.ObjectAddress
-		for _, namespace := range path {
-			found = view.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: name.Parts[len(name.Parts)-1].Text})
-			if len(found) != 0 {
-				break
-			}
-		}
-		if len(found) != 1 {
-			if s.IfExists {
-				ddl.Notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
-				continue
-			}
-			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
-		}
-		target := view.Catalog.MustType(found[0])
-		if !target.SQLType.IsDomain() {
-			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, catalog.ObjectNameText(name)))
-		}
-		ref := ddl.ObjectRef(h, auth, target.Address())
-		if err = ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-			denied, ok := err.(*sqlstate.Error)
-			if !ok || denied.Code != "42501" {
-				return err
-			}
-			// DROP alone admits the containing-schema owner. ALTER continues
-			// to use the domain's own authority, not this local alternative.
-			schema := ddl.ObjectRef(h, auth, target.Namespace())
-			if schemaErr := ddl.Check(h, auth, access.Requirement{Object: schema, OwnerOnly: true}); schemaErr != nil {
-				if diagnostic, ok := schemaErr.(*sqlstate.Error); !ok || diagnostic.Code != "42501" {
-					return schemaErr
-				}
-				return err
-			}
-		}
-		if seen[ref.Address] {
-			continue
-		}
-		seen[ref.Address] = true
-		h.DropTarget(ref.Address)
-	}
-	_ = h.RecordDependencyPath(auth)
-	return nil
+	return stageDropTypes(h, auth, s.Names, s.IfExists, true)
 }

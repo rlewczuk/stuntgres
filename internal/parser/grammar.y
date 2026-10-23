@@ -453,7 +453,7 @@ package parser
 %type <stmt> create_domain drop_domain alter_domain create_enum create_composite alter_enum
 %type <check> domain_alter_check
 %type <tok> domain_validate_word
-%type <stmt> alter_composite drop_composite alter_table_of
+%type <stmt> alter_composite drop_type alter_table_of
 %type <alterActions> composite_actions
 %type <alterAction> composite_action
 %type <tok> attribute_word options_word
@@ -870,7 +870,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
  | create_rule | alter_rule | drop_rule
- | alter_composite | drop_composite | alter_table_of
+ | alter_composite | drop_type | alter_table_of
  | foreign_statement
  | generic_statement_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | notify | listen | unlisten | load
@@ -1502,10 +1502,12 @@ domain_alter_check: check_constraint {$$=$1}
  | domain_alter_check NOT nn_modifier {if $3.text!="valid" {sqllex.(*lexer).syntax($3);return 1};$1.NotValid=true;$$=$1}
  | domain_alter_check NO nn_inherit {$1.NoInherit=true;$$=$1} ;
 domain_validate_word: KW_U {if $1.text!="validate" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
-drop_composite: DROP TYPE relation_names drop_mode {$$=&DropComposite{Names:$3,Mode:$4,Pos:$1.pos}}
- | DROP TYPE IF EXISTS relation_names drop_mode {$$=&DropComposite{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
+drop_type: DROP TYPE relation_names drop_mode {$$=&DropType{Names:$3,Mode:$4,Pos:$1.pos}}
+ | DROP TYPE IF EXISTS relation_names drop_mode {$$=&DropType{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 alter_composite: ALTER TYPE relation_name composite_actions {$$=&AlterComposite{Name:$3,Actions:$4,Pos:$1.pos}}
- | ALTER TYPE relation_name RENAME attribute_word name TO name drop_mode {target:=Identifier{Text:$8.text,Pos:$8.pos};$$=&AlterComposite{Name:$3,Column:Identifier{Text:$6.text,Pos:$6.pos},Rename:&target,Mode:$9,Pos:$1.pos}} ;
+ | ALTER TYPE relation_name RENAME attribute_word name TO name drop_mode {target:=Identifier{Text:$8.text,Pos:$8.pos};$$=&AlterComposite{Name:$3,Column:Identifier{Text:$6.text,Pos:$6.pos},Rename:&target,Mode:$9,Pos:$1.pos}}
+ | ALTER TYPE relation_name RENAME TO name {$$=&AlterType{Name:$3,Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER TYPE relation_name SET SCHEMA name {$$=&AlterType{Name:$3,Target:Identifier{Text:$6.text,Pos:$6.pos},SetSchema:true,Pos:$1.pos}} ;
 attribute_word: KW_U {if $1.text!="attribute" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 composite_actions: composite_action {$$=[]AlterTableAction{*$1}}
  | composite_actions ',' composite_action {$$=append($1,*$3)} ;

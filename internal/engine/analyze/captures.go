@@ -104,6 +104,7 @@ const (
 	CompositeRecordArgument
 	DomainCast
 	TypeNameCast
+	IdentityCast // Non-domain user type; shares occurrence lifetime, not domain stamps.
 )
 
 type TypeOccurrence struct {

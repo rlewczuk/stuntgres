@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -16,6 +17,27 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	if _, err := typedef.ReownDomainTypes(next, nil, false); err != nil {
 		return err
 	}
+	// Citext deliberately rejects ordinary same-OID generation Retag. Authorize
+	// only the exact published source pointer of a changed catalog-owned role,
+	// using the existing transient scalar-import seam for nested values/recipes.
+	imports := next.ScalarImports()
+	authorized := false
+	for address, descriptor := range next.Descriptors() {
+		typ, ok := descriptor.(*catalog.Type)
+		if !ok || !typ.SQLType.IsCitext() {
+			continue
+		}
+		old, exists := stage.Base.Type(address)
+		if !exists || !old.SQLType.IsCitext() || old.SQLType == typ.SQLType || old.Extension != typ.Extension || old.Array != typ.Array {
+			continue
+		}
+		if !authorized {
+			next.SetScalarImports(maps.Clone(imports))
+			authorized = true
+		}
+		next.SetScalarImport(old.SQLType, typ.SQLType)
+	}
+	defer next.SetScalarImports(imports)
 	if err := stored.ReownScalarTypes(next, nil, nil); err != nil {
 		return err
 	}

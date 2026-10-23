@@ -72,19 +72,9 @@ func TestReferenceJSONRecordConsumers(t *testing.T) {
 		} {
 			t.Run(tc.q, func(t *testing.T) { jsonRecordErrorBoth(t, p, b, c, tc.q, tc.want, tc.analysis) })
 		}
-		// PostgreSQL renaming is an identity witness, not a new native ALTER
-		// TYPE capability. Native ownership/remap is exercised by Controls'
-		// actual fresh-driver Restore with independently displaced type IDs.
-		if b.PG {
-			run(fixture.Exec(`ALTER TYPE jr_pair RENAME TO jr_pair_renamed`, 0))
-		} else {
-			jsonRecordErrorBoth(t, p, b, c, `ALTER TYPE jr_pair RENAME TO jr_pair_renamed`,
-				jsonRecordDiagnostic("42601", `syntax error at or near "TO"`, 27), true)
-			jsonRecordErrorBoth(t, p, b, c, `SELECT NULL::jr_pair_renamed`,
-				jsonRecordDiagnostic("42704", `type "jr_pair_renamed" does not exist`, 14), true)
-			jsonRecordBoth(t, p, b, c, jsonRecordMetadata(fixture.Select(`SELECT json_populate_record(NULL::jr_pair,'{"a":2}') AS r`,
-				[]string{"r"}, []string{""}, [][]any{{"(2,)"}}), false))
-		}
+		run(fixture.Exec(`ALTER TYPE jr_pair RENAME TO jr_pair_renamed`, 0))
+		jsonRecordBoth(t, p, b, c, jsonRecordMetadata(fixture.Select(`SELECT json_populate_record(NULL::jr_pair_renamed,'{"a":2}') AS r`,
+			[]string{"r"}, []string{""}, [][]any{{"(2,)"}}), b.PG))
 		jsonRecordBoth(t, p, b, c, fixture.Select(`SELECT id,(r).a AS a,(r).b AS b FROM jr_named_view ORDER BY id`, []string{"id", "a", "b"}, []string{"INT4", "INT4", "TEXT"}, [][]any{{int64(1), int64(2), "x"}, {int64(2), int64(3), nil}}))
 	})
 }

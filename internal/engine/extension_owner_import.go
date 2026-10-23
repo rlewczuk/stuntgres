@@ -22,7 +22,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 	}
 	candidate := catalog.CloneState(e.catalog.state)
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(candidate), e.roles.published)
-	ownersChanged, err := extension.ImportOwners(ctx, candidate, roles, records)
+	ownersChanged, err := extension.ImportOwners(ctx, candidate, e.catalog.read(candidate), roles, records)
 	if err != nil {
 		return err
 	}

@@ -102,10 +102,11 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			member = MemberOwner{Kind: "dictionary", Name: d.Name()}
 			principal = d.Owner
 		case *catalog.Type:
-			member = MemberOwner{Kind: "type", Name: d.Name()}
-			if ext.Name() == "earthdistance" && d.SQLType.IsArray() {
-				member.Name = "earth[]"
+			roleName, err := MemberTypeRole(view, ext, d)
+			if err != nil {
+				return "", err
 			}
+			member = MemberOwner{Kind: "type", Name: roleName}
 			principal = d.Owner
 		case *catalog.TSTemplate:
 			continue

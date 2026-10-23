@@ -28,6 +28,22 @@ func (d *Database) Name() string { return d.ObjectName }
 
 func (*Database) Kind() ids.ObjectKind { return ids.DatabaseObject }
 
+// DatabaseAuthorityCompatible permits maintenance horizon drift, not a change
+// to database identity, revision, ownership or the exact ACL authority.
+func DatabaseAuthorityCompatible(current, observed Descriptor) bool {
+	if current == observed {
+		return true
+	}
+	a, aok := current.(*Database)
+	b, bok := observed.(*Database)
+	return aok && bok && a != nil && b != nil &&
+		a.ObjectAddress == b.ObjectAddress &&
+		a.ObjectRevision == b.ObjectRevision &&
+		a.ObjectName == b.ObjectName &&
+		a.Owner == b.Owner &&
+		authorization.EqualACL(a.ACL, b.ACL)
+}
+
 type DatabaseProvider struct{}
 
 func (DatabaseProvider) ClassID() ids.OID { return ids.DatabaseClassID }

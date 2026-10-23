@@ -53,6 +53,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Information-schema producers emit genuine source-owned domains, not bare
   primitive carriers. `role_column_grants` uses `sql_identifier`,
   `character_data` and `yes_or_no` from the captured type catalog.
+  Numeric metadata likewise retains genuine `cardinal_number` domain values.
 - `role_column_grants` captures one catalog/role frontier and projects actual
   table/column ACL origins on live positive attributes. Its raw-origin UNION
   includes the grant-option bit before ownership determines grantability, so
@@ -60,6 +61,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   or enabled named grantee, including PUBLIC origins with an enabled grantor;
   it does not reuse table/column data-access predicates. Membership closures
   and grantee/owner authority are cached within that capture.
+- `pg_type` composes user-domain facts through exact captured immediate-base
+  providers, including nominal-only domains and reciprocal arrays. Metadata
+  admission does not grant executable codec or storage authority; foreign
+  same-OID base generations are not interchangeable.
 
 ## Registry
 

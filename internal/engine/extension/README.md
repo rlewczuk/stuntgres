@@ -96,8 +96,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   returning nil for a skipped statement (IF NOT EXISTS, already installed
   version). `DropTargets` selects DROP EXTENSION's targets (notices through a
   callback). `ImportOwners` applies Restore's owner records to a private clone
-  of the catalog state and reports whether an owner changed. Shared
-  untrusted-extension creation rejects nonsuperusers with 42501.
+  of the catalog state and reports whether an owner changed.
+  Ownership import uses the shared immutable ACL-owner transform for types,
+  companions and procedures. Synthetic type baseline markers and raw NULL versus
+  explicit-empty ACL distinctions survive; malformed baselines still fail the
+  ordinary provider validator.
+  Shared untrusted-extension creation rejects nonsuperusers with 42501.
 - **Owners, remap, errors**: the owner metadata codec (`OwnerMetadata`,
   `DecodeOwners`, `OwnerRecord`, `MemberOwner`, `OwnersMarker`;
   `extension_owners.go`), `RemapDescriptor` (`extension_remap.go`),
@@ -107,6 +111,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `RemapDescriptor` is the sole operator-descriptor remap owner, including
   membership and all type/procedure links. Each source maps once; a destination
   that is also a source does not trigger another mapping step.
+
+Type identity is its validated manifest role, not its mutable name or namespace.
+`InstalledType`/`MemberTypeRole` resolve cube/query_int/citext/earth through the
+existing manifest/provider and reciprocal array checks. Member ALTER retains
+installation membership; direct DROP remains protected. The owners-v1 codec
+keeps canonical type role keys (including earth[]) across rename/move, preserving
+strict key/signature decoding and independent routine owners. Restore applies
+these roles to the actual destination descriptors, never a same-named loose type.
+
 
 ## Invariants
 

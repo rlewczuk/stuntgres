@@ -44,6 +44,9 @@ carry the `reference` build tag (PostgreSQL-only complements).
   it before its first bound CHAR expression.
 - Expected BETWEEN truth comes from independent endpoint comparisons under SQL
   three-valued logic.
+- Stored-constructor scenarios distinguish member, whole-value and unused-CTE
+  dependencies through container removal, exact RESTRICT diagnostics and CASCADE
+  retirement of retained types, companions and views.
 
 ### OID aliases and identifiers
 

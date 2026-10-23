@@ -109,6 +109,13 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   existing schema is not by itself a trigger. Invalidation reuses the effective
   namespace comparator and the dependencies collected by analysis, never an
   all-DDL epoch.
+- Admitted explicit user-type casts capture identity per source occurrence,
+  including supported companion casts. Identity-only revisions for enum,
+  composite and installed types compare immutable executable definitions and
+  authority, with child types in the same dependency cell. Domains retain their
+  domain-specific stamps.
+  Genuine reanalysis retires these casts alongside the existing cast group;
+  it never repairs obsolete source spelling with an alias.
 - Full invalidation publishes atomically, after analysis, signature and
   provenance succeed: genuine temporal scalar/array candidates, sequence/regtype
   candidates and identity stamps. It preserves native logical enum, domain and
@@ -267,6 +274,12 @@ session, transaction, prepared-analysis and typed-frame authorities.
 Drivers, the Emit table and hook entry types live in [`control`](control/README.md);
 the root keeps Dump's `Engine.mu` window and Collect tables, the restore stage,
 `restoreRun` with every `restoreHooks` entry, and the atomic `replaceCatalog`.
+
+Private Restore definition lookups capture the live authenticated bootstrap
+through the existing trusted-destination/import marker. Only the lookup permission
+view is elevated: named owner, `$user`, session identity, creation checks and ACLs
+remain separate. Ordinary operations and untrusted/foreign captures gain no lookup
+authority.
 
 ## Testing
 

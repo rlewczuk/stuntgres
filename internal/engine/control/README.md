@@ -72,6 +72,14 @@ source addresses once without converting replay prerequisites into hard edges.
   (`table.PrepareGenerationPlaceholders`) use the same windows.
 - **Raw FLOAT4 words** (noncanonical NaN only, `regobj.NeedsFloat4RawReplay`)
   replay through a binary `xid → real` cast; Restore has no raw-datum decoder.
+- **Installed type identity replay** (`type_identity_replay.go`): canonical
+  extension installations follow prerequisite order before ordinary consumer
+  declarations. Current renamed/moved type identities are then reconstructed with
+  ordinary ALTERs under bootstrap authority. Deterministic free temporary names
+  break cross-member cycles; moves preserve companion spelling and renames use
+  the shared generated-array predictor. This predictor seeds mixed domain/composite
+  rendering, including domains over installed arrays. The schedule is transient
+  captured rendering state, not a persisted identity registry.
 
 ## Restore
 
@@ -89,6 +97,10 @@ source addresses once without converting replay prerequisites into hard edges.
   (`AdmitKind`, `AdmitSchemaObject`, `AdmitOperator`, `AdmitStatement(check)`
   over `Check*` functions). The root's table names them in its own order, so
   rejection order is the table's.
+  TYPE admission covers only the implemented RENAME/SET SCHEMA identity AST,
+  not arbitrary TYPE evolution or DROP TYPE. It executes through the same
+  private candidate and atomic installation. Canonical extension member-role
+  owner metadata resolves through genuine destination manifests, not final names.
 
 ### Host contract
 

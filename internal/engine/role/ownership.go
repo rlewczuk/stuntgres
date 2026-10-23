@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // Ownership changes retain immutable type, row, index and sequence generator
@@ -177,16 +176,11 @@ func PlanTypeOwnership(h Host, auth ddl.Authority, s *parser.AlterOwner, name st
 	if s.Kind == "domain" && !old.SQLType.IsDomain() {
 		return OwnerChange{}, sqlError("42809", display+" is not a domain")
 	}
-	if old.SQLType.IsArray() {
-		element := view.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.SQLType.Element().ID())})
-		elementName := catalog.TypeDiagnosticNameAt(view.Catalog, element, diagnosticPath)
-		return OwnerChange{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter array type " + display, Hint: "You can alter type " + elementName + ", which will alter the array type as well."}
+	if err := catalog.TypeAlterProtection(view.Catalog, old, diagnosticPath); err != nil {
+		return OwnerChange{}, err
 	}
-	if old.OwningRelation != (ids.ObjectAddress{}) {
-		r := view.Catalog.MustRelation(old.OwningRelation)
-		if r.RelationKind != catalog.CompositeRelation {
-			return OwnerChange{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: display + " is a table's row type", Hint: "Use ALTER TABLE instead."}
-		}
+	if err := catalog.MultirangeOwnerProtection(view.Catalog, old, diagnosticPath); err != nil {
+		return OwnerChange{}, err
 	}
 	target, err := access.SchemaOwner(view, name, identity)
 	if err != nil {

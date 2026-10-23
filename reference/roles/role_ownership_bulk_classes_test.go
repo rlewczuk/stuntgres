@@ -42,8 +42,7 @@ func TestReferenceRoleOwnershipReassignClassEligibility(t *testing.T) {
 		s.exec("GRANT " + s.bootstrap + " TO own_target WITH INHERIT FALSE, SET TRUE")
 		ownershipInherited(s, "own_target", s.bootstrap, "USAGE", false)
 		s.actor("own_target")
-		// A changed-owner utility proves genuine successor authority without
-		// adding the absent DROP TYPE or type-rename grammar providers.
+		// A changed-owner utility proves genuine successor authority.
 		s.exec("ALTER TYPE own_class.e OWNER TO " + s.bootstrap)
 		s.actor("")
 		s.exec("ALTER TYPE own_class.e OWNER TO own_target")

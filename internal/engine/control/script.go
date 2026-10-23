@@ -27,6 +27,8 @@ type dumpScript struct {
 	castWindows                 map[castConsumer][]castReplay
 	comparisonBindings          map[castConsumer]*dump.DefinitionBinding
 	deferredDomainChecks        map[ids.OID]map[string]bool
+	extensionTypeAfter          ids.OID
+	extensionTypeSQL            string
 
 	policyGroups, ruleGroups, securityGroups  []dump.Group
 	domainNodes                               map[ids.OID]*catalog.Type
@@ -245,6 +247,9 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 			s.Graph[dump.Event{OID: oid}] = dump.DeclarationEvents(predecessors)
 		}
 	}
+	if err := s.orderExtensionTypes(ctx); err != nil {
+		return nil, err
+	}
 	// Capture collision-remap provenance from the same immutable snapshot as
 	// the graph, before any dump-private naming substitutions.
 	var priorities map[ids.OID]ids.OID
@@ -339,7 +344,11 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 		}
 		domains[oid] = &copy
 	}
-	if s.declarations, err = typedef.MixedDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, viewOrder, domains, s.Composites); err != nil {
+	replay, err := s.renderExtensionTypes(ctx, viewOrder)
+	if err != nil {
+		return err
+	}
+	if s.declarations, err = typedef.MixedDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, viewOrder, domains, s.Composites, replay); err != nil {
 		return err
 	}
 	for oid, statement := range s.ForeignDeclarations {

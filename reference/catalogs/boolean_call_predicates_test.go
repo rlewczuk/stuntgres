@@ -53,8 +53,7 @@ func booleanCallObjects(t *testing.T, p *fixture.Pair, conn *sql.Conn, b fixture
 			seen[id] = true
 		}
 	}
-	// DROP TYPE currently supports standalone composites, not enums. Dropping
-	// an isolated schema uses the existing cascade path for every object class.
+	// Dropping the isolated schema exercises one cascade across object classes.
 	run("DROP SCHEMA bcp_pred_gone CASCADE")
 	run("CREATE TABLE bcp_pred_off.inputs(seq int, id oid)")
 	run("SET search_path=bcp_pred_a,bcp_pred_b,pg_catalog")

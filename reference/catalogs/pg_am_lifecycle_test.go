@@ -73,8 +73,7 @@ func pgAMHeldExecution(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT c.relname FROM pg_class c JOIN pg_namespace n ON c.relnamespace=n.oid WHERE n.nspname='public' AND c.relname='am_held_bad'", []string{"relname"}, []string{"NAME"}, nil))
 		check()
 	}
-	// Enum removal is not an implemented standalone DROP TYPE route; the
-	// scenario reset owns that unrelated type's cleanup.
+	// The scenario reset owns the remaining unrelated enum's cleanup.
 	for _, q := range []string{"DROP INDEX am_held_b", "DROP INDEX am_held_h", "DROP TABLE am_held", "DROP DOMAIN am_held_domain"} {
 		run(q)
 		check()

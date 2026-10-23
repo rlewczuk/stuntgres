@@ -189,7 +189,7 @@ func TestReferenceDataTypePrivilegesDescriptors(t *testing.T) {
 }
 
 func TestReferenceDataTypePrivilegesIdentity(t *testing.T) {
-	dtpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step)) {
+	dtpScenario(t, func(t *testing.T, p *fixture.Pair, _ fixture.Backend, c *sql.Conn, run func(fixture.Step)) {
 		for _, q := range []string{
 			"CREATE TABLE dtp_identity(a varchar(7),b varchar,c varchar(7)[])",
 			"CREATE TYPE dtp_identity_type AS (a integer,b varchar(7),c integer[])",
@@ -217,14 +217,9 @@ func TestReferenceDataTypePrivilegesIdentity(t *testing.T) {
 		}
 		check("dtp_identity_renamed", "dtp_identity_type", "1", "3", "4")
 		rename := "ALTER TYPE dtp_identity_type RENAME TO dtp_identity_type_renamed"
-		if b.PG {
-			run(fixture.Exec(rename, 0))
-			check("dtp_identity_renamed", "dtp_identity_type_renamed", "1", "3", "4")
-		} else {
-			run(fixture.ImplicitError(rename, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "TO"`, Position: "37"}))
-			check("dtp_identity_renamed", "dtp_identity_type", "1", "3", "4")
-			run(dtpProjection(t, p, c, "object_schema='public' AND object_name='dtp_identity_type_renamed'", nil))
-		}
+		run(fixture.Exec(rename, 0))
+		check("dtp_identity_renamed", "dtp_identity_type_renamed", "1", "3", "4")
+		run(dtpProjection(t, p, c, "object_schema='public' AND object_name='dtp_identity_type'", nil))
 	})
 }
 

@@ -15,6 +15,9 @@ live in `reference/aggregates`; Boolean aggregates, ranges and multiranges in
 Follow [docs/TESTING.md](../../docs/TESTING.md); `array_sample`/`array_shuffle`
 follow its random-property rule. `TestMain` uses the default `fixture.Main(m)`.
 
+JSON record consumers preserve conversion and stored-view identity through
+standalone type rename. Relation-owned rowtype changes use the table's DDL route.
+
 - **Helpers.** Each family keeps its scenario, metadata and diagnostic helpers in
   `<family>_helpers_test.go` (`array_search_fixture_test.go` and
   `binary_conversion_fixture_test.go` for those families); `output_gate_test.go`

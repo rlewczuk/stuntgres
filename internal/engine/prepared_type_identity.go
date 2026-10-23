@@ -1,0 +1,68 @@
+package engine
+
+import (
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/sqltype"
+)
+
+// A revised non-domain type may retain held analysis only when its executable
+// definition and authority are unchanged. Names, namespace and presentation
+// revisions are not executable signatures. Child types have their own dependency
+// entries in the same analysis cell; domains keep their existing domain stamps.
+func samePreparedTypeDefinition(old, current *catalog.Type) bool {
+	if old == nil || current == nil || old.Address() != current.Address() || old.Owner != current.Owner || old.Extension != current.Extension || old.Array != current.Array || old.OwningRelation != current.OwningRelation || old.Dimensions != current.Dimensions || !authorization.EqualACL(old.ACL, current.ACL) {
+		return false
+	}
+	a, b := old.SQLType, current.SQLType
+	if a == b {
+		return true
+	}
+	if a.Concrete() != b.Concrete() || a.IsDomain() != b.IsDomain() || a.IsArray() != b.IsArray() || a.IsEnum() != b.IsEnum() || a.IsComposite() != b.IsComposite() {
+		return false
+	}
+	switch {
+	case a.IsDomain():
+		return false // Never replace domain executable-stamp policy.
+	case a.IsArray():
+		return a.Element().ID() == b.Element().ID()
+	case a.IsEnum():
+		if a.EnumMemberCount() != b.EnumMemberCount() {
+			return false
+		}
+		for i := range a.EnumMemberCount() {
+			left, _ := a.EnumMemberAt(i)
+			right, _ := b.EnumMemberAt(i)
+			if left != right {
+				return false
+			}
+		}
+		return true
+	case a.IsComposite():
+		if a.CompositeLen() != b.CompositeLen() {
+			return false
+		}
+		for i := range a.CompositeLen() {
+			left, right := a.CompositeMember(i), b.CompositeMember(i)
+			if left.Attribute != right.Attribute || left.Name != right.Name || !sameLogicalUsage(left.Usage, right.Usage) {
+				return false
+			}
+		}
+		return true
+	case a.IsCube():
+		return b.IsCube()
+	case a.IsQueryInt():
+		return b.IsQueryInt()
+	case a.IsCitext():
+		return b.IsCitext()
+	}
+	return false
+}
+
+func sameLogicalUsage(a, b sqltype.Usage) bool {
+	if a.Type == nil || b.Type == nil || a.Type.ID() != b.Type.ID() {
+		return false
+	}
+	a.Type, b.Type = nil, nil
+	return a == b
+}

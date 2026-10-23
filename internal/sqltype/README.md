@@ -43,6 +43,25 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   domain CHECK errors precede an extent mismatch, and storage grows only with
   parsed children (shared `ownedArray` guards).
 
+### Type identity generations
+
+Rename, namespace and owner changes retain logical type, enum-member and
+composite-attribute identities. Codec generations remain immutable: the engine
+reowns dependent arrays/domains/composite members/columns and stored recipes to
+the current provider graph without re-inputting stored text. Retained native rows
+continue owning their original descriptors. Fresh metadata and diagnostics name
+the current type; prepared occurrence capture/recreation policy belongs to the
+engine, not a codec-level stale-name retry.
+
+Installed cube/query_int/citext/earth retain real codec/manifest roles and earth
+CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
+validated installation identities; mutable spelling grants no provider authority.
+Neither a logical OID nor lifecycle support introduces a new range provider,
+general enum[] storage or an executable codec for a lookup-only installed array.
+Domains over lookup-only bases retain user ownership, checks, names and immediate
+base identity without gaining storage/input codecs. Builtin lookup provenance
+remains distinct from these user domain declarations.
+
 ### Soft input errors
 
 `InputSoftError` decides whether a conversion failure is recoverable: a direct

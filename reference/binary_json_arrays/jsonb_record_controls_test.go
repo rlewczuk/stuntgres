@@ -30,8 +30,8 @@ func jsonbRecordStored(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 		`CREATE VIEW jbr_saved_empty AS SELECT * FROM jsonb_to_recordset('[]'::jsonb) AS r(a int,b varchar(3),c numeric(4,1),nested jbr_saved_pair)`,
 		`CREATE VIEW jbr_saved_null AS SELECT * FROM jsonb_to_record(NULL::jsonb) AS r(a int,b varchar(3),c numeric(4,1))`)
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`INSERT INTO jbr_saved_rows SELECT id,v FROM jbr_saved_scalar`, 3))
-	// Table rename/move is the admitted route for a named rowtype's identity;
-	// standalone ALTER TYPE name rename/move is outside the native DDL subset.
+	// Relation-owned rowtypes follow their table's identity; standalone types
+	// instead use ALTER TYPE identity utilities.
 	jsonbRecordSetup(t, p, b, c, `ALTER TABLE jbr_saved_docs RENAME COLUMN j TO document`, `ALTER TABLE jbr_saved_pair RENAME TO jbr_saved_renamed`, `ALTER TABLE jbr_saved_renamed SET SCHEMA jbr_saved_schema`)
 	checks := []fixture.Step{
 		fixture.Select(`SELECT id,v::text AS v FROM jbr_saved_rows ORDER BY id`, []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "(1,keep)"}, {int64(2), "(9,x)"}, {int64(3), "(9,keep)"}}),

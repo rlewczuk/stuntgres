@@ -35,9 +35,13 @@ func (d *Descriptor) RebindDomain(base Usage, name, declaration string) (*Descri
 
 // LookupDomain preserves catalog base identity without admitting stored values.
 // The caller supplies an already validated catalog base generation.
-func LookupDomain(id ID, name, declaration string, base Usage) *Descriptor {
+func LookupDomain(id ID, name, declaration string, base Usage, checks ...bool) *Descriptor {
+	ownChecks := len(checks) > 0 && checks[0]
+	ownNotNull := len(checks) > 1 && checks[1]
 	return &Descriptor{id: id, name: name, sql: declaration,
-		database: base.Type.BaseType().database, base: base, lookupOnly: true}
+		database: base.Type.BaseType().database, base: base, lookupOnly: true,
+		ownDomainChecks: ownChecks, domainChecks: ownChecks || base.Type.HasDomainChecks(),
+		ownDomainNotNull: ownNotNull, domainNotNull: ownNotNull || base.Type.DomainNotNull()}
 }
 
 func (d *Descriptor) IsDomain() bool    { return d != nil && d.base.Type != nil }

@@ -196,7 +196,8 @@ func TestCubeProviderIdentity(t *testing.T) {
 		t.Fatal("missing cube ownership signatures", wantSignatures)
 	}
 	roles := e.roles.read(e.catalog.owner(), view, e.roles.published)
-	if _, err := extension.ImportOwners(context.Background(), catalog.CloneState(view.State()), roles, records); err != nil {
+	candidate := catalog.CloneState(view.State())
+	if _, err := extension.ImportOwners(context.Background(), candidate, e.catalog.read(candidate), roles, records); err != nil {
 		t.Fatal("canonical cube ownership import", err)
 	}
 	badRecord := record
@@ -206,7 +207,8 @@ func TestCubeProviderIdentity(t *testing.T) {
 			badRecord.Members[i].Signature = cubeID
 		}
 	}
-	if _, err := extension.ImportOwners(context.Background(), catalog.CloneState(view.State()), roles, []extension.OwnerRecord{badRecord}); err == nil {
+	invalid := catalog.CloneState(view.State())
+	if _, err := extension.ImportOwners(context.Background(), invalid, e.catalog.read(invalid), roles, []extension.OwnerRecord{badRecord}); err == nil {
 		t.Fatal("raw dynamic cube OID accepted as portable ownership identity")
 	}
 }

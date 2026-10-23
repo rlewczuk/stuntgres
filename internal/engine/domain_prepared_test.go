@@ -35,13 +35,13 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	// A sibling source occurrence must not borrow another cast's identity.
 	sibling := raw
 	sibling.TypeName.Pos = parser.Position{Offset: 29, Character: 30}
-	annotation, err := next.DomainCastAnnotation(sibling)
+	annotation, err := next.TypeCastAnnotation(sibling)
 	if err != nil || annotation.Name != "d" {
 		t.Fatal("sibling retargeted", annotation, err)
 	}
 	// Owner/epoch mismatch never turns the old ID into current authority.
 	foreign := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, expected)
-	annotation, err = foreign.DomainCastAnnotation(raw)
+	annotation, err = foreign.TypeCastAnnotation(raw)
 	if err != nil || annotation.Name != "d" {
 		t.Fatal("foreign catalog reused old ID", annotation, err)
 	}
@@ -126,7 +126,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			domainUnitPublish(t, e, domainUnitStage(t, e, op, `ALTER DOMAIN public."renamed array domain" SET SCHEMA identity_dst`))
 			current := e.CatalogRead().MustType(old.Address())
 			next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
-			annotation, err := next.DomainCastAnnotation(raw)
+			annotation, err := next.TypeCastAnnotation(raw)
 			wantName := current.Name()
 			if direct {
 				array, ok := e.CatalogRead().LookupArray(current.SQLType)
@@ -153,7 +153,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 				t.Fatal("stable array identity concealed changed element semantics")
 			}
 			foreign := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, expected)
-			annotation, err = foreign.DomainCastAnnotation(raw)
+			annotation, err = foreign.TypeCastAnnotation(raw)
 			if err != nil || annotation.Name != raw.TypeName.Name {
 				t.Fatal("foreign owner reused array occurrence", annotation, err)
 			}

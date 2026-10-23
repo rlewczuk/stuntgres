@@ -161,7 +161,8 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 
 // Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
 // SCHEMA, CREATE COLLATION (and ALTER COLLATION), CREATE [DEFAULT] CONVERSION
-// (and ALTER CONVERSION), CREATE/ALTER/DROP OPERATOR, CREATE TYPE AS ENUM, CREATE DOMAIN,
+// (and ALTER CONVERSION), CREATE/ALTER/DROP OPERATOR, CREATE TYPE AS ENUM/composite,
+// ALTER TYPE identity RENAME/SET SCHEMA, CREATE DOMAIN,
 // CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, registered CREATE EXTENSION providers,
 // parameter-free scalar INSERT (including integer
 // arithmetic), database-local COMMENT, sequence OWNED BY associations, generated

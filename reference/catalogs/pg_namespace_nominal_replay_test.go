@@ -15,11 +15,7 @@ func pgNamespaceNominalReplay(t *testing.T) {
 		pgNamespaceExec(t, p, b, c, "CREATE ROLE ns18_nominal_owner")
 		t.Cleanup(func() {
 			pgNamespaceExec(t, p, b, c, "RESET ROLE", "SET ROLE ns18_nominal_owner", "DROP TABLE IF EXISTS public.ns18_nominal_rows", "DROP DOMAIN IF EXISTS public.ns18_nominal_domain", "DROP TYPE IF EXISTS public.ns18_nominal_record")
-			if b.PG {
-				pgNamespaceExec(t, p, b, c, "DROP TYPE IF EXISTS public.ns18_nominal_enum")
-			} else {
-				pgNamespaceExec(t, p, b, c, "DROP OWNED BY ns18_nominal_owner CASCADE")
-			}
+			pgNamespaceExec(t, p, b, c, "DROP TYPE IF EXISTS public.ns18_nominal_enum")
 			pgNamespaceExec(t, p, b, c, "RESET ROLE")
 		})
 		fixture.WithPublicSchemaOwner(t, p, b, "ns18_nominal_owner", func() {
@@ -53,20 +49,10 @@ func pgNamespaceNominalReplay(t *testing.T) {
 		}
 		// Prove actual restored owner authority, not only readable values.
 		pgNamespaceExec(t, p, b, c, "SET ROLE ns18_nominal_owner", "DROP TABLE public.ns18_nominal_rows", "DROP DOMAIN public.ns18_nominal_domain", "DROP TYPE public.ns18_nominal_record")
-		if b.PG {
-			pgNamespaceExec(t, p, b, c, "DROP TYPE public.ns18_nominal_enum")
-		} else {
-			// DROP TYPE supports standalone composites, not enum deletion.
-			// Keep that exact boundary and remove the owned enum via existing
-			// ownership cleanup rather than expanding nominal DDL for a fixture.
-			denied := fixture.ErrorDiagnostic("DROP TYPE public.ns18_nominal_enum", fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "statement is unsupported", Position: "1"})
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, denied)
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(denied))
-			value := fixture.Select("SELECT 'ok'::public.ns18_nominal_enum::text AS v", []string{"v"}, []string{"TEXT"}, [][]any{{"ok"}})
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, value)
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(value))
-			pgNamespaceExec(t, p, b, c, "DROP OWNED BY ns18_nominal_owner CASCADE")
-		}
+		value := fixture.Select("SELECT 'ok'::public.ns18_nominal_enum::text AS v", []string{"v"}, []string{"TEXT"}, [][]any{{"ok"}})
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, value)
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(value))
+		pgNamespaceExec(t, p, b, c, "DROP TYPE public.ns18_nominal_enum")
 		pgNamespaceExec(t, p, b, c, "RESET ROLE")
 	})
 }

@@ -89,6 +89,24 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		if !ok {
 			continue
 		}
+		if drop {
+			// General DROP roots include scalar/domain types, whose actual
+			// resource class is TypeExclusive, not a zero/fabricated relation.
+			if err := scope.acquireSequence(stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), source), lock.TypeExclusive, true); err != nil {
+				return err
+			}
+			e := stage.owner
+			e.mu.Lock()
+			valid := e.catalog.state.Get(source) == typ
+			e.mu.Unlock()
+			if !valid {
+				return catalog.Conflict{}
+			}
+		}
+		// Only a real composite source has a backing relation to lock.
+		if !typ.SQLType.IsComposite() || typ.OwningRelation == (ids.ObjectAddress{}) {
+			continue
+		}
 		if err := scope.acquireSequence(stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), typ.OwningRelation), mode, true); err != nil {
 			return err
 		}

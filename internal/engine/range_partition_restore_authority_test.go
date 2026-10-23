@@ -83,11 +83,14 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	}
 	actorOp, actorDone := roleOperation(t, stage, "child_owner")
 	defer actorDone()
-	operationReplay(actorOp).tableDestination = true
-	operationReplay(actorOp).defaultReplay = true
 	actorAuth, err := operationAuthorization(actorOp)
 	if err != nil {
 		t.Fatal(err)
+	}
+	operationReplay(actorOp).tableDestination = true
+	operationReplay(actorOp).defaultReplay = true
+	if _, err := operationAuthorization(actorOp); err == nil {
+		t.Fatal("nonbootstrap importer marker granted live lookup authority")
 	}
 	if _, err := stage.partitionParentAuthorization(actorOp, actorAuth, create); err == nil || partitionDefaultReplayAllowed(stage, actorOp, actorAuth, alter) {
 		t.Fatal("genuine nonbootstrap importer operation elevated", err)

@@ -205,14 +205,24 @@ func TestReferenceComparisonStoredConstructorDependencies(t *testing.T) {
 				d := fixture.ControlsReferenceDiagnostic("2BP01", "cannot drop type "+tc.retained+" because other objects depend on it")
 				d.Detail = "view csc_dependency depends on type " + tc.retained
 				d.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
-				if !b.PG && tc.name == "member" {
-					// Direct enum DROP is an existing non-comparison DDL limit;
-					// the public dependency edge and retained values are still required.
-					d = fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported")
-					d.Position = "1"
-				}
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.ErrorDiagnostic("DROP TYPE "+tc.retained+" RESTRICT", d))
 				check()
+				var oid, array int64
+				if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid,typarray FROM pg_type WHERE oid=$1::regtype::oid", tc.retained).Scan(&oid, &array); err != nil {
+					t.Fatal(err)
+				}
+				if oid <= 0 || array <= 0 {
+					t.Fatal("missing genuine retained type/companion")
+				}
+				blocked := fixture.Prepared(fixture.ErrorDiagnostic("DROP TYPE "+tc.retained+" RESTRICT", d))
+				blocked.ErrorStage = "execute"
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, blocked)
+				check()
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Prepared(fixture.Exec("DROP TYPE "+tc.retained+" CASCADE", 0)))
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT count(*) AS n FROM pg_type WHERE oid=$1::oid OR oid=$2::oid", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}, oid, array))
+				missing := fixture.ControlsReferenceDiagnostic("42P01", `relation "csc_dependency" does not exist`)
+				missing.Position = "15"
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.ErrorDiagnostic("SELECT v FROM csc_dependency", missing))
 			})
 		})
 	}

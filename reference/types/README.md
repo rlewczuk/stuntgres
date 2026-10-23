@@ -144,6 +144,29 @@ overloads, including FLOAT8 LSEG length and unambiguous POLYGON point counts.
 Add `REFERENCE=1` for the oracle. The range-family prefixes also run their binary
 COPY test in reference/dml.
 
+### Type identity lifecycle
+
+`type_lifecycle_*` uses shared backend scenarios for type/provider identity,
+reciprocal companions, typed values/NULL/raw metadata, independent diagnostics,
+dependency closure, live authorization and held-occurrence lifetime. Registered
+I/O signature probes use public regprocedure identity and admitted pg_proc columns.
+Domains retain pg_type I/O identities and genuine base/CHECK providers, separately
+from procedure inventory. Explicit companion DROP follows its actual extension
+owner where applicable.
+
+Native controls remain explicit phases in the shared scenarios. Current-name
+mixed-owner graphs and nominal-only domain recipes must replay under trusted
+private authority without changing owners or granting schema privileges. Domain
+default scenarios distinguish captured typdefault text from current executable
+recipes. Protection's shared range join independently specifies three native
+integer/numeric relationships and six PostgreSQL relationships; it does not create
+absent temporal companions.
+
+Family selector: `RUN='^TestReferenceTypeLifecycle'`.
+
+
+### Family selectors
+
 - <a id="point-oracle-first-contract"></a>POINT: `RUN='^TestReferencePoint'`
 - <a id="lseg-oracle-first-contract"></a>LSEG: `RUN='^TestReferenceLseg[A-NP-Z]'`
 - LINE: `RUN='^TestReferenceLine'`

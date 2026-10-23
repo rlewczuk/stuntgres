@@ -18,6 +18,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
 
+Type identity lifecycle reuses the existing OWNER/ACL authority, including real
+array and standalone-composite backing owners. Extension membership is not an
+identity-ALTER prohibition. Successor owners exercise the same ordinary lifecycle
+authority.
+
 - `membershipScenario` (`role_membership_helpers_test.go`) is the shared roles
   fixture: `run`/`exec`/`actor` over one notice-enabled pinned connection, with
   `s.bootstrap` = `postgres` natively and `stuntgres` on the oracle.

@@ -93,7 +93,7 @@ func (p *EarthdistanceProvider) ValidateExtension(v catalog.Read, ext *catalog.E
 		return err
 	}
 	d, ok := v.Type(ext.Members[0])
-	if !ok || d.Name() != "earth" || !d.SQLType.IsDomain() || d.SQLType.DomainBase() != cube.SQLType.Usage() || !d.SQLType.HasDomainChecks() || d.SQLType.OwnDomainNotNull() || len(d.DomainChecks) != 3 || d.Namespace() != ext.TargetNamespace || d.Extension != ext.Address() || d.Revision() == 0 {
+	if !ok || !d.SQLType.IsDomain() || d.SQLType.DomainBase() != cube.SQLType.Usage() || !d.SQLType.HasDomainChecks() || d.SQLType.OwnDomainNotNull() || len(d.DomainChecks) != 3 || d.Extension != ext.Address() || d.Revision() == 0 {
 		return invalid()
 	}
 	a, ok := v.Type(ext.Members[1])
