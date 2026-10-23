@@ -7,28 +7,12 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
-
-// Field dependencies retain logical attribute identities, not field spellings.
-func expressionUsesCompositeField(node expr.Expr, id sqltype.ID, attribute int32) bool {
-	if field, ok := node.(plan.FieldExpr); ok && field.Base.ResultUsage().Type.BaseType().ID() == id && field.Attribute == attribute {
-		return true
-	}
-	found := false
-	plan.ExpressionChildren(node, func(child expr.Expr) {
-		if !found {
-			found = expressionUsesCompositeField(child, id, attribute)
-		}
-	})
-	return found
-}
 
 func stageCompositeFieldDependencies(stage *CatalogStage, source *catalog.Relation, attribute int32, mode parser.DropMode, scope *StatementScope) error {
 	return stageDropProvider(nil, stage, scope, nil, nil).CompositeFieldDependencies(source, attribute, mode)
@@ -83,7 +67,7 @@ func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relatio
 	for _, relation := range relations {
 		var kept []catalog.CheckConstraint
 		for _, check := range relation.Constraints.Check {
-			if !expressionUsesCompositeField(check.Expression, source.RowType, attribute) {
+			if !plan.ExpressionUsesCompositeField(check.Expression, source.RowType, attribute) {
 				kept = append(kept, check)
 				continue
 			}
@@ -132,7 +116,7 @@ func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relatio
 	})
 	for _, domain := range domains {
 		for _, check := range domain.DomainChecks {
-			if !expressionUsesCompositeField(check.Expression, source.RowType, attribute) {
+			if !plan.ExpressionUsesCompositeField(check.Expression, source.RowType, attribute) {
 				continue
 			}
 			label := fmt.Sprintf("constraint %s", catalog.DependencyIdentifier(check.Name))

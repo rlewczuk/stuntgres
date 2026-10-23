@@ -4,12 +4,29 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Query boundaries are explicit: lexical argument walking visits predicate
 // left operands but never confuses a child query's local columns with ours.
 func WalkExpression(node expr.Expr, visit func(expr.Expr)) {
 	expr.Walk(node, ExpressionChildren, visit)
+}
+
+// ExpressionUsesCompositeField reports whether node reads field attribute of
+// composite type id. Field dependencies retain logical attribute identities,
+// not field spellings.
+func ExpressionUsesCompositeField(node expr.Expr, id sqltype.ID, attribute int32) bool {
+	if field, ok := node.(FieldExpr); ok && field.Base.ResultUsage().Type.BaseType().ID() == id && field.Attribute == attribute {
+		return true
+	}
+	found := false
+	ExpressionChildren(node, func(child expr.Expr) {
+		if !found {
+			found = ExpressionUsesCompositeField(child, id, attribute)
+		}
+	})
+	return found
 }
 
 // Enumerate lexical children only; a subquery's query graph is a separate frame.
