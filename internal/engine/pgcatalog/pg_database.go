@@ -11,6 +11,8 @@ import (
 // These are the attached database's native semantics, not host locale discovery.
 const nativeDatabaseProvider = "c"
 const nativeDatabaseLocale = "C"
+const nativeDatabaseEncodingID = 6
+const nativeDatabaseEncodingName = "UTF8"
 
 func DatabaseCollationActualVersion() (*string, error) {
 	locale := nativeDatabaseLocale
@@ -77,7 +79,7 @@ func capturePGDatabase(in Input) ([][]sqltype.Value, error) {
 	// the native semantic declaration, not a host locale or physical horizon.
 	row := []sqltype.Value{
 		oid(0, uint32(database.Address().ObjectID)), text(1, database.Name()), oid(2, uint32(database.Owner.ID())),
-		checked(sqltype.Integer(source.Columns[3].Usage.Type, 6)), text(4, nativeDatabaseProvider), null(5), null(6),
+		checked(sqltype.Integer(source.Columns[3].Usage.Type, nativeDatabaseEncodingID)), text(4, nativeDatabaseProvider), null(5), null(6),
 		sqltype.Boolean(source.Columns[7].Usage.Type, false), null(8), null(9), null(10), null(11),
 		text(12, nativeDatabaseLocale), text(13, nativeDatabaseLocale), null(14), null(15), null(16), acl,
 	}

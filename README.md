@@ -400,6 +400,19 @@ make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$'
 make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$' REFERENCE=1
 ```
 
+## Information-schema character sets — change note
+
+`information_schema.character_sets` exposes exactly one current-database UTF8
+identity through eight nullable `sql_identifier` domain columns (public NAME
+metadata). Character-set catalog/schema are genuinely NULL. The default
+collation identifiers come from actual matching collation descriptors, ranked
+by character length descending then name ascending; matching user aliases can
+therefore replace `pg_catalog/C`. Held executions observe current metadata.
+PUBLIC readers see the same row, including a winning alias in a private schema.
+This adds no encoding configuration, invented collations or adjacent views.
+See [native contract](docs/DIALECT.md#information-schema-character-sets) and
+[selected proof and smoke](reference/catalogs/README.md#information-schema-character-sets).
+
 ## LIST partition definitions — change note
 
 Single-key `PARTITION BY LIST` supports typed `IN` values, NULL ownership,

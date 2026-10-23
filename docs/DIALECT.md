@@ -1356,6 +1356,45 @@ native index-CASCADE path does not emit PostgreSQL's dependency NOTICE, even
 with client_min_messages=notice; this view does not expand notice delivery.
 See [selected checks and smoke](../reference/catalogs/README.md#information-schema-key-column-usage).
 
+## Information-schema character sets
+
+`information_schema.character_sets` has exactly eight ordered, nullable
+`information_schema.sql_identifier` domain columns over NAME:
+`character_set_catalog`, `character_set_schema`, `character_set_name`,
+`character_repertoire`, `form_of_use`, `default_collate_catalog`,
+`default_collate_schema`, `default_collate_name`. Public `database/sql` type
+names are NAME, not TEXT or the logical domain name.
+
+The single native UTF8/C database contributes
+`(NULL,NULL,'UTF8','UCS','UTF8',current_database(),'pg_catalog','C')` initially.
+The attachment's actual database name is retained, including an empty NAME.
+NULL predicates, false predicates and bound NULL equality produce ordinary
+singleton or empty results with unchanged eight-column metadata.
+This view does not enumerate every supported codec or available collation.
+
+Each execution selects actual collations whose COLLATE and CTYPE both equal
+the current database's C locale. Candidate names rank by Unicode character
+length descending, then C NAME order ascending. Neither encoding/provider nor
+ownership, schema USAGE or search path adds a candidate filter. Thus a longer
+matching user alias, even in a private schema, replaces C. POSIX and
+locale-only builtin descriptors do not match C/C. Identical names across
+namespaces have no promised tie winner. Create, rename, schema move and drop
+are reflected by fresh captures through the same held statement.
+Native collation utilities remain unsupported inside an explicit transaction:
+CREATE returns `0A000` (`statement is unsupported in an explicit transaction`),
+the same held read then reports aborted-transaction `25P02`, and ROLLBACK
+restores the unchanged row without creating an alias. The PostgreSQL lifecycle
+phase independently checks actual transactional alias creation and rollback.
+
+PUBLIC SELECT has no role-dependent row predicate; a normal reader sees the
+same identity while existing protected catalogs retain their own permissions.
+No new database/encoding configuration or collation population is enabled.
+Following released PostgreSQL SQL rather than the manual's no-match sentence,
+an absent matching collation leaves only default schema/name NULL; the database
+catalog name remains populated. The ordinary seeded C configuration always
+has a match; the no-match boundary is covered with an immutable package fixture.
+See [selected proof and smoke](../reference/catalogs/README.md#information-schema-character-sets).
+
 ## Foreign metadata and scans
 
 SQL/MED wrapper/server/user-mapping/foreign-table metadata, ordered column/table

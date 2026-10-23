@@ -690,6 +690,53 @@ the routine and checks an empty result with unchanged metadata. Record its four
 observed `created`, `unrelated []`, `renamed`, `dropped []` lines before removing
 the session program.
 
+### Information-schema character sets
+
+The eight untagged `TestReferenceInfoCharacterSets` definitions use one shared
+body in native and pinned PostgreSQL 18.6 modes, with independent expectations:
+
+- `Rows`: exact eight-column singleton, genuine NULL catalog/schema, explicit
+  projection, NULL/false filters and reused UTF8/LATIN1/NULL bindings through
+  direct, fresh prepared and held statements.
+- `Metadata`: raw NAME strings/native versus bytes/pq, raw NULLs, complete
+  type/scan/nullability/length/decimal metadata for populated and empty results,
+  and saved descriptors after EOF and Close.
+- `Identity`: nullable identifier-domain/base descriptors and reciprocal actual
+  relation/row/array links, without allocated-OID parity assumptions.
+- `CollationSelection`: real POSIX nonmatch, C aliases, reverse-created equal
+  lengths, longer names and a Unicode character-versus-byte-length witness.
+- `Lifecycle`: real rename/schema move/drop through the same held statement,
+  with a native-only unconsumed retained row on a separate handle. PostgreSQL
+  also checks actual transactional alias creation and rollback. Native asserts
+  the existing exact0A000 utility boundary, aborted held-read25P02, and rollback
+  recovery to unchanged C with no alias created; no transaction DDL is added.
+- `Visibility`: owner and unrelated reader see the private-schema winning alias;
+  the same reader cannot read protected `pg_user_mapping` (exact42501).
+- `Diagnostics`: complete42703 missing-column diagnostics/Position8 and failure
+  stages, plus native ordinary precancellation without fabricated SQLSTATE.
+- `FeatureSmoke`: the executable bounded feature witness described below.
+
+Run each selected command with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceInfoCharacterSets(Rows|Metadata|Identity|CollationSelection|Lifecycle|Visibility|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoCharacterSets(Rows|Metadata|Identity|CollationSelection|Lifecycle|Visibility|Diagnostics|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestInfoCharacterSets(Producer|CollationChoice)$'
+make check RUN='^TestReferencePGTypeAdmission$'
+make check RUN='^TestReferencePGTypeAdmission$' REFERENCE=1
+```
+
+The standalone smoke expects the exact initial NULL-containing NAME row,
+held UTF8→one/NULL→zero bindings with unchanged metadata, a real matching
+`cs_smoke_selected_long_name` alias replacing C on the same held query,
+ordinary-reader visibility and protected-catalog denial, then alias drop
+restoring C. Expected command result is exit zero with quiet package summaries:
+
+```sh
+make check RUN='^TestReferenceInfoCharacterSetsFeatureSmoke$'
+make check RUN='^TestReferenceInfoCharacterSetsFeatureSmoke$' REFERENCE=1
+```
+
 ### Extension removal
 
 The nine new removal definitions independently specify PostgreSQL18.6

@@ -706,4 +706,14 @@ var Specs = [...]Spec{
 		{"sequence_schema", 13248, true, 950, 0, -1},
 		{"sequence_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing routine sequence identifier domain"},
+	{InfoCharacterSetsOID, 13229, "character_sets", []ColumnSpec{
+		{"character_set_catalog", 13248, true, 950, 0, -1},
+		{"character_set_schema", 13248, true, 950, 0, -1},
+		{"character_set_name", 13248, true, 950, 0, -1},
+		{"character_repertoire", 13248, true, 950, 0, -1},
+		{"form_of_use", 13248, true, 950, 0, -1},
+		{"default_collate_catalog", 13248, true, 950, 0, -1},
+		{"default_collate_schema", 13248, true, 950, 0, -1},
+		{"default_collate_name", 13248, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing character set identifier domain"},
 }

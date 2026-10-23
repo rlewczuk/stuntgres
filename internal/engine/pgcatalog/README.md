@@ -2,7 +2,7 @@
 
 Row producers for the system relations: the `pg_catalog` tables and views and
 the `information_schema` views `table_privileges`, `data_type_privileges`,
-`user_mappings`, `key_column_usage` and `routine_sequence_usage`.
+`user_mappings`, `key_column_usage`, `routine_sequence_usage` and `character_sets`.
 Each producer is a pure function from a captured catalog, a paired role read
 and a narrow runtime capability to rows. The package sits at L5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
@@ -284,6 +284,24 @@ materialization or second lifecycle registry is involved.
 make check RUN='^TestInfoRoutineSequenceUsage(Producer|SpecificName)$'
 make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$'
 make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$' REFERENCE=1
+```
+
+`info_character_sets.go` emits one current-database UTF8 identity with eight
+generation-owned nullable `sql_identifier` values. Encoding and C locale facts
+are shared with `pg_database`; current database and winning namespace/collation
+names come from the captured runtime/catalog. The producer validates the paired
+catalog/roles/source and owned domain/base descriptors. A single descriptor scan
+matches both COLLATE/CTYPE, ranking character length descending then name
+ascending without sorting or per-candidate rows. PUBLIC visibility adds no
+schema-usage, provider or encoding filter. With no match only default schema/name
+are typed NULL; the database catalog remains populated per released SQL.
+Cancellation and invalid provenance expose no rows. Held executions recapture;
+retained values do not change with later catalog roots.
+
+```sh
+make check RUN='^TestInfoCharacterSets(Producer|CollationChoice)$'
+make check RUN='^TestReferenceInfoCharacterSets(Rows|Metadata|Identity|CollationSelection|Lifecycle|Visibility|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoCharacterSets(Rows|Metadata|Identity|CollationSelection|Lifecycle|Visibility|Diagnostics|FeatureSmoke)$' REFERENCE=1
 ```
 
 Package units run without an engine:

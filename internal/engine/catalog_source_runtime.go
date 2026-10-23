@@ -109,6 +109,13 @@ func (r engineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 func (r engineCatalogRuntime) ValidateCapture(view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, oid ids.OID) error {
 	a := r.auth
 	switch oid {
+	case pgcatalog.InfoCharacterSetsOID:
+		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
+			return fmt.Errorf("stuntgres: invalid character_sets capture")
+		}
+		if _, err := a.Object(ref); err != nil {
+			return err
+		}
 	case pgcatalog.KeyColumnUsageOID:
 		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
 			return fmt.Errorf("stuntgres: invalid key_column_usage capture")
