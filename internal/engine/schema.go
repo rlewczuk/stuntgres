@@ -17,10 +17,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func schemaNotice(op *session.Operation, code, message string) {
-	op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
-}
-
 func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)

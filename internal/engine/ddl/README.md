@@ -110,8 +110,8 @@ statement dispatch (`schema.go`): `executeSchema` (partition 0A000
 pre-checks, locks, publication and the cascade notice), `stageSchemaLocked`
 (capture, the early actor read that gates every staged statement, one call
 per statement), `schemaTableLocked` (a forwarder to `table.StageCreateTable`),
-`stageSchemaDomainsLocked`, `relationDiagnosticName` and `schemaNotice`
-(shared with the FDW DDL). `executeCreateTablespace` keeps the argument count
+`stageSchemaDomainsLocked` and `relationDiagnosticName`.
+`executeCreateTablespace` keeps the argument count
 check, the lock and the authority capture; `alterAllTablespaceLocked` keeps
 the argument count check and the deferred `Engine.mu` unlock, and
 `statementHost.TablespaceLocation`/`TablespaceDatabase` keep the retained

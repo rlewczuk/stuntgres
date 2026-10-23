@@ -21,13 +21,6 @@ func (a AuthorizationView) definitionLookup(key ids.NameKey) ids.ObjectAddress {
 	}
 	return a.Catalog.NameAddress(key)
 }
-func (a AuthorizationView) definitionDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
-	if a.definition != nil {
-		return a.definition.Descriptors()
-	}
-	return a.Catalog.Descriptors()
-}
-
 func (a AuthorizationView) definitionProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return catalog.DefinitionProceduresNamedAt(a.Catalog, a.definition, namespace, name)
 }
@@ -135,10 +128,6 @@ func (r stageDefinitionReader) HasDynamicProcedureName(name string) bool {
 
 func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {
 	return catalog.DefinitionNamespaceAt(a.Catalog, a.definition, address)
-}
-
-func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*catalog.Relation, bool) {
-	return catalog.DefinitionRelationAt(a.Catalog, a.definition, address)
 }
 
 func (r stageDefinitionReader) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
