@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `c2a388914` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139 and 141). Steps 8–17 were
+Last verified against `master` at `cf6561709` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140 and 141). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -20,8 +20,7 @@ different packages may run in parallel on separate branches; items that
 share a prompt file touch different root files unless their "needs" says
 otherwise.
 
-- **Fourth round, table family and DML:** 140 (partition 25f), 142 (index
-  23f).
+- **Fourth round, table family and DML:** 142 (index 23f).
 - **Fourth round, statement and session:** 143 (session 13h), 144 (exec
   11g), 145 (regobj 21e).
 - **Fourth round, catalog, DDL, types, roles and Restore:** 146 (analyze
@@ -829,12 +828,16 @@ planned sub-step left; only 151 needs it.
   - [x] 29f — DML prologue decisions and latest-row readers
     ([dml](ENGINE-SPLIT-dml.md)) (`773d664c2`, `ad272a0ba`, `eb6429c5c`,
     `adda24bd7`, `d00a15833`, then the docs commit)
-  - [ ] 19c — COPY TO writers ([copyfmt](ENGINE-SPLIT-copyfmt.md))
-  - [ ] 27i — RLS binding checks and query lock walks
-    ([view](ENGINE-SPLIT-view.md))
-  - [ ] 25f — Attach frontier, insert capture and constraint drop
-    ([partition](ENGINE-SPLIT-partition.md))
-  - [ ] 26f — Participant handshake ([fdw](ENGINE-SPLIT-fdw.md))
+  - [x] 19c — COPY TO writers ([copyfmt](ENGINE-SPLIT-copyfmt.md))
+    (`1ab14cd11`, then the docs commit)
+  - [x] 27i — RLS binding checks and query lock walks
+    ([view](ENGINE-SPLIT-view.md)) (`7499a3bf9`, `ab3e6d2f5`, `020d56fd1`,
+    `815bcac3e`, then the docs commit)
+  - [x] 25f — Attach frontier, insert capture and constraint drop
+    ([partition](ENGINE-SPLIT-partition.md)) (`dd51b2a56`, `9fd7b1636`,
+    `da20aa72c`, `c8306ceda`, then the docs commit)
+  - [x] 26f — Participant handshake ([fdw](ENGINE-SPLIT-fdw.md))
+    (`67aa49035`, then the docs commit)
   - [ ] 23f — Row publication and hash capture
     ([index](ENGINE-SPLIT-index.md))
   - [ ] 13h — Notification registry and small session decisions
@@ -2086,8 +2089,19 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      `RACE=1`), quickcheck and the quick and `REFERENCE=1` view, rule,
      RLS, row-lock and `pgrowlocks` selections passed; racecheck/finalcheck
      skipped at user request
-140. [ ] Partition 25f: attach frontier, insert capture and constraint
-     drop — [partition](ENGINE-SPLIT-partition.md) 25f · needs —
+140. [x] Partition 25f: attach frontier, insert capture and constraint drop —
+     [partition](ENGINE-SPLIT-partition.md) 25f · needs — (`dd51b2a56`,
+     `9fd7b1636`, `da20aa72c`, `c8306ceda`, then the docs commit) ·
+     `partition.AttachFrontier` with the DEFAULT child-lock wait as the root
+     callback `lockPartitionAttachChild`; `CaptureInsertLocked` with the
+     comment and CHECK snapshot captures as callbacks under `Engine.mu`;
+     `StageConstraintDrop` over `index.DropStage`, `table.NotNullCandidate` and
+     the stage's candidate, returning sorted removal roots; `Ancestors` for the
+     DROP TABLE locks; `partition` imports `session`; no aliases · targeted
+     units (also `RACE=1`), quickcheck and the quick and `REFERENCE=1`
+     ATTACH/DETACH, partitioned INSERT and constraint-drop selections passed
+     (`REFERENCE=1` `PartitionExclusion*` fails identically on `master`: known
+     oracle drift); racecheck/finalcheck skipped at user request
 141. [x] FDW 26f: participant handshake — [fdw](ENGINE-SPLIT-fdw.md) 26f ·
      needs — (`67aa49035`, then the docs commit) · `fdw.BeginParticipant`,
      `EndStatements`, `GroupTruncate` and `TruncateGroup.SetTransaction`;

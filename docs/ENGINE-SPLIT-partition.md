@@ -768,7 +768,47 @@ too; the root keeps only the orchestration listed above. The checks in
     `repairRemappedHashPartitions` keeps its signature and the install
     loop under `Engine.mu`. New import edge `partition` → `storage`.
   - Tests: none moved or deleted; four root tests changed call shape only.
-- [ ] 25f — Attach frontier, insert capture and constraint drop (linear item 140)
+- [x] 25f — Attach frontier, insert capture and constraint drop moved (linear
+  item 140) (`dd51b2a56`, `9fd7b1636`, `da20aa72c`, `c8306ceda`, then the docs
+  commit) · targeted units (also `RACE=1`), quickcheck and the quick and
+  `REFERENCE=1` ATTACH/DETACH, partitioned INSERT and constraint-drop
+  selections passed (`REFERENCE=1` `PartitionExclusion*` fails identically on
+  `master`: known oracle drift); racecheck/finalcheck skipped at user request
+  - Re-measured at `dcd3b6a2e` with `reach` over the four files: eight
+    dirty declarations, each through one edge (`StatementScope`, `Engine`
+    or `CatalogStage`); about 0.16k lines, as planned.
+  - `dd51b2a56`: `partition.AttachFrontier(ctx, input, view, parent, target,
+    bound, exclude, lockChild)` in `attach.go`. The incumbent DEFAULT's
+    child-lock wait is the `lockChild` callback, the root
+    `lockPartitionAttachChild` (`partition_attach_scan.go`), which waits
+    with nothing held; the candidate passes nil. Both callers pass
+    `scope.op.Context()` once instead of re-reading it per proof (ATTACH
+    never holds COPY input, so the value is the same).
+    `partitionAttachCapture` stays root.
+  - `9fd7b1636`: `partition.CaptureInsertLocked(read, authority, env,
+    target, regTS, leaf)` in `insert.go` builds the `InsertState` layouts (the
+    target subtree in preorder, then the ancestors) and calls `leaf` for
+    each physical leaf, under the caller's `Engine.mu`. The root
+    `capturePartitionInsertLocked` keeps its signature, the hierarchy early
+    return (plain INSERT builds no closures) and the `output.RegTS` nil
+    test, now inside the `regTS` callback. No new heap escapes: both
+    callbacks stay on the stack.
+  - `da20aa72c`: `partition.StageConstraintDrop(op, stage, removals,
+    relation, action)` in the new `constraint_drop.go`: the per-action body over
+    `index.DropStage` and `table.NotNullCandidate`, returning the removal
+    roots sorted by object ID; the root keeps the stage windows,
+    `stageExpressionDependents`, validation and the overlay. Deviation:
+    `index.DropStage` has no removal accessor and decision 19 allows no new
+    interface, so the root passes the stage's `*catalog.Candidate` as a
+    value input (as `view.ValidateMaterializedReplacement` takes one). The
+    returned roots slice is now heap-allocated: one allocation per DROP
+    CONSTRAINT action, DDL only. New import edge `partition` → `session`.
+  - `c8306ceda`: `acquirePartitionDropLocks` (`partition_drop.go`) reads the
+    ancestors through `partition.Ancestors`; the hierarchy test, the error
+    order and the lock order are unchanged.
+  - The string-literal multiset of the root and `partition` is unchanged.
+  - Tests: none moved or deleted; `partition_attach_growth_test.go`
+    changed call shape only.
 
 Outstanding aliases: none (25a, 25b and 25d added none).
 
@@ -784,7 +824,9 @@ Outstanding aliases: none (25a, 25b and 25d added none).
   `AuthorizationView` and reads the search path through the engine. DML 29a
   renamed the shadowed `WriteStage.applyInsertValidated` to
   `applyInsertBatch`; the router `StatementScope.applyInsertValidated`
-  (`partition_insert.go`) kept its name.
+  (`partition_insert.go`) kept its name. Since 25f the layout and ancestor
+  walk of `capturePartitionInsertLocked` is `partition.CaptureInsertLocked`;
+  the root wrapper keeps the snapshot callbacks under `Engine.mu`.
 - The Restore executors left in the root (`begin*Replay`,
   `executePartitionUniqueReplayLocked`, `repairRemappedHashPartitions`,
   the teardown capture and validation) stay root `Engine` methods for

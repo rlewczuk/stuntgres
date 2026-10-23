@@ -9,11 +9,11 @@ It is an upper feature package (L12 in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)),
 above `index` and `table`: it imports `access`, `analyze` (types and pure
 functions only), `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`, `ids`,
-`index`, `plan`, `regobj`, `sequence`, `storage`, `stored`, `table`, `typedef`,
-`visibility`, `parser`,
+`index`, `plan`, `regobj`, `sequence`, `session`, `storage`, `stored`,
+`table`, `typedef`, `visibility`, `parser`,
 `sqlstate`, `sqltype` and the standard library. It never imports the
-engine, `view` or `dml`; only the engine and `dml` import it. It never builds a
-binder. Partitioned indexes are `index` code. See
+engine, `view` or `dml`; only the engine, `control` and `dml` import
+it. It never builds a binder. Partitioned indexes are `index` code. See
 [ENGINE-SPLIT-partition.md](../../../docs/ENGINE-SPLIT-partition.md).
 
 ## What it owns
@@ -53,6 +53,19 @@ binder. Partitioned indexes are `index` code. See
   first, for the caller to lock before the leaf. `CaptureCatalog` puts the
   statement's admitted descriptors back over their append growth. None of
   them waits or locks.
+- **Attach frontier, INSERT capture and constraint drop** (`attach.go`,
+  `insert.go`, `constraint_drop.go`; 25f): `AttachFrontier` returns the
+  leaves ATTACH must scan, skipping every relation whose constraints prove
+  the bound; it holds nothing and waits only in the caller's `lockChild`
+  callback, which locks and rereads each DEFAULT descendant (the candidate
+  passes nil: its descendants are already admitted). `CaptureInsertLocked`
+  builds an `InsertState` with the layouts of the target, its descendants
+  and its ancestors; it runs under the caller's `Engine.mu`, and its
+  `regTS` and `leaf` snapshot callbacks never wait. `StageConstraintDrop`
+  stages one DROP CONSTRAINT action of a partition hierarchy (UNIQUE or
+  EXCLUDE with its partitioned index, else the `table.NotNullCandidate`
+  check) over `index.DropStage` with nothing held, and returns the stage
+  candidate's removals sorted by object ID.
 - **Proofs and retained checks** (`proof.go`, `retained_checks.go`):
   `ConstraintProven` proves a child's constraints imply its partition
   bound, so ATTACH can skip the scan; `ProofGoal`, `ProofTuple`.
@@ -119,10 +132,14 @@ after `StageCreate`); `pendingPartitionDefinition`, which embeds
 `Definition` and whose `finish` sequences the moved checks in their
 diagnostic order and takes `Engine.mu` for the index children;
 `attachPartitionLocked` and `detachPartitionLocked` (`Engine.mu` windows,
-lock waits, the attach frontier and capture, stage replacement, validation
-and publication); `executePartitionExclusionAddLocked`'s windows; lock
-admission (`partition_locks.go`: the lock waits and the observed
-descriptors around `Ancestors`, with `Engine.mu` held for the walk); the
+lock waits including `lockPartitionAttachChild`, the `AttachFrontier`
+callback, the attach capture `partitionAttachCapture`, stage replacement,
+validation and publication); `executePartitionExclusionAddLocked`'s windows;
+`executePartitionConstraintDropLocked` (the stage windows,
+`stageExpressionDependents` over the roots `StageConstraintDrop` returns,
+validation and the overlay); lock admission (`partition_locks.go` and
+`acquirePartitionDropLocks`: the lock waits and the observed descriptors
+around `Ancestors`, with `Engine.mu` held for the walk); the
 authorization captures and trust checks (`partitionConstraintReplayImport`,
 `partitionParentAuthorization`, `partitionAttachAuthorization`,
 `partitionDefaultReplayAllowed`, and `partitionReplayAllowed`, the
@@ -131,8 +148,10 @@ hook wrappers and the Restore executors
 (`executePartitionUniqueReplayLocked`, `repairRemappedHashPartitions` with
 the storage install loop under `Engine.mu`, the teardown capture); `dropProvider.removePartitionHierarchyLocked` (over
 `WithoutChild`); the storage-read fences (`storage_read_fence.go`); and
-INSERT routing execution around `InsertState` (the capture under
-`Engine.mu`, the partition lock, physical validation, the target
+INSERT routing execution around `InsertState`
+(`capturePartitionInsertLocked`, which passes the comment and CHECK
+snapshot captures to `CaptureInsertLocked` under `Engine.mu`, the
+partition lock, physical validation, the target
 constraint and the per-leaf groups; step 29 moves them to `dml`). `partition_host.go` holds
 `ddlHost.BindKeyExpression` and the `partitionBoundBinder` adapter.
 
@@ -144,7 +163,9 @@ constraint and the per-leaf groups; step 29 moves them to `dml`). `partition_hos
 - Dump output is byte-identical: the dump-event graph keeps its order and
   never iterates maps into output.
 - The package holds no engine state and no mutex. Functions here never
-  wait; callers in the root own `Engine.mu`, lock waits and publication.
+  wait except through a caller's callback that runs with nothing held
+  (`AttachFrontier`'s `lockChild`); callers in the root own `Engine.mu`,
+  lock waits and publication.
 - LIST has one key and one immutable typed Values slice per member. Bound
   expressions execute once before overlap/default-row checks. Same-list
   duplicates normalize with the key's admitted comparator; sibling value/NULL
