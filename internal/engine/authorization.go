@@ -287,79 +287,9 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		return fmt.Errorf("stuntgres: entries in absent ACL")
 	}
 	acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
-	var next catalog.Descriptor
-	switch d := d.(type) {
-	case *catalog.Database:
-		if ref.Address.SubID != 0 {
-			return fmt.Errorf("stuntgres: database subobject")
-		}
-		n := *d
-		n.ACL = acl
-		next = &n
-	case *catalog.Namespace:
-		if ref.Address.SubID != 0 {
-			return fmt.Errorf("stuntgres: namespace subobject")
-		}
-		n := *d
-		n.ACL = acl
-		next = &n
-	case *catalog.Type:
-		if ref.Address.SubID != 0 || d.SQLType.IsArray() {
-			return fmt.Errorf("stuntgres: invalid type ACL target")
-		}
-		n := *d
-		n.ACL = acl
-		n.ACLSyntheticDefault = false
-		next = &n
-	case *catalog.Procedure:
-		if ref.Address.SubID != 0 {
-			return fmt.Errorf("stuntgres: procedure subobject")
-		}
-		n := *d
-		n.ACL = acl
-		next = &n
-	case *catalog.Parameter:
-		if ref.Address.SubID != 0 {
-			return fmt.Errorf("stuntgres: parameter subobject")
-		}
-		n := *d
-		n.ACL = acl
-		next = &n
-	case *catalog.Tablespace:
-		if ref.Address.SubID != 0 {
-			return fmt.Errorf("stuntgres: tablespace subobject")
-		}
-		n := *d
-		n.ACL = acl
-		next = &n
-	case *catalog.LargeObject:
-		if ref.Address.SubID != 0 {
-			return fmt.Errorf("stuntgres: large object subobject")
-		}
-		n := *d
-		n.ACL = acl
-		next = &n
-	case *catalog.Relation:
-		if ref.Address.SubID < 0 || ref.Address.SubID > 0 && !d.HasAttribute(ref.Address.SubID) {
-			return fmt.Errorf("stuntgres: invalid ACL column")
-		}
-		n := *d
-		if ref.Address.SubID == 0 {
-			n.Security.ACL = acl
-		} else {
-			n.Security.ColumnACL = make(map[int32]authorization.ACLValue, len(d.Security.ColumnACL)+1)
-			for k, v := range d.Security.ColumnACL {
-				n.Security.ColumnACL[k] = v
-			}
-			if acl.Explicit {
-				n.Security.ColumnACL[ref.Address.SubID] = acl
-			} else {
-				delete(n.Security.ColumnACL, ref.Address.SubID)
-			}
-		}
-		next = &n
-	default:
-		return fmt.Errorf("stuntgres: unsupported ACL object")
+	next, err := access.WithObjectACL(d, ref.Address.SubID, acl)
+	if err != nil {
+		return err
 	}
 	if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
 		return err
