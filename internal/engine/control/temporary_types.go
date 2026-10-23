@@ -14,7 +14,8 @@ import (
 // type generations and array associations that retained temporary objects
 // use: column types, the result types of their defaults, checks, policies,
 // generations, index keys and predicates, view queries, literals and casts,
-// and every column of a pinned catalog relation a temporary view reads.
+// and every column of an exact captured immutable catalog provider a temporary
+// view reads, independently of dependency pinning.
 // Imported columns and values are reowned later, never temporary rows. It
 // reports whether it changed next.
 // This candidate-only phase precedes CheckTemporaryDependencies so full policy
@@ -120,7 +121,7 @@ func RetainTemporaryBuiltinTypes(current catalog.Read, next *catalog.State, temp
 					case *catalog.Type:
 						retainBuiltin(provider.SQLType)
 					case *catalog.Relation:
-						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalog.CatalogRelation || !stored.DependPinned(current, nil, address) {
+						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalog.CatalogRelation {
 							continue
 						}
 						// The exact immutable catalog provider includes unused columns.

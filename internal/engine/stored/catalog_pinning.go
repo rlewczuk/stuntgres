@@ -3,6 +3,7 @@ package stored
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 )
 
@@ -35,7 +36,7 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 	case *catalog.Operator:
 		return routine.OperatorSeeded(d)
 	case *catalog.Relation:
-		return d.RelationKind == catalog.CatalogRelation
+		return d.RelationKind == catalog.CatalogRelation && pgcatalog.ClassKind(view, d) == "r"
 	}
 	return false
 }

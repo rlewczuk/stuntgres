@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 )
@@ -79,6 +80,55 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			}
 			if !errors.Is(staleErr, ids.ErrCatalogReplaced) {
 				t.Fatal("unscoped old source admitted", staleErr)
+			}
+			// Capture real metadata with the retained old-epoch definitions.
+			// System view edges survive, but pinned system tables do not gain
+			// usage rows or pg_depend SELECT-rule edges.
+			usageSource := current.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoViewTableUsageOID})
+			runtime := engineCatalogRuntime{auth: auth, database: "retained_database"}
+			produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoViewTableUsageOID)
+			if !ok {
+				t.Fatal("missing usage producer")
+			}
+			usage, err := captureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: current, Roles: auth.Roles, Owner: current.Owner(), Ref: current.Owner().Domain.Ref(current.Epoch(), usageSource.Address()), Source: usageSource, Runtime: runtime}, produce)
+			if err != nil {
+				t.Fatal("retained usage capture", err)
+			}
+			defer usage.Close()
+			got := map[[2]string]int{}
+			for _, row := range usage.Anonymous {
+				got[[2]string{infoUserMappingsUnitText(t, row[2]), infoUserMappingsUnitText(t, row[5])}]++
+			}
+			want := map[[2]string]int{{"retained_v", "retained_base"}: 1, {"retained_w", "retained_v"}: 1, {"retained_summary", "pg_views"}: 1}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatal("retained direct usage pairs", got, want)
+			}
+			edges, err := pgcatalog.CollectDepend(t.Context(), current, runtime)
+			if err != nil {
+				t.Fatal("retained pg_depend capture", err)
+			}
+			summaryAddress := current.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "retained_summary"})
+			summaryRule := stored.ViewOf(current.MustRelation(summaryAddress)).RuleOID()
+			catalogAddress := current.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "retained_catalog"})
+			catalogRule := stored.ViewOf(current.MustRelation(catalogAddress)).RuleOID()
+			foundSummary := false
+			for _, edge := range edges {
+				if edge.Dependent.ClassID != 2618 || edge.Referenced.ClassID != ids.RelationClassID {
+					continue
+				}
+				if edge.Dependent.ObjectID == summaryRule && edge.DepType == 'n' {
+					target := edge.Referenced
+					target.SubID = 0
+					if relation, ok := current.Relation(target); ok && relation.Name() == "pg_views" {
+						foundSummary = true
+					}
+				}
+				if edge.Dependent.ObjectID == catalogRule && edge.Referenced.ObjectID == 1259 {
+					t.Fatal("pinned pg_class edge", edge)
+				}
+			}
+			if !foundSummary {
+				t.Fatal("missing retained pg_views SELECT-rule dependency")
 			}
 			for _, q := range []string{"SELECT v FROM retained_w", "SELECT v FROM retained_catalog", "SELECT v FROM retained_summary"} {
 				r := sessionSQL(t, owner, q)

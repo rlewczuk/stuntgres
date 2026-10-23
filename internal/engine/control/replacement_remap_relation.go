@@ -3,7 +3,6 @@ package control
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 )
@@ -13,7 +12,7 @@ import (
 // through mapping. The exact immutable catalog provider certified for
 // retained TEMP consumers stays as it is unless its namespace moved.
 func remapReplacementRelation(current catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, a, target ids.ObjectAddress, r *catalog.Relation) (catalog.Descriptor, error) {
-	if target == a && r.RelationKind == catalog.CatalogRelation && catalog.Descriptor(r) == current.State().Get(a) && stored.DependPinned(current, nil, a) {
+	if target == a && r.RelationKind == catalog.CatalogRelation && catalog.Descriptor(r) == current.State().Get(a) {
 		if _, moved := mapping[r.Namespace()]; !moved {
 			// Remapping unrelated imported identities must not copy
 			// the exact provider certified for retained TEMP consumers.

@@ -190,6 +190,20 @@ after the matching domain-consumer remedy.
   identity/signature/result/kind and exclusive capability association. Dependency
   pinning follows those real bootstrap handlers/methods, not an OID cutoff;
   method dependency labels are global, with no invented namespace or owner.
+  Catalog relation pinning follows the represented SQL kind: bootstrap catalog
+  tables remain pinned, while catalog views such as `pg_views` record ordinary
+  SELECT-rule dependency edges. Runtime view-reference capture honors cancellation
+  first, then requires the exact live consumer in the supplied catalog and a
+  concrete nonnil stored view definition. Invalid consumers return
+  `ids.ErrCatalogReplaced` without references; authorization capture is not required.
+  It validates relation refs in the immutable source/dependency manifests,
+  including attributes, before the address-only dependency recording pass.
+  Retained TEMP view lifetime is independent of this pinning distinction:
+  `ViewReferenceValid` requires the exact captured CatalogRelation descriptor,
+  valid consumer/physical namespace/domain/epoch/attribute authority, not a
+  dependency pin. Replacement retains that exact provider and all its column type
+  generations only after the existing full shape/namespace/ACL checks; ordinary
+  old ObjectRefs and same-address substitute providers remain invalid.
   `ReownScalarTypes` (`scalar_type_reown.go`) is the scalar companion of
   `ReownExpressions`: it points relation column types and stored datums
   (domain values, reg* and aclitem values) at current type generations.

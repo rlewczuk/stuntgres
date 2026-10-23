@@ -3,7 +3,7 @@
 Row producers for the system relations: the `pg_catalog` tables and views and
 the `information_schema` views `table_privileges`, `data_type_privileges`,
 `user_mappings`, `key_column_usage`, `constraint_column_usage`,
-`routine_sequence_usage`, `character_sets` and `enabled_roles`.
+`routine_sequence_usage`, `character_sets`, `enabled_roles` and `view_table_usage`.
 Each producer is a pure function from a captured catalog, a paired role read
 and a narrow runtime capability to rows. The package sits at L5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
@@ -324,6 +324,26 @@ materialization or second lifecycle registry is involved.
 make check RUN='^TestInfoRoutineSequenceUsage(Producer|SpecificName)$'
 make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$'
 make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$' REFERENCE=1
+```
+
+`info_view_table_usage.go` projects direct stored ordinary-view SELECT-rule
+references through the same runtime dependency recorder as `pg_depend`.
+The engine validates relation source/dependency ObjectRefs against the captured
+catalog and contextual retained-TEMP authority before recording addresses;
+invalid later references cannot hide behind pinning or pair deduplication.
+The producer resolves current containing relations, includes SQL kinds r/v/f/p,
+suppresses self identity and deduplicates pairs per defining view. Its only
+visibility predicate is enabled referenced-owner inheritance. It emits six
+column-owned identifier-domain values, nonnil empty captures and no partial
+prefix on error/cancellation. It does not execute definitions, expand nested
+views or call foreign providers. Bootstrap tables are pinned; catalog views are
+not. Exact retained TEMP provider identity is a separate lifetime contract.
+
+```sh
+make check RUN='^(TestInfoViewTableUsageProducer|TestCatalogSourceRuntimeCapture)$'
+make check RUN='^TestPGDependCatalogRelationPinning$'
+make check RUN='^TestReferenceInfoViewTableUsage(Shape|Dependencies|Visibility|Lifecycle|Controls|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoViewTableUsage(Shape|Dependencies|Visibility|Lifecycle|Controls|Diagnostics|FeatureSmoke)$' REFERENCE=1
 ```
 
 `info_character_sets.go` emits one current-database UTF8 identity with eight

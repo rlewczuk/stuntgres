@@ -728,4 +728,12 @@ var Specs = [...]Spec{
 	{InfoEnabledRolesOID, 13229, "enabled_roles", []ColumnSpec{
 		{"role_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing enabled role identifier domain"},
+	{InfoViewTableUsageOID, 13229, "view_table_usage", []ColumnSpec{
+		{"view_catalog", 13248, true, 950, 0, -1},
+		{"view_schema", 13248, true, 950, 0, -1},
+		{"view_name", 13248, true, 950, 0, -1},
+		{"table_catalog", 13248, true, 950, 0, -1},
+		{"table_schema", 13248, true, 950, 0, -1},
+		{"table_name", 13248, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing view table usage identifier domain"},
 }

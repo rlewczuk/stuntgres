@@ -374,6 +374,23 @@ See [native limits](docs/DIALECT.md#transactional-large-object-bytes),
 [replay](docs/FIXTURES.md#large-object-snapshots), and
 [selected proof/smoke](reference/object_grants/README.md#transactional-large-object-byte-storage).
 
+## View table usage — change note
+
+`information_schema.view_table_usage` exposes six nullable `sql_identifier`
+identity columns (public NAME metadata), one distinct pair per stored ordinary
+view and directly referenced table/view/foreign table/partitioned table.
+Repeated columns and self-joins collapse; nested views are not expanded and
+self dependencies are suppressed. Constant-only definitions produce no rows.
+Visibility follows enabled ownership of each referenced relation, not view
+ownership, SELECT grants or schema USAGE. Reads never execute definitions or
+contact foreign providers. Current names, replacement/drop and native replay
+follow the existing catalog and role captures, including held prepared reads;
+already returned rows retain their original values. Bootstrap system tables
+remain excluded while represented system views such as `pg_views` can appear.
+This adds no adjacent information-schema usage views.
+See [native boundaries](docs/DIALECT.md#view-table-usage) and
+[selected proof and smoke](reference/catalogs/README.md#view-table-usage).
+
 ## Routine sequence usage — change note
 
 `information_schema.routine_sequence_usage` exposes one row per actual direct

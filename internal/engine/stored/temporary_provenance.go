@@ -102,7 +102,9 @@ func ViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.O
 		return false
 	}
 	if relation, ok := target.(*catalog.Relation); ok && relation.RelationKind == catalog.CatalogRelation {
-		return target == captured && DependPinned(view, nil, address) && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
+		// Immutable catalog-source retention is independent of dependency
+		// pinning: system views record edges but retain the exact provider.
+		return target == captured && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
 	}
 	if !ReferenceEpochValid(view, consumer, ref) {
 		return false

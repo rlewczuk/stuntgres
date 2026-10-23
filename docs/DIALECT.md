@@ -1321,6 +1321,39 @@ RENAME remains unsupported; PostgreSQL rename observations and native's exact
 capability diagnostic remain distinct.
 See [selected proof and smoke](../reference/catalogs/README.md#enabled-roles).
 
+## View table usage
+
+`information_schema.view_table_usage` has six ordered nullable
+`information_schema.sql_identifier` domains over NAME: `view_catalog`,
+`view_schema`, `view_name`, `table_catalog`, `table_schema`, `table_name`.
+Both catalog fields name the current database; valid identity cells are non-NULL.
+Empty, false and NULL predicates keep the same result metadata without
+placeholder rows.
+
+Rows are DISTINCT direct SELECT-rule relation pairs from actual stored ordinary
+views. Attribute and whole-object references collapse to the containing relation;
+repeated aliases collapse, self references are suppressed, and nested view base
+relations are not expanded. Referenced ordinary/foreign/partitioned tables and
+ordinary views qualify; sequences, materialized views, indexes, composites,
+routine-body dependencies, non-SELECT rules and name-like text do not.
+Metadata reads never execute view definitions or foreign providers.
+Pinned bootstrap system tables such as `pg_class` have no dependency rows;
+represented system views such as `pg_views` are not pinned and may appear.
+No blanket system-namespace or TEMP-namespace exclusion is applied.
+
+Each dependency is visible only through its owner's currently enabled role:
+self, superuser or immediately inherited owner membership. View ownership,
+view/table SELECT grants, namespace USAGE and search-path visibility add no
+filters. SET-only membership qualifies after SET ROLE. Current captures make
+held prepared reads observe membership/owner changes and current names after
+rename/move, replacement and drop. Failed DDL preserves prior rows.
+Native Reset/Restore recomputes metadata from stored identities rather than
+serializing provider rows; retained native Rows remain unchanged.
+Immutable catalog providers retained by TEMP views preserve their exact
+captured identity independently of dependency pinning.
+No adjacent `views`, `view_column_usage` or `view_routine_usage` provider is added.
+See [selected proof and smoke](../reference/catalogs/README.md#view-table-usage).
+
 ## Routine sequence usage
 
 `information_schema.routine_sequence_usage` has nine ordered nullable

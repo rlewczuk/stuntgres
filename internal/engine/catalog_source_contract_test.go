@@ -235,6 +235,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 }
 
 func TestCatalogSourceRuntimeCapture(t *testing.T) {
+	t.Run("view_table_usage_database_frontier", infoViewTableUsageCapture)
 	t.Run("user_mappings_database_frontier", func(t *testing.T) {
 		f := newDefaultUnitFixture(t)
 		state := catalog.CloneState(f.e.catalog.state)

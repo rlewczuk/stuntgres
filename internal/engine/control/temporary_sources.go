@@ -85,9 +85,9 @@ func CheckTemporaryRuleSourcesLocked(current catalog.Read) error {
 }
 
 // RetainTemporaryViewProvidersLocked keeps in next the persistent sources of
-// retained TEMP views. Only immutable bootstrap catalog sources have a
-// persistent survivor route. Retain the predecessor itself, after checking the
-// candidate's full provider shape and namespace/ACL authority; a
+// retained TEMP views. Only immutable catalog providers have a persistent
+// survivor route, independently of dependency pinning. Retain the predecessor
+// itself, after checking the candidate's full provider shape and namespace/ACL authority; a
 // compatible-looking user table is not it.
 func RetainTemporaryViewProvidersLocked(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor) error {
 	for _, descriptor := range temporary {
@@ -111,7 +111,7 @@ func RetainTemporaryViewProvidersLocked(current catalog.Read, next *catalog.Stat
 			fail := func() error {
 				return fmt.Errorf("stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported")
 			}
-			if old != captured || old.RelationKind != catalog.CatalogRelation || !stored.DependPinned(current, nil, address) {
+			if old != captured || old.RelationKind != catalog.CatalogRelation {
 				return fail()
 			}
 			candidate, ok := next.Relation(address)

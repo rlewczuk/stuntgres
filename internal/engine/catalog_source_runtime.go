@@ -144,6 +144,13 @@ func (r engineCatalogRuntime) ValidateCapture(view catalog.Read, roles authoriza
 		if _, err := a.Object(ref); err != nil {
 			return err
 		}
+	case pgcatalog.InfoViewTableUsageOID:
+		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
+			return fmt.Errorf("stuntgres: invalid view_table_usage capture")
+		}
+		if _, err := a.Object(ref); err != nil {
+			return err
+		}
 	case pgcatalog.InfoUserMappingsOID:
 		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
 			return fmt.Errorf("stuntgres: invalid user_mappings capture")
@@ -213,7 +220,51 @@ func (r engineCatalogRuntime) ExpressionReferences(ctx context.Context, view cat
 	return stored.ExpressionDependRefs(ctx, view, value)
 }
 func (r engineCatalogRuntime) ViewReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
-	return stored.QueryDependRefs(ctx, view, nil, stored.ViewOf(relation).Query())
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if relation == nil || view.Get(relation.Address()) != relation {
+		return nil, ids.ErrCatalogReplaced
+	}
+	definition := stored.ViewOf(relation)
+	if definition == nil {
+		return nil, ids.ErrCatalogReplaced
+	}
+	validate := func(ref ids.ObjectRef) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if ref.Address.ClassID != ids.RelationClassID {
+			return nil
+		}
+		if !stored.ViewReferenceValid(view, relation, ref) {
+			return ids.ErrCatalogReplaced
+		}
+		address := ref.Address
+		address.SubID = 0
+		target, ok := view.Relation(address)
+		if !ok || ref.Address.SubID != 0 && ref.Address.SubID != -6 && !target.HasAttribute(ref.Address.SubID) {
+			return fmt.Errorf("stuntgres: invalid stored view dependency attribute")
+		}
+		return nil
+	}
+	// The immutable lifetime manifest retains ObjectRefs; the dependency
+	// recording pass below intentionally returns only PostgreSQL addresses.
+	// Validate before pinning or pair deduplication can hide a malformed ref.
+	for _, source := range definition.Sources() {
+		if source.Ref.Address.SubID != 0 {
+			return nil, ids.ErrCatalogReplaced
+		}
+		if err := validate(source.Ref); err != nil {
+			return nil, err
+		}
+	}
+	for _, dependency := range definition.Dependencies() {
+		if err := validate(dependency.Ref); err != nil {
+			return nil, err
+		}
+	}
+	return stored.QueryDependRefs(ctx, view, nil, definition.Query())
 }
 func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
 	if key.Derived == nil {

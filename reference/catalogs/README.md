@@ -784,6 +784,62 @@ the routine and checks an empty result with unchanged metadata. Record its four
 observed `created`, `unrelated []`, `renamed`, `dropped []` lines before removing
 the session program.
 
+### View table usage
+
+The seven untagged `TestReferenceInfoViewTableUsage` definitions specify the
+six ordered `sql_identifier`/NAME identity columns with independent literal
+expectations. `Shape` covers domain/base descriptors, nullability, reciprocal
+row/array links, complete raw/driver metadata, named/star direct/prepared
+projections, EOF/Close retention and empty/NULL boundaries.
+`Dependencies` specifies DISTINCT direct containing-relation pairs, repeated
+columns/self-joins, nested views without transitive expansion, same-spelled
+relations in distinct schemas, partition parents, hard regclass edges, recursive
+self suppression, and sequence/materialized/routine/text/non-SELECT-rule
+exclusions. A division-by-zero definition must remain unevaluated.
+The dependency scenario explicitly retires its additional rule, routine consumer
+and SQL routine, self/recursive views, and foreign view/table/server/wrapper in
+dependency order before shared schema cleanup, on both backends. This keeps the
+fixture within native schema-drop capabilities without weakening dependency
+assertions or expanding `DROP SCHEMA` support.
+
+The system witness independently expects a direct `pg_catalog.pg_views` pair
+and no `pg_catalog.pg_class` pair, with matching narrow direct `pg_depend`
+identity witnesses. Own TEMP identities use their actual generated namespace.
+`Visibility` covers referenced-owner enabled roles, private schemas, partial
+joined visibility, view-owner and ACL-only negatives, inherited/transitive/broken
+and SET-only membership, NOINHERIT self ownership, and one held consumer across
+role grants/revokes, SET ROLE and dependency/view owner changes.
+`Lifecycle` follows current names through column/table/view/schema rename and
+schema move, old-name reuse, failed/successful replacement, drop/recreate and
+CASCADE with an unrelated surviving pair. `Diagnostics` specifies complete
+42703 and 2BP01 English fields/stages/positions and unchanged rows after failure.
+`Controls` shares its SQL seed across backends, then explicitly uses native-only
+Dump/Reset/Restore, retained rows/metadata, recomputed owner visibility,
+failed/canceled restore atomicity and precanceled query behavior.
+
+These shared definitions run without a discovery gate in native and pinned
+PostgreSQL 18.6 modes. Expectations remain independent of native output.
+With an external 900-second deadline per selected check:
+
+```sh
+make check RUN='^(TestInfoViewTableUsageProducer|TestCatalogSourceRuntimeCapture)$'
+make check RUN='^TestPGDependCatalogRelationPinning$'
+make check RUN='^TestReferenceInfoViewTableUsage(Shape|Dependencies|Visibility|Lifecycle|Controls|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoViewTableUsage(Shape|Dependencies|Visibility|Lifecycle|Controls|Diagnostics|FeatureSmoke)$' REFERENCE=1
+```
+
+The compact `FeatureSmoke` expects exactly `(v,t),(v,u),(w,v)` as six-NAME rows
+through direct/prepared reads; nil predicate empty with full schema; exact
+42703/Position8; dependency-owner positive versus ACL-only empty; replacement
+retiring only `(v,t)`; rename updating the referenced name; native logical
+round-trip with retained original rows; and drop removing the defining pairs.
+Its explicit ACL fixture is separate from the native dump seed.
+
+```sh
+make check RUN='^TestReferenceInfoViewTableUsageFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceInfoViewTableUsageFeatureSmoke$'
+```
+
 ### Information-schema character sets
 
 The eight untagged `TestReferenceInfoCharacterSets` definitions use one shared
