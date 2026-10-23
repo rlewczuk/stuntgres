@@ -40,6 +40,18 @@ captures retain their original names.
 See [semantics and boundaries](docs/DIALECT.md#enabled-roles) and
 [selected proof and feature smoke](reference/catalogs/README.md#enabled-roles).
 
+## Cooperative foreign parallel scans — change note
+
+An optional registered `ForeignParallelScanProvider` can partition actual source
+occurrences for eligible eager SELECTs with `max_parallel_workers_per_gather>=2`.
+Distinct in-process scans run concurrently; local filtering, typed ordering and
+projection remain serial. Missing/unsafe capabilities retain genuine serial
+scans. Cancellation and cleanup complete before result publication. This is not
+PostgreSQL worker-process/DSM compatibility or child-path remapping; foreign
+hierarchies remain an explicit boundary. Runtime partitions are not dumped.
+See [provider ownership](docs/DRIVER.md#cooperative-foreign-partitions) and
+[selected evidence](reference/tables/README.md#cooperative-foreign-parallel-scans).
+
 ## Relation storage parameters — change note
 
 `ALTER TABLE ... SET (...)` and `RESET (...)` retain validated logical storage

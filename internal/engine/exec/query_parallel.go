@@ -16,6 +16,13 @@ import (
 // Positive permission belongs only to the eager top-level SELECT entry. Generic
 // finalization remains serial for writes, cursors, nested queries and controls.
 func FinalizeSelect(ctx context.Context, root plan.Node, source *Source, parameters []sqltype.Value, ceiling int) (RowResult, int, error) {
+	if ceiling >= 2 && source != nil && source.Foreign != nil && source.Anonymous != nil && len(source.Anonymous) == 0 {
+		if _, ok := source.Foreign.Wrapper.(catalog.ForeignParallelScanProvider); ok {
+			if _, _, eligible := parallelQueryGraph(root, source); eligible {
+				return finalizeQuery(ctx, root, source, parameters, min(ceiling, max(2, runtime.GOMAXPROCS(0))))
+			}
+		}
+	}
 	project, ordered, eligible := ParallelQueryPlan(root, source)
 	workers := QueryParallelWorkers(ceiling, source.Count())
 	if !eligible || workers < 2 {
@@ -29,12 +36,7 @@ func QueryParallelWorkers(ceiling, count int) int {
 }
 
 func ParallelQueryPlan(root plan.Node, source *Source) (*plan.ProjectNode, *plan.SortNode, bool) {
-	project, ok := root.(*plan.ProjectNode)
-	if !ok || source == nil || source.View == nil || project.CTEOwner || project.HasTargetSet || project.FrozenValues || source.Sources != nil || source.StoredRef != (ids.ObjectRef{}) ||
-		source.Locks != nil || source.Lineage != nil || source.Inherited.Mode != 0 || source.HashIndexes != nil || source.PartialMask != nil || source.Inheritance != nil ||
-		source.Singleton || source.RlsDenied || source.RLS != nil || source.Anonymous != nil || source.PGSequences != nil || source.Materialized || source.Final != nil || source.Input != nil ||
-		source.NestedRoot != nil || source.NestedInputs != nil || source.NestedStage != nil || source.Window || source.JoinLeft != nil || source.JoinRight != nil ||
-		source.Scratch != nil || source.Layout != nil || source.Versions != nil || source.invocationLineage != nil {
+	if source == nil || source.View == nil || source.Foreign != nil || source.Anonymous != nil {
 		return nil, nil, false
 	}
 	view := source.View.Catalog()
@@ -46,6 +48,21 @@ func ParallelQueryPlan(root plan.Node, source *Source) (*plan.ProjectNode, *plan
 	ns, ok := view.Descriptor(relation.Namespace())
 	namespace, namespaceOK := ns.(*catalog.Namespace)
 	if !ok || !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
+		return nil, nil, false
+	}
+	return parallelQueryGraph(root, source)
+}
+
+// One audited local expression/shape gate is shared by physical and foreign
+// dispatch. A captured foreign source has no physical View and starts empty.
+func parallelQueryGraph(root plan.Node, source *Source) (*plan.ProjectNode, *plan.SortNode, bool) {
+	project, ok := root.(*plan.ProjectNode)
+	if !ok || source == nil || project.CTEOwner || project.HasTargetSet || project.FrozenValues || source.Sources != nil || source.StoredRef != (ids.ObjectRef{}) ||
+		source.Locks != nil || source.Lineage != nil || source.Inherited.Mode != 0 || source.HashIndexes != nil || source.PartialMask != nil || source.Inheritance != nil ||
+		source.Singleton || source.RlsDenied || source.RLS != nil || source.PGSequences != nil || source.Materialized || source.Final != nil || source.Input != nil ||
+		source.NestedRoot != nil || source.NestedInputs != nil || source.NestedStage != nil || source.Window || source.JoinLeft != nil || source.JoinRight != nil ||
+		source.Scratch != nil || source.Layout != nil || source.Versions != nil || source.invocationLineage != nil ||
+		(source.Anonymous != nil && (source.Foreign == nil || len(source.Anonymous) != 0)) {
 		return nil, nil, false
 	}
 	frame := project.Frame

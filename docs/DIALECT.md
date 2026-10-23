@@ -1555,6 +1555,15 @@ existing deferred stale-cursor owner: replacement itself does not sweep other
 sessions; a subsequent request/rollback/CLOSE/session end releases its scan.
 Already finalized batches remain readable.
 
+Optional provider-cooperative foreign partitions run in-process for conservative
+eager one-source SELECTs, with serial local operators. Providers must supply an
+authentic common frontier and disjoint/exhaustive occurrence scans; safety alone
+does not authorize repeated full scans. Unsupported shapes remain serial.
+PostgreSQL worker-process/shared-memory ABI is external. Foreign parent/child
+path reparameterization is not SQL parameter binding or correlated ReScan:
+native foreign hierarchies remain0A000, with no fake private-path remapping.
+Dump/Restore owns catalog metadata, never runtime coordinators or remote rows.
+
 Registered foreign INSERT/UPDATE/DELETE/RETURNING, COPY FROM and grouped TRUNCATE
 use independent optional callbacks and genuine provider transactions. Missing
 operation support fails explicitly before source demand/mutation. Transactional

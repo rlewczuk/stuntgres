@@ -28,6 +28,7 @@ type fdwSQLReader struct {
 	rowTransform                                                                              func(context.Context, stuntgres.ForeignRow) (stuntgres.ForeignRow, error)
 	hook                                                                                      func(context.Context, string) error
 	writer                                                                                    *fdwSQLWriter
+	parallel                                                                                  *fdwParallelReader
 	importDefinitionHook                                                                      func(context.Context, *stuntgres.ForeignTableDefinition) error
 }
 
@@ -54,6 +55,12 @@ func (r *fdwSQLReader) configure(d *stuntgres.Driver) error {
 	var wrapper stuntgres.ForeignDataWrapper = r
 	if r.writer != nil {
 		wrapper = r.writer
+	}
+	if r.parallel != nil {
+		wrapper = r.parallel
+		if r.parallel.transaction != nil {
+			wrapper = r.parallel.transaction
+		}
 	}
 	if err := d.RegisterForeignDataWrapper(stuntgres.ForeignDataWrapperDefinition{HandlerName: stuntgres.ForeignFunctionName{Schema: "public", Name: "fdw_sql_handler"}, Wrapper: wrapper}); err != nil {
 		return err

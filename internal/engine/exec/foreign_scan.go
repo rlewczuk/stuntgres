@@ -236,6 +236,28 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 			}
 		}
 		if execution.Scan == nil {
+			if provider, ok := f.Wrapper.(catalog.ForeignParallelScanProvider); ok && state.foreignParallelMaximum >= 2 {
+				safe, err := provider.IsForeignScanParallelSafe(ctx, CopyForeignRequest(request), execution.Plan)
+				if err != nil {
+					return ForeignCallbackError(err)
+				}
+				if safe {
+					// Owner/participant mutations and every partition Begin stay on
+					// this leader before any worker callback can run.
+					if host := source.LiveHost(); host != nil {
+						if err := host.TouchForeignScan(ctx, f); err != nil {
+							return err
+						}
+					}
+					parallel := newForeignParallelExecution(ctx)
+					execution.Scan = parallel
+					if err := parallel.start(provider, request, execution.Plan, state.foreignParallelMaximum); err != nil {
+						return err
+					}
+					started = true
+					return nil
+				}
+			}
 			scan, err := f.Wrapper.BeginForeignScan(ctx, request, execution.Plan)
 			execution.Scan = scan
 			if err != nil {

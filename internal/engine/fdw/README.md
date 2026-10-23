@@ -101,6 +101,14 @@ never imports it. The engine and the driver import it. See
   offsets into the original IMPORT. Repeated IMPORT options remain ordered
   provider inputs, separate from stored-object option uniqueness.
 
+Optional `catalog.ForeignParallelScanProvider` does not change registry or
+persistence ownership. Executable capability is discovered on the registered
+wrapper; `exec.ForeignExecution` owns runtime shared/partition states. Owner
+enrollment and statement startup stay leader-only before concurrent partition
+Iterate. SQL/MED Dump/Restore never invokes or serializes runtime coordination.
+Child-path reparameterization remains the explicit foreign-hierarchy boundary,
+not a no-op private-state callback or correlated ReScan alias.
+
 ## Invariants
 
 - **No locks, no callbacks.** The package adds no mutex. `Engine.mu` guards

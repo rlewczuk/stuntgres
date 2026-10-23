@@ -126,7 +126,7 @@ End runs exactly once per transferred scan, with request cancellation detached;
 the source owner retains its cleanup outcome for publication. Generic query-stage
 Close remains idempotent and does not replay a prior close error. An existing query/conversion/context error wins
 over cleanup failure; End-only failure prevents otherwise successful terminal
-publication, CLOSE or HOLD promotion. There are no automatic retries or workers.
+publication, CLOSE or HOLD promotion. There are no automatic retries.
 Every callback runs outside engine/catalog/transaction/session mutexes and the
 replacement fence, but normal SQL object locks and session admission still apply.
 Use other connections for unrelated observer SQL; same-session recursive SQL is
@@ -152,6 +152,54 @@ Is or SQLSTATE. This prevents replay after mutation or uncertain Commit.
 All other errors retain their exact identity/diagnostics, including context/I/O
 errors. The remote sentinel does not mark the local connection dead, fabricate a
 SQLSTATE, or imply rollback of an acknowledged/unknown remote commit.
+
+### Cooperative foreign partitions
+
+```go
+type ForeignParallelScanProvider interface {
+	IsForeignScanParallelSafe(context.Context, ForeignRequest, ForeignPlan) (bool, error)
+	BeginForeignParallelScan(context.Context, ForeignRequest, ForeignPlan, int) (ForeignParallelScan, error)
+}
+type ForeignParallelScan interface {
+	PartitionCount() int
+	BeginPartitionForeignScan(context.Context, int) (ForeignScan, error)
+	EndForeignParallelScan(context.Context) error
+}
+```
+
+This optional capability partitions **occurrences**, exhaustively and disjointly,
+including duplicates, NULLs and zero-column rows. An ordinary full scan is never
+launched once per worker. Safety is resource-free; false uses the ordinary scan.
+The maximum is the captured worker ceiling bounded by native CPU policy, not an
+estimate or the initially empty foreign source's row count. The provider chooses
+an immutable count in `[1, maximum]`; count1 makes no concurrency promise.
+
+Only conservative one-source top-level eager SELECT shapes are eligible.
+Cursors, LIMIT/OFFSET, writes, nested/correlated/unknown expressions and composite
+graphs stay serial. Quiet Prepare and LIMIT0 do not start coordination. Each held
+execution captures current parameters/settings/role/mapping. Correlated ReScan
+retains the original serial scan; it is not child-path reparameterization.
+
+Plans/private planning state are immutable and reusable; Begin owns execution
+state and an authentic common source frontier. Providers decide whether the
+enlisted transaction is safe across their partitions. A provider may capture one
+real SQL snapshot and partition its owned occurrences; that implies concurrent
+in-process consumption, not concurrent network queries or distributed snapshots.
+
+The leader alone enlists/touches the statement participant, starts shared state
+and opens each partition index once. Only distinct partition Iterate callbacks
+run concurrently. Borrowed row cells/bytes are copied before the next callback
+and transferred through bounded cancellation-aware channels. Existing codecs and
+local Filter/Sort/Project run on the leader. There is no replay after shared Begin.
+
+The existing foreign execution owner cancels and joins all workers before ending
+every acquired scan, then shared state, once with cancellation detached. Nonnil
+Begin results transfer ownership even with errors. First callback errors retain
+identity/diagnostics; cleanup-only errors veto publication. End must suffice
+without Shutdown. Results remain eager: public Next/Close performs no provider
+work, and failed executions publish no prefix. Runtime state is never durable.
+PostgreSQL process/DSM ABI and parent/child private-path translation are external;
+native foreign hierarchy declarations remain explicitly unsupported.
 
 ### Foreign writes and transactions
 

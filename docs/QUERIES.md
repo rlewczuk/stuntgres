@@ -48,6 +48,15 @@ occurrence indices; earlier join output never points at overwritten scratch.
 Noncorrelated cache replay need not restart its producer. Fallible rewind errors
 propagate through existing derived/view/join/cursor owners.
 
+Eligible eager one-source SELECTs may consume real provider-owned foreign
+partitions concurrently through the optional parallel capability. The leader
+still imports cells and evaluates local Filter/Sort/Project serially; gathered
+arrival order is not SQL order. Providers partition occurrences, not unique
+values. A captured SQL-source snapshot is permitted and does not imply concurrent
+network SQL. Missing capability, false safety, low ceilings and ineligible shapes
+use the ordinary serial scan. Workers join and all partition/shared End outcomes
+settle before the existing publication fence. No partial public result escapes.
+
 A named SQL cursor is an explicit longer-lived owner. Finite FETCH/MOVE demands
 only its existing producer frontier (apart from legitimate blocking operators),
 publishes an eager independent batch, and retains the live scan for later SQL

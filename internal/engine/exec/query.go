@@ -300,24 +300,25 @@ const (
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
 // delegates to the sole expression evaluator; each stage owns its private state.
 type State struct {
-	Source       *Source
-	SourceMode   SourceMode
-	Invocation   *Context // Borrowed same-query P+L frame; outer remains lexical.
-	foreignOwner any
-	HashFilter   *plan.FilterNode
-	Parameters   []sqltype.Value
-	Input        sqltype.InputEnvironment
-	Output       sqltype.OutputEnvironment
-	Locking      bool
-	VirtualReads bool
-	inherited    plan.RowMark
-	Frame        uint32
-	Outer        *Context
-	Retain       bool
-	derived      map[*plan.DerivedNode]*Source
-	Ctes         *CTEInvocation
-	hashOwner    *State
-	Memberships  map[SubqueryMembershipKey]*subqueryMembership
+	foreignParallelMaximum int // Only admitted eager top-level SELECT may set this.
+	Source                 *Source
+	SourceMode             SourceMode
+	Invocation             *Context // Borrowed same-query P+L frame; outer remains lexical.
+	foreignOwner           any
+	HashFilter             *plan.FilterNode
+	Parameters             []sqltype.Value
+	Input                  sqltype.InputEnvironment
+	Output                 sqltype.OutputEnvironment
+	Locking                bool
+	VirtualReads           bool
+	inherited              plan.RowMark
+	Frame                  uint32
+	Outer                  *Context
+	Retain                 bool
+	derived                map[*plan.DerivedNode]*Source
+	Ctes                   *CTEInvocation
+	hashOwner              *State
+	Memberships            map[SubqueryMembershipKey]*subqueryMembership
 	// Only the positive SELECT coordinator activates these on a physical leaf.
 	ExecutionContext   context.Context
 	ScanRange          bool
@@ -1168,6 +1169,10 @@ func OpenQueryProjectStage(ctx context.Context, state *State, project *plan.Proj
 }
 
 func Finalize(ctx context.Context, root plan.Node, source *Source, parameters []sqltype.Value) (RowResult, int, error) {
+	return finalizeQuery(ctx, root, source, parameters, 0)
+}
+
+func finalizeQuery(ctx context.Context, root plan.Node, source *Source, parameters []sqltype.Value, foreignMaximum int) (RowResult, int, error) {
 	keep := false
 	defer func() {
 		_ = FinishForeignSources(ctx, source)
@@ -1180,6 +1185,7 @@ func Finalize(ctx context.Context, root plan.Node, source *Source, parameters []
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
 	state := &State{Source: source, SourceMode: SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
+	state.foreignParallelMaximum = foreignMaximum
 	defer state.ReleaseMemberships()
 	if host := source.LiveHost(); host != nil {
 		state.Input, state.Output = host.Environments()

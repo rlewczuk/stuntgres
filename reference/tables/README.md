@@ -294,6 +294,60 @@ two real source tables, performs graph replay without importer/scan callbacks,
 observes changed remote rows and proves invalid-tail replacement preservation.
 It is not a test-runner-only smoke.
 
+### Cooperative foreign parallel scans
+
+`TestReferenceFDWParallelBags`, `Parameters`, `Eligibility`, `Cancellation`,
+`Errors`, `Conversion`, `Transactions`, `Persistence` and `FeatureSmoke` share independently expected SQL
+rows/types/diagnostics against native and real postgres_fdw. PostgreSQL supplies
+the serial SQL oracle, not a positive foreign-worker witness: postgres_fdw has
+no parallel partial-scan callback. The opt-in native provider captures actual
+independent SQL source occurrences, then distinct partition scans consume
+disjoint ordinal intervals concurrently. Gates require two actual partition
+Iterates before release; no network-concurrency claim is made. Existing readers
+remain unchanged unless explicitly opted in.
+
+Held parameter coverage independently requires IDs1/4 for2, IDs3/6 for1,
+typed empty results for NULL, and IDs1/4 again after NULL at serial and parallel
+ceilings. These are local qualifications over genuine source rows. NULL equality
+may reject the query before demanding any provider scan; a prior recorded
+request is not evidence of stale binding, and an undemanded scan does not owe a
+one-slot NULL parameter frame or a fresh coordinator. Permission and correlated
+ReScan assertions remain separate.
+
+`Conversion` reuses the complete serial diagnostic contracts for22P02 invalid
+integer input,22003 integer overflow and22001 varchar typmod overflow, including
+exact English text, aliased column/table context and absence of other exposed
+fields. Direct and prepared native failures require nil eager Rows while a real
+sibling partition is active, joined cleanup before End and same-owner recovery.
+
+`Transactions` opts into the existing genuine SQL-source transaction/savepoint
+implementation through the public registered provider. The production public
+SQL owner must enlist exactly one participant and start its statement before
+safety/shared Begin or partition consumption. Safety reads a real uncommitted
+statement marker; shared Begin captures source rows using that same actual
+transaction. Native-only capability phases gate successful and canceled
+consumption, inject a primary read failure, require partition join/End and shared
+End before participant completion, and check that real source markers persist
+only on success. Recovery uses the same SQL owner. PostgreSQL runs the shared
+ordinary SQL witness; it is not assigned a manufactured Go-worker/transaction
+counterpart. The public transaction scenario is also selected under the race
+detector.
+
+```sh
+make check RUN='^TestReferenceFDWParallel(Bags|Parameters|Eligibility)$'
+make check REFERENCE=1 RUN='^TestReferenceFDWParallel(Bags|Parameters|Eligibility)$'
+make check RUN='^TestReferenceFDWParallel(Cancellation|Errors|Persistence|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceFDWParallel(Cancellation|Errors|Persistence|FeatureSmoke)$'
+make check RUN='^TestReferenceFDWParallel(Conversion|Transactions)$'
+make check REFERENCE=1 RUN='^TestReferenceFDWParallel(Conversion|Transactions)$'
+make check RACE=1 RUN='^TestReferenceFDWParallelTransactions$'
+make check RACE=1 RUN='^TestFDWParallel(Partition|ConcurrentExecution|Ownership|Eligibility|Cancellation|ErrorIdentity)$'
+```
+
+The internal production-dispatch witness supplements real-provider public
+coverage. Foreign hierarchy directions retain explicit native0A000 boundaries;
+PostgreSQL's successful child definition/data witness remains independent.
+
 ### Foreign metadata and scans
 
 The `fdw_*_test.go` scenarios independently prescribe SQL/MED catalogs, ordered
