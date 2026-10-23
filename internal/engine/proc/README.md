@@ -102,6 +102,25 @@ initialization and assignment accept an already evaluated value.
 The higher root owns reached SQL binding, conversion, handler admission and
 execution. PL VOID uses non-NULL `VoidValue`; procedure completion is separate.
 PL nesting borrows the same balanced SQL-body/root guard, not a second counter.
+Conditional statement lists reuse their enclosing lexical scopes; only BEGIN
+creates a scope. Checked ordered branches cache syntax queries, never bound
+evaluators. Simple CASE search slots are separate invocation-private Value/Usage
+pairs, not declarations, formals or persisted type dependencies. Their canonical
+private names cannot occur in SQL source. Provider validation checks exact query,
+target, branch and private-slot ownership before publication.
+Postorder diagnostic datum names are independent of preorder invocation indices.
+Compilation/validation scratch accounts for declarations, completed CASE datums
+and deduplicated record-field names by lexical parent. Expression occurrences
+come from bounded original tokens, including qualified callees, rather than an
+SQL AST-node catalogue. Field existence is not resolved, SQL names are not bound,
+and no additional executable slots or runtime name cache are published.
+Assignment targets use the same scanner over original statement start through
+RHS start, including the assignment operator but excluding the RHS. Recursive
+field/subscript paths and index expressions need no target-node exceptions.
+Diagnostic parent lookup searches one lexical level at a time: an eligible
+unqualified record precedes label qualification at that level. Scalar matches
+with a remaining field component are skipped. A two-part qualified match stops
+the search without adding a field datum; ordinary runtime lookup is unchanged.
 
 
 ## Testing
@@ -116,4 +135,5 @@ SQL bodies, review) and [reference/operators](../../../reference/operators/READM
 make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'
 make check RUN='^TestReferenceRoutine(Core|SQLBodies|Review|Parameters)'
 make check RACE=1 RUN='^TestPLException(Matcher|ProgramValidation)$'
+make check RACE=1 RUN='^TestPLpgSQLConditional(Compiler|Validation|Frame|Remap)$'
 ```

@@ -8,18 +8,18 @@ func TestPLpgSQLAssignmentParser(t *testing.T) {
 		"BEGIN $1[1].items[:2] = '{7,8}'::integer[]; RETURN $1[1].items::text; END",
 		"<<scope>> DECLARE a integer[]; x ALIAS FOR a; BEGIN scope.a[1][4] = 7; x[:] := NULL; END",
 	} {
-		block, err := ParsePLpgSQL(source)
+		block, err := ParsePLpgSQL(source, PLReturnPolicy{})
 		if err != nil || block == nil {
 			t.Fatal(source, err)
 		}
 		if len(block.Statements) == 0 || block.Statements[0].Target == nil {
 			t.Fatal("assignment target missing", source)
 		}
-		if _, err := ParsePLpgSQL(source + " trailing"); err == nil {
+		if _, err := ParsePLpgSQL(source+" trailing", PLReturnPolicy{}); err == nil {
 			t.Fatal("accepted trailing procedural input", source)
 		}
 	}
-	block, err := ParsePLpgSQL("BEGIN a[1].items[2:3] := 7; RETURN a[1].items; END")
+	block, err := ParsePLpgSQL("BEGIN a[1].items[2:3] := 7; RETURN a[1].items; END", PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}

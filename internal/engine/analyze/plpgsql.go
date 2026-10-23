@@ -3,6 +3,7 @@ package analyze
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -67,6 +68,20 @@ func (b *Binder) plParameter(raw parser.ParameterExpr) (expr.Expr, error) {
 func (b *Binder) Column(raw parser.ColumnExpr) (expr.Expr, error) {
 	if b.PL == nil {
 		return b.column(raw)
+	}
+	for _, part := range raw.Name.Parts {
+		if !strings.ContainsRune(part.Text, 0) {
+			continue
+		}
+		slot, valid := b.PL.Program.SearchSlot(part.Text)
+		if len(raw.Name.Parts) != 1 || !valid || slot >= len(b.PL.Searches) {
+			return nil, fmt.Errorf("stuntgres: invalid private PL search binding")
+		}
+		search := b.PL.Searches[slot]
+		if !search.Usage.Valid() || search.Value.Type() != search.Usage.Type {
+			return nil, fmt.Errorf("stuntgres: inactive private PL search binding")
+		}
+		return plan.PLLocalExpr{Info: b.Info(search.Usage, raw.Pos, expr.Properties{ParameterDependent: true}), Value: search.Value}, nil
 	}
 	names := make([]string, len(raw.Name.Parts))
 	for i, p := range raw.Name.Parts {

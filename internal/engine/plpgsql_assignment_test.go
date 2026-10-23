@@ -20,7 +20,7 @@ import (
 
 func plUnitAssignmentTarget(t *testing.T, path string) proc.PLTarget {
 	t.Helper()
-	raw, err := parser.ParsePLpgSQL("BEGIN " + path + " := 1; END")
+	raw, err := parser.ParsePLpgSQL("BEGIN "+path+" := 1; END", parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func plUnitAssignmentTarget(t *testing.T, path string) proc.PLTarget {
 // conversion through the production query/admission/preflight path.
 func plUnitAssignQueryValue(t *testing.T, s *StatementScope, f *proc.PLFrame, path string, rhs sqltype.Value) (sqltype.Value, error) {
 	t.Helper()
-	raw, err := parser.ParsePLpgSQL("BEGIN " + path + " := pa_unit_rhs; END")
+	raw, err := parser.ParsePLpgSQL("BEGIN "+path+" := pa_unit_rhs; END", parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestPLpgSQLAssignmentTargetUsage(t *testing.T) {
 			{"anyelement", false},
 		} {
 			source := "DECLARE a " + tc.annotation + "; BEGIN RETURN 1; END"
-			raw, err := parser.ParsePLpgSQL(source)
+			raw, err := parser.ParsePLpgSQL(source, parser.PLReturnPolicy{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -442,7 +442,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		{"SELECT 1::pa_origin_domain", false},
 	} {
 		raw := statement(t, tc.query).(*parser.Select)
-		_, _, err := s.evaluatePLExpression(frame, raw, read, &analyze.PLAssignment{Usage: integer.Usage()})
+		_, _, _, err := s.evaluatePLExpression(frame, raw, read, &analyze.PLAssignment{Usage: integer.Usage()})
 		var planning *plan.PLAssignmentPlanningError
 		if err == nil || errors.As(err, &planning) != tc.planning {
 			t.Fatal("reached query lost planning/runtime origin", tc.query, err)
@@ -451,7 +451,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 			t.Fatal("failed assignment query leaked borrowed demand/depth", tc.query)
 		}
 	}
-	value, present, err := s.evaluatePLExpression(frame, statement(t, "SELECT pa_origin_dynamic('7'::text)").(*parser.Select), read, &analyze.PLAssignment{Usage: integer.Usage()})
+	value, _, present, err := s.evaluatePLExpression(frame, statement(t, "SELECT pa_origin_dynamic('7'::text)").(*parser.Select), read, &analyze.PLAssignment{Usage: integer.Usage()})
 	if err != nil || !present {
 		t.Fatal("recovery after planning/runtime failures", err)
 	}
@@ -554,7 +554,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 	f := &proc.PLFrame{Program: &proc.PLProgram{Variables: []proc.PLVariable{{Name: "a", Usage: array.Usage(), NotNull: true}}}, Values: []sqltype.Value{initial}}
 	defer f.Close()
 	run := func(frame *proc.PLFrame, path, rhs string) (sqltype.Value, error) {
-		raw, err := parser.ParsePLpgSQL("BEGIN " + path + " := " + rhs + "; END")
+		raw, err := parser.ParsePLpgSQL("BEGIN "+path+" := "+rhs+"; END", parser.PLReturnPolicy{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -665,8 +665,8 @@ func plUnitAssignmentCardinality(t *testing.T) {
 
 	query := statement(t, "SELECT generate_series(1,0)").(*parser.Select)
 	target := plUnitAssignmentTarget(t, "a[1]")
-	value, present, err := s.evaluatePLExpression(f, query, read, &analyze.PLAssignment{Usage: array.Usage(), Current: initial, Steps: target.Steps, Name: "a"})
-	if err != nil || present || !value.IsNull() || value.Type() != array {
-		t.Fatal("query outcome lost cardinality/root Usage", value, present, err)
+	value, usage, present, err := s.evaluatePLExpression(f, query, read, &analyze.PLAssignment{Usage: array.Usage(), Current: initial, Steps: target.Steps, Name: "a"})
+	if err != nil || present || usage != array.Usage() || !value.IsNull() || value.Type() != array {
+		t.Fatal("query outcome lost cardinality/root Usage", value, usage, present, err)
 	}
 }

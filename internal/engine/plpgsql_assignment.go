@@ -80,7 +80,7 @@ func (s *StatementScope) assignPLTarget(f *proc.PLFrame, checked proc.PLTarget, 
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.output}}
 	evaluation.Input.DomainChecks = &evaluation
 	assignment := analyze.PLAssignment{Usage: datumUsage, Current: datum, Steps: steps, Name: variable.Name, Pos: pos, Raw: raw}
-	value, _, err = s.evaluatePLExpression(f, query, read, &assignment)
+	value, _, _, err = s.evaluatePLExpression(f, query, read, &assignment)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -106,7 +106,7 @@ func plAssignmentError(err error, read catalog.Read, d *catalog.Procedure, state
 	}
 	copy := *original
 	start := statement.Pos
-	end := parser.ExpressionStart(statement.Expression).Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.Expression))
+	end := statement.ExpressionStart.Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.ExpressionStart, statement.ExpressionEnd))
 	source := strings.TrimSpace(d.SQL.Source[start.Offset:end])
 	var planning *plan.PLAssignmentPlanningError
 	var domain *plan.AssignmentDomainError

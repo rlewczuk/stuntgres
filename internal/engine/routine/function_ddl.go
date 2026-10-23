@@ -113,10 +113,13 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	var definition *proc.Definition
 	if s.Language.Text == "plpgsql" {
 		var syntax *parser.PLBlock
-		syntax, err = parser.ParsePLpgSQL(s.Body)
+		syntax, err = parser.ParsePLpgSQL(s.Body, proc.PLReturnPolicy(result, len(layout.OutputFormals), s.Procedure))
 		definition = &proc.Definition{Kind: proc.PLpgSQLBody, Source: s.Body, Position: s.BodyPos, Inputs: inputs, Result: result, PLSyntax: syntax}
 	} else {
 		definition, err = proc.New(s.Body, s.BodyPos, inputs, result)
+	}
+	if err != nil && s.Language.Text == "plpgsql" {
+		return parser.PLBodyError(err, s.BodyPos)
 	}
 	if err != nil {
 		var diagnostic *sqlstate.Error

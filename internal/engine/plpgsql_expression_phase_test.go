@@ -35,13 +35,13 @@ func TestPLExceptionExpressionProvenance(t *testing.T) {
 		{"12/(x+0)", false},
 		{"12/x", false},
 	} {
-		syntax, err := parser.ParsePLpgSQL("BEGIN RETURN " + tc.expression + "; END")
+		syntax, err := parser.ParsePLpgSQL("BEGIN RETURN "+tc.expression+"; END", parser.PLReturnPolicy{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		raw := syntax.Statements[0].Expression
 		query := &parser.Select{Targets: []parser.Expr{raw}, Pos: raw.SourcePosition()}
-		_, _, err = s.evaluatePLExpression(frame, query, e.CatalogRead(), nil)
+		_, _, _, err = s.evaluatePLExpression(frame, query, e.CatalogRead(), nil)
 		var diagnostic *sqlstate.Error
 		var planning *plExpressionPlanningError
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {

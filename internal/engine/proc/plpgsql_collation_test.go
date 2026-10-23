@@ -30,7 +30,7 @@ func TestPLpgSQLFrameInputCollation(t *testing.T) {
 	if err := d.SetFormals([]Formal{{Mode: "i", Name: "x", Usage: text.Usage()}}); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := parser.ParsePLpgSQL(d.Source)
+	raw, err := parser.ParsePLpgSQL(d.Source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}

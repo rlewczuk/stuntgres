@@ -59,12 +59,26 @@ Add `REFERENCE=1` for the oracle.
 Shared dual-mode cases cover lexical slots/aliases, all-formal `$n`, declarations,
 fieldwise rows/RECORD, non-NULL VOID, lazy binding/full parsing, language USAGE
 versus EXECUTE, stored consumers and two native/unchanged-PostgreSQL replay rounds.
+Conditional scenarios additionally cover ordered IF/ELSIF/ELSEIF and CASE
+branches, PL Boolean conversion, once-only simple searches, full diagnostics,
+statement atomicity and stored callers with two unchanged-stream replay rounds.
+Provenance cases include postorder datum numbering, syntactic record-field and
+qualified-callee identity, scalar-shadow and competing record/label namespaces,
+procedural delimiter depth and token-accurate comment boundaries.
+Parameter-dependent WHEN failures retain execution-only context, contrasting
+with constant-folding failures. Native cleanup-provider units also exercise
+simple CASE WHEN through called PL and SQL wrappers without admitting OTHERS
+after fatal cleanup failure.
 
 ```sh
 make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRecords|Returns|LazyBinding|LanguageAuthority|Persistence|CompositeNull|RecordClear|CompositeDomain|CopiedCollation|InvocationCollation|FormalNamespace)$'
 make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRecords|Returns|LazyBinding|LanguageAuthority|Persistence|CompositeNull|RecordClear|CompositeDomain|CopiedCollation|InvocationCollation|FormalNamespace)$' REFERENCE=1
 make check RUN='^TestPLpgSQL(ParserFullConsumption|FormalSlots|FrameLifetime|FrameInputCollation|CheckedCallCollation|RowAssignment|CompositeAssignmentAtomicity|DiagnosticIdentity|ProcedureReturn|HandlerAuthority|RemapOnce|DepthUnwind|LocalUsageReplacement|LocalUsageEquivalence|FormalNamespaceCompiler|FormalNamespaceValidation)$' RACE=1
 make check RUN='^TestSQLRoutineDumpEventsUseResolver$'
+```
+
+```sh
+make check RUN='^TestReferencePLpgSQLConditional(If|Conversion|SearchedCase|SimpleCase|Nested|Diagnostics|Atomicity|Persistence|ReviewProvenance)$'
 ```
 
 ### PL/pgSQL exception blocks

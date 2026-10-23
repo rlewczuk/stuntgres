@@ -90,7 +90,7 @@ func plExceptionUnitProgram(t *testing.T) (*PLProgram, *Definition, *sqltype.Des
 		t.Fatal("missing text")
 	}
 	d := &Definition{Kind: PLpgSQLBody, Name: "exceptions", Result: text.Usage(), Source: "DECLARE x integer; BEGIN x := 1/0; EXCEPTION WHEN division_by_zero OR SQLSTATE '22000' THEN BEGIN RAISE; EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE; END; END"}
-	raw, err := parser.ParsePLpgSQL(d.Source)
+	raw, err := parser.ParsePLpgSQL(d.Source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestPLExceptionProgramValidation(t *testing.T) {
 		{"handler_extra_query_clause", func(p *PLProgram) {
 			instruction := &p.Root.Statements[0].Block.Handlers[0].Statements[0].Block.Handlers[0].Statements[0]
 			query := *instruction.Query
-			clause, err := parser.ParsePLpgSQL("BEGIN RETURN true; END")
+			clause, err := parser.ParsePLpgSQL("BEGIN RETURN true; END", parser.PLReturnPolicy{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -190,7 +190,7 @@ func TestPLExceptionProgramValidation(t *testing.T) {
 		t.Fatal("closed frame retains exception values")
 	}
 	// Compiler rejects unreachable unknown conditions, not just reached handlers.
-	raw, err := parser.ParsePLpgSQL("BEGIN RETURN 'ok'; EXCEPTION WHEN unknown_condition THEN RETURN 'bad'; END")
+	raw, err := parser.ParsePLpgSQL("BEGIN RETURN 'ok'; EXCEPTION WHEN unknown_condition THEN RETURN 'bad'; END", parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}

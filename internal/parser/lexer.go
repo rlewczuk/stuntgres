@@ -55,6 +55,15 @@ type lexer struct {
 	plEntry, plMode    bool
 	plResult           *PLBlock
 	plExpression       bool
+	plThen             bool
+	plReturnPolicy     PLReturnPolicy
+	plReturnPending    bool
+	plBoundary         plExpressionBoundary
+	plBoundaryDepth    int
+	plBoundaryTokens   int
+	plBoundaryHit      int
+	plLastTokenEnd     Position
+	plPriorTokenEnd    Position
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool
@@ -101,6 +110,7 @@ type rawToken struct {
 	code    int
 	lexeme  lexeme
 	unicode bool
+	end     int
 }
 
 func (l *lexer) formatCallHead(callee lexeme) {
@@ -738,7 +748,45 @@ func (l *lexer) nextRaw() rawToken {
 	}
 	var v sqlSymType
 	code := l.scan(&v)
-	return rawToken{code: code, lexeme: l.current, unicode: l.rawUnicode}
+	return rawToken{code: code, lexeme: l.current, unicode: l.rawUnicode, end: l.offset}
+}
+
+// filterUnicodeToken keeps parser-facing lexing and procedural name scans on
+// the same decoding and UESCAPE consumption path.
+func (l *lexer) filterUnicodeToken(token rawToken) rawToken {
+	next := l.nextRaw()
+	if l.err != nil {
+		return token
+	}
+	escape := byte('\\')
+	if next.lexeme.keyword != nil && next.lexeme.text == "uescape" {
+		arg := l.nextRaw()
+		if l.err != nil {
+			return token
+		}
+		if arg.code != STRING || arg.unicode {
+			l.scannerError("UESCAPE must be followed by a simple string literal", arg.lexeme.pos.Offset, arg.lexeme.pos.Offset+len(arg.lexeme.raw))
+			return token
+		}
+		s := arg.lexeme.text
+		if len(s) != 1 || hexDigit(s[0]) >= 0 || s[0] == '+' || s[0] == '\'' || s[0] == '"' || space(s[0]) {
+			l.scannerError("invalid Unicode escape character", arg.lexeme.pos.Offset, arg.lexeme.pos.Offset+len(arg.lexeme.raw))
+			return token
+		}
+		escape = s[0]
+		token.end = arg.end
+	} else {
+		l.lookahead, l.hasLookahead = next, true
+	}
+	text, ok := l.decodeUnicode(token.lexeme.text, escape, token.lexeme.pos.Offset)
+	if !ok {
+		return token
+	}
+	if token.code == IDENT {
+		text = l.identifierName(text)
+	}
+	token.lexeme.text = text
+	return token
 }
 
 func (l *lexer) Lex(v *sqlSymType) int {
@@ -761,14 +809,28 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		return 0
 	}
 	token := l.nextRaw()
+	if l.plMode {
+		token = l.plExpressionToken(token)
+	}
+	if l.plReturnPending {
+		l.plReturnPending = false
+		if token.code == ';' {
+			l.plExpression = false
+		}
+		if token.code != ';' && l.plReturnPolicy.Code != "" {
+			l.failAt(l.plReturnPolicy.Code, l.plReturnPolicy.Message, token.lexeme.pos.Offset)
+			return 0
+		}
+	}
 	if l.plMode && !l.plExpression {
-		spelling := token.lexeme.raw
-		quoted := strings.HasPrefix(spelling, "\"") || len(spelling) >= 3 && (spelling[0] == 'u' || spelling[0] == 'U') && spelling[1] == '&' && spelling[2] == '"'
+		quoted := quotedIdentifierLexeme(token.lexeme)
 		if !quoted && (token.lexeme.keyword != nil || token.code == IDENT) {
 			switch token.lexeme.text {
 			case "return":
 				if l.previousToken != END {
 					token.code = PL_RETURN
+					l.plReturnPending = true
+					l.plExpression = true
 				}
 			case "constant":
 				token.code = PL_CONSTANT
@@ -781,6 +843,15 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			case "sqlstate":
 				if l.previousToken == WHEN || l.previousToken == OR {
 					token.code = PL_SQLSTATE
+				}
+			case "elsif", "elseif":
+				switch l.previousToken {
+				case BEGIN, THEN, PL_THEN, ELSE, ';':
+					next := l.nextRaw()
+					l.lookahead, l.hasLookahead = next, true
+					if next.code != '=' && next.code != '.' && next.code != '%' && next.lexeme.text != ":=" {
+						token.code = PL_ELSIF
+					}
 				}
 			}
 			if l.previousToken == '%' {
@@ -870,37 +941,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = NULLS_LA
 		}
 	} else if token.unicode && l.err == nil {
-		next := l.nextRaw()
+		token = l.filterUnicodeToken(token)
 		if l.err != nil {
 			return 0
 		}
-		escape := byte('\\')
-		if next.lexeme.keyword != nil && next.lexeme.text == "uescape" {
-			arg := l.nextRaw()
-			if l.err != nil {
-				return 0
-			}
-			if arg.code != STRING || arg.unicode {
-				l.scannerError("UESCAPE must be followed by a simple string literal", arg.lexeme.pos.Offset, arg.lexeme.pos.Offset+len(arg.lexeme.raw))
-				return 0
-			}
-			s := arg.lexeme.text
-			if len(s) != 1 || hexDigit(s[0]) >= 0 || s[0] == '+' || s[0] == '\'' || s[0] == '"' || space(s[0]) {
-				l.scannerError("invalid Unicode escape character", arg.lexeme.pos.Offset, arg.lexeme.pos.Offset+len(arg.lexeme.raw))
-				return 0
-			}
-			escape = s[0]
-		} else {
-			l.lookahead, l.hasLookahead = next, true
-		}
-		text, ok := l.decodeUnicode(token.lexeme.text, escape, token.lexeme.pos.Offset)
-		if !ok {
-			return 0
-		}
-		if token.code == IDENT {
-			text = l.identifierName(text)
-		}
-		token.lexeme.text = text
 	}
 	extractFieldIdentifier := l.extractField && token.code == IDENT
 	if IdentityFunctionName(token.lexeme.text) && (token.code == IDENT || l.previousToken == int('.') || token.code == CURRENT_SCHEMA) {
@@ -1629,6 +1673,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	l.current = token.lexeme
 	v.tok = token.lexeme
+	if l.plMode {
+		l.plPriorTokenEnd = l.plLastTokenEnd
+		l.plLastTokenEnd = Position{Offset: token.end, Character: token.lexeme.pos.Character + utf8.RuneCountInString(l.input[token.lexeme.pos.Offset:token.end])}
+	}
 	if token.code == int('(') && l.temporalLead {
 		l.temporalModifier = true
 	}

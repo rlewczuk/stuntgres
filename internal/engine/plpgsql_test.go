@@ -44,7 +44,7 @@ func TestPLpgSQLProcedureReturn(t *testing.T) {
 				t.Fatal(err)
 			}
 			void, _ := read.LookupType(sqltype.Void)
-			raw, err := parser.ParsePLpgSQL(source)
+			raw, err := parser.ParsePLpgSQL(source, parser.PLReturnPolicy{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -74,7 +74,7 @@ func TestPLpgSQLProcedureReturn(t *testing.T) {
 	}
 	void, _ := read.LookupType(sqltype.Void)
 	source := "BEGIN RETURN 1; END"
-	raw, err := parser.ParsePLpgSQL(source)
+	raw, err := parser.ParsePLpgSQL(source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,7 +452,7 @@ func TestPLpgSQLDiagnosticIdentity(t *testing.T) {
 			t.Fatalf("identity %q, want %q", got, tc.want)
 		}
 		d.SQL = &proc.Definition{Source: "BEGIN RETURN; END"}
-		err := plRuntimeError(sqlError("22012", "division by zero"), read, d, nil, "at assignment", false)
+		err := plRuntimeError(sqlError("22012", "division by zero"), read, d, parser.Position{}, parser.Position{}, parser.Position{}, "at assignment", false)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Context != "PL/pgSQL function "+tc.want+" line 1 at assignment" {
 			t.Fatal("runtime context lost canonical identity", err)

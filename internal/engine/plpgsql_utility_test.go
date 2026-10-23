@@ -33,12 +33,12 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 					}
 					frame := proc.NewPLFrame(&proc.PLProgram{}, &proc.Definition{}, &proc.Frame{}, sqltype.CollationRef{})
 					defer frame.Close()
-					syntax, err := parser.ParsePLpgSQL("BEGIN RETURN ex_put(2); END")
+					syntax, err := parser.ParsePLpgSQL("BEGIN RETURN ex_put(2); END", parser.PLReturnPolicy{})
 					if err != nil {
 						t.Fatal(err)
 					}
 					expression := syntax.Statements[0].Expression
-					if _, _, err := scope.evaluatePLExpression(frame, &parser.Select{Targets: []parser.Expr{expression}, Pos: expression.SourcePosition()}, e.CatalogRead(), nil); err != nil {
+					if _, _, _, err := scope.evaluatePLExpression(frame, &parser.Select{Targets: []parser.Expr{expression}, Pos: expression.SourcePosition()}, e.CatalogRead(), nil); err != nil {
 						t.Fatal(err)
 					}
 					nestedRestore := scope.activateSQLRoutine(nil, e.CatalogRead())

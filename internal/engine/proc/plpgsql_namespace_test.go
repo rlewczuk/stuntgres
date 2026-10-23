@@ -23,7 +23,7 @@ func TestPLpgSQLFormalNamespaceCompiler(t *testing.T) {
 			if err := d.SetFormals([]Formal{{Mode: "i", Name: tc.input, Usage: integer.Usage()}, {Mode: "o", Name: tc.output, Usage: integer.Usage()}}); err != nil {
 				t.Fatal("shared formal layout rejected legal SQL projection", err)
 			}
-			raw, err := parser.ParsePLpgSQL(d.Source)
+			raw, err := parser.ParsePLpgSQL(d.Source, parser.PLReturnPolicy{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -43,7 +43,7 @@ func TestPLpgSQLFormalNamespaceValidation(t *testing.T) {
 	if err := d.SetFormals(formals); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := parser.ParsePLpgSQL(d.Source)
+	raw, err := parser.ParsePLpgSQL(d.Source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -60,6 +60,11 @@ package parser
  plCondition PLCondition
  plType PLType
  plIdentifier Identifier
+ plExpression PLExpression
+ plExpressions []PLExpression
+ plElse plElse
+ plArms []PLArm
+ plArm PLArm
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
@@ -221,7 +226,8 @@ package parser
 /* Private bounded replay entry for destination-context INSERT cells. */
 %token <tok> INSERT_SCALAR_VALUES
 %token <tok> TYPE_INPUT
-%token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN PL_EXCEPTION PL_RAISE PL_SQLSTATE
+%token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN PL_EXCEPTION PL_RAISE PL_SQLSTATE PL_ELSIF
+%token <tok> PL_THEN PL_WHEN PL_WHEN_COMMA
 %token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
@@ -485,8 +491,14 @@ package parser
 %type <plIdentifier> pl_label pl_end_label
 %type <desc> pl_constant
 %type <tok> pl_not_null
-%type <expr> pl_default pl_target pl_return_value pl_expression
-%type <tok> pl_name
+%type <expr> pl_target
+%type <plExpression> pl_default pl_return_value pl_expression pl_if_condition pl_search
+%type <plExpressions> pl_when_items pl_case_condition
+%type <plElse> pl_else
+%type <plArms> pl_elsif_arms pl_case_arms
+%type <plArm> pl_case_arm
+%type <tok> pl_name pl_declaration_name
+%type <tok> pl_if_head pl_elsif_head pl_when_head pl_case_head pl_when_separator
 %type <tok> cast_context
 %type <tok> returns_word
 %type <routineParameters> function_arguments function_declaration_argument_list
@@ -1600,30 +1612,51 @@ pl_declarations: /* empty */ {$$=nil}
  | DECLARE pl_declaration_list {$$=$2} ;
 pl_declaration_list: /* empty */ {$$=nil}
  | pl_declaration_list pl_declaration ';' {$$=append($1,$2)} ;
-pl_declaration: pl_name pl_constant pl_type pl_not_null pl_default {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Constant:$2,Type:$3,NotNull:$4.text!="",NotNullPos:$4.pos,Default:$5}}
- | pl_name PL_ALIAS FOR pl_target {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Alias:$4}} ;
+pl_declaration: pl_declaration_name pl_constant pl_type pl_not_null pl_default {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Constant:$2,Type:$3,NotNull:$4.text!="",NotNullPos:$4.pos,Default:$5.Expression,DefaultStart:$5.Start,DefaultEnd:$5.End,DefaultDelimiter:$5.Delimiter}}
+ | pl_declaration_name PL_ALIAS FOR pl_target {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Alias:$4}} ;
 pl_constant: /* empty */ {$$=false} | PL_CONSTANT {$$=true} ;
 pl_not_null: /* empty */ {$$=lexeme{}} | NOT NULL {$$=$1} ;
 pl_type: declared_type {$$=PLType{Type:$1}}
  | declared_type '%' PL_TYPE_COPY {$$=plCopiedType($1,false)}
  | declared_type '.' name '%' PL_TYPE_COPY {$$=plCopiedType($1,false);$$.Copy.Parts=append($$.Copy.Parts,Identifier{Text:$3.text,Pos:$3.pos})}
  | declared_type '%' PL_ROW_COPY {$$=plCopiedType($1,true)} ;
-pl_default: /* empty */ {$$=nil} | DEFAULT pl_expression {$$=$2} | PL_ASSIGN pl_expression {$$=$2} | '=' pl_expression {$$=$2} ;
+pl_default: /* empty */ {$$=PLExpression{}} | DEFAULT pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | PL_ASSIGN pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | '=' pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} ;
 pl_statements: /* empty */ {$$=nil}
  | pl_statements pl_statement ';' {$$=append($1,$2)} ;
 pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
- | pl_target PL_ASSIGN pl_expression {$$=PLStatement{Target:$1,Expression:$3,Pos:$1.SourcePosition()}}
- | pl_target '=' pl_expression {$$=PLStatement{Target:$1,Expression:$3,Pos:$1.SourcePosition()}}
- | PL_RETURN pl_return_value {$$=PLStatement{Return:true,Expression:$2,Pos:$1.pos}}
- | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}} ;
-pl_return_value: /* empty */ {$$=nil} | pl_expression {$$=$1} ;
-pl_expression: pl_expression_start scalar_projection { sqllex.(*lexer).plExpression=false; $$=$2 } ;
-pl_expression_start: /* empty */ { sqllex.(*lexer).plExpression=true } ;
+ | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}}
+ | pl_target PL_ASSIGN pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
+ | pl_target '=' pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
+ | PL_RETURN pl_return_value {value:=sqllex.(*lexer).plBoundExpression($2,$1);$$=PLStatement{Return:true,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
+ | pl_if_head pl_if_condition pl_statements pl_elsif_arms pl_else END IF {condition:=sqllex.(*lexer).plBoundExpression($2,$1);arms:=append([]PLArm{{Conditions:[]PLExpression{condition},Statements:$3}},$4...);$$=PLStatement{If:&PLConditional{Arms:arms,HasElse:$5.HasElse,Else:$5.Else},Pos:$1.pos}}
+ | pl_case_head pl_search pl_case_arms pl_else END CASE {l:=sqllex.(*lexer);search:=l.plBoundExpression($2,$1);if search.Expression==nil {for _,arm:=range $3 {if len(arm.Conditions)!=1 {l.failAt("42601","syntax error at or near \",\"",arm.Conditions[0].Delimiter.Offset);return 1}}};$$=PLStatement{Case:&PLConditional{Search:search,Arms:$3,HasElse:$4.HasElse,Else:$4.Else},Pos:$1.pos}} ;
+pl_return_value: /* empty */ {$$=PLExpression{}} | pl_expression {$$=$1} ;
+pl_expression: pl_expression_start scalar_projection {l:=sqllex.(*lexer);l.plExpression=false;$$=l.plParsedExpression($2)} ;
+pl_expression_start: /* empty */ {sqllex.(*lexer).plExpression=true} ;
+pl_if_condition: pl_expression PL_THEN {sqllex.(*lexer).plThen=false;$$=$1} ;
+pl_if_head: IF {sqllex.(*lexer).plBeginExpression(plThenBoundary);$$=$1} ;
+pl_elsif_head: PL_ELSIF {sqllex.(*lexer).plBeginExpression(plThenBoundary);$$=$1} ;
+pl_when_head: WHEN {sqllex.(*lexer).plBeginExpression(plWhenItemBoundary);$$=$1}
+ | PL_WHEN {sqllex.(*lexer).plBeginExpression(plWhenItemBoundary);$$=$1} ;
+pl_case_head: CASE {sqllex.(*lexer).plBeginExpression(plWhenBoundary);$$=$1} ;
+pl_when_separator: PL_WHEN_COMMA {sqllex.(*lexer).plBeginExpression(plWhenItemBoundary);$$=$1} ;
+pl_search: /* empty */ {$$=PLExpression{}} | pl_expression {$$=$1} ;
+pl_elsif_arms: /* empty */ {$$=nil}
+ | pl_elsif_arms pl_elsif_head pl_if_condition pl_statements {condition:=sqllex.(*lexer).plBoundExpression($3,$2);$$=append($1,PLArm{Conditions:[]PLExpression{condition},Statements:$4})} ;
+pl_else: /* empty */ {$$=plElse{}}
+ | ELSE pl_statements {$$=plElse{HasElse:true,Else:$2}} ;
+pl_case_arms: pl_case_arm {$$=[]PLArm{$1}}
+ | pl_case_arms pl_case_arm {$$=append($1,$2)} ;
+pl_case_arm: pl_case_condition pl_statements {$$=PLArm{Conditions:$1,Statements:$2}} ;
+pl_case_condition: pl_when_head pl_when_items PL_THEN {l:=sqllex.(*lexer);l.plThen=false;conditions:=$2;conditions[0]=l.plBoundExpression(conditions[0],$1);$$=conditions} ;
+pl_when_items: pl_expression {$$=[]PLExpression{$1}}
+ | pl_when_items pl_when_separator pl_expression {$$=append($1,sqllex.(*lexer).plBoundExpression($3,$2))} ;
 pl_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos}}
  | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
  | pl_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}}
  | pl_target array_subscript {if base,ok:=$1.(SubscriptExpr);ok {base.Subscripts=append(base.Subscripts,$2);$$=base} else {$$=SubscriptExpr{Base:$1,Subscripts:[]ArraySubscript{$2},Pos:$1.SourcePosition()}}} ;
 pl_name: IDENT | KW_U | KW_C | KW_T | RETURN_BODY ;
+pl_declaration_name: pl_name | PL_ELSIF ;
 routine_return_head: RETURN_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 routine_atomic_head: BEGIN ATOMIC_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 standard_routine_body: routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=[]Statement{&Select{Targets:[]Expr{$2},Pos:$1.pos}}}

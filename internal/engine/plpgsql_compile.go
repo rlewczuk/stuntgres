@@ -34,9 +34,9 @@ func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth Authorizatio
 	raw := d.SQL.PLSyntax
 	if raw == nil {
 		var err error
-		raw, err = parser.ParsePLpgSQL(d.SQL.Source)
+		raw, err = parser.ParsePLpgSQL(d.SQL.Source, proc.PLReturnPolicy(d.SQL.Result, len(d.SQL.OutputFormals), d.RoutineKind == catalog.ProcedureRoutine))
 		if err != nil {
-			return err
+			return parser.PLBodyError(err, d.SQL.Position)
 		}
 	}
 	var dependencies []ids.ObjectAddress

@@ -66,7 +66,7 @@ func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, b
 		var err error
 		if initializer.Expression != nil {
 			f.Scopes[len(f.Scopes)-1] = initializer.Scope
-			value, _, err = s.evaluatePLExpression(f, initializer.Query, read, nil)
+			value, _, _, err = s.evaluatePLExpression(f, initializer.Query, read, nil)
 			f.Scopes[len(f.Scopes)-1] = block
 		} else {
 			value = sqltype.Null(variable.Usage.Type.BaseType())
@@ -75,7 +75,11 @@ func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, b
 			value, err = s.assignPLVariable(f, initializer.Slot, value)
 		}
 		if err != nil {
-			return sqltype.Value{}, false, plRuntimeError(err, read, d, initializer.Expression, "during statement block local variable initialization", false)
+			origin := block.Syntax.Pos
+			if initializer.Expression != nil {
+				origin = initializer.Start
+			}
+			return sqltype.Value{}, false, plRuntimeError(err, read, d, initializer.Start, initializer.End, origin, "during statement block local variable initialization", false)
 		}
 	}
 	if len(block.Handlers) == 0 {
@@ -118,6 +122,13 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			}
 			continue
 		}
+		if instruction.If != nil || instruction.Case != nil {
+			value, returned, err := s.executePLConditional(d, f, instruction, read)
+			if err != nil || returned {
+				return value, returned, err
+			}
+			continue
+		}
 		statement := instruction.Syntax
 		if statement.Rethrow {
 			if diagnostic := f.HandledError(); diagnostic != nil {
@@ -132,13 +143,13 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			if statement.Expression == nil {
 				return sqltype.Value{}, true, nil
 			}
-			value, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil)
+			value, _, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil)
 			expressionError := err != nil
 			if err == nil {
 				value, err = s.convertPLValue(value, d.SQL.Result)
 			}
 			if err != nil {
-				return sqltype.Value{}, false, plRuntimeError(err, read, d, statement.Expression, "at RETURN", expressionError)
+				return sqltype.Value{}, false, plRuntimeError(err, read, d, statement.ExpressionStart, statement.ExpressionEnd, statement.Pos, "at RETURN", expressionError)
 			}
 			return value, true, nil
 		}
@@ -148,7 +159,7 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			}
 			continue
 		}
-		value, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil)
+		value, _, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil)
 		expressionError := err != nil
 		if err == nil {
 			value, err = s.assignPLVariable(f, instruction.Target.Slot, value)
@@ -159,14 +170,14 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			if !expressionError && !errors.As(err, &domainError) && errors.As(err, &diagnostic) && strings.HasPrefix(diagnostic.Context, "SQL function ") {
 				copy := *diagnostic
 				start := statement.Pos.Offset
-				end := parser.ExpressionStart(statement.Expression).Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.Expression))
+				end := statement.ExpressionStart.Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.ExpressionStart, statement.ExpressionEnd))
 				copy.Context += "\nPL/pgSQL assignment \"" + strings.TrimSpace(d.SQL.Source[start:end]) + "\""
 				err = sqlstate.WithDiagnostic(err, &copy)
 			}
 			if expressionError && errors.As(err, &diagnostic) {
 				copy := *diagnostic
 				start := statement.Pos.Offset
-				end := parser.ExpressionStart(statement.Expression).Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.Expression))
+				end := statement.ExpressionStart.Offset + len(parser.PLExpressionSource(d.SQL.Source, statement.ExpressionStart, statement.ExpressionEnd))
 				assignment := strings.TrimSpace(d.SQL.Source[start:end])
 				if n, parseErr := strconv.Atoi(copy.Position); parseErr == nil {
 					copy.InternalPosition = strconv.Itoa(n - statement.Pos.Character + 1)
@@ -178,7 +189,7 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 				}
 				err = sqlstate.WithDiagnostic(err, &copy)
 			}
-			return sqltype.Value{}, false, plRuntimeError(err, read, d, statement.Expression, "at assignment", expressionError)
+			return sqltype.Value{}, false, plRuntimeError(err, read, d, statement.ExpressionStart, statement.ExpressionEnd, statement.Pos, "at assignment", expressionError)
 		}
 	}
 	return sqltype.Value{}, false, nil
@@ -188,7 +199,7 @@ type plExpressionPlanningError struct{ error }
 
 func (e *plExpressionPlanningError) Unwrap() error { return e.error }
 
-func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment) (value sqltype.Value, present bool, err error) {
+func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment) (value sqltype.Value, usage sqltype.Usage, present bool, err error) {
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	s.sqlRoutine.lexical = f
@@ -202,7 +213,7 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 		admission = &copy
 	}
 	if err = s.acquireRelation(admission, true); err != nil {
-		return value, false, &plExpressionPlanningError{err}
+		return value, usage, false, &plExpressionPlanningError{err}
 	}
 	if admission != statement {
 		s.queryLockAdmission.SelectQuery = statement
@@ -217,12 +228,12 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 	})
 	if err != nil {
 		if s.sqlRoutine.plPlanning {
-			return value, false, &plExpressionPlanningError{err}
+			return value, usage, false, &plExpressionPlanningError{err}
 		}
-		return value, false, err
+		return value, usage, false, err
 	}
 	if result.Rows == nil {
-		return value, false, fmt.Errorf("stuntgres: PL expression has no output")
+		return value, usage, false, fmt.Errorf("stuntgres: PL expression has no output")
 	}
 	defer func() {
 		if closeErr := result.Rows.Close(); err == nil {
@@ -234,25 +245,26 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 	}
 	schema := result.Rows.Schema()
 	if len(schema) != 1 {
-		return value, false, sqlError("42601", "query returned more than one column")
+		return value, usage, false, sqlError("42601", "query returned more than one column")
 	}
-	row := make([]sqltype.Value, 1)
-	present, err = result.Rows.Next(s.op.Context(), row)
+	usage = schema[0].Usage
+	var row [1]sqltype.Value
+	present, err = result.Rows.Next(s.op.Context(), row[:])
 	if err != nil {
-		return value, false, err
+		return value, usage, false, err
 	}
 	if !present {
-		return sqltype.Null(schema[0].Usage.Type), false, nil
+		return sqltype.Null(usage.Type), usage, false, nil
 	}
 	value = row[0]
-	more, err := result.Rows.Next(s.op.Context(), row)
+	more, err := result.Rows.Next(s.op.Context(), row[:])
 	if err != nil {
-		return value, false, err
+		return value, usage, false, err
 	}
 	if more {
-		return sqltype.Value{}, false, &plCardinalityError{sqlError("21000", "query returned more than one row")}
+		return sqltype.Value{}, usage, false, &plCardinalityError{sqlError("21000", "query returned more than one row")}
 	}
-	return value, true, nil
+	return value, usage, true, nil
 }
 
 func (s *StatementScope) convertPLValue(value sqltype.Value, target sqltype.Usage) (sqltype.Value, error) {
@@ -384,19 +396,15 @@ func plRoutineDiagnosticIdentity(read catalog.Read, d *catalog.Procedure) string
 	return text.String()
 }
 
-func plRuntimeError(err error, read catalog.Read, d *catalog.Procedure, raw parser.Expr, action string, expression bool) error {
+func plRuntimeError(err error, read catalog.Read, d *catalog.Procedure, start, end, origin parser.Position, action string, expression bool) error {
 	var original *sqlstate.Error
 	if !errors.As(err, &original) {
 		return err
 	}
 	copy := *original
-	source := parser.PLExpressionSource(d.SQL.Source, raw)
-	offset := 0
-	characterOffset := 0
-	if raw != nil {
-		start := parser.ExpressionStart(raw)
-		offset, characterOffset = start.Offset, start.Character-1
-	}
+	source := parser.PLExpressionSource(d.SQL.Source, start, end)
+	offset := origin.Offset
+	characterOffset := start.Character - 1
 	if expression && copy.Position != "" {
 		if n, e := strconv.Atoi(copy.Position); e == nil {
 			copy.InternalPosition = strconv.Itoa(n - characterOffset)
@@ -404,8 +412,7 @@ func plRuntimeError(err error, read catalog.Read, d *catalog.Procedure, raw pars
 			copy.Position = ""
 		}
 	}
-	var planning *plExpressionPlanningError
-	if expression && copy.Context == "" && (copy.Code == "21000" || errors.As(err, &planning) && (copy.Code == "55000" || copy.Code == "42703" && copy.InternalPosition == "" || copy.Code == "22012")) {
+	if expression && plExpressionContext(err, &copy) {
 		copy.Context = "PL/pgSQL expression \"" + source + "\""
 	}
 	line := strings.Count(d.SQL.Source[:offset], "\n") + 1
@@ -415,4 +422,15 @@ func plRuntimeError(err error, read catalog.Read, d *catalog.Procedure, raw pars
 	}
 	copy.Context += context
 	return sqlstate.WithDiagnostic(err, &copy)
+}
+
+// Context presentation depends on the producer's phase, not SQLSTATE alone.
+// Use the already-mapped diagnostic so positioned missing-column failures keep
+// their ordinary source context rather than acquiring a planning expression.
+func plExpressionContext(err error, diagnostic *sqlstate.Error) bool {
+	if diagnostic.Context != "" {
+		return false
+	}
+	var planning *plExpressionPlanningError
+	return diagnostic.Code == "21000" || errors.As(err, &planning) && (diagnostic.Code == "55000" || diagnostic.Code == "42703" && diagnostic.InternalPosition == "" || diagnostic.Code == "22012")
 }

@@ -11,8 +11,9 @@ func TestPLpgSQLParserFullConsumption(t *testing.T) {
 		"DECLARE x public.tab.col%TYPE; r public.tab%ROWTYPE; BEGIN END",
 		"DECLARE \"constant\" integer := 1; BEGIN \"constant\" := 2; END",
 		"DECLARE b boolean := true AND NOT false; BEGIN b := b OR false; RETURN b IS NOT NULL AND b; END",
+		"BEGIN IF true THEN RETURN; END IF; END",
 	} {
-		block, err := ParsePLpgSQL(source)
+		block, err := ParsePLpgSQL(source, PLReturnPolicy{})
 		if err != nil || block == nil {
 			t.Fatalf("%q: %v", source, err)
 		}
@@ -20,11 +21,11 @@ func TestPLpgSQLParserFullConsumption(t *testing.T) {
 	for _, source := range []string{
 		"BEGIN END; junk", "BEGIN END; BEGIN END", "<<a>> BEGIN END b",
 		"DECLARE x integer; BEGIN RETURN 7; x := 1+; END",
-		"BEGIN BEGIN END RETURN 7; END", "BEGIN IF true THEN RETURN; END IF; END",
+		"BEGIN BEGIN END RETURN 7; END",
 		"BEGIN RAISE NOTICE 'not supported'; END", "BEGIN LOOP END LOOP; END",
 		"BEGIN RETURN NEXT 1; END", "BEGIN SELECT 1; END", "BEGIN END\x00", "BEGIN END\xff",
 	} {
-		if _, err := ParsePLpgSQL(source); err == nil {
+		if _, err := ParsePLpgSQL(source, PLReturnPolicy{}); err == nil {
 			t.Fatalf("accepted incomplete/excluded body %q", source)
 		}
 	}
@@ -33,7 +34,7 @@ func TestPLpgSQLParserFullConsumption(t *testing.T) {
 	if err != nil || len(statements) != 3 {
 		t.Fatal(statements, err)
 	}
-	raw, err := ParsePLpgSQL("DECLARE x integer; BEGIN x := 1; END")
+	raw, err := ParsePLpgSQL("DECLARE x integer; BEGIN x := 1; END", PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,12 +43,12 @@ func TestPLpgSQLParserFullConsumption(t *testing.T) {
 	}
 	for _, expression := range []string{"1/0", "r.a IS NULL AND r.b IS NULL", "NOT r.a IS NULL OR r.b IS NULL", "r.a IS DISTINCT FROM r.b"} {
 		source := "DECLARE \"é\" integer; BEGIN RETURN " + expression + "; END"
-		block, err := ParsePLpgSQL(source)
+		block, err := ParsePLpgSQL(source, PLReturnPolicy{})
 		if err != nil {
 			t.Fatalf("%q: %v", source, err)
 		}
 		raw := block.Statements[0].Expression
-		if got := PLExpressionSource(source, raw); got != expression {
+		if got := PLExpressionSource(source, block.Statements[0].ExpressionStart, block.Statements[0].ExpressionEnd); got != expression {
 			t.Fatalf("source %q, want %q", got, expression)
 		}
 		start := ExpressionStart(raw)

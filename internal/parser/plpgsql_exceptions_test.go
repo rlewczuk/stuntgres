@@ -8,7 +8,7 @@ import (
 
 func TestPLExceptionParsing(t *testing.T) {
 	source := `DECLARE "raise" integer; BEGIN "raise" := 1; BEGIN RETURN 7; EXCEPTION WHEN division_by_zero OR SQLSTATE '22000' THEN RAISE; WHEN OTHERS THEN RETURN 9; END; EXCEPTION WHEN SQLSTATE 'ZX987' THEN RETURN 8; END`
-	block, err := ParsePLpgSQL(source)
+	block, err := ParsePLpgSQL(source, PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,12 +29,12 @@ func TestPLExceptionParsing(t *testing.T) {
 		"BEGIN RAISE 'constructed'; END",
 		"BEGIN RAISE; END; junk",
 	} {
-		if _, err := ParsePLpgSQL(source); err == nil {
+		if _, err := ParsePLpgSQL(source, PLReturnPolicy{}); err == nil {
 			t.Fatalf("accepted malformed/unreachable suffix %q", source)
 		}
 	}
 	for _, code := range []string{"2201", "22p02", "22012x", "22_12"} {
-		_, err := ParsePLpgSQL("BEGIN RETURN 7; EXCEPTION WHEN SQLSTATE '" + code + "' THEN RETURN 1; END")
+		_, err := ParsePLpgSQL("BEGIN RETURN 7; EXCEPTION WHEN SQLSTATE '"+code+"' THEN RETURN 1; END", PLReturnPolicy{})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42601" {
 			t.Fatalf("invalid SQLSTATE %q: %v", code, err)
@@ -44,7 +44,7 @@ func TestPLExceptionParsing(t *testing.T) {
 	if _, err := Parse("SELECT exception, raise, sqlstate FROM t"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ParsePLpgSQL("DECLARE sqlstate text := 'user'; BEGIN RETURN sqlstate; END"); err != nil {
+	if _, err := ParsePLpgSQL("DECLARE sqlstate text := 'user'; BEGIN RETURN sqlstate; END", PLReturnPolicy{}); err != nil {
 		t.Fatal(err)
 	}
 }

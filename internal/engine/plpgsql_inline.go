@@ -33,12 +33,12 @@ func (e *Engine) executeDO(s *StatementScope, raw *parser.Do, count int) (Result
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	syntax, err := parser.ParsePLpgSQL(raw.Body)
+	void, _ := auth.Catalog.LookupType(sqltype.Void)
+	syntax, err := parser.ParsePLpgSQL(raw.Body, proc.PLReturnPolicy(void.Usage(), 0, false))
 	if err != nil {
 		e.mu.Unlock()
-		return Result{}, err
+		return Result{}, parser.PLBodyError(err, raw.BodyPos)
 	}
-	void, _ := auth.Catalog.LookupType(sqltype.Void)
 	definition := &proc.Definition{Kind: proc.PLpgSQLBody, Source: raw.Body, Position: raw.BodyPos, Name: "inline_code_block", Result: void.Usage(), PLSyntax: syntax}
 	d := &catalog.Procedure{ObjectName: "inline_code_block", Language: language.Address(), SQL: definition, RoutineKind: catalog.FunctionRoutine}
 	err = e.compilePLRoutineLocked(s.op, auth, d)

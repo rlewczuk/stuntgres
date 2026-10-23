@@ -11,7 +11,7 @@ import (
 func TestPLpgSQLAssignmentTargetValidation(t *testing.T) {
 	integer := plUnitInteger(t)
 	d := &Definition{Kind: PLpgSQLBody, Name: "targets", Result: integer.Usage(), Source: "<<scope>> DECLARE a integer; b integer; x ALIAS FOR a; BEGIN scope.a[1].n[2:3] := 7; x[2] = 8; b := 9; END"}
-	raw, err := parser.ParsePLpgSQL(d.Source)
+	raw, err := parser.ParsePLpgSQL(d.Source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}

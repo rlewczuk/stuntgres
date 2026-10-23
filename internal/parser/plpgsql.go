@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,15 +29,23 @@ type PLDeclaration struct {
 	Constant, NotNull bool
 	NotNullPos        Position
 	Default           Expr
+	DefaultStart      Position
+	DefaultEnd        Position
+	DefaultDelimiter  Position
 	Alias             Expr
 }
 type PLStatement struct {
-	Block      *PLBlock
-	Target     Expr
-	Expression Expr
-	Return     bool
-	Rethrow    bool
-	Pos        Position
+	Block               *PLBlock
+	Target              Expr
+	Expression          Expr
+	Return              bool
+	Rethrow             bool
+	ExpressionStart     Position
+	ExpressionEnd       Position
+	ExpressionDelimiter Position
+	If                  *PLConditional
+	Case                *PLConditional
+	Pos                 Position
 }
 type PLBlock struct {
 	Label        Identifier
@@ -57,9 +66,132 @@ type PLHandler struct {
 	Pos        Position
 }
 
+type plElse struct {
+	HasElse bool
+	Else    []PLStatement
+}
+
+type plExpressionBoundary uint8
+
+const (
+	plNoBoundary plExpressionBoundary = iota
+	plThenBoundary
+	plWhenBoundary
+	plWhenItemBoundary
+)
+
+func (l *lexer) plBeginExpression(boundary plExpressionBoundary) {
+	l.plBoundary = boundary
+	l.plBoundaryDepth, l.plBoundaryTokens, l.plBoundaryHit = 0, 0, 0
+	l.plExpression = true
+	l.plThen = boundary == plThenBoundary || boundary == plWhenItemBoundary
+}
+
+// Only parentheses/brackets protect procedural delimiters. SQL CASE nesting
+// does not: the ordinary scalar grammar must reject an incomplete expression
+// when the first depth-zero procedural terminal reaches it.
+func (l *lexer) plExpressionToken(token rawToken) rawToken {
+	if l.plBoundary == plNoBoundary {
+		return token
+	}
+	if l.plBoundaryDepth == 0 {
+		code := 0
+		switch {
+		case token.code == THEN && (l.plBoundary == plThenBoundary || l.plBoundary == plWhenItemBoundary):
+			code = PL_THEN
+		case token.code == WHEN && l.plBoundary == plWhenBoundary:
+			code = PL_WHEN
+		case token.code == ',' && l.plBoundary == plWhenItemBoundary:
+			code = PL_WHEN_COMMA
+		}
+		if code != 0 {
+			token.code = code
+			l.plBoundaryHit, l.plBoundary = code, plNoBoundary
+			l.plExpression = false
+			return token
+		}
+	}
+	l.plBoundaryTokens++
+	switch token.code {
+	case '(', '[':
+		l.plBoundaryDepth++
+	case ')', ']':
+		if l.plBoundaryDepth > 0 {
+			l.plBoundaryDepth--
+		}
+	}
+	return token
+}
+
+// PLReturnPolicy applies legality before the scalar grammar reads a RETURN
+// argument. A zero policy permits arguments; checked compilation still validates.
+type PLReturnPolicy struct{ Code, Message string }
+
+func PLBodyError(err error, origin Position) error {
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) {
+		return err
+	}
+	position, failure := strconv.Atoi(diagnostic.Position)
+	if failure != nil {
+		return err
+	}
+	next := *diagnostic
+	next.Position = strconv.Itoa(origin.Character + position)
+	return &next
+}
+
+// PLExpression separates the last accepted token's exclusive end from its
+// procedural delimiter, retaining grouping and excluding trailing trivia.
+type PLExpression struct {
+	Expression Expr
+	Start      Position
+	End        Position
+	Delimiter  Position
+}
+type PLArm struct {
+	Conditions []PLExpression
+	Statements []PLStatement
+}
+type PLConditional struct {
+	Search  PLExpression
+	Arms    []PLArm
+	HasElse bool
+	Else    []PLStatement
+}
+
+func (l *lexer) plParsedExpression(raw Expr) PLExpression {
+	return PLExpression{Expression: raw, End: l.plPriorTokenEnd, Delimiter: l.current.pos}
+}
+
+// The predecessor is supplied by grammar, so transparent grouping in the SQL
+// AST cannot discard the actual expression origin. This bounded scanner probe
+// records provenance only; it neither reparses nor executes the expression.
+func (l *lexer) plBoundExpression(raw PLExpression, predecessor lexeme) PLExpression {
+	if raw.Expression == nil {
+		return raw
+	}
+	probe := lexer{
+		input: l.input[:raw.Delimiter.Offset], offset: predecessor.pos.Offset,
+		positionOffset: predecessor.pos.Offset, positionCharacters: predecessor.pos.Character - 1,
+		options: Options{StandardConformingStrings: true},
+	}
+	probe.nextRaw()
+	first := probe.nextRaw()
+	if first.code == 0 || probe.err != nil {
+		l.err = probe.err
+		if l.err == nil {
+			l.failAt("42601", "missing expression", raw.End.Offset)
+		}
+		return raw
+	}
+	raw.Start = first.lexeme.pos
+	return raw
+}
+
 // ParsePLpgSQL uses the ordinary scanner and expression grammar. The private
 // entry token scopes procedural keywords to this parse; SQL prewalk is unchanged.
-func ParsePLpgSQL(source string) (*PLBlock, error) {
+func ParsePLpgSQL(source string, returns PLReturnPolicy) (*PLBlock, error) {
 	if !utf8.ValidString(source) {
 		for offset := 0; offset < len(source); {
 			r, n := utf8.DecodeRuneInString(source[offset:])
@@ -72,13 +204,28 @@ func ParsePLpgSQL(source string) (*PLBlock, error) {
 	if offset := strings.IndexByte(source, 0); offset >= 0 {
 		return nil, PLPositionError("42601", "NUL in SQL", Position{Offset: offset, Character: utf8.RuneCountInString(source[:offset]) + 1})
 	}
-	l := &lexer{input: source, options: Options{StandardConformingStrings: true}, plEntry: true, plMode: true}
+	l := &lexer{input: source, options: Options{StandardConformingStrings: true}, plEntry: true, plMode: true, plReturnPolicy: returns}
 	if parseLexer(l) != 0 || l.err != nil {
-		if diagnostic, ok := l.err.(*sqlstate.Error); ok && l.plExpression && l.current.text == ";" && diagnostic.Code == "42601" {
+		if diagnostic, ok := l.err.(*sqlstate.Error); ok && diagnostic.Code == "42601" {
 			copy := *diagnostic
-			copy.Message = "syntax error at end of input"
-			copy.Position = strconv.Itoa(l.current.pos.Character - 1)
-			return nil, &copy
+			if l.plBoundaryHit != 0 && l.previousToken == l.plBoundaryHit {
+				if l.plBoundaryTokens == 0 {
+					copy.Message = fmt.Sprintf("missing expression at or near %q", strings.ToUpper(l.current.text))
+				} else {
+					copy.Message = "syntax error at end of input"
+					copy.Position = strconv.Itoa(l.plPriorTokenEnd.Character)
+				}
+				return nil, &copy
+			}
+			if l.plThen && (l.current.text == ";" || l.current.text == "") {
+				copy.Message = "missing \"THEN\" at end of SQL expression"
+				return nil, &copy
+			}
+			if l.plExpression && l.current.text == ";" {
+				copy.Message = "syntax error at end of input"
+				copy.Position = strconv.Itoa(l.plPriorTokenEnd.Character)
+				return nil, &copy
+			}
 		}
 		return nil, l.err
 	}
@@ -97,34 +244,11 @@ func (l *lexer) plBlock(label Identifier, declarations []PLDeclaration, statemen
 }
 
 // PLExpressionSource is diagnostic provenance only, never reparsed or rewritten.
-func PLExpressionSource(source string, expression Expr) string {
-	if expression == nil {
+func PLExpressionSource(source string, start, end Position) string {
+	if start.Character == 0 || start.Offset < 0 || end.Offset < start.Offset || end.Offset > len(source) {
 		return ""
 	}
-	start := ExpressionStart(expression).Offset
-	if start < 0 || start >= len(source) {
-		return ""
-	}
-	l := lexer{input: source, offset: start, options: Options{StandardConformingStrings: true}}
-	depth := 0
-	end := len(source)
-	for {
-		tok := l.nextRaw()
-		if tok.code == 0 {
-			break
-		}
-		if tok.code == '(' || tok.code == '[' {
-			depth++
-		}
-		if tok.code == ')' || tok.code == ']' {
-			depth--
-		}
-		if tok.code == ';' && depth == 0 {
-			end = tok.lexeme.pos.Offset
-			break
-		}
-	}
-	return strings.TrimSpace(source[start:end])
+	return source[start.Offset:end.Offset]
 }
 
 func PLPositionError(code, message string, pos Position) error {

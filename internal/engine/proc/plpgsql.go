@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"unicode/utf8"
 )
 
 // PLProgram contains no evaluator, catalog handle or invocation values. Slots
@@ -19,6 +20,7 @@ type PLProgram struct {
 	FormalCount int
 	Function    string
 	Procedure   bool
+	SearchCount int
 }
 type PLVariable struct {
 	Name                      string
@@ -46,6 +48,9 @@ type PLHandler struct {
 }
 type PLInitializer struct {
 	Slot       int
+	Start      parser.Position
+	End        parser.Position
+	Delimiter  parser.Position
 	Expression parser.Expr
 	Query      *parser.Select
 	Scope      *PLBlock
@@ -59,11 +64,73 @@ type PLInstruction struct {
 	Query  *parser.Select
 	Block  *PLBlock
 	Target PLTarget
+	If     *PLConditional
+	Case   *PLConditional
 }
+type PLConditional struct {
+	Search     *parser.Select
+	HasElse    bool
+	SearchSlot int
+	SearchName string
+	Arms       []PLBranch
+	Else       []PLInstruction
+}
+type PLBranch struct {
+	Query      *parser.Select
+	Statements []PLInstruction
+	// DiagnosticQuery describes PG's private IN expression, not executable SQL.
+	DiagnosticQuery    string
+	OperatorPosition   parser.Position
+	DiagnosticOperator int
+	DiagnosticItems    int
+}
+
+const plSearchPrefix = "\x00case:"
+
+func PLSearchName(slot int) string { return plSearchPrefix + strconv.Itoa(slot) }
+
+// Synthetic operator coordinates are strictly beyond body EOF. Only the CASE
+// diagnostic mapper consumes them; query and source-span origins remain real.
+func PLSearchOperatorPosition(source string, slot int) parser.Position {
+	return parser.Position{Offset: len(source) + 2 + slot, Character: utf8.RuneCountInString(source) + 2 + slot}
+}
+
+func (p *PLProgram) SearchSlot(name string) (int, bool) {
+	if !strings.HasPrefix(name, plSearchPrefix) {
+		return 0, false
+	}
+	suffix := strings.TrimPrefix(name, plSearchPrefix)
+	if suffix == "" || len(suffix) > 1 && suffix[0] == '0' {
+		return 0, false
+	}
+	for _, digit := range suffix {
+		if digit < '0' || digit > '9' {
+			return 0, false
+		}
+	}
+	slot, err := strconv.Atoi(suffix)
+	return slot, err == nil && slot >= 0 && slot < p.SearchCount
+}
+
+func PLReturnPolicy(result sqltype.Usage, outputs int, procedure bool) parser.PLReturnPolicy {
+	switch {
+	case procedure:
+		return parser.PLReturnPolicy{Code: "42601", Message: "RETURN cannot have a parameter in a procedure"}
+	case outputs != 0:
+		return parser.PLReturnPolicy{Code: "42804", Message: "RETURN cannot have a parameter in function with OUT parameters"}
+	case result.Type != nil && result.Type.ID() == sqltype.Void:
+		return parser.PLReturnPolicy{Code: "42804", Message: "RETURN cannot have a parameter in function returning void"}
+	default:
+		return parser.PLReturnPolicy{}
+	}
+}
+
 type PLTypeResolver func(parser.PLType) (sqltype.Usage, bool, error)
 
 func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, resolve PLTypeResolver) (*PLProgram, error) {
 	p := &PLProgram{Syntax: syntax, FormalCount: len(definition.Formals), Function: definition.Name, Procedure: procedure}
+	returnPolicy := PLReturnPolicy(definition.Result, len(definition.OutputFormals), procedure)
+	var diagnostics plDiagnosticDatums
 	outer := &PLBlock{Label: definition.Name, Bindings: make(map[string]int)}
 	for i, f := range definition.Formals {
 		p.Variables = append(p.Variables, PLVariable{Name: f.Name, Usage: f.Usage, InheritInputCollation: f.Usage.Collation.ID != 0})
@@ -78,29 +145,93 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 		}
 	}
 	var compile func(*parser.PLBlock, []*PLBlock) (*PLBlock, error)
-	compileStatements := func(raw []parser.PLStatement, scopes []*PLBlock) ([]PLInstruction, error) {
-		var instructions []PLInstruction
+	var compileStatements func([]parser.PLStatement, []*PLBlock) ([]PLInstruction, error)
+	var compileConditional func(*parser.PLConditional, bool, []*PLBlock) (*PLConditional, error)
+	compileConditional = func(raw *parser.PLConditional, simple bool, scopes []*PLBlock) (*PLConditional, error) {
+		checked := &PLConditional{SearchSlot: -1, Search: plExpressionQuery(raw.Search.Expression), HasElse: raw.HasElse, Arms: make([]PLBranch, len(raw.Arms))}
+		if err := diagnostics.expression(p, definition.Source, raw.Search.Start, raw.Search.End, scopes); err != nil {
+			return nil, err
+		}
+		var operatorPosition parser.Position
+		if simple {
+			checked.SearchSlot = p.SearchCount
+			operatorPosition = PLSearchOperatorPosition(definition.Source, checked.SearchSlot)
+			p.SearchCount++
+		}
+		for i, arm := range raw.Arms {
+			if len(arm.Conditions) == 0 || !simple && len(arm.Conditions) != 1 {
+				return nil, parser.PLPositionError("42601", "invalid CASE condition list", raw.Search.End)
+			}
+			for _, condition := range arm.Conditions {
+				if err := diagnostics.expression(p, definition.Source, condition.Start, condition.End, scopes); err != nil {
+					return nil, err
+				}
+			}
+			branch := PLBranch{}
+			expression := arm.Conditions[0].Expression
+			if simple {
+				items := make([]parser.Expr, len(arm.Conditions))
+				for i, item := range arm.Conditions {
+					items[i] = item.Expression
+				}
+				pos := expression.SourcePosition()
+				left := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: PLSearchName(checked.SearchSlot), Pos: pos}}}, Pos: pos}
+				branch.OperatorPosition = operatorPosition
+				expression = parser.InListExpr{Left: left, Items: items, Pos: branch.OperatorPosition}
+			}
+			branch.Query = plExpressionQuery(expression)
+			branch.Query.Pos = arm.Conditions[0].Expression.SourcePosition()
+			var err error
+			branch.Statements, err = compileStatements(arm.Statements, scopes)
+			if err != nil {
+				return nil, err
+			}
+			checked.Arms[i] = branch
+		}
+		var err error
+		checked.Else, err = compileStatements(raw.Else, scopes)
+		if err != nil {
+			return nil, err
+		}
+		if simple {
+			checked.SearchName = diagnostics.finishCase(len(p.Variables))
+			prefix := "\"" + checked.SearchName + "\" IN ("
+			for i, arm := range raw.Arms {
+				branch := &checked.Arms[i]
+				start := arm.Conditions[0].Start.Offset
+				end := arm.Conditions[len(arm.Conditions)-1].End.Offset
+				branch.DiagnosticQuery = prefix + definition.Source[start:end] + ")"
+				branch.DiagnosticOperator = len(checked.SearchName) + 4
+				branch.DiagnosticItems = len(prefix) + 1
+			}
+		}
+		return checked, err
+	}
+	compileStatements = func(raw []parser.PLStatement, scopes []*PLBlock) ([]PLInstruction, error) {
+		instructions := make([]PLInstruction, 0, len(raw))
 		for i := range raw {
 			statement := &raw[i]
 			instruction := PLInstruction{Syntax: statement, Query: plExpressionQuery(statement.Expression)}
+			if err := diagnostics.target(p, definition.Source, statement, scopes); err != nil {
+				return nil, err
+			}
+			if err := diagnostics.expression(p, definition.Source, statement.ExpressionStart, statement.ExpressionEnd, scopes); err != nil {
+				return nil, err
+			}
+			var err error
 			switch {
 			case statement.Block != nil:
-				child, err := compile(statement.Block, scopes)
-				if err != nil {
-					return nil, err
-				}
-				instruction.Block = child
+				instruction.Block, err = compile(statement.Block, scopes)
+			case statement.If != nil:
+				instruction.If, err = compileConditional(statement.If, false, scopes)
+			case statement.Case != nil:
+				instruction.Case, err = compileConditional(statement.Case, statement.Case.Search.Expression != nil, scopes)
 			case statement.Rethrow:
 			case statement.Return:
-				message, code := "", "42804"
-				switch {
-				case procedure && statement.Expression != nil:
-					message, code = "RETURN cannot have a parameter in a procedure", "42601"
-				case len(definition.OutputFormals) > 0 && statement.Expression != nil:
-					message = "RETURN cannot have a parameter in function with OUT parameters"
-				case definition.Void() && statement.Expression != nil:
-					message = "RETURN cannot have a parameter in function returning void"
-				case !procedure && !definition.Void() && len(definition.OutputFormals) == 0 && statement.Expression == nil:
+				message, code := "", ""
+				if statement.Expression != nil {
+					message, code = returnPolicy.Message, returnPolicy.Code
+				} else if !procedure && !definition.Void() && len(definition.OutputFormals) == 0 {
 					message, code = "missing expression at or near \";\"", "42601"
 				}
 				if message != "" {
@@ -114,14 +245,13 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 					return nil, parser.PLPositionError(code, message, pos)
 				}
 			default:
-				target, err := p.ResolveTarget(statement.Target, scopes)
-				if err != nil {
-					return nil, err
+				instruction.Target, err = p.ResolveTarget(statement.Target, scopes)
+				if err == nil && p.Variables[instruction.Target.Slot].Constant {
+					err = parser.PLPositionError("22005", fmt.Sprintf("variable %q is declared CONSTANT", p.Variables[instruction.Target.Slot].Name), statement.Pos)
 				}
-				if p.Variables[target.Slot].Constant {
-					return nil, parser.PLPositionError("22005", fmt.Sprintf("variable %q is declared CONSTANT", p.Variables[target.Slot].Name), statement.Pos)
-				}
-				instruction.Target = target
+			}
+			if err != nil {
+				return nil, err
 			}
 			instructions = append(instructions, instruction)
 		}
@@ -176,8 +306,11 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 			if decl.Default != nil {
 				initializerScope = &PLBlock{Label: block.Label, Bindings: maps.Clone(block.Bindings)}
 			}
+			if err := diagnostics.expression(p, definition.Source, decl.DefaultStart, decl.DefaultEnd, scopes); err != nil {
+				return nil, err
+			}
 			block.Bindings[decl.Name.Text] = slot
-			block.Declarations = append(block.Declarations, PLInitializer{Slot: slot, Expression: decl.Default, Query: plExpressionQuery(decl.Default), Scope: initializerScope})
+			block.Declarations = append(block.Declarations, PLInitializer{Slot: slot, Expression: decl.Default, Start: decl.DefaultStart, End: decl.DefaultEnd, Delimiter: decl.DefaultDelimiter, Query: plExpressionQuery(decl.Default), Scope: initializerScope})
 		}
 		var err error
 		block.Statements, err = compileStatements(raw.Statements, scopes)
@@ -320,10 +453,18 @@ type PLFrame struct {
 	Scopes         []*PLBlock
 	InputCollation sqltype.CollationRef
 	handled        *sqlstate.Error
+	Searches       []PLSearch
+}
+type PLSearch struct {
+	Value sqltype.Value
+	Usage sqltype.Usage
 }
 
 func NewPLFrame(p *PLProgram, d *Definition, input *Frame, collation sqltype.CollationRef) *PLFrame {
 	f := &PLFrame{Program: p, Values: make([]sqltype.Value, len(p.Variables)), InputCollation: collation}
+	if p.SearchCount != 0 {
+		f.Searches = make([]PLSearch, p.SearchCount)
+	}
 	for i, v := range p.Variables[:p.FormalCount] {
 		f.Values[i] = sqltype.Null(v.Usage.Type)
 	}
@@ -346,6 +487,8 @@ func (f *PLFrame) Close() {
 	f.Values = nil
 	f.Scopes = nil
 	f.handled = nil
+	clear(f.Searches)
+	f.Searches = nil
 	f.InputCollation = sqltype.CollationRef{}
 }
 

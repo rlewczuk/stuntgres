@@ -20,6 +20,9 @@ while preserving the originating diagnostic and secondary failure.
 PL and SQL context decoration uses `sqlstate.WithDiagnostic`: the decorated
 primary diagnostic is visible through `errors.As`, while the original cause,
 fatal cleanup classification and secondary failure remain traversable across calls.
+Simple CASE query/position mapping uses the same classification-preserving seam
+and phase-aware expression-context policy as ordinary PL expressions. Execution
+failures do not acquire a planning-only expression prefix.
 
 Accepted write events retain their actual predecessor/successor and command token.
 `sql_command_effects.go` completes only the active nested SQL command's pending

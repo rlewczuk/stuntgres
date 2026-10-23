@@ -55,7 +55,7 @@ func plpgsqlLocalUsageFixture(t *testing.T) (catalog.Read, *catalog.Procedure, [
 		t.Fatal(err)
 	}
 	definition := &proc.Definition{Kind: proc.PLpgSQLBody, Name: "copied_usage", Source: "DECLARE x local_type; BEGIN RETURN 1; END", Result: integer.Usage()}
-	raw, err := parser.ParsePLpgSQL(definition.Source)
+	raw, err := parser.ParsePLpgSQL(definition.Source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}

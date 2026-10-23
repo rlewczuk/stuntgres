@@ -11,6 +11,10 @@ Rule rewriting, view-write lowering and RLS walkers are in
 Reached PL expressions use the ordinary binder with private lexical slots and
 current RECORD shapes; PL `$n` counts all formals, while SQL stays input-only.
 Assignment tries declared/ordinary assignment casts before descriptor I/O fallback.
+Simple CASE private search bindings bypass catalog ambiguity lookup and capture
+the activation's complete scalar Usage in the ordinary PL-local expression.
+Reached WHEN lists use the shared IN binder; no alternate comparison resolver
+or published fake local carries search state.
 
 ## Imports
 

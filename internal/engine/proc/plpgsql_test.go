@@ -22,7 +22,7 @@ func TestPLpgSQLFormalSlots(t *testing.T) {
 	if err := d.SetFormals([]Formal{{Mode: "o", Name: "y", Usage: integer.Usage()}, {Mode: "i", Name: "x", Usage: integer.Usage()}}); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := parser.ParsePLpgSQL(d.Source)
+	raw, err := parser.ParsePLpgSQL(d.Source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestPLpgSQLFormalSlots(t *testing.T) {
 func TestPLpgSQLFrameLifetime(t *testing.T) {
 	integer := plUnitInteger(t)
 	d := &Definition{Name: "lifetime", Result: integer.Usage(), Source: "DECLARE x integer := 1; a ALIAS FOR x; BEGIN DECLARE x integer := 2; BEGIN x := 3; END; RETURN x; END"}
-	raw, err := parser.ParsePLpgSQL(d.Source)
+	raw, err := parser.ParsePLpgSQL(d.Source, parser.PLReturnPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}

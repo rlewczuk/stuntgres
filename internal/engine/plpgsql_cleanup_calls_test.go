@@ -24,7 +24,7 @@ func (p *plExceptionCleanupProvider) BeginForeignTransaction(context.Context, ca
 
 func TestPLExceptionCleanupCalledRoutines(t *testing.T) {
 	for _, wrapper := range []bool{false, true} {
-		for _, site := range []string{"assignment", "partial_assignment", "RETURN", "initializer"} {
+		for _, site := range []string{"assignment", "partial_assignment", "RETURN", "initializer", "simple_CASE_WHEN"} {
 			name := "called_pl/" + site
 			if wrapper {
 				name = "sql_wrapper/" + site
@@ -82,6 +82,8 @@ func TestPLExceptionCleanupCalledRoutines(t *testing.T) {
 					body = "BEGIN RETURN " + callee + "; END"
 				} else if site == "initializer" {
 					body = "DECLARE x integer := " + callee + "; BEGIN RETURN x; END"
+				} else if site == "simple_CASE_WHEN" {
+					body = "BEGIN CASE 1 WHEN " + callee + " THEN RETURN 1; ELSE RETURN 2; END CASE; END"
 				}
 				sessionSQL(t, sess, "CREATE FUNCTION ex_cleanup_middle() RETURNS integer LANGUAGE plpgsql AS $$"+body+"$$")
 				sessionSQL(t, sess, "CREATE FUNCTION ex_cleanup_outer() RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN ex_cleanup_middle(); EXCEPTION WHEN OTHERS THEN RETURN 99; END$$")
@@ -112,6 +114,8 @@ func TestPLExceptionCleanupCalledRoutines(t *testing.T) {
 				}
 				if site == "initializer" {
 					action = "during statement block local variable initialization"
+				} else if site == "simple_CASE_WHEN" {
+					action = "at CASE"
 				}
 				want := *original
 				want.Context = "SQL function \"ex_cleanup_write\" statement 1\nPL/pgSQL function ex_cleanup_called() line 1 at RETURN\n"

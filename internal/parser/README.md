@@ -90,8 +90,22 @@ Diagnostic presentation may unwrap to copy fields but keeps the outer origin.
 `ParsePLpgSQL` uses a private lexer/goyacc entry and ordinary SQL expression
 grammar, preserving positions and fully parsing unreachable syntax, including
 ordered exception handlers and the bare-rethrow discriminator. SQLSTATE literals
-are checked at parse time. Contextual PL keywords do not change SQL parsing,
-quoted identifiers or configured prewalk behavior.
+are checked at parse time; quoted identifiers retain their identity.
+IF/CASE branches retain arm order and distinguish absent from empty ELSE;
+expression occurrences retain separate token-content and delimiter ends,
+including grouping. Depth-zero procedural THEN/WHEN/comma terminals cannot be
+consumed by the SQL scalar grammar; parentheses and brackets protect inner SQL
+delimiters. Diagnostic spans exclude trailing trivia while preserving interior
+comments and raw tokens. The caller supplies RETURN legality so it precedes
+scalar syntax errors.
+Expression-origin probes inherit the predecessor's byte/character coordinates,
+so their two-token scan does not recount the preceding body.
+Contextual PL keywords do not change SQL parsing or configured prewalk behavior.
+Diagnostic compound-name accounting scans bounded original expression and
+assignment-target tokens, not SQL AST node kinds. It shares identifier/Unicode
+decoding with the lexer and applies PL's reserved-word list and greedy,
+non-overlapping names of at most three parts; a following call parenthesis does
+not change recognition.
 
 ## Testing
 
@@ -110,7 +124,7 @@ feature prefix.
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`
 - Typed literals and operators: `RUN='^Test(GeometryConversionCLiteralSyntax|INETSubnetParser)$'`
 - Database creation: `RUN='^TestCreateDatabase'`
-- PL block syntax and full consumption: `RUN='^TestPLpgSQLParserFullConsumption$'`
+- PL block/conditional syntax and full consumption: `RUN='^TestPLpgSQL(ConditionalParser|ParserFullConsumption)$'`
 - Exception syntax and handler full consumption: `RUN='^TestPLExceptionParsing$'`
 
 **Benchmarks.** Compare scratch-receiver changes with the unchanged

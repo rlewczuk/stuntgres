@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ import (
 // Catalog ownership of each typed Usage remains the procedure provider's job.
 func (p *PLProgram) ValidateDefinition(d *Definition) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid checked PL program") }
-	if p == nil || d == nil || d.Kind != PLpgSQLBody || d.PL != p || p.Syntax == nil || p.Syntax != d.PLSyntax || p.Root == nil || p.Root.Syntax != nil || len(p.Root.Statements) != 1 || p.Root.Statements[0].Block == nil || p.FormalCount != len(d.Formals) || len(p.Variables) < p.FormalCount || p.Function != d.Name {
+	if p == nil || d == nil || d.Kind != PLpgSQLBody || d.PL != p || p.Syntax == nil || p.Syntax != d.PLSyntax || p.Root == nil || p.Root.Syntax != nil || len(p.Root.Statements) != 1 || p.Root.Statements[0].Block == nil || p.FormalCount != len(d.Formals) || len(p.Variables) < p.FormalCount || p.Function != d.Name || p.SearchCount < 0 {
 		return invalid()
 	}
 	outer := p.Root.Statements[0]
@@ -41,42 +42,163 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		return invalid()
 	}
 	slot := p.FormalCount
+	var diagnostics plDiagnosticDatums
 	var walk func(*PLBlock, *parser.PLBlock, []*PLBlock) error
-	walkStatements := func(instructions []PLInstruction, statements []parser.PLStatement, scopes []*PLBlock) error {
+	searches := 0
+	queries := make(map[*parser.Select]bool)
+	query := func(checked *parser.Select, raw parser.Expr) bool {
+		if raw == nil {
+			return checked == nil
+		}
+		if checked == nil || queries[checked] || !plQueryShape(checked, raw.SourcePosition()) || !reflect.DeepEqual(checked.Targets[0], raw) || !plPrivateReferences(checked, "") {
+			return false
+		}
+		queries[checked] = true
+		return true
+	}
+	var walkList func([]PLInstruction, []parser.PLStatement, []*PLBlock) error
+	var walkConditional func(*PLConditional, *parser.PLConditional, bool, []*PLBlock) error
+	walkConditional = func(checked *PLConditional, raw *parser.PLConditional, simple bool, scopes []*PLBlock) error {
+		if checked == nil || len(raw.Arms) == 0 || len(checked.Arms) != len(raw.Arms) || checked.HasElse != raw.HasElse || !raw.HasElse && len(raw.Else) != 0 || !plSourceSpan(d.Source, raw.Search.Expression, raw.Search.Start, raw.Search.End, raw.Search.Delimiter) || !query(checked.Search, raw.Search.Expression) {
+			return invalid()
+		}
+		if err := diagnostics.expression(p, d.Source, raw.Search.Start, raw.Search.End, scopes); err != nil {
+			return invalid()
+		}
+		if simple {
+			if checked.SearchSlot != searches {
+				return invalid()
+			}
+			searches++
+		} else if checked.SearchSlot != -1 || checked.SearchName != "" {
+			return invalid()
+		}
+		for i, arm := range raw.Arms {
+			branch := checked.Arms[i]
+			if len(arm.Conditions) == 0 || !simple && len(arm.Conditions) != 1 {
+				return invalid()
+			}
+			for _, item := range arm.Conditions {
+				if !plSourceSpan(d.Source, item.Expression, item.Start, item.End, item.Delimiter) {
+					return invalid()
+				}
+				if err := diagnostics.expression(p, d.Source, item.Start, item.End, scopes); err != nil {
+					return invalid()
+				}
+			}
+			first := arm.Conditions[0].Expression
+			if first == nil {
+				return invalid()
+			}
+			if simple {
+				if branch.Query == nil || queries[branch.Query] || !plQueryShape(branch.Query, first.SourcePosition()) || !plPrivateReferences(branch.Query, PLSearchName(checked.SearchSlot)) {
+					return invalid()
+				}
+				in, ok := branch.Query.Targets[0].(parser.InListExpr)
+				pos := first.SourcePosition()
+				left := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: PLSearchName(checked.SearchSlot), Pos: pos}}}, Pos: pos}
+				if !ok || in.Negate || len(in.Items) != len(arm.Conditions) || !reflect.DeepEqual(in.Left, left) || in.Pos != PLSearchOperatorPosition(d.Source, checked.SearchSlot) || branch.OperatorPosition != in.Pos {
+					return invalid()
+				}
+				for j, item := range arm.Conditions {
+					if item.Expression == nil || !reflect.DeepEqual(in.Items[j], item.Expression) {
+						return invalid()
+					}
+				}
+				queries[branch.Query] = true
+			} else if !query(branch.Query, first) || branch.DiagnosticQuery != "" || branch.OperatorPosition != (parser.Position{}) || branch.DiagnosticOperator != 0 || branch.DiagnosticItems != 0 {
+				return invalid()
+			}
+			if err := walkList(branch.Statements, arm.Statements, scopes); err != nil {
+				return err
+			}
+		}
+		if err := walkList(checked.Else, raw.Else, scopes); err != nil {
+			return err
+		}
+		if simple {
+			if checked.SearchName != diagnostics.finishCase(slot) {
+				return invalid()
+			}
+			prefix := "\"" + checked.SearchName + "\" IN ("
+			for i, arm := range raw.Arms {
+				branch := checked.Arms[i]
+				start := arm.Conditions[0].Start.Offset
+				end := arm.Conditions[len(arm.Conditions)-1].End.Offset
+				if branch.DiagnosticQuery != prefix+d.Source[start:end]+")" || branch.DiagnosticOperator != len(checked.SearchName)+4 || branch.DiagnosticItems != len(prefix)+1 {
+					return invalid()
+				}
+			}
+		}
+		return nil
+	}
+	walkList = func(instructions []PLInstruction, statements []parser.PLStatement, scopes []*PLBlock) error {
 		if len(instructions) != len(statements) {
 			return invalid()
 		}
 		for i, instruction := range instructions {
-			statement := &statements[i]
-			if instruction.Syntax != statement {
+			raw := &statements[i]
+			if instruction.Syntax != raw || raw.Pos.Offset < 0 || raw.Pos.Offset >= len(d.Source) || raw.Pos.Character <= 0 || !plSourceSpan(d.Source, raw.Expression, raw.ExpressionStart, raw.ExpressionEnd, raw.ExpressionDelimiter) {
+				return invalid()
+			}
+			if err := diagnostics.target(p, d.Source, raw, scopes); err != nil {
+				return invalid()
+			}
+			if err := diagnostics.expression(p, d.Source, raw.ExpressionStart, raw.ExpressionEnd, scopes); err != nil {
+				return invalid()
+			}
+			variants := 0
+			for _, present := range []bool{raw.Block != nil, raw.If != nil, raw.Case != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
+				if present {
+					variants++
+				}
+			}
+			if variants != 1 {
 				return invalid()
 			}
 			switch {
-			case statement.Block != nil:
-				if instruction.Query != nil || statement.Rethrow || statement.Return || statement.Target != nil || statement.Expression != nil {
+			case raw.Block != nil:
+				if instruction.Query != nil || instruction.If != nil || instruction.Case != nil || walk(instruction.Block, raw.Block, scopes) != nil {
 					return invalid()
 				}
-				if err := walk(instruction.Block, statement.Block, scopes); err != nil {
+			case raw.If != nil || raw.Case != nil:
+				if instruction.Query != nil || instruction.Block != nil {
+					return invalid()
+				}
+				checked, conditional := instruction.If, raw.If
+				if raw.Case != nil {
+					if instruction.If != nil {
+						return invalid()
+					}
+					checked, conditional = instruction.Case, raw.Case
+				} else if instruction.Case != nil || conditional.Search.Expression != nil {
+					return invalid()
+				}
+				if err := walkConditional(checked, conditional, conditional.Search.Expression != nil, scopes); err != nil {
 					return err
 				}
-			case statement.Rethrow:
-				if statement.Return || statement.Target != nil || statement.Expression != nil || instruction.Block != nil || instruction.Query != nil || instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 {
+			case raw.Rethrow:
+				if raw.Return || raw.Target != nil || raw.Expression != nil || instruction.Block != nil || instruction.If != nil || instruction.Case != nil || instruction.Query != nil || instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 {
 					return invalid()
 				}
 			default:
-				if instruction.Block != nil || (instruction.Query == nil) != (statement.Expression == nil) {
+				if instruction.Block != nil || instruction.If != nil || instruction.Case != nil || !query(instruction.Query, raw.Expression) {
 					return invalid()
 				}
-				if !validPLExpressionQuery(instruction.Query, statement.Expression) {
-					return invalid()
-				}
-				if !statement.Return {
-					target, err := p.ResolveTarget(statement.Target, scopes)
+				if !raw.Return {
+					target, err := p.ResolveTarget(raw.Target, scopes)
 					if err != nil || target.Slot < 0 || target.Slot >= len(p.Variables) || target.Slot != instruction.Target.Slot || !slices.EqualFunc(target.Steps, instruction.Target.Steps, samePLTargetStep) || p.Variables[target.Slot].Constant {
 						return invalid()
 					}
-				} else if instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 {
-					return invalid()
+				}
+				if raw.Return {
+					if instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 {
+						return invalid()
+					}
+					policy := PLReturnPolicy(d.Result, len(d.OutputFormals), p.Procedure)
+					if raw.Expression != nil && policy.Code != "" || raw.Expression == nil && !p.Procedure && !d.Void() && len(d.OutputFormals) == 0 {
+						return invalid()
+					}
 				}
 			}
 		}
@@ -108,7 +230,10 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			}
 			initializer := block.Declarations[initial]
 			variable := p.Variables[slot]
-			if initializer.Slot != slot || block.Bindings[decl.Name.Text] != slot || variable.Name != decl.Name.Text || variable.Constant != decl.Constant || variable.NotNull != decl.NotNull || (initializer.Expression == nil) != (decl.Default == nil) || (initializer.Query == nil) != (decl.Default == nil) {
+			if initializer.Slot != slot || initializer.Start != decl.DefaultStart || initializer.End != decl.DefaultEnd || initializer.Delimiter != decl.DefaultDelimiter || block.Bindings[decl.Name.Text] != slot || variable.Name != decl.Name.Text || variable.Constant != decl.Constant || variable.NotNull != decl.NotNull || !reflect.DeepEqual(initializer.Expression, decl.Default) || !query(initializer.Query, decl.Default) {
+				return invalid()
+			}
+			if !plSourceSpan(d.Source, decl.Default, decl.DefaultStart, decl.DefaultEnd, decl.DefaultDelimiter) {
 				return invalid()
 			}
 			inherit := !variable.Record && variable.Usage.Collation.ID != 0 && len(decl.Type.Copy.Parts) == 0
@@ -120,7 +245,10 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			if variable.InheritInputCollation != inherit {
 				return invalid()
 			}
-			if !reflect.DeepEqual(initializer.Expression, decl.Default) || !validPLExpressionQuery(initializer.Query, decl.Default) || initializer.Query != nil && initializer.Scope == nil {
+			if initializer.Query != nil && (initializer.Scope == nil || initializer.Scope.Label != visible.Label || !maps.Equal(initializer.Scope.Bindings, visible.Bindings)) {
+				return invalid()
+			}
+			if err := diagnostics.expression(p, d.Source, decl.DefaultStart, decl.DefaultEnd, scopes); err != nil {
 				return invalid()
 			}
 			visible.Bindings[decl.Name.Text] = slot
@@ -133,7 +261,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		if !maps.Equal(visible.Bindings, block.Bindings) {
 			return invalid()
 		}
-		if err := walkStatements(block.Statements, raw.Statements, scopes); err != nil {
+		if err := walkList(block.Statements, raw.Statements, scopes); err != nil {
 			return err
 		}
 		if len(block.Handlers) != len(raw.Handlers) {
@@ -172,7 +300,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 					return invalid()
 				}
 			}
-			if err := walkStatements(handler.Statements, rawHandler.Statements, handlerScopes); err != nil {
+			if err := walkList(handler.Statements, rawHandler.Statements, handlerScopes); err != nil {
 				return err
 			}
 		}
@@ -181,17 +309,52 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 	if err := walk(p.Root.Statements[0].Block, p.Syntax, []*PLBlock{p.Root}); err != nil {
 		return err
 	}
-	if slot != len(p.Variables) {
+	if slot != len(p.Variables) || searches != p.SearchCount {
 		return invalid()
 	}
 	return nil
 }
 
-// Compiler-created expression SELECTs own no query clauses beyond their one
-// parser-owned target. Compare the whole shape so new SELECT fields cannot
-// silently become unchecked executable structure.
-func validPLExpressionQuery(query *parser.Select, expression parser.Expr) bool {
-	return reflect.DeepEqual(query, plExpressionQuery(expression))
+func plQueryShape(query *parser.Select, pos parser.Position) bool {
+	if query == nil || len(query.Targets) != 1 {
+		return false
+	}
+	expected := parser.Select{Targets: query.Targets, Pos: pos}
+	return reflect.DeepEqual(query, &expected)
+}
+
+func plPrivateReferences(query *parser.Select, allowed string) bool {
+	count := 0
+	err := parser.VisitQueryExpressions(query, func(raw parser.Expr) error {
+		column, ok := raw.(parser.ColumnExpr)
+		if !ok {
+			return nil
+		}
+		for _, part := range column.Name.Parts {
+			if strings.ContainsRune(part.Text, 0) {
+				if allowed == "" || len(column.Name.Parts) != 1 || part.Text != allowed {
+					return fmt.Errorf("stuntgres: foreign PL search reference")
+				}
+				count++
+			}
+		}
+		return nil
+	})
+	if allowed != "" {
+		return err == nil && count == 1
+	}
+	return err == nil && count == 0
+}
+
+func plSourceSpan(source string, raw parser.Expr, start, end, delimiter parser.Position) bool {
+	if raw == nil {
+		return start == (parser.Position{}) && end == (parser.Position{}) && delimiter == (parser.Position{})
+	}
+	if start.Character <= 0 || end.Character < start.Character || delimiter.Character < end.Character || start.Offset < 0 || start.Offset >= end.Offset || end.Offset > delimiter.Offset || delimiter.Offset > len(source) {
+		return false
+	}
+	position := raw.SourcePosition()
+	return position.Offset >= start.Offset && position.Offset < end.Offset
 }
 
 func samePLTargetStep(a, b parser.TargetStep) bool {
