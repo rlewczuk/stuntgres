@@ -453,49 +453,11 @@ type inquirySnapshot struct {
 	searchPathResults      [2]sqltype.Value
 }
 
-// The caller holds e.mu, the same owner as visibility-prefix capture. After
-// this proof, probing consults only the retained root and retained source rows.
+// captureHashIndexesLocked fills index.HashCapture from the published engine
+// state. The caller holds e.mu, the same owner as visibility-prefix capture.
 func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf, source *exec.Source, mark plan.RowMark) error {
-	if !scope.implicit || scope.catalog != nil || mark.Mode != 0 || source.View == nil || source.Inheritance != nil || len(source.Own) != 0 {
-		return nil
-	}
-	data := source.View.Data()
-	if data.Catalog.State() != e.catalog.state {
-		return nil
-	}
-	a := leaf.Ref.Address
-	store := data.GenerationAt(a)
-	if store == nil || store != e.storage.Relations[a] || data.FrontierAt(a) != e.visibility.CommitSeq() || data.Deleted[a] != nil || len(source.Committed) != len(store.Versions) || data.Ends[a] != store.Ends {
-		return nil
-	}
-	for address, carrier := range e.storage.IndexRoots {
-		idx, ok := data.Catalog.Relation(address)
-		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Method != catalog.HashMethod || idx.SQLIndex.Parent != a || carrier == nil || carrier.Hash == nil {
-			continue
-		}
-		// Readiness permits maintenance, not complete query coverage. A
-		// grandfathered commit may legitimately be absent from an invalid root.
-		if !idx.SQLIndex.Ready || !idx.SQLIndex.Valid || !idx.SQLIndex.Live {
-			continue
-		}
-		live, ok := e.catalog.state.Relation(address)
-		if !ok || !index.SameIndexKeySemantics(idx, live) {
-			continue
-		}
-		root := carrier.Hash
-		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.Committed) || root.Ends != data.Ends[a] {
-			continue
-		}
-		usage, err := index.KeyUsage(leaf.Relation, idx.SQLIndex.Keys[0])
-		if err != nil {
-			return err
-		}
-		if usage != root.Binding.Usage {
-			continue
-		}
-		source.HashIndexes = append(source.HashIndexes, exec.CapturedHashIndex{Definition: idx.SQLIndex, Root: root, Usage: usage})
-	}
-	return nil
+	in := index.HashCapture{Eligible: scope.implicit && scope.catalog == nil, Live: e.catalog.state, Relations: e.storage.Relations, Roots: e.storage.IndexRoots, Commit: e.visibility.CommitSeq()}
+	return index.CaptureHashIndexesLocked(in, leaf, source, mark)
 }
 
 func borrowQueryAuthority(s *exec.Source, scope *StatementScope) {
