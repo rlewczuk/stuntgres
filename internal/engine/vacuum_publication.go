@@ -8,27 +8,12 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"time"
 )
 
-type vacuumCapture struct {
-	rows       []storage.RowVersion
-	ends       *storage.DeletionRoot
-	generation uint64
-	frontier   ids.CommitSeq
-	cutoff     uint64
-	retire     bool
-	catalog    *catalog.State
-	relation   *catalog.Relation
-	indexes    map[ids.ObjectAddress]*storage.IndexRoot
-	attached   int
-	indexCount int
-}
-
-func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget) (vacuumCapture, bool, error) {
-	var c vacuumCapture
+func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget) (VacuumCapture, bool, error) {
+	var c VacuumCapture
 	if err := e.vacuumDatabasePreflightLocked(s); err != nil {
 		return c, false, err
 	}
@@ -40,7 +25,7 @@ func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget)
 	if !ok || target.ref.Epoch != auth.Catalog.Epoch() || d.Name() != target.relation.Name() || d.Namespace() != target.relation.Namespace() || !index.SameRelationRowShape(d, target.relation) || e.storage.Relations[d.Address()] != target.store {
 		return c, false, ids.ErrCatalogReplaced
 	}
-	allowed, err := vacuumAllowed(s.op.Context(), auth, d)
+	allowed, err := VacuumAllowed(s.op.Context(), auth.View, auth, d)
 	if err != nil {
 		return c, false, err
 	}
@@ -51,31 +36,11 @@ func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget)
 	if err != nil {
 		return c, false, err
 	}
-	c = vacuumCapture{rows: target.store.Versions, ends: target.store.Ends, generation: target.store.Generation, frontier: e.visibility.CommitSeq(), cutoff: cutoff, retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), catalog: e.catalog.state, relation: d}
+	c = VacuumCapture{Rows: target.store.Versions, Ends: target.store.Ends, Generation: target.store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.state, Relation: d}
 	return c, true, nil
 }
 
-// Final preflight counts/checks existing roots without allocating a second
-// snapshot map. Only a stale candidate needs a fresh detached root manifest.
-func (e *Engine) captureVacuumIndexesLocked(c *vacuumCapture, collect bool) {
-	c.attached, c.indexCount = 0, 0
-	view := catalog.NewRead(e.catalog.owner(), c.catalog)
-	for a, descriptor := range view.Descriptors() {
-		if idx, ok := descriptor.(*catalog.Relation); ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == c.relation.Address() {
-			c.attached++
-			if root := e.storage.IndexRoots[a]; root != nil {
-				c.indexCount++
-				if collect {
-					if c.indexes == nil {
-						c.indexes = make(map[ids.ObjectAddress]*storage.IndexRoot)
-					}
-					c.indexes[a] = root
-				}
-			}
-		}
-	}
-}
-func (e *Engine) vacuumRelation(s *StatementScope, selected vacuumTarget, o vacuumOptions) error {
+func (e *Engine) vacuumRelation(s *StatementScope, selected VacuumTarget, o VacuumOptions) error {
 	e.mu.Lock()
 	if err := e.vacuumDatabasePreflightLocked(s); err != nil {
 		e.mu.Unlock()
@@ -86,37 +51,26 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected vacuumTarget, o vacu
 		e.mu.Unlock()
 		return err
 	}
-	if selected.ref.Domain() != domainOf(e) || selected.ref.Epoch != auth.Catalog.Epoch() {
+	if selected.Ref.Domain() != domainOf(e) || selected.Ref.Epoch != auth.Catalog.Epoch() {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	d, exists := auth.Catalog.Relation(selected.ref.Address)
+	d, exists := auth.Catalog.Relation(selected.Ref.Address)
 	if !exists {
 		e.mu.Unlock()
-		if selected.name != "" {
-			vacuumNotice(s, "42P01", fmt.Sprintf(`skipping vacuum of "%s" --- relation no longer exists`, selected.name))
+		if selected.Name != "" {
+			vacuumNotice(s, VacuumMissingWarning(selected.Name))
 		}
 		return nil
-	}
-	allowed, err := vacuumAllowed(s.op.Context(), auth, d)
-	if err != nil || !allowed {
-		e.mu.Unlock()
-		if err == nil {
-			vacuumNotice(s, "01000", fmt.Sprintf(`permission denied to vacuum "%s", skipping it`, d.Name()))
-		}
-		return err
 	}
 	// These are work-phase gates, after the actual SUE grant and fresh ACL.
-	// No heap storage, progress or main-work fact is required for a nonheap,
-	// foreign TEMP, partitioned parent, or disabled main processing.
-	if !vacuumHeap(d) && d.Partition == nil {
+	work, warning, err := VacuumWork(s.op.Context(), auth.View, auth, auth.session.SessionToken, d, o.ProcessMain)
+	if err != nil || !work {
 		e.mu.Unlock()
-		vacuumNotice(s, "01000", fmt.Sprintf(`skipping "%s" --- cannot vacuum non-tables or special system tables`, d.Name()))
-		return nil
-	}
-	if vacuumForeignTemp(auth, d) || d.Partition != nil || !o.processMain {
-		e.mu.Unlock()
-		return nil
+		if warning != (VacuumWarning{}) {
+			vacuumNotice(s, warning)
+		}
+		return err
 	}
 	store := e.storage.Relations[d.Address()]
 	if store == nil {
@@ -130,9 +84,9 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected vacuumTarget, o vacu
 	}
 	// Bind current storage/shape only now. Detached work still uses the same
 	// strict epoch, store, shape, root, index, rights and final-publication fences.
-	target := vacuumHeapTarget{selected.ref, d, store}
-	first := vacuumCapture{rows: store.Versions, ends: store.Ends, generation: store.Generation, frontier: e.visibility.CommitSeq(), cutoff: cutoff, retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), catalog: e.catalog.state, relation: d}
-	e.captureVacuumIndexesLocked(&first, true)
+	target := vacuumHeapTarget{selected.Ref, d, store}
+	first := VacuumCapture{Rows: store.Versions, Ends: store.Ends, Generation: store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.state, Relation: d}
+	first.CaptureIndexesLocked(e.catalog.owner(), e.storage.IndexRoots, true)
 	if s.op.Session.SessionToken.ID() > math.MaxInt32 {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: vacuum session identity exceeds integer range")
@@ -140,79 +94,20 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected vacuumTarget, o vacu
 	if e.vacuumProgress == nil {
 		e.vacuumProgress = make(map[ids.TxRef]vacuumProgress)
 	}
-	e.vacuumProgress[s.txRef] = vacuumProgress{fact: pgcatalog.VacuumProgressFact{PID: int64(s.op.Session.SessionToken.ID()), Database: vacuumDatabaseOID(auth.Catalog), DatabaseName: s.op.Session.DatabaseName, Relation: target.ref.Address.ObjectID, Phase: "initializing", IndexesTotal: int64(len(first.indexes))}, owner: auth.State.Authenticated}
+	e.vacuumProgress[s.txRef] = vacuumProgress{fact: pgcatalog.VacuumProgressFact{PID: int64(s.op.Session.SessionToken.ID()), Database: VacuumDatabaseOID(auth.Catalog), DatabaseName: s.op.Session.DatabaseName, Relation: target.ref.Address.ObjectID, Phase: "initializing", IndexesTotal: int64(len(first.Indexes))}, owner: auth.State.Authenticated}
 	e.mu.Unlock()
 	defer e.endVacuumProgress(s.txRef)
+	phase := func(name string, total, processed int64) {
+		e.mu.Lock()
+		e.vacuumPhaseLocked(s, name, total, processed)
+		e.mu.Unlock()
+	}
 	capture := first
 	for {
-		e.mu.Lock()
-		e.vacuumPhaseLocked(s, "scanning heap", int64(len(capture.indexes)), 0)
-		e.mu.Unlock()
-		candidate, err := storage.InspectVacuum(s.op.Context(), capture.rows, capture.ends, capture.frontier, capture.cutoff, capture.retire)
+		pass, err := PrepareVacuumPass(s.op.Context(), capture, target.store, phase)
 		if err != nil {
 			return err
 		}
-		if candidate.Removed != 0 || candidate.Frozen != 0 {
-			e.mu.Lock()
-			e.vacuumPhaseLocked(s, "vacuuming heap", int64(len(capture.indexes)), 0)
-			e.mu.Unlock()
-			candidate, err = storage.MaterializeVacuum(s.op.Context(), capture.rows, capture.ends, capture.frontier, capture.cutoff, candidate)
-			if err != nil {
-				return err
-			}
-		}
-		changed := !storage.SameVersionRoot(candidate.Versions, capture.rows) || candidate.Ends != capture.ends
-		generation := capture.generation
-		if changed {
-			if generation == ^uint64(0) {
-				return fmt.Errorf("stuntgres: storage generation exhausted")
-			}
-			generation++
-		}
-		var roots map[ids.ObjectAddress]*storage.IndexRoot
-		processed := int64(0)
-		indexWork := 0
-		if changed {
-			if candidate.Positions != nil {
-				indexWork = len(capture.indexes)
-			} else {
-				for _, root := range capture.indexes {
-					if root.Hash != nil {
-						indexWork++
-					}
-				}
-			}
-		}
-		if indexWork != 0 {
-			e.mu.Lock()
-			e.vacuumPhaseLocked(s, "vacuuming indexes", int64(len(capture.indexes)), 0)
-			e.mu.Unlock()
-			roots = make(map[ids.ObjectAddress]*storage.IndexRoot, indexWork)
-			for address, root := range capture.indexes {
-				if candidate.Positions == nil && root.Hash == nil {
-					continue
-				}
-				remapped, err := storage.RemapVacuumIndex(s.op.Context(), root, capture.rows, candidate, target.store, generation)
-				if err != nil {
-					return err
-				}
-				roots[address] = remapped
-				processed++
-				e.mu.Lock()
-				e.vacuumPhaseLocked(s, "vacuuming indexes", int64(len(capture.indexes)), processed)
-				e.mu.Unlock()
-			}
-		}
-		var nextCatalog *catalog.State
-		if capture.relation.History.HasIndexes && capture.attached == 0 {
-			nextCatalog = catalog.CloneState(capture.catalog)
-			d := *capture.relation
-			d.History.HasIndexes = false
-			nextCatalog.SetDescriptor(d.Address(), &d)
-		}
-		e.mu.Lock()
-		e.vacuumPhaseLocked(s, "performing final cleanup", int64(len(capture.indexes)), processed)
-		e.mu.Unlock()
 		completed, err := vacuumCompletion(s)
 		if err != nil {
 			return err
@@ -222,17 +117,13 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected vacuumTarget, o vacu
 		if err != nil || !allowed {
 			e.mu.Unlock()
 			if err == nil {
-				vacuumNotice(s, "01000", fmt.Sprintf(`permission denied to vacuum "%s", skipping it`, target.relation.Name()))
+				vacuumNotice(s, VacuumPermissionWarning(target.relation.Name()))
 			}
 			return err
 		}
-		e.captureVacuumIndexesLocked(&current, false)
-		same := storage.SameVersionRoot(current.rows, capture.rows) && current.ends == capture.ends && current.generation == capture.generation && current.retire == capture.retire && current.cutoff >= capture.cutoff && current.attached == capture.attached && current.indexCount == capture.indexCount && e.storage.IndexRootsCurrent(capture.indexes)
-		if nextCatalog != nil && current.catalog != capture.catalog {
-			same = false
-		}
-		if !same {
-			e.captureVacuumIndexesLocked(&current, true)
+		current.CaptureIndexesLocked(e.catalog.owner(), e.storage.IndexRoots, false)
+		if !capture.SameLocked(current, &e.storage, pass.Catalog != nil) {
+			current.CaptureIndexesLocked(e.catalog.owner(), e.storage.IndexRoots, true)
 			capture = current
 			e.mu.Unlock()
 			continue
@@ -242,19 +133,17 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected vacuumTarget, o vacu
 			e.mu.Unlock()
 			return err
 		}
-		target.store.Versions, target.store.Ends, target.store.Generation = candidate.Versions, candidate.Ends, generation
-		for address, root := range roots {
+		target.store.Versions, target.store.Ends, target.store.Generation = pass.Candidate.Versions, pass.Candidate.Ends, pass.Generation
+		for address, root := range pass.Roots {
 			e.storage.InstallIndexRootLocked(address, root)
 		}
-		if nextCatalog != nil {
-			e.catalog.state = nextCatalog
+		if pass.Catalog != nil {
+			e.catalog.state = pass.Catalog
 		}
-		target.store.Maintenance.RecordVacuum(candidate, completed)
+		target.store.Maintenance.RecordVacuum(pass.Candidate, completed)
 		e.mu.Unlock()
-		if o.verbose {
-			ns, _ := catalog.NewRead(e.catalog.owner(), capture.catalog).Namespace(capture.relation.Namespace())
-			qualified := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(capture.relation.Name())
-			message := fmt.Sprintf("vacuuming %s (native logical storage): %d live rows, %d retained dead versions, %d dead versions removed, %d versions frozen", qualified, candidate.Live, candidate.Dead, candidate.Removed, candidate.Frozen)
+		if o.Verbose {
+			message := VacuumReport(catalog.NewRead(e.catalog.owner(), capture.Catalog), capture.Relation, pass.Candidate)
 			s.op.EmitNotice(session.LevelInfo, sqlstate.Error{Severity: "INFO", SeverityUnlocalized: "INFO", Code: "00000", Message: message})
 		}
 		return nil

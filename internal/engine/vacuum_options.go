@@ -10,11 +10,13 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type vacuumOptions struct {
-	freeze, verbose, analyze, full, skipLocked bool
-	processMain, processToast, disableSkipping bool
-	skipDatabase, onlyDatabase, buffer         bool
-	parallel                                   int
+// VacuumOptions are one VACUUM statement's normalized options; the last
+// occurrence of an option wins.
+type VacuumOptions struct {
+	Freeze, Verbose, Analyze, Full, SkipLocked bool
+	ProcessMain, ProcessToast, DisableSkipping bool
+	SkipDatabase, OnlyDatabase, Buffer         bool
+	Parallel                                   int
 }
 
 func vacuumBoolean(v parser.Value) (bool, bool) {
@@ -42,32 +44,35 @@ func vacuumOptionError(code, message string, pos parser.Position) error {
 	}
 	return d
 }
-func normalizeVacuum(s *parser.Vacuum) (vacuumOptions, error) {
-	o := vacuumOptions{processMain: true, processToast: true}
+
+// NormalizeVacuum validates s's options in order, then their combinations, and
+// returns the first error PostgreSQL reports.
+func NormalizeVacuum(s *parser.Vacuum) (VacuumOptions, error) {
+	o := VacuumOptions{ProcessMain: true, ProcessToast: true}
 	for _, v := range s.Options {
 		name := v.Name.Text
 		var destination *bool
 		switch name {
 		case "freeze":
-			destination = &o.freeze
+			destination = &o.Freeze
 		case "verbose":
-			destination = &o.verbose
+			destination = &o.Verbose
 		case "analyze", "analyse":
-			destination = &o.analyze
+			destination = &o.Analyze
 		case "full":
-			destination = &o.full
+			destination = &o.Full
 		case "skip_locked":
-			destination = &o.skipLocked
+			destination = &o.SkipLocked
 		case "process_main":
-			destination = &o.processMain
+			destination = &o.ProcessMain
 		case "process_toast":
-			destination = &o.processToast
+			destination = &o.ProcessToast
 		case "disable_page_skipping":
-			destination = &o.disableSkipping
+			destination = &o.DisableSkipping
 		case "skip_database_stats":
-			destination = &o.skipDatabase
+			destination = &o.SkipDatabase
 		case "only_database_stats":
-			destination = &o.onlyDatabase
+			destination = &o.OnlyDatabase
 		case "truncate":
 			if _, ok := vacuumBoolean(v.Value); !ok {
 				return o, sqlError("42601", name+" requires a Boolean value")
@@ -90,9 +95,9 @@ func normalizeVacuum(s *parser.Vacuum) (vacuumOptions, error) {
 			if n < 0 || n > 1024 {
 				return o, vacuumOptionError("42601", "parallel workers for vacuum must be between 0 and 1024", v.Name.Pos)
 			}
-			o.parallel = int(n)
+			o.Parallel = int(n)
 		case "buffer_usage_limit":
-			o.buffer = true
+			o.Buffer = true
 			if err := vacuumBuffer(v); err != nil {
 				return o, err
 			}
@@ -107,31 +112,31 @@ func normalizeVacuum(s *parser.Vacuum) (vacuumOptions, error) {
 			*destination = value
 		}
 	}
-	incompatible := func(message string) (vacuumOptions, error) { return o, sqlError("0A000", message) }
-	if o.full && o.parallel > 0 {
+	incompatible := func(message string) (VacuumOptions, error) { return o, sqlError("0A000", message) }
+	if o.Full && o.Parallel > 0 {
 		return incompatible("VACUUM FULL cannot be performed in parallel")
 	}
-	if o.full && o.buffer && !o.analyze {
+	if o.Full && o.Buffer && !o.Analyze {
 		return incompatible("BUFFER_USAGE_LIMIT cannot be specified for VACUUM FULL")
 	}
-	if !o.analyze {
+	if !o.Analyze {
 		for _, t := range s.Targets {
 			if len(t.Columns) > 0 {
 				return incompatible("ANALYZE option must be specified when a column list is provided")
 			}
 		}
 	}
-	if o.full && o.disableSkipping {
+	if o.Full && o.DisableSkipping {
 		return incompatible("VACUUM option DISABLE_PAGE_SKIPPING cannot be used with FULL")
 	}
-	if o.full && !o.processToast {
+	if o.Full && !o.ProcessToast {
 		return incompatible("PROCESS_TOAST required with VACUUM FULL")
 	}
-	if o.onlyDatabase {
+	if o.OnlyDatabase {
 		if len(s.Targets) > 0 {
 			return incompatible("ONLY_DATABASE_STATS cannot be specified with a list of tables")
 		}
-		if o.full || o.freeze || o.analyze || o.skipDatabase || o.disableSkipping || o.skipLocked {
+		if o.Full || o.Freeze || o.Analyze || o.SkipDatabase || o.DisableSkipping || o.SkipLocked {
 			return incompatible("ONLY_DATABASE_STATS cannot be specified with other VACUUM options")
 		}
 	}
@@ -171,6 +176,21 @@ func vacuumBuffer(v parser.VacuumOption) error {
 	}
 	if n != 0 && (n < 128 || n > 16777216) {
 		return d
+	}
+	return nil
+}
+
+// CheckVacuumEntry rejects VACUUM inside a transaction block, then FULL, then
+// ANALYZE, which the engine does not perform.
+func CheckVacuumEntry(o VacuumOptions, inBlock bool) error {
+	if inBlock {
+		return sqlError("25001", "VACUUM cannot run inside a transaction block")
+	}
+	if o.Full {
+		return sqlError("0A000", "VACUUM FULL is not supported")
+	}
+	if o.Analyze {
+		return sqlError("0A000", "VACUUM ANALYZE is not supported")
 	}
 	return nil
 }

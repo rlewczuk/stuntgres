@@ -1,11 +1,8 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"sort"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -15,14 +12,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// A selected candidate retains identity and diagnostic origin, not permission,
-// shape or storage authority. Anonymous descendants/omitted candidates have no
-// original name and silently skip an unavailable or disappeared work target.
-type vacuumTarget struct {
-	ref  ids.ObjectRef
-	name string
-}
-
 // Heap authority is captured only after the target's work lock and fresh gates.
 // It remains fixed during detached work and final publication validation.
 type vacuumHeapTarget struct {
@@ -31,37 +20,8 @@ type vacuumHeapTarget struct {
 	store    *storage.Relation
 }
 
-func vacuumNotice(s *StatementScope, code, message string) {
-	s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
-}
-func vacuumAllowed(ctx context.Context, auth AuthorizationView, d *catalog.Relation) (bool, error) {
-	if actor, ok := auth.Roles.Find(auth.State.CurrentUser); ok && actor.Superuser {
-		return true, nil
-	}
-	principals, err := auth.Roles.RoleClosure(ctx, auth.State.CurrentUser, true)
-	if err != nil {
-		return false, err
-	}
-	var databaseOwner authorization.PrincipalRef
-	if !catalog.SharedRelation(d) {
-		if database, ok := auth.Catalog.Database(auth.Owner.DatabaseAddress()); ok {
-			databaseOwner = database.Owner
-		}
-	}
-	for _, principal := range principals {
-		if principal == d.Owner || databaseOwner != (authorization.PrincipalRef{}) && principal == databaseOwner {
-			return true, nil
-		}
-	}
-	rights, err := auth.Effective(auth.Ref(d.Address()), false)
-	return rights&authorization.MaintainPrivilege != 0, err
-}
-func vacuumHeap(d *catalog.Relation) bool {
-	return d.Partition == nil && !d.VirtualView && d.Foreign == nil && (d.RelationKind == catalog.TableRelation || d.RelationKind == catalog.MaterializedViewRelation)
-}
-func vacuumForeignTemp(auth AuthorizationView, d *catalog.Relation) bool {
-	ns, ok := auth.Catalog.Namespace(d.Namespace())
-	return ok && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.session.SessionToken
+func vacuumNotice(s *StatementScope, w VacuumWarning) {
+	s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: w.Code, Message: w.Message})
 }
 func (s *StatementScope) vacuumAcquire(ref ids.ObjectRef, mode lock.Mode, skip bool) error {
 	e := s.engine()
@@ -103,44 +63,15 @@ func (e *Engine) resolveVacuumReference(auth AuthorizationView, name parser.Obje
 	return e.resolveRelationReference(auth, name, true)
 }
 
-func vacuumChildren(view catalog.Read, parent ids.ObjectAddress) []*catalog.Relation {
-	children := catalog.InheritanceChildren(view, parent)
-	partitionChildren := false
-	for _, descriptor := range view.Descriptors() {
-		if child, ok := descriptor.(*catalog.Relation); ok && child.Membership != nil && child.Membership.Parent == parent {
-			children = append(children, child)
-			partitionChildren = true
-		}
-	}
-	if partitionChildren {
-		sort.Slice(children, func(i, j int) bool { return children[i].Address().ObjectID < children[j].Address().ObjectID })
-	}
-	return children
-}
-
-func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked bool) ([]vacuumTarget, error) {
-	var targets []vacuumTarget
-	type selectionWarning struct{ code, message string }
-	var warnings []selectionWarning
+func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked bool) ([]VacuumTarget, error) {
+	var selection VacuumSelection
 	// All expansions finish before work. Deliver only genuine selection notices,
 	// in encounter order and outside every checkpoint/metadata mutex region.
 	defer func() {
-		for _, warning := range warnings {
-			vacuumNotice(s, warning.code, warning.message)
+		for _, warning := range selection.Warnings {
+			vacuumNotice(s, warning)
 		}
 	}()
-	appendRoot := func(auth AuthorizationView, d *catalog.Relation, name string) error {
-		allowed, err := vacuumAllowed(s.op.Context(), auth, d)
-		if err != nil {
-			return err
-		}
-		if allowed {
-			targets = append(targets, vacuumTarget{auth.Ref(d.Address()), name})
-		} else {
-			warnings = append(warnings, selectionWarning{"01000", fmt.Sprintf(`permission denied to vacuum "%s", skipping it`, d.Name())})
-		}
-		return nil
-	}
 	if len(raw.Targets) == 0 {
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -151,16 +82,10 @@ func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked
 		if s.txRef.Epoch() != auth.Catalog.Epoch() {
 			return nil, ids.ErrCatalogReplaced
 		}
-		for _, descriptor := range auth.Catalog.Descriptors() {
-			// Native provider catalogs are not fabricated physical heaps.
-			if d, ok := descriptor.(*catalog.Relation); ok && (vacuumHeap(d) || d.Partition != nil) {
-				if err := appendRoot(auth, d, ""); err != nil {
-					return nil, err
-				}
-			}
+		if err := selection.AddDatabase(s.op.Context(), auth.View, auth); err != nil {
+			return nil, err
 		}
-		sort.Slice(targets, func(i, j int) bool { return targets[i].ref.Address.ObjectID < targets[j].ref.Address.ObjectID })
-		return targets, nil
+		return selection.Targets, nil
 	}
 	for _, target := range raw.Targets {
 		e.mu.Lock()
@@ -185,62 +110,34 @@ func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked
 				if lookupErr != nil || current != ref || !ok || ref.Epoch != auth.Catalog.Epoch() {
 					err = ids.ErrCatalogReplaced
 				} else {
-					err = appendRoot(auth, d, name)
-					if err == nil && target.Only && d.Partition != nil {
-						warnings = append(warnings, selectionWarning{"01000", fmt.Sprintf(`VACUUM ONLY of partitioned table "%s" has no effect`, d.Name())})
-					}
-					if err == nil && !target.Only {
-						// Breadth-first, direct children OID-ordered. Dedup only
-						// this root's expansion, never overlapping textual roots.
-						queue := vacuumChildren(auth.Catalog, d.Address())
-						if len(queue) != 0 {
-							seen := map[ids.ObjectAddress]bool{d.Address(): true}
-							// The bound grows as descendants are appended; a
-							// fixed-length range would truncate this BFS.
-							for head := 0; head < len(queue); head++ {
-								child := queue[head]
-								if seen[child.Address()] {
-									continue
-								}
-								seen[child.Address()] = true
-								targets = append(targets, vacuumTarget{auth.Ref(child.Address()), ""})
-								queue = append(queue, vacuumChildren(auth.Catalog, child.Address())...)
-							}
-						}
-					}
+					err = selection.AddRoot(s.op.Context(), auth.View, auth, d, name, target.Only)
 				}
 			}
 			e.mu.Unlock()
 		}
 		e.locks.Restore(s.ticket, checkpoint)
 		if err == lock.ErrUnavailable && skipLocked {
-			warnings = append(warnings, selectionWarning{"55P03", fmt.Sprintf(`skipping vacuum of "%s" --- lock not available`, name)})
+			selection.LockUnavailable(name)
 			continue
 		}
 		if err != nil {
 			return nil, err
 		}
 	}
-	return targets, nil
+	return selection.Targets, nil
 }
 func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	options, err := normalizeVacuum(raw)
+	options, err := NormalizeVacuum(raw)
 	if err != nil {
 		return Result{}, err
 	}
-	if s.owner.InBlock() {
-		return Result{}, sqlError("25001", "VACUUM cannot run inside a transaction block")
+	if err := CheckVacuumEntry(options, s.owner.InBlock()); err != nil {
+		return Result{}, err
 	}
-	if options.full {
-		return Result{}, sqlError("0A000", "VACUUM FULL is not supported")
-	}
-	if options.analyze {
-		return Result{}, sqlError("0A000", "VACUUM ANALYZE is not supported")
-	}
-	if options.onlyDatabase {
+	if options.OnlyDatabase {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		if err := e.vacuumDatabasePreflightLocked(s); err != nil {
@@ -250,7 +147,7 @@ func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int)
 		s.completed = true
 		return Result{}, nil
 	}
-	targets, err := e.vacuumTargets(s, raw, options.skipLocked)
+	targets, err := e.vacuumTargets(s, raw, options.SkipLocked)
 	if err != nil {
 		return Result{}, err
 	}
@@ -258,10 +155,10 @@ func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int)
 		checkpoint := e.locks.Checkpoint(s.ticket)
 		err = func() error {
 			defer e.locks.Restore(s.ticket, checkpoint)
-			if err := s.vacuumAcquire(target.ref, lock.ShareUpdateExclusive, options.skipLocked); err != nil {
-				if err == lock.ErrUnavailable && options.skipLocked {
-					if target.name != "" {
-						vacuumNotice(s, "55P03", fmt.Sprintf(`skipping vacuum of "%s" --- lock not available`, target.name))
+			if err := s.vacuumAcquire(target.Ref, lock.ShareUpdateExclusive, options.SkipLocked); err != nil {
+				if err == lock.ErrUnavailable && options.SkipLocked {
+					if target.Name != "" {
+						vacuumNotice(s, VacuumLockWarning(target.Name))
 					}
 					return nil
 				}
@@ -273,7 +170,7 @@ func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int)
 			return Result{}, err
 		}
 	}
-	if !options.skipDatabase {
+	if !options.SkipDatabase {
 		e.mu.Lock()
 		err = e.vacuumDatabasePreflightLocked(s)
 		if err == nil {

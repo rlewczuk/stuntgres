@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
@@ -16,22 +15,13 @@ type vacuumProgress struct {
 func (e *Engine) updateDatabaseMaintenanceLocked() {
 	// A still-active publisher can create or first write a relation after this
 	// calculation; installed relation bounds alone cannot justify the seed.
-	next, err := e.visibility.VacuumCutoffLocked()
+	cutoff, err := e.visibility.VacuumCutoffLocked()
 	if err != nil {
 		return
 	}
-	for address, store := range e.storage.Relations {
-		d, ok := e.catalog.state.Relation(address)
-		if !ok || !vacuumHeap(d) {
-			continue
-		}
-		bound := store.Maintenance.FrozenXID
-		if bound == 0 {
-			return
-		}
-		if bound < next {
-			next = bound
-		}
+	next, ok := DatabaseFrozenXIDLocked(e.catalog.state, e.storage.Relations, cutoff)
+	if !ok {
+		return
 	}
 	e.databaseFrozenXID = next
 	e.publishDatabaseFrozenXIDLocked()
@@ -86,13 +76,4 @@ func (r engineCatalogRuntime) VisitVacuumProgress(ctx context.Context, visit fun
 		}
 	}
 	return nil
-}
-
-// Database identity comes from the existing descriptor, not an allocator guess.
-func vacuumDatabaseOID(view catalog.Read) ids.OID {
-	database, ok := view.Database(view.Owner().DatabaseAddress())
-	if !ok {
-		return 0
-	}
-	return database.Address().ObjectID
 }
