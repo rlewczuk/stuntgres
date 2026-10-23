@@ -174,7 +174,7 @@ func TestRuleDerivedSourceAliasReplacement(t *testing.T) {
 		},
 	}
 	renderer := NewQueryRenderer(view)
-	renderer.Frame, renderer.depth, renderer.functionSources = 1, 1, true
+	renderer.Frame, renderer.depth = 1, 1
 	renderer.Presentation = Presentation{Deparse: true, Rule: true}
 	renderer.namespace = 1 // Render the two real input occurrences below.
 	from, err := renderer.renderFromSQL(context.Background(), read, input)

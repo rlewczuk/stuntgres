@@ -50,6 +50,10 @@ func SelectExactRoutine(view catalog.Read, path analyze.NamespaceSelection, name
 		}
 		if namespace.ObjectID == ids.PGCatalogNamespaceOID {
 			if p, ok := catalog.BuiltinRoutineIdentityBySignature(name, signature); ok {
+				if current, represented := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: p.ID}); represented &&
+					(current.Namespace().ObjectID != p.Namespace || current.Name() != p.Name || current.Signature != p.Signature) {
+					continue
+				}
 				return p, 1
 			}
 		}

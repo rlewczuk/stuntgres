@@ -193,19 +193,34 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		if err != nil || value.Type() != b.Type(sqltype.Text) || value.IsNull() != null {
 			t.Fatal(value, err)
 		}
-		// Exact CHAR MD5/NULL vectors are local; actual special-role admission,
-		// result/NULL identity and generic CHAR rejection stay in this owner test.
-		for _, textual := range []bool{false, true} {
-			_, err := b.StringOperand(cast, textual)
-			if textual && err != nil {
-				t.Fatal("textual role rejected CHAR", err)
-			}
-			if !textual {
-				state(t, err, "0A000")
+		if !null {
+			digest, err := value.Text()
+			if err != nil || digest != "0cc175b9c0f1b6a831c399e269772661" {
+				t.Fatal(digest, err)
 			}
 		}
-		_, err = b.Bind(cast, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-		state(t, err, "0A000")
+		// Canonical view definitions require direct CHAR string/NULL casts.
+		// Both operand roles must preserve the same typed literal value.
+		for _, textual := range []bool{false, true} {
+			operand, err := b.StringOperand(cast, textual)
+			if err != nil {
+				t.Fatal("literal CHAR operand", textual, err)
+			}
+			value, err := operand.Node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
+			if err != nil || value.Type() != b.Type(sqltype.Char) || value.IsNull() != null {
+				t.Fatal("literal CHAR value", textual, value, err)
+			}
+			if !null {
+				got, err := value.Type().Output(ctx, value)
+				if err != nil || got != "a" {
+					t.Fatal(got, err)
+				}
+			}
+		}
+		direct, err := b.Bind(cast, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err != nil || direct.ResultUsage().Type != b.Type(sqltype.Char) {
+			t.Fatal("direct literal CHAR cast", direct, err)
+		}
 		_, err = e.resolveType(cast.TypeName, binderOperation(b))
 		state(t, err, "0A000")
 	}

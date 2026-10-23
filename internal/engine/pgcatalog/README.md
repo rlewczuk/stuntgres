@@ -5,7 +5,7 @@ the producer-backed `information_schema` views (`table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
-`sequences`, `role_column_grants`, `columns`, `domains`). Each
+`sequences`, `role_column_grants`, `columns`, `domains`, `views`). Each
 producer is a pure function from a captured catalog, a paired role read and a
 narrow runtime capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -118,6 +118,7 @@ engine; an empty adapter is not an initialized maintenance capture.
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |
 | `ViewDefinition`, `IndexDefinition`, `VisitRuleDefinitions` | current-identity stored definition rendering; rule visitor omits exact `_RETURN` before rendering |
 | `ColumnExpression`, `ColumnUpdatable` | captured stored-expression display and metadata-only view/rule/foreign capability |
+| `ViewCapabilities` | structural event and actual trigger facts, bridging stored views and FDW handler interfaces without query execution |
 | `Pinned`, `OperatorSeeded`, `OperatorDependencies`, `TypeProviderProcedure` | pin decisions, the builtin operator inventory and operator dependencies owned by `routine`, extension type providers |
 | `VisitSequenceDefinitions` | sequence definitions with the statement's journal overlay (`pg_sequence`) |
 
@@ -277,6 +278,51 @@ neither multiply rows nor add columns. Fresh held executions capture current
 definitions, privileges and naming paths; returned rows retain their original
 values and descriptor generations.
 Malformed source/base/collation authority and cancellation return no prefix.
+
+## Information-schema views
+
+`info_views.go` projects ten nullable source-owned domain columns through the
+ordinary source/type path: three `sql_identifier` identities, definition and
+check option as `character_data`, then five `yes_or_no` flags. Empty results
+retain the same description. Every represented `ClassKind` v relation is a
+candidate except another physical session's TEMP relation.
+
+Visibility is enabled owner membership or any supported relation DML/reference/
+trigger privilege, or any supported privilege on a live positive attribute.
+MAINTAIN alone does not disclose a view; schema USAGE and search_path do not
+filter metadata. ACL-visible nonowners receive a typed NULL definition; enabled
+owners receive the current definition. Query bodies are never evaluated.
+Fresh held executions capture current definitions, options, role authority and
+display settings together; failed capture or cancellation publishes no prefix.
+
+Structural flags do not depend on the viewer's DML rights. The engine bridges
+`view.Capabilities`, including nested output subsets, unconditional INSTEAD rules
+and the actual registered foreign handler's modification interfaces. Rules are
+not trigger facts. The current relation model has no INSTEAD OF triggers, so the
+three trigger flags are NO.
+Represented catalog relations classified as ordinary tables supply ordinary
+base-table structural events; this does not change catalog write admission.
+
+`builtin_views*.go` owns one closed inventory of 38 builtin view definitions,
+including `information_schema.columns`, `information_schema.domains` and
+`pg_catalog.pg_rules`, with classification and per-output capability facts.
+Its canonical literal fragments contain explicit object-name and identifier
+occurrences. `pg_rules` uses the same definition authority as both consumers;
+its `pg_get_ruledef(oid)` reference captures stable routine identity, while
+column and relation aliases remain identifier-only annotations. Its structural
+update and insert flags are NO; this does not change rule visitation or DDL.
+`SummaryViewDefinition` supplies canonical metadata; `BuiltinViewDefinition`
+formats those occurrences using the engine's captured naming and identifier
+formatters. The same runtime authority renders `pg_views` and `views`.
+Routine occurrences capture their original OID from the existing released
+identity registry. Represented targets use the current name, namespace and
+signature from that same captured catalog before exact-signature qualification;
+same-name replacements cannot retarget them. Missing current namespaces fail
+the capture rather than inventing labels.
+Released references absent from the native catalog remain display-only facts,
+never descriptors, stored query payloads or executable providers. Captured
+search_path, exact-signature routine shadows and quote_all_identifiers affect
+presentation without rewriting column qualifiers as relation names.
 
 ## Testing
 

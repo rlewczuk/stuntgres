@@ -133,6 +133,9 @@ func TestReferenceArraySearchNestedViews(t *testing.T) {
 		}
 		fixture.ArrayReferenceConsumeHeld(t, retained, check.Rows, check.Types)
 		arraySearchBoth(t, p, b, c, check)
+		t.Run("restored_definition", func(t *testing.T) {
+			arraySearchReviewViewDefinition(t, p, b, c, arraySearchReviewPostgresReplayDefinition)
+		})
 	})
 }
 

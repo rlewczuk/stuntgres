@@ -20,7 +20,6 @@ func TestReferenceQuerySubqueryViews(t *testing.T) {
 		run(fixture.Exec("ALTER TABLE inner_t RENAME TO renamed_inner", 0))
 		run(fixture.Exec("ALTER TABLE renamed_inner RENAME COLUMN v TO renamed_value", 0))
 		check()
-		// Rendered body is reparsed by the public stored-view lookup on every read.
 		run(fixture.Exec("ALTER TABLE renamed_inner ADD COLUMN unused INT", 0))
 		run(fixture.Exec("ALTER TABLE renamed_inner DROP COLUMN unused", 0))
 		check()
@@ -90,6 +89,13 @@ func TestReferenceQuerySubqueryDerivedDuplicateViewLabels(t *testing.T) {
 		// A user label resembling the private bridge namespace must remain
 		// independent of whichever synthetic label the renderer chooses.
 		run(fixture.Exec("CREATE VIEW collision_view(a,b,c) AS SELECT d.* FROM (SELECT 1 AS x,2 AS x,3 AS __view_added_0_1)d", 0))
+		for _, definition := range []struct{ name, sql string }{
+			{"duplicate_view", " SELECT x AS a,\n    x_1 AS b\n   FROM ( SELECT 1 AS x,\n            2 AS x) d(x, x_1);"},
+			{"collision_view", " SELECT x AS a,\n    x_1 AS b,\n    __view_added_0_1 AS c\n   FROM ( SELECT 1 AS x,\n            2 AS x,\n            3 AS __view_added_0_1) d(x, x_1, __view_added_0_1);"},
+		} {
+			subqueryBoth(run, fixture.Select("SELECT pg_get_viewdef($1::regclass)", []string{"pg_get_viewdef"}, []string{"TEXT"}, [][]any{{definition.sql}}, definition.name))
+			subqueryBoth(run, fixture.Select("SELECT definition FROM pg_catalog.pg_views WHERE schemaname='public' AND viewname=$1", []string{"definition"}, []string{"TEXT"}, [][]any{{definition.sql}}, definition.name))
+		}
 		fixture.ViewCopy(t, p, b, "duplicate_view", "duplicate_copy")
 		fixture.ViewCopy(t, p, b, "collision_view", "collision_copy")
 		check := func() {

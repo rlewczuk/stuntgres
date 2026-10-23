@@ -66,7 +66,6 @@ func (a *ruleRendering) prepareNamespaces(ctx context.Context, view catalog.Read
 	}
 	r.Frame = project.Frame
 	r.namespace = r.renderFrames[r.Frame].namespace
-	r.functionSources = true
 	from, err := r.fromSQL(ctx, view, a.presentation.syntax.From)
 	if err != nil {
 		return err

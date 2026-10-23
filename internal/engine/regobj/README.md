@@ -42,6 +42,10 @@ import it.
   ACL inquiry functions), `CollectOperatorGroups`, `VisibleOperators`,
   `SelectRoutine`, `SelectExactRoutine`, `RoutineIdentityByOID`,
   `RoutineDescriptorOwner`.
+  Exact selection reads represented descriptors first. Its released fallback
+  suppresses stale aliases when that identity's current name, namespace or
+  signature has changed, then continues the normal namespace path. Genuinely
+  absent release identities remain lookup-only, not executable descriptors.
 - **Captured input resolvers** (`reg*_input.go`, `captured_input_target.go`,
   `input_authority.go`): `ClassInput`, `TypeInput`, `OperatorInput`,
   `RoutineInput`, `TextSearchInput` and `ObjectInput`, built by `New*Input` over

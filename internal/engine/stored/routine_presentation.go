@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -41,11 +42,27 @@ func (v *QueryRenderer) sqlRoutineRecipeName(read catalog.Read, path analyze.Vie
 	if err != nil {
 		return "", err
 	}
+	if v.Presentation.Deparse {
+		return (Deparser{View: read, Path: v.Presentation.Path, Output: v.Presentation.Output}).sqlRoutineName(d)
+	}
 	namespace, ok := read.Namespace(d.Namespace())
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing frozen SQL routine namespace")
 	}
 	return v.Presentation.identifier(namespace.Name()) + "." + v.Presentation.identifier(d.Name()), nil
+}
+
+func (r Deparser) sqlRoutineName(d *catalog.Procedure) (string, error) {
+	namespace, ok := r.View.Namespace(d.Namespace())
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
+	}
+	selected, count := regobj.SelectExactRoutine(r.View, analyze.NamespaceSelection{Path: r.Path}, d.Name(), d.Signature)
+	name := r.Identifier(d.Name())
+	if count == 1 && selected.ID == d.Address().ObjectID {
+		return name, nil
+	}
+	return r.Identifier(namespace.Name()) + "." + name, nil
 }
 
 func (v *View) AggregateRecipeProcedure(read catalog.Read, path analyze.ViewLiteralPath, raw parser.AggregateExpr) (*catalog.Procedure, error) {

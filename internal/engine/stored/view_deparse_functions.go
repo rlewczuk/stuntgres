@@ -104,7 +104,7 @@ func (v *QueryRenderer) renderFunctionTableSQL(ctx context.Context, catalog cata
 		from.relation = text
 		return from, nil
 	}
-	if root.RegexpNamespace && v.functionSources {
+	if root.RegexpNamespace && v.Presentation.Deparse {
 		from.slots = make(map[int]string, len(from.columns))
 		qualifier := v.Presentation.identifier(v.namespaceAlias(ns))
 		for _, column := range from.columns {

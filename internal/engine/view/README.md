@@ -68,6 +68,14 @@ imports `view`.
   It ignores triggers and caller ACLs, never binds or executes a mutation, and
   obtains foreign event capabilities through an effect-free callback rather
   than importing `fdw`.
+- **Structural capabilities** (`capabilities.go`): `Capabilities` computes
+  UPDATE/INSERT/DELETE bits from immutable relation identity, actual
+  unconditional INSTEAD rules and stored write shape. Nil output subsets mean
+  all; explicit empty subsets mean none. Direct outputs map frozen slots to
+  current stable attributes before recursive base intersection. Recursion tracks
+  ancestry, not a relation-only memo; stale identities/attributes are errors.
+  The engine supplies builtin and foreign handler facts through `CapabilityLeaf`.
+  No binder, provider callback, data read, permission probe or lock is involved.
 - **View records and checks** (`view.go`, `alter.go`, `dependencies.go`,
   `options.go`, `query.go`): creation scope, output-name and collation checks,
   `ValidateViewDefinition`, `ViewDepends`, `TransformViewOptions` and
@@ -159,4 +167,5 @@ make check RUN='^Test(ViewHostSeam|DropReaderSeam|ViewTargetAdmission|BindingSlo
 make check RACE=1 RUN='^TestMaterializedRefreshConcurrent'
 make check RUN='^TestReference(View|Rule|Materialized)'
 make check RUN='^TestReferenceRLS'
+make check RUN='^TestViewCapabilities(ColumnSubset|RuleEvents|ForeignEvents)$'
 ```

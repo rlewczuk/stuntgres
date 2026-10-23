@@ -813,4 +813,16 @@ var Specs = [...]Spec{
 		{"maximum_cardinality", 13243, true, 0, 0, -1},
 		{"dtd_identifier", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing domains domain"},
+	{InfoViewsOID, 13229, "views", []ColumnSpec{
+		{"table_catalog", 13248, true, 950, 0, -1},
+		{"table_schema", 13248, true, 950, 0, -1},
+		{"table_name", 13248, true, 950, 0, -1},
+		{"view_definition", 13246, true, 950, 0, -1},
+		{"check_option", 13246, true, 950, 0, -1},
+		{"is_updatable", 13256, true, 950, 0, -1},
+		{"is_insertable_into", 13256, true, 950, 0, -1},
+		{"is_trigger_updatable", 13256, true, 950, 0, -1},
+		{"is_trigger_deletable", 13256, true, 950, 0, -1},
+		{"is_trigger_insertable_into", 13256, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing views domain"},
 }

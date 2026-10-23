@@ -144,6 +144,13 @@ func TestReferenceViewCatalogCHARLiteralReconstruction(t *testing.T) {
 			run(s)
 			fixture.RunStep(t, p.Ctx, original, b.Recorder, s)
 			fixture.ViewCopy(t, p, b, "char_literal", "reconstructed")
+			run(fixture.Exec(`CREATE VIEW char_null_literal AS SELECT 'r'::"char" AS kind, NULL::"char" AS empty_kind, relkind = NULL::"char" AS absent FROM pg_catalog.pg_class WHERE relname='char_source'`, 0))
+			fixture.ViewCopy(t, p, b, "char_null_literal", "reconstructed_null")
+			for _, name := range []string{"char_null_literal", "reconstructed_null"} {
+				s := fixture.Select("SELECT kind,empty_kind,absent FROM "+name, []string{"kind", "empty_kind", "absent"}, []string{"CHAR", "CHAR", "BOOL"}, [][]any{{"r", nil, nil}})
+				run(s)
+				run(fixture.Prepared(s))
+			}
 			copyStmt := fixture.ViewHold(t, p, b, "SELECT below FROM reconstructed")
 			for phase := range 2 {
 				if phase == 1 && !b.PG {

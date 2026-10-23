@@ -36,7 +36,11 @@ func TestReferencePGTableViewsControls(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Select("SELECT n FROM pgtv_control_schema.pgtv_control_view", []string{"n"}, []string{"INT4"}, [][]any{{int64(9)}}))
 			}
 			builtin := func(db fixture.Executor) {
-				fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Select("SELECT viewname FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND "+pgTableViewsNames("viewname", pgViewBuiltinNames)+" ORDER BY viewname", []string{"viewname"}, []string{"NAME"}, [][]any{{"pg_group"}, {"pg_indexes"}, {"pg_prepared_xacts"}, {"pg_roles"}, {"pg_tables"}, {"pg_views"}}))
+				var expected [][]any
+				for _, name := range pgViewBuiltinNames {
+					expected = append(expected, []any{name})
+				}
+				fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Select("SELECT viewname FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND "+pgTableViewsNames("viewname", pgViewBuiltinNames)+" ORDER BY viewname", []string{"viewname"}, []string{"NAME"}, expected))
 			}
 			if b.PG {
 				conn := fixture.SequenceCoreConn(t, p.Ctx, b.DB)

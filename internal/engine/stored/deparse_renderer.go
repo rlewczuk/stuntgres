@@ -757,11 +757,11 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if err != nil {
 			return "", err
 		}
-		namespace, ok := r.View.Namespace(procedure.Namespace())
-		if !ok {
-			return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
+		name, err := r.sqlRoutineName(procedure)
+		if err != nil {
+			return "", err
 		}
-		return routineCallSQL(n, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), r.Identifier, func(arg expr.Expr) (string, error) {
+		return routineCallSQL(n, name, r.Identifier, func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.ShowImplicit = true
 			return argRenderer.SQL(ctx, arg, DeparseParent{})

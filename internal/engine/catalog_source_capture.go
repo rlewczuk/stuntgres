@@ -58,11 +58,11 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case 12014, 12007, 12008:
 		in.Roles = scope.inquiry.commentRoles
 		unlockBefore = true
-	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID, pgcatalog.KeyColumnUsageOID, pgcatalog.InfoRoutineSequenceUsageOID, pgcatalog.InfoCharacterSetsOID, pgcatalog.ConstraintColumnUsageOID, pgcatalog.InfoEnabledRolesOID, pgcatalog.InfoViewTableUsageOID, pgcatalog.InfoColumnColumnUsageOID, pgcatalog.InfoDomainConstraintsOID, pgcatalog.InfoSequencesOID, pgcatalog.InfoRoleColumnGrantsOID, pgcatalog.InfoColumnsOID, pgcatalog.InfoDomainsOID:
+	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID, pgcatalog.KeyColumnUsageOID, pgcatalog.InfoRoutineSequenceUsageOID, pgcatalog.InfoCharacterSetsOID, pgcatalog.ConstraintColumnUsageOID, pgcatalog.InfoEnabledRolesOID, pgcatalog.InfoViewTableUsageOID, pgcatalog.InfoColumnColumnUsageOID, pgcatalog.InfoDomainConstraintsOID, pgcatalog.InfoSequencesOID, pgcatalog.InfoRoleColumnGrantsOID, pgcatalog.InfoColumnsOID, pgcatalog.InfoDomainsOID, pgcatalog.InfoViewsOID:
 		in.Catalog, in.Roles = scope.inquiry.commentCatalog, scope.inquiry.deparseAuth.Roles
 		runtime.auth, runtime.database = scope.inquiry.deparseAuth, scope.op.Session.DatabaseName
 		runtime.temporary = catalogSourceTemporaryOwner(scope.inquiry.deparseAuth)
-		if oid == pgcatalog.InfoColumnsOID {
+		if oid == pgcatalog.InfoColumnsOID || oid == pgcatalog.InfoViewsOID {
 			runtime.presentation = stored.Presentation{Deparse: true, Path: scope.inquiry.deparsePath, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings}
 		}
 		if oid == pgcatalog.InfoDomainsOID {
@@ -113,7 +113,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			auth.Recapture(auth.Catalog)
 			runtime.auth, in.Roles = auth, auth.Roles
 		}
-		if oid == 12006 || oid == pgcatalog.RulesOID {
+		if oid == 12006 || oid == 12000 || oid == pgcatalog.RulesOID {
 			runtime.presentation = stored.Presentation{Deparse: true, Path: scope.inquiry.deparsePath, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings}
 			runtime.temporary = catalogSourceTemporaryOwner(scope.inquiry.deparseAuth)
 		}

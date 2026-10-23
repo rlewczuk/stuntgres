@@ -3,6 +3,7 @@ package stored
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -59,6 +60,10 @@ func (v *QueryRenderer) renderDerivedQuerySQL(ctx context.Context, catalogView c
 	}
 	if v.Presentation.Rule {
 		return v.ruleDerivedSource(from, rangeName), nil
+	}
+	if v.Presentation.Deparse {
+		from.relation = "(" + strings.ReplaceAll(text, "\n", "\n        ") + ")"
+		return from, nil
 	}
 	aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
 	aliased.relation = "(" + text + ")"

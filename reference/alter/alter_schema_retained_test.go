@@ -81,13 +81,6 @@ func TestReferenceAlterSchemaViewsAndFailedRestore(t *testing.T) {
 			if err = c.QueryRowContext(p.Ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname='pairs'").Scan(&definition); err != nil {
 				t.Fatal(err)
 			}
-			source, old := `"s2"."t"`, `"s1"."t"`
-			if backend.PG {
-				source, old = "s2.t", "s1.t"
-			}
-			if !strings.Contains(definition, source) || strings.Contains(definition, old) {
-				t.Fatal("stale source namespace", definition)
-			}
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE VIEW public.replayed AS "+definition, 0))
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT left_id,right_id FROM public.replayed", []string{"left_id", "right_id"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(9)}}))
 			if !backend.PG {

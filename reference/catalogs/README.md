@@ -245,3 +245,17 @@ bytes and preserve old eager rows, with explicit ACL rejection tested separately
 
 - Column metadata: `RUN='^TestReferenceInfoColumns'`
 
+### View definition metadata
+
+`info_views_helpers_test.go` owns paired scenarios, exact ten-column domain and
+adapter metadata, role/schema cleanup and direct/new/held consumers. The family
+checks definition disclosure, physical TEMP isolation, options, lifecycle
+atomicity and structural capabilities without body execution. Builtin definition
+expectations are literal independent PostgreSQL observations for default,
+information-schema and exact-shadow paths, with quote_all_identifiers both off
+and on. `pg_views` uses the same consumer expectations.
+Foreign-handler capability scenarios live with the real foreign-source fixture
+in `reference/tables`; they share the same family selector.
+See [producer ownership](../../internal/engine/pgcatalog/README.md#information-schema-views).
+
+- View definitions: `RUN='^TestReferenceInfoViews'`

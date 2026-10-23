@@ -68,7 +68,6 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 		return "", fmt.Errorf("stuntgres: missing frozen query frame")
 	}
 	previous, previousFrame, previousSimple, previousNamespace := renderer.query, renderer.Frame, renderer.simple, renderer.namespace
-	previousFunctionSources := renderer.functionSources
 	previousSimpleQualifier := renderer.simpleQualifier
 	renderer.query, renderer.Frame = &plan.Query{Root: project}, project.Frame
 	renderer.namespace = len(renderer.namespaces)
@@ -78,13 +77,11 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 	renderer.depth++
 	defer func() {
 		renderer.query, renderer.Frame, renderer.simple, renderer.namespace = previous, previousFrame, previousSimple, previousNamespace
-		renderer.functionSources = previousFunctionSources
 		renderer.simpleQualifier = previousSimpleQualifier
 		renderer.depth--
 	}()
 	presentation := renderer.Presentation
 	presentation.Columns = columns
-	renderer.functionSources = presentation.Deparse && (presentation.Rule || viewHasFunctionSource(s.From))
 	simpleFrom := s.From
 	if alias, ok := simpleFrom.(*parser.AliasReference); ok && presentation.Deparse && !setOperand && !presentation.Rule {
 		// A sole table still needs no column qualification when it has an
@@ -228,16 +225,14 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 	}
 	var from string
 	var setSourceColumns []viewRenderColumn
-	var functionSourceColumns []viewRenderColumn
+	var sourceColumns []viewRenderColumn
 	if s.From != nil {
 		source, err := renderer.fromSQL(ctx, catalogView, s.From)
 		if err != nil {
 			return "", err
 		}
 		from = source.text
-		if renderer.functionSources {
-			functionSourceColumns = source.columns
-		}
+		sourceColumns = source.columns
 		if setOperand && renderer.simple {
 			root, ok := source.root.(*plan.SourceNode)
 			if !ok {
@@ -336,8 +331,8 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 				}
 			}
 		}
-		if renderer.functionSources {
-			for _, column := range functionSourceColumns {
+		if presentation.Deparse {
+			for _, column := range sourceColumns {
 				if column.slot >= 0 && targets[i] == renderer.Slots[analyze.ViewFromRoot(v.query.Root)][column.slot] {
 					natural = presentation.identifier(column.name)
 					break
@@ -477,10 +472,10 @@ func (renderer *QueryRenderer) selectQueryTailSQL(ctx context.Context, catalog c
 			path := analyze.ViewLiteralPath{Clause: analyze.ViewOrderLiteral, Target: i}
 			var name string
 			var err error
-			if ordinal, ok := key.Expr.(parser.LiteralExpr); presentation.Deparse && setOperand && s.Set == nil && ok && ordinal.Value.Kind == parser.IntegerValue {
-				// Stored syntax freezes output references as ordinals. A local
-				// SELECT arm displays that occurrence's original target, not its
-				// projection-cache slot or an overridden result label.
+			if ordinal, ok := key.Expr.(parser.LiteralExpr); presentation.Deparse && s.Set == nil && ok && ordinal.Value.Kind == parser.IntegerValue {
+				// Stored output references are frozen as ordinals. Public query
+				// display uses the selected target expression; replay keeps its
+				// positional reference independently of labels.
 				name, err = renderer.selectOutputSQL(ctx, catalog, int(ordinal.Value.Integer)-1)
 			} else {
 				name, err = renderer.ExpressionSQL(ctx, catalog, key.Expr, path)
@@ -555,6 +550,12 @@ func (renderer *QueryRenderer) selectOutputSQL(ctx context.Context, catalog cata
 	project, ok := renderer.query.Root.(*plan.ProjectNode)
 	if !ok || project.Syntax == nil || slot < 0 || slot >= len(project.Schema()) {
 		return "", fmt.Errorf("stuntgres: missing view ORDER output occurrence")
+	}
+	if project.Syntax.Distinct != nil {
+		// DISTINCT orders a selected occurrence, not a separately rebound
+		// expression. In particular, repeating a scalar subquery creates a
+		// different captured frame rather than the selected DISTINCT value.
+		return strconv.Itoa(slot + 1), nil
 	}
 	ordinal := slot + 1
 	for target, raw := range project.Syntax.Targets {
@@ -715,7 +716,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 	}
 	if literal, ok := v.literals[path]; ok {
 		_, identity := v.sequenceRefs[raw.SourcePosition().Offset]
-		if literal.ResultUsage().Type.BaseType().ID() != sqltype.Regclass || !identity {
+		if v.Presentation.Deparse || literal.ResultUsage().Type.BaseType().ID() != sqltype.Regclass || !identity {
 			if v.Presentation.Deparse {
 				r := Deparser{View: catalogView, Pretty: v.Presentation.Pretty, Path: v.Presentation.Path, Output: v.Presentation.Output, NonstandardStrings: v.Presentation.NonstandardStrings}
 				return r.SQL(ctx, literal, DeparseParent{})
@@ -1049,6 +1050,16 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		usage, ok := v.castUsages[path]
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
+		}
+		if v.Presentation.Deparse {
+			switch e.Child.(type) {
+			case parser.LiteralExpr, parser.TypedLiteralExpr:
+				if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage && !pgLiteralSimple(literal, text) {
+					// The captured constant already owns this exact annotation.
+					// Keep outer casts and conversions to different usages.
+					return text, nil
+				}
+			}
 		}
 		if !v.Presentation.Deparse && (usage.Type.BaseType().ID() == sqltype.Path || usage.Type.BaseType().ID() == sqltype.Point || usage.Type.BaseType().ID() == sqltype.Line || usage.Type.BaseType().ID() == sqltype.Lseg || usage.Type.BaseType().ID() == sqltype.Polygon || usage.Type.BaseType().ID() == sqltype.Box || usage.Type.BaseType().ID() == sqltype.Circle) {
 			switch e.Child.(type) {

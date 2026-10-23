@@ -160,6 +160,10 @@ library, and never the root engine or `session`. The engine, the root driver
   provider dispatch. Geometric alignment spellings, including bar-containing
   operators also recognized by bitwise or JSONB spelling probes, never take
   the spelling-only builtin shortcut.
+- **Internal CHAR literals.** Canonical catalog SQL may annotate a direct string
+  or NULL literal as `"char"`. Binding uses the existing textual-input codec
+  path for those annotations only; parameters, general CHAR casts and column
+  storage do not gain admission.
 
 ## What stays in the engine
 

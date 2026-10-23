@@ -125,6 +125,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.DataTypePrivilegesOID:       "data_type_privileges",
 	pgcatalog.InfoRoleColumnGrantsOID:     "role_column_grants",
 	pgcatalog.InfoColumnsOID:              "columns",
+	pgcatalog.InfoViewsOID:                "views",
 }
 
 func (r engineCatalogRuntime) ValidateCapture(view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, oid ids.OID) error {
@@ -256,6 +257,9 @@ func (r engineCatalogRuntime) PartitionReferences(ctx context.Context, view cata
 	return stored.PartitionDependRefs(ctx, view, relation)
 }
 func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
+	if relation.View == nil {
+		return r.builtinViewDefinition(ctx, view, relation)
+	}
 	return stored.ViewDefinitionSQL(ctx, view, relation, r.presentation)
 }
 func (r engineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {

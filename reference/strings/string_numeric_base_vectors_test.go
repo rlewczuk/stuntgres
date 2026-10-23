@@ -85,6 +85,7 @@ func TestReferenceStringNumericBaseMD5Vectors(t *testing.T) {
 			{"md5('abc '::text)", "28a53e303da9f5742476fd6b62434540"},
 			{"md5('abc'::name)", "900150983cd24fb0d6963f7d28e17f72"},
 			{`md5('a'::"char")`, "0cc175b9c0f1b6a831c399e269772661"},
+			{`md5(NULL::"char")`, nil},
 			{`md5('\x0')`, "d8e6a5626b620a84d69e8052951a080a"},
 			{`md5('\x00'::bytea)`, "93b885adfe0da089cdf634904fd59f71"},
 			{`md5('\x0080ff'::bytea)`, "edaa0390b22ab88b20932fa7a5e019ff"},

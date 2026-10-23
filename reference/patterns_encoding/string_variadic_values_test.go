@@ -66,26 +66,12 @@ func TestReferenceStringVariadicOutput(t *testing.T) {
 		{`quote_literal('10.0.0.0/8'::cidr)`, `'10.0.0.0/8'`},
 		{`quote_nullable('10.0.0.0/8'::cidr)`, `'10.0.0.0/8'`},
 		{`concat('x'::"char")`, "x"}, {`concat(E'\\200'::"char")`, `\200`},
+		{`quote_literal('x'::"char"::text)`, `'x'`},
+		{`quote_nullable('x'::"char"::text)`, `'x'`},
+		{`quote_literal(NULL::"char"::text)`, nil},
+		{`quote_nullable(NULL::"char"::text)`, "NULL"},
 	})
 	formatReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		// PostgreSQL's explicit CHAR-to-TEXT casts succeed; nested general CHAR
-		// casts remain outside native admission. Assert that boundary, not a skip.
-		for _, tc := range []struct {
-			call     string
-			position string
-		}{
-			{`quote_literal('x'::"char"::text)`, "27"},
-			{`quote_nullable('x'::"char"::text)`, "28"},
-		} {
-			t.Run(tc.call, func(t *testing.T) {
-				q := "SELECT " + tc.call + " AS value"
-				if b.PG {
-					formatReferenceBoth(t, p, b, c, fixture.Select(q, []string{"value"}, []string{"TEXT"}, [][]any{{"'x'"}}))
-				} else {
-					formatReferenceFailure(t, p, b, c, q, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported column type", Position: tc.position}, true)
-				}
-			})
-		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`CREATE DOMAIN sv_output_char AS char(3)`, 0))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`CREATE DOMAIN sv_output_element AS integer`, 0))
 		formatReferenceBoth(t, p, b, c, fixture.Select(`SELECT concat('x'::sv_output_char),quote_literal('x'::sv_output_char),concat_ws('|',VARIADIC '{1,NULL,2}'::sv_output_element[])`, []string{"concat", "quote_literal", "concat_ws"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"x  ", "'x'", "1|2"}}))

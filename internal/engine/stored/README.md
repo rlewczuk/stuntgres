@@ -265,6 +265,27 @@ host methods.
   CAST syntax, never the placeholders. Selected datum casts render a literal
   with its source type before the target cast, so a quoted value never becomes
   target-codec input on replay.
+- **View display constants.** Captured typed literals own their exact leaf
+  annotation during deparsing; matching source casts do not add a second one.
+  Outer casts and conversions to different usages remain. Captured sequence
+  constants use the same path-aware regclass presentation as other literals,
+  rather than the fully qualified replay spelling.
+- **View source display.** Public deparsing uses current relation names, explicit
+  aliases and natural output labels for every FROM frame, including joins.
+  Frozen USING keys retain column aliases on their actual live operand slots;
+  explicit alias lists follow those slots through physical column compaction.
+  Duplicate derived labels receive unique display names before slot references
+  are emitted. Unaliased CTEs retain their real names.
+  Sole-source aliases remain qualified when another captured query frame refers
+  to their slots. Input ORDER references to synthetic USING keys receive a
+  collision-safe USING namespace when a displayed output label would hide them;
+  nested frames do not inherit outer view column overrides. Public ORDER output
+  expansion retains ordinals for DISTINCT selected occurrences, so scalar
+  subqueries are not rebound as different expressions. Dump output references
+  retain their frozen ordinals independently of public presentation.
+  Replay retains its frozen namespace independently. SQL routine display uses the captured search
+  path and exact signature to omit a namespace only when the same stored
+  procedure is selected; identifier quoting follows the output environment.
 - **Geometric literal recipes.** Ordinary view dumps obtain owning-type
   annotations from `regobj.ConstantLiteral`. Source-AST serialization elides
   only a matching direct captured literal cast with exactly the same Usage,

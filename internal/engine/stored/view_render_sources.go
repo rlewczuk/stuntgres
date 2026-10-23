@@ -68,7 +68,6 @@ type QueryRenderer struct {
 	Presentation             Presentation
 	simple                   bool
 	simpleQualifier          string
-	functionSources          bool // Public source labels for function-bearing and rule-display frames.
 	ruleScopes               []uint32
 	ruleTables               map[uint32]ruleRangeTable
 	ruleTarget               ids.ObjectRef
@@ -116,6 +115,7 @@ type viewRenderFrom struct {
 	rowSource      bool
 	namespace      int
 	wholeSQL       string
+	alias          string
 }
 
 func NewQueryRenderer(v *View) *QueryRenderer {
@@ -301,25 +301,116 @@ func (v *QueryRenderer) aliasFrom(from viewRenderFrom, ns analyze.ViewNamespace,
 	return from
 }
 
-func viewHasFunctionSource(item parser.FromItem) bool {
-	switch n := item.(type) {
-	case *parser.JSONTable:
-		return true
-	case *parser.FunctionTable:
-		for _, call := range n.Calls {
-			if analyze.MixedFunctionSourceName(call.Name.Parts[len(call.Name.Parts)-1].Text) {
-				return true
+// Explicit aliases follow frozen slots through physical column compaction.
+func (v *QueryRenderer) presentationAlias(from viewRenderFrom, ns analyze.ViewNamespace, name string, columns []parser.Identifier, unqualified bool) viewRenderFrom {
+	var labels []string
+	changed := false
+	if len(columns) != 0 {
+		labels = make([]string, len(from.columns))
+		for i, column := range from.columns {
+			labels[i] = column.name
+			for j, frozen := range ns.Columns {
+				if j < len(columns) && frozen.Slot == column.slot {
+					labels[i] = frozen.Name
+					break
+				}
+			}
+			changed = changed || labels[i] != column.name
+		}
+	}
+	if !changed {
+		labels = nil
+	}
+	return v.presentationColumnAlias(from, name, labels, unqualified)
+}
+
+func (v *QueryRenderer) presentationColumnAlias(from viewRenderFrom, name string, labels []string, unqualified bool) viewRenderFrom {
+	identifier := v.Presentation.identifier
+	qualifier := identifier(name)
+	reserved := make(map[string]bool, len(from.columns))
+	for i := range from.columns {
+		if i < len(labels) {
+			from.columns[i].name = labels[i]
+		}
+		reserved[from.columns[i].name] = true
+	}
+	seen := make(map[string]bool, len(from.columns))
+	for i := range from.columns {
+		base := from.columns[i].name
+		if seen[base] {
+			if labels == nil {
+				labels = make([]string, len(from.columns))
+				for j, column := range from.columns {
+					labels[j] = column.name
+				}
+			}
+			for suffix := 1; ; suffix++ {
+				label := base + "_" + strconv.Itoa(suffix)
+				if !reserved[label] {
+					from.columns[i].name = label
+					labels[i] = label
+					reserved[label] = true
+					break
+				}
 			}
 		}
-		return false
-	case *parser.FunctionFrom:
-		return true
-	case *parser.AliasReference:
-		return viewHasFunctionSource(n.Input)
-	case *parser.JoinReference:
-		return viewHasFunctionSource(n.Left) || viewHasFunctionSource(n.Right)
+		seen[base] = true
 	}
-	return false
+	from.slots = make(map[int]string, len(from.columns))
+	for _, column := range from.columns {
+		if column.slot >= 0 {
+			text := identifier(column.name)
+			if !unqualified {
+				text = qualifier + "." + text
+			}
+			from.slots[column.slot] = text
+		}
+	}
+	text := from.relation
+	if text == "" {
+		text = from.text
+		if _, join := from.root.(*plan.JoinNode); !join || v.Presentation.Pretty {
+			text = "(" + text + ")"
+		}
+	}
+	from.text = text + " " + qualifier
+	if from.rowSource {
+		from.rowTargetSQL = qualifier
+	}
+	if len(labels) != 0 {
+		quoted := make([]string, len(labels))
+		for i, label := range labels {
+			quoted[i] = identifier(label)
+		}
+		from.text += "(" + strings.Join(quoted, ", ") + ")"
+	}
+	from.relation = text
+	from.alias = name
+	v.Slots[from.root] = from.slots
+	return from
+}
+
+// USING binds names, not positions. Renames must not redirect a captured key
+// to a different live column, or make it disappear from either operand.
+func (v *QueryRenderer) usingOperand(from viewRenderFrom, keys []string) viewRenderFrom {
+	ns := v.namespaces[from.namespace-1]
+	labels := make([]string, len(from.columns))
+	changed := false
+	for i, column := range from.columns {
+		labels[i] = column.name
+		for _, key := range keys {
+			for _, frozen := range ns.Columns {
+				if frozen.Name == key && frozen.Slot == column.slot {
+					labels[i] = key
+				}
+			}
+		}
+		changed = changed || labels[i] != column.name
+	}
+	if !changed {
+		return from
+	}
+	return v.presentationColumnAlias(from, from.alias, labels, false)
 }
 
 func (v *QueryRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item parser.FromItem) (viewRenderFrom, error) {
@@ -354,6 +445,65 @@ func (v *QueryRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item 
 		}
 	}
 	return from, err
+}
+
+// A sole source is locally unambiguous, but its slots must remain qualified
+// when a nested query captures them through the owning frame.
+func (v *QueryRenderer) soleSourceUnqualified(item parser.FromItem, root plan.Node) bool {
+	if _, join := root.(*plan.JoinNode); join || v.query.Root.(*plan.ProjectNode).Syntax.From != item {
+		return false
+	}
+	for path, column := range v.columns {
+		if column.Frame == v.Frame && path.Query != v.Frame {
+			return false
+		}
+	}
+	for path, columns := range v.stars {
+		if path.Query != v.Frame {
+			for _, column := range columns {
+				if column.Frame == v.Frame {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// Bare ORDER names prefer output labels. A captured input reference to a
+// synthetic USING slot therefore needs its own namespace if an output label
+// would hide it, including labels supplied by CREATE VIEW's column list.
+func (v *QueryRenderer) usingOrderAliasNeeded(bound *plan.JoinNode, ns analyze.ViewNamespace) bool {
+	offset, found := viewJoinOffset(analyze.ViewFromRoot(v.query.Root), bound)
+	if !found {
+		return false
+	}
+	for i, key := range ns.Keys {
+		slot := ns.Columns[i].Slot
+		if slot < bound.LeftWidth+bound.RightWidth {
+			continue
+		}
+		captured := false
+		for path, column := range v.columns {
+			if path.Query == v.Frame && path.Clause == analyze.ViewOrderLiteral && column.Frame == v.Frame && column.Slot == offset+slot {
+				captured = true
+				break
+			}
+		}
+		if !captured {
+			continue
+		}
+		for i, column := range v.query.Root.Schema() {
+			label := column.Name
+			if v.query.Root.(*plan.ProjectNode).Syntax == v.syntax && i < len(v.Presentation.Columns) {
+				label = v.Presentation.Columns[i].Name
+			}
+			if label == key {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Read, item parser.FromItem) (result viewRenderFrom, failure error) {
@@ -413,6 +563,17 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			if v.Presentation.Rule {
 				return v.ruleCTESource(from, n.Name.Parts[0].Text, rangeName), nil
 			}
+			if v.Presentation.Deparse {
+				from.slots = make(map[int]string, len(from.columns))
+				for _, column := range from.columns {
+					from.slots[column.slot] = v.Presentation.identifier(n.Name.Parts[0].Text) + "." + v.Presentation.identifier(column.name)
+				}
+				from.text = v.Presentation.identifier(n.Name.Parts[0].Text)
+				from.relation = from.text
+				from.alias = n.Name.Parts[0].Text
+				v.Slots[root] = from.slots
+				return from, nil
+			}
 			aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
 			aliased.relation = name
 			return aliased, nil
@@ -464,7 +625,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		}
 		from := viewRenderFrom{root: root}
 		from.rowTarget, from.rowSource = n.Name.Parts[len(n.Name.Parts)-1].Text, true
-		if v.functionSources {
+		if v.Presentation.Deparse {
 			if v.Presentation.Output.QuoteAllIdentifiers {
 				from.relation = v.Presentation.identifier(d.Name())
 				if !relationVisibleAt(catalogView, d, v.Presentation.Path) {
@@ -476,6 +637,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			if leaf.Only {
 				from.relation = "ONLY " + from.relation
 			}
+			from.alias = d.Name()
 			for i, attribute := range d.Attributes {
 				column := viewRenderColumn{name: d.Columns[i].Name, slot: -1}
 				if captured, ok := frozen[attribute]; ok {
@@ -502,9 +664,6 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			return from, nil
 		}
 		from.relation = catalog.QuoteIdentifier(catalogView.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
-		if v.Presentation.Deparse && v.Presentation.Pretty && !v.Presentation.Output.QuoteAllIdentifiers {
-			from.relation = RelationDiagnosticNameAt(catalogView, d, v.Presentation.Path)
-		}
 		if leaf.Only {
 			from.relation = "ONLY " + from.relation
 		}
@@ -569,8 +728,8 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		}
 		if n.Name.Text == "" {
 			alias := v.namespaceAlias(ns)
-			if v.functionSources {
-				return v.sourceAlias(from, alias, nil, true), nil
+			if v.Presentation.Deparse {
+				return v.presentationAlias(from, ns, alias, nil, v.soleSourceUnqualified(n, from.root)), nil
 			}
 			return v.aliasFrom(from, ns, alias), nil
 		}
@@ -582,8 +741,8 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		if aliasName == "" {
 			aliasName = v.namespaceAlias(ns)
 		}
-		if v.functionSources {
-			return v.sourceAlias(from, aliasName, n.Columns, true), nil
+		if v.Presentation.Deparse {
+			return v.presentationAlias(from, ns, aliasName, n.Columns, v.soleSourceUnqualified(n, from.root)), nil
 		}
 		return v.aliasFrom(from, ns, aliasName), nil
 	case *parser.JoinReference:
@@ -595,7 +754,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		usingAlias := ""
 		if n.UsingAlias != nil {
 			usingAlias = n.UsingAlias.Text
-		} else if !v.Presentation.Rule {
+		} else if !v.Presentation.Deparse || (!v.Presentation.Rule && v.usingOrderAliasNeeded(bound, ns)) {
 			for i := range ns.Keys {
 				if ns.Columns[i].Slot >= bound.LeftWidth+bound.RightWidth {
 					// Reserve before rendering descendants. This qualifies the
@@ -608,6 +767,9 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		left, err := v.fromSQL(ctx, catalogView, n.Left)
 		if err != nil {
 			return viewRenderFrom{}, err
+		}
+		if v.Presentation.Deparse && !v.Presentation.Rule && len(ns.Keys) != 0 {
+			left = v.usingOperand(left, ns.Keys)
 		}
 		// Function arguments reference the owner's full FROM frame before the
 		// right source exists. Publish only finalized legal predecessor slots.
@@ -627,6 +789,9 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		right, err := v.fromSQL(ctx, catalogView, n.Right)
 		if err != nil {
 			return viewRenderFrom{}, err
+		}
+		if v.Presentation.Deparse && !v.Presentation.Rule && len(ns.Keys) != 0 {
+			right = v.usingOperand(right, ns.Keys)
 		}
 		from := viewRenderFrom{root: bound, slots: make(map[int]string, len(left.slots)+len(right.slots)+len(bound.Merges))}
 		for slot, text := range left.slots {
@@ -650,11 +815,11 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		case parser.JoinFull:
 			joinText = " FULL JOIN "
 		}
-		prettyFunctionSources := v.functionSources && v.Presentation.Pretty
+		pretty := v.Presentation.Deparse && v.Presentation.Pretty
 		rightText := right.text
-		if v.functionSources {
+		if v.Presentation.Deparse {
 			joinText = v.Presentation.line(5) + strings.TrimSpace(joinText) + " "
-			if _, nested := n.Right.(*parser.JoinReference); nested && prettyFunctionSources {
+			if _, nested := n.Right.(*parser.JoinReference); nested && pretty {
 				rightText = "(" + rightText + ")"
 			}
 		}
@@ -663,54 +828,43 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			if err != nil {
 				return viewRenderFrom{}, err
 			}
-			if v.functionSources && !v.Presentation.Pretty {
+			if v.Presentation.Deparse && !v.Presentation.Pretty {
 				on = "(" + on + ")"
 			}
 			from.text = left.text + joinText + rightText + " ON " + on
-			if !prettyFunctionSources {
+			if !pretty {
 				from.text = "(" + from.text + ")"
 			}
 		} else if len(ns.Keys) > 0 {
 			keys := make([]string, len(ns.Keys))
 			for i, key := range ns.Keys {
-				keys[i] = catalog.QuoteIdentifier(key)
-				if v.Presentation.Rule {
-					keys[i] = v.Presentation.identifier(key)
-				}
+				keys[i] = v.Presentation.identifier(key)
 				c := ns.Columns[i]
 				from.columns = append(from.columns, viewRenderColumn{name: key, slot: c.Slot})
 				// A synthetic merged value is recreated by USING's implicit
 				// common-type binder, never an unsupported explicit cast.
 				if c.Slot >= bound.LeftWidth+bound.RightWidth {
-					if v.Presentation.Rule {
-						from.slots[c.Slot] = v.Presentation.identifier(key)
-						if usingAlias != "" {
-							from.slots[c.Slot] = v.Presentation.identifier(usingAlias) + "." + from.slots[c.Slot]
-						}
-					} else {
-						from.slots[c.Slot] = catalog.QuoteIdentifier(usingAlias) + "." + catalog.QuoteIdentifier(key)
+					from.slots[c.Slot] = v.Presentation.identifier(key)
+					if usingAlias != "" {
+						from.slots[c.Slot] = v.Presentation.identifier(usingAlias) + "." + v.Presentation.identifier(key)
 					}
 				}
 			}
 			from.text = "(" + left.text + joinText + right.text + " USING (" + strings.Join(keys, ", ") + ")"
 			if usingAlias != "" {
-				name := catalog.QuoteIdentifier(usingAlias)
-				if v.Presentation.Rule {
-					name = v.Presentation.identifier(usingAlias)
-				}
-				from.text += " AS " + name
+				from.text += " AS " + v.Presentation.identifier(usingAlias)
 			}
 			from.text += ")"
 		} else {
 			if bound.Kind == parser.JoinInner {
 				separator := " CROSS JOIN "
-				if v.functionSources {
+				if v.Presentation.Deparse {
 					separator = v.Presentation.line(5) + "CROSS JOIN "
 				}
 				from.text = left.text + separator + rightText
 			} else {
 				condition := "TRUE"
-				if v.functionSources {
+				if v.Presentation.Deparse {
 					condition = "true"
 					if !v.Presentation.Pretty {
 						condition = "(" + condition + ")"
@@ -718,7 +872,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 				}
 				from.text = left.text + joinText + rightText + " ON " + condition
 			}
-			if !prettyFunctionSources {
+			if !pretty {
 				from.text = "(" + from.text + ")"
 			}
 		}

@@ -1,6 +1,7 @@
 package pgcatalog
 
 import (
+	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -59,16 +60,13 @@ func captureTableViewSummary(in Input) ([][]sqltype.Value, error) {
 			}
 			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), tablespace, boolean(4, relation.History.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.Security.RLSEnabled)})
 		} else {
-			definition := builtinDefinition
-			if relation.View != nil {
-				// Follow current physical names without changing the caller's
-				// replay/display policy or the view's frozen output labels.
-				definition, err = in.Runtime.ViewDefinition(ctx, view, relation)
-				if err != nil {
-					return nil, err
-				}
-				definition += ";"
+			// Stored and represented builtin views share the captured rendering
+			// authority; builtin metadata never creates an executable payload.
+			definition, err := in.Runtime.ViewDefinition(ctx, view, relation)
+			if err != nil {
+				return nil, err
 			}
+			definition = strings.TrimSuffix(definition, ";") + ";"
 			if source.Address().ObjectID == 12006 {
 				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), sqltype.Null(source.Columns[3].Usage.Type), boolean(4, relation.History.HasIndexes), boolean(5, relation.Populated), text(6, definition)})
 			} else {
@@ -77,148 +75,4 @@ func captureTableViewSummary(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	return rows, nil
-}
-
-// Compatibility metadata sourced from the CREATE VIEW sections of
-// https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_views.sql
-// and PostgreSQL18.0 pg_views reconstruction. These are not native executable
-// stored definitions: absent catalogs/functions are not implemented by this text.
-// In particular native pg_indexes retains its separately documented ACL policy.
-func SummaryViewDefinition(oid ids.OID) string {
-	switch oid {
-	case RulesOID:
-		return ` SELECT n.nspname AS schemaname,
-    c.relname AS tablename,
-    r.rulename,
-    pg_get_ruledef(r.oid) AS definition
-   FROM ((pg_rewrite r
-     JOIN pg_class c ON ((c.oid = r.ev_class)))
-     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
-  WHERE (r.rulename <> '_RETURN'::name);`
-	case 12081:
-		return ` SELECT e.name,
-    e.default_version,
-    x.extversion AS installed_version,
-    e.comment
-   FROM (pg_available_extensions() e(name, default_version, comment)
-     LEFT JOIN pg_extension x ON ((e.name = x.extname)));`
-	case 12085:
-		return ` SELECT e.name,
-    e.version,
-    (x.extname IS NOT NULL) AS installed,
-    e.superuser,
-    e.trusted,
-    e.relocatable,
-    e.schema,
-    e.requires,
-    e.comment
-   FROM (pg_available_extension_versions() e(name, version, superuser, trusted, relocatable, schema, requires, comment)
-     LEFT JOIN pg_extension x ON (((e.name = x.extname) AND (e.version = x.extversion))));`
-	case 12048:
-		return ` SELECT n.nspname AS schemaname,
-    c.relname AS sequencename,
-    pg_get_userbyid(c.relowner) AS sequenceowner,
-    (s.seqtypid)::regtype AS data_type,
-    s.seqstart AS start_value,
-    s.seqmin AS min_value,
-    s.seqmax AS max_value,
-    s.seqincrement AS increment_by,
-    s.seqcycle AS cycle,
-    s.seqcache AS cache_size,
-    pg_sequence_last_value((c.oid)::regclass) AS last_value
-   FROM ((pg_sequence s
-     JOIN pg_class c ON ((c.oid = s.seqrelid)))
-     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
-  WHERE ((NOT pg_is_other_temp_schema(n.oid)) AND (c.relkind = 'S'::"char"));`
-	case 12008:
-		return ` SELECT rolname AS groname,
-    oid AS grosysid,
-    ARRAY( SELECT pg_auth_members.member
-           FROM pg_auth_members
-          WHERE (pg_auth_members.roleid = pg_authid.oid)) AS grolist
-   FROM pg_authid
-  WHERE (NOT rolcanlogin);`
-	case 12007:
-		return ` SELECT pg_authid.rolname,
-    pg_authid.rolsuper,
-    pg_authid.rolinherit,
-    pg_authid.rolcreaterole,
-    pg_authid.rolcreatedb,
-    pg_authid.rolcanlogin,
-    pg_authid.rolreplication,
-    pg_authid.rolconnlimit,
-    '********'::text AS rolpassword,
-    pg_authid.rolvaliduntil,
-    pg_authid.rolbypassrls,
-    s.setconfig AS rolconfig,
-    pg_authid.oid
-   FROM (pg_authid
-     LEFT JOIN pg_db_role_setting s ON (((pg_authid.oid = s.setrole) AND (s.setdatabase = (0)::oid))));`
-	case 12006:
-		return ` SELECT n.nspname AS schemaname,
-    c.relname AS matviewname,
-    pg_get_userbyid(c.relowner) AS matviewowner,
-    t.spcname AS tablespace,
-    c.relhasindex AS hasindexes,
-    c.relispopulated AS ispopulated,
-    pg_get_viewdef(c.oid) AS definition
-   FROM ((pg_class c
-     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
-     LEFT JOIN pg_tablespace t ON ((t.oid = c.reltablespace)))
-  WHERE (c.relkind = 'm'::"char");`
-	case 12014:
-		return ` SELECT usename,
-    usesysid,
-    usecreatedb,
-    usesuper,
-    userepl,
-    usebypassrls,
-    '********'::text AS passwd,
-    valuntil,
-    useconfig
-   FROM pg_shadow;`
-	case 12002:
-		return ` SELECT n.nspname AS schemaname,
-    c.relname AS tablename,
-    i.relname AS indexname,
-    t.spcname AS tablespace,
-    pg_get_indexdef(i.oid) AS indexdef
-   FROM ((((pg_index x
-     JOIN pg_class c ON ((c.oid = x.indrelid)))
-     JOIN pg_class i ON ((i.oid = x.indexrelid)))
-     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
-     LEFT JOIN pg_tablespace t ON ((t.oid = i.reltablespace)))
-  WHERE ((c.relkind = ANY (ARRAY['r'::"char", 'm'::"char", 'p'::"char"])) AND (i.relkind = ANY (ARRAY['i'::"char", 'I'::"char"])));`
-	case 12001:
-		return ` SELECT p.transaction,
-    p.gid,
-    p.prepared,
-    u.rolname AS owner,
-    d.datname AS database
-   FROM ((pg_prepared_xact() p(transaction, gid, prepared, ownerid, dbid)
-     LEFT JOIN pg_authid u ON ((p.ownerid = u.oid)))
-     LEFT JOIN pg_database d ON ((p.dbid = d.oid)));`
-	case 12003:
-		return ` SELECT n.nspname AS schemaname,
-    c.relname AS tablename,
-    pg_get_userbyid(c.relowner) AS tableowner,
-    t.spcname AS tablespace,
-    c.relhasindex AS hasindexes,
-    c.relhasrules AS hasrules,
-    c.relhastriggers AS hastriggers,
-    c.relrowsecurity AS rowsecurity
-   FROM ((pg_class c
-     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
-     LEFT JOIN pg_tablespace t ON ((t.oid = c.reltablespace)))
-  WHERE (c.relkind = ANY (ARRAY['r'::"char", 'p'::"char"]));`
-	case 12000:
-		return ` SELECT n.nspname AS schemaname,
-    c.relname AS viewname,
-    pg_get_userbyid(c.relowner) AS viewowner,
-    pg_get_viewdef(c.oid) AS definition
-   FROM (pg_class c
-     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
-  WHERE (c.relkind = 'v'::"char");`
-	}
-	return ""
 }

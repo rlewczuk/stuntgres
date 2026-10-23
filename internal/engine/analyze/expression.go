@@ -1071,6 +1071,12 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 	return d
 }
 
+func internalCharLiteralCast(raw parser.CastExpr) bool {
+	literal, ok := raw.Child.(parser.LiteralExpr)
+	return ok && raw.Syntax != parser.FunctionCast && raw.TypeName.Quoted && raw.TypeName.Name == "char" &&
+		(literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue)
+}
+
 func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.Expr, error) {
 	if raw.Syntax == parser.FunctionCast && legacyFunctionCastPredicate(raw.Child) {
 		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
@@ -1107,6 +1113,9 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	}
 	rawNull, isNull := raw.Child.(parser.LiteralExpr)
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
+	// Canonical catalog definitions annotate internal CHAR constants. Admit
+	// only their direct textual input, not CHAR parameters or general casts.
+	stringInput := outerPolicy.stringInput || internalCharLiteralCast(raw)
 	var target sqltype.Usage
 	var err error
 	annotation, err := b.TypeCastAnnotation(raw)
@@ -1121,7 +1130,7 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	}
 	if outerPolicy.thresholdArrayInput {
 		target, err = b.Host.ResolveAnnotationTypeInput(annotation, unknownNull, false, false, false, true)
-	} else if outerPolicy.stringInput {
+	} else if stringInput {
 		target, err = b.Host.ResolveStringAnnotationType(annotation, unknownNull)
 	} else {
 		target, err = b.Host.ResolveAnnotationType(annotation, unknownNull)
@@ -1153,7 +1162,7 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	if target.Type.ID() == sqltype.Regclass {
 		return b.bindRegclassCast(raw.Child, raw.Pos)
 	}
-	unsupportedTarget := !target.Type.IsUserDefined() && !target.Type.IsDomain() && !target.Type.IsDeferredRecord() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
+	unsupportedTarget := !target.Type.IsUserDefined() && !target.Type.IsDomain() && !target.Type.IsDeferredRecord() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
 	if err := b.CaptureTypeDiagnosticInput(target.Type); err != nil {
 		return nil, err
 	}
@@ -1213,7 +1222,7 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		// This is NULL transport, not a general RECORD cast/coercion edge.
 		return child, nil
 	}
-	if outerPolicy.stringInput && target.Type.ID() == sqltype.Char && source == target {
+	if stringInput && target.Type.ID() == sqltype.Char && source == target {
 		// The literal/input path already applied the CHAR codec. Retain that
 		// resolved datum without admitting CHAR to general explicit coercion.
 		return child, nil
@@ -1881,7 +1890,7 @@ func (b *Binder) comparisonOperandPolicy(raw parser.Expr, policy ExpressionPolic
 		var err error
 		if policy.thresholdArrayInput {
 			target, err = b.Host.ResolveAnnotationTypeInput(annotation.TypeName, true, false, false, false, true)
-		} else if policy.stringInput {
+		} else if policy.stringInput || internalCharLiteralCast(annotation) {
 			target, err = b.Host.ResolveStringAnnotationType(annotation.TypeName, true)
 		} else {
 			target, err = b.Host.ResolveAnnotationType(annotation.TypeName, true)

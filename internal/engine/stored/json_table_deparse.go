@@ -150,7 +150,7 @@ func (v *QueryRenderer) renderJSONTableSQL(ctx context.Context, view catalog.Rea
 		from.relation = text
 		return from, nil
 	}
-	if v.functionSources {
+	if v.Presentation.Deparse {
 		from.slots = make(map[int]string, len(from.columns))
 		qualifier := v.Presentation.identifier(v.namespaceAlias(ns))
 		for _, column := range from.columns {

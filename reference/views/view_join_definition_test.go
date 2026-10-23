@@ -19,6 +19,15 @@ func TestReferenceViewJoinedDefinition(t *testing.T) {
 					for _, s := range referenceViewJoinSeed(leading) {
 						run(s)
 					}
+					mode := "compact"
+					if leading {
+						mode = "leading"
+					}
+					for _, name := range referenceViewJoinNames(leading) {
+						for _, step := range referenceJoinedDefinitionSteps(mode, name) {
+							run(step)
+						}
+					}
 					for phase := range 2 {
 						if phase == 1 {
 							for _, name := range referenceViewJoinNames(leading) {
@@ -56,6 +65,11 @@ func TestReferenceViewJoinedNamespaceReplay(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 			for _, s := range referenceViewNamespaceSeed() {
 				run(s)
+			}
+			for _, name := range []string{"self_sorted", "converted_sorted", "alias_sorted"} {
+				for _, step := range referenceJoinedDefinitionSteps("namespace", name) {
+					run(step)
+				}
 			}
 			names := []string{"self_sorted", "converted_sorted", "alias_sorted"}
 			for phase := range 2 {
