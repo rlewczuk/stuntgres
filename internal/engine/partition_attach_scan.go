@@ -7,61 +7,15 @@ import (
 	"stuntgres/internal/engine/partition"
 )
 
-// Candidate AX admission is unconditional and already complete. DEFAULT opens
-// descendants only when the deciding relation cannot prove its exclusion.
-func (s *StatementScope) partitionAttachFrontier(catalogView catalog.Read, parent, target *catalog.Relation, bound *catalog.PartitionMembership, exclude, lockChildren bool) ([]partition.AttachScan, error) {
-	var scans []partition.AttachScan
-	var walk func(catalog.Read, *catalog.Relation) error
-	walk = func(view catalog.Read, d *catalog.Relation) error {
-		proven, err := partition.ConstraintProven(s.op.Context(), s.input, view, parent, d, bound, exclude)
-		if err != nil {
-			return err
-		}
-		if proven && !exclude {
-			for child := parent; child.Membership != nil; {
-				ancestor := view.MustRelation(child.Membership.Parent)
-				proven, err = partition.ConstraintProven(s.op.Context(), s.input, view, ancestor, d, child.Membership, false)
-				if err != nil || !proven {
-					break
-				}
-				child = ancestor
-			}
-		}
-		if err != nil {
-			return err
-		}
-		if proven {
-			return nil
-		}
-		if d.Partition == nil {
-			scans = append(scans, partition.AttachScan{Leaf: d, Exclude: exclude})
-			return nil
-		}
-		for _, address := range d.Partition.Children {
-			child, ok := view.Relation(address)
-			if !ok {
-				return ids.ErrCatalogReplaced
-			}
-			childView := view
-			if lockChildren {
-				ref := s.engine().catalog.Domain.Ref(view.Epoch(), address)
-				if err := s.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
-					return err
-				}
-				var err error
-				childView, child, err = s.engine().partitionAttachRelation(s, ref)
-				if err != nil {
-					return err
-				}
-			}
-			if err := walk(childView, child); err != nil {
-				return err
-			}
-		}
-		return nil
+// lockPartitionAttachChild is the partition.AttachFrontier callback of the
+// incumbent DEFAULT partition: it waits for the child's AccessExclusive lock
+// with nothing held, then rereads the child after the grant.
+func (s *StatementScope) lockPartitionAttachChild(view catalog.Read, address ids.ObjectAddress) (catalog.Read, *catalog.Relation, error) {
+	ref := s.engine().catalog.Domain.Ref(view.Epoch(), address)
+	if err := s.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
+		return catalog.Read{}, nil, err
 	}
-	err := walk(catalogView, target)
-	return scans, err
+	return s.engine().partitionAttachRelation(s, ref)
 }
 
 // Fences cover the complete candidate stores even when proof elides a scan.

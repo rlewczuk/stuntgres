@@ -72,7 +72,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		if err != nil {
 			return Result{}, err
 		}
-		defaultScans, err = scope.partitionAttachFrontier(catalog, parent, root, bound, true, true)
+		defaultScans, err = partition.AttachFrontier(scope.op.Context(), scope.input, catalog, parent, root, bound, true, scope.lockPartitionAttachChild)
 		if err != nil {
 			return Result{}, err
 		}
@@ -170,7 +170,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 			return Result{}, err
 		}
 	}
-	candidateScans, err := scope.partitionAttachFrontier(auth.Catalog, parent, child, bound, false, false)
+	candidateScans, err := partition.AttachFrontier(scope.op.Context(), scope.input, auth.Catalog, parent, child, bound, false, nil)
 	if err != nil {
 		return Result{}, err
 	}

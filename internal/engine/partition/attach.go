@@ -191,6 +191,69 @@ type AttachRowConstraint struct {
 	Scratch []sqltype.Value
 }
 
+// AttachFrontier returns the leaves under target that ATTACH PARTITION of
+// bound into parent must scan. A relation whose constraints prove the bound
+// (and, unless exclude, every ancestor's membership) needs no scan, and its
+// descendants are not opened. exclude marks the incumbent DEFAULT partition,
+// whose rows must fall outside bound.
+//
+// Candidate AX admission is unconditional and already complete, so the
+// candidate passes a nil lockChild. DEFAULT opens descendants only when the
+// deciding relation cannot prove its exclusion: lockChild waits for each
+// child's lock with nothing held and returns the catalog and descriptor read
+// after the grant. AttachFrontier itself holds nothing and waits only in
+// lockChild.
+func AttachFrontier(ctx context.Context, input sqltype.InputEnvironment, catalogView catalog.Read, parent, target *catalog.Relation, bound *catalog.PartitionMembership, exclude bool, lockChild func(catalog.Read, ids.ObjectAddress) (catalog.Read, *catalog.Relation, error)) ([]AttachScan, error) {
+	var scans []AttachScan
+	var walk func(catalog.Read, *catalog.Relation) error
+	walk = func(view catalog.Read, d *catalog.Relation) error {
+		proven, err := ConstraintProven(ctx, input, view, parent, d, bound, exclude)
+		if err != nil {
+			return err
+		}
+		if proven && !exclude {
+			for child := parent; child.Membership != nil; {
+				ancestor := view.MustRelation(child.Membership.Parent)
+				proven, err = ConstraintProven(ctx, input, view, ancestor, d, child.Membership, false)
+				if err != nil || !proven {
+					break
+				}
+				child = ancestor
+			}
+		}
+		if err != nil {
+			return err
+		}
+		if proven {
+			return nil
+		}
+		if d.Partition == nil {
+			scans = append(scans, AttachScan{Leaf: d, Exclude: exclude})
+			return nil
+		}
+		for _, address := range d.Partition.Children {
+			child, ok := view.Relation(address)
+			if !ok {
+				return ids.ErrCatalogReplaced
+			}
+			childView := view
+			if lockChild != nil {
+				var err error
+				childView, child, err = lockChild(view, address)
+				if err != nil {
+					return err
+				}
+			}
+			if err := walk(childView, child); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	err := walk(catalogView, target)
+	return scans, err
+}
+
 // CheckAttachTarget rejects ATTACH PARTITION on a relation that is not
 // partitioned, then LIST/HASH attachment outside a Restore replay.
 func CheckAttachTarget(parent *catalog.Relation, replay bool) error {
