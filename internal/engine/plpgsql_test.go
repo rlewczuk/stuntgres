@@ -127,7 +127,9 @@ func TestPLpgSQLRowAssignment(t *testing.T) {
 	if err != nil || !nullRow.IsNull() || nullRow.Type() != pair {
 		t.Fatal("whole NULL lost its known shape", nullRow, err)
 	}
-	materialized, err := s.assignPLField(nullRow, []string{"a"}, sqltype.String(text, "7"), "r")
+	materializedFrame := &proc.PLFrame{Program: &proc.PLProgram{Variables: []proc.PLVariable{{Name: "r", Usage: pair.Usage()}}}, Values: []sqltype.Value{nullRow}}
+	defer materializedFrame.Close()
+	materialized, err := plUnitAssignQueryValue(t, s, materializedFrame, "r.a", sqltype.String(text, "7"))
 	if err != nil || materialized.IsNull() || !materialized.CompositeField(1).IsNull() || !nullRow.IsNull() {
 		t.Fatal("field assignment failed to materialize privately", materialized, nullRow, err)
 	}
@@ -135,20 +137,20 @@ func TestPLpgSQLRowAssignment(t *testing.T) {
 	if f.Values[0].Type() != nil {
 		t.Fatal("record was preassigned a shape")
 	}
-	if _, err = s.assignPLVariable(f, proc.PLTarget{Slot: 0}, source); err != nil {
+	if _, err = s.assignPLVariable(f, 0, source); err != nil {
 		t.Fatal(err)
 	}
 	if f.Values[0].Type() != single {
 		t.Fatal("first record shape lost")
 	}
-	if _, err = s.assignPLVariable(f, proc.PLTarget{Slot: 0}, result); err != nil {
+	if _, err = s.assignPLVariable(f, 0, result); err != nil {
 		t.Fatal(err)
 	}
 	if f.Values[0].Type() != pair {
 		t.Fatal("record shape did not change")
 	}
 	previous := f.Values[0]
-	if _, err = s.assignPLVariable(f, proc.PLTarget{Slot: 0, Fields: []string{"a"}}, sqltype.String(text, "7")); err != nil {
+	if _, err = plUnitAssignQueryValue(t, s, f, "r.a", sqltype.String(text, "7")); err != nil {
 		t.Fatal(err)
 	}
 	old, err := previous.CompositeField(0).Integer()
@@ -157,21 +159,21 @@ func TestPLpgSQLRowAssignment(t *testing.T) {
 	}
 	retained := f.Values[0]
 	f.Program.Variables[0].NotNull = true
-	_, err = s.assignPLVariable(f, proc.PLTarget{Slot: 0}, sqltype.Null(integer))
+	_, err = s.assignPLVariable(f, 0, sqltype.Null(integer))
 	domainUnitDiagnostic(t, err, "22004", `null value cannot be assigned to variable "r" declared NOT NULL`)
 	if f.Values[0] != retained {
 		t.Fatal("failed RECORD clear changed the slot")
 	}
 	f.Program.Variables[0].NotNull = false
-	if _, err = s.assignPLVariable(f, proc.PLTarget{Slot: 0}, sqltype.Null(text)); err != nil || f.Values[0] != (sqltype.Value{}) {
+	if _, err = s.assignPLVariable(f, 0, sqltype.Null(text)); err != nil || f.Values[0] != (sqltype.Value{}) {
 		t.Fatal("RECORD NULL retained shape", f.Values[0], err)
 	}
-	_, err = s.assignPLVariable(f, proc.PLTarget{Slot: 0}, materialized.CompositeField(0))
+	_, err = s.assignPLVariable(f, 0, materialized.CompositeField(0))
 	domainUnitDiagnostic(t, err, "0A000", "input of anonymous composite types is not implemented")
 	if f.Values[0] != (sqltype.Value{}) || retained.Type() != pair {
 		t.Fatal("failed scalar assignment changed cleared/retained record")
 	}
-	if _, err = s.assignPLVariable(f, proc.PLTarget{Slot: 0}, source); err != nil || f.Values[0].Type() != single {
+	if _, err = s.assignPLVariable(f, 0, source); err != nil || f.Values[0].Type() != single {
 		t.Fatal("record did not adopt fresh shape", err)
 	}
 	f.Close()
@@ -231,19 +233,23 @@ func TestPLpgSQLCompositeAssignmentAtomicity(t *testing.T) {
 	}
 	f := &proc.PLFrame{Program: &proc.PLProgram{Variables: []proc.PLVariable{{Name: "r", Usage: domain.Usage()}}}, Values: make([]sqltype.Value, 1)}
 	defer f.Close()
-	if _, err = s.assignPLVariable(f, proc.PLTarget{Slot: 0}, good); err != nil {
+	if _, err = s.assignPLVariable(f, 0, good); err != nil {
 		t.Fatal(err)
 	}
 	retained := f.Values[0]
 	for _, assignment := range []struct {
-		target proc.PLTarget
-		value  sqltype.Value
+		path  string
+		value sqltype.Value
 	}{
-		{proc.PLTarget{Slot: 0}, bad},
-		{proc.PLTarget{Slot: 0}, taggedBad},
-		{proc.PLTarget{Slot: 0, Fields: []string{"a"}}, negative},
+		{"", bad},
+		{"", taggedBad},
+		{"r.a", negative},
 	} {
-		_, err = s.assignPLVariable(f, assignment.target, assignment.value)
+		if assignment.path == "" {
+			_, err = s.assignPLVariable(f, 0, assignment.value)
+		} else {
+			_, err = plUnitAssignQueryValue(t, s, f, assignment.path, assignment.value)
+		}
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23514" {
 			t.Fatal("missing genuine domain CHECK failure", err)
@@ -262,12 +268,12 @@ func TestPLpgSQLCompositeAssignmentAtomicity(t *testing.T) {
 	}
 	nested := &proc.PLFrame{Program: &proc.PLProgram{Variables: []proc.PLVariable{{Name: "holder", Usage: holder.Usage()}}}, Values: []sqltype.Value{outer}}
 	defer nested.Close()
-	_, err = s.assignPLVariable(nested, proc.PLTarget{Slot: 0, Fields: []string{"inner", "a"}}, negative)
+	_, err = plUnitAssignQueryValue(t, s, nested, "holder.inner.a", negative)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23514" || nested.Values[0] != outer || outer.CompositeField(0) != retained {
 		t.Fatal("nested domain failure changed ancestor slots/payloads", err)
 	}
-	if _, err = s.assignPLVariable(f, proc.PLTarget{Slot: 0}, sqltype.Null(integer)); err != nil || !f.Values[0].IsNull() || f.Values[0].Type() != domain {
+	if _, err = s.assignPLVariable(f, 0, sqltype.Null(integer)); err != nil || !f.Values[0].IsNull() || f.Values[0].Type() != domain {
 		t.Fatal("nullable composite-domain NULL lost its tag/nullness", err)
 	}
 }

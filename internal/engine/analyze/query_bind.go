@@ -520,6 +520,16 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 	if err != nil {
 		return nil, err
 	}
+	if b.plAssignmentDatum != nil && b.plAssignmentQuery == s {
+		if len(projection) != 1 {
+			return nil, sqlError("42601", "query returned more than one column")
+		}
+		projection[0], err = b.bindPLAssignmentProjection(projection[0])
+		if err != nil {
+			return nil, err
+		}
+		results[0].Usage = projection[0].ResultUsage()
+	}
 	if plainDistinct {
 		root, err = b.LowerQuerySets(root, projection, nil, true)
 		if err != nil {

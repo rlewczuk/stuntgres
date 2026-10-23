@@ -12,14 +12,30 @@ import (
 // Array target plans retain only analysis state. Every bound and RHS is evaluated
 // against the original execution frame, while writes compose into a private row.
 type ArrayAssignmentTarget struct {
-	Node        SubscriptExpr
-	Container   sqltype.Usage
-	Destination sqltype.Usage
-	Reapply     sqltype.CoercionPlan
-	Name        string
-	Pos         parser.Position
-	Attribute   int32
-	Next        *ArrayAssignmentTarget
+	Node              SubscriptExpr
+	Container         sqltype.Usage
+	Destination       sqltype.Usage
+	Reapply           sqltype.CoercionPlan
+	Name              string
+	Pos               parser.Position
+	Attribute         int32
+	Next              *ArrayAssignmentTarget
+	DomainErrorOrigin bool // Invocation-private PL diagnostic provenance only.
+}
+
+// AssignmentDomainError identifies the containing domain's reconstructed input,
+// rather than an exception produced by the assignment's selected leaf cast.
+type AssignmentDomainError struct{ Err error }
+
+func (e *AssignmentDomainError) Error() string { return e.Err.Error() }
+func (e *AssignmentDomainError) Unwrap() error { return e.Err }
+
+func (t *ArrayAssignmentTarget) reapply(ctx expr.Context, value sqltype.Value) (sqltype.Value, error) {
+	value, err := t.Reapply.Apply(ctx.FunctionContext(), value, ctx.FunctionInput(), ctx.FunctionOutput())
+	if err != nil && t.DomainErrorOrigin && t.Container.Type.IsDomain() {
+		return sqltype.Value{}, &AssignmentDomainError{Err: err}
+	}
+	return value, err
 }
 
 func (t *ArrayAssignmentTarget) Column(original catalog.Column) catalog.Column {
@@ -99,7 +115,7 @@ func (t *ArrayAssignmentTarget) applyBounds(ctx expr.Context, current, rhs sqlty
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return t.Reapply.Apply(ctx.FunctionContext(), result, ctx.FunctionInput(), ctx.FunctionOutput())
+		return t.reapply(ctx, result)
 	}
 	if t.Node.Slice {
 		result, err = sqltype.ArraySetSlice(ctx.FunctionContext(), current, bounds, rhs)
@@ -109,7 +125,7 @@ func (t *ArrayAssignmentTarget) applyBounds(ctx expr.Context, current, rhs sqlty
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return t.Reapply.Apply(ctx.FunctionContext(), result, ctx.FunctionInput(), ctx.FunctionOutput())
+	return t.reapply(ctx, result)
 }
 
 // Scalar lists scan their typed children directly; array inputs scan the owner's

@@ -47,6 +47,13 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 	}
 	var err error
 	switch e := expression.(type) {
+	case plan.PLAssignmentExpr:
+		next, did, failure := SimplifyConditional(c, e.Child, decisiveDefaults)
+		if failure != nil {
+			return nil, false, &plan.PLAssignmentPlanningError{Err: failure}
+		}
+		e.Child = next
+		return e, did, nil
 	case plan.RowExpr:
 		var did bool
 		e, did, err = plan.MapRow(e, func(old expr.Expr) (expr.Expr, bool, error) { return SimplifyConditional(c, old, decisiveDefaults) })

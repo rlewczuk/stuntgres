@@ -51,8 +51,8 @@ type PLInitializer struct {
 	Scope      *PLBlock
 }
 type PLTarget struct {
-	Slot   int
-	Fields []string
+	Slot  int
+	Steps []parser.TargetStep
 }
 type PLInstruction struct {
 	Syntax *parser.PLStatement
@@ -139,7 +139,7 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, r
 				if err != nil {
 					return nil, err
 				}
-				if len(target.Fields) != 0 {
+				if len(target.Steps) != 0 {
 					return nil, parser.PLPositionError("42601", "alias must identify a variable", decl.Name.Pos)
 				}
 				block.Bindings[decl.Name.Text] = target.Slot
@@ -255,21 +255,61 @@ func (p *PLProgram) Lookup(names []string, scopes []*PLBlock) (int, bool) {
 	return 0, false
 }
 func (p *PLProgram) ResolveTarget(raw parser.Expr, scopes []*PLBlock) (PLTarget, error) {
-	var names []string
-	switch raw := raw.(type) {
-	case parser.ParameterExpr:
-		names = []string{"$" + strconv.Itoa(raw.Number)}
-	case parser.ColumnExpr:
-		names = plNames(raw.Name)
-	default:
+	root, steps, ok := plTargetPath(raw)
+	if !ok {
 		return PLTarget{}, parser.PLPositionError("42601", "invalid assignment target", raw.SourcePosition())
 	}
+	var names []string
+	switch root := root.(type) {
+	case parser.ParameterExpr:
+		names = []string{"$" + strconv.Itoa(root.Number)}
+	case parser.ColumnExpr:
+		names = plNames(root.Name)
+	}
+	// A leading field can instead qualify a lexical variable by block label.
+	// Resolve that longest visible root before treating any suffix as fields.
+	leading := 0
+	for leading < len(steps) && steps[leading].Field != nil {
+		names = append(names, steps[leading].Field.Text)
+		leading++
+	}
 	for n := len(names); n > 0; n-- {
-		if slot, ok := p.Lookup(names[:n], scopes); ok {
-			return PLTarget{Slot: slot, Fields: names[n:]}, nil
+		if slot, found := p.Lookup(names[:n], scopes); found {
+			if consumed := n - (len(names) - leading); consumed >= 0 {
+				return PLTarget{Slot: slot, Steps: steps[consumed:]}, nil
+			}
 		}
 	}
 	return PLTarget{}, parser.PLPositionError("42704", fmt.Sprintf("variable %q does not exist", names[0]), raw.SourcePosition())
+}
+
+func plTargetPath(raw parser.Expr) (parser.Expr, []parser.TargetStep, bool) {
+	switch raw := raw.(type) {
+	case parser.ColumnExpr:
+		if len(raw.Name.Parts) == 0 {
+			return nil, nil, false
+		}
+		root := raw
+		root.Name.Parts = raw.Name.Parts[:1]
+		steps := make([]parser.TargetStep, len(raw.Name.Parts)-1)
+		for i := range steps {
+			steps[i].Field = &raw.Name.Parts[i+1]
+		}
+		return root, steps, true
+	case parser.ParameterExpr:
+		return raw, nil, true
+	case parser.FieldExpr:
+		root, steps, ok := plTargetPath(raw.Base)
+		return root, append(steps, parser.TargetStep{Field: &raw.Field}), ok && !raw.Expansion
+	case parser.SubscriptExpr:
+		root, steps, ok := plTargetPath(raw.Base)
+		for i := range raw.Subscripts {
+			steps = append(steps, parser.TargetStep{Subscript: &raw.Subscripts[i]})
+		}
+		return root, steps, ok && len(raw.Subscripts) > 0
+	default:
+		return nil, nil, false
+	}
 }
 
 // PLFrame owns all invocation values; definitions and caller parameters remain

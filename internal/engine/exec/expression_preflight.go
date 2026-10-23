@@ -51,6 +51,27 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		c = &local
 		defer func() { parent.PreparedDomainChecks = c.PreparedDomainChecks }()
 	}
+	if assignment, ok := expression.(plan.PLAssignmentExpr); ok {
+		// Establish SQL-constant origin before importing this execution's
+		// parameter values or preflighting a conversion that can fail.
+		planned, changed, err := SimplifyConditional(c, assignment, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		surviving, ok := planned.(plan.PLAssignmentExpr)
+		if !ok {
+			return planned, changed, nil
+		}
+		child, imported, err := PreflightCoercionsWithPolicy(c, surviving.Child, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		if !changed && !imported {
+			return expression, false, nil
+		}
+		surviving.Child = child
+		return surviving, true, nil
+	}
 	if c.SpecializeRuleParameters && expression != nil && expression.Properties().ParameterDependent {
 		specialized, changed, err := specializeRuleParameters(c, expression)
 		if err != nil {

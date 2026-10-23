@@ -42,6 +42,16 @@ func (context RoutineBodyContext) Annotate(err error) error {
 	return err
 }
 
+func (c *Context) EvalPLAssignment(n plan.PLAssignmentExpr) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	previous := c.PLAssignmentPlanning
+	c.PLAssignmentPlanning = true
+	defer func() { c.PLAssignmentPlanning = previous }()
+	return n.Child.Eval(c)
+}
+
 func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, err error) {
 	if err = EvaluationContext(c); err != nil {
 		return value, err
@@ -93,7 +103,7 @@ func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, er
 	if host == nil {
 		return value, fmt.Errorf("SQL routine invocation has no statement owner")
 	}
-	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation)
+	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive)
 	if err != nil {
 		return value, err // The body owner annotates its actual command ordinal.
 	}

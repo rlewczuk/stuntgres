@@ -78,7 +78,7 @@ existing procedural assignment expressions.
 SET helper inside the handler: protected put2 disappears, put1/put3/put4 commit,
 and a peer sees exactly `[1,3,4]`. Each invocation has its own scenario.
 `CallDiagnostics` asserts complete portable records through called PL and an
-explicitly non-inline SQL wrapper at assignment, RETURN and initializer sites,
+explicitly non-inline SQL wrapper at whole/element assignment, RETURN and initializer sites,
 using direct and fresh-prepared routes. The SQL wrapper exercises its actual
 statement-2 diagnostic boundary, not SQL-function inlining.
 Native supplements exercise fatal modification cleanup across called PL and SQL
@@ -88,3 +88,14 @@ handler queries, and retained per-destination relevance with catalog invalidatio
 Family selector: `RUN='^TestReferencePLpgSQLException'`; add `REFERENCE=1` for
 the pinned oracle. Supplemental parser/program/checkpoint/participant/command
 units use `RUN='^TestPLException'` with `RACE=1`.
+
+### PL/pgSQL assignment
+
+Shared assignment cases cover coercion selection, ordered field/subscript
+targets, bounds, diagnostics, cardinality, evaluation order and held/native-control lifecycle.
+
+```sh
+make check RUN='^TestReferencePLpgSQLAssignment(Coercion|Targets|Bounds|Diagnostics|Order|Lifecycle|Cardinality)$'
+make check RUN='^TestReferencePLpgSQLAssignment(Coercion|Targets|Bounds|Diagnostics|Order|Lifecycle|Cardinality)$' REFERENCE=1
+make check RUN='^TestPLpgSQL(Assignment(Atomicity|TargetValidation|TargetUsage|BoundsOrder|PlanningOrigin|Parser)|RowAssignment|CompositeAssignmentAtomicity)$' RACE=1
+```

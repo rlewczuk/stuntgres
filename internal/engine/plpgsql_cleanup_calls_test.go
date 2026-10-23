@@ -24,7 +24,7 @@ func (p *plExceptionCleanupProvider) BeginForeignTransaction(context.Context, ca
 
 func TestPLExceptionCleanupCalledRoutines(t *testing.T) {
 	for _, wrapper := range []bool{false, true} {
-		for _, site := range []string{"assignment", "RETURN", "initializer"} {
+		for _, site := range []string{"assignment", "partial_assignment", "RETURN", "initializer"} {
 			name := "called_pl/" + site
 			if wrapper {
 				name = "sql_wrapper/" + site
@@ -76,7 +76,9 @@ func TestPLExceptionCleanupCalledRoutines(t *testing.T) {
 					callee = "ex_cleanup_wrapper()"
 				}
 				body := "DECLARE x integer; BEGIN x := " + callee + "; RETURN x; END"
-				if site == "RETURN" {
+				if site == "partial_assignment" {
+					body = "DECLARE x integer[] := ARRAY[1]; BEGIN x[1] := " + callee + "; RETURN x[1]; END"
+				} else if site == "RETURN" {
 					body = "BEGIN RETURN " + callee + "; END"
 				} else if site == "initializer" {
 					body = "DECLARE x integer := " + callee + "; BEGIN RETURN x; END"
@@ -105,6 +107,9 @@ func TestPLExceptionCleanupCalledRoutines(t *testing.T) {
 					t.Fatalf("called routine lost fatal cleanup identity/evidence or ran OTHERS: %v", err)
 				}
 				action := "at " + site
+				if site == "partial_assignment" {
+					action = "at assignment"
+				}
 				if site == "initializer" {
 					action = "during statement block local variable initialization"
 				}

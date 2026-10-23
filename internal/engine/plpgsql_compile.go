@@ -102,7 +102,7 @@ func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth Authorizatio
 		if err != nil || record {
 			return usage, record, err
 		}
-		if !usage.Valid() || !usage.Type.Concrete() || usage.Type.IsArray() && usage.Type.Element().BaseType().IsComposite() {
+		if !usage.Valid() || !usage.Type.Concrete() {
 			return sqltype.Usage{}, false, sqlError("0A000", "unsupported PL variable type")
 		}
 		err = auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}), Privileges: authorization.UsagePrivilege})

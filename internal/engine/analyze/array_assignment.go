@@ -107,15 +107,18 @@ func TargetUsage(container sqltype.Usage, steps []parser.TargetStep) sqltype.Usa
 }
 
 func (b *Binder) BindAssignmentTarget(column catalog.Column, steps []parser.TargetStep, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
-	return b.bindAssignmentTargetPath(column, steps, pos, pos)
+	return b.bindAssignmentTargetPath(column, steps, pos, pos, column.Name)
 }
 
 // FieldSelect has no expression location in PostgreSQL. Keep that container
 // location separate from the assignment head used by coercion diagnostics.
-func (b *Binder) bindAssignmentTargetPath(column catalog.Column, steps []parser.TargetStep, pos, containerPos parser.Position) (*plan.ArrayAssignmentTarget, error) {
+func (b *Binder) bindAssignmentTargetPath(column catalog.Column, steps []parser.TargetStep, pos, containerPos parser.Position, rootName string) (*plan.ArrayAssignmentTarget, error) {
 	if field := steps[0].Field; field != nil {
 		shape := column.Usage.Type.BaseType()
 		if !shape.IsComposite() {
+			if b.PL != nil {
+				return nil, sqlError("42703", fmt.Sprintf("record %q has no field %q", rootName, field.Text))
+			}
 			return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot assign to field %q of column %q because its type %s is not a composite type", field.Text, column.Name, b.DiagnosticTypeName(shape)), pos)
 		}
 		for i := range shape.CompositeLen() {
@@ -129,13 +132,16 @@ func (b *Binder) bindAssignmentTargetPath(column catalog.Column, steps []parser.
 			}
 			target := &plan.ArrayAssignmentTarget{Container: column.Usage, Destination: member.Usage, Reapply: reapply, Name: member.Name, Pos: pos, Attribute: member.Attribute}
 			if len(steps) > 1 {
-				target.Next, err = b.bindAssignmentTargetPath(catalog.Column{Name: member.Name, Usage: member.Usage}, steps[1:], pos, parser.Position{})
+				target.Next, err = b.bindAssignmentTargetPath(catalog.Column{Name: member.Name, Usage: member.Usage}, steps[1:], pos, parser.Position{}, rootName)
 				if err != nil {
 					return nil, err
 				}
 				target.Destination = target.Next.Destination
 			}
 			return target, nil
+		}
+		if b.PL != nil {
+			return nil, sqlError("42703", fmt.Sprintf("record %q has no field %q", rootName, field.Text))
 		}
 		return nil, expr.ErrorAt("42703", fmt.Sprintf("cannot assign to field %q of column %q because there is no such column in data type %s", field.Text, column.Name, b.DiagnosticTypeName(shape)), pos)
 	}
@@ -157,7 +163,7 @@ func (b *Binder) bindAssignmentTargetPath(column catalog.Column, steps []parser.
 	}
 	target.Pos = pos
 	if count < len(steps) {
-		target.Next, err = b.bindAssignmentTargetPath(catalog.Column{Name: column.Name, Usage: target.Destination}, steps[count:], pos, containerPos)
+		target.Next, err = b.bindAssignmentTargetPath(catalog.Column{Name: column.Name, Usage: target.Destination}, steps[count:], pos, containerPos, rootName)
 		if err != nil {
 			return nil, err
 		}

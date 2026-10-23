@@ -487,7 +487,6 @@ package parser
 %type <tok> pl_not_null
 %type <expr> pl_default pl_target pl_return_value pl_expression
 %type <tok> pl_name
-%type <objectName> pl_path
 %type <tok> cast_context
 %type <tok> returns_word
 %type <routineParameters> function_arguments function_declaration_argument_list
@@ -1620,11 +1619,11 @@ pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
 pl_return_value: /* empty */ {$$=nil} | pl_expression {$$=$1} ;
 pl_expression: pl_expression_start scalar_projection { sqllex.(*lexer).plExpression=false; $$=$2 } ;
 pl_expression_start: /* empty */ { sqllex.(*lexer).plExpression=true } ;
-pl_target: pl_path {$$=ColumnExpr{Name:$1,Pos:$1.Parts[0].Pos}}
- | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}} ;
+pl_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos}}
+ | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
+ | pl_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}}
+ | pl_target array_subscript {if base,ok:=$1.(SubscriptExpr);ok {base.Subscripts=append(base.Subscripts,$2);$$=base} else {$$=SubscriptExpr{Base:$1,Subscripts:[]ArraySubscript{$2},Pos:$1.SourcePosition()}}} ;
 pl_name: IDENT | KW_U | KW_C | KW_T | RETURN_BODY ;
-pl_path: pl_name {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}
- | pl_path '.' col_label {$$=$1;$$.Parts=append($$.Parts,Identifier{Text:$3.text,Pos:$3.pos})} ;
 routine_return_head: RETURN_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 routine_atomic_head: BEGIN ATOMIC_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 standard_routine_body: routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=[]Statement{&Select{Targets:[]Expr{$2},Pos:$1.pos}}}
@@ -2327,6 +2326,8 @@ grouped_primary: '(' scalar_projection ')' { expr:=groupedQualification($2);if c
 field_value: grouped_primary '.' col_label { $$=FieldExpr{Base:$1.Expr,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.Expr.SourcePosition(),OpenPos:$1.Pos} }
  | grouped_primary '.' '*' { $$=FieldExpr{Base:$1.Expr,Expansion:true,Pos:$1.Expr.SourcePosition(),OpenPos:$1.Pos} }
  | PARAM '.' col_label { $$=FieldExpr{Base:ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos},Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
+ | column_reference array_subscripts '.' col_label {base:=SubscriptExpr{Base:$1,Subscripts:$2,Pos:$1.SourcePosition()};$$=FieldExpr{Base:base,Field:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.SourcePosition()}}
+ | PARAM array_subscripts '.' col_label {base:=SubscriptExpr{Base:ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos},Subscripts:$2,Pos:$1.pos};$$=FieldExpr{Base:base,Field:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}}
  | field_value '.' col_label { $$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()} }
  | field_value '.' '*' { $$=FieldExpr{Base:$1,Expansion:true,Pos:$1.SourcePosition()} }
  | field_value array_subscripts { $$=SubscriptExpr{Base:$1,Subscripts:$2,Pos:$1.SourcePosition()} } ;

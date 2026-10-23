@@ -54,6 +54,12 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   Snapshot inquiry forwards to the admitted host's immutable public value,
   selected together with the tuple frontier, never sampled during Eval.
   Immutable expression nodes and prepared descriptors retain no runtime owner.
+  PL assignment projections borrow a balanced planning-origin flag while
+  evaluating their child; SQL calls forward it explicitly, excluding active
+  domain VALUE frames. Diagnostic cloning preserves planning-origin markers;
+  runtime coercion and CHECK failures do not become planning errors.
+  Assignment preflight simplifies SQL constants before importing execution-frame
+  coercions; failures in the import phase retain their runtime origin.
 - **Routine admission and descriptors** (`routine_*.go`): planning-time EXECUTE
   admission (`AdmitRoutineCall`, `AdmitRoutineReference`,
   `EvaluatePlanningExpression`), the consumed-call footprint `RoutineProgram`,

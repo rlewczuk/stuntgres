@@ -42,6 +42,12 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   `SubqueryExpr`, `WindowExpr`, ...) with their `Eval` methods, and the
   set-returning `UnnestExpr`, `SeriesExpr` and `SubscriptsExpr` with their source
   protocol and cursors.
+  Invocation-only PL assignment wrappers preserve constant-planning error origin
+  and reuse datum IO/sizing/volatility; stored-provider validation rejects them.
+  The mutation projection exposes its captured datum, bounds and RHS to ordinary
+  expression lowering, while shared targets evaluate runtime bounds before the
+  leaf. Each output row privately reconstructs the same original datum; activation
+  publication and detached field-ancestor reconstruction belong to the engine.
 - **Installed extension nodes** (`expression_installed.go`,
   `expression_cube.go`, `expression_cube_spatial.go`, `expression_extension_paths.go`):
   `InstalledTextExpr` (unaccent, `daitch_mokotoff`), `InstalledCryptoExpr`,

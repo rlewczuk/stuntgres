@@ -38,7 +38,7 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 						t.Fatal(err)
 					}
 					expression := syntax.Statements[0].Expression
-					if _, err := scope.evaluatePLExpression(frame, &parser.Select{Targets: []parser.Expr{expression}, Pos: expression.SourcePosition()}, e.CatalogRead()); err != nil {
+					if _, _, err := scope.evaluatePLExpression(frame, &parser.Select{Targets: []parser.Expr{expression}, Pos: expression.SourcePosition()}, e.CatalogRead(), nil); err != nil {
 						t.Fatal(err)
 					}
 					nestedRestore := scope.activateSQLRoutine(nil, e.CatalogRead())

@@ -9,7 +9,7 @@ import (
 
 func TestReferencePLpgSQLExceptionCallDiagnostics(t *testing.T) {
 	for _, route := range []string{"called_pl", "sql_noninline_wrapper"} {
-		for _, site := range []string{"assignment", "RETURN", "initializer"} {
+		for _, site := range []string{"assignment", "partial_assignment", "RETURN", "initializer"} {
 			t.Run(route+"/"+site, func(t *testing.T) {
 				plpgsqlScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 					userOperatorExec(t, p, b, c,
@@ -20,7 +20,9 @@ func TestReferencePLpgSQLExceptionCallDiagnostics(t *testing.T) {
 						callee = "ex_diag_noninline()"
 					}
 					body := "DECLARE x integer; BEGIN x := " + callee + "; RETURN x; END"
-					if site == "RETURN" {
+					if site == "partial_assignment" {
+						body = "DECLARE x integer[] := ARRAY[1]; BEGIN x[1] := " + callee + "; RETURN x[1]; END"
+					} else if site == "RETURN" {
 						body = "BEGIN RETURN " + callee + "; END"
 					} else if site == "initializer" {
 						body = "DECLARE x integer := " + callee + "; BEGIN RETURN x; END"
@@ -30,6 +32,9 @@ func TestReferencePLpgSQLExceptionCallDiagnostics(t *testing.T) {
 					// statement boundary and leave all other fields absent.
 					want := fixture.ControlsReferenceDiagnostic("22012", "division by zero")
 					action := "at " + site
+					if site == "partial_assignment" {
+						action = "at assignment"
+					}
 					if site == "initializer" {
 						action = "during statement block local variable initialization"
 					}

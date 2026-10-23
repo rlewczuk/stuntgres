@@ -459,7 +459,7 @@ func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, au
 		return *scope.sqlRoutine.binding, nil
 	}
 	if scope.sqlRoutine.lexical != nil {
-		return analyze.DescribePL(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, &scope.queryLockAdmission, scope.sqlRoutine.lexical)
+		return analyze.DescribePL(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, &scope.queryLockAdmission, scope.sqlRoutine.lexical, scope.sqlRoutine.assignment)
 	}
 	if scope.sqlRoutine.definition != nil {
 		return analyze.DescribeRoutine(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.name, scope.sqlRoutine.inputCollation)

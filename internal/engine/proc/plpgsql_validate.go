@@ -18,7 +18,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		return invalid()
 	}
 	outer := p.Root.Statements[0]
-	if p.Root.Label != p.Function || len(p.Root.Declarations) != 0 || len(p.Root.Handlers) != 0 || p.Root.HandlerScope != nil || outer.Syntax != nil || outer.Query != nil || outer.Target.Slot != 0 || len(outer.Target.Fields) != 0 {
+	if p.Root.Label != p.Function || len(p.Root.Declarations) != 0 || len(p.Root.Handlers) != 0 || p.Root.HandlerScope != nil || outer.Syntax != nil || outer.Query != nil || outer.Target.Slot != 0 || len(outer.Target.Steps) != 0 {
 		return invalid()
 	}
 	bindings := p.FormalCount
@@ -60,7 +60,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 					return err
 				}
 			case statement.Rethrow:
-				if statement.Return || statement.Target != nil || statement.Expression != nil || instruction.Block != nil || instruction.Query != nil || instruction.Target.Slot != 0 || len(instruction.Target.Fields) != 0 {
+				if statement.Return || statement.Target != nil || statement.Expression != nil || instruction.Block != nil || instruction.Query != nil || instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 {
 					return invalid()
 				}
 			default:
@@ -72,10 +72,10 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				}
 				if !statement.Return {
 					target, err := p.ResolveTarget(statement.Target, scopes)
-					if err != nil || target.Slot != instruction.Target.Slot || !slices.Equal(target.Fields, instruction.Target.Fields) || p.Variables[target.Slot].Constant {
+					if err != nil || target.Slot < 0 || target.Slot >= len(p.Variables) || target.Slot != instruction.Target.Slot || !slices.EqualFunc(target.Steps, instruction.Target.Steps, samePLTargetStep) || p.Variables[target.Slot].Constant {
 						return invalid()
 					}
-				} else if instruction.Target.Slot != 0 || len(instruction.Target.Fields) != 0 {
+				} else if instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 {
 					return invalid()
 				}
 			}
@@ -97,7 +97,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		for _, decl := range raw.Declarations {
 			if decl.Alias != nil {
 				target, err := p.ResolveTarget(decl.Alias, scopes)
-				if err != nil || len(target.Fields) != 0 || block.Bindings[decl.Name.Text] != target.Slot {
+				if err != nil || len(target.Steps) != 0 || block.Bindings[decl.Name.Text] != target.Slot {
 					return invalid()
 				}
 				visible.Bindings[decl.Name.Text] = target.Slot
@@ -192,4 +192,11 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 // silently become unchecked executable structure.
 func validPLExpressionQuery(query *parser.Select, expression parser.Expr) bool {
 	return reflect.DeepEqual(query, plExpressionQuery(expression))
+}
+
+func samePLTargetStep(a, b parser.TargetStep) bool {
+	if (a.Field == nil) != (b.Field == nil) || a.Subscript != b.Subscript {
+		return false
+	}
+	return a.Field == nil || *a.Field == *b.Field
 }

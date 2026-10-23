@@ -87,6 +87,9 @@ type EvalStatement struct {
 	// Separate rule-program permission: actual supplied Param leaves may become
 	// typed constants during preparation. Ordinary imported-param barriers stay.
 	SpecializeRuleParameters bool
+	// Borrowed only while a PL assignment projection evaluates its child.
+	// Domain VALUE frames suppress propagation to their SQL CHECK routines.
+	PLAssignmentPlanning bool
 }
 
 // EvalAdmission is routine admission state for local serial DDL/recipe

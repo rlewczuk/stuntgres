@@ -148,6 +148,12 @@ library, and never the root engine or `session`. The engine, the root driver
   captures record pair identity or absence for invalidation.
 - **Bound operands** keep their position, usage and properties through
   conversion instead of being rebound.
+- **PL assignment** keeps the reached lexical frame and full destination Usage.
+  The ordinary SELECT binder injects leaf conversion and semantic-datum mutation
+  before set-returning lowering and final dependency collection. Bounds remain
+  in the per-row projection; empty target sets do not evaluate them. Assignment
+  selection distinguishes an absent path from a cast failure, without changing
+  SQL assignment policy.
 - **Operator diagnostics** reuse `functions.ComparisonError` and the visible
   type-name formatter `DiagnosticTypeName`.
 - **Shared operator spellings** select catalog arity and formal types before

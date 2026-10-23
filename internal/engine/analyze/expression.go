@@ -58,6 +58,8 @@ type Binder struct {
 	Dependencies []catalog.ExpressionDependency
 	// Identity of the actual missing-call diagnostic, not a SQLSTATE heuristic.
 	PL                 *proc.PLFrame // Private reached-expression lexical inputs; never retained.
+	plAssignmentDatum  *PLAssignment
+	plAssignmentQuery  *parser.Select
 	unresolvedCallable error
 	normalizingSyntax  map[StoredExpressionSyntaxKey]bool
 

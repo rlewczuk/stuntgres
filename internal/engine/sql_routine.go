@@ -28,19 +28,19 @@ type sqlRoutineAnalysis struct {
 }
 
 // InvokeSQLRoutine runs a SQL-language routine body inside the statement.
-func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef) (sqltype.Value, error) {
-	return h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, inputCollation)
+func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) (sqltype.Value, error) {
+	return h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, inputCollation, assignmentPlanning)
 }
 
 // The owner supplies only top-level support EXECUTE. The body still runs in
 // the invoking scope, with its ordinary caller identity and relation rights.
 func (h *statementHost) InvokeAggregateSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, owner *catalog.Procedure, collation sqltype.CollationRef) (sqltype.Value, error) {
-	return h.scope().invokeSQLRoutine(d, frame, resultUsage, owner, collation)
+	return h.scope().invokeSQLRoutine(d, frame, resultUsage, owner, collation, false)
 }
 
 // invokeSQLRoutine borrows the admitted operation/transaction. It never acquires
 // a driver connection, starts a root command, calls Finish or ends the operation.
-func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef) (value sqltype.Value, err error) {
+func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool) (value sqltype.Value, err error) {
 	if err = parent.enterSQLRoutine(); err != nil {
 		return value, err
 	}
@@ -108,7 +108,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	value = sqltype.Null(resultUsage.Type)
 	for i, statement := range statements {
 		terminal := i == len(statements)-1 && !d.SQL.Void()
-		value, err = parent.executeSQLRoutineCommand(d, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation)
+		value, err = parent.executeSQLRoutineCommand(d, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning)
 		if err != nil {
 			return value, exec.SQLRoutineStatementContext(err, d.Name(), i+1)
 		}
@@ -122,7 +122,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	return value, nil
 }
 
-func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *StatementDescription, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef) (value sqltype.Value, err error) {
+func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *StatementDescription, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) (value sqltype.Value, err error) {
 	restore := s.activateSQLRoutine(d.SQL.Inputs, read)
 	defer func() { err = restore(err) }()
 	if s.effectSerial == ^uint64(0) {
@@ -139,6 +139,7 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 	}()
 	s.sqlRoutine.definition, s.sqlRoutine.terminal = d.SQL, terminal
 	s.sqlRoutine.name = d.Name()
+	s.sqlRoutine.assignmentPlanning = assignmentPlanning
 	s.sqlRoutine.inputCollation = inputCollation
 	_, selecting := statement.(*parser.Select)
 	s.sqlRoutine.scalar, s.sqlRoutine.result = terminal && selecting, resultUsage

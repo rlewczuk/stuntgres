@@ -42,7 +42,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot plan.Node
 	_, deleting := stmt.(*parser.Delete)
-	if ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite || scope.sqlRoutine.lexical != nil {
+	if ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite || scope.sqlRoutine.lexical != nil || scope.sqlRoutine.assignment != nil || scope.sqlRoutine.assignmentPlanning {
 		// Plan closed immutable recipes before executor startup, retaining
 		// imported-parameter, PL-local, row, domain and volatile demand barriers.
 		// The private folded graph is also the graph retained by live portals.
@@ -145,7 +145,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				err = view.ValidateQueryJoinExecution(&evaluation, b.Update.From, auth.Catalog, 0)
 			}
 		} else if b.Query != nil {
-			queryRoot, err = view.PreflightQuery(&evaluation, b.Query.Root)
+			root := b.Query.Root
+			if scope.sqlRoutine.assignmentPlanning {
+				root, err = plAssignmentProjection(root)
+			}
+			if err == nil {
+				queryRoot, err = view.PreflightQuery(&evaluation, root)
+			}
 			if err == nil {
 				err = view.ValidateQueryJoinExecution(&evaluation, queryRoot, auth.Catalog, 0)
 			}

@@ -50,6 +50,7 @@ type Runtime interface {
 	// Executor nodes: each runs a query or routine body for the current frame.
 	EvalSubquery(SubqueryExpr) (sqltype.Value, error)
 	EvalSQLRoutine(SQLRoutineExpr) (sqltype.Value, error)
+	EvalPLAssignment(PLAssignmentExpr) (sqltype.Value, error)
 
 	// Installed extension nodes: each checks its captured identity against the
 	// engine's extension providers or catalog.

@@ -18,23 +18,27 @@ import (
 // wrappers describe, describeWithRule and describeScoped. closed marks SQL
 // routine bodies whose formals are fixed; initial seeds parameter types.
 func Describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, initial ...[]sqltype.Usage) (Binding, error) {
-	return describe(ctx, host, stmt, auth, requiredRef, input, expected, admission, rule, closed, nil, "", sqltype.CollationRef{}, nil, initial...)
+	return describe(ctx, host, stmt, auth, requiredRef, input, expected, admission, rule, closed, nil, "", sqltype.CollationRef{}, nil, nil, initial...)
 }
 
 // DescribeRoutine shares all ordinary binding with an explicit lexical frame.
 func DescribeRoutine(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, definition *proc.Definition, name string, inputCollation sqltype.CollationRef) (Binding, error) {
-	return describe(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, true, definition, name, inputCollation, nil, definition.Inputs)
+	return describe(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, true, definition, name, inputCollation, nil, nil, definition.Inputs)
 }
 
-func DescribePL(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, admission *LockAdmission, frame *proc.PLFrame) (Binding, error) {
+func DescribePL(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, admission *LockAdmission, frame *proc.PLFrame, target *PLAssignment) (Binding, error) {
 	formals := make([]sqltype.Usage, frame.Program.FormalCount)
 	for i := range formals {
 		formals[i] = frame.Usage(i)
 	}
-	return describe(ctx, host, stmt, auth, requiredRef, input, Expected{}, admission, nil, false, nil, "", sqltype.CollationRef{}, frame, formals)
+	binding, err := describe(ctx, host, stmt, auth, requiredRef, input, Expected{}, admission, nil, false, nil, "", sqltype.CollationRef{}, frame, target, formals)
+	if err != nil && target != nil {
+		err = &plan.PLAssignmentPlanningError{Err: err}
+	}
+	return binding, err
 }
 
-func describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, definition *proc.Definition, name string, inputCollation sqltype.CollationRef, lexical *proc.PLFrame, initial ...[]sqltype.Usage) (binding Binding, failure error) {
+func describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, definition *proc.Definition, name string, inputCollation sqltype.CollationRef, lexical *proc.PLFrame, plTarget *PLAssignment, initial ...[]sqltype.Usage) (binding Binding, failure error) {
 	b := Binding{}
 	binder := NewBinder(ctx, host, input, expected)
 	binder.PL = lexical
@@ -143,6 +147,7 @@ func describe(ctx context.Context, host Host, stmt parser.Statement, auth Author
 	case *parser.Select:
 		var err error
 		binder.Query.Auth = auth
+		binder.plAssignmentDatum, binder.plAssignmentQuery = plTarget, s
 		b.Query, err = binder.BindSelect(s, false)
 		if err != nil {
 			return b, err

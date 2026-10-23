@@ -146,15 +146,17 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 
 // sqlRoutineDemand is the internal SQL routine result demand of a statement.
 type sqlRoutineDemand struct {
-	lexical        *proc.PLFrame
-	plPlanning     bool // PL diagnostic provenance; cleared at the real executor handoff.
-	scalar         bool // Internal single-row SELECT demand, never public finalization.
-	rewrite        bool // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
-	result         sqltype.Usage
-	resultPlan     sqltype.CoercionPlan
-	definition     *proc.Definition
-	name           string // Live declaration qualifier, separate from immutable body syntax.
-	terminal       bool
-	binding        *analyze.Binding
-	inputCollation sqltype.CollationRef // Only quoted aggregate-support formal annotation.
+	lexical            *proc.PLFrame
+	plPlanning         bool                  // PL diagnostic provenance; cleared at the real executor handoff.
+	assignment         *analyze.PLAssignment // Reached semantic-datum projection, never retained.
+	assignmentPlanning bool                  // Borrowed PL origin for a called SQL body, not its destination.
+	scalar             bool                  // Internal single-row SELECT demand, never public finalization.
+	rewrite            bool                  // Nested all-row ts_rewrite demand, with separate open/fetch diagnostics.
+	result             sqltype.Usage
+	resultPlan         sqltype.CoercionPlan
+	definition         *proc.Definition
+	name               string // Live declaration qualifier, separate from immutable body syntax.
+	terminal           bool
+	binding            *analyze.Binding
+	inputCollation     sqltype.CollationRef // Only quoted aggregate-support formal annotation.
 }

@@ -80,6 +80,9 @@ unreachable branches. The released error-condition inventory preserves aliases.
 Every initializer, body and handler expression query must match the compiler's
 complete synthetic single-target SELECT, including its parser expression and
 position; extra query clauses are not a checked expression program.
+Checked targets retain one root slot and ordered parser field/subscript steps;
+validation checks their exact lexical and syntax association. Binding and bound
+values belong only to the reached invocation, never to the checked program.
 `PLFrame` owns values/scopes and the active handled diagnostic, restoring the
 previous diagnostic on nested handler exit. Closing it cannot mutate the program,
 caller arguments or already returned immutable values.
@@ -88,6 +91,14 @@ Private effective Usages inherit checked call collation for formals/ordinary
 locals and their lexical `%TYPE` copies; column `%TYPE` stays fixed to its source.
 Known rows retain typed whole NULL until materialized; RECORD begins indeterminate
 and NULL assignment clears its shape. Composite-domain candidates validate before publication.
+Only whole composite-to-row movement is ordinal; destination members and partial
+leaves use assignment conversion, with textual IO only when no cast path exists.
+The semantic assignment datum is the leading record field when present, otherwise
+the slot. Query projections reconstruct that datum per output row; empty results
+retain its typed NULL identity, while multiple rows never publish. Field ancestors
+are reconstructed once after cardinality admission, preserving their siblings.
+Every partial assignment enters that reached query projection; only whole-slot
+initialization and assignment accept an already evaluated value.
 The higher root owns reached SQL binding, conversion, handler admission and
 execution. PL VOID uses non-NULL `VoidValue`; procedure completion is separate.
 PL nesting borrows the same balanced SQL-body/root guard, not a second counter.

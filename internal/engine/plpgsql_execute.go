@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
@@ -64,13 +66,13 @@ func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, b
 		var err error
 		if initializer.Expression != nil {
 			f.Scopes[len(f.Scopes)-1] = initializer.Scope
-			value, err = s.evaluatePLExpression(f, initializer.Query, read)
+			value, _, err = s.evaluatePLExpression(f, initializer.Query, read, nil)
 			f.Scopes[len(f.Scopes)-1] = block
 		} else {
 			value = sqltype.Null(variable.Usage.Type.BaseType())
 		}
 		if err == nil {
-			value, err = s.assignPLVariable(f, proc.PLTarget{Slot: initializer.Slot}, value)
+			value, err = s.assignPLVariable(f, initializer.Slot, value)
 		}
 		if err != nil {
 			return sqltype.Value{}, false, plRuntimeError(err, read, d, initializer.Expression, "during statement block local variable initialization", false)
@@ -130,7 +132,7 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			if statement.Expression == nil {
 				return sqltype.Value{}, true, nil
 			}
-			value, err := s.evaluatePLExpression(f, instruction.Query, read)
+			value, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil)
 			expressionError := err != nil
 			if err == nil {
 				value, err = s.convertPLValue(value, d.SQL.Result)
@@ -140,14 +142,20 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			}
 			return value, true, nil
 		}
-		value, err := s.evaluatePLExpression(f, instruction.Query, read)
+		if len(instruction.Target.Steps) != 0 {
+			if _, err := s.assignPLTarget(f, instruction.Target, statement.Target, instruction.Query, read); err != nil {
+				return sqltype.Value{}, false, plAssignmentError(err, read, d, statement)
+			}
+			continue
+		}
+		value, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil)
 		expressionError := err != nil
 		if err == nil {
-			value, err = s.assignPLVariable(f, instruction.Target, value)
+			value, err = s.assignPLVariable(f, instruction.Target.Slot, value)
 		}
 		if err != nil {
 			var diagnostic *sqlstate.Error
-			var domainError *plCompositeDomainError
+			var domainError *plan.AssignmentDomainError
 			if !expressionError && !errors.As(err, &domainError) && errors.As(err, &diagnostic) && strings.HasPrefix(diagnostic.Context, "SQL function ") {
 				copy := *diagnostic
 				start := statement.Pos.Offset
@@ -180,14 +188,28 @@ type plExpressionPlanningError struct{ error }
 
 func (e *plExpressionPlanningError) Unwrap() error { return e.error }
 
-func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read) (value sqltype.Value, err error) {
+func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment) (value sqltype.Value, present bool, err error) {
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	s.sqlRoutine.lexical = f
 	s.sqlRoutine.plPlanning = true
+	s.sqlRoutine.assignment = assignment
 	s.sqlRoutine.scalar = false
-	if err = s.acquireRelation(statement, true); err != nil {
-		return value, &plExpressionPlanningError{err}
+	admission := statement
+	if assignment != nil && assignment.Raw != nil {
+		copy := *statement
+		copy.Targets = append(slices.Clone(statement.Targets), assignment.Raw)
+		admission = &copy
+	}
+	if err = s.acquireRelation(admission, true); err != nil {
+		return value, false, &plExpressionPlanningError{err}
+	}
+	if admission != statement {
+		s.queryLockAdmission.SelectQuery = statement
+		if root := s.queryLockAdmission.Queries[admission]; root != nil {
+			root.SelectQuery = statement
+			s.queryLockAdmission.Queries[statement] = root
+		}
 	}
 	result, err := s.engine().executeStatement(s, statement, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, f.Values[:f.Program.FormalCount])
@@ -195,12 +217,12 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 	})
 	if err != nil {
 		if s.sqlRoutine.plPlanning {
-			return value, &plExpressionPlanningError{err}
+			return value, false, &plExpressionPlanningError{err}
 		}
-		return value, err
+		return value, false, err
 	}
 	if result.Rows == nil {
-		return value, fmt.Errorf("stuntgres: PL expression has no output")
+		return value, false, fmt.Errorf("stuntgres: PL expression has no output")
 	}
 	defer func() {
 		if closeErr := result.Rows.Close(); err == nil {
@@ -212,38 +234,35 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 	}
 	schema := result.Rows.Schema()
 	if len(schema) != 1 {
-		return value, sqlError("42601", "query returned more than one column")
+		return value, false, sqlError("42601", "query returned more than one column")
 	}
 	row := make([]sqltype.Value, 1)
-	present, err := result.Rows.Next(s.op.Context(), row)
-	if err != nil {
-		return value, err
-	}
-	if !present {
-		return sqltype.Null(schema[0].Usage.Type), nil
-	}
-	value = row[0]
 	present, err = result.Rows.Next(s.op.Context(), row)
 	if err != nil {
-		return value, err
+		return value, false, err
 	}
-	if present {
-		return sqltype.Value{}, sqlError("21000", "query returned more than one row")
+	if !present {
+		return sqltype.Null(schema[0].Usage.Type), false, nil
 	}
-	return value, nil
+	value = row[0]
+	more, err := result.Rows.Next(s.op.Context(), row)
+	if err != nil {
+		return value, false, err
+	}
+	if more {
+		return sqltype.Value{}, false, &plCardinalityError{sqlError("21000", "query returned more than one row")}
+	}
+	return value, true, nil
 }
 
 func (s *StatementScope) convertPLValue(value sqltype.Value, target sqltype.Usage) (sqltype.Value, error) {
 	if !value.IsNull() && value.Type() == target.Type && target.Typmod < 0 && !target.Type.IsDomain() {
 		return value, nil
 	}
-	if target.Type.BaseType().IsComposite() {
+	if target.Type.BaseType().IsComposite() && (value.IsNull() || value.Type().BaseType().IsComposite()) {
 		shape := target.Type.BaseType()
 		if value.IsNull() {
 			return s.finishPLComposite(sqltype.Null(shape), target.Type)
-		}
-		if !value.Type().BaseType().IsComposite() {
-			return sqltype.Value{}, sqlError("42804", "cannot assign non-composite value to a row variable")
 		}
 		fields := make([]sqltype.Value, shape.CompositeLen())
 		for i := range fields {
@@ -251,7 +270,7 @@ func (s *StatementScope) convertPLValue(value sqltype.Value, target sqltype.Usag
 			if i < value.CompositeLen() {
 				source = value.CompositeField(i)
 			}
-			converted, err := s.convertPLValue(source, shape.CompositeMember(i).Usage)
+			converted, err := s.convertPLTargetValue(source, shape.CompositeMember(i).Usage)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -262,6 +281,15 @@ func (s *StatementScope) convertPLValue(value sqltype.Value, target sqltype.Usag
 			return sqltype.Value{}, err
 		}
 		return s.finishPLComposite(candidate, target.Type)
+	}
+	return s.convertPLTargetValue(value, target)
+}
+
+// Partial targets and destination row members use selected assignment casts
+// and absent-path textual conversion, including composite-valued leaves.
+func (s *StatementScope) convertPLTargetValue(value sqltype.Value, target sqltype.Usage) (sqltype.Value, error) {
+	if !value.IsNull() && value.Type() == target.Type && target.Typmod < 0 && !target.Type.IsDomain() {
+		return value, nil
 	}
 	if value.IsNull() {
 		value = sqltype.Null(target.Type.BaseType())
@@ -292,12 +320,6 @@ func (s *StatementScope) convertPLValue(value sqltype.Value, target sqltype.Usag
 	return target.Type.InputWithEnvironment(s.op.Context(), text, target.Typmod, evaluation.Input)
 }
 
-// A CHECK exception is not an exception from the assignment's selected cast.
-// Preserve that producer through field reconstruction and diagnostic decoration.
-type plCompositeDomainError struct{ error }
-
-func (e *plCompositeDomainError) Unwrap() error { return e.error }
-
 // The candidate has the physical base descriptor. Validate fresh reconstructed
 // input before attaching a domain tag or publishing any activation slot.
 func (s *StatementScope) finishPLComposite(candidate sqltype.Value, target *sqltype.Descriptor) (sqltype.Value, error) {
@@ -322,28 +344,14 @@ func (s *StatementScope) finishPLComposite(candidate sqltype.Value, target *sqlt
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.output}}
 		evaluation.Input.DomainChecks = &evaluation
 		if err := target.CheckDomainInput(s.op.Context(), candidate, evaluation.Input); err != nil {
-			return sqltype.Value{}, &plCompositeDomainError{err}
+			return sqltype.Value{}, &plan.AssignmentDomainError{Err: err}
 		}
 	}
 	return target.Wrap(candidate)
 }
 
-func (s *StatementScope) assignPLVariable(f *proc.PLFrame, target proc.PLTarget, value sqltype.Value) (sqltype.Value, error) {
-	variable := f.Program.Variables[target.Slot]
-	if len(target.Fields) > 0 {
-		current := f.Values[target.Slot]
-		if current.Type() == nil {
-			d := sqlError("55000", fmt.Sprintf("record %q is not assigned yet", variable.Name)).(*sqlstate.Error)
-			d.Detail = "The tuple structure of a not-yet-assigned record is indeterminate."
-			return sqltype.Value{}, d
-		}
-		updated, err := s.assignPLField(current, target.Fields, value, variable.Name)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		f.Values[target.Slot] = updated
-		return updated, nil
-	}
+func (s *StatementScope) assignPLVariable(f *proc.PLFrame, slot int, value sqltype.Value) (sqltype.Value, error) {
+	variable := f.Program.Variables[slot]
 	var err error
 	if variable.Record {
 		if value.IsNull() {
@@ -352,7 +360,7 @@ func (s *StatementScope) assignPLVariable(f *proc.PLFrame, target proc.PLTarget,
 			return sqltype.Value{}, sqlError("0A000", "input of anonymous composite types is not implemented")
 		}
 	} else {
-		value, err = s.convertPLValue(value, f.Usage(target.Slot))
+		value, err = s.convertPLValue(value, f.Usage(slot))
 	}
 	if err != nil {
 		return sqltype.Value{}, err
@@ -360,42 +368,8 @@ func (s *StatementScope) assignPLVariable(f *proc.PLFrame, target proc.PLTarget,
 	if variable.NotNull && (value.Type() == nil || value.IsNull()) {
 		return sqltype.Value{}, sqlError("22004", fmt.Sprintf("null value cannot be assigned to variable %q declared NOT NULL", variable.Name))
 	}
-	f.Values[target.Slot] = value
+	f.Values[slot] = value
 	return value, nil
-}
-func (s *StatementScope) assignPLField(current sqltype.Value, path []string, value sqltype.Value, name string) (sqltype.Value, error) {
-	shape := current.Type().BaseType()
-	index := -1
-	for i := range shape.CompositeLen() {
-		if shape.CompositeMember(i).Name == path[0] {
-			index = i
-			break
-		}
-	}
-	if index < 0 {
-		return sqltype.Value{}, sqlError("42703", fmt.Sprintf("record %q has no field %q", name, path[0]))
-	}
-	fields := make([]sqltype.Value, shape.CompositeLen())
-	for i := range fields {
-		fields[i] = sqltype.Null(shape.CompositeMember(i).Usage.Type)
-		if !current.IsNull() {
-			fields[i] = current.CompositeField(i)
-		}
-	}
-	var err error
-	if len(path) == 1 {
-		fields[index], err = s.convertPLValue(value, shape.CompositeMember(index).Usage)
-	} else {
-		fields[index], err = s.assignPLField(fields[index], path[1:], value, name)
-	}
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	candidate, err := sqltype.OwnedCompositeValue(shape, fields)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return s.finishPLComposite(candidate, current.Type())
 }
 
 func plRoutineDiagnosticIdentity(read catalog.Read, d *catalog.Procedure) string {
