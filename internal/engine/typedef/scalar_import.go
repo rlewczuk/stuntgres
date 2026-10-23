@@ -1,4 +1,4 @@
-package engine
+package typedef
 
 import (
 	"stuntgres/internal/engine/catalog"
@@ -6,11 +6,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The isolated candidate belongs to a different lifetime. Reserve destination
-// enum members and installed base codecs, retaining exact source-pointer import
-// authority for the existing nested datum/expression remapping pass. Engine.mu
-// is held.
-func (e *Engine) importScalarTypesLocked(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+// ImportScalarTypesLocked gives the enum, query_int, cube and citext types of
+// the isolated candidate next, which belongs to a different lifetime, their
+// destination codecs: enum members get fresh identities from
+// allocateEnumMember, in member order, and each type is installed at its
+// mapped address. The source codecs stay recorded as scalar imports for the
+// nested datum and expression remapping pass. allocateEnumMember is the
+// engine's enum member allocator; the caller holds Engine.mu for the whole
+// call.
+func ImportScalarTypesLocked(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, allocateEnumMember func() (int64, error)) error {
 	for address, descriptor := range next.Descriptors() {
 		d, ok := descriptor.(*catalog.Type)
 		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsQueryInt() && !d.SQLType.IsCube() && !d.SQLType.IsCitext() {
@@ -26,7 +30,7 @@ func (e *Engine) importScalarTypesLocked(next *catalog.State, mapping map[ids.Ob
 		if source.IsEnum() {
 			members := source.EnumMembers()
 			for i := range members {
-				id, er := e.catalog.allocateEnumMemberLocked()
+				id, er := allocateEnumMember()
 				if er != nil {
 					return er
 				}
@@ -54,9 +58,10 @@ func (e *Engine) importScalarTypesLocked(next *catalog.State, mapping map[ids.Ob
 	return nil
 }
 
-// Namespace/OID reconstruction may mint a final codec after initial reservation.
-// Translation remains keyed by the source pointer and points at that final codec.
-func refreshScalarImportDestinations(next *catalog.State) {
+// RefreshScalarImportDestinations points each scalar import of next at its
+// final codec. Namespace and OID reconstruction may mint a final codec after
+// the initial reservation; translation stays keyed by the source pointer.
+func RefreshScalarImportDestinations(next *catalog.State) {
 	for source := range next.ScalarImports() {
 		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.ID())}); ok {
 			next.SetScalarImport(source, d.SQLType)

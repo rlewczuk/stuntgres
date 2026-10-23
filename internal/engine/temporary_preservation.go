@@ -45,7 +45,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err != nil {
 		return err
 	}
-	if err := e.importScalarTypesLocked(next, mapping); err != nil {
+	if err := typedef.ImportScalarTypesLocked(next, mapping, e.catalog.allocateEnumMemberLocked); err != nil {
 		return err
 	}
 	defer func() { next.SetScalarImports(nil) }()
@@ -53,7 +53,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err != nil {
 		return err
 	}
-	refreshScalarImportDestinations(next)
+	typedef.RefreshScalarImportDestinations(next)
 	indexes.CaptureMapping(mapping, next.ScalarImports())
 	if typesChanged || domainsChanged || len(mapping) != 0 || len(next.ScalarImports()) != 0 || next.ACLItemImport() != nil {
 		if err := stored.ReownScalarTypes(next, relations, mapping); err != nil {
@@ -185,5 +185,5 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 	if err := control.CheckTemporaryRelationSourcesLocked(e.catalog.state); err != nil {
 		return err
 	}
-	return e.checkTemporaryTypedReplacementLocked()
+	return typedef.CheckTemporaryTypedReplacementLocked(e.catalog.state)
 }
