@@ -127,3 +127,105 @@ func TestGeometryRelationProviderLifecycle(t *testing.T) {
 		}
 	}
 }
+
+func TestGeometryPositionProviderLifecycle(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		id   sqltype.ID
+		a, b string
+	}{
+		{"<<", sqltype.Box, "(1,1),(0,0)", "(4,4),(3,3)"},
+		{"<^", sqltype.Box, "(1,1),(0,0)", "(2,2),(1,1)"},
+		{"<<|", sqltype.Polygon, "((0,0))", "((0.0000005,0.0000005))"},
+		{"&>", sqltype.Polygon, "((0,0),(NaN,0))", "((0,0),(NaN,0))"},
+	} {
+		t.Run(tc.name+tc.a, func(t *testing.T) {
+			n, c, _ := relationProviderUnit(t, tc.name, tc.id, tc.id, tc.a, tc.b)
+			check := func(node GeometryRelation) {
+				t.Helper()
+				if err := node.ValidateStoredProvider(); err != nil {
+					t.Fatal(err)
+				}
+				v, err := node.Eval(c)
+				if err != nil || v.IsNull() || v.Type() != node.Usage.Type {
+					t.Fatal("result authority", v, err)
+				}
+				truth, err := v.Boolean()
+				if err != nil || !truth {
+					t.Fatal("position value", truth, err)
+				}
+			}
+			check(n)
+			fresh, _, _ := relationProviderUnit(t, tc.name, tc.id, tc.id, tc.a, tc.b)
+			rebuilt, err := n.Rebuild(fresh.Info, fresh.Children())
+			if err != nil {
+				t.Fatal(err)
+			}
+			check(rebuilt.(GeometryRelation))
+			if _, err := n.Rebuild(n.Info, fresh.Children()); err == nil {
+				t.Fatal("foreign children admitted with old result")
+			}
+			// Retagged datums evaluated by rebuilt children retain both their
+			// immutable payload and the replacement descriptor generation.
+			for i := range fresh.Args {
+				source := n.Args[i].(stringUnitArgument)
+				target := fresh.Args[i].(stringUnitArgument)
+				target.value, err = source.value.Retag(target.Usage.Type)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fresh.Args[i] = target
+			}
+			rebuilt, err = n.Rebuild(fresh.Info, fresh.Children())
+			if err != nil {
+				t.Fatal(err)
+			}
+			check(rebuilt.(GeometryRelation))
+			if _, err := n.Rebuild(n.Info, n.Children()[:1]); err == nil {
+				t.Fatal("short rebuild admitted")
+			}
+			sub, err := n.Substitute(n.Info, n.Children())
+			if err != nil {
+				t.Fatal(err)
+			}
+			check(sub.(GeometryRelation))
+			bad := n
+			bad.Args[1] = fresh.Args[1]
+			if bad.ValidateStoredProvider() == nil {
+				t.Fatal("foreign stored operand admitted")
+			}
+			same := func(a, b expr.Expr) bool { return a.ResultUsage() == b.ResultUsage() }
+			if !n.SameGroup(n, same, false) || n.SameGroup(fresh, same, false) || n.IntrinsicVolatility() != expr.Immutable {
+				t.Fatal("immutable group authority")
+			}
+			other := n
+			other.Namespace = "other"
+			if n.SameGroup(other, same, false) {
+				t.Fatal("namespace authority lost")
+			}
+			// Runtime NULL still evaluates a demanded later child. Constant
+			// NULL retains the provider's existing short-circuit contract.
+			null := n.Args[0].(stringUnitArgument)
+			null.value = sqltype.Null(null.Usage.Type)
+			n.Args[0] = null
+			failure := errors.New("position child failure")
+			right := n.Args[1].(stringUnitArgument)
+			right.err = failure
+			n.Args[1] = right
+			if _, err := n.Eval(c); !errors.Is(err, failure) {
+				t.Fatal("runtime NULL hid error", err)
+			}
+			null.literal = true
+			n.Args[0] = null
+			if v, err := n.Eval(c); err != nil || !v.IsNull() || v.Type() != n.Usage.Type {
+				t.Fatal("constant strict NULL", v, err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			c.Context = ctx
+			if _, err := n.Eval(c); !errors.Is(err, context.Canceled) {
+				t.Fatal("NULL hid cancellation", err)
+			}
+		})
+	}
+}

@@ -159,6 +159,22 @@ proofs consume this expansion unchanged. Circle scalar operators do not imply
 default B-tree/hash classes, grouping or sorting. Root must observe both selected
 native and pinned PostgreSQL modes on these completed definitions.
 
+### Geometric position operator admission
+
+The supported TSV includes BOX493–496,800–801,2570–2573 and
+POLYGON485–488,2574–2577 alongside the existing POINT/CIRCLE positions.
+These same-type binary signatures return BOOL16 and retain namespace11,
+owner10, no merge/hash, zero commutator/negator links, positionsel1300 and
+positionjoinsel1301. Their procedure identities and all fifteen fields come
+from [REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and [pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat),
+not production output or inverse-predicate inference.
+
+BOX/POLYGON associations authorize the operator-only relation provider, not
+named-call admission. The dedicated position catalog scenario couples every
+one of the32 required rows to typed-column execution, while the shared
+PGOperator consumers retain the complete admitted inventory.
+
 ### JSONB JSONPath operator admission
 
 PG18-FUNC-JSONB-PATH-OPS adds only JSONB/jsonpath operators 4012 `@?` and

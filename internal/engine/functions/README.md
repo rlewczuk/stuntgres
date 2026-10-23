@@ -63,6 +63,9 @@ literals instead, whose owning-type annotations belong to `regobj.ConstantLitera
 Both paths preserve overload identity. Capture is operator-only, not function-call
 admission. Polygon-point and circle-circle nodes retain their existing ownership;
 the callable registry is not expanded by relation routine metadata.
+BOX/POLYGON positions use this node as well, including formal typed NULL
+operands in persisted expressions. Their predicates do not add expression
+variants or change the existing POINT/CIRCLE providers.
 Public execution, ACLs and stored consumers use
 [`reference/types`](../../../reference/types/README.md#testing).
 
@@ -333,6 +336,7 @@ make check RUN='^Test(Composite(Arity|Counted|Leaf|Named|Providerless|Retained|S
 make check RUN='^Test(CatalogInquiry|TransactionInquiry|AdvisoryNode|BlockingInquiry|SequenceCall)'  # runtime-capability nodes
 make check RUN='^Test(ACLValues|ACLNodes|ACLValueEvaluates|ObjectACLEvaluates|AccessInquiryEvaluates)'  # ACL functions
 make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryRelation|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
+make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider authority
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
 make check RUN='^TestMACOperationsProviderLifecycle$'  # fixed-width MAC function protocol
 ```

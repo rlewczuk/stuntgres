@@ -36,6 +36,10 @@ package or the engine.
   polygon-point/circle-circle providers and callable registrations retain ownership.
   The metadata array remains OID-sorted for binary lookup and publishes genuine
   result/procedure/link/estimator facts without inferred reverse signatures.
+  BOX/POLYGON positions publish their released BOOL signatures and zero
+  commutator/negator fields with positionsel/positionjoinsel estimators; the
+  mathematical inverse is not an inferred catalog link. POINT/CIRCLE rows keep
+  their existing provider ownership.
 - **Registered index support** (`index_support*.go`): the one catalog-aware
   class/member selector (`BindClassSupport`, `BindIndexOrdering`,
   `BindPartitionHash`, `BindIndexForeignKey`, `BindExclusionOperator`). It

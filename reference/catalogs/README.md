@@ -38,6 +38,10 @@ whose oracle loads the legacy OpenSSL provider
   selected spellings and geometric formals, independently asserts all15 fields
   and symbolic procedure links, and couples required rows to typed-column
   execution. Catalog presence alone does not grant named-call admission.
+  `TestReferenceGeometryPositionOperatorCatalog` independently specifies all32
+  released position tuples and procedure links and couples each OID to actual
+  typed-column true/false/NULL BOOL execution. It complements the shared TSV
+  consumers rather than deriving expectations from native admission.
   Boundary scenarios distinguish released lookup identities from executable
   rows: POINT-distance517 is an exact admitted control alongside TEXT/RECORD,
   while unsupported pattern-order and FTS aliases remain negative controls.
@@ -127,6 +131,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Operators: `RUN='^TestReferencePGOperator'`, `RUN='^TestReferenceLsegOperatorCatalog$'`
 - Aggregates: `RUN='^TestReferencePGAggregate'`
 - <a id="geometric-relation-operator-catalog-proof"></a>Geometric relation catalogs: `RUN='^TestReferenceGeometryRelationOperatorCatalog$'`
+- Geometric position catalogs: `RUN='^TestReferenceGeometryPositionOperatorCatalog$'`
 - Casts: `RUN='^TestReferencePGCast'`
 - Collations, languages, transforms, text search: `RUN='^TestReferencePGCollation'`, `RUN='^TestReferencePGLanguage'`, `RUN='^TestReferencePGTransform'`, `RUN='^TestReferencePGTSConfig'`
 - Large-object pages: `RUN='^TestReferencePGLargeobject'`

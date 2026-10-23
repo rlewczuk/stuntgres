@@ -76,6 +76,24 @@ var geometryRelations = [...]struct {
 	{"<->", "dist_ppoly", Point, Polygon, Float8},
 	{"<->", "dist_polyp", Polygon, Point, Float8},
 	{"<->", "dist_cpoint", Circle, Point, Float8},
+	{"<<", "box_left", Box, Box, Bool},
+	{"&<", "box_overleft", Box, Box, Bool},
+	{"&>", "box_overright", Box, Box, Bool},
+	{">>", "box_right", Box, Box, Bool},
+	{"<<|", "box_below", Box, Box, Bool},
+	{"&<|", "box_overbelow", Box, Box, Bool},
+	{"|&>", "box_overabove", Box, Box, Bool},
+	{"|>>", "box_above", Box, Box, Bool},
+	{"<^", "box_below_eq", Box, Box, Bool},
+	{">^", "box_above_eq", Box, Box, Bool},
+	{"<<", "poly_left", Polygon, Polygon, Bool},
+	{"&<", "poly_overleft", Polygon, Polygon, Bool},
+	{"&>", "poly_overright", Polygon, Polygon, Bool},
+	{">>", "poly_right", Polygon, Polygon, Bool},
+	{"<<|", "poly_below", Polygon, Polygon, Bool},
+	{"&<|", "poly_overbelow", Polygon, Polygon, Bool},
+	{"|&>", "poly_overabove", Polygon, Polygon, Bool},
+	{"|>>", "poly_above", Polygon, Polygon, Bool},
 }
 
 func GeometryRelationKind(name string, left, right ID) (GeometryRelationOperator, bool) {
@@ -392,6 +410,10 @@ func relationValueDistance(ctx context.Context, a, b Value) (float64, bool, erro
 	return d, true, err
 }
 func relationValuePredicate(ctx context.Context, a, b Value, name string) (bool, error) {
+	switch name {
+	case "<<", ">>", "&<", "&>", "<<|", "|>>", "&<|", "|&>", "<^", ">^":
+		return relationValuePosition(ctx, a, b, name)
+	}
 	if name == "@>" {
 		a, b = b, a
 		name = "<@"

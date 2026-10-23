@@ -46,6 +46,11 @@ these are shared across families:
   CIRCLE/POLYGON, in both operand orders. `TestReferenceGeometryRelationInvalidUnknown`
   retains same-type LSEG inference and exact22P02/character8 input failure for
   `'(1,1)' ## lseg '[(0,0),(2,0)]'` on direct analysis and Prepare.
+  Geometry positions reuse the same witnesses for all32 signatures, including
+  BOX touching versus strict POINT aliases, polygon raw bounds versus fuzzy
+  positions, complete overload diagnostics and stored generated/CHECK/view
+  replay with new writes. The shared-spelling cases retain shift, range,
+  network and custom-operator selection.
 - `domain_helpers_test.go`: the shared domain fixture `domainReferenceScenario`
   (a pinned notice session per backend with schema `domain_s` and a one-row
   `public.one`; schema cleanup is registered before borrowing so handles close
@@ -144,6 +149,7 @@ COPY test in reference/dml.
 - <a id="circle-scalar-contract"></a>CIRCLE: `RUN='^TestReferenceCircle'`
 - <a id="geometric-measurement-oracle-contract"></a>Geometry measurement functions: `RUN='^TestReferenceGeometryMeasure'`
 - <a id="geometric-relation-operator-oracle-contract"></a>Geometry relations: `RUN='^TestReferenceGeometryRelation'`
+- Geometry positions: `RUN='^TestReferenceGeometryPosition'`
 - <a id="geometric-constructor-conversion-contract"></a>Geometry constructors and conversions: `RUN='^TestReferenceGeometryConversion'`
 - INET/CIDR (all): `RUN='^TestReferenceINET'`
 - INET operators, mask, formatting, subnet: `RUN='^TestReferenceINET(Operator|Mask|Format|Subnet)'`

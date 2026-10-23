@@ -176,6 +176,15 @@ POINT/BOX/FLOAT8/BOOL results keep their selected descriptor, including NULL.
 Existing polygon-point and circle-circle expression providers retain their
 kernels; new relation plans delegate those operations rather than migrating them.
 
+BOX and POLYGON positions use the same relation plan. BOX compares raw
+high/low corners with epsilon1e-6, without renormalizing component updates;
+POLYGON builds stack bounds with PostgreSQL NaN-high ordering and compares
+endpoints using raw IEEE predicates. Strict directions compare opposing edges;
+extent predicates compare corresponding edges. BOX `<^`/`>^` include touching
+opposing edges, unlike the strict POINT aliases. Bounds traversal checks
+cancellation and allocates no converted shape. POINT/CIRCLE position kernels
+retain their existing ownership and relevant-axis arithmetic.
+
 The linear, path and polygon kernels read immutable payloads, use stack-sized
 linear coordinates and allocate no converted shape or coordinate slice per edge.
 POINT results remain inline; BOX results own raw min-high/max-low corners.
@@ -223,7 +232,7 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 Selectors (add `RACE=1` for cancellation and concurrency units; several also
 match engine tests of the same mechanism):
 
-- Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryRelation|GeometryConversion|GeometryMeasure|CubeSpatial|EarthCubeChecks|NetworkSubnet)'`
+- Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryRelation|GeometryPosition|GeometryConversion|GeometryMeasure|CubeSpatial|EarthCubeChecks|NetworkSubnet)'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`

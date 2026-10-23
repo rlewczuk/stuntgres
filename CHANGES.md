@@ -15,6 +15,14 @@ omitted routine defaults retain declaration-owned namespace authority.
 See the [stored-expression contract](internal/engine/stored/README.md#recipe-rules)
 and [type-family testing guidance](reference/types/README.md#testing).
 
+## Geometric position predicates
+
+BOX and POLYGON support horizontal and vertical strict/extent predicates.
+BOX `<^` and `>^` include touching edges; POINT's deprecated aliases remain
+strict. POLYGON compares raw bounds while POINT, BOX and CIRCLE retain their
+epsilon rules. Selected overloads, typed NULLs, diagnostics and stored
+expressions retain their authority through native logical replay.
+
 ## MAC address operators and functions
 
 `macaddr` and `macaddr8` support fixed-width `~`, `&`, `|` and three-octet-prefix
