@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -20,7 +21,7 @@ type vacuumHeapTarget struct {
 	store    *storage.Relation
 }
 
-func vacuumNotice(s *StatementScope, w VacuumWarning) {
+func vacuumNotice(s *StatementScope, w table.VacuumWarning) {
 	s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: w.Code, Message: w.Message})
 }
 func (s *StatementScope) vacuumAcquire(ref ids.ObjectRef, mode lock.Mode, skip bool) error {
@@ -63,8 +64,8 @@ func (e *Engine) resolveVacuumReference(auth AuthorizationView, name parser.Obje
 	return e.resolveRelationReference(auth, name, true)
 }
 
-func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked bool) ([]VacuumTarget, error) {
-	var selection VacuumSelection
+func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked bool) ([]table.VacuumTarget, error) {
+	var selection table.VacuumSelection
 	// All expansions finish before work. Deliver only genuine selection notices,
 	// in encounter order and outside every checkpoint/metadata mutex region.
 	defer func() {
@@ -130,11 +131,11 @@ func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int)
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	options, err := NormalizeVacuum(raw)
+	options, err := table.NormalizeVacuum(raw)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := CheckVacuumEntry(options, s.owner.InBlock()); err != nil {
+	if err := table.CheckVacuumEntry(options, s.owner.InBlock()); err != nil {
 		return Result{}, err
 	}
 	if options.OnlyDatabase {
@@ -158,7 +159,7 @@ func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int)
 			if err := s.vacuumAcquire(target.Ref, lock.ShareUpdateExclusive, options.SkipLocked); err != nil {
 				if err == lock.ErrUnavailable && options.SkipLocked {
 					if target.Name != "" {
-						vacuumNotice(s, VacuumLockWarning(target.Name))
+						vacuumNotice(s, table.VacuumLockWarning(target.Name))
 					}
 					return nil
 				}

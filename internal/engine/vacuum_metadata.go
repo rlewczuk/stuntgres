@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/table"
 )
 
 type vacuumProgress struct {
@@ -19,7 +20,7 @@ func (e *Engine) updateDatabaseMaintenanceLocked() {
 	if err != nil {
 		return
 	}
-	next, ok := DatabaseFrozenXIDLocked(e.catalog.state, e.storage.Relations, cutoff)
+	next, ok := table.DatabaseFrozenXIDLocked(e.catalog.state, e.storage.Relations, cutoff)
 	if !ok {
 		return
 	}

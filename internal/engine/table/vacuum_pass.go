@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"context"

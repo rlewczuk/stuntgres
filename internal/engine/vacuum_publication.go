@@ -8,12 +8,13 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 	"time"
 )
 
-func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget) (VacuumCapture, bool, error) {
-	var c VacuumCapture
+func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget) (table.VacuumCapture, bool, error) {
+	var c table.VacuumCapture
 	if err := e.vacuumDatabasePreflightLocked(s); err != nil {
 		return c, false, err
 	}
@@ -25,7 +26,7 @@ func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget)
 	if !ok || target.ref.Epoch != auth.Catalog.Epoch() || d.Name() != target.relation.Name() || d.Namespace() != target.relation.Namespace() || !index.SameRelationRowShape(d, target.relation) || e.storage.Relations[d.Address()] != target.store {
 		return c, false, ids.ErrCatalogReplaced
 	}
-	allowed, err := VacuumAllowed(s.op.Context(), auth.View, auth, d)
+	allowed, err := table.VacuumAllowed(s.op.Context(), auth.View, auth, d)
 	if err != nil {
 		return c, false, err
 	}
@@ -36,11 +37,11 @@ func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget)
 	if err != nil {
 		return c, false, err
 	}
-	c = VacuumCapture{Rows: target.store.Versions, Ends: target.store.Ends, Generation: target.store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.state, Relation: d}
+	c = table.VacuumCapture{Rows: target.store.Versions, Ends: target.store.Ends, Generation: target.store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.state, Relation: d}
 	return c, true, nil
 }
 
-func (e *Engine) vacuumRelation(s *StatementScope, selected VacuumTarget, o VacuumOptions) error {
+func (e *Engine) vacuumRelation(s *StatementScope, selected table.VacuumTarget, o table.VacuumOptions) error {
 	e.mu.Lock()
 	if err := e.vacuumDatabasePreflightLocked(s); err != nil {
 		e.mu.Unlock()
@@ -59,15 +60,15 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected VacuumTarget, o Vacu
 	if !exists {
 		e.mu.Unlock()
 		if selected.Name != "" {
-			vacuumNotice(s, VacuumMissingWarning(selected.Name))
+			vacuumNotice(s, table.VacuumMissingWarning(selected.Name))
 		}
 		return nil
 	}
 	// These are work-phase gates, after the actual SUE grant and fresh ACL.
-	work, warning, err := VacuumWork(s.op.Context(), auth.View, auth, auth.session.SessionToken, d, o.ProcessMain)
+	work, warning, err := table.VacuumWork(s.op.Context(), auth.View, auth, auth.session.SessionToken, d, o.ProcessMain)
 	if err != nil || !work {
 		e.mu.Unlock()
-		if warning != (VacuumWarning{}) {
+		if warning != (table.VacuumWarning{}) {
 			vacuumNotice(s, warning)
 		}
 		return err
@@ -85,7 +86,7 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected VacuumTarget, o Vacu
 	// Bind current storage/shape only now. Detached work still uses the same
 	// strict epoch, store, shape, root, index, rights and final-publication fences.
 	target := vacuumHeapTarget{selected.Ref, d, store}
-	first := VacuumCapture{Rows: store.Versions, Ends: store.Ends, Generation: store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.state, Relation: d}
+	first := table.VacuumCapture{Rows: store.Versions, Ends: store.Ends, Generation: store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.state, Relation: d}
 	first.CaptureIndexesLocked(e.catalog.owner(), e.storage.IndexRoots, true)
 	if s.op.Session.SessionToken.ID() > math.MaxInt32 {
 		e.mu.Unlock()
@@ -94,7 +95,7 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected VacuumTarget, o Vacu
 	if e.vacuumProgress == nil {
 		e.vacuumProgress = make(map[ids.TxRef]vacuumProgress)
 	}
-	e.vacuumProgress[s.txRef] = vacuumProgress{fact: pgcatalog.VacuumProgressFact{PID: int64(s.op.Session.SessionToken.ID()), Database: VacuumDatabaseOID(auth.Catalog), DatabaseName: s.op.Session.DatabaseName, Relation: target.ref.Address.ObjectID, Phase: "initializing", IndexesTotal: int64(len(first.Indexes))}, owner: auth.State.Authenticated}
+	e.vacuumProgress[s.txRef] = vacuumProgress{fact: pgcatalog.VacuumProgressFact{PID: int64(s.op.Session.SessionToken.ID()), Database: table.VacuumDatabaseOID(auth.Catalog), DatabaseName: s.op.Session.DatabaseName, Relation: target.ref.Address.ObjectID, Phase: "initializing", IndexesTotal: int64(len(first.Indexes))}, owner: auth.State.Authenticated}
 	e.mu.Unlock()
 	defer e.endVacuumProgress(s.txRef)
 	phase := func(name string, total, processed int64) {
@@ -104,7 +105,7 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected VacuumTarget, o Vacu
 	}
 	capture := first
 	for {
-		pass, err := PrepareVacuumPass(s.op.Context(), capture, target.store, phase)
+		pass, err := table.PrepareVacuumPass(s.op.Context(), capture, target.store, phase)
 		if err != nil {
 			return err
 		}
@@ -117,7 +118,7 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected VacuumTarget, o Vacu
 		if err != nil || !allowed {
 			e.mu.Unlock()
 			if err == nil {
-				vacuumNotice(s, VacuumPermissionWarning(target.relation.Name()))
+				vacuumNotice(s, table.VacuumPermissionWarning(target.relation.Name()))
 			}
 			return err
 		}
@@ -143,7 +144,7 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected VacuumTarget, o Vacu
 		target.store.Maintenance.RecordVacuum(pass.Candidate, completed)
 		e.mu.Unlock()
 		if o.Verbose {
-			message := VacuumReport(catalog.NewRead(e.catalog.owner(), capture.Catalog), capture.Relation, pass.Candidate)
+			message := table.VacuumReport(catalog.NewRead(e.catalog.owner(), capture.Catalog), capture.Relation, pass.Candidate)
 			s.op.EmitNotice(session.LevelInfo, sqlstate.Error{Severity: "INFO", SeverityUnlocalized: "INFO", Code: "00000", Message: message})
 		}
 		return nil

@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 
 func TestVacuumOptions(t *testing.T) {
 	for _, q := range []string{"VACUUM", "VACUUM (FREEZE true,FREEZE false)", "VACUUM (INDEX_CLEANUP AUTO,INDEX_CLEANUP ON,INDEX_CLEANUP OFF)", "VACUUM (PARALLEL 0)", "VACUUM (PARALLEL 1024)", "VACUUM (BUFFER_USAGE_LIMIT '128kB')", "VACUUM (BUFFER_USAGE_LIMIT '16MB')", "VACUUM (BUFFER_USAGE_LIMIT 0)", "VACUUM (FULL false,ANALYZE false)", "VACUUM (ONLY_DATABASE_STATS)"} {
-		raw := statement(t, q).(*parser.Vacuum)
+		raw := admissionStatement(t, q).(*parser.Vacuum)
 		o, err := NormalizeVacuum(raw)
 		if err != nil {
 			t.Fatal(q, err)
@@ -23,7 +23,7 @@ func TestVacuumOptions(t *testing.T) {
 		"VACUUM (ONLY_DATABASE_STATS,INDEX_CLEANUP ON,TRUNCATE true,BUFFER_USAGE_LIMIT 0,PARALLEL 2)",
 		"VACUUM (ONLY_DATABASE_STATS,SKIP_LOCKED false,FULL false,ANALYZE false,FREEZE false,DISABLE_PAGE_SKIPPING false,SKIP_DATABASE_STATS false)",
 	} {
-		if _, err := NormalizeVacuum(statement(t, q).(*parser.Vacuum)); err != nil {
+		if _, err := NormalizeVacuum(admissionStatement(t, q).(*parser.Vacuum)); err != nil {
 			t.Fatal(q, err)
 		}
 	}
@@ -47,7 +47,7 @@ func TestVacuumOptions(t *testing.T) {
 		{"VACUUM (BUFFER_USAGE_LIMIT '999999999999999999999kB')", "22023", "BUFFER_USAGE_LIMIT option must be 0 or between 128 kB and 16777216 kB", "", "Value exceeds integer range."},
 	} {
 		t.Run(tc.q, func(t *testing.T) {
-			_, err := NormalizeVacuum(statement(t, tc.q).(*parser.Vacuum))
+			_, err := NormalizeVacuum(admissionStatement(t, tc.q).(*parser.Vacuum))
 			var d *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.position, Hint: tc.hint}
 			if !errors.As(err, &d) || *d != *want {
