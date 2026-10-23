@@ -55,6 +55,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   CHECK recipes through `Stage.EarthChecks`; its owner metadata records the roles
   `earth` and `earth[]`, resolving the array through the domain's actual Array
   identity, never by assuming the name `_earth`.
+- **Registry and update paths** (`extension_register.go`, `extension_paths.go`):
+  `Register(registry, name, implementation)` checks one startup registration
+  (name, control version, `ValidateActions`, duplicates, in that order) and
+  returns the extended registry (allocating a nil one); on error it returns nil
+  and leaves the registry unchanged. `UpdatePathRows(ctx, registry, name,
+  shape)` builds the `pg_extension_update_paths` rows (0A000 first, then one
+  row per ordered version pair, checking `ctx` before each).
 - **Staging** (`stage.go`, `*_stage.go`, `extension_actions.go`): `Stage` is the
   host a provider installs through (the stage base, name lookup, checked
   `Create`/`Replace`, OID and revision allocation, the associated array helpers,
@@ -117,7 +124,8 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
 
 The `extension.Host` and `extension.Stage` adapter `extensionHost`
 (`extension_host.go`, with `stageOf`, which gives the root its `CatalogStage`
-back); registration (`registerExtension`, the startup list in `engine.go`); the
+back); the closed-registry check of `registerExtension` and the startup list in
+`engine.go`; the snapshot check of `statementHost.OpenExtensionPaths`; the
 orchestration of the handlers (`extension_install.go`, `extension_update.go`,
 `extension_drop.go`, `extension_owner_import.go`): argument count, `Engine.mu`,
 authorization capture, publication (`publishExtensionStage`), DROP's removal
@@ -129,8 +137,10 @@ belong with `plan`; the intagg binder and view recipe methods.
 
 ## Testing
 
-The package has no unit tests: every witness needs an engine that installs the
-extension, so provider identity, conflicts, forged manifests and owner import
+`TestRegisterAddsOnlyValidImplementations` pins `Register` (nil registry
+allocated; duplicate, nil, versionless or badly named registrations rejected
+with the registry unchanged). Every other witness needs an engine that installs
+the extension, so provider identity, conflicts, forged manifests and owner import
 are engine units. Public SQL lives in
 [reference/catalogs](../../../reference/catalogs/README.md#testing) (extension
 DDL and catalogs), [reference/types](../../../reference/types/README.md#testing)

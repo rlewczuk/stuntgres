@@ -61,7 +61,15 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   TABLESPACE. `CheckAlterTablespaceCreate(view, env, ref)` checks CREATE on a
   SET TABLESPACE or ALL IN TABLESPACE destination (none for `pg_default`),
   and `AlterTablespaceKind(relation)` rejects SET TABLESPACE on relation
-  kinds without their own storage (42809).
+  kinds without their own storage (42809). `AlterAllTablespace(view, env, s)`
+  decides ALTER ... ALL IN TABLESPACE (owner membership, both references,
+  `pg_global` rejection 22023, destination CREATE, success for the same
+  tablespace, 0A000 otherwise); it never selects or locks a relation.
+- **Tablespace inquiries** (`tablespace_info.go`): `TablespaceLocation` and
+  `TablespaceDatabase` compute `pg_tablespace_location` and one
+  `pg_tablespace_databases` row over the statement's retained `catalog.Read`.
+  `TablespaceDatabase` returns its 01000 WARNING beside a NULL value; the caller
+  emits it.
 - **LOAD**: `Load(ctx, view, s)` checks the current actor's SUPERUSER
   attribute, then PostgreSQL's plugin prefix/suffix restriction and
   slash-containing filename macro validation; once valid it returns 0A000
@@ -105,22 +113,26 @@ pre-checks, locks, publication and the cascade notice), `stageSchemaLocked`
 per statement), `schemaTableLocked` (a forwarder to `table.StageCreateTable`),
 `stageSchemaDomainsLocked`, `relationDiagnosticName` and `schemaNotice`
 (shared with the FDW DDL). `executeCreateTablespace` keeps the argument count
-check, the lock and the authority capture.
+check, the lock and the authority capture; `alterAllTablespaceLocked` keeps
+the argument count check and the deferred `Engine.mu` unlock, and
+`statementHost.TablespaceLocation`/`TablespaceDatabase` keep the retained
+snapshot and owner check and emit the returned warning.
 
 ## Testing
 
 The package tests build a catalog owner, a seeded role root and a TEMP
 namespace without an engine, and pin that `Check` uses the authority as the
 environment, that `ObjectRef` stamps the catalog epoch, that `Notice` emits
-NOTICE level, creation error positions and which relation kinds SET
-TABLESPACE accepts. Engine tests pin the adapter (`TestDDLHost*` in
+NOTICE level, creation error positions, which relation kinds SET
+TABLESPACE accepts and that `TablespaceDatabase` returns its warning. Engine tests pin the adapter (`TestDDLHost*` in
 `ddl_host_test.go`; `TestDDLHostStageSchemaTableKeepsAuthority` checks that
 `StageSchemaTable` leaves the caller's authority unchanged and stages the
 table with the given owner and namespace), LOAD validation and executor
-non-publication, and CREATE TABLESPACE non-publication.
+non-publication, CREATE TABLESPACE non-publication and the tablespace
+inquiry adapter (`TestTablespaceInfo*`).
 
 ```sh
-make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|CreationErrorPositionsAtFirstNamePart|AlterTablespaceKind)$$'
+make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|CreationErrorPositionsAtFirstNamePart|AlterTablespaceKind|TablespaceDatabaseReturnsWarning)$$'
 make check RUN='^Test(DDLHost|Load(Validation|ExecutorNoPublication)$$|TablespaceExecutorNoPublication$$)'
 make check RUN='^TestReference((Alter)?Schema|.*Tablespace|Load)'
 ```
