@@ -15,6 +15,20 @@ No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
 
+### Geometric alignment admission
+
+The supported inventory includes LSEG operators1526–1529 and LINE
+operators1612–1615, independently specified by
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and [REL_18_6 pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat).
+All return BOOL16, with namespace11, owner10, no hash/merge capability,
+no negator and no selectivity routines. Binary parallel/perpendicular records
+commute with themselves and use procedures995/996 and1496/1497 respectively.
+Prefix horizontal/vertical records have kind `l`, left0, no commutator,
+and procedures998/997 and1499/1498 respectively. These associations authorize
+the arity-aware operator provider, not new callable support-function names.
+The existing complete metadata inventory remains the catalog assertion owner.
+
 ### MAC fixed-width bitwise admission
 
 The six MAC bitwise records3147–3149 and3368–3370 belong to the independent

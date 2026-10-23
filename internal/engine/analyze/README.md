@@ -115,6 +115,10 @@ library, and never the root engine or `session`. The engine, the root driver
   conversion instead of being rebound.
 - **Operator diagnostics** reuse `functions.ComparisonError` and the visible
   type-name formatter `DiagnosticTypeName`.
+- **Shared operator spellings** select catalog arity and formal types before
+  provider dispatch. Geometric alignment spellings, including bar-containing
+  operators also recognized by bitwise or JSONB spelling probes, never take
+  the spelling-only builtin shortcut.
 
 ## What stays in the engine
 

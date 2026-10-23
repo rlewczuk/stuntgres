@@ -94,6 +94,14 @@ var geometryRelations = [...]struct {
 	{"&<|", "poly_overbelow", Polygon, Polygon, Bool},
 	{"|&>", "poly_overabove", Polygon, Polygon, Bool},
 	{"|>>", "poly_above", Polygon, Polygon, Bool},
+	{"?-", "line_horizontal", 0, Line, Bool},
+	{"?|", "line_vertical", 0, Line, Bool},
+	{"?-", "lseg_horizontal", 0, Lseg, Bool},
+	{"?|", "lseg_vertical", 0, Lseg, Bool},
+	{"?||", "line_parallel", Line, Line, Bool},
+	{"?-|", "line_perp", Line, Line, Bool},
+	{"?||", "lseg_parallel", Lseg, Lseg, Bool},
+	{"?-|", "lseg_perp", Lseg, Lseg, Bool},
 }
 
 func GeometryRelationKind(name string, left, right ID) (GeometryRelationOperator, bool) {
@@ -122,6 +130,26 @@ func (op GeometryRelationOperator) Signature() (ID, ID) {
 	}
 	r := geometryRelations[op]
 	return r.left, r.right
+}
+func (op GeometryRelationOperator) Arity() int {
+	if op.Name() == "" {
+		return 0
+	}
+	left, _ := op.Signature()
+	if left == 0 {
+		return 1
+	}
+	return 2
+}
+func (op GeometryRelationOperator) OperandID(index int) ID {
+	left, right := op.Signature()
+	if index < 0 || index >= op.Arity() {
+		return Unknown
+	}
+	if op.Arity() == 1 || index == 1 {
+		return right
+	}
+	return left
 }
 func (op GeometryRelationOperator) ResultID() ID {
 	if op.Name() == "" {
@@ -156,13 +184,16 @@ func BindGeometryRelation(op GeometryRelationOperator, result Usage, inputs [2]U
 		return GeometryRelationPlan{}, fmt.Errorf("foreign geometry relation result")
 	}
 	p := GeometryRelationPlan{operation: op, result: result.Type}
-	left, right := op.Signature()
-	for i, id := range [2]ID{left, right} {
+	for i := range op.Arity() {
+		id := op.OperandID(i)
 		u := inputs[i]
 		if u.Type == nil || u.Type.id != id || u != u.Type.Usage() || geometryConversionOwner(u.Type) != owner {
 			return GeometryRelationPlan{}, fmt.Errorf("invalid geometry relation operand")
 		}
 		p.inputs[i] = u.Type
+	}
+	if op.Arity() == 1 && inputs[1] != (Usage{}) {
+		return GeometryRelationPlan{}, fmt.Errorf("extra geometry relation operand")
 	}
 	return p, nil
 }
@@ -193,7 +224,11 @@ func (p GeometryRelationPlan) Evaluate(ctx context.Context, values [2]Value) (Va
 	if p.result == nil || p.operation.Name() == "" {
 		return Value{}, fmt.Errorf("invalid geometry relation plan")
 	}
-	for i, v := range values {
+	count := p.operation.Arity()
+	if count == 1 && values[1] != (Value{}) {
+		return Value{}, fmt.Errorf("extra geometry relation value")
+	}
+	for i, v := range values[:count] {
 		if v.typ != p.inputs[i] {
 			return Value{}, fmt.Errorf("invalid geometry relation value")
 		}
@@ -215,7 +250,7 @@ func (p GeometryRelationPlan) Evaluate(ctx context.Context, values [2]Value) (Va
 			}
 		}
 	}
-	if values[0].null || values[1].null {
+	if values[0].null || count == 2 && values[1].null {
 		return Null(p.result), nil
 	}
 	// Existing providers remain the SQL owners; support direct package plans too.
@@ -236,6 +271,13 @@ func (p GeometryRelationPlan) Evaluate(ctx context.Context, values [2]Value) (Va
 		return plan.Evaluate(ctx, values)
 	}
 	a, b := values[0], values[1]
+	if p.Name() == "?-" || p.Name() == "?|" || p.Name() == "?||" || p.Name() == "?-|" {
+		match, err := relationAlignment(a, b, p.Name())
+		if err != nil {
+			return Value{}, err
+		}
+		return Boolean(p.result, match), nil
+	}
 	if p.Name() == "<->" {
 		n, valid, err := relationValueDistance(ctx, a, b)
 		if err != nil {

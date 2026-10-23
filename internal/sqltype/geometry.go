@@ -202,12 +202,8 @@ func boxSame(a, b Value) (bool, error) {
 	if a.geometry == nil || b.geometry == nil {
 		return false, fmt.Errorf("missing BOX payload")
 	}
-	for i, n := range a.geometry.coordinates {
-		if !boxFuzzyEqual(n, b.geometry.coordinates[i]) {
-			return false, nil
-		}
-	}
-	return true, nil
+	x, y := a.geometry.coordinates, b.geometry.coordinates
+	return pointSame(x[0], x[1], y[0], y[1]) && pointSame(x[2], x[3], y[2], y[3]), nil
 }
 
 func geometryPairFetch(v Value, bounds []ArraySubscriptValue) (Value, error) {

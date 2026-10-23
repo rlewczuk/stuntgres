@@ -10,6 +10,14 @@ var builtinOperatorRoutineAssociations = [...]struct {
 	routine  ids.OID
 }{
 	// Selected REL_18_6 Table 9.36 operator associations.
+	{1526, 995},
+	{1527, 996},
+	{1528, 998},
+	{1529, 997},
+	{1612, 1496},
+	{1613, 1497},
+	{1614, 1499},
+	{1615, 1498},
 	{485, 341},
 	{486, 342},
 	{487, 343},

@@ -55,6 +55,11 @@ these are shared across families:
   positions, complete overload diagnostics and stored generated/CHECK/view
   replay with new writes. The shared-spelling cases retain shift, range,
   network and custom-operator selection.
+  Alignment uses the same fixture/raw adapter for unary and binary LINE/LSEG
+  execution, physical columns, overload diagnostics and stored replay. Sameness
+  witnesses distinguish corner-local NaNs and vertex sequence matching from
+  area-based comparison. Select this family with
+  `make check RUN='^TestReferenceGeometry(Alignment|SamenessArea)'`.
 - `domain_helpers_test.go`: the shared domain fixture `domainReferenceScenario`
   (a pinned notice session per backend with schema `domain_s` and a one-row
   `public.one`; schema cleanup is registered before borrowing so handles close

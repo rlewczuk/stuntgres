@@ -13,7 +13,11 @@ func relationUnitPlan(t *testing.T, types map[ID]*Descriptor, name string, left,
 	if !ok {
 		t.Fatalf("missing relation %s(%d,%d)", name, left, right)
 	}
-	p, err := BindGeometryRelation(op, types[op.ResultID()].Usage(), [2]Usage{types[left].Usage(), types[right].Usage()})
+	var inputs [2]Usage
+	for i := range op.Arity() {
+		inputs[i] = types[op.OperandID(i)].Usage()
+	}
+	p, err := BindGeometryRelation(op, types[op.ResultID()].Usage(), inputs)
 	if err != nil {
 		t.Fatal(err)
 	}

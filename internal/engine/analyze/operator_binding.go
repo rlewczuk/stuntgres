@@ -87,7 +87,7 @@ func builtinOperatorSpelling(name string) bool {
 	// Shared FTS/geometric spellings require catalog signature selection before
 	// dispatching their actual provider; spelling alone supplies no authority.
 	switch name {
-	case "#", "##", "?#", "<->", "~=", "<<", ">>", "&<", "&>", "<<|", "|>>", "&<|", "|&>", "?-", "<^", ">^", "||", "&&", "@>", "<@":
+	case "#", "##", "?#", "<->", "~=", "<<", ">>", "&<", "&>", "<<|", "|>>", "&<|", "|&>", "?-", "?|", "?||", "?-|", "<^", ">^", "||", "&&", "@>", "<@":
 		return false
 	}
 	_, comparison := ComparisonOperator(name)

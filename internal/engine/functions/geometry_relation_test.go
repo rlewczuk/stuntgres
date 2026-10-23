@@ -18,7 +18,8 @@ func relationProviderUnit(t *testing.T, name string, left, right sqltype.ID, a, 
 	}
 	order := []int{}
 	var args [2]expr.Expr
-	for i, id := range [2]sqltype.ID{left, right} {
+	for i := range op.Arity() {
+		id := op.OperandID(i)
 		text := a
 		if i == 1 {
 			text = b

@@ -15,6 +15,14 @@ import (
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	// Selected REL_18_6 Table 9.36 operators; names do not grant call admission.
+	{catalog.RoutineIdentity{995, ids.PGCatalogNamespaceOID, "lseg_parallel", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{996, ids.PGCatalogNamespaceOID, "lseg_perp", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{997, ids.PGCatalogNamespaceOID, "lseg_vertical", "601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{998, ids.PGCatalogNamespaceOID, "lseg_horizontal", "601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1496, ids.PGCatalogNamespaceOID, "line_parallel", "628,628"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1497, ids.PGCatalogNamespaceOID, "line_perp", "628,628"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1498, ids.PGCatalogNamespaceOID, "line_vertical", "628"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1499, ids.PGCatalogNamespaceOID, "line_horizontal", "628"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{188, ids.PGCatalogNamespaceOID, "box_left", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{189, ids.PGCatalogNamespaceOID, "box_overleft", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{190, ids.PGCatalogNamespaceOID, "box_overright", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

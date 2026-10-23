@@ -60,7 +60,7 @@ registry. Shared diagnostics: `call_syntax.go` (`ValidateCallSyntax`),
 
 ## Geometric relation operator provider
 
-`GeometryRelation` consumes two already selected/coerced children, preserving
+`GeometryRelation` consumes one or two already selected/coerced children, preserving
 routine authority, immutable volatility, namespace/group identity and cancellation.
 Runtime row NULL does not hide a later child error; the existing literal-NULL
 shortcut remains. Rebuild rebinds actual operand/result authority. Analyzed
@@ -73,6 +73,10 @@ the callable registry is not expanded by relation routine metadata.
 BOX/POLYGON positions use this node as well, including formal typed NULL
 operands in persisted expressions. Their predicates do not add expression
 variants or change the existing POINT/CIRCLE providers.
+LINE/LSEG prefix alignment exposes one active child in evaluation, rebuilding,
+group identity and operator capture. Its template rendering retains qualified
+operator identity and typed formal transports during replay; binary relations
+retain their two-child infix form.
 Public execution, ACLs and stored consumers use
 [`reference/types`](../../../reference/types/README.md#testing).
 
@@ -352,7 +356,7 @@ make check RUN='^Test(AggregateProviderRemap|(Sum|Avg|Count|Extrema|AnyValue|Mon
 make check RUN='^Test(Composite(Arity|Counted|Leaf|Named|Providerless|Retained|Slice|String|Timezone)|IntrinsicVolatilityExcludesChildren|PlanningHooks|RetagReportsDerivedInputChanges|GroupIdentity|GroupLeaf|SubstituteKeepsTheProvider|FunctionSyntax|ClosureTransparency|Render|CaptureOperands|ResultNullability)'  # node protocol and hooks
 make check RUN='^Test(CatalogInquiry|TransactionInquiry|AdvisoryNode|BlockingInquiry|SequenceCall)'  # runtime-capability nodes
 make check RUN='^Test(ACLValues|ACLNodes|ACLValueEvaluates|ObjectACLEvaluates|AccessInquiryEvaluates)'  # ACL functions
-make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryRelation|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
+make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryAlignment|GeometryRelation|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
 make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider authority
 make check RUN='^TestFTSQueryFunctions'  # query utility providers, kernels and runtime lifetime
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
