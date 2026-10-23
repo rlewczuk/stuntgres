@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -52,26 +51,12 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 	e := s.engine()
 	e.mu.Lock()
 	view := e.privateCatalogLocked(s.owner.Catalog)
-	relation, ok := view.Relation(ref.Address)
-	if !ok || ref.Epoch != view.Epoch() {
-		e.mu.Unlock()
-		return ids.ErrCatalogReplaced
-	}
-	if !catalog.HierarchyRelation(relation) {
-		e.mu.Unlock()
-		return nil
-	}
-	var ancestors []ids.ObjectRef
-	for relation.Membership != nil {
-		relation, ok = view.Relation(relation.Membership.Parent)
-		if !ok {
-			e.mu.Unlock()
-			return ids.ErrCatalogReplaced
-		}
-		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, relation.Address()))
-	}
+	ancestors, err := partition.Ancestors(view, ref)
+	hierarchy := err == nil && catalog.HierarchyRelation(view.MustRelation(ref.Address))
 	e.mu.Unlock()
-	slices.Reverse(ancestors)
+	if err != nil || !hierarchy {
+		return err
+	}
 	for i, ancestor := range ancestors {
 		mode := lock.AccessShare
 		if i == len(ancestors)-1 {
