@@ -489,6 +489,22 @@ make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$'
 make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$' REFERENCE=1
 ```
 
+## Information-schema column column usage — change note
+
+`information_schema.column_column_usage` exposes five nullable `sql_identifier`
+columns as NAME results: current database, schema, table, base column and
+dependent generated column. Both STORED and VIRTUAL definitions participate.
+Actual analyzed dependencies include execution-dead branches and `tableoid`;
+repeated references collapse per dependent. Constant/NULL definitions and
+ordinary defaults, CHECKs, identities, indexes, views and routines add no rows.
+Enabled relation-owner membership is the sole visibility rule, not SELECT or
+schema USAGE. Existing DDL, transactions and native controls update fresh reads;
+retained native rows preserve old facts. Writes fail with55000 and the exact
+DISTINCT-specific detail. This adds no generated-column DDL capabilities or
+adjacent usage views.
+See [native contract](docs/DIALECT.md#information-schema-column-column-usage)
+and [selected proof and smoke](reference/catalogs/README.md#information-schema-column-column-usage).
+
 ## LIST partition definitions — change note
 
 Single-key `PARTITION BY LIST` supports typed `IN` values, NULL ownership,

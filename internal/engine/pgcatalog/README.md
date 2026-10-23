@@ -3,7 +3,8 @@
 Row producers for the system relations: the `pg_catalog` tables and views and
 the `information_schema` views `table_privileges`, `data_type_privileges`,
 `user_mappings`, `key_column_usage`, `constraint_column_usage`,
-`routine_sequence_usage`, `character_sets`, `enabled_roles` and `view_table_usage`.
+`column_column_usage`, `routine_sequence_usage`, `character_sets`, `enabled_roles`
+and `view_table_usage`.
 Each producer is a pure function from a captured catalog, a paired role read
 and a narrow runtime capability to rows. The package sits at L5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
@@ -303,6 +304,34 @@ make check RUN='^TestInfoConstraintColumnUsage(Capture|Cancellation)$' RACE=1
 make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$'
 make check RUN='^TestReferenceInfoConstraintColumnUsageFeatureSmoke$' REFERENCE=1
 ```
+
+`info_column_column_usage.go` projects five nullable `sql_identifier` values
+from actual retained generated-column definitions. It uses the existing
+`ExpressionReferences` walker on analyzed `Expression`, not folded `Planned`
+expressions: dead branches and the admitted `tableoid` attribute−6 survive.
+The walker deduplicates base addresses per generation; distinct dependents
+remain separate. Constant/NULL definitions and unrelated references add no rows.
+There is no copied relation-kind restriction, SQL parsing, or second dependency
+registry. Source identity/domain and paired immutable catalog/role authority are
+validated before projection; cancellation/errors discard every accumulated row.
+
+Enabled relation-owner membership is the only visibility predicate, evaluated
+once per generated relation. ACLs, schema USAGE, RLS, search path and peer-TEMP
+status do not substitute for it. Existing DDL/transactions/control replay own
+definition changes; held reads capture current facts and retained rows stay old.
+Successful native Reset/Restore replaces logical domain lifetimes, so an older
+held sql_identifier result retains the existing0A000 fixed-result fence; a fresh
+prepare observes the replacement. Already captured rows/types remain usable.
+The existing virtual-view write dispatcher supplies the DISTINCT-specific
+55000 DETAIL on both direct execution and protocol Prepare.
+
+```sh
+make check RUN='^Test(InfoColumnColumnUsage(Producer|Capture|Cancellation)|CatalogSourceProducerCoverage)$'
+make check RUN='^TestInfoColumnColumnUsage(Capture|Cancellation)$' RACE=1
+make check RUN='^TestReferenceInfoColumnColumnUsageFeatureSmoke$'
+make check RUN='^TestReferenceInfoColumnColumnUsageFeatureSmoke$' REFERENCE=1
+```
+
 
 `info_routine_sequence_usage.go` reads direct stored SQLBody relation references
 from the captured procedure descriptors, resolves only real sequences in the

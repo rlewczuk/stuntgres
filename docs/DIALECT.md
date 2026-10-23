@@ -1528,6 +1528,41 @@ No analyzer/parser or adjacent information-schema view is added. Existing native
 index-CASCADE notice delivery remains unchanged.
 See [selected checks and smoke](../reference/catalogs/README.md#information-schema-constraint-column-usage).
 
+## Information-schema column column usage
+
+`information_schema.column_column_usage` has exactly five ordered nullable
+`information_schema.sql_identifier` domain columns over NAME: `table_catalog`,
+`table_schema`, `table_name`, `column_name`, `dependent_column`. The catalog is
+`current_database()`. Actual rows contain five non-NULL identifiers; absent or
+invisible dependencies produce empty results with the same metadata.
+
+Only retained analyzed definitions of STORED/VIRTUAL generated columns supply
+rows. Repeated base references collapse for each dependent; different dependents
+remain distinct. Dead CASE arms and recorded `tableoid` references participate,
+but internal owning-column dependencies do not create self rows. Constants,
+typed NULL, defaults, identities, CHECKs, indexes, views and routine references
+do not independently populate this named view. It does not add adjacent usage
+views or a new dependency recorder.
+
+Visibility requires the current role to have enabled relation-owner authority:
+owner, inherited owner and actual superuser qualify. SET-only membership needs
+SET ROLE first. Table/column ACLs, schema USAGE, search path, RLS and TEMP-session
+ownership add no filter. PUBLIC can SELECT the view. Held reads recapture current
+definitions/roles after rename/move/expression replacement/removal, transaction
+rollback/commit. Native opened rows retain old facts across Reset/Restore.
+Successful whole-catalog replacement fences a preexisting held sql_identifier
+result with0A000 `cached plan must not change result type`, under the existing
+logical-domain identity contract; freshly prepared reads see the current
+empty/restored dependencies. Failed/canceled restores do not replace that
+identity and leave the current held read usable.
+
+Writes fail with55000 and DETAIL `Views containing DISTINCT are not automatically
+updatable.`, including WHERE false; protocol Prepare rejects without publishing
+a statement. Missing target/projection columns retain ordinary42703 diagnostics.
+Existing generated-column admission limits, including native generated ADD
+COLUMN rejection, remain unchanged.
+See [selected checks and smoke](../reference/catalogs/README.md#information-schema-column-column-usage).
+
 ## Foreign metadata and scans
 
 SQL/MED wrapper/server/user-mapping/foreign-table metadata, ordered column/table

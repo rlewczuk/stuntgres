@@ -736,4 +736,11 @@ var Specs = [...]Spec{
 		{"table_schema", 13248, true, 950, 0, -1},
 		{"table_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing view table usage identifier domain"},
+	{InfoColumnColumnUsageOID, 13229, "column_column_usage", []ColumnSpec{
+		{"table_catalog", 13248, true, 950, 0, -1},
+		{"table_schema", 13248, true, 950, 0, -1},
+		{"table_name", 13248, true, 950, 0, -1},
+		{"column_name", 13248, true, 950, 0, -1},
+		{"dependent_column", 13248, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing column column usage domain"},
 }

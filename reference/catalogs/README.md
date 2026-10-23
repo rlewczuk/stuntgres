@@ -6,6 +6,53 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Information-schema column column usage
+
+The eight `TestReferenceInfoColumnColumnUsage` scenarios independently specify
+five nullable `sql_identifier` columns over NAME, including empty/populated raw
+metadata, logical domain/base and row/array identities, direct/new-prepared/SAME
+held reads and cached types after close. Only genuine generated definitions
+populate this view: the seed bag is `(a,s),(b,s),(b,v),(a,z),(tableoid,o)`, each
+once. The dead CASE branch and system attribute are dependencies even without
+table rows; constants/NULL, defaults, identity, CHECK, indexes, views and
+SQL-standard routines add no independent usage rows.
+
+Visibility follows enabled relation-owner membership, not object ACLs or schema
+USAGE. Role transitions, inheritance options, actual-superuser distinction,
+private schemas/RLS/search path and qualifying own/peer TEMP are explicit.
+Rename/move/replace/drop, RESTRICT/CASCADE, copy/inheritance and transaction
+rollback/savepoints/commit prescribe fresh held results. A separate physical
+observer's direct/new-prepared/held catalog reads retain the committed `(a,g)`
+while the modifier sees private `(b,g)`, preserve it after rollback, and refresh
+to `(b,g)` only after commit. Native-only public Dump/Reset/Restore phases
+preserve actual definitions and retained rows/types; a populated eager result
+opened after the first Restore stays unconsumed across the second Restore,
+then supplies the original exact bag and cached metadata.
+Successful replacement fences the old logical-domain held result with exact
+0A000 `cached plan must not change result type`; fresh prepares read the current
+empty/restored bag. Failed/canceled staged restores preserve prior state and the
+current held statement remains usable.
+
+Diagnostics assert complete English/SQLSTATE fields, positions, atomicity and
+failure stages. The view's DISTINCT restriction rejects writes with55000;
+protocol Prepare returns no executable statement. Existing generated ADD COLUMN
+restrictions remain a separately specified native capability boundary.
+
+```sh
+make check RUN='^TestReferenceInfoColumnColumnUsage(Metadata|Population|Visibility|Lifecycle|Transactions|NativeControls|Diagnostics|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceInfoColumnColumnUsage(Metadata|Population|Visibility|Lifecycle|Transactions|NativeControls|Diagnostics|FeatureSmoke)$'
+make check RUN='^Test(InfoColumnColumnUsage(Producer|Capture|Cancellation)|CatalogSourceProducerCoverage)$'
+make check RUN='^TestInfoColumnColumnUsage(Capture|Cancellation)$' RACE=1
+make check RUN='^TestReferenceInfoColumnColumnUsageFeatureSmoke$'
+make check RUN='^TestReferenceInfoColumnColumnUsageFeatureSmoke$' REFERENCE=1
+```
+
+Expected smoke: five initial dependencies, renamed `aa` references on the same
+held SELECT, three remaining rows after dropping `s`'s expression, no rows for a
+SELECT-only reader, exact DISTINCT write failure, and empty results after DROP.
+Use the pinned PostgreSQL18.6 UTF8/C fixture; these commands are proof
+instructions, not claims that verification has run.
+
 ### Enabled roles
 
 The six `TestReferenceInfoEnabledRoles` definitions share public native and
