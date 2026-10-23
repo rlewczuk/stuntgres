@@ -55,7 +55,7 @@ type ChangeSet struct {
 // catalogStageChanges lists a stage's changed definitions in address order and
 // its namespace changes.
 func catalogStageChanges(s *CatalogStage) ChangeSet {
-	changes := ChangeSet{Definitions: s.changedAddresses()}
+	changes := ChangeSet{Definitions: s.ChangedAddresses()}
 	for _, a := range changes.Definitions {
 		if a.ClassID == ids.NamespaceClassID {
 			changes.Namespaces = append(changes.Namespaces, a)
@@ -429,11 +429,11 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		e.mu.Unlock()
 		return nil, err
 	}
-	if err := s.markIndexHistoryLocked(e.catalog.revisionLocked, s.Replace); err != nil {
+	if err := s.MarkIndexHistoryLocked(e.catalog.revisionLocked, s.Replace); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
-	if err := s.markSubclassHistoryLocked(e.catalog.revisionLocked, s.Replace); err != nil {
+	if err := s.MarkSubclassHistoryLocked(e.catalog.revisionLocked, s.Replace); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -509,7 +509,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 		}
 		current := e.catalog.state
-		if err := s.defaultPreflight(current); err != nil {
+		if err := s.DefaultPreflight(current); err != nil {
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
@@ -534,11 +534,11 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		if !s.accessMethodsCurrent(e.catalog.read(current)) {
+		if !s.AccessMethodsCurrent(e.catalog.read(current)) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		if !s.domainBasesCurrent(current, s.domainBases, s.terminalCleanup) {
+		if !s.DomainBasesCurrent(current, s.domainBases, s.terminalCleanup) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -552,7 +552,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				return ChangeSet{}, catalog.Conflict{}
 			}
 		}
-		if !s.descriptorsCurrent(current, e.catalog.Domain) || !extensionMaterializedViewsCurrent(s, current) {
+		if !s.DescriptorsCurrent(current, e.catalog.Domain) || !extensionMaterializedViewsCurrent(s, current) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -620,7 +620,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			disclosure = &auth
 		}
 		e.mu.Unlock()
-		next := s.applyTo(current)
+		next := s.ApplyTo(current)
 		relations := make(map[ids.ObjectAddress]*storage.Relation, len(currentStorage)+s.DescriptorCount())
 		for a, v := range currentStorage {
 			relations[a] = v

@@ -78,7 +78,7 @@ func (h *extensionHost) AssociatedArrayName(namespace ids.ObjectAddress, name st
 	return associatedArrayName(h.stage, namespace, name)
 }
 func (h *extensionHost) CreationTypeACL(owner authorization.PrincipalRef, namespace ids.ObjectAddress) (authorization.ACLValue, bool) {
-	return h.stage.creationTypeACL(owner, namespace)
+	return h.stage.CreationTypeACL(owner, namespace)
 }
 
 // ScriptFunctions resolves helper names against the coherent staged search

@@ -43,7 +43,7 @@ func (h ddlHost) ReplaceDomainIdentity(d *catalog.Type) error {
 }
 
 func (h ddlHost) CreationTypeACL(owner authorization.PrincipalRef, schema ids.ObjectAddress) (authorization.ACLValue, bool) {
-	return h.stage.creationTypeACL(owner, schema)
+	return h.stage.CreationTypeACL(owner, schema)
 }
 
 func (h ddlHost) AddDomainBase(d catalog.Descriptor) {

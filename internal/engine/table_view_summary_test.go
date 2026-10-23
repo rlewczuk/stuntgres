@@ -126,7 +126,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err = stage.markIndexHistoryLocked(e.catalog.revisionLocked, stage.Replace)
+	err = stage.MarkIndexHistoryLocked(e.catalog.revisionLocked, stage.Replace)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

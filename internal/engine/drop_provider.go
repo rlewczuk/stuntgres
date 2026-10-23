@@ -376,7 +376,7 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 	stage := p.stage
 	stage.RecordRemoval(ref, d)
 	if namespace {
-		stage.removeSchemaDefaults(ref.Address)
+		stage.RemoveSchemaDefaults(ref.Address)
 	}
 	return nil
 }

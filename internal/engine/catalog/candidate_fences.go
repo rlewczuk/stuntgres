@@ -1,15 +1,14 @@
-package engine
+package catalog
 
 import (
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-// domainBasesCurrent reports whether every observed domain base is still the
+// DomainBasesCurrent reports whether every observed domain base is still the
 // current descriptor. Terminal cleanup of a TEMP namespace also requires that
 // the namespace holds nothing beyond the candidate's own removals. The root
 // calls it under Engine.mu.
-func (c *CatalogStage) domainBasesCurrent(current *catalog.State, bases []catalog.Descriptor, terminalCleanup bool) bool {
+func (c *Candidate) DomainBasesCurrent(current *State, bases []Descriptor, terminalCleanup bool) bool {
 	for _, base := range bases {
 		observed := base
 		if c.Get(base.Address()) == base {
@@ -18,7 +17,7 @@ func (c *CatalogStage) domainBasesCurrent(current *catalog.State, bases []catalo
 		if current.Get(base.Address()) != observed {
 			return false
 		}
-		if ns, ok := base.(*catalog.Namespace); ok && terminalCleanup && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := base.(*Namespace); ok && terminalCleanup && ns.Temporary != (ids.SessionToken{}) {
 			for address, d := range current.Descriptors() {
 				if _, removed := c.Removal(address); d.Namespace() == ns.Address() && (!removed || d != c.Base.Get(address)) {
 					return false
@@ -29,12 +28,12 @@ func (c *CatalogStage) domainBasesCurrent(current *catalog.State, bases []catalo
 	return true
 }
 
-// descriptorsCurrent reports whether current still matches every base input
+// DescriptorsCurrent reports whether current still matches every base input
 // of the candidate: the namespaces its descriptors live in or move from, the
 // contents of removed namespaces, its replaced and removed descriptors, its
 // touched names and the identity of its removals in domain. The root calls it
 // under Engine.mu.
-func (c *CatalogStage) descriptorsCurrent(current *catalog.State, domain *ids.Domain) bool {
+func (c *Candidate) DescriptorsCurrent(current *State, domain *ids.Domain) bool {
 	for _, d := range c.Descriptors() {
 		ns := d.Namespace()
 		if ns != (ids.ObjectAddress{}) && c.Get(ns) == nil && current.Get(ns) != c.Base.Get(ns) {
@@ -85,21 +84,21 @@ func (c *CatalogStage) descriptorsCurrent(current *catalog.State, domain *ids.Do
 	return true
 }
 
-// accessMethodsCurrent adds the cross-object reads of access methods to the
+// AccessMethodsCurrent adds the cross-object reads of access methods to the
 // descriptor and name fences. They keep method retirement and new consumers
 // atomic when another utility publishes between private validation and
 // publication. The root calls it under Engine.mu; no name resolution,
 // operation callback or allocation occurs.
-func (c *CatalogStage) accessMethodsCurrent(current catalog.Read) bool {
-	dependency := func(d catalog.Descriptor) ids.ObjectAddress {
+func (c *Candidate) AccessMethodsCurrent(current Read) bool {
+	dependency := func(d Descriptor) ids.ObjectAddress {
 		switch d := d.(type) {
-		case *catalog.AccessMethod:
+		case *AccessMethod:
 			return ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Handler}
-		case *catalog.OperatorFamily:
+		case *OperatorFamily:
 			return ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: d.Method}
-		case *catalog.OperatorClass:
+		case *OperatorClass:
 			return ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: d.Method}
-		case *catalog.Relation:
+		case *Relation:
 			if d.SQLIndex != nil {
 				return ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: d.SQLIndex.MethodIdentity()}
 			}
@@ -113,7 +112,7 @@ func (c *CatalogStage) accessMethodsCurrent(current catalog.Read) bool {
 		}
 	}
 	for a := range c.Removals() {
-		if a.ClassID != ids.AccessMethodClassID && (a.ClassID != ids.ProcedureClassID || catalog.NativeHandler(a.ObjectID) == catalog.NoAccessMethod) {
+		if a.ClassID != ids.AccessMethodClassID && (a.ClassID != ids.ProcedureClassID || NativeHandler(a.ObjectID) == NoAccessMethod) {
 			continue
 		}
 		for address, d := range current.Descriptors() {
@@ -126,4 +125,22 @@ func (c *CatalogStage) accessMethodsCurrent(current catalog.Read) bool {
 		}
 	}
 	return true
+}
+
+// DefaultPreflight reports a Conflict unless every default ACL record the
+// candidate read is unchanged in current and every current record of a
+// schema it removes was observed. The root calls it under Engine.mu.
+func (c *Candidate) DefaultPreflight(current *State) error {
+	if !c.DefaultRecordsUnchanged(current) {
+		return Conflict{}
+	}
+	for key := range current.DefaultACLs() {
+		if _, removed := c.Removal(key.Schema); !removed {
+			continue
+		}
+		if _, observed := c.DefaultObservation(key); !observed {
+			return Conflict{}
+		}
+	}
+	return nil
 }

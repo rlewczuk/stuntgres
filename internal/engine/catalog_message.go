@@ -88,7 +88,7 @@ func (e *Engine) catalogReadPreflightLocked(c *session.Journal) error {
 // Capture committed predecessor fences while checking the exact private roots
 // used by the ordinary stage. Pending writes are not committed observations.
 func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, current *catalog.State, authority *catalogAuthority) error {
-	if err := s.defaultPreflight(current); err != nil {
+	if err := s.DefaultPreflight(current); err != nil {
 		return err
 	}
 	if err := e.captureDomainStageLocked(s, c, current); err != nil {

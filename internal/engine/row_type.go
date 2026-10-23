@@ -100,7 +100,7 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *catalog.Relat
 	acl := baseline
 	synthetic := true
 	if relation.RelationKind == catalog.CompositeRelation {
-		acl, synthetic = stage.creationTypeACL(relation.Owner, relation.Namespace())
+		acl, synthetic = stage.CreationTypeACL(relation.Owner, relation.Namespace())
 	}
 	if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: relation.Namespace(), ObjectRevision: relation.Revision(), Owner: relation.Owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID(), OwningRelation: relation.Address()}); err != nil {
 		return err

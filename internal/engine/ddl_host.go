@@ -113,7 +113,7 @@ func (h ddlHost) StageBase() catalog.Read { return h.stage.Base }
 func (h ddlHost) StageRead() catalog.Read { return h.e.stageRead(h.stage) }
 
 func (h ddlHost) CreationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
-	return h.stage.creationACL(owner, schema, class)
+	return h.stage.CreationACL(owner, schema, class)
 }
 
 func (h ddlHost) DropTarget(address ids.ObjectAddress) {

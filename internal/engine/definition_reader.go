@@ -27,7 +27,7 @@ func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, b
 // stageDefinitionReader is the definition reader of a catalog stage: its
 // candidate's definitions plus the stage's own index layouts.
 type stageDefinitionReader struct {
-	candidateDefinitions
+	catalog.CandidateDefinitions
 	stage *CatalogStage
 }
 
@@ -37,7 +37,7 @@ func stageDefinitions(stage *CatalogStage) stageDefinitionReader {
 	if stage == nil {
 		return stageDefinitionReader{}
 	}
-	return stageDefinitionReader{candidateDefinitions{&stage.Candidate}, stage}
+	return stageDefinitionReader{stage.Definitions(), stage}
 }
 
 func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {

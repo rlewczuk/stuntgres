@@ -7,24 +7,6 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
-	for _, namespace := range []ids.ObjectAddress{{}, schema} {
-		key := catalog.DefaultACLKey{Creator: owner, Schema: namespace, Class: class}
-		s.ObserveDefault(key)
-		if schema == (ids.ObjectAddress{}) {
-			break
-		}
-	}
-	return catalog.CreationDefaultACL(s.Base, owner, schema, class)
-}
-
-// CreationDefaultACL normalizes baseline-equal defaults. Types retain a
-// materialized baseline for effective USAGE checks, so remember at creation
-// whether that value represents raw catalog absence rather than an explicit ACL.
-func (s *CatalogStage) creationTypeACL(owner authorization.PrincipalRef, schema ids.ObjectAddress) (authorization.ACLValue, bool) {
-	acl := s.creationACL(owner, schema, authorization.DefaultTypes)
-	return acl, authorization.MatchesDefaultBaseline(acl, owner, authorization.DefaultTypes, false)
-}
 func (e *Engine) defaultACLChangeLocked(c *session.Journal, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
 	c.RecordDefaultACL(e.catalog.state, key, record)
 }
@@ -45,29 +27,6 @@ func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *session.Journal) 
 	}
 }
 
-func (s *CatalogStage) defaultPreflight(current *catalog.State) error {
-	if !s.DefaultRecordsUnchanged(current) {
-		return catalog.Conflict{}
-	}
-	for key := range current.DefaultACLs() {
-		if _, removed := s.Removal(key.Schema); !removed {
-			continue
-		}
-		if _, observed := s.DefaultObservation(key); !observed {
-			return catalog.Conflict{}
-		}
-	}
-	return nil
-}
-func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
-	for key := range s.Base.State().DefaultACLs() {
-		if key.Schema != schema {
-			continue
-		}
-		s.ObserveDefault(key)
-		s.SetDefaultACL(key, nil)
-	}
-}
 func (e *Engine) creationACLChangesLocked(c *session.Journal, view catalog.Read, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	return c.ObserveCreationACL(e.catalog.state, view, owner, schema, class)
 }

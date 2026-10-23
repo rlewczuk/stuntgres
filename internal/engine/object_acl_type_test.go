@@ -87,7 +87,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 			t.Fatal(err)
 		}
 		stage := f.e.BeginCatalogStage(f.e.CatalogRead())
-		acl, synthetic := stage.creationTypeACL(f.owner, f.schema)
+		acl, synthetic := stage.CreationTypeACL(f.owner, f.schema)
 		if synthetic || !acl.Explicit || len(acl.Entries) != 1 || acl.Entries[0].Grantee.Role != f.owner || acl.Entries[0].Privileges != authorization.UsagePrivilege {
 			t.Fatal("custom creation default lost raw ACL", acl, synthetic)
 		}
@@ -98,7 +98,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		}
 		stage = f.e.BeginCatalogStage(f.e.CatalogRead())
 		defer f.e.DiscardCatalogStage(stage)
-		acl, synthetic = stage.creationTypeACL(f.owner, f.schema)
+		acl, synthetic = stage.CreationTypeACL(f.owner, f.schema)
 		if !synthetic || !authorization.MatchesDefaultBaseline(acl, f.owner, authorization.DefaultTypes, false) {
 			t.Fatal("baseline-equal creation was not normalized", acl, synthetic)
 		}
