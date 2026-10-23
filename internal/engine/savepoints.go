@@ -27,7 +27,7 @@ func captureSavepoint(t *session.TransactionOwner, name string) session.Savepoin
 	t.Session.Mu.Lock()
 	identity := t.Session.Authorization.State
 	t.Session.Mu.Unlock()
-	return session.SavepointMark{Name: name, Serial: t.SavepointSerial, Writes: writes, Deletes: t.Deletes, Catalog: t.Catalog, Settings: t.Session.Settings.Savepoint(), Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable, Locks: e.locks.Checkpoint(t.Ticket), Cursors: payloadOf(t.Session).cursors.ordinal, Exclusion: exclusionMarkSlotOf(ownerExtensionOrZero(t).exclusionModes, projection), Identity: identity, NotificationActions: t.NotificationActions[:len(t.NotificationActions):len(t.NotificationActions)], NotificationEvents: t.NotificationEvents[:len(t.NotificationEvents):len(t.NotificationEvents)]}
+	return session.SavepointMark{Name: name, Serial: t.SavepointSerial, Writes: writes, Deletes: t.Deletes, Catalog: t.Catalog, Settings: t.Session.Settings.Savepoint(), Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable, Locks: e.locks.Checkpoint(t.Ticket), Cursors: payloadOf(t.Session).cursors.ordinal, Exclusion: index.ExclusionMarkSlotOf(ownerExtensionOrZero(t).exclusionModes, projection), Identity: identity, NotificationActions: t.NotificationActions[:len(t.NotificationActions):len(t.NotificationActions)], NotificationEvents: t.NotificationEvents[:len(t.NotificationEvents):len(t.NotificationEvents)]}
 }
 
 func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, settings session.SettingsMark) {
@@ -41,9 +41,9 @@ func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, s
 	syncCharacteristics(t)
 	e := engineOf(t.Session)
 	e.mu.Lock()
-	exclusion := exclusionMarkOrZero(mark.Exclusion)
-	ownerExtensionOf(t).exclusionModes = exclusion.modes
-	e.exclusions.RestoreLocked(t.Ticket, exclusion.projection)
+	exclusion := index.ExclusionMarkOrZero(mark.Exclusion)
+	ownerExtensionOf(t).exclusionModes = exclusion.Modes
+	e.exclusions.RestoreLocked(t.Ticket, exclusion.Projection)
 	e.reconcileSerializableWritesLocked(t)
 	e.mu.Unlock()
 }
@@ -89,7 +89,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		}
 		return Result{}, sqlError("25P01", word+" can only be used in transaction blocks")
 	}
-	index := -1
+	position := -1
 	var mark session.SavepointMark
 	var settings session.SettingsMark
 	var stack []session.SavepointMark
@@ -103,18 +103,18 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	} else {
 		for i := len(t.Savepoints) - 1; i >= 0; i-- {
 			if t.Savepoints[i].Name == control.Name.Text {
-				index = i
+				position = i
 				break
 			}
 		}
-		if index >= 0 {
-			mark = t.Savepoints[index]
+		if position >= 0 {
+			mark = t.Savepoints[position]
 			if control.Kind == parser.RollbackSavepoint {
 				settings = mark.Settings.Clone()
 			}
 		}
 	}
-	if control.Kind != parser.CreateSavepoint && index < 0 {
+	if control.Kind != parser.CreateSavepoint && position < 0 {
 		return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))
 	}
 	kind := 0
@@ -147,7 +147,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		if t.Ref.Epoch() != e.catalog.state.Epoch() {
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		if control.Kind != parser.CreateSavepoint && index < 0 {
+		if control.Kind != parser.CreateSavepoint && position < 0 {
 			return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))
 		}
 		if (t.IdentityCaptured || t.Session.Settings.RoleAction.Present) && (control.Kind == parser.CreateSavepoint || control.Kind == parser.RollbackSavepoint) {
@@ -175,19 +175,19 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.Session.Settings.CurrentIsolation = session.IsolationText(t.Isolation)
 			t.Session.Settings.CurrentReadOnly = t.ReadOnly
 			t.Session.Settings.CurrentDeferrable = t.Deferrable
-			exclusion := exclusionMarkOrZero(mark.Exclusion)
-			ownerExtensionOf(t).exclusionModes = exclusion.modes
-			e.exclusions.RestoreLocked(t.Ticket, exclusion.projection)
+			exclusion := index.ExclusionMarkOrZero(mark.Exclusion)
+			ownerExtensionOf(t).exclusionModes = exclusion.Modes
+			e.exclusions.RestoreLocked(t.Ticket, exclusion.Projection)
 			e.reconcileSerializableWritesLocked(t)
 			e.enrollSerializableLocked(t.Ref, t.Isolation)
-			t.TruncateSavepoints(index + 1)
+			t.TruncateSavepoints(position + 1)
 			t.State = session.TxActive
 		case parser.ReleaseSavepoint:
 			// PostgreSQL restores the parent's access mode on subcommit, unlike
 			// ordinary SESSION/LOCAL settings, whose effects are retained.
 			t.ReadOnly = mark.ReadOnly
 			t.Session.Settings.CurrentReadOnly = t.ReadOnly
-			t.TruncateSavepoints(index)
+			t.TruncateSavepoints(position)
 		}
 		s.controlOutcome = controlExecuted
 		return Result{}, nil
@@ -199,31 +199,4 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		e.locks.Restore(t.Ticket, mark.Locks)
 	}
 	return Result{}, nil
-}
-
-// exclusionMark is the exclusion constraint state a savepoint captured: the
-// owner's exclusion modes and the engine's pending exclusion projection.
-type exclusionMark struct {
-	modes      index.ExclusionModes
-	projection *index.ExclusionProjection
-}
-
-func (*exclusionMark) ExclusionMarkSlot() {}
-
-// exclusionMarkSlotOf stores modes and projection. Exactly zero state (see
-// index.ExclusionModes.Zero, nil projection) stays a nil slot, so restoring it
-// reproduces the captured value.
-func exclusionMarkSlotOf(modes index.ExclusionModes, projection *index.ExclusionProjection) session.ExclusionMarkSlot {
-	if projection == nil && modes.Zero() {
-		return nil
-	}
-	return &exclusionMark{modes: modes, projection: projection}
-}
-
-// exclusionMarkOrZero returns the captured exclusion state; a nil slot is zero.
-func exclusionMarkOrZero(s session.ExclusionMarkSlot) exclusionMark {
-	if m, _ := s.(*exclusionMark); m != nil {
-		return *m
-	}
-	return exclusionMark{}
 }

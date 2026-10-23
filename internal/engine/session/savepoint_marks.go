@@ -26,7 +26,7 @@ type SavepointMark struct {
 	Deferrable          bool
 	Locks               lock.Checkpoint
 	Cursors             uint64
-	Exclusion           ExclusionMarkSlot // nil when zero; see exclusionMarkSlotOf
+	Exclusion           ExclusionMarkSlot // nil when zero; see index.ExclusionMarkSlotOf
 	Identity            authorization.RoleState
 	NotificationActions []NotificationAction
 	NotificationEvents  []Notification
