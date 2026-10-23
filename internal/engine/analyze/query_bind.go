@@ -224,7 +224,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 			if b.Params.NoParameters || b.Consumer.frozenDefinition {
 				literalTargets = append(literalTargets, target)
 			}
-			name, _ := expressionName(raw, expr.ResultUsage(), expr)
+			name, _ := ExpressionName(raw, expr.ResultUsage(), expr)
 			if target < len(s.Labels) && s.Labels[target].Text != "" {
 				name = s.Labels[target].Text
 			}

@@ -131,6 +131,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Dependencies: `RUN='^TestReferencePGDepend'`
 - Constraints, inheritance, partition navigation: `RUN='^TestReferencePGConstraint'`, `RUN='^TestReferencePGInherits'`, `RUN='^TestReferencePartitionInfo'`
 - Table, view and index summaries: `RUN='^TestReferencePGTableViews'`, `RUN='^TestReferencePGIndexes'`
+- Rule summaries: `RUN='^TestReferencePGRules'`
 - Access methods and operator classes: `RUN='^TestReferencePGAM'`, `RUN='^TestReferencePGOpclass'`
 - Operators: `RUN='^TestReferencePGOperator'`, `RUN='^TestReferenceLsegOperatorCatalog$'`
 - Aggregates: `RUN='^TestReferencePGAggregate'`

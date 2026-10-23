@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (v *QueryRenderer) renderJSONTableSQL(ctx context.Context, view catalog.Read, raw *parser.JSONTable, ns analyze.ViewNamespace) (viewRenderFrom, error) {
+func (v *QueryRenderer) renderJSONTableSQL(ctx context.Context, view catalog.Read, raw *parser.JSONTable, ns analyze.ViewNamespace, name ruleRangeName) (viewRenderFrom, error) {
 	root := viewFunctionFromAt(analyze.ViewFromRoot(v.query.Root), ns.Ordinal, true)
 	if root == nil || len(root.Calls) != 1 {
 		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen JSON_TABLE source")
@@ -144,6 +144,11 @@ func (v *QueryRenderer) renderJSONTableSQL(ctx context.Context, view catalog.Rea
 	from := viewRenderFrom{text: text, relation: text, root: root}
 	for i, column := range root.Schema() {
 		from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
+	}
+	if v.Presentation.Rule {
+		from = v.sourceAlias(from, name.name, name.columns, name.explicit || name.name != "json_table" || len(name.columns) != 0)
+		from.relation = text
+		return from, nil
 	}
 	if v.functionSources {
 		from.slots = make(map[int]string, len(from.columns))

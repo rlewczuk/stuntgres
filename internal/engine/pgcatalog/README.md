@@ -116,7 +116,7 @@ engine; an empty adapter is not an initialized maintenance capture.
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |
-| `ViewDefinition`, `IndexDefinition` | view and index definition rendering |
+| `ViewDefinition`, `IndexDefinition`, `VisitRuleDefinitions` | current-identity stored definition rendering; rule visitor omits exact `_RETURN` before rendering |
 | `ColumnExpression`, `ColumnUpdatable` | captured stored-expression display and metadata-only view/rule/foreign capability |
 | `Pinned`, `OperatorSeeded`, `OperatorDependencies`, `TypeProviderProcedure` | pin decisions, the builtin operator inventory and operator dependencies owned by `routine`, extension type providers |
 | `VisitSequenceDefinitions` | sequence definitions with the statement's journal overlay (`pg_sequence`) |
@@ -145,6 +145,11 @@ authority, never the recorded `Version`.
   ACLs are not consulted (ordinary relation SELECT protects it).
 - `pg_largeobject_metadata` (2995): object OID, creator's owner OID and raw
   `ClassACL`, without per-object filtering or redaction.
+- `pg_rules`: projects represented stored relation rules as NAME/NAME/NAME/TEXT,
+  excluding only the exact `_RETURN` name. Definitions are public metadata:
+  relation ACLs, schema USAGE, search path and another session's TEMP ownership
+  do not filter rows. Captured presentation controls current-name SQL and own
+  TEMP spelling; reads never authorize or execute rule actions.
 - `pg_transform` (3576): checks cancellation, then the five carrier types, and
   returns a non-nil empty source.
 - `pg_settings`: projects registry metadata and one coherent typed snapshot;

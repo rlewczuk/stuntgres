@@ -57,18 +57,29 @@ func viewJoinOffset(root plan.Node, target *plan.JoinNode) (int, bool) {
 // No SQL is rebound and no persistent execution layout is changed.
 type QueryRenderer struct {
 	*View
-	query           *plan.Query
-	Frame           uint32
-	Slots           map[plan.Node]map[int]string
-	reserved        map[string]bool
-	namespace       int
-	depth           int
-	renderFrames    map[uint32]viewRenderFrame
-	aliases         map[viewRenderAlias]string
-	Presentation    Presentation
-	simple          bool
-	simpleQualifier string
-	functionSources bool // Public presentation of a frame admitting FunctionFrom.
+	query                    *plan.Query
+	Frame                    uint32
+	Slots                    map[plan.Node]map[int]string
+	reserved                 map[string]bool
+	namespace                int
+	depth                    int
+	renderFrames             map[uint32]viewRenderFrame
+	aliases                  map[viewRenderAlias]string
+	Presentation             Presentation
+	simple                   bool
+	simpleQualifier          string
+	functionSources          bool // Public source labels for function-bearing and rule-display frames.
+	ruleScopes               []uint32
+	ruleTables               map[uint32]ruleRangeTable
+	ruleTarget               ids.ObjectRef
+	ruleTargetAlias          string
+	ruleParentNames          *ruleRangeTable
+	ruleRootNames            *ruleRangeTable
+	ruleInsertSource         bool
+	ruleValues, ruleExcluded bool
+	ruleAction               *ruleRendering
+	ruleEntryFrame           uint32
+	ruleEntryParent          *ruleRangeTable
 	// Summary names follow current attributes independently of literal presentation.
 	CurrentNames bool
 	rowTargets   map[string]string
@@ -311,41 +322,6 @@ func viewHasFunctionSource(item parser.FromItem) bool {
 	return false
 }
 
-// Public inquiry aliases preserve actual current source names and only explicit
-// column aliases. Dump's positional bridge aliases remain owned by aliasFrom.
-func (v *QueryRenderer) functionSourceAlias(from viewRenderFrom, name string, columns []parser.Identifier) viewRenderFrom {
-	identifier := v.Presentation.identifier
-	qualifier := identifier(name)
-	from.slots = make(map[int]string, len(from.columns))
-	for i := range from.columns {
-		if i < len(columns) {
-			from.columns[i].name = columns[i].Text
-		}
-		column := from.columns[i]
-		if column.slot >= 0 {
-			from.slots[column.slot] = qualifier + "." + identifier(column.name)
-		}
-	}
-	text := from.relation
-	if text == "" {
-		text = "(" + from.text + ")"
-	}
-	from.text = text + " " + qualifier
-	if from.rowSource {
-		from.rowTargetSQL = qualifier
-	}
-	if len(columns) != 0 {
-		labels := make([]string, len(columns))
-		for i, column := range columns {
-			labels[i] = identifier(column.Text)
-		}
-		from.text += "(" + strings.Join(labels, ", ") + ")"
-	}
-	from.relation = ""
-	v.Slots[from.root] = from.slots
-	return from
-}
-
 func (v *QueryRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item parser.FromItem) (viewRenderFrom, error) {
 	from, err := v.renderFromSQL(ctx, catalog, item)
 	if err == nil && v.rowTargets != nil && from.rowSource {
@@ -384,6 +360,11 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 	if err := ctx.Err(); err != nil {
 		return viewRenderFrom{}, err
 	}
+	// Finalize this frame before descending into any source query. Names
+	// follow retained RTE order, independent of this rendering traversal.
+	if err := v.prepareRuleRangeTable(ctx, catalogView, v.query.Root.(*plan.ProjectNode)); err != nil {
+		return viewRenderFrom{}, err
+	}
 	// Nested expressions can render in a different order from analysis.
 	// Namespace entries retain their owning query frame and bound node ordinal.
 	for v.namespace < len(v.namespaces) && v.namespaces[v.namespace].Frame != v.Frame {
@@ -393,6 +374,14 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view FROM namespace")
 	}
 	ns := v.namespaces[v.namespace]
+	var rangeName ruleRangeName
+	if v.Presentation.Rule {
+		var err error
+		rangeName, err = v.ruleRangeName(ns)
+		if err != nil {
+			return viewRenderFrom{}, err
+		}
+	}
 	namespaceIndex := v.namespace + 1
 	defer func() {
 		if failure == nil {
@@ -402,49 +391,27 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 	v.namespace++
 	switch n := item.(type) {
 	case *parser.JSONTable:
-		return v.renderJSONTableSQL(ctx, catalogView, n, ns)
+		return v.renderJSONTableSQL(ctx, catalogView, n, ns, rangeName)
 	case *parser.FunctionTable:
-		return v.renderFunctionTableSQL(ctx, catalogView, n, ns)
+		return v.renderFunctionTableSQL(ctx, catalogView, n, ns, rangeName)
 	case *parser.FunctionFrom:
-		return v.renderFunctionTableSQL(ctx, catalogView, &parser.FunctionTable{Calls: n.Calls, Ordinality: n.Ordinality, Lateral: n.Lateral, RowsFrom: len(n.Calls) > 1, Pos: n.Pos}, ns)
+		return v.renderFunctionTableSQL(ctx, catalogView, &parser.FunctionTable{Calls: n.Calls, Ordinality: n.Ordinality, Lateral: n.Lateral, RowsFrom: len(n.Calls) > 1, Pos: n.Pos}, ns, rangeName)
 	case *parser.DerivedQuery:
-		root := viewDerivedAt(analyze.ViewFromRoot(v.query.Root), n.Query)
-		if root == nil {
-			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen derived query")
-		}
-		text, err := v.SelectQuerySQL(ctx, catalogView, n.Query, v.queries[n.Query])
-		if err != nil {
-			return viewRenderFrom{}, err
-		}
-		from := viewRenderFrom{text: text, root: root}
-		for i, column := range root.Schema() {
-			from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
-		}
-		aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
-		aliased.relation = "(" + text + ")"
-		return aliased, nil
+		return v.renderDerivedQuerySQL(ctx, catalogView, n, ns, rangeName)
 	case *parser.ValuesQuery:
-		ordinal := ns.Ordinal
-		text, err := v.valuesSQL(ctx, catalogView, n, ordinal)
-		if err != nil {
-			return viewRenderFrom{}, err
-		}
-		root := viewValuesAt(v.query.Root, ordinal)
-		from := viewRenderFrom{text: text, root: root}
-		from.rowSource = true
-		for i, column := range root.Schema() {
-			from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
-		}
-		aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
-		// An explicit VALUES alias replaces the renderer's generated alias.
-		aliased.relation = "(" + text + ")"
-		return aliased, nil
+		return v.renderValuesSourceSQL(ctx, catalogView, n, ns, rangeName)
 	case *parser.TableReference:
 		if root := ViewCTETable(analyze.ViewFromRoot(v.query.Root), n); root != nil {
 			name := catalog.QuoteIdentifier(n.Name.Parts[0].Text)
+			if v.Presentation.Rule {
+				name = v.Presentation.identifier(n.Name.Parts[0].Text)
+			}
 			from := viewRenderFrom{text: name, relation: name, root: root}
 			for i, column := range root.Schema() {
 				from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
+			}
+			if v.Presentation.Rule {
+				return v.ruleCTESource(from, n.Name.Parts[0].Text, rangeName), nil
 			}
 			aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
 			aliased.relation = name
@@ -509,19 +476,29 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			if leaf.Only {
 				from.relation = "ONLY " + from.relation
 			}
-			from.text = from.relation
-			from.slots = make(map[int]string, len(frozen))
-			qualifier := v.Presentation.identifier(d.Name())
-			from.rowTargetSQL = qualifier
 			for i, attribute := range d.Attributes {
 				column := viewRenderColumn{name: d.Columns[i].Name, slot: -1}
 				if captured, ok := frozen[attribute]; ok {
 					column.slot = captured.Slot
-					from.slots[column.slot] = qualifier + "." + v.Presentation.identifier(column.name)
 				}
 				from.columns = append(from.columns, column)
 			}
-			v.Slots[root] = from.slots
+			if v.Presentation.Rule {
+				relation := from.relation
+				from = v.sourceAlias(from, rangeName.name, rangeName.columns, rangeName.explicit || rangeName.name != d.Name() || len(rangeName.columns) != 0)
+				from.relation = relation
+			} else {
+				from.text = from.relation
+				from.slots = make(map[int]string, len(frozen))
+				qualifier := v.Presentation.identifier(d.Name())
+				from.rowTargetSQL = qualifier
+				for _, column := range from.columns {
+					if column.slot >= 0 {
+						from.slots[column.slot] = qualifier + "." + v.Presentation.identifier(column.name)
+					}
+				}
+				v.Slots[root] = from.slots
+			}
 			return from, nil
 		}
 		from.relation = catalog.QuoteIdentifier(catalogView.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
@@ -554,6 +531,14 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
+		if v.Presentation.Rule {
+			// The underlying occurrence already has its final name/columns.
+			// Alias wrappers never allocate a phantom default or a second RTE.
+			if v.rowTargets != nil && from.rowSource && n.Name.Text != "" {
+				from.rowTarget = n.Name.Text
+			}
+			return from, nil
+		}
 		if v.simple && v.Presentation.Deparse {
 			// PostgreSQL keeps a sole table's alias but suppresses redundant
 			// column aliases and qualification, including replay's bridge.
@@ -585,7 +570,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		if n.Name.Text == "" {
 			alias := v.namespaceAlias(ns)
 			if v.functionSources {
-				return v.functionSourceAlias(from, alias, nil), nil
+				return v.sourceAlias(from, alias, nil, true), nil
 			}
 			return v.aliasFrom(from, ns, alias), nil
 		}
@@ -598,7 +583,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			aliasName = v.namespaceAlias(ns)
 		}
 		if v.functionSources {
-			return v.functionSourceAlias(from, aliasName, n.Columns), nil
+			return v.sourceAlias(from, aliasName, n.Columns, true), nil
 		}
 		return v.aliasFrom(from, ns, aliasName), nil
 	case *parser.JoinReference:
@@ -610,7 +595,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		usingAlias := ""
 		if n.UsingAlias != nil {
 			usingAlias = n.UsingAlias.Text
-		} else {
+		} else if !v.Presentation.Rule {
 			for i := range ns.Keys {
 				if ns.Columns[i].Slot >= bound.LeftWidth+bound.RightWidth {
 					// Reserve before rendering descendants. This qualifies the
@@ -668,7 +653,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		prettyFunctionSources := v.functionSources && v.Presentation.Pretty
 		rightText := right.text
 		if v.functionSources {
-			joinText = "\n     " + strings.TrimSpace(joinText) + " "
+			joinText = v.Presentation.line(5) + strings.TrimSpace(joinText) + " "
 			if _, nested := n.Right.(*parser.JoinReference); nested && prettyFunctionSources {
 				rightText = "(" + rightText + ")"
 			}
@@ -689,24 +674,38 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			keys := make([]string, len(ns.Keys))
 			for i, key := range ns.Keys {
 				keys[i] = catalog.QuoteIdentifier(key)
+				if v.Presentation.Rule {
+					keys[i] = v.Presentation.identifier(key)
+				}
 				c := ns.Columns[i]
 				from.columns = append(from.columns, viewRenderColumn{name: key, slot: c.Slot})
 				// A synthetic merged value is recreated by USING's implicit
 				// common-type binder, never an unsupported explicit cast.
 				if c.Slot >= bound.LeftWidth+bound.RightWidth {
-					from.slots[c.Slot] = catalog.QuoteIdentifier(usingAlias) + "." + catalog.QuoteIdentifier(key)
+					if v.Presentation.Rule {
+						from.slots[c.Slot] = v.Presentation.identifier(key)
+						if usingAlias != "" {
+							from.slots[c.Slot] = v.Presentation.identifier(usingAlias) + "." + from.slots[c.Slot]
+						}
+					} else {
+						from.slots[c.Slot] = catalog.QuoteIdentifier(usingAlias) + "." + catalog.QuoteIdentifier(key)
+					}
 				}
 			}
 			from.text = "(" + left.text + joinText + right.text + " USING (" + strings.Join(keys, ", ") + ")"
 			if usingAlias != "" {
-				from.text += " AS " + catalog.QuoteIdentifier(usingAlias)
+				name := catalog.QuoteIdentifier(usingAlias)
+				if v.Presentation.Rule {
+					name = v.Presentation.identifier(usingAlias)
+				}
+				from.text += " AS " + name
 			}
 			from.text += ")"
 		} else {
 			if bound.Kind == parser.JoinInner {
 				separator := " CROSS JOIN "
 				if v.functionSources {
-					separator = "\n     CROSS JOIN "
+					separator = v.Presentation.line(5) + "CROSS JOIN "
 				}
 				from.text = left.text + separator + rightText
 			} else {
@@ -737,38 +736,11 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 				}
 			}
 		}
+		if v.Presentation.Rule && rangeName.name != "" {
+			from.relation = from.text
+			from = v.sourceAlias(from, rangeName.name, rangeName.columns, true)
+		}
 		return from, nil
 	}
 	return viewRenderFrom{}, fmt.Errorf("stuntgres: unsupported view FROM syntax %T", item)
-}
-
-func viewSourceAt(node plan.Node, occurrence int) *plan.SourceNode {
-	switch n := node.(type) {
-	case *plan.SourceNode:
-		if n.Occurrence == occurrence {
-			return n
-		}
-	case *plan.JoinNode:
-		if found := viewSourceAt(n.Left, occurrence); found != nil {
-			return found
-		}
-		return viewSourceAt(n.Right, occurrence)
-	}
-	return nil
-}
-
-func viewDerivedAt(node plan.Node, syntax *parser.Select) *plan.DerivedNode {
-	if node == nil {
-		return nil
-	}
-	if derived, ok := node.(*plan.DerivedNode); ok {
-		if project, ok := derived.Query.Root.(*plan.ProjectNode); ok && project.Syntax == syntax {
-			return derived
-		}
-	}
-	left, right := plan.QueryInputs(node)
-	if found := viewDerivedAt(left, syntax); found != nil {
-		return found
-	}
-	return viewDerivedAt(right, syntax)
 }

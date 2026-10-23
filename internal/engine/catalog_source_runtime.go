@@ -261,6 +261,33 @@ func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.R
 func (r engineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	return index.DefinitionSQL(ctx, view, relation, index.Presentation{})
 }
+func (r engineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, visit func(catalog.RuleFact, string) error) error {
+	for _, rule := range stored.RulesOf(relation) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if rule.Name == "_RETURN" {
+			continue
+		}
+		definition, err := stored.RuleDefinitionSQL(ctx, view, relation, rule, r.presentation, r.temporary)
+		if err != nil {
+			return err
+		}
+		event := "1"
+		switch rule.Event() {
+		case "UPDATE":
+			event = "2"
+		case "INSERT":
+			event = "3"
+		case "DELETE":
+			event = "4"
+		}
+		if err := visit(catalog.RuleFact{OID: rule.OID, Name: rule.Name, Event: event, Instead: rule.Instead(), References: rule.References()}, definition); err != nil {
+			return err
+		}
+	}
+	return ctx.Err()
+}
 func (r engineCatalogRuntime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {
 	return index.CatalogKey(parent, key)
 }

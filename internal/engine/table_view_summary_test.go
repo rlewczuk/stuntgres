@@ -186,6 +186,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		{12002, "pg_indexes", false},
 		{12003, "pg_tables", false},
 		{12006, "pg_matviews", false},
+		{pgcatalog.RulesOID, "pg_rules", false},
 		{12014, "pg_user", false},
 		{12007, "pg_roles", false},
 		{12008, "pg_group", false},

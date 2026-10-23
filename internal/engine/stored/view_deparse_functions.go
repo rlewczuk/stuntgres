@@ -28,7 +28,7 @@ func viewFunctionFromAt(root plan.Node, ordinal int, selected bool) *plan.Functi
 	}
 	return viewFunctionFromAt(right, ordinal, selected)
 }
-func (v *QueryRenderer) renderFunctionTableSQL(ctx context.Context, catalog catalog.Read, raw *parser.FunctionTable, ns analyze.ViewNamespace) (viewRenderFrom, error) {
+func (v *QueryRenderer) renderFunctionTableSQL(ctx context.Context, catalog catalog.Read, raw *parser.FunctionTable, ns analyze.ViewNamespace, name ruleRangeName) (viewRenderFrom, error) {
 	root := viewFunctionFromAt(analyze.ViewFromRoot(v.query.Root), ns.Ordinal, ns.Node == analyze.ViewRegexpNamespace)
 	if root == nil {
 		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen string function source")
@@ -91,6 +91,18 @@ func (v *QueryRenderer) renderFunctionTableSQL(ctx context.Context, catalog cata
 	from := viewRenderFrom{text: text, relation: text, root: root}
 	for i, column := range root.Schema() {
 		from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
+	}
+	if v.Presentation.Rule {
+		columns := make([]parser.Identifier, len(from.columns))
+		for i, column := range from.columns {
+			columns[i] = parser.Identifier{Text: column.name}
+			if i < len(name.columns) {
+				columns[i] = name.columns[i]
+			}
+		}
+		from = v.sourceAlias(from, name.name, columns, true)
+		from.relation = text
+		return from, nil
 	}
 	if root.RegexpNamespace && v.functionSources {
 		from.slots = make(map[int]string, len(from.columns))

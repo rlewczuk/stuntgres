@@ -148,6 +148,57 @@ host methods.
   absent from the original definition; canonical display is not dump SQL.
 - **Rule and policy dumps.** `RuleDumpGroups`/`RuleActionSQL`,
   `PolicyDumpGroups` and `RowSecurityDumpGroups`.
+- **Rule display.** `RuleDefinitionSQL` reconstructs current event, attribute
+  and action identities using request-local `Presentation` and the querying
+  TEMP owner. It shares frozen action/expression traversal with `RuleActionSQL`,
+  but prints catalog display indentation, default target-list wrapping,
+  conditional quoting, lower-case OLD/NEW aliases and path-sensitive action
+  names. Ordinary aggregate/window routine names use display identifier quoting,
+  including `quote_all_identifiers`; SQL/JSON aggregate grammar remains syntax,
+  and unqualified replay call spelling does not depend on display settings.
+  SELECT, FROM and USING use shared frozen namespace/slot presentation,
+  including current source names and retained aliases. Mutation declarations
+  and target-column references share one request-local retained target alias;
+  source slots, event OLD/NEW, action RETURNING sides and conflict pseudo rows
+  retain their own namespaces. Inference expressions use unqualified target
+  attributes and live path-sensitive collation/operator-class identities,
+  suppressing the actual default class rather than a name-based approximation.
+  RETURNING labels come from its analyzed output schema; retained typed
+  occurrences preserve explicit side aliases when execution shares a default-
+  side target slot. Sublink punctuation and quantifiers share one display policy
+  across bound mutations, SELECT actions and INSERT SELECT sources. Every query
+  boundary establishes output-name visibility: immediate sublinks hide fallback
+  labels; derived SELECT and CTE bodies expose their names independently of the
+  caller; set operands follow their own left/right visibility. Nested boundaries
+  restore the complete caller presentation on success and error. CTE bodies and
+  recursive anchors recover original labels through the shared
+  `analyze.ExpressionName` authority and frozen expansion captures, independently
+  of execution's declared CTE schema. Rule VALUES bodies keep their intrinsic
+  column names rather than introducing replay wrappers for CTE declarations.
+  `view_rule_names.go` finalizes each frame's range-table names before
+  rendering descendants or CTE bodies: preload allocated ancestors, then process
+  logical RTEs in source order, with joins after their inputs. Explicit aliases
+  replace their occurrence's preferred name before allocation and participate
+  in collision suffixing just like defaults; later explicit names have no
+  priority over earlier sources. Current relation defaults use stable identities.
+  One source-alias mechanism supplies declarations, slots and whole-row names;
+  wrappers neither allocate extra RTEs nor reserve phantom defaults. Unrelated
+  columns and sibling-query names are not reservations. Request-local indentation
+  propagates through derived queries, sublinks, INSERT sources and CTE/set bodies
+  without SQL-text patching or reduced-parenthesis pretty mode.
+  Finalized parent name facts also cross modifying-CTE renderer boundaries,
+  independently of each frozen view's frame numbering. Targets, event OLD/NEW
+  and EXCLUDED use their allocated namespace facts without changing executable
+  slots. INSERT SELECT distinguishes the INSERT's target/source-wrapper parent
+  namespace from the source query containing its pushed-down OLD/NEW entries;
+  CTE bodies inherit the appropriate structural parent, not incidental rendering
+  state. SELECT and INSERT SELECT actions use the same configured renderer
+  factory as bound mutations, including retained modifier-body dispatch.
+  ONLY, CURRENT OF, DEFAULT VALUES and multirow VALUES retain their typed forms.
+  Event names stay qualified; the querying session's
+  TEMP event schema is `pg_temp`. Display never changes the payload or executes
+  an action. Replay retains its explicit ALSO, positional source bridges,
+  fully quoted identities, trailing newlines and separate TEMP export rules.
 - **Retag and remap.** `MapExpression`, `RetagTypes`, `RetagTypesWithQuery`
   (`expression_retag.go`, the canonical mapper); `RemapExpression`,
   `RemapScalar`, `RemapLikeExpression`, `RemapViewQuery` (`expression_remap.go`);
@@ -340,20 +391,20 @@ type descriptors alone does not authorize cross-ID scalar values.
 - Host forwarders into this package: the `analyze.Host` methods
   `MapBoundExpression`, `MapBoundQueryExpression`, `StoredViewVolatile`,
   `ValidateViewReadGraph`, `CaptureRetainedViewInput` (`analysis_host.go`) and
-  the `pgcatalog.Runtime` methods `ViewDefinition`, `ExpressionReferences`,
-  `ViewReferences`, `IndexReferences`, `PartitionReferences`
+  the `pgcatalog.Runtime` methods `ViewDefinition`, `VisitRuleDefinitions`,
+  `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`
   (`catalog_source_runtime.go`). `IndexDefinition` renders through
   `index.DefinitionSQL`; relation deparsing is `table.Deparse`.
 
 ## Testing
 
-Package units cover the payload API, routine recipes and aggregate recipes.
+Package units cover the payload API, rule presentation, routine recipes and aggregate recipes.
 `TestViewPartsRoundTrip` and `TestRulePartsRoundTrip` require every `View`,
 `Rule` and `RuleAction` field to have a parts twin that round-trips alone and
 `With` to leave its receiver unchanged; extend them when adding a field.
-Renderer, retag, remap, `pg_depend`, provenance and validator tests build an
-`Engine` or catalog fixture and live in `internal/engine`. Public behavior
-belongs in `reference/`; follow [docs/TESTING.md](../../../docs/TESTING.md) and
+Renderer-only units use frozen catalog fixtures here; engine capture, retag,
+remap, `pg_depend`, provenance and validator tests live in `internal/engine`.
+Public behavior belongs in `reference/`; follow [docs/TESTING.md](../../../docs/TESTING.md) and
 add `REFERENCE=1` for the oracle.
 
 Provider occurrence/shape proof:
@@ -373,6 +424,7 @@ current body/default semantics from valid equivalent COW: old hard captures
 reject, while healthy fresh current manifests remain usable.
 
 - Payload API and stored row marks: `RUN='^Test(ViewPartsRoundTrip|RulePartsRoundTrip|QuerySetStoredInheritedMarks)$'`
+- Rule display and replay separation: `RUN='^TestRuleDefinition(Presentation|ReplaySeparation|ReturningLabels)$'`
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`
 - Aggregate recipes: `RUN='^TestCreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)$'`
 - Engine renderer and `pg_depend` units: `RUN='^Test(Deparse|PGDepend|ViewCheck)'`

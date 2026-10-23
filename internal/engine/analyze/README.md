@@ -95,6 +95,8 @@ library, and never the root engine or `session`. The engine, the root driver
   defaults, generated columns, index, partition and policy expressions), plan
   walks, coercion properties, collation derivation (`CollatedInfo`) and error
   positions. They read only their arguments.
+  `ExpressionName` shares original typed target-label derivation with stored
+  recursive presentation; it neither rebinds syntax nor consults current names.
 - **Cached query outputs** (`query_order_bind.go`, `query_distinct_on_bind.go`,
   `query_producer_bind.go`): cached-slot constructors preserve value, diagnostic,
   collation and stage metadata, but clear routine and defining-recipe references.

@@ -7,15 +7,20 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 )
 
 // Destination coercions rebind from the independent SELECT's output schema on
 // Restore. Rendering each output as a scalar SELECT would duplicate its demand.
-func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *analyze.Binding, action RuleAction) (string, error) {
+func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *analyze.Binding, action ruleRendering) (string, error) {
+	current, ok := view.Relation(b.Ref.Address)
+	if !ok {
+		return "", ids.ErrCatalogReplaced
+	}
 	var sql strings.Builder
 	targetSQL := func(i int) (string, error) {
-		column, err := DeparseAttribute(b.Relation, b.Relation.Attributes[b.Targets[i]])
+		column, err := action.attribute(current, b.Relation.Attributes[b.Targets[i]])
 		if err != nil {
 			return "", err
 		}

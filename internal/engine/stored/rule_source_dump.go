@@ -14,9 +14,16 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action RuleAction, expression func(plan.Node, expr.Expr) (string, error)) (string, error) {
+func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action ruleRendering, expression func(plan.Node, expr.Expr) (string, error)) (string, error) {
 	if root == nil || slot < 0 || slot >= len(root.Schema()) {
 		return "", fmt.Errorf("stuntgres: invalid rule source slot")
+	}
+	if action.policy.Rule && root == action.sourceRoot {
+		text, ok := action.sourceSlots[slot]
+		if !ok {
+			return "", ids.ErrCatalogReplaced
+		}
+		return text, nil
 	}
 	switch node := root.(type) {
 	case *plan.JoinNode:
@@ -44,30 +51,30 @@ func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action Rul
 		if slot >= len(attributes) {
 			return "", ids.ErrCatalogReplaced
 		}
-		column, err := DeparseAttribute(d, attributes[slot])
+		column, err := action.attribute(d, attributes[slot])
 		if err != nil {
 			return "", err
 		}
-		return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(node.Occurrence)) + "." + column, nil
+		return action.policy.identifier("_rule_source_"+strconv.Itoa(node.Occurrence)) + "." + column, nil
 	case *plan.FunctionFromNode:
-		return catalog.QuoteIdentifier("_rule_function_"+strconv.Itoa(node.ViewOrdinal)) + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
+		return action.policy.identifier("_rule_function_"+strconv.Itoa(node.ViewOrdinal)) + "." + action.policy.identifier(node.Schema()[slot].Name), nil
 	case *plan.DerivedNode:
-		return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(node.Ordinal)) + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
+		return action.policy.identifier("_rule_source_"+strconv.Itoa(node.Ordinal)) + "." + action.policy.identifier(node.Schema()[slot].Name), nil
 	case *plan.ProjectNode, *plan.SortNode, *plan.LimitNode, *plan.EvaluationNode:
 		values, ok := analyze.ViewFromRoot(node).(*plan.ValuesNode)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing rule VALUES namespace")
 		}
-		return catalog.QuoteIdentifier("_rule_values_"+strconv.Itoa(values.ViewOrdinal)) + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
+		return action.policy.identifier("_rule_values_"+strconv.Itoa(values.ViewOrdinal)) + "." + action.policy.identifier(node.Schema()[slot].Name), nil
 	case *plan.ValuesNode:
-		return catalog.QuoteIdentifier("_rule_values") + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
+		return action.policy.identifier("_rule_values") + "." + action.policy.identifier(node.Schema()[slot].Name), nil
 	}
 	return "", fmt.Errorf("stuntgres: missing rule source namespace for %T", root)
 }
 
 // VALUES FROM binding retains projection/order/bounds wrappers. Render its
 // checked presentation instead of flattening those semantically real clauses.
-func ruleValuesFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action RuleAction) (string, error) {
+func ruleValuesFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action ruleRendering) (string, error) {
 	values, ok := analyze.ViewFromRoot(root).(*plan.ValuesNode)
 	if !ok || action.presentation == nil {
 		return "", fmt.Errorf("stuntgres: missing checked rule VALUES presentation")
@@ -111,7 +118,7 @@ func ruleValuesFromSQL(ctx context.Context, view catalog.Read, root plan.Node, a
 	if syntax == nil {
 		return "", fmt.Errorf("stuntgres: missing captured rule VALUES syntax")
 	}
-	renderer := NewQueryRenderer(presentation)
+	renderer := action.renderer(presentation)
 	renderer.Frame = project.Frame
 	text, err := renderer.valuesSQL(ctx, view, syntax, values.ViewOrdinal)
 	if err != nil {
@@ -119,7 +126,7 @@ func ruleValuesFromSQL(ctx context.Context, view catalog.Read, root plan.Node, a
 	}
 	names := make([]string, len(root.Schema()))
 	for i, column := range root.Schema() {
-		names[i] = catalog.QuoteIdentifier(column.Name)
+		names[i] = action.policy.identifier(column.Name)
 	}
-	return "(" + text + ") AS " + catalog.QuoteIdentifier("_rule_values_"+strconv.Itoa(values.ViewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
+	return "(" + text + ") AS " + action.policy.identifier("_rule_values_"+strconv.Itoa(values.ViewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
 }

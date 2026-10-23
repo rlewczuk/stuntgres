@@ -86,6 +86,15 @@ func captureTableViewSummary(in Input) ([][]sqltype.Value, error) {
 // In particular native pg_indexes retains its separately documented ACL policy.
 func SummaryViewDefinition(oid ids.OID) string {
 	switch oid {
+	case RulesOID:
+		return ` SELECT n.nspname AS schemaname,
+    c.relname AS tablename,
+    r.rulename,
+    pg_get_ruledef(r.oid) AS definition
+   FROM ((pg_rewrite r
+     JOIN pg_class c ON ((c.oid = r.ev_class)))
+     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
+  WHERE (r.rulename <> '_RETURN'::name);`
 	case 12081:
 		return ` SELECT e.name,
     e.default_version,

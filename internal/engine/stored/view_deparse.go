@@ -21,6 +21,10 @@ import (
 type Presentation struct {
 	Deparse, Pretty    bool
 	Wrap               int64
+	Rule               bool // Catalog rule display, not replay or reduced-parenthesis pretty mode.
+	Indent             int
+	HideLabels         bool // Nested expression/set-arm fallback names are not externally visible.
+	AnchorLabels       bool // Restore original labels hidden by recursive execution's output schema.
 	Path               []ids.ObjectAddress
 	Columns            []catalog.Column
 	Output             sqltype.OutputEnvironment
@@ -80,15 +84,15 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 	}()
 	presentation := renderer.Presentation
 	presentation.Columns = columns
-	renderer.functionSources = presentation.Deparse && viewHasFunctionSource(s.From)
+	renderer.functionSources = presentation.Deparse && (presentation.Rule || viewHasFunctionSource(s.From))
 	simpleFrom := s.From
-	if alias, ok := simpleFrom.(*parser.AliasReference); ok && presentation.Deparse && !setOperand {
+	if alias, ok := simpleFrom.(*parser.AliasReference); ok && presentation.Deparse && !setOperand && !presentation.Rule {
 		// A sole table still needs no column qualification when it has an
 		// explicit alias. Portable replay keeps its positional bridge.
 		simpleFrom = alias.Input
 	}
 	_, renderer.simple = simpleFrom.(*parser.TableReference)
-	renderer.simple = renderer.simple && (presentation.Deparse || renderer.CurrentNames) && !renderer.renderFrames[project.Frame].correlated
+	renderer.simple = renderer.simple && !presentation.Rule && (presentation.Deparse || renderer.CurrentNames) && !renderer.renderFrames[project.Frame].correlated
 	if table, ok := simpleFrom.(*parser.TableReference); ok && ViewCTETable(analyze.ViewFromRoot(project), table) != nil {
 		renderer.simple = false
 	}
@@ -105,11 +109,31 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 			// Symbolic clauses regenerate outputs and hidden parent carries.
 			columns = columns[:recursive.Definition.UserWidth]
 		}
+		if presentation.Rule {
+			// CTE output names belong to the CTE declaration, not either
+			// operand's target entries.
+			columns = nil
+		}
+		operandPresentation := renderer.Presentation
+		if _, recursive := analyze.ViewFromRoot(project).(*plan.RecursiveUnionNode); presentation.Rule && recursive {
+			renderer.Presentation.AnchorLabels = true
+		}
 		left, err := renderer.selectQueryColumnsSQL(ctx, catalogView, s.Set.Left, set.Left, columns, true)
+		renderer.Presentation = operandPresentation
 		if err != nil {
 			return "", err
 		}
+		// The left arm inherits the set's visibility; the right arm does
+		// not expose fallback labels, independently of enclosing boundaries.
+		if presentation.Rule {
+			renderer.Presentation.HideLabels = true
+			renderer.Presentation.AnchorLabels = false
+			if s.Set.Right.Set != nil {
+				renderer.Presentation.Indent += 8
+			}
+		}
 		right, err := renderer.selectQueryColumnsSQL(ctx, catalogView, s.Set.Right, set.Right, columns, true)
+		renderer.Presentation = operandPresentation
 		if err != nil {
 			return "", err
 		}
@@ -119,7 +143,9 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 			left = "(" + left + ")"
 		}
 		if viewSetOperandParentheses(s.Set.Right) {
-			if presentation.Deparse && s.Set.Right.Set != nil {
+			if presentation.Rule && s.Set.Right.Set != nil {
+				right = "(" + presentation.line(8) + right + presentation.line(0) + ")"
+			} else if presentation.Deparse && s.Set.Right.Set != nil {
 				right = "(\n        " + strings.ReplaceAll(right, "\n", "\n        ") + "\n)"
 			} else {
 				right = "(" + right + ")"
@@ -128,6 +154,9 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 		separator := " "
 		if presentation.Deparse {
 			separator = "\n"
+			if presentation.Rule {
+				separator = presentation.line(0)
+			}
 		}
 		operator := strings.ToUpper(set.Operation)
 		if set.All {
@@ -155,6 +184,11 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 		text, err := renderer.valuesSQL(ctx, catalogView, s.Values, values.ViewOrdinal)
 		if err != nil {
 			return "", err
+		}
+		if presentation.Rule {
+			// A rule has no external result descriptor to force a VALUES
+			// wrapper. CTE declaration names belong outside this body.
+			return text, nil
 		}
 		labels := make([]string, len(v.query.Root.Schema()))
 		renamed := false
@@ -252,12 +286,37 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 		}
 		targets = append(targets, text)
 	}
+	if presentation.Rule && presentation.AnchorLabels {
+		var err error
+		presentation.Columns, err = renderer.ruleAnchorColumns(s, project)
+		if err != nil {
+			return "", err
+		}
+	}
 	for i := range targets {
 		label := v.query.Root.Schema()[i].Name
 		if len(presentation.Columns) > i {
 			label = presentation.Columns[i].Name
 		}
 		natural := ""
+		if presentation.Rule && presentation.HideLabels {
+			natural = presentation.identifier("?column?")
+		}
+		if presentation.Deparse && i < len(project.Expressions) {
+			if column, ok := project.Expressions[i].(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
+				address := column.Origin.Address
+				address.SubID = 0
+				relation, ok := catalogView.Relation(address)
+				if !ok {
+					return "", ids.ErrCatalogReplaced
+				}
+				name, err := (Deparser{Output: presentation.Output}).Attribute(relation, column.Origin.Address.SubID)
+				if err != nil {
+					return "", err
+				}
+				natural = name
+			}
+		}
 		if renderer.simple {
 			// Simple source slots carry current attribute names, not frozen
 			// aliases; omit AS only when it does not change the result label.
@@ -306,11 +365,11 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 	}
 	clause := " "
 	if presentation.Deparse {
-		clause = "\n  "
+		clause = presentation.line(2)
 	}
 	if s.From != nil {
 		if presentation.Deparse {
-			text += "\n   FROM " + from
+			text += presentation.line(3) + "FROM " + from
 		} else {
 			text += " FROM " + from
 		}
@@ -387,11 +446,15 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 			ordinal := 0
 			part, err := windowSpecSQL(definition.Spec, func(expr parser.Expr) (string, error) {
 				return renderer.ExpressionSQLAt(ctx, catalogView, expr, path, &ordinal, DeparseParent{})
-			})
+			}, presentation)
 			if err != nil {
 				return "", err
 			}
-			definitions[i] = catalog.QuoteIdentifier(definition.Name.Text) + " AS (" + part + ")"
+			name := catalog.QuoteIdentifier(definition.Name.Text)
+			if presentation.Rule {
+				name = presentation.identifier(definition.Name.Text)
+			}
+			definitions[i] = name + " AS (" + part + ")"
 		}
 		text += clause + "WINDOW " + strings.Join(definitions, ", ")
 	}
@@ -406,7 +469,7 @@ func viewSetOperandParentheses(s *parser.Select) bool {
 func (renderer *QueryRenderer) selectQueryTailSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, text string, presentation Presentation, setOperand bool) (string, error) {
 	clause := " "
 	if presentation.Deparse {
-		clause = "\n  "
+		clause = presentation.line(2)
 	}
 	if s.Order != nil {
 		keys := make([]string, len(s.Order.Keys))
@@ -441,7 +504,7 @@ func (renderer *QueryRenderer) selectQueryTailSQL(ctx context.Context, catalog c
 	if s.Bounds != nil {
 		boundClause := clause
 		if presentation.Deparse && (setOperand || s.Set != nil) {
-			boundClause = "\n "
+			boundClause = presentation.line(1)
 		}
 		for _, bound := range []struct {
 			expr   parser.Expr
@@ -548,8 +611,8 @@ func viewTargetsSQL(targets []string, presentation Presentation, distinct bool) 
 	for i, target := range targets {
 		if i > 0 {
 			if presentation.Wrap >= 0 && (presentation.Wrap == 0 || int64(lineBytes+2+len(target)) > presentation.Wrap) {
-				layout.WriteString(",\n    ")
-				lineBytes = 4
+				layout.WriteString("," + presentation.line(4))
+				lineBytes = presentation.Indent + 4
 			} else {
 				layout.WriteString(", ")
 				lineBytes += 2
@@ -579,13 +642,27 @@ func (v *QueryRenderer) columnSQL(ctx context.Context, catalog catalog.Read, pat
 		if !ok {
 			return "", ids.ErrCatalogReplaced
 		}
-		name, err := DeparseAttribute(d, column.RuleRef.Address.SubID)
+		deparser := Deparser{}
+		if v.Presentation.Deparse {
+			deparser.Output = v.Presentation.Output
+		}
+		name, err := deparser.Attribute(d, column.RuleRef.Address.SubID)
 		if err != nil {
 			return "", err
 		}
 		side := "OLD"
 		if column.RuleSide == 2 {
 			side = "NEW"
+		}
+		if v.Presentation.Deparse {
+			side = "old"
+			if column.RuleSide == 2 {
+				side = "new"
+			}
+			if v.Presentation.Rule {
+				side = v.ruleRootNames.pseudoName(column.RuleSide == 1)
+			}
+			side = v.Presentation.identifier(side)
 		}
 		return side + "." + name, nil
 	}
@@ -838,14 +915,34 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		left := ""
 		var err error
 		if e.Left != nil {
-			left, err = child(e.Left)
+			operand := e.Left
+			if row, ok := operand.(parser.RowExpr); v.Presentation.Rule && ok {
+				// SubLink test tuples are not ROW constructors, even when
+				// explicit ROW syntax originally supplied their fields.
+				row.Explicit = false
+				operand = row
+			}
+			left, err = child(operand)
 			if err != nil {
 				return "", err
 			}
 		}
+		previousPresentation := v.Presentation
+		v.Presentation = previousPresentation.nestedQueryPresentation(false)
 		query, err := v.SelectQuerySQL(ctx, catalogView, e.Query, v.queries[e.Query])
+		v.Presentation = previousPresentation
 		if err != nil {
 			return "", err
+		}
+		if v.Presentation.Rule {
+			operator := ""
+			if len(e.Operator.Parts) != 0 {
+				operator = e.Operator.Parts[len(e.Operator.Parts)-1].Text
+				if len(e.Operator.Parts) == 2 {
+					operator = "OPERATOR(" + catalog.QuoteIdentifier(e.Operator.Parts[0].Text) + "." + operator + ")"
+				}
+			}
+			return ruleSublinkSQL(e.Kind, operator, left, query, e.Negate), nil
 		}
 		if e.Kind == parser.SubqueryScalar {
 			return "(" + query + ")", nil
@@ -1199,6 +1296,12 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		return templateSQL(functions.SQLJSONPieces(e, len(parts)), parts, declaration, rawSyntaxWord)
 	case parser.AggregateExpr:
 		name := e.Name
+		// Ordinary aggregate/window calls name routines; SQL/JSON aggregate
+		// forms are grammar syntax, not identifiers. Replay keeps its existing
+		// unqualified-call spelling independently of display settings.
+		if v.Presentation.Deparse && e.JSON == nil {
+			name = v.Presentation.identifier(e.Name)
+		}
 		if e.Schema != nil {
 			name = catalog.QuoteIdentifier(e.Schema.Text) + "." + catalog.QuoteIdentifier(e.Name)
 		}
@@ -1349,7 +1452,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			text += " FILTER (WHERE " + filter + ")"
 		}
 		if e.Window != nil {
-			spec, err := windowSpecSQL(*e.Window, child)
+			spec, err := windowSpecSQL(*e.Window, child, v.Presentation)
 			if err != nil {
 				return "", err
 			}
@@ -1766,10 +1869,14 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 	return "", fmt.Errorf("stuntgres: unsupported view deparser expression %T", raw)
 }
 
-func windowSpecSQL(spec parser.WindowSpec, child func(parser.Expr) (string, error)) (string, error) {
+func windowSpecSQL(spec parser.WindowSpec, child func(parser.Expr) (string, error), policy Presentation) (string, error) {
 	parts := make([]string, 0, 3)
 	if spec.Name != nil {
-		parts = append(parts, catalog.QuoteIdentifier(spec.Name.Text))
+		name := catalog.QuoteIdentifier(spec.Name.Text)
+		if policy.Rule {
+			name = policy.identifier(spec.Name.Text)
+		}
+		parts = append(parts, name)
 	}
 	if len(spec.Partition) > 0 {
 		keys := make([]string, len(spec.Partition))

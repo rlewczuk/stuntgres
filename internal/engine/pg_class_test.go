@@ -100,7 +100,7 @@ func TestPgClassKinds(t *testing.T) {
 			t.Fatal(tc, got)
 		}
 	}
-	for _, oid := range []ids.OID{12000, 12001, 12002, 12003, 12006, 12007, 12008, 12014, 12081} {
+	for _, oid := range []ids.OID{12000, 12001, 12002, 12003, 12006, 12007, 12008, 12014, pgcatalog.RulesOID, 12081} {
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		before := d.VirtualView
 		if got := pgcatalog.ClassKind(view, d); got != "v" || d.VirtualView != before {

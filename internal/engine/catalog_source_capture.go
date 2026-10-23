@@ -113,8 +113,9 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			auth.Recapture(auth.Catalog)
 			runtime.auth, in.Roles = auth, auth.Roles
 		}
-		if oid == 12006 {
+		if oid == 12006 || oid == pgcatalog.RulesOID {
 			runtime.presentation = stored.Presentation{Deparse: true, Path: scope.inquiry.deparsePath, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings}
+			runtime.temporary = catalogSourceTemporaryOwner(scope.inquiry.deparseAuth)
 		}
 	}
 	in.Runtime = runtime

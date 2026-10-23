@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
 
@@ -30,8 +29,8 @@ func ruleRelationSQL(view catalog.Read, ref ids.ObjectRef) (string, error) {
 	return catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name()), nil
 }
 
-func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action RuleAction, sourceRoots ...plan.Node) (string, error) {
-	r := Deparser{View: view, ShowImplicit: true}
+func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action ruleRendering, sourceRoots ...plan.Node) (string, error) {
+	r := Deparser{View: view, ShowImplicit: true, Path: action.policy.Path, Output: action.policy.Output, NonstandardStrings: action.policy.NonstandardStrings}
 	r.ColumnSQL = func(column plan.ColumnExpr) (string, error) {
 		if column.Scope == 1 && column.Frame == 1 && len(sourceRoots) != 0 {
 			return ruleSourceColumnSQL(view, sourceRoots[0], column.Slot, action, func(root plan.Node, expr expr.Expr) (string, error) {
@@ -60,28 +59,65 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if !ok {
 			return "", ids.ErrCatalogReplaced
 		}
-		name, err := DeparseAttribute(d, column.Origin.Address.SubID)
+		name, err := action.attribute(d, column.Origin.Address.SubID)
 		if err != nil {
 			return "", err
+		}
+		if action.inference && a == action.binding.Ref.Address && column.Scope != analyze.RulePseudoScope {
+			return name, nil
 		}
 		if conflict := action.binding.Insert.Conflict; conflict != nil && conflict.Update != nil &&
 			column.Scope == 1 && column.Frame == 1 && column.Slot >= conflict.Width && column.Slot < 2*conflict.Width &&
 			a == action.binding.Ref.Address {
-			return "EXCLUDED." + name, nil
+			qualifier := "EXCLUDED"
+			if action.policy.Rule {
+				qualifier = "excluded"
+				if action.names != nil {
+					qualifier = action.names.excluded
+				}
+				qualifier = action.policy.identifier(qualifier)
+			}
+			return qualifier + "." + name, nil
 		}
 		if column.Scope == analyze.RulePseudoScope {
 			side := "OLD"
 			if column.Frame == 2 {
 				side = "NEW"
 			}
+			if action.policy.Deparse {
+				side = "old"
+				if column.Frame == 2 {
+					side = "new"
+				}
+				if action.policy.Rule {
+					side = action.names.pseudoName(column.Frame == 1)
+				}
+				side = action.policy.identifier(side)
+			}
 			return side + "." + name, nil
 		}
-		if column.QueryOccurrence > 0 {
-			return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(column.QueryOccurrence-1)) + "." + name, nil
+		if action.returning && a == action.binding.Ref.Address {
+			if qualifier := action.returningNames[column.SourcePosition()]; qualifier != "" {
+				return action.policy.identifier(qualifier) + "." + name, nil
+			}
 		}
-		return catalog.QuoteIdentifier(d.Name()) + "." + name, nil
+		if action.policy.Rule && a == action.binding.Ref.Address {
+			return action.targetQualifier(d) + "." + name, nil
+		}
+		if column.QueryOccurrence > 0 {
+			return action.policy.identifier("_rule_source_"+strconv.Itoa(column.QueryOccurrence-1)) + "." + name, nil
+		}
+		return action.policy.identifier(d.Name()) + "." + name, nil
 	}
 	r.NodeSQL = func(expr expr.Expr) (string, bool, error) {
+		if column, ok := expr.(plan.ReturningColumnExpr); ok && action.returning {
+			relation, exists := view.Relation(action.binding.Ref.Address)
+			if !exists {
+				return "", true, ids.ErrCatalogReplaced
+			}
+			name, err := action.attribute(relation, column.Origin.Address.SubID)
+			return action.policy.identifier(action.returningAlias(column.Old)) + "." + name, true, err
+		}
 		subquery, ok := expr.(plan.SubqueryExpr)
 		if !ok {
 			return "", false, nil
@@ -93,7 +129,8 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if !ok || project.Syntax == nil {
 			return "", true, fmt.Errorf("stuntgres: missing rule subquery syntax")
 		}
-		renderer := NewQueryRenderer(action.presentation)
+		renderer := action.renderer(action.presentation)
+		renderer.Presentation = action.policy.nestedQueryPresentation(false)
 		// Replacement remaps executable and frozen graphs independently.
 		// Every slot cache and frame lookup in this render must use the
 		// retained presentation graph, selected by immutable syntax identity.
@@ -108,10 +145,13 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if err != nil {
 			return "", true, err
 		}
-		if subquery.Kind == parser.SubqueryExists {
-			return "EXISTS (" + text + ")", true, nil
-		}
-		if subquery.Kind == parser.SubqueryScalar || subquery.Kind == parser.SubqueryRow {
+		if subquery.Kind == parser.SubqueryExists || subquery.Kind == parser.SubqueryScalar || subquery.Kind == parser.SubqueryRow && len(subquery.Comparisons) == 0 {
+			if action.policy.Rule {
+				return ruleSublinkSQL(subquery.Kind, "", "", text, subquery.Negate), true, nil
+			}
+			if subquery.Kind == parser.SubqueryExists {
+				return "EXISTS (" + text + ")", true, nil
+			}
 			return "(" + text + ")", true, nil
 		}
 		parts := make([]string, len(subquery.Comparisons))
@@ -123,20 +163,34 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		}
 		left := strings.Join(parts, ", ")
 		if len(parts) > 1 {
-			left = "ROW(" + left + ")"
+			prefix := "ROW"
+			if action.policy.Rule {
+				prefix = ""
+			}
+			left = prefix + "(" + left + ")"
+		}
+		operator := subquery.Operator
+		if action.policy.Rule {
+			return ruleSublinkSQL(subquery.Kind, operator, left, text, subquery.Negate), true, nil
 		}
 		quantifier := "ANY"
-		if subquery.Kind == parser.SubqueryAll {
+		switch subquery.Kind {
+		case parser.SubqueryAll:
 			quantifier = "ALL"
+		case parser.SubqueryRow:
+			quantifier = ""
 		}
-		text = "(" + left + " " + subquery.Operator + " " + quantifier + " (" + text + "))"
+		if quantifier != "" {
+			operator += " " + quantifier
+		}
+		text = "(" + left + " " + operator + " (" + text + "))"
 		if subquery.Negate {
 			text = "NOT " + text
 		}
 		return text, true, nil
 	}
 	node, _, err := RewriteViewExpression(view, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
-		if c, ok := expr.(plan.ReturningColumnExpr); ok {
+		if c, ok := expr.(plan.ReturningColumnExpr); ok && !action.returning {
 			return c.ColumnExpr, true, nil
 		}
 		return expr, false, nil
@@ -151,7 +205,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 // actual correlated recipes under that frozen outer root, using the same target
 // and source-offset authority as ordinary rule expressions. Unreferenced retired
 // columns are never rendered, and the frozen presentation remains immutable.
-func seedRuleMutationSlots(renderer *QueryRenderer, action RuleAction, query plan.Node, columnSQL func(plan.ColumnExpr) (string, error)) error {
+func seedRuleMutationSlots(renderer *QueryRenderer, action ruleRendering, query plan.Node, columnSQL func(plan.ColumnExpr) (string, error)) error {
 	switch action.syntax.(type) {
 	case *parser.Update, *parser.Delete:
 	default:
@@ -188,17 +242,20 @@ func seedRuleMutationSlots(renderer *QueryRenderer, action RuleAction, query pla
 	return failure
 }
 
-func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action RuleAction) (string, error) {
+func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action ruleRendering) (string, error) {
 	if root == nil {
 		return "", nil
 	}
+	if action.policy.Rule && root == action.sourceRoot {
+		return action.sourceText, nil
+	}
 	switch n := root.(type) {
 	case *plan.SourceNode:
-		name, err := ruleRelationSQL(view, n.Ref)
+		name, err := action.relation(view, n.Ref, false)
 		if err != nil {
 			return "", err
 		}
-		return name + " AS " + catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(n.Occurrence)), nil
+		return name + " AS " + action.policy.identifier("_rule_source_"+strconv.Itoa(n.Occurrence)), nil
 	case *plan.JoinNode:
 		left, err := ruleFromSQL(ctx, view, n.Left, action)
 		if err != nil {
@@ -227,13 +284,13 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 		return "(" + left + " " + kind + " JOIN " + right + " ON " + predicate + ")", nil
 	case *plan.DerivedNode:
 		if n.CTE != nil {
-			return catalog.QuoteIdentifier(n.CTE.Name) + " AS " + catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(n.Ordinal)), nil
+			return action.policy.identifier(n.CTE.Name) + " AS " + action.policy.identifier("_rule_source_"+strconv.Itoa(n.Ordinal)), nil
 		}
 		project, ok := n.Query.Root.(*plan.ProjectNode)
 		if !ok || project.Syntax == nil || action.presentation == nil {
 			return "", fmt.Errorf("stuntgres: missing rule derived-query presentation")
 		}
-		renderer := NewQueryRenderer(action.presentation)
+		renderer := action.renderer(action.presentation)
 		project = renderer.Queries()[project.Syntax]
 		if project == nil {
 			return "", fmt.Errorf("stuntgres: missing retained rule derived-query presentation")
@@ -247,7 +304,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 		if err != nil {
 			return "", err
 		}
-		return "(" + text + ") AS " + catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(n.Ordinal)), nil
+		return "(" + text + ") AS " + action.policy.identifier("_rule_source_"+strconv.Itoa(n.Ordinal)), nil
 	case *plan.FunctionFromNode:
 		parts := make([]string, len(n.Calls))
 		for i, call := range n.Calls {
@@ -266,9 +323,9 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 		}
 		names := make([]string, len(n.Schema()))
 		for i, column := range n.Schema() {
-			names[i] = catalog.QuoteIdentifier(column.Name)
+			names[i] = action.policy.identifier(column.Name)
 		}
-		return text + " AS " + catalog.QuoteIdentifier("_rule_function_"+strconv.Itoa(n.ViewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
+		return text + " AS " + action.policy.identifier("_rule_function_"+strconv.Itoa(n.ViewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
 	case *plan.ProjectNode, *plan.SortNode, *plan.LimitNode, *plan.EvaluationNode:
 		return ruleValuesFromSQL(ctx, view, root, action)
 	case *plan.ValuesNode:
@@ -286,9 +343,9 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 		}
 		names := make([]string, len(n.Schema()))
 		for i, column := range n.Schema() {
-			names[i] = catalog.QuoteIdentifier(column.Name)
+			names[i] = action.policy.identifier(column.Name)
 		}
-		return "(VALUES " + strings.Join(rows, ", ") + ") AS " + catalog.QuoteIdentifier("_rule_values") + "(" + strings.Join(names, ", ") + ")", nil
+		return "(VALUES " + strings.Join(rows, ", ") + ") AS " + action.policy.identifier("_rule_values") + "(" + strings.Join(names, ", ") + ")", nil
 	case *plan.SingletonNode:
 		return "", nil
 	}
@@ -296,18 +353,27 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 }
 
 func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (string, error) {
+	return ruleActionSQL(ctx, view, ruleRendering{RuleAction: action})
+}
+
+func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleRendering) (string, error) {
 	b := action.binding
 	if _, selecting := action.syntax.(*parser.Select); selecting {
-		return action.presentation.SelectSQL(ctx, view, Presentation{})
+		renderer := action.renderer(action.presentation)
+		return renderer.SelectQuerySQL(ctx, view, action.presentation.syntax, action.presentation.queries[action.presentation.syntax])
 	}
-	name, err := ruleRelationSQL(view, b.Ref)
+	name, err := action.relation(view, b.Ref, false)
 	if err != nil {
 		return "", err
 	}
 	d := view.MustRelation(b.Ref.Address)
+	if err := action.prepareNamespaces(ctx, view); err != nil {
+		return "", err
+	}
+	name = action.targetDeclaration(name)
 	var sql strings.Builder
 	if definitions := parser.StatementWith(action.syntax); len(definitions) != 0 {
-		renderer := NewQueryRenderer(action.presentation)
+		renderer := action.renderer(action.presentation)
 		prefix, err := renderer.WithClauseSQL(ctx, view, definitions, parser.StatementWithRecursive(action.syntax), func(statement parser.Statement) (string, error) {
 			if query, ok := statement.(*parser.Select); ok {
 				project := renderer.Queries()[query]
@@ -316,23 +382,15 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 				}
 				return renderer.SelectQuerySQL(ctx, view, query, project)
 			}
-			for _, definition := range b.CTEs {
-				mutation, ok := analyze.MutationBinding(definition)
-				if definition.Statement != statement || !ok {
-					continue
-				}
-				presentation := action.modifierPresentations[statement]
-				if presentation == nil {
-					return "", fmt.Errorf("stuntgres: missing retained rule modifier presentation")
-				}
-				return RuleActionSQL(ctx, view, RuleAction{syntax: statement, binding: *mutation, presentation: presentation, modifierPresentations: action.modifierPresentations})
-			}
-			return "", fmt.Errorf("stuntgres: missing retained rule modifier binding")
+			return renderer.ruleModifierSQL(ctx, view, statement, renderer.ruleNameFacts(true))
 		})
 		if err != nil {
 			return "", err
 		}
 		sql.WriteString(prefix)
+	}
+	if action.policy.Deparse {
+		sql.WriteByte(' ')
 	}
 	switch s := action.syntax.(type) {
 	case *parser.Insert:
@@ -341,7 +399,7 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 			names := make([]string, len(b.Targets))
 			for i, slot := range b.Targets {
 				attribute := b.Relation.Attributes[slot]
-				names[i], err = DeparseAttribute(d, attribute)
+				names[i], err = action.attribute(d, attribute)
 				if err != nil {
 					return "", err
 				}
@@ -362,13 +420,25 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 		if s.DefaultValues {
 			sql.WriteString(" DEFAULT VALUES")
 		} else if action.presentation != nil && s.Source != nil && b.Query != nil {
-			text, err := action.presentation.SelectSQL(ctx, view, Presentation{})
+			policy := action.policy
+			if policy.Rule {
+				policy.Indent += 8
+			}
+			source := action
+			source.policy = policy
+			renderer := source.renderer(action.presentation)
+			text, err := renderer.SelectQuerySQL(ctx, view, action.presentation.syntax, action.presentation.queries[action.presentation.syntax])
 			if err != nil {
 				return "", err
 			}
 			sql.WriteString(" " + text)
 		} else {
-			sql.WriteString(" VALUES ")
+			multiple := action.policy.Rule && len(b.Expressions) > 1
+			if multiple {
+				sql.WriteString(" VALUES ")
+			} else {
+				sql.WriteString(action.clause(" VALUES ", 2, "VALUES "))
+			}
 			for i, row := range b.Expressions {
 				if i != 0 {
 					sql.WriteString(", ")
@@ -380,7 +450,11 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 						return "", err
 					}
 				}
-				sql.WriteString("(" + strings.Join(parts, ", ") + ")")
+				separator := ", "
+				if multiple {
+					separator = ","
+				}
+				sql.WriteString("(" + strings.Join(parts, separator) + ")")
 			}
 		}
 		if s.Conflict != nil {
@@ -395,42 +469,13 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 				if canonicalName == "" {
 					return "", fmt.Errorf("stuntgres: missing named rule constraint")
 				}
-				sql.WriteString(" ON CONSTRAINT " + catalog.QuoteIdentifier(canonicalName))
-			} else if len(b.Insert.Conflict.Keys) != 0 {
-				parts := make([]string, len(b.Insert.Conflict.Keys))
-				for i, key := range b.Insert.Conflict.Keys {
-					if key.Attribute != 0 {
-						parts[i], err = DeparseAttribute(d, key.Attribute)
-					} else {
-						parts[i], err = ruleExpressionSQL(ctx, view, key.Expression, action)
-						parts[i] = "(" + parts[i] + ")"
-					}
-					if err != nil {
-						return "", err
-					}
-					if key.Collation != 0 {
-						parts[i] += " COLLATE " + typedef.CollationSQLName(view, key.Collation)
-					}
-					if key.Class.OID() != 0 {
-						class, exists := view.OperatorClass(ids.OID(key.Class.OID()))
-						if !exists {
-							return "", fmt.Errorf("stuntgres: missing conflict operator class")
-						}
-						namespace, exists := view.Namespace(class.Namespace())
-						if !exists {
-							return "", fmt.Errorf("stuntgres: missing conflict operator class namespace")
-						}
-						parts[i] += " " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(class.Name())
-					}
-				}
-				sql.WriteString(" (" + strings.Join(parts, ", ") + ")")
-			}
-			if b.Insert.Conflict.Predicate != nil {
-				text, err := ruleExpressionSQL(ctx, view, b.Insert.Conflict.Predicate, action)
+				sql.WriteString(" ON CONSTRAINT " + action.policy.identifier(canonicalName))
+			} else {
+				text, err := action.conflictInferenceSQL(ctx, view, d)
 				if err != nil {
 					return "", err
 				}
-				sql.WriteString(" WHERE " + text)
+				sql.WriteString(text)
 			}
 			if b.Insert.Conflict.Update == nil {
 				sql.WriteString(" DO NOTHING")
@@ -440,7 +485,7 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 					if i != 0 {
 						sql.WriteString(", ")
 					}
-					column, err := DeparseAttribute(d, b.Relation.Attributes[b.Insert.Conflict.UpdateTargets[i]])
+					column, err := action.attribute(d, b.Relation.Attributes[b.Insert.Conflict.UpdateTargets[i]])
 					if err != nil {
 						return "", err
 					}
@@ -461,7 +506,7 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 					if err != nil {
 						return "", err
 					}
-					sql.WriteString(" WHERE " + text)
+					sql.WriteString(action.clause(" WHERE ", 2, "WHERE ") + text)
 				}
 			}
 		}
@@ -477,14 +522,17 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 			if err != nil {
 				return "", err
 			}
-			sql.WriteString(" FROM " + text)
+			sql.WriteString(action.clause(" FROM ", 3, "FROM ") + text)
 		}
 		if b.Update.Predicate != nil {
 			text, err := ruleExpressionSQL(ctx, view, b.Update.Predicate, action)
 			if err != nil {
 				return "", err
 			}
-			sql.WriteString(" WHERE " + text)
+			sql.WriteString(action.clause(" WHERE ", 2, "WHERE ") + text)
+		}
+		if s.CurrentOf != nil {
+			sql.WriteString(action.clause(" WHERE ", 2, "WHERE ") + "CURRENT OF " + action.policy.identifier(s.CurrentOf.Text))
 		}
 	case *parser.Delete:
 		sql.WriteString("DELETE FROM " + name)
@@ -493,14 +541,17 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 			if err != nil {
 				return "", err
 			}
-			sql.WriteString(" USING " + text)
+			sql.WriteString(action.clause(" USING ", 3, "USING ") + text)
 		}
 		if b.Predicate != nil {
 			text, err := ruleExpressionSQL(ctx, view, b.Predicate, action)
 			if err != nil {
 				return "", err
 			}
-			sql.WriteString(" WHERE " + text)
+			sql.WriteString(action.clause(" WHERE ", 2, "WHERE ") + text)
+		}
+		if s.CurrentOf != nil {
+			sql.WriteString(action.clause(" WHERE ", 2, "WHERE ") + "CURRENT OF " + action.policy.identifier(s.CurrentOf.Text))
 		}
 	case *parser.Merge:
 		text, err := mergeActionSQL(ctx, view, action)
@@ -510,14 +561,32 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 		sql.WriteString(text)
 	}
 	if b.Returning != nil {
+		options, err := action.prepareReturning()
+		if err != nil {
+			return "", err
+		}
 		parts := make([]string, len(b.Returning.Expressions))
 		for i, expr := range b.Returning.Expressions {
 			parts[i], err = ruleExpressionSQL(ctx, view, expr, action)
 			if err != nil {
 				return "", err
 			}
+			if action.policy.Rule {
+				natural, err := ruleReturningNatural(view, expr, action)
+				if err != nil {
+					return "", err
+				}
+				label := action.policy.identifier(b.Returning.Schema[i].Name)
+				if natural != label {
+					parts[i] += " AS " + label
+				}
+			}
 		}
-		sql.WriteString(" RETURNING " + strings.Join(parts, ", "))
+		separator := ", "
+		if action.policy.Rule {
+			separator = "," + action.policy.line(4)
+		}
+		sql.WriteString(action.clause(" RETURNING ", 2, "RETURNING ") + options + strings.Join(parts, separator))
 	}
 	return sql.String(), nil
 }

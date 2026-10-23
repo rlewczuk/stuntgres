@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, target *plan.ArrayAssignmentTarget, action RuleAction) (string, error) {
+func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, target *plan.ArrayAssignmentTarget, action ruleRendering) (string, error) {
 	var sql strings.Builder
 	sql.WriteString(column)
 	for ; target != nil; target = target.Next {
@@ -17,7 +17,7 @@ func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, ta
 			if !ok {
 				return "", fmt.Errorf("stuntgres: retired rule assignment attribute")
 			}
-			sql.WriteString("." + catalog.QuoteIdentifier(target.Container.Type.BaseType().CompositeMember(index).Name))
+			sql.WriteString("." + action.policy.identifier(target.Container.Type.BaseType().CompositeMember(index).Name))
 			continue
 		}
 		for _, sub := range target.Node.Subscripts {

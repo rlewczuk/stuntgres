@@ -1315,8 +1315,10 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	return RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}), nil
 }
 
+// ExpressionName derives the original target label from typed syntax and its
+// bound expression without rebinding or consulting current catalog names.
 // Strong column/function names survive standard casts; weak literal names do not.
-func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (string, bool) {
+func ExpressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (string, bool) {
 	for {
 		coercion, ok := bound.(plan.CoercionExpr)
 		if !ok {
@@ -1361,7 +1363,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 			if expr, ok := bound.(plan.CaseExpr); ok {
 				otherwise = expr.Otherwise
 			}
-			if name, strong := expressionName(r.Else, usage, otherwise); strong {
+			if name, strong := ExpressionName(r.Else, usage, otherwise); strong {
 				return name, true
 			}
 		}
@@ -1381,26 +1383,26 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 	case parser.CallExpr:
 		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.RegclassExpr:
-		if name, strong := expressionName(r.Child, usage, bound); strong {
+		if name, strong := ExpressionName(r.Child, usage, bound); strong {
 			return name, true
 		}
 		return "regclass", false
 	case parser.ArrayExpr:
 		return "array", false
 	case parser.SubscriptExpr:
-		return expressionName(r.Base, usage, bound)
+		return ExpressionName(r.Base, usage, bound)
 	case parser.TimeZoneExpr:
 		return "timezone", true
 	case parser.CollateExpr:
 		if expr, ok := bound.(plan.CollationExpr); ok {
 			bound = expr.Child
 		}
-		return expressionName(r.Child, usage, bound)
+		return ExpressionName(r.Child, usage, bound)
 	case parser.CastExpr:
 		if r.Syntax == parser.FunctionCast {
 			return r.Callee, true
 		}
-		if name, strong := expressionName(r.Child, usage, bound); strong {
+		if name, strong := ExpressionName(r.Child, usage, bound); strong {
 			return name, true
 		}
 		return usage.Type.Name(), false

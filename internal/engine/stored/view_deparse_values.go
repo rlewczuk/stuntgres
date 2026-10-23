@@ -65,6 +65,10 @@ func (v *QueryRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read,
 	}
 	v.Slots[root] = slots
 	rows := make([]string, len(source.Rows))
+	separator := ", "
+	if v.Presentation.Rule {
+		separator = ","
+	}
 	for i, row := range source.Rows {
 		cells := make([]string, 0, len(row))
 		for j, raw := range row {
@@ -79,9 +83,12 @@ func (v *QueryRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read,
 		if len(cells) == 0 {
 			cells = append(cells, "(ROW()).*")
 		}
-		rows[i] = "(" + strings.Join(cells, ", ") + ")"
+		rows[i] = "(" + strings.Join(cells, separator) + ")"
 	}
 	text := "VALUES " + strings.Join(rows, ", ")
+	if v.Presentation.Rule {
+		text = " " + text
+	}
 	if source.Order != nil {
 		keys := make([]string, len(source.Order.Keys))
 		for i, key := range source.Order.Keys {

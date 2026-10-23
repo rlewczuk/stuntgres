@@ -11,13 +11,13 @@ import (
 
 // mergeActionSQL renders checked MERGE recipes, not original relation names or
 // argument syntax. WITH and RETURNING are shared with other mutation actions.
-func mergeActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (string, error) {
+func mergeActionSQL(ctx context.Context, view catalog.Read, action ruleRendering) (string, error) {
 	b := action.binding
 	if b.Merge == nil || b.Relation == nil {
 		return "", fmt.Errorf("stuntgres: missing checked MERGE recipe")
 	}
 	merge := b.Merge
-	name, err := ruleRelationSQL(view, b.Ref)
+	name, err := action.relation(view, b.Ref, false)
 	if err != nil {
 		return "", err
 	}

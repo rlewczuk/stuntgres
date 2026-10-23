@@ -174,7 +174,7 @@ func (b *Binder) BindReturning(raw *parser.Returning, mode returningMode) (*Retu
 			if err != nil {
 				return nil, err
 			}
-			name, _ := expressionName(expression, expr.ResultUsage(), expr)
+			name, _ := ExpressionName(expression, expr.ResultUsage(), expr)
 			if target < len(raw.Labels) && raw.Labels[target].Text != "" {
 				name = raw.Labels[target].Text
 			}

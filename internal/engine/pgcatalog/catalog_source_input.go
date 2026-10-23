@@ -84,6 +84,7 @@ type Runtime interface {
 	ColumnExpression(context.Context, catalog.Read, *catalog.Relation, expr.Expr) (string, error)
 	ColumnUpdatable(context.Context, catalog.Read, *catalog.Relation, int32) (bool, error)
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
+	VisitRuleDefinitions(context.Context, catalog.Read, *catalog.Relation, func(catalog.RuleFact, string) error) error
 	IndexKey(*catalog.Relation, catalog.IndexKey) (int32, expr.Expr, error)
 	VisitSequenceDefinitions(context.Context, func(catalog.Descriptor) error) error
 	ExpressionTree(*sqltype.Descriptor, expr.Expr) (sqltype.Value, error)
