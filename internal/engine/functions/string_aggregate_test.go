@@ -46,7 +46,7 @@ func TestStringAggregateProvider(t *testing.T) {
 				t.Fatal(out, err)
 			}
 			for _, pair := range [][2]sqltype.Value{{null, value("ignored")}, {value(""), value("first")}, {value("x"), value(",")}, {value("y"), null}} {
-				if err := p.Advance(ctx, state, pair[0], pair[1]); err != nil {
+				if err := p.Advance(ctx, state, []sqltype.Value{pair[0], pair[1]}, nil); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -58,7 +58,7 @@ func TestStringAggregateProvider(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := p.Advance(ctx, other, value(""), null); err != nil {
+			if err := p.Advance(ctx, other, []sqltype.Value{value(""), null}, nil); err != nil {
 				t.Fatal(err)
 			}
 			empty, err := p.Finalize(ctx, other)
@@ -70,7 +70,7 @@ func TestStringAggregateProvider(t *testing.T) {
 			}
 			canceled, cancel := context.WithCancel(ctx)
 			cancel()
-			if err := p.Advance(canceled, state, value("z"), null); err != context.Canceled {
+			if err := p.Advance(canceled, state, []sqltype.Value{value("z"), null}, nil); err != context.Canceled {
 				t.Fatal(err)
 			}
 			again, err := p.Finalize(ctx, state)
@@ -84,17 +84,17 @@ func TestStringAggregateProvider(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, invalid := range []any{nil, struct{}{}, (*stringAggregateState)(nil)} {
-				if err := p.Advance(ctx, invalid, value("x"), null); err == nil {
+				if err := p.Advance(ctx, invalid, []sqltype.Value{value("x"), null}, nil); err == nil {
 					t.Fatal("invalid state accepted")
 				}
 				if _, err := p.Finalize(ctx, invalid); err == nil {
 					t.Fatal("invalid finalize state accepted")
 				}
 			}
-			if err := p.Advance(ctx, state, sqltype.Value{}, null); err == nil {
+			if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Value{}, null}, nil); err == nil {
 				t.Fatal("invalid datum accepted")
 			}
-			if err := p.Advance(ctx, state, value("x"), sqltype.Null(typFor(sqltype.Int4))); err == nil {
+			if err := p.Advance(ctx, state, []sqltype.Value{value("x"), sqltype.Null(typFor(sqltype.Int4))}, nil); err == nil {
 				t.Fatal("foreign delimiter accepted")
 			}
 			if id == sqltype.Bytea {
@@ -103,7 +103,7 @@ func TestStringAggregateProvider(t *testing.T) {
 					t.Fatal(err)
 				}
 				for _, pair := range [][2]string{{"\x00\xff", "ignored"}, {"\x80", "\x00"}} {
-					if err := p.Advance(ctx, raw, value(pair[0]), value(pair[1])); err != nil {
+					if err := p.Advance(ctx, raw, []sqltype.Value{value(pair[0]), value(pair[1])}, nil); err != nil {
 						t.Fatal(err)
 					}
 				}

@@ -53,6 +53,17 @@ func routineBodyPosition(token lexeme) Position {
 
 func (*CreateFunction) statement() {}
 
+// CreateAggregate declares an ordinary fixed-arity transition aggregate.
+// Definition elements retain their lexical node kind for SSPACE validation.
+type CreateAggregate struct {
+	Name      ObjectName
+	Arguments []GrantRoutineArgument
+	Options   []OperatorOption
+	Pos       Position
+}
+
+func (*CreateAggregate) statement() {}
+
 // DropRoutine identifies catalog signatures, never call-site overload coercions.
 type DropRoutine struct {
 	Kind     string

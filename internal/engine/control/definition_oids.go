@@ -44,7 +44,7 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 		if address.ClassID != ids.LargeObjectClassID {
 			claimed[address.ObjectID] = true
 		}
-		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil && proc.Implementation != nil {
 			for _, helper := range proc.Aggregate.Helpers {
 				claimed[helper.ID] = true
 			}

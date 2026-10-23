@@ -58,7 +58,7 @@ func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, erro
 func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExpr) (sqlCallableSelection, bool, error) {
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if !b.hasSQLProcedureName(name) {
+	if !b.hasDynamicProcedureName(name) {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -84,10 +84,10 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if seen != nil {
 				seen[d.Signature] = true
 			}
-			if d.SQL != nil {
+			if d.DynamicCallable() {
 				hasSQL = true
 			}
-			if d.SQL == nil && d.Builtin == nil && d.Implementation == nil {
+			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil {
 				continue
 			}
 			candidate, valid := SQLCallableShape(auth.ReadCatalog(), b.Host.DefinitionOf(auth), d, raw)
@@ -204,7 +204,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	selection.args = make([]expr.Expr, len(operands))
 	selection.properties = expr.Properties{Volatility: expr.Volatile}
 	for i, o := range operands {
-		if selection.Procedure.SQL != nil {
+		if selection.Procedure.DynamicCallable() {
 			selection.args[i], err = b.CoerceConditional(o, selection.Inputs[i], "function")
 			if err != nil {
 				return selection, true, err
@@ -438,7 +438,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			if b.Stored.Syntax == nil {
 				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 			}
-			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}] = frozen
+			b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
 		}
 		args := selected.args
 		assembly := selected.InputMap
@@ -474,16 +474,21 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	}
 	previous, previousSyntax, previousArguments := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments
 	previousReentry, previousCallee := b.Clause.selectedCallReentry, b.Clause.selectedWindowCallee
+	previousAggregate := b.Clause.selectedAggregate
+	if d != nil && d.Aggregate != nil && d.DynamicCallable() {
+		b.Clause.selectedAggregate = d
+	}
 	b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments = selected.args, raw.Args, true
 	// The winner's immediate gateway consumes this bit before its provider
 	// analyzes FILTER, ORDER BY or other previously unanalyzed children.
 	b.Clause.selectedCallReentry = true
 	b.Clause.selectedWindowCallee = parser.ObjectName{}
-	if d != nil && d.RoutineKind == catalog.WindowRoutine {
+	if d != nil && (d.RoutineKind == catalog.WindowRoutine || d.Aggregate != nil && d.DynamicCallable()) {
 		b.Clause.selectedWindowCallee = raw.Name
 	}
 	defer func() {
 		b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments = previous, previousSyntax, previousArguments
+		b.Clause.selectedAggregate = previousAggregate
 		b.Clause.selectedCallReentry = previousReentry
 		b.Clause.selectedWindowCallee = previousCallee
 	}()

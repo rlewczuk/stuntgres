@@ -95,7 +95,7 @@ func TestSQLRoutineDumpEventsUseResolver(t *testing.T) {
 	}
 	resolver := &dumpUnitResolver{predecessors: map[ids.OID]ids.OID{ids.OID(sqltype.Int4): 91000, ids.OID(sqltype.Bool): 92000}}
 	graph := dump.Graph{}
-	if err := SQLRoutineDumpEvents(resolver, catalog.Read{}, []*catalog.Procedure{d}, graph); err != nil {
+	if err := RoutineDumpEvents(resolver, catalog.Read{}, []*catalog.Procedure{d}, graph); err != nil {
 		t.Fatal(err)
 	}
 	if want := []dump.Event{{OID: 91000}, {OID: 92000}}; !reflect.DeepEqual(graph[dump.Event{OID: 90001}], want) {
@@ -113,7 +113,7 @@ func TestSQLRoutineDumpEventsUseResolver(t *testing.T) {
 	}
 
 	failure := errors.New("resolver failure")
-	if err := SQLRoutineDumpEvents(&dumpUnitResolver{err: failure}, catalog.Read{}, []*catalog.Procedure{d}, dump.Graph{}); !errors.Is(err, failure) {
+	if err := RoutineDumpEvents(&dumpUnitResolver{err: failure}, catalog.Read{}, []*catalog.Procedure{d}, dump.Graph{}); !errors.Is(err, failure) {
 		t.Fatalf("err = %v, want the resolver's error", err)
 	}
 }

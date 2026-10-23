@@ -2,8 +2,10 @@ package analyze
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -37,17 +39,19 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 	call.Filter = filter
 	objectProvider, object := call.Provider.(functions.JSONObjectAggregate)
 	if raw.Distinct && !object {
-		var err error
-		call.Argument, err = b.FinalizeProjection(call.Argument)
-		if err != nil {
-			return nil, err
+		for i, argument := range call.Arguments {
+			var err error
+			call.Arguments[i], err = b.FinalizeProjection(argument)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	if _, ordered := call.Provider.(functions.OrderedAggregate); !ordered {
 		call.Order = make([]plan.SortKey, len(raw.Order))
 	}
 	if len(raw.Order) > 0 && call.StageWidth == 0 {
-		call.StageWidth = 2
+		call.StageWidth = len(call.Arguments)
 	}
 	for i, key := range raw.Order {
 		if _, ordered := call.Provider.(functions.OrderedAggregate); ordered {
@@ -61,22 +65,24 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 		if object {
 			// Match before UNKNOWN coercion changes structural usage. ORDER
 			// selects one first equal input, not every use of its parameter.
-			if b.sameAggregateTarget(call.Argument, expression) {
-				slot = 0
-				call.Argument, err = b.completeJSONObjectAggregateInput(call.Argument)
-			} else if b.sameAggregateTarget(call.Separator, expression) {
-				slot = 1
-				call.Separator, err = b.completeJSONObjectAggregateInput(call.Separator)
+			for j, argument := range call.Arguments {
+				if b.sameAggregateTarget(argument, expression) {
+					slot = j
+					call.Arguments[j], err = b.completeJSONObjectAggregateInput(argument)
+					break
+				}
 			}
 			if err != nil {
 				return nil, err
 			}
 		} else {
 			// Preserve other providers' existing provisional-target inference.
-			if call.Argument != nil && call.Argument.ResultUsage().Type == nil && b.sameAggregateTarget(call.Argument, expression) {
-				call.Argument, err = b.FinalizeProjection(call.Argument)
-				if err != nil {
-					return nil, err
+			for j, argument := range call.Arguments {
+				if argument.ResultUsage().Type == nil && b.sameAggregateTarget(argument, expression) {
+					call.Arguments[j], err = b.FinalizeProjection(argument)
+					if err != nil {
+						return nil, err
+					}
 				}
 			}
 		}
@@ -96,16 +102,15 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 			return nil, err
 		}
 		if !object {
-			if call.Argument != nil && b.sameAggregateTarget(call.Argument, expression) {
-				slot = 0
-			} else if call.Separator != nil && b.sameAggregateTarget(call.Separator, expression) {
-				slot = 1
+			for j, argument := range call.Arguments {
+				if b.sameAggregateTarget(argument, expression) {
+					slot = j
+					break
+				}
 			}
 		}
-		if slot == 0 {
-			comparison, err = functions.AggregateOrdering(call.Argument.ResultUsage(), key.Pos, false)
-		} else if slot == 1 {
-			comparison, err = functions.AggregateOrdering(call.Separator.ResultUsage(), key.Pos, false)
+		if slot >= 0 {
+			comparison, err = functions.AggregateOrdering(call.Arguments[slot].ResultUsage(), key.Pos, false)
 		}
 		if err != nil {
 			return nil, err
@@ -116,7 +121,7 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 		if slot < 0 {
 			for j, prior := range call.Order[:i] {
 				if b.sameAggregateTarget(prior.Expression, expression) {
-					slot = j + 2
+					slot = j + len(call.Arguments)
 					break
 				}
 			}
@@ -125,26 +130,23 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 		if slot < 0 {
 			cache = call.StageWidth
 			call.StageWidth++
-		} else if slot >= 2 {
-			cache = call.Order[slot-2].Cache
+		} else if slot >= len(call.Arguments) {
+			cache = call.Order[slot-len(call.Arguments)].Cache
 		}
 		call.Order[i] = plan.SortKey{Expression: expression, Comparison: comparison, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, Slot: slot, Cache: cache}
 	}
 	if raw.Distinct {
 		if object {
-			var err error
-			call.Argument, err = b.completeJSONObjectAggregateInput(call.Argument)
-			if err != nil {
-				return nil, err
-			}
-			call.Separator, err = b.completeJSONObjectAggregateInput(call.Separator)
-			if err != nil {
-				return nil, err
+			for i, argument := range call.Arguments {
+				var err error
+				call.Arguments[i], err = b.completeJSONObjectAggregateInput(argument)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 		call.Distinct = make([]plan.Grouping, len(raw.Args))
-		args := [2]expr.Expr{call.Argument, call.Separator}
-		for i, arg := range args {
+		for i, arg := range call.Arguments {
 			if arg == nil {
 				continue
 			}
@@ -168,7 +170,7 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 		return nil, err
 	}
 	if object {
-		provider, err := objectProvider.Complete(call.Argument.ResultUsage(), call.Separator.ResultUsage())
+		provider, err := objectProvider.Complete(call.Arguments[0].ResultUsage(), call.Arguments[1].ResultUsage())
 		if err != nil {
 			return nil, err
 		}
@@ -186,6 +188,7 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 		for i, existing := range b.Grouping.Aggregates {
 			if b.SameAggregateCall(call, existing) {
 				slot = i
+				b.Grouping.Aggregates[i] = mergeAggregateRoutineAliases(existing, call)
 				break
 			}
 		}
@@ -194,6 +197,29 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 		b.Grouping.Aggregates = append(b.Grouping.Aggregates, call)
 	}
 	return plan.AggregateExpr{Info: info, Slot: slot, Frame: b.FrameID()}, nil
+}
+
+// Builtin aliases share computation, not EXECUTE authority. Copy only when a
+// distinct written identity is added so published/outer-owner slices stay immutable.
+func mergeAggregateRoutineAliases(dst, src plan.AggregateCall) plan.AggregateCall {
+	copied := false
+	add := func(ref ids.ObjectRef) {
+		if ref == (ids.ObjectRef{}) || ref == dst.Routine || slices.Contains(dst.RoutineAliases, ref) {
+			return
+		}
+		if !copied {
+			aliases := make([]ids.ObjectRef, len(dst.RoutineAliases), len(dst.RoutineAliases)+len(src.RoutineAliases)+1)
+			copy(aliases, dst.RoutineAliases)
+			dst.RoutineAliases = aliases
+			copied = true
+		}
+		dst.RoutineAliases = append(dst.RoutineAliases, ref)
+	}
+	add(src.Routine)
+	for _, ref := range src.RoutineAliases {
+		add(ref)
+	}
+	return dst
 }
 
 func (b *Binder) SameAggregateCall(a, other plan.AggregateCall) bool {
@@ -206,8 +232,13 @@ func (b *Binder) SameAggregateCall(a, other plan.AggregateCall) bool {
 			return false
 		}
 	}
-	if a.Operation != other.Operation || a.IncludeNulls != other.IncludeNulls || a.StageWidth != other.StageWidth || a.Provider.ResultUsage() != other.Provider.ResultUsage() || len(a.Distinct) != len(other.Distinct) || len(a.Order) != len(other.Order) || len(a.Direct) != len(other.Direct) || !b.SameGroupExpression(a.Argument, other.Argument) || !b.SameGroupExpression(a.Separator, other.Separator) || !b.SameGroupExpression(a.Filter, other.Filter) {
+	if a.Procedure != nil && a.Routine != other.Routine || a.Operation != other.Operation || a.IncludeNulls != other.IncludeNulls || a.StageWidth != other.StageWidth || a.Provider.ResultUsage() != other.Provider.ResultUsage() || len(a.Distinct) != len(other.Distinct) || len(a.Order) != len(other.Order) || len(a.Direct) != len(other.Direct) || len(a.Arguments) != len(other.Arguments) || !b.SameGroupExpression(a.Filter, other.Filter) {
 		return false
+	}
+	for i, argument := range a.Arguments {
+		if !b.SameGroupExpression(argument, other.Arguments[i]) {
+			return false
+		}
 	}
 	for i, direct := range a.Direct {
 		if !b.SameGroupExpression(direct, other.Direct[i]) {

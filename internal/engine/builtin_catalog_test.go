@@ -40,7 +40,7 @@ func TestBuiltinProcedureNamesMatchSeed(t *testing.T) {
 	for range 2 {
 		e := New()
 		got, want := e.catalog.state.ProcedureNames(), catalog.RebuildProcedureNames(e.catalog.state.Descriptors())
-		if len(got.Buckets) != len(want.Buckets) || !maps.Equal(got.SQLNames, want.SQLNames) {
+		if len(got.Buckets) != len(want.Buckets) || !maps.Equal(got.DynamicNames, want.DynamicNames) {
 			t.Fatalf("procedure index has %d buckets, seed has %d", len(got.Buckets), len(want.Buckets))
 		}
 		for key, addresses := range want.Buckets {

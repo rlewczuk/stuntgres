@@ -65,13 +65,13 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 			_, q, source := queryCoreFixture(t, qtext)
 			node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 			call := &node.Calls[0]
-			usage := call.Argument.ResultUsage()
+			usage := call.Arguments[0].ResultUsage()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			values, separators, keys, advances, finalizes := 0, 0, 0, 0, 0
 			sentinel := errors.New("late string aggregate delimiter")
-			originalValue := call.Argument
-			call.Argument = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+			originalValue := call.Arguments[0]
+			call.Arguments[0] = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				values++
 				if phase == "value" {
 					cancel()
@@ -81,7 +81,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				}
 				return originalValue.Eval(c)
 			})
-			call.Separator = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+			call.Arguments[1] = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				separators++
 				if phase == "separator" {
 					cancel()
@@ -105,7 +105,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 			original := call.Provider
 			call.Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, d sqltype.Value) error {
 				advances++
-				err := original.Advance(ctx, state, v, d)
+				err := original.Advance(ctx, state, []sqltype.Value{v, d}, nil)
 				if phase == "replay" {
 					cancel()
 				}

@@ -75,13 +75,13 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 			t.Fatal(err)
 		}
 		foreign, _ := input.Input(ctx, "1", -1)
-		if err := next.Advance(ctx, state, foreign, foreign); err == nil {
+		if err := next.Advance(ctx, state, []sqltype.Value{foreign, foreign}, nil); err == nil {
 			t.Fatal("foreign input retained")
 		}
 		d, _ := destination.CatalogRead().LookupType(input.ID())
 		for _, text := range []string{"1", "3"} {
 			v, _ := d.Input(ctx, text, -1)
-			if err := next.Advance(ctx, state, v, v); err != nil {
+			if err := next.Advance(ctx, state, []sqltype.Value{v, v}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -117,7 +117,7 @@ func TestStatisticalAggregateEagerCancellation(t *testing.T) {
 			switch phase {
 			case "advance":
 				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, x sqltype.Value) error {
-					err := original.Advance(ctx, s, v, x)
+					err := original.Advance(ctx, s, []sqltype.Value{v, x}, nil)
 					cancel()
 					return err
 				}}

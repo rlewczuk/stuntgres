@@ -4,17 +4,42 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
-	_, q, source := queryCoreFixture(t, "SELECT count(f),bool_and(f),bool_or(f),every(f),bool_and(f) FROM t")
+	engine, q, source := queryCoreFixture(t, "SELECT count(f),bool_and(f),bool_or(f),every(f),bool_and(f) FROM t")
 	defer source.Close()
 	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 3 {
 		t.Fatal("operation identity or alias sharing", len(node.Calls))
+	}
+	aliases := node.Calls[1].RoutineAliases
+	if len(aliases) != 1 {
+		t.Fatal("shared Boolean aliases lost or duplicated", aliases)
+	}
+	aliasRef := aliases[0]
+	alias, ok := engine.CatalogRead().Procedure(aliasRef.Address)
+	if !ok || alias.Name() != "every" {
+		t.Fatal("wrong shared Boolean alias", alias)
+	}
+	mappings := 0
+	mapped, err := stored.RemapViewQuery(engine.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef {
+		if ref == aliasRef {
+			mappings++
+		}
+		return ref
+	}, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+	if err != nil || mappings != 1 {
+		t.Fatal("shared alias remap", mappings, err)
+	}
+	mapped.(*plan.AggregateNode).Calls[1].RoutineAliases[0] = node.Calls[0].Routine
+	if node.Calls[1].RoutineAliases[0] != aliasRef {
+		t.Fatal("alias remap mutated source")
 	}
 	for i, c := range q.Root.Schema() {
 		if !c.NullabilityKnown || c.Nullable != (i != 0) || c.OriginTable != 0 || c.OriginAttribute != 0 || c.Usage.Typmod != -1 {
@@ -59,12 +84,12 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 			t.Run(name+"/"+phase, func(t *testing.T) {
 				_, q, source := queryCoreFixture(t, "SELECT "+name+"(f) FROM t")
 				node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
-				usage := node.Calls[0].Argument.ResultUsage()
+				usage := node.Calls[0].Arguments[0].ResultUsage()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				calls, advances := 0, 0
 				sentinel := errors.New("late Boolean argument error")
-				node.Calls[0].Argument = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+				node.Calls[0].Arguments[0] = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if phase == "argument" {
 						cancel()
@@ -84,7 +109,7 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 					if err != nil || got != (name == "bool_or") {
 						t.Fatal("datum delivery", v, err)
 					}
-					err = original.Advance(ctx, state, v, separator)
+					err = original.Advance(ctx, state, []sqltype.Value{v, separator}, nil)
 					if phase == "advance" {
 						cancel()
 					}

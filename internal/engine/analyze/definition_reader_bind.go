@@ -10,11 +10,11 @@ func (b *Binder) DefinitionReader() catalog.DefinitionReader {
 	return b.Host.BindingDefinition(b.Query.Auth)
 }
 
-func (b *Binder) hasSQLProcedureName(name string) bool {
+func (b *Binder) hasDynamicProcedureName(name string) bool {
 	if reader := b.DefinitionReader(); reader != nil {
-		return reader.HasSQLProcedureName(name)
+		return reader.HasDynamicProcedureName(name)
 	}
-	return b.BindingCatalog().State().HasSQLProcedureName(name)
+	return b.BindingCatalog().State().HasDynamicProcedureName(name)
 }
 
 func (b *Binder) definitionDescriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {

@@ -99,14 +99,14 @@ func (r stageDefinitionReader) ProceduresNamed(namespace ids.ObjectAddress, name
 	}
 }
 
-func (r stageDefinitionReader) HasSQLProcedureName(name string) bool {
+func (r stageDefinitionReader) HasDynamicProcedureName(name string) bool {
 	count := 0
 	if index := r.stage.Base.State().ProcedureNames(); index != nil {
-		count = index.SQLNames[name]
+		count = index.DynamicNames[name]
 	}
 	if count == 0 {
 		for address, descriptor := range r.stage.Descriptors() {
-			if d, ok := descriptor.(*catalog.Procedure); ok && d.SQL != nil && d.Name() == name {
+			if d, ok := descriptor.(*catalog.Procedure); ok && d.DynamicCallable() && d.Name() == name {
 				if _, removed := r.stage.Removal(address); !removed {
 					return true
 				}
@@ -115,7 +115,7 @@ func (r stageDefinitionReader) HasSQLProcedureName(name string) bool {
 		return false
 	}
 	for address := range r.stage.Removals() {
-		if d, ok := r.stage.Base.Procedure(address); ok && d.SQL != nil && d.Name() == name {
+		if d, ok := r.stage.Base.Procedure(address); ok && d.DynamicCallable() && d.Name() == name {
 			count--
 		}
 	}
@@ -123,10 +123,10 @@ func (r stageDefinitionReader) HasSQLProcedureName(name string) bool {
 		if _, removed := r.stage.Removal(address); removed {
 			continue
 		}
-		if old, ok := r.stage.Base.Procedure(address); ok && old.SQL != nil && old.Name() == name {
+		if old, ok := r.stage.Base.Procedure(address); ok && old.DynamicCallable() && old.Name() == name {
 			count--
 		}
-		if d, ok := descriptor.(*catalog.Procedure); ok && d.SQL != nil && d.Name() == name {
+		if d, ok := descriptor.(*catalog.Procedure); ok && d.DynamicCallable() && d.Name() == name {
 			count++
 		}
 	}

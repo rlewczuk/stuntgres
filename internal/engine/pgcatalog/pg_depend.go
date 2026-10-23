@@ -91,6 +91,9 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 		case *catalog.Procedure:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
+			for address := range catalog.OwnedAggregateDependencies(d) {
+				add(d.Address(), address, 'n')
+			}
 			if d.SQL != nil {
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
 				for _, formal := range d.SQL.Formals {

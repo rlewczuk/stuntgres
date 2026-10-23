@@ -59,7 +59,7 @@ func FinishArrayTransform(b Binder, raw parser.FunctionExpr, kind ArrayTransform
 	if compatible {
 		arrays := [2]bool{kind != ArrayPrepend, kind != ArrayAppend}
 		var ok bool
-		result, ok = compatibleArrayTargets(b, formal[:len(operands)], arrays[:], targets[:len(operands)], true)
+		_, ok = compatibleArrayTargets(b, formal[:len(operands)], arrays[:], targets[:len(operands)], true)
 		if !ok {
 			return signature()
 		}
@@ -88,21 +88,26 @@ func FinishArrayTransform(b Binder, raw parser.FunctionExpr, kind ArrayTransform
 			if !ok {
 				return signature()
 			}
-			result = targets[0]
 			switch kind {
 			case ArraySort:
 				targets[1], targets[2] = b.Type(sqltype.Bool).Usage(), b.Type(sqltype.Bool).Usage()
 			case ArrayTrim:
 				targets[1] = b.Type(sqltype.Int4).Usage()
 			case ArrayToString:
-				result = b.Type(sqltype.Text).Usage()
-				targets[1], targets[2] = result, result
+				targets[1], targets[2] = b.Type(sqltype.Text).Usage(), b.Type(sqltype.Text).Usage()
 			}
 		}
 	}
 	// Probe every known edge before importing any unknown literal or parameter.
 	if !knownCallEdges(formal[:len(operands)], targets[:len(operands)]) {
 		return signature()
+	}
+	if kind != ArrayFill {
+		var ok bool
+		result, ok = arrayTransformResult(b, kind, targets[:len(operands)])
+		if !ok {
+			return signature()
+		}
 	}
 	name := kind.Name()
 	if !operator {
@@ -240,4 +245,28 @@ func namedArrayTransform(b CallTypeContext, raw parser.FunctionExpr, args []Argu
 		inputs[i], written[i] = declared[slots[i]], targets[slots[i]]
 	}
 	return inputs, written, true
+}
+
+func arrayTransformResult(b CallTypeContext, kind ArrayTransformKind, targets []sqltype.Usage) (sqltype.Usage, bool) {
+	switch kind {
+	case ArrayPrepend:
+		return targets[1], true
+	case ArrayFill:
+		if targets[0].Type == nil {
+			return sqltype.Usage{}, true
+		}
+		array, ok := b.ArrayType(targets[0].Type)
+		if !ok || !array.Concrete() {
+			return sqltype.Usage{}, false
+		}
+		return array.Usage(), true
+	case ArrayToString:
+		return b.Type(sqltype.Text).Usage(), true
+	default:
+		return targets[0], true
+	}
+}
+
+func arrayTransformCallResult(b CallTypeContext, raw parser.FunctionExpr, targets []sqltype.Usage) (sqltype.Usage, bool) {
+	return arrayTransformResult(b, ArrayTransformFunction(raw.Name.Parts[len(raw.Name.Parts)-1].Text), targets)
 }

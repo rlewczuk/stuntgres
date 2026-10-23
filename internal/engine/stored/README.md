@@ -270,6 +270,30 @@ table maps the root names that older prompt files and design notes cite.
 
 ## Testing
 
+Owned aggregate recipes preserve original selected argument syntax and actual
+catalog reference/epoch, TEMP, dependency and payload authority. Capture, count
+and render share `AggregateRecipeProcedure`; no name-only reconstruction or
+capture suppression bypasses validation.
+
+Transition expression remap supplies the exact source and already-mapped
+destination private formal vectors to existing typed validation before/after
+remapping. Destination aggregate/support identity and concrete specialization
+are checked before publication. This lexical frame belongs only to the private
+transition expression; ordinary stored/public parameters retain their zero-bound
+rejection. Source expressions remain immutable.
+The selected input collation remaps through an actual typed input owner; builtin
+private parameter Infos retain explicitness and indeterminate conflict origins.
+`TestCreateAggregateCollationBinding` asserts these exact usages and immutable
+sources, including rejection of a same-type/different-collation forged frame.
+
+```sh
+make check RUN='^TestCreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap)$'
+```
+
+Actual unchanged emitted SQL, typed enum/array support, two Restores and real
+retained TEMP collision proof are selected in
+[reference/aggregates](../../../reference/aggregates/README.md#create-aggregate-contract).
+
 ```sh
 make check RUN='^Test((View|Rule)PartsRoundTrip|QuerySetStoredInheritedMarks)$'
 make check RUN='^TestReference(View|Rule|Polic|RLS|RowSecurity|Materialized|Deparse|PGDepend|PGTableViews|GeneratedStored)'

@@ -2089,20 +2089,23 @@ func (e JSONPredicateExpr) SourcePosition() Position { return e.Pos }
 
 // AggregateExpr retains ordinary aggregate arguments and call-local modifiers.
 type AggregateExpr struct {
-	Name      string
-	Star      bool
-	Args      []Expr
-	Order     []OrderKey
-	Distinct  bool
-	Variadic  bool
-	Within    bool
-	WithinPos Position
-	Filter    Expr
-	Schema    *Identifier
-	Window    *WindowSpec
-	FilterPos Position
-	Pos       Position
-	JSON      *JSONAggregateOptions
+	// StoredAggregate marks binder-owned copied syntax for a real owned
+	// aggregate. Source parsing never sets it; captured identity is required.
+	StoredAggregate bool
+	Name            string
+	Star            bool
+	Args            []Expr
+	Order           []OrderKey
+	Distinct        bool
+	Variadic        bool
+	Within          bool
+	WithinPos       Position
+	Filter          Expr
+	Schema          *Identifier
+	Window          *WindowSpec
+	FilterPos       Position
+	Pos             Position
+	JSON            *JSONAggregateOptions
 }
 
 func (AggregateExpr) expression()                {}

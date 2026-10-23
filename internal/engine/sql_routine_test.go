@@ -45,7 +45,7 @@ func sqlRoutineIndexIsolation(t *testing.T, e *Engine) {
 	view := e.CatalogRead()
 	key := catalog.ProcedureNameKey{Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "routine_unit"}
 	addresses := view.State().ProceduresNamed(key.Namespace, key.Name)
-	if len(addresses) != 2 || !view.State().HasSQLProcedureName(key.Name) {
+	if len(addresses) != 2 || !view.State().HasDynamicProcedureName(key.Name) {
 		t.Fatal("routine index missing overloads")
 	}
 	old := view.Get(addresses[0]).(*catalog.Procedure)
@@ -64,11 +64,11 @@ func sqlRoutineIndexIsolation(t *testing.T, e *Engine) {
 	renamed := *old
 	renamed.ObjectName = "routine_renamed"
 	edit.Replace(old, &renamed)
-	if len(index.Buckets[key]) != 2 || len(edit.Index.Buckets[key]) != 1 || edit.Index.SQLNames[renamed.Name()] != 1 {
+	if len(index.Buckets[key]) != 2 || len(edit.Index.Buckets[key]) != 1 || edit.Index.DynamicNames[renamed.Name()] != 1 {
 		t.Fatal("routine rename corrupted catalog index")
 	}
 	edit.Replace(&renamed, nil)
-	if edit.Index.SQLNames[renamed.Name()] != 0 {
+	if edit.Index.DynamicNames[renamed.Name()] != 0 {
 		t.Fatal("removed SQL name gate retained")
 	}
 	stage := e.BeginCatalogStage(view)
@@ -82,7 +82,7 @@ func sqlRoutineIndexIsolation(t *testing.T, e *Engine) {
 	}
 	reset := catalog.CloneState(view.State())
 	reset.ResetMaps()
-	if reset.HasSQLProcedureName(key.Name) || len(reset.ProceduresNamed(key.Namespace, key.Name)) != 0 {
+	if reset.HasDynamicProcedureName(key.Name) || len(reset.ProceduresNamed(key.Namespace, key.Name)) != 0 {
 		t.Fatal("reset retained routine name index")
 	}
 }
@@ -180,7 +180,7 @@ func TestSQLRoutineRestoreStaging(t *testing.T) {
 		t.Fatal(err)
 	}
 	sqlRoutineUnitInteger(t, run(t, e, "SELECT routine_unit_saved(4)"), 5)
-	if !e.CatalogRead().State().HasSQLProcedureName("routine_unit_saved") {
+	if !e.CatalogRead().State().HasDynamicProcedureName("routine_unit_saved") {
 		t.Fatal("restore failed to rebuild routine index")
 	}
 }

@@ -238,6 +238,11 @@ func (v *View) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path a
 			return err
 		}
 		(*routineCount)++
+	} else if call, ok := raw.(parser.AggregateExpr); ok && call.StoredAggregate {
+		if _, err := v.AggregateRecipeProcedure(catalog, path, call); err != nil {
+			return err
+		}
+		(*routineCount)++
 	} else if name := extension.IntaggRecipeFunction(raw); name != "" {
 		if _, err := v.IntaggRecipeProcedure(catalog, path, name); err != nil {
 			return err

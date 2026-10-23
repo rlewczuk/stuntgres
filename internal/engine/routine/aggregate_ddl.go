@@ -1,0 +1,201 @@
+package routine
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+// StageCreateAggregate publishes a single real procedure/aggregate declaration
+// through the ordinary schema stage. No state or support body executes here.
+func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggregate, input sqltype.InputEnvironment) error {
+	ns, auth, err := h.CreationNamespace(auth, s.Name)
+	if err != nil {
+		return err
+	}
+	if err = h.CheckCreateIn(auth, ns); err != nil {
+		return err
+	}
+	var support parser.ObjectName
+	var stateSyntax parser.TypeName
+	definition := &catalog.AggregateDefinition{Kind: "n", FinalModify: "r", MovingFinalModify: "r"}
+	for _, option := range s.Options {
+		switch option.Name {
+		case "sfunc":
+			support, err = operatorOptionName(option)
+		case "stype":
+			stateSyntax, err = operatorOptionType(option)
+		case "initcond":
+			definition.Initial, err = aggregateInitialText(option)
+			definition.HasInitial = true
+		case "sspace":
+			if option.Kind != parser.OperatorOptionIntegerArgument {
+				return sqlError("42601", "sspace requires an integer value")
+			}
+			var n int64
+			n, err = strconv.ParseInt(option.Value, 10, 32)
+			definition.TransitionSpace = int32(n)
+		default:
+			return expr.ErrorAt("0A000", "aggregate option "+option.Name+" is unsupported", option.Pos)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if stateSyntax.Name == "" {
+		return sqlError("42P13", "aggregate stype must be specified")
+	}
+	if len(support.Parts) == 0 {
+		return sqlError("42P13", "aggregate sfunc must be specified")
+	}
+	resolve := func(raw parser.TypeName) (sqltype.Usage, error) {
+		id, err := h.ResolveRegtype(auth, raw)
+		if err != nil {
+			return sqltype.Usage{}, err
+		}
+		if err = checkOperatorArgumentUsage(h, auth, id); err != nil {
+			return sqltype.Usage{}, err
+		}
+		typ, ok := h.DefinitionType(auth, sqltype.ID(id))
+		if !ok || !typ.Concrete() {
+			return sqltype.Usage{}, expr.ErrorAt("0A000", "aggregate types must be concrete", raw.Pos)
+		}
+		return typ.Usage(), nil
+	}
+	inputs := make([]sqltype.Usage, len(s.Arguments)+1)
+	inputs[0], err = resolve(stateSyntax)
+	if err != nil {
+		return err
+	}
+	signature := make([]string, len(s.Arguments))
+	for i, arg := range s.Arguments {
+		if arg.Mode != "" && arg.Mode != "in" {
+			return expr.ErrorAt("0A000", "aggregate arguments must be ordinary inputs", arg.Pos)
+		}
+		inputs[i+1], err = resolve(arg.Type)
+		if err != nil {
+			return err
+		}
+		signature[i] = strconv.FormatUint(uint64(inputs[i+1].Type.ID()), 10)
+	}
+	function, formals, result, err := h.SelectAggregateSupport(auth, support, inputs)
+	if err != nil {
+		return err
+	}
+	types := make([]string, len(formals))
+	for i, u := range formals {
+		types[i] = u.Type.DiagnosticName()
+	}
+	diagnosticName := catalog.ObjectNameText(support) + "(" + strings.Join(types, ", ") + ")"
+	if function.Builtin != nil && function.Builtin.ReturnsSet {
+		return sqlError("42804", "function "+diagnosticName+" returns a set")
+	}
+	for i, u := range inputs {
+		if !sqltype.BinaryCoercible(u.Type, formals[i].Type) {
+			return sqlError("42804", "function "+diagnosticName+" requires run-time type coercion")
+		}
+	}
+	if result.Type != inputs[0].Type {
+		return sqlError("42804", "return type of transition function "+catalog.ObjectNameText(support)+" is not "+inputs[0].Type.DiagnosticName())
+	}
+	if function.SQL == nil && (function.Builtin == nil || function.Builtin.Providers == 0) && function.Implementation == nil {
+		return sqlError("0A000", "aggregate transition function has no native implementation")
+	}
+	if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, function.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+		return err
+	}
+	if function.Strict && !definition.HasInitial && (len(inputs) == 1 || !sqltype.BinaryCoercible(inputs[1].Type, inputs[0].Type)) {
+		return sqlError("42P13", "must not omit initial value when transition function is strict and transition type is not compatible with input type")
+	}
+	if definition.HasInitial {
+		if _, err = inputs[0].Type.InputWithEnvironment(h.Context(), definition.Initial, inputs[0].Typmod, input); err != nil {
+			return err
+		}
+	}
+	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.AggregateRoutine, Result: ids.OID(inputs[0].Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Immutable, Aggregate: &catalog.OwnedAggregate{Definition: *definition}}
+	if h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) {
+		return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", d.Name()))
+	}
+	oid, err := h.AllocateOID()
+	if err != nil {
+		return err
+	}
+	d.ObjectAddress.ObjectID = oid
+	d.ObjectRevision, err = h.Revision()
+	if err != nil {
+		return err
+	}
+	definition.Function, definition.Functions[0], definition.TransitionType = oid, function.Address().ObjectID, d.Result
+	d.Aggregate.Definition = *definition
+	d.ACL = h.CreationACL(d.Owner, d.Namespace(), authorization.DefaultRoutines)
+	if err = h.Context().Err(); err != nil {
+		return err
+	}
+	return h.Stage().Create(d)
+}
+
+// Definition strings preserve PostgreSQL's extracted external text, rather than
+// evaluating an expression or resolving a TypeName-shaped seed as a real type.
+func aggregateInitialText(option parser.OperatorOption) (string, error) {
+	switch option.Kind {
+	case parser.OperatorOptionStringArgument:
+		return option.Value, nil
+	case parser.OperatorOptionFloatArgument:
+		return strings.TrimPrefix(option.Value, "+"), nil
+	case parser.OperatorOptionIntegerArgument:
+		value, err := strconv.ParseInt(option.Value, 10, 32)
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatInt(value, 10), nil
+	case parser.OperatorOptionTypeArgument:
+		typ := option.Type
+		text := typ.Name
+		if len(typ.Parts) > 0 {
+			text = aggregateDefinitionName(typ.Parts)
+		} else if typ.Schema != nil {
+			text = typ.Schema.Text + "." + text
+		}
+		if len(typ.ArrayBounds) > 0 {
+			text += "[]"
+		}
+		return text, nil
+	case parser.OperatorOptionNameArgument:
+		return aggregateDefinitionName(option.Reference.Parts), nil
+	case parser.OperatorOptionNoneArgument:
+		return "none", nil
+	default:
+		return "", sqlError("42601", "initcond requires a parameter")
+	}
+}
+
+func aggregateDefinitionName(parts []parser.Identifier) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	if len(parts) == 1 {
+		return parts[0].Text
+	}
+	length := len(parts) - 1
+	for _, part := range parts {
+		length += len(part.Text)
+	}
+	var text strings.Builder
+	text.Grow(length)
+	for i, part := range parts {
+		if i != 0 {
+			text.WriteByte('.')
+		}
+		text.WriteString(part.Text)
+	}
+	return text.String()
+}

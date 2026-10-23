@@ -14,6 +14,19 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## User-defined ordinary aggregates — change note
+
+`CREATE AGGREGATE` now supports fixed zero/N-input ordinary aggregates with
+`SFUNC`, `STYPE`, `INITCOND` and `SSPACE`. Typed transitions preserve strict NULL
+and unseeded-state behavior, real support-routine identity and separate caller,
+aggregate-owner and SQL-body authority. Ordinary-input/result collation and
+quoted SQL-support input inheritance survive stored consumers and native replay;
+frozen SQL-standard bodies retain creation-analyzed semantics. Owned definitions
+and dependencies participate in logical replay; explicit routine ACLs retain
+the documented Dump rejection. See the [execution contract](docs/QUERIES.md#user-defined-ordinary-aggregates),
+[compatibility boundary](docs/DIALECT.md#user-defined-ordinary-aggregates) and
+[selected proof](reference/aggregates/README.md#create-aggregate-contract).
+
 ## Geometric constructors and conversions — change note
 
 Seventeen selected BOX/CIRCLE/LINE/LSEG/PATH/POINT signatures execute through typed

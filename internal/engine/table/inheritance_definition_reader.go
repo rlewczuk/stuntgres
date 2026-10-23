@@ -100,8 +100,8 @@ func (r InheritanceDefinitionReader) ProceduresNamed(namespace ids.ObjectAddress
 	r.Observations = nil
 	return catalog.IndexedDefinitionProcedures(r.Base, r, namespace, name)
 }
-func (r InheritanceDefinitionReader) HasSQLProcedureName(name string) bool {
-	return r.Base.State().HasSQLProcedureName(name)
+func (r InheritanceDefinitionReader) HasDynamicProcedureName(name string) bool {
+	return r.Base.State().HasDynamicProcedureName(name)
 }
 func (r InheritanceDefinitionReader) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	for effect := r.effects; effect != nil; effect = effect.previous {

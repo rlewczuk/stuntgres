@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 
 	"stuntgres/internal/sqltype"
 )
@@ -33,7 +34,8 @@ func (p MoneySum) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p MoneySum) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p MoneySum) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -101,7 +103,8 @@ func (p IntervalSum) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p IntervalSum) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p IntervalSum) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
 	}

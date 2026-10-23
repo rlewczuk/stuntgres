@@ -19,7 +19,7 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 	var cast *parser.CastExpr
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
-		if r.JSON != nil || r.Within || r.Variadic || !b.hasSQLProcedureName(r.Name) {
+		if r.JSON != nil || r.Within || r.Variadic || !b.hasDynamicProcedureName(r.Name) {
 			return nil, false, nil
 		}
 		parts := []parser.Identifier{{Text: r.Name, Pos: r.Pos}}
@@ -28,7 +28,7 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 		}
 		call = parser.FunctionExpr{Name: parser.ObjectName{Parts: parts}, Args: r.Args, Pos: r.Pos, Star: r.Star, Distinct: r.Distinct, Variadic: r.Variadic, Order: r.Order, Filter: r.Filter, Window: r.Window, Within: r.Within, WithinPos: r.WithinPos}
 	case parser.CastExpr:
-		if r.Syntax != parser.FunctionCast || !b.hasSQLProcedureName(r.Callee) {
+		if r.Syntax != parser.FunctionCast || !b.hasDynamicProcedureName(r.Callee) {
 			return nil, false, nil
 		}
 		parts := []parser.Identifier{{Text: r.Callee, Pos: r.Pos}}

@@ -62,7 +62,7 @@ func BindCount(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectNa
 	// ORDER BY matching resolves it.
 	call := AggregateCall{Provider: NewCountProvider(b.Type(sqltype.Int8).Usage()), Operation: AggregateCount, RetainUntypedArgument: true}
 	if len(args) == 1 {
-		call.Argument = args[0]
+		call.Arguments = args
 	}
 	var formal [1]sqltype.ID
 	count := 0

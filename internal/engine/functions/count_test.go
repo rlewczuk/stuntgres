@@ -26,7 +26,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 		t.Fatal(n, err)
 	}
 	for range 2 {
-		if err := p.Advance(context.Background(), a, sqltype.Value{}, sqltype.Value{}); err != nil {
+		if err := p.Advance(context.Background(), a, []sqltype.Value{sqltype.Value{}, sqltype.Value{}}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -47,7 +47,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 		t.Fatal("max count publication", max, err, readErr)
 	}
 	var diagnostic *sqlstate.Error
-	if err := p.Advance(context.Background(), a, sqltype.Value{}, sqltype.Value{}); !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "bigint out of range"}) {
+	if err := p.Advance(context.Background(), a, []sqltype.Value{sqltype.Value{}, sqltype.Value{}}, nil); !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "bigint out of range"}) {
 		t.Fatal(err)
 	}
 	if a.(*countState).count != math.MaxInt64 {
@@ -68,7 +68,7 @@ func TestCountProviderOverflow(t *testing.T) {
 		t.Fatal(err)
 	}
 	state.(*countState).count = math.MaxInt64
-	err = provider.Advance(context.Background(), state, sqltype.Value{}, sqltype.Value{})
+	err = provider.Advance(context.Background(), state, []sqltype.Value{sqltype.Value{}, sqltype.Value{}}, nil)
 	if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "bigint out of range"}) {
 		t.Fatal(err)
 	}

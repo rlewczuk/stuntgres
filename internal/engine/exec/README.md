@@ -213,6 +213,36 @@ The engine, the root driver and `cmd/stuntgres` name these types directly
 
 ## Testing
 
+`TransitionAggregate` keeps an immutable selected plan and execution-local typed
+state/frame. Every ordinary provider consumes one ordered argument vector.
+Strictness distinguishes never-seeded state from a transition-returned NULL:
+the former can copy the first valid input, the latter must never reseed.
+Non-strict transitions receive real NULL state and inputs. Support EXECUTE uses
+the current aggregate owner across SQL-program phases without impersonating
+that owner inside the SQL body. Cancellation and existing effect ownership
+remain on the ordinary execution path.
+
+The provider also retains effective ordinary-input collation independently of
+its state/result usage. Remapping derives that reference from an actual mapped
+typed input, preserving full private formal checks. Only quoted aggregate SQL
+support forwards it into existing closed-body analysis, implicitly and without
+caller COLLATE origin. The existing single routine-analysis cache invalidates
+descriptions when effective collation changes; raw syntax may still be reused.
+Frozen SQL-standard support remains creation-analyzed and body invoker authority
+does not change. Public SQLCollation checks both cold orders and alternating
+same-held calls; `TestCreateAggregateCollationBinding` covers private metadata.
+
+Private unreachable/structural transition proof:
+
+```sh
+make check RUN='^TestCreateAggregate(StrictReturnedNullDoesNotReseed|NonstrictNullArgumentsAndState|TransitionCancellation|TransitionCallIdentity)$'
+```
+
+The call-identity unit rejects substituted support address/declaration/result
+authority independently of typed remap validation. Public dual-mode strictness,
+authorization, cancellation, atomicity and replay selectors are in
+[reference/aggregates](../../../reference/aggregates/README.md#create-aggregate-contract).
+
 Package unit tests (the preparation install seam, including the preflight
 hooks, and the ordered-aggregate sort cancellation):
 

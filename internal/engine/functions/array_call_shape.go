@@ -56,3 +56,7 @@ func probeThresholdBucket(b CallTypeContext, raw parser.FunctionExpr, operands [
 	_, ok := compatibleArrayTargets(b, operands, arrays[:], targets, false)
 	return ok
 }
+
+func arrayInputCallResult(_ CallTypeContext, _ parser.FunctionExpr, targets []sqltype.Usage) (sqltype.Usage, bool) {
+	return targets[0], true
+}

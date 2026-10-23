@@ -295,7 +295,7 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 				return plan.GroupExpr{Info: expr.Info{Usage: provider.FractionType().Usage()}, Slot: 0, Frame: 1}.Eval(c)
 			})
 			child := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: p.InputType().Usage()}, {Usage: p.InputType().Usage()}}, Rows: [][]expr.Expr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
-			call := plan.AggregateCall{Provider: provider, Argument: arg, Direct: []expr.Expr{direct}, Operation: provider.Operation(), StageWidth: 2, Order: []plan.SortKey{{Expression: arg, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
+			call := plan.AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Direct: []expr.Expr{direct}, Operation: provider.Operation(), StageWidth: 2, Order: []plan.SortKey{{Expression: arg, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
 			aggregate := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Usage: p.InputType().Usage()}, {Usage: provider.ResultUsage()}}, Child: child, Keys: []expr.Expr{key}, Grouping: []plan.Grouping{{Grouping: grouping}}, Calls: []plan.AggregateCall{call}}
 			root := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: provider.ResultUsage()}}, Child: aggregate, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 1, Frame: 1}}, Frame: 1}
 			if phase == "having" {
@@ -481,7 +481,7 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 						child.Rows = append(child.Rows, []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: provider.InputType().Usage()}, Value: value}})
 					}
 				}
-				call := plan.AggregateCall{Provider: provider, Argument: argument, Direct: []expr.Expr{direct}, Operation: family.operation, StageWidth: 2, Order: []plan.SortKey{{Expression: argument, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
+				call := plan.AggregateCall{Provider: provider, Arguments: []expr.Expr{argument}, Direct: []expr.Expr{direct}, Operation: family.operation, StageWidth: 2, Order: []plan.SortKey{{Expression: argument, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
 				node := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Usage: provider.ResultUsage()}}, Child: child, Calls: []plan.AggregateCall{call}}
 				root := &plan.ProjectNode{QuerySchema: node.QuerySchema, Child: node, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 				ctx, cancel := context.WithCancel(context.Background())
@@ -653,7 +653,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			call := b.Grouping.Aggregates[0]
-			argument := call.Argument
+			argument := call.Arguments[0]
 			if b.BindingCatalog().State() != catalogView.State() || argument.ResultUsage().Type != input {
 				t.Fatal("input lost coherent binding generation", argument.ResultUsage(), input)
 			}
@@ -749,8 +749,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 		provider := call.Provider.(*functions.OrderedSet)
 		for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.Order[0].Comparison} {
 			collation, indeterminate := comparison.InputCollation()
-			if collation != call.Argument.ResultUsage().Collation || indeterminate != call.Argument.CollationIndeterminate() {
-				t.Fatal("declared-column comparison authority", expression, collation, indeterminate, call.Argument.ResultUsage())
+			if collation != call.Arguments[0].ResultUsage().Collation || indeterminate != call.Arguments[0].CollationIndeterminate() {
+				t.Fatal("declared-column comparison authority", expression, collation, indeterminate, call.Arguments[0].ResultUsage())
 			}
 		}
 	}

@@ -113,6 +113,17 @@ func ResolveEnum(name string, visible bool, arguments []Argument) (EnumSelection
 	}
 	return EnumSelection{Descriptor: selected, Range: name == "enum_range"}, Resolved
 }
+
+func (s EnumSelection) Result(b CallTypeContext) (sqltype.Usage, bool) {
+	if !s.Range {
+		return s.Descriptor.Usage(), true
+	}
+	array, ok := b.ArrayType(s.Descriptor)
+	if !ok {
+		return sqltype.Usage{}, false
+	}
+	return array.Usage(), true
+}
 func CoerceEnumArguments(b ArgumentCoercer, arguments []Argument, target sqltype.Usage, name string) ([]expr.Expr, error) {
 	args := make([]expr.Expr, len(arguments))
 	for i, argument := range arguments {

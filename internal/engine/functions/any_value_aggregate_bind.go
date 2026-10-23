@@ -33,7 +33,7 @@ func bindAnyValue(b AggregateBinder, raw parser.AggregateExpr, name parser.Objec
 	}
 	usage := arg.ResultUsage()
 	usage.Typmod = -1
-	call := AggregateCall{Provider: NewAnyValue(usage), Argument: arg, Operation: AggregateAnyValue}
+	call := AggregateCall{Provider: NewAnyValue(usage), Arguments: []expr.Expr{arg}, Operation: AggregateAnyValue}
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, "any_value", sqltype.ID(2283))
 	if err != nil {
 		return nil, err

@@ -83,3 +83,28 @@ func CastMetadataAt(index int) (CastMetadata, bool) {
 	}
 	return castMetadata[index], true
 }
+
+// BinaryCoercible reports a directional, implicit representation-compatible
+// edge using the same released cast facts as pg_cast. Domain checks are not
+// binary coercions; a source domain can expose its base representation.
+func BinaryCoercible(source, target *Descriptor) bool {
+	if source == nil || target == nil {
+		return false
+	}
+	if source == target {
+		return true
+	}
+	if target.IsDomain() {
+		return false
+	}
+	source = source.BaseType()
+	if source == target {
+		return true
+	}
+	for _, fact := range castMetadata {
+		if fact.Source == source.ID() && fact.Target == target.ID() && fact.Context == 'i' && fact.Method == 'b' {
+			return true
+		}
+	}
+	return false
+}

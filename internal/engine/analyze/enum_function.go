@@ -52,13 +52,9 @@ func (b *Binder) bindEnumFunction(raw parser.FunctionExpr, visible bool) (expr.E
 	if err := b.CaptureTypeDiagnosticInput(selected); err != nil {
 		return nil, err
 	}
-	result := selected.Usage()
-	if selection.Range {
-		array, ok := b.definitionArray(selected)
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing enum array association")
-		}
-		result = array.Usage()
+	result, ok := selection.Result(b)
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: missing enum array association")
 	}
 	info := b.Info(result, raw.Pos, properties)
 	node, err := functions.NewEnum(info, name, args, b.DiagnosticTypeName(selected))

@@ -774,21 +774,22 @@ engine). Pure supply helpers serve bind code in and out of the engine:
 
 ### Aggregate and window registries
 
-Aggregates are not name-chain calls: they arrive as `parser.AggregateExpr`,
-whose name the parser has folded. `aggregate_registry.go` holds the static
-`aggregateDefinitions` table, matched exactly by `LookupAggregate`. The
-engine's aggregate dispatch (`expression.go`, `aggregate_dispatch.go`)
-consults it after the shared placement gates (recursive term, EXECUTE
-parameters, generated, index, CHECK and VALUES consumers), owns the result
-(`ownAggregate`) and applies any SQL/JSON RETURNING coercion. An unregistered
-name binds as `count`, for its missing-function diagnostics; only
-`int_array_aggregate` keeps an engine branch (installed-procedure identity).
+Builtin aggregates arrive as `parser.AggregateExpr` after routine-kind selection.
+`aggregate_registry.go` holds the static `aggregateDefinitions` table, matched
+exactly by `LookupAggregate`. Real owned ordinary aggregates instead retain
+their catalog declaration and transition provider; static builtin fallback is
+not authority for a same-spelled owned routine. Shared placement gates still
+precede provider binding. Unknown aggregate diagnostics retain the existing
+count gateway; intagg retains its installed-procedure identity.
 
 - `Bind` analyzes arguments, then FILTER, resolves the signature, selects the
   provider and calls `FinishAggregate` with an `AggregateCall`: provider,
-  `AggregateOperation` identity, routine, coerced argument, separator, direct
-  arguments, stage width, `IncludeNulls`, `RetainUntypedArgument` (count's
-  ANY formal) and WITHIN GROUP `Order` keys.
+  `AggregateOperation` identity, routine and ordered `Arguments []expr.Expr`,
+  separate ordered-set `Direct` arguments, stage width, `IncludeNulls`,
+  `RetainUntypedArgument` (count's ANY formal) and WITHIN GROUP `Order` keys.
+  Every ordinary provider receives that same ordered value vector in `Advance`;
+  there is no parallel argument/separator ABI. Providers are immutable and group
+  state is execution-local.
 - `BindReturning` replaces `Bind` for the JSON aggregates and also returns the
   RETURNING usage.
 - `Window` resolves the signature of the aggregate called with OVER, with the
@@ -1378,6 +1379,21 @@ the required native/real-mode selectors live in
 [`reference/binary_json_arrays`](../../../reference/binary_json_arrays/README.md#sqljson-query-functions).
 
 ### Aggregate provider remap
+
+Transition-provider expression remapping carries exact source and already-mapped
+destination private formal usages. Existing typed validation runs before and
+after remapping; ordinary public/stored parameters do not gain a formal frame.
+Pure callable-family `ResultCall` inference also serves concrete existing
+polymorphic support selection without adding an execution framework.
+The complete selected public/affected/private proof groups are in
+[reference/aggregates](../../../reference/aggregates/README.md#create-aggregate-contract).
+
+The canonical argument vector is caller-owned scratch. Integral SUM and bitwise
+transition allocation units construct that vector before `AllocsPerRun`, keeping
+the existing zero-allocation transition guarantee rather than measuring caller
+slice construction. Builtin Boolean/statistical alias sharing retains separate
+written EXECUTE identities in the engine-owned shared call; no provider-level
+alias or alternate argument ABI is added.
 
 `aggregate_remap_test.go` holds the leaf units: every persistable provider maps
 each descriptor it exposes, returns a usage error unchanged, ordered sets read

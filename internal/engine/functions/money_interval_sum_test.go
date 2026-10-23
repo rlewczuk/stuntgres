@@ -60,7 +60,7 @@ func TestMoneySumProvider(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := p.Advance(ctx, state, sqltype.Null(p.usage.Type), sqltype.Value{}); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Null(p.usage.Type), sqltype.Value{}}, nil); err != nil {
 			t.Fatal(err)
 		}
 		empty, err := p.Finalize(ctx, state)
@@ -72,7 +72,7 @@ func TestMoneySumProvider(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -101,12 +101,12 @@ func TestMoneySumProvider(t *testing.T) {
 			t.Fatal(err)
 		}
 		v, _ := sqltype.MoneyValue(p.usage.Type, c.first)
-		if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 			t.Fatal(err)
 		}
 		before := *state.(*moneySumState)
 		v, _ = sqltype.MoneyValue(p.usage.Type, c.next)
-		err = p.Advance(ctx, state, v, sqltype.Value{})
+		err = p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "money out of range" || diagnostic.Position != "" || diagnostic.Hint != "" || diagnostic.Context != "" || diagnostic.Detail != "" {
 			t.Fatal(err)
@@ -130,14 +130,14 @@ func TestMoneySumProvider(t *testing.T) {
 	foreign := moneySumUnitProvider(t, sqltype.Builtins())
 	wrong, _ := sqltype.MoneyValue(foreign.usage.Type, 1)
 	for _, invalid := range []sqltype.Value{{}, wrong, sqltype.Null(foreign.usage.Type)} {
-		err := p.Advance(ctx, state, invalid, sqltype.Value{})
+		err := p.Advance(ctx, state, []sqltype.Value{invalid, sqltype.Value{}}, nil)
 		var diagnostic *sqlstate.Error
 		if err == nil || errors.As(err, &diagnostic) {
 			t.Fatal("ownership error must be ordinary", err)
 		}
 	}
 	for _, invalid := range []any{nil, struct{}{}, (*moneySumState)(nil), &sqltype.IntervalAvgState{}} {
-		if err := p.Advance(ctx, invalid, sqltype.Null(p.usage.Type), sqltype.Value{}); err == nil {
+		if err := p.Advance(ctx, invalid, []sqltype.Value{sqltype.Null(p.usage.Type), sqltype.Value{}}, nil); err == nil {
 			t.Fatal("invalid state accepted")
 		}
 		if _, err := p.Finalize(ctx, invalid); err == nil {
@@ -164,7 +164,7 @@ func TestMoneySumProviderCancellation(t *testing.T) {
 	}
 	v, _ := sqltype.MoneyValue(p.usage.Type, 1234)
 	for _, invalid := range []any{state, nil} {
-		if err := p.Advance(ctx, invalid, v, sqltype.Value{}); err != context.Canceled {
+		if err := p.Advance(ctx, invalid, []sqltype.Value{v, sqltype.Value{}}, nil); err != context.Canceled {
 			t.Fatal(err)
 		}
 		if out, err := p.Finalize(ctx, invalid); err != context.Canceled || out.Type() != nil {
@@ -192,7 +192,7 @@ func TestIntervalSumProvider(t *testing.T) {
 	if p.ResultUsage() != d.Usage() || p.ResultUsage().Typmod != -1 {
 		t.Fatal(p.ResultUsage())
 	}
-	if err := p.Advance(ctx, state, sqltype.Null(d), sqltype.Value{}); err != nil {
+	if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Null(d), sqltype.Value{}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	empty, err := p.Finalize(ctx, state)
@@ -207,7 +207,7 @@ func TestIntervalSumProvider(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -232,14 +232,14 @@ func TestIntervalSumProvider(t *testing.T) {
 	foreign, _ := builtinUnitType(sqltype.Builtins(), sqltype.Interval)
 	wrong, _ := sqltype.IntervalValue(foreign, 0, 1, 0)
 	for _, invalid := range []sqltype.Value{{}, wrong, sqltype.Null(foreign)} {
-		err := p.Advance(ctx, state, invalid, sqltype.Value{})
+		err := p.Advance(ctx, state, []sqltype.Value{invalid, sqltype.Value{}}, nil)
 		var diagnostic *sqlstate.Error
 		if err == nil || errors.As(err, &diagnostic) {
 			t.Fatal("ownership error must be ordinary", err)
 		}
 	}
 	for _, invalid := range []any{nil, struct{}{}, (*sqltype.IntervalAvgState)(nil), &moneySumState{}} {
-		if err := p.Advance(ctx, invalid, sqltype.Null(d), sqltype.Value{}); err == nil {
+		if err := p.Advance(ctx, invalid, []sqltype.Value{sqltype.Null(d), sqltype.Value{}}, nil); err == nil {
 			t.Fatal("invalid state accepted")
 		}
 		if _, err := p.Finalize(ctx, invalid); err == nil {
@@ -268,7 +268,7 @@ func TestIntervalSumProviderCancellation(t *testing.T) {
 	}
 	v, _ := sqltype.IntervalValue(d, 1, 2, 3)
 	for _, invalid := range []any{state, nil} {
-		if err := p.Advance(ctx, invalid, v, sqltype.Value{}); err != context.Canceled {
+		if err := p.Advance(ctx, invalid, []sqltype.Value{v, sqltype.Value{}}, nil); err != context.Canceled {
 			t.Fatal(err)
 		}
 		if out, err := p.Finalize(ctx, invalid); err != context.Canceled || out.Type() != nil {

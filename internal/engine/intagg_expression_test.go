@@ -85,7 +85,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, value := range []sqltype.Value{two, sqltype.Null(integer), two} {
-		if err := provider.Advance(ctx, state, value, sqltype.Value{}); err != nil {
+		if err := provider.Advance(ctx, state, []sqltype.Value{value, sqltype.Value{}}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

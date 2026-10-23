@@ -50,7 +50,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := next.Advance(ctx, state, foreign, sqltype.Value{}); err == nil {
+		if err := next.Advance(ctx, state, []sqltype.Value{foreign, sqltype.Value{}}, nil); err == nil {
 			t.Fatal("restored provider retained source input ownership")
 		}
 		for _, text := range []string{"1", "3"} {
@@ -58,7 +58,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := next.Advance(ctx, state, value, sqltype.Value{}); err != nil {
+			if err := next.Advance(ctx, state, []sqltype.Value{value, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -78,7 +78,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := provider.Advance(ctx, originalState, foreign, sqltype.Value{}); err != nil {
+		if err := provider.Advance(ctx, originalState, []sqltype.Value{foreign, sqltype.Value{}}, nil); err != nil {
 			t.Fatal("remapping mutated original provider", err)
 		}
 	}
@@ -123,7 +123,7 @@ func TestAvgEagerCancellation(t *testing.T) {
 			switch phase {
 			case "advance":
 				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, separator sqltype.Value) error {
-					err := original.Advance(ctx, s, v, separator)
+					err := original.Advance(ctx, s, []sqltype.Value{v, separator}, nil)
 					cancel()
 					return err
 				}}

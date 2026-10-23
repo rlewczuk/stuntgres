@@ -45,7 +45,7 @@ func bindExtrema(b AggregateBinder, raw parser.AggregateExpr, name parser.Object
 		operation = AggregateMax
 	}
 	provider := NewExtremaProvider(usage, comparison, operation == AggregateMax)
-	call := AggregateCall{Provider: provider, Argument: arg, Operation: operation}
+	call := AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Operation: operation}
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, raw.Name, selected.ID())
 	if err != nil {
 		return nil, err

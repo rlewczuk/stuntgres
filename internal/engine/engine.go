@@ -264,7 +264,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateFunction, *parser.DropRoutine:
+	case *parser.CreateFunction, *parser.CreateAggregate, *parser.DropRoutine:
 		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return StatementDescription{}, nil
@@ -448,7 +448,7 @@ func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, au
 		return *scope.sqlRoutine.binding, nil
 	}
 	if scope.sqlRoutine.definition != nil {
-		return analyze.DescribeRoutine(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, scope.sqlRoutine.definition)
+		return analyze.DescribeRoutine(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.inputCollation)
 	}
 	return analyze.Describe(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, false, scope.initialParameters)
 }

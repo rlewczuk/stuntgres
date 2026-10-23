@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -30,7 +31,9 @@ func (p RegressionAggregate) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p RegressionAggregate) Advance(ctx context.Context, state any, y, x sqltype.Value) error {
+func (p RegressionAggregate) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	y := values[0]
+	x := values[1]
 	if err := ctx.Err(); err != nil {
 		return err
 	}

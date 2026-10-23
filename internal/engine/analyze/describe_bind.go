@@ -18,15 +18,15 @@ import (
 // wrappers describe, describeWithRule and describeScoped. closed marks SQL
 // routine bodies whose formals are fixed; initial seeds parameter types.
 func Describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, initial ...[]sqltype.Usage) (Binding, error) {
-	return describe(ctx, host, stmt, auth, requiredRef, input, expected, admission, rule, closed, nil, initial...)
+	return describe(ctx, host, stmt, auth, requiredRef, input, expected, admission, rule, closed, nil, sqltype.CollationRef{}, initial...)
 }
 
 // DescribeRoutine shares all ordinary binding with an explicit lexical frame.
-func DescribeRoutine(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, definition *proc.Definition) (Binding, error) {
-	return describe(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, true, definition, definition.Inputs)
+func DescribeRoutine(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, definition *proc.Definition, inputCollation sqltype.CollationRef) (Binding, error) {
+	return describe(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, true, definition, inputCollation, definition.Inputs)
 }
 
-func describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, definition *proc.Definition, initial ...[]sqltype.Usage) (binding Binding, failure error) {
+func describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, definition *proc.Definition, inputCollation sqltype.CollationRef, initial ...[]sqltype.Usage) (binding Binding, failure error) {
 	b := Binding{}
 	binder := NewBinder(ctx, host, input, expected)
 	defer func() {
@@ -38,6 +38,9 @@ func describe(ctx context.Context, host Host, stmt parser.Statement, auth Author
 	if definition != nil {
 		binder.Params.RoutineName, binder.Params.RoutineNames = definition.Name, definition.Names
 		binder.Consumer.frozenDefinition = definition.Standard
+		if !definition.Standard {
+			binder.Params.routineInputCollation = inputCollation
+		}
 		if definition.Standard && parser.ModifyingStatement(stmt) {
 			// Frozen mutation presentation owns a lexical frame just like a
 			// checked rule action. Reserve it before binding FROM/VALUES so

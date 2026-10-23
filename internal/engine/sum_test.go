@@ -53,7 +53,7 @@ func TestSumViewProviderRemapping(t *testing.T) {
 			t.Fatal(err)
 		}
 		old, _ := input.Input(ctx, "1", -1)
-		if next.Advance(ctx, state, old, sqltype.Value{}) == nil {
+		if next.Advance(ctx, state, []sqltype.Value{old, sqltype.Value{}}, nil) == nil {
 			t.Fatal("restored provider retained old ownership")
 		}
 		for _, text := range []string{"1", "3"} {
@@ -61,7 +61,7 @@ func TestSumViewProviderRemapping(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := next.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+			if err := next.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -77,11 +77,11 @@ func TestSumViewProviderRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := provider.Advance(ctx, original, old, sqltype.Value{}); err != nil {
+		if err := provider.Advance(ctx, original, []sqltype.Value{old, sqltype.Value{}}, nil); err != nil {
 			t.Fatal("remap mutated original", err)
 		}
 		newValue, _ := restoredInput.Input(ctx, "1", -1)
-		if provider.Advance(ctx, original, newValue, sqltype.Value{}) == nil {
+		if provider.Advance(ctx, original, []sqltype.Value{newValue, sqltype.Value{}}, nil) == nil {
 			t.Fatal("original accepted new generation")
 		}
 	}
@@ -126,7 +126,7 @@ func TestSumEagerCancellation(t *testing.T) {
 			switch phase {
 			case "advance":
 				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, separator sqltype.Value) error {
-					err := original.Advance(ctx, s, v, separator)
+					err := original.Advance(ctx, s, []sqltype.Value{v, separator}, nil)
 					cancel()
 					return err
 				}}

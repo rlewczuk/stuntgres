@@ -88,7 +88,7 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 			}
 			return 0, nil
 		}
-		if proc.SQL != nil {
+		if proc.DynamicCallable() {
 			return proc.Address().ObjectID, nil
 		}
 		ext, ok := view.Extension(proc.Extension)

@@ -139,10 +139,11 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 
 // sqlRoutineDemand is the internal SQL routine result demand of a statement.
 type sqlRoutineDemand struct {
-	scalar     bool // Internal single-row SELECT demand, never public finalization.
-	result     sqltype.Usage
-	resultPlan sqltype.CoercionPlan
-	definition *proc.Definition
-	terminal   bool
-	binding    *analyze.Binding
+	scalar         bool // Internal single-row SELECT demand, never public finalization.
+	result         sqltype.Usage
+	resultPlan     sqltype.CoercionPlan
+	definition     *proc.Definition
+	terminal       bool
+	binding        *analyze.Binding
+	inputCollation sqltype.CollationRef // Only quoted aggregate-support formal annotation.
 }

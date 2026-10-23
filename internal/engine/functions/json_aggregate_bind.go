@@ -80,7 +80,7 @@ func bindJSONArrayAggregate(b AggregateBinder, raw parser.AggregateExpr, name pa
 		return nil, sqltype.Usage{}, err
 	}
 	provider := NewJSONArrayAggregateProvider(arg.ResultUsage(), usage, absent, arrayPlan)
-	call := AggregateCall{Provider: provider, Argument: arg, Operation: operation, IncludeNulls: true}
+	call := AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Operation: operation, IncludeNulls: true}
 	routineName := "json_agg"
 	switch {
 	case usage.Type.ID() == sqltype.JSONB && absent:

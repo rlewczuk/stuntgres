@@ -170,7 +170,7 @@ func bindOrderedSet(b AggregateBinder, raw parser.AggregateExpr, name parser.Obj
 	if err != nil {
 		return nil, err
 	}
-	call := AggregateCall{Provider: provider, Argument: arg, Direct: direct, Operation: operation, StageWidth: 2,
+	call := AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Direct: direct, Operation: operation, StageWidth: 2,
 		Order: []AggregateSortKey{{Expression: arg, Comparison: comparison, Key: raw.Order[0], Argument: true}}}
 	var formal [2]sqltype.ID
 	formalCount := 2

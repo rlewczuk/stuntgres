@@ -764,6 +764,86 @@ never live moment/count state; restored providers own destination input/result
 descriptors. No statistical window provider or parallel grouping is added.
 
 
+### User-defined ordinary aggregates
+
+`CREATE AGGREGATE` publishes an ordinary aggregate with a fixed list of concrete
+input types and a concrete state/result type:
+
+```sql
+CREATE FUNCTION add_state(integer, integer) RETURNS integer
+LANGUAGE SQL AS $$ SELECT $1 + $2 $$;
+CREATE AGGREGATE add_total(integer) (
+    SFUNC = add_state,
+    STYPE = integer,
+    INITCOND = '0',
+    SSPACE = 32
+);
+SELECT add_total(x) AS total FROM (VALUES (1), (2), (3)) AS input(x); -- 6 / INT4
+SELECT add_total(x) AS total FROM (VALUES (1)) AS input(x) WHERE FALSE; -- 0 / INT4
+```
+
+The ordinary argument vector is ordered and may have zero, one or multiple
+inputs. Declare and call a zero-input aggregate with `name(*)`. The transition
+receives the state followed by every ordinary input. Its declared shape must
+match without omitted defaults or variadic expansion; ordinary overload ranking
+selects the real routine, followed by binary-compatible argument and state-result
+validation. An existing callable polymorphic support routine can specialize to
+these concrete types, such as `array_append` for an INTEGER[] state. This does
+not admit polymorphic aggregate declarations or introduce another execution
+framework.
+
+With a non-strict transition, NULL state and NULL arguments are real arguments.
+A strict transition skips rows containing a NULL input. Without an initial
+condition, its first wholly non-NULL row seeds the state from the first input
+without calling the transition; that input must be binary-compatible with the
+state type. An empty or all-NULL unseeded group returns typed NULL. A transition
+that subsequently returns NULL does not make the group unseeded again.
+
+Collation derives from ordinary inputs only, separately from the result type:
+conflicting explicit inputs report42P21 even for a noncollatable state/result.
+STYPE's declared collation is not another input: a domain state declared C still
+inherits an ordinary POSIX or default input's collation without losing its exact
+domain type. Only when no ordinary input is collatable does the result retain
+STYPE's declared collation as fallback; this does not invent an input collation.
+Collatable results retain explicit or indeterminate derivation; indeterminate
+TEXT can concatenate without comparison but cannot define a stored view column
+until COLLATE resolves it. Ordering-only expressions and FILTER do not select
+the aggregate result's collation. Checked private support formals retain the
+derived collation and full expression provenance through native remapping.
+
+Quoted SQL transition bodies receive the effective common input collation as
+implicit parameter authority, so their own explicit COLLATE can override it.
+Retained body descriptions distinguish effective collations; alternating calls
+cannot reuse a description analyzed for a different input collation. This
+annotation belongs only to aggregate support invocation, not generic scalar SQL
+callers. SQL-standard BEGIN ATOMIC support bodies retain their creation-analyzed
+semantics. Empty/FILTER FALSE groups do not invoke either body.
+
+`INITCOND` retains its extracted external text, not the parsed state datum:
+quoted `'000'` remains `000`, while an unquoted integer `000` becomes `0`.
+Grammar-reachable numeric, name, type-name and operator values use their existing
+definition-node extraction rules; for example `1.00` retains that spelling and
+`integer` extracts `pg_catalog.int4`. Operator values need ordinary lexical
+separation, such as `INITCOND = *`. Type input validates the seed at creation and
+initializes each group using the current execution input environment. `SSPACE`
+is a signed int32 planner estimate, not a state allocation or arithmetic limit.
+Its integer-node grammar accepts `-1` and `2147483647`; literal `-2147483648`
+is a float node and reports42601 `sspace requires an integer value`.
+
+Creation checks schema CREATE, type USAGE and transition EXECUTE. Execution
+checks the caller's aggregate EXECUTE and the aggregate owner's support EXECUTE;
+this support admission does not impersonate the aggregate owner inside a SQL
+body. Binding, metadata, stored consumers and dependencies retain the actual
+selected support and state types. Existing FILTER, DISTINCT and local ordering
+use the shared aggregate pipeline, including cancellation and atomic failure.
+
+Native Dump/Restore replays actual owned definitions and remaps support/type/
+consumer identities, not live group state. Default-ACL owners are preserved;
+referenced roles must already exist in the receiving environment. Explicit
+aggregate or SQL-support ACLs retain the truthful Dump rejection before writer
+I/O. See the [compatibility boundary](DIALECT.md#user-defined-ordinary-aggregates)
+and [dual-mode proof](../reference/aggregates/README.md#create-aggregate-contract).
+
 ### Ordered-set aggregates
 
 `percentile_cont(fraction) WITHIN GROUP (ORDER BY input)` returns FLOAT8 or

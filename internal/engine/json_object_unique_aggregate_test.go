@@ -73,10 +73,10 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 				t.Fatal(err)
 			}
 			k, v := sqltype.String(newKey, "a"), sqltype.Null(newInput)
-			if err = q.Advance(ctx, state, k, v); err != nil {
+			if err = q.Advance(ctx, state, []sqltype.Value{k, v}, nil); err != nil {
 				t.Fatal(err)
 			}
-			err = q.Advance(ctx, state, k, v)
+			err = q.Advance(ctx, state, []sqltype.Value{k, v}, nil)
 			if id == sqltype.JSONB {
 				if err != nil {
 					t.Fatal("binary duplicate became eager", err)

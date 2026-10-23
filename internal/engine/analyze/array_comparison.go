@@ -419,7 +419,7 @@ func (b *Binder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
 		if b.Stored.Syntax == nil {
 			b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 		}
-		b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.Pos}] = syntax
+		b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = syntax
 	}
 	return result, nil
 }

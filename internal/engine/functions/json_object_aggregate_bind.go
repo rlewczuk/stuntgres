@@ -55,7 +55,7 @@ func bindJSONObjectAggregate(b AggregateBinder, raw parser.AggregateExpr, name p
 	if strict {
 		operation = AggregateJSONObjectStrict
 	}
-	call := AggregateCall{Provider: NewJSONObjectAggregate(usage, strict, unique), Argument: args[0], Separator: args[1], Operation: operation, IncludeNulls: true}
+	call := AggregateCall{Provider: NewJSONObjectAggregate(usage, strict, unique), Arguments: []expr.Expr{args[0], args[1]}, Operation: operation, IncludeNulls: true}
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, raw.Name, sqltype.ID(2276), sqltype.ID(2276))
 	if err != nil {
 		return nil, sqltype.Usage{}, err
@@ -124,7 +124,7 @@ func bindSQLJSONObjectAggregate(b AggregateBinder, raw parser.AggregateExpr, nam
 		operation = AggregateJSONObjectStrict
 	}
 	provider := NewJSONObjectAggregate(usage, raw.JSON.Absent, raw.JSON.Unique)
-	call := AggregateCall{Provider: provider, Argument: args[0], Separator: args[1], Operation: operation, IncludeNulls: true}
+	call := AggregateCall{Provider: provider, Arguments: []expr.Expr{args[0], args[1]}, Operation: operation, IncludeNulls: true}
 	// SQL/JSON syntax lowers to the genuine aggregate selected by its output
 	// format and NULL/unique options, not to a json_objectagg pg_proc entry.
 	routineName := "json_object_agg"

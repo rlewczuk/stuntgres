@@ -3,6 +3,7 @@ package analyze
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
@@ -278,21 +279,36 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		if n, ok := bound.(plan.AggregateExpr); ok {
 			if call, ok := b.aggregateCallAt(n); ok {
 				if call.Procedure != nil {
-					if err := b.captureIntaggReference(path, call.Procedure, call.Ref, "int_array_aggregate"); err != nil {
+					if call.Procedure.DynamicCallable() && call.Procedure.Aggregate != nil {
+						if !r.StoredAggregate {
+							return fmt.Errorf("stuntgres: missing normalized aggregate syntax")
+						}
+						read := b.BindingCatalog()
+						if call.Ref != b.Host.CatalogOwner().Domain.Ref(read.Epoch(), call.Procedure.Address()) {
+							return fmt.Errorf("stuntgres: invalid frozen aggregate reference")
+						}
+						if _, err := exec.ValidateStoredRoutineDescriptor(read, call.Procedure); err != nil {
+							return err
+						}
+						if err := b.Capture.CaptureRoutineReference(path, call.Ref); err != nil {
+							return err
+						}
+					} else if err := b.captureIntaggReference(path, call.Procedure, call.Ref, "int_array_aggregate"); err != nil {
 						return err
 					}
 				}
 				for i, arg := range r.Args {
-					expression := call.Argument
+					var expression expr.Expr
 					if r.Within {
 						if i >= len(call.Direct) {
 							return fmt.Errorf("stuntgres: invalid stored direct arguments")
 						}
 						expression = call.Direct[i]
-					} else if i == 1 {
-						expression = call.Separator
-					} else if i > 1 {
-						return fmt.Errorf("stuntgres: invalid stored aggregate arguments")
+					} else {
+						if i >= len(call.Arguments) {
+							return fmt.Errorf("stuntgres: invalid stored aggregate arguments")
+						}
+						expression = call.Arguments[i]
 					}
 					if call.Operation.Hypothetical() {
 						expression = expression.(plan.CollationExpr).Child

@@ -42,7 +42,7 @@ func bindStringAggregate(b AggregateBinder, raw parser.AggregateExpr, name parse
 	if err != nil {
 		return nil, err
 	}
-	call := AggregateCall{Provider: NewStringAggregateProvider(info.Usage), Argument: value, Separator: separator, Operation: AggregateString}
+	call := AggregateCall{Provider: NewStringAggregateProvider(info.Usage), Arguments: []expr.Expr{value, separator}, Operation: AggregateString}
 	formal := value.ResultUsage().Type.ID()
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, "string_agg", formal, formal)
 	if err != nil {

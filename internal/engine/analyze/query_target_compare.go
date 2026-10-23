@@ -253,7 +253,7 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		}
 		for i, call := range n.Calls {
 			other := o.Calls[i]
-			if call.Operation != other.Operation || call.IncludeNulls != other.IncludeNulls || call.Provider.ResultUsage() != other.Provider.ResultUsage() || call.StageWidth != other.StageWidth || len(call.Distinct) != len(other.Distinct) || !same(call.Argument, other.Argument) || !same(call.Separator, other.Separator) || !c.expressions(b, call.Direct, other.Direct) || !same(call.Filter, other.Filter) || !c.order(b, call.Order, other.Order) {
+			if call.Routine != other.Routine || !slices.Equal(call.RoutineAliases, other.RoutineAliases) || !plan.SameIntaggIdentity(call.Procedure, call.Ref, other.Procedure, other.Ref) || call.Operation != other.Operation || call.IncludeNulls != other.IncludeNulls || call.Provider.ResultUsage() != other.Provider.ResultUsage() || call.StageWidth != other.StageWidth || len(call.Distinct) != len(other.Distinct) || !c.expressions(b, call.Arguments, other.Arguments) || !c.expressions(b, call.Direct, other.Direct) || !same(call.Filter, other.Filter) || !c.order(b, call.Order, other.Order) {
 				return false
 			}
 		}

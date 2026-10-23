@@ -59,7 +59,7 @@ func bindBitwiseAggregate(b AggregateBinder, raw parser.AggregateExpr, name pars
 		}
 		provider = NewIntegralBitwiseAggregateProvider(usage, operator, bound)
 	}
-	call := AggregateCall{Provider: provider, Argument: arg, Operation: operation}
+	call := AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Operation: operation}
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, raw.Name, usage.Type.ID())
 	if err != nil {
 		return nil, err

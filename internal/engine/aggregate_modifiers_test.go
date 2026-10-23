@@ -130,7 +130,7 @@ func TestAggregateModifiersParameterTargets(t *testing.T) {
 		}
 		call := b.Grouping.Aggregates[expression.(plan.AggregateExpr).Slot]
 		if parameters.Count != 1 || parameters.Types[0].Type.ID() != sqltype.Text ||
-			call.Argument.ResultUsage().Type.ID() != sqltype.Text ||
+			call.Arguments[0].ResultUsage().Type.ID() != sqltype.Text ||
 			call.Order[0].Slot != 0 || call.Order[0].Cache != 0 || len(b.Params.AnyParameters) != 0 {
 			t.Fatal(query, parameters, call, b.Params.AnyParameters)
 		}
@@ -200,8 +200,8 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			filters, values, keys, advances, finalizes := 0, 0, 0, 0, 0
-			original := call.Argument
-			call.Argument = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { values++; return original.Eval(c) })
+			original := call.Arguments[0]
+			call.Arguments[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { values++; return original.Eval(c) })
 			boolType := call.Filter.ResultUsage().Type
 			call.Filter = queryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				filters++
@@ -224,7 +224,7 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 			provider := call.Provider
 			call.Provider = aggregateProbeProvider{AggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
 				advances++
-				err := provider.Advance(ctx, s, v, d)
+				err := provider.Advance(ctx, s, []sqltype.Value{v, d}, nil)
 				if phase == "replay" {
 					cancel()
 				}
@@ -324,10 +324,10 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 		t.Fatal(remapped, err)
 	}
 	call := remapped.(*plan.AggregateNode).Calls[0]
-	if call.Filter.ResultUsage().Type == original.Filter.ResultUsage().Type || call.Argument.ResultUsage().Type == original.Argument.ResultUsage().Type {
+	if call.Filter.ResultUsage().Type == original.Filter.ResultUsage().Type || call.Arguments[0].ResultUsage().Type == original.Arguments[0].ResultUsage().Type {
 		t.Fatal("modifier descriptor ownership not remapped")
 	}
-	value, _ := sqltype.Integer(call.Argument.ResultUsage().Type, 1)
+	value, _ := sqltype.Integer(call.Arguments[0].ResultUsage().Type, 1)
 	if _, err := call.Distinct[0].Hash(context.Background(), value); err != nil {
 		t.Fatal("remapped grouping retains old descriptor", err)
 	}
@@ -337,7 +337,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	if sign, err := call.Order[0].Comparison.Compare(context.Background(), value, value, sqltype.InputEnvironment{}); err != nil || sign != 0 {
 		t.Fatal("remapped comparison retains old descriptor", sign, err)
 	}
-	if original.Argument.ResultUsage().Type != node.Calls[0].Argument.ResultUsage().Type || original.Filter.ResultUsage().Type != node.Calls[0].Filter.ResultUsage().Type {
+	if original.Arguments[0].ResultUsage().Type != node.Calls[0].Arguments[0].ResultUsage().Type || original.Filter.ResultUsage().Type != node.Calls[0].Filter.ResultUsage().Type {
 		t.Fatal("remap mutated original inputs")
 	}
 }

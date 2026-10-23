@@ -32,7 +32,7 @@ func TestStatisticalAggregateProviders(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -53,7 +53,7 @@ func TestStatisticalAggregateProviders(t *testing.T) {
 			t.Fatal("isolated state", err)
 		}
 		foreign, _ := numericUnitTypes()[id].Input(ctx, "1", -1)
-		if err := p.Advance(ctx, state, foreign, sqltype.Value{}); err == nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{foreign, sqltype.Value{}}, nil); err == nil {
 			t.Fatal("foreign descriptor accepted")
 		}
 		for _, bad := range []any{nil, struct{}{}, (*sqltype.NumericMomentsState)(nil), (*sqltype.FloatAvgState)(nil)} {
@@ -76,7 +76,7 @@ func TestStatisticalAggregateProviders(t *testing.T) {
 					t.Error(err)
 					return
 				}
-				if err := p.Advance(ctx, s, one, sqltype.Value{}); err != nil {
+				if err := p.Advance(ctx, s, []sqltype.Value{one, sqltype.Value{}}, nil); err != nil {
 					t.Error(err)
 					return
 				}
@@ -93,10 +93,10 @@ func TestStatisticalAggregateProviders(t *testing.T) {
 	state, _ := p.Init(ctx)
 	one, _ := d.Input(ctx, "1", -1)
 	foreign, _ := numericUnitTypes()[sqltype.Float8].Input(ctx, "1", -1)
-	if err := p.Advance(ctx, state, one, foreign); err == nil {
+	if err := p.Advance(ctx, state, []sqltype.Value{one, foreign}, nil); err == nil {
 		t.Fatal("second argument ownership unchecked")
 	}
-	if err := p.Advance(ctx, state, one, sqltype.Null(d)); err != nil {
+	if err := p.Advance(ctx, state, []sqltype.Value{one, sqltype.Null(d)}, nil); err != nil {
 		t.Fatal(err)
 	}
 	v, err := p.Finalize(ctx, state)
@@ -117,7 +117,7 @@ func TestStatisticalAggregateProviderCancellation(t *testing.T) {
 		}
 		for _, text := range []string{"1", "3"} {
 			v, _ := types[id].Input(ctx, text, -1)
-			if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -165,19 +165,19 @@ func TestStatisticalAggregateRegressionCount(t *testing.T) {
 	assertCount(state, 0)
 	one, _ := sqltype.Float(d, 1)
 	for _, pair := range [][2]sqltype.Value{{sqltype.Null(d), one}, {one, sqltype.Null(d)}, {sqltype.Null(d), sqltype.Null(d)}} {
-		if err := p.Advance(ctx, state, pair[0], pair[1]); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{pair[0], pair[1]}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
 	assertCount(state, 0)
 	foreign, _ := sqltype.Float(numericUnitTypes()[sqltype.Float8], 1)
 	for _, pair := range [][2]sqltype.Value{{foreign, one}, {one, foreign}, {sqltype.Null(d), foreign}, {foreign, sqltype.Null(d)}, {{}, one}, {one, {}}} {
-		if err := p.Advance(ctx, state, pair[0], pair[1]); err == nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{pair[0], pair[1]}, nil); err == nil {
 			t.Fatal("invalid descriptor accepted")
 		}
 	}
 	for _, bad := range []any{nil, struct{}{}, (*countState)(nil)} {
-		if err := p.Advance(ctx, bad, one, one); err == nil {
+		if err := p.Advance(ctx, bad, []sqltype.Value{one, one}, nil); err == nil {
 			t.Fatal("invalid advance state accepted")
 		}
 		if v, err := p.Finalize(ctx, bad); err == nil || v.Type() != nil {
@@ -186,7 +186,7 @@ func TestStatisticalAggregateRegressionCount(t *testing.T) {
 	}
 	for _, number := range []float64{1e308, math.Inf(1), math.NaN()} {
 		v, _ := sqltype.Float(d, number)
-		if err := p.Advance(ctx, state, v, v); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{v, v}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -194,17 +194,17 @@ func TestStatisticalAggregateRegressionCount(t *testing.T) {
 	assertCount(isolated, 0)
 	s := state.(*countState)
 	s.count = 1 << 53
-	if err := p.Advance(ctx, state, one, one); err != nil {
+	if err := p.Advance(ctx, state, []sqltype.Value{one, one}, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(state, 9007199254740993)
 	s.count = math.MaxInt64 - 1
-	if err := p.Advance(ctx, state, one, one); err != nil {
+	if err := p.Advance(ctx, state, []sqltype.Value{one, one}, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(state, math.MaxInt64)
 	var diagnostic *sqlstate.Error
-	if err := p.Advance(ctx, state, one, one); !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "bigint out of range"}) {
+	if err := p.Advance(ctx, state, []sqltype.Value{one, one}, nil); !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "bigint out of range"}) {
 		t.Fatal(err)
 	}
 	assertCount(state, math.MaxInt64)
@@ -213,7 +213,7 @@ func TestStatisticalAggregateRegressionCount(t *testing.T) {
 	if value, err := p.Init(canceled); err != context.Canceled || value != nil {
 		t.Fatal("canceled init", value, err)
 	}
-	if err := p.Advance(canceled, state, one, one); err != context.Canceled {
+	if err := p.Advance(canceled, state, []sqltype.Value{one, one}, nil); err != context.Canceled {
 		t.Fatal("canceled advance", err)
 	}
 	if value, err := p.Finalize(canceled, state); err != context.Canceled || value.Type() != nil {
@@ -227,7 +227,7 @@ func TestStatisticalAggregateRegressionCount(t *testing.T) {
 	}
 	s.count = 0
 	if allocations := testing.AllocsPerRun(100, func() {
-		if err := p.Advance(ctx, state, one, one); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{one, one}, nil); err != nil {
 			panic(err)
 		}
 	}); allocations != 0 {

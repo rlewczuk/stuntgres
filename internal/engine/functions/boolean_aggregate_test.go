@@ -25,7 +25,7 @@ func TestBooleanAggregateProvider(t *testing.T) {
 				} else {
 					want = want || v
 				}
-				if err := p.Advance(context.Background(), state, sqltype.Boolean(p.ResultUsage().Type, v), sqltype.Value{}); err != nil {
+				if err := p.Advance(context.Background(), state, []sqltype.Value{sqltype.Boolean(p.ResultUsage().Type, v), sqltype.Value{}}, nil); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -47,7 +47,7 @@ func TestBooleanAggregateProvider(t *testing.T) {
 			if err != nil || !value.IsNull() || value.Type() != p.ResultUsage().Type {
 				t.Fatal("state leaked", value, err)
 			}
-			if err := p.Advance(context.Background(), struct{}{}, sqltype.Boolean(p.ResultUsage().Type, true), sqltype.Value{}); err == nil {
+			if err := p.Advance(context.Background(), struct{}{}, []sqltype.Value{sqltype.Boolean(p.ResultUsage().Type, true), sqltype.Value{}}, nil); err == nil {
 				t.Fatal("invalid state accepted")
 			}
 		}

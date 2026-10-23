@@ -36,6 +36,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "schema object DDL", Admit: restoreAdmitSchemaObject},
 	{Name: "operator DDL", Admit: restoreAdmitOperator},
 	{Name: "CREATE FUNCTION", Admit: restoreAdmitKind[*parser.CreateFunction]},
+	{Name: "CREATE AGGREGATE", Admit: restoreAdmitKind[*parser.CreateAggregate]},
 	{Name: "CREATE EXTENSION", Admit: restoreAdmitKind[*parser.CreateExtension]},
 	{Name: "ALTER MATERIALIZED VIEW", Admit: restoreAdmitChecked(admitRestoreAlterView)},
 	{Name: "CREATE VIEW", Admit: restoreAdmitChecked(admitRestoreCreateView)},

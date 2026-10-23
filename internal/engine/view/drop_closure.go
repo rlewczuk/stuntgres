@@ -196,6 +196,12 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					}
 				}
 			case *catalog.Procedure:
+				for dependency := range catalog.OwnedAggregateDependencies(d) {
+					if dependency == target {
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+						break
+					}
+				}
 				if d.SQLBody != nil {
 					for _, dependency := range d.SQLBody.Dependencies() {
 						address := dependency.Ref.Address

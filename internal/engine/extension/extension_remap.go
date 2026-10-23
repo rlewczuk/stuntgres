@@ -4,6 +4,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -70,7 +71,27 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.ObjectNamespace = address(n.Namespace())
 		n.Extension = address(n.Extension)
 		n.Dictionary = address(n.Dictionary)
-		n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), n.Namespace(), mapping)
+		if d.Aggregate != nil && d.DynamicCallable() {
+			owned := *d.Aggregate
+			owned.Definition.Function = n.Address().ObjectID
+			for i, oid := range owned.Definition.Functions {
+				owned.Definition.Functions[i] = address(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}).ObjectID
+			}
+			owned.Definition.TransitionType = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: owned.Definition.TransitionType}).ObjectID
+			n.Aggregate = &owned
+			n.Result = owned.Definition.TransitionType
+			if n.Signature != "" {
+				parts := strings.Split(string(n.Signature), ",")
+				for i, part := range parts {
+					if id, err := strconv.ParseUint(part, 10, 32); err == nil {
+						parts[i] = strconv.FormatUint(uint64(address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}).ObjectID), 10)
+					}
+				}
+				n.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
+			}
+		} else {
+			n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), n.Namespace(), mapping)
+		}
 		if IntarrayProviderOf(&n) != nil || CubeProviderOf(&n) != nil || CitextProviderOf(&n) != nil {
 			if n.Name() == "bqarr_in" || n.Name() == "cube_in" || n.Name() == "citextin" {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID

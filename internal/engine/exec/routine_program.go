@@ -12,16 +12,27 @@ import (
 // after constant computation, but its original lifetime still fences subsequent
 // admission after a wait. Values/providers are never replayed by readmit.
 type RoutineCall struct {
-	Routine   *catalog.Procedure
-	Reference ids.ObjectRef
-	Consumer  *catalog.Relation
-	body      RoutineBodyContext
-	Actor     authorization.PrincipalRef
+	Routine          *catalog.Procedure
+	Reference        ids.ObjectRef
+	Consumer         *catalog.Relation
+	body             RoutineBodyContext
+	Actor            authorization.PrincipalRef
+	SupportAggregate *catalog.Procedure // Only top-level support EXECUTE uses its current owner.
 }
 
 type RoutineProgram struct{ Calls []RoutineCall }
 
 func (p *RoutineProgram) Record(c *Context, dependencies []catalog.ExpressionDependency, routine *catalog.Procedure) error {
+	auth, _, err := RoutineAdmissionAuthority(c)
+	if err != nil {
+		return err
+	}
+	return p.RecordActor(c, dependencies, routine, auth.State.CurrentUser, nil)
+}
+
+// RecordActor records support EXECUTE under its owner without changing the
+// invocation/body role of the evaluation context.
+func (p *RoutineProgram) RecordActor(c *Context, dependencies []catalog.ExpressionDependency, routine *catalog.Procedure, actor authorization.PrincipalRef, aggregate *catalog.Procedure) error {
 	var ref ids.ObjectRef
 	if c.RoutineReferences != nil {
 		for _, candidate := range c.RoutineReferences {
@@ -44,16 +55,12 @@ func (p *RoutineProgram) Record(c *Context, dependencies []catalog.ExpressionDep
 	if ref.Address != (routine.Address()) {
 		return fmt.Errorf("stuntgres: missing consumed routine lifetime")
 	}
-	auth, _, err := RoutineAdmissionAuthority(c)
-	if err != nil {
-		return err
-	}
 	for _, call := range p.Calls {
-		if call.Reference == ref && call.Consumer == c.RoutineConsumer && call.Actor == auth.State.CurrentUser {
+		if call.Reference == ref && call.Consumer == c.RoutineConsumer && call.Actor == actor && call.SupportAggregate == aggregate {
 			return nil
 		}
 	}
-	p.Calls = append(p.Calls, RoutineCall{Routine: routine, Reference: ref, Consumer: c.RoutineConsumer, body: c.RoutineBodyContext, Actor: auth.State.CurrentUser})
+	p.Calls = append(p.Calls, RoutineCall{Routine: routine, Reference: ref, Consumer: c.RoutineConsumer, body: c.RoutineBodyContext, Actor: actor, SupportAggregate: aggregate})
 	return nil
 }
 
@@ -61,7 +68,14 @@ func (p *RoutineProgram) Readmit(auth RoutineAccess) error {
 	for _, call := range p.Calls {
 		current := auth
 		current.State.CurrentUser = call.Actor
-		if err := current.Roles.ValidatePrincipal(call.Actor); err != nil {
+		if call.SupportAggregate != nil {
+			aggregate, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, call.SupportAggregate)
+			if err != nil {
+				return err
+			}
+			current.State.CurrentUser = aggregate.Owner
+		}
+		if err := current.Roles.ValidatePrincipal(current.State.CurrentUser); err != nil {
 			return err
 		}
 		dependency := [1]catalog.ExpressionDependency{{Ref: call.Reference, Revision: call.Routine.Revision()}}
@@ -76,11 +90,19 @@ func (p *RoutineProgram) Readmit(auth RoutineAccess) error {
 // after admitting the exact original consumed graph under its own actual actor.
 func (p *RoutineProgram) InitializePhase(original *RoutineProgram, auth RoutineAccess) error {
 	for _, call := range original.Calls {
+		current := auth
+		if call.SupportAggregate != nil {
+			aggregate, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, call.SupportAggregate)
+			if err != nil {
+				return err
+			}
+			current.State.CurrentUser = aggregate.Owner
+		}
 		dependency := [1]catalog.ExpressionDependency{{Ref: call.Reference, Revision: call.Routine.Revision()}}
-		if err := AdmitRoutineDescriptor(auth, dependency[:], call.Routine, call.Consumer); err != nil {
+		if err := AdmitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer); err != nil {
 			return call.body.Annotate(err)
 		}
-		call.Actor = auth.State.CurrentUser
+		call.Actor = current.State.CurrentUser
 		p.Calls = append(p.Calls, call)
 	}
 	return nil
@@ -90,7 +112,7 @@ func (p *RoutineProgram) Include(other *RoutineProgram) {
 	for _, call := range other.Calls {
 		found := false
 		for _, old := range p.Calls {
-			if old.Reference == call.Reference && old.Consumer == call.Consumer && old.Actor == call.Actor {
+			if old.Reference == call.Reference && old.Consumer == call.Consumer && old.Actor == call.Actor && old.SupportAggregate == call.SupportAggregate {
 				found = true
 				break
 			}

@@ -86,7 +86,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			text(6, vol)
 			boolean(7, d.Strict)
 			parallel := "s"
-			if d.Foreign != nil {
+			if d.Foreign != nil || d.Aggregate != nil && d.DynamicCallable() {
 				parallel = "u"
 			} else if d.Builtin != nil {
 				switch d.Builtin.Parallel {

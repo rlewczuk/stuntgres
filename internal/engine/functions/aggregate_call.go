@@ -14,7 +14,7 @@ import (
 type AggregateProvider interface {
 	ResultUsage() sqltype.Usage
 	Init(context.Context) (any, error)
-	Advance(context.Context, any, sqltype.Value, sqltype.Value) error
+	Advance(context.Context, any, []sqltype.Value, expr.Context) error
 	Finalize(context.Context, any) (sqltype.Value, error)
 }
 
@@ -23,6 +23,12 @@ type AggregateProvider interface {
 // Ordinary providers retain the AggregateProvider Init contract.
 type ContextualAggregateProvider interface {
 	InitWithEnvironment(context.Context, sqltype.OutputEnvironment) (any, error)
+}
+
+// ExecutionAggregateProvider initializes state using the current input
+// environment and statement capabilities, never a retained session pointer.
+type ExecutionAggregateProvider interface {
+	InitWithContext(context.Context, expr.Context) (any, error)
 }
 
 // AggregateOperation identifies the selected aggregate algorithm. The engine
@@ -81,6 +87,7 @@ const (
 	AggregateHypotheticalDenseRank
 	AggregateHypotheticalPercentRank
 	AggregateHypotheticalCumeDist
+	AggregateTransition
 )
 
 // AggregateCall is the function-owned part of an analyzed aggregate call:
@@ -92,11 +99,9 @@ type AggregateCall struct {
 	// Routine is the selected owning declaration; the caller's ACL is checked
 	// fresh at admission.
 	Routine   ids.ObjectRef
-	Argument  expr.Expr
-	Separator expr.Expr
+	Arguments []expr.Expr
 	Direct    []expr.Expr
-	// StageWidth counts the value, separator and unique local targets; zero
-	// lets FinishAggregate size it for ORDER BY.
+	// StageWidth counts ordinary arguments and unique local ordering targets.
 	StageWidth int
 	// IncludeNulls makes the provider see SQL NULL inputs (non-strict
 	// providers), including in ordered replay.

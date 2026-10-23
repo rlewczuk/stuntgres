@@ -162,8 +162,7 @@ func (b *Binder) FinishAggregate(raw parser.AggregateExpr, call functions.Aggreg
 	result, err := b.finishAggregate(raw, plan.AggregateCall{
 		Provider:     call.Provider,
 		Routine:      call.Routine,
-		Argument:     call.Argument,
-		Separator:    call.Separator,
+		Arguments:    call.Arguments,
 		Direct:       call.Direct,
 		StageWidth:   call.StageWidth,
 		Operation:    call.Operation,
@@ -175,7 +174,9 @@ func (b *Binder) FinishAggregate(raw parser.AggregateExpr, call functions.Aggreg
 	}
 	// ORDER BY matching may have resolved an UNKNOWN target; only an actual
 	// remaining ANY occurrence joins the unresolved-parameter guard.
-	b.RetainUntypedParameter(b.Grouping.Aggregates[result.(plan.AggregateExpr).Slot].Argument)
+	for _, argument := range b.Grouping.Aggregates[result.(plan.AggregateExpr).Slot].Arguments {
+		b.RetainUntypedParameter(argument)
+	}
 	return result, nil
 }
 

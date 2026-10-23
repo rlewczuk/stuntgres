@@ -11,26 +11,29 @@ import (
 )
 
 type AggregateCall struct {
-	Provider     functions.AggregateProvider
-	Routine      ids.ObjectRef // Selected owning declaration; fresh caller ACL at admission.
-	Argument     expr.Expr
-	Separator    expr.Expr
-	Direct       []expr.Expr
-	Order        []SortKey
-	Filter       expr.Expr
-	Distinct     []Grouping // Multi-key tuple equality is caller checked; single-key support is not.
-	StageWidth   int        // Value, separator, then unique local targets; keys address cache slots.
-	Operation    functions.AggregateOperation
-	IncludeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
-	Procedure    *catalog.Procedure
-	Ref          ids.ObjectRef
+	Provider functions.AggregateProvider
+	Routine  ids.ObjectRef // Selected owning declaration; fresh caller ACL at admission.
+	// RoutineAliases retains distinct written builtin aliases sharing this
+	// operation's state. Published slices are immutable; every alias is admitted.
+	RoutineAliases []ids.ObjectRef
+	Arguments      []expr.Expr
+	Direct         []expr.Expr
+	Order          []SortKey
+	Filter         expr.Expr
+	Distinct       []Grouping // Multi-key tuple equality is caller checked; single-key support is not.
+	StageWidth     int        // Ordinary arguments, then unique local ordering targets.
+	Operation      functions.AggregateOperation
+	IncludeNulls   bool // Non-strict providers must see SQL NULL, including ordered replay.
+	Procedure      *catalog.Procedure
+	Ref            ids.ObjectRef
 }
 
 // Every analyzed aggregate expression participates in ownership, dependence,
 // preflight and immutable query rewrites, not just the first value argument.
 func (call AggregateCall) Expressions(visit func(expr.Expr)) {
-	visit(call.Argument)
-	visit(call.Separator)
+	for _, argument := range call.Arguments {
+		visit(argument)
+	}
 	for _, direct := range call.Direct {
 		visit(direct)
 	}

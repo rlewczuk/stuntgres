@@ -169,7 +169,7 @@ func TestCandidateDefaultObservations(t *testing.T) {
 func TestCandidateRetainedState(t *testing.T) {
 	base, ns, rel := catalogReadFixture()
 	base.operatorNames = &OperatorNameIndex{Buckets: map[OperatorNameKey][]ids.ObjectAddress{}}
-	base.procedureNames = &ProcedureNameIndex{Buckets: map[ProcedureNameKey][]ids.ObjectAddress{}, SQLNames: map[string]int{}}
+	base.procedureNames = &ProcedureNameIndex{Buckets: map[ProcedureNameKey][]ids.ObjectAddress{}, DynamicNames: map[string]int{}}
 	rel.Index = map[string]int{"id": 0}
 	key, untouched := DefaultACLKey{Schema: ns.Address()}, DefaultACLKey{}
 	original, shared := &DefaultACLRecord{OID: 10}, &DefaultACLRecord{OID: 11}

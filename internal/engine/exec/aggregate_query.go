@@ -81,8 +81,10 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	orderedWidth := 0
 	hasDistinct := false
 	directWidth := 0
+	argumentWidth := 0
 	for _, call := range n.Calls {
 		hasDistinct = hasDistinct || len(call.Distinct) > 0
+		argumentWidth = max(argumentWidth, len(call.Arguments))
 		if len(call.Direct) > directWidth {
 			directWidth = len(call.Direct)
 		}
@@ -91,6 +93,8 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 		}
 	}
 	tuple := make([]sqltype.Value, orderedWidth)
+	arguments := make([]sqltype.Value, argumentWidth)
+	distinctTuple := make([]sqltype.Value, argumentWidth)
 	// Reserved ordinary payload slots keep the hypothetical target in the
 	// same layout as retained input tuples. Reused only after finalization.
 	var directLocal [2]sqltype.Value
@@ -132,7 +136,9 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 		}
 		for i, call := range n.Calls {
 			var err error
-			if provider, ok := call.Provider.(functions.ContextualAggregateProvider); ok {
+			if provider, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
+				group.states[i], err = provider.InitWithContext(ctx, &evaluation)
+			} else if provider, ok := call.Provider.(functions.ContextualAggregateProvider); ok {
 				group.states[i], err = provider.InitWithEnvironment(ctx, output)
 			} else {
 				group.states[i], err = call.Provider.Init(ctx)
@@ -230,29 +236,18 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 					continue
 				}
 			}
-			var value sqltype.Value
-			if call.Argument != nil {
-				var err error
-				value, err = call.Argument.Eval(&evaluation)
+			values := arguments[:len(call.Arguments)]
+			for j, argument := range call.Arguments {
+				values[j], err = argument.Eval(&evaluation)
 				if err != nil {
 					return Stage{}, err
 				}
-				if err := ctx.Err(); err != nil {
-					return Stage{}, err
-				}
-			}
-			var separator sqltype.Value
-			if call.Separator != nil {
-				separator, err = call.Separator.Eval(&evaluation)
-				if err != nil {
-					return Stage{}, err
-				}
-				if err := ctx.Err(); err != nil {
+				if err = ctx.Err(); err != nil {
 					return Stage{}, err
 				}
 			}
 			if len(call.Order) > 0 {
-				tuple[0], tuple[1] = value, separator
+				copy(tuple, values)
 				for _, key := range call.Order {
 					if key.Slot < 0 {
 						tuple[key.Cache], err = key.Expression.Eval(&evaluation)
@@ -273,8 +268,8 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 					return Stage{}, err
 				}
 				if len(call.Distinct) > 0 {
-					scratch := [2]sqltype.Value{value, separator}
-					admit, err := groups[index].distinct[p].Admit(ctx, call.Distinct, scratch[:len(call.Distinct)])
+					copy(distinctTuple, values)
+					admit, err := groups[index].distinct[p].Admit(ctx, call.Distinct, distinctTuple[:len(call.Distinct)])
 					if err != nil {
 						return Stage{}, err
 					}
@@ -283,15 +278,15 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 					}
 				}
 				if len(call.Order) > 0 {
-					if call.Argument == nil || !value.IsNull() || call.IncludeNulls {
+					if len(values) == 0 || !values[0].IsNull() || call.IncludeNulls {
 						groups[index].ordered[p] = append(groups[index].ordered[p], tuple[:call.StageWidth]...)
 					}
 					continue
 				}
-				if call.Argument != nil && value.IsNull() && !call.IncludeNulls {
+				if len(values) > 0 && values[0].IsNull() && !call.IncludeNulls {
 					continue
 				}
-				if err := call.Provider.Advance(ctx, groups[index].states[p], value, separator); err != nil {
+				if err := call.Provider.Advance(ctx, groups[index].states[p], values, &evaluation); err != nil {
 					return Stage{}, err
 				}
 				if err := ctx.Err(); err != nil {
@@ -464,11 +459,12 @@ func replayOrderedAggregate(ctx context.Context, state *State, call plan.Aggrega
 		return err
 	}
 	width := input.Width
+	evaluation := state.Evaluation(ctx)
 	for _, index := range input.Indices {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := call.Provider.Advance(ctx, aggregateState, tuples[index*width], tuples[index*width+1]); err != nil {
+		if err := call.Provider.Advance(ctx, aggregateState, tuples[index*width:index*width+len(call.Arguments)], &evaluation); err != nil {
 			return err
 		}
 	}

@@ -116,10 +116,10 @@ func TestJSONArrayAggregateProviderRemap(t *testing.T) {
 		}
 		old, _ := sqltype.Integer(input, 1)
 		next, _ := sqltype.Integer(newInput, 1)
-		if err = call.Provider.Advance(ctx, state, old, sqltype.Value{}); err == nil {
+		if err = call.Provider.Advance(ctx, state, []sqltype.Value{old, sqltype.Value{}}, nil); err == nil {
 			t.Fatal("old owner accepted")
 		}
-		if err = call.Provider.Advance(ctx, state, next, sqltype.Value{}); err != nil {
+		if err = call.Provider.Advance(ctx, state, []sqltype.Value{next, sqltype.Value{}}, nil); err != nil {
 			t.Fatal("remapped plan not rebound", err)
 		}
 		value, err := call.Provider.Finalize(ctx, state)
@@ -147,8 +147,8 @@ func TestJSONArrayAggregateRunnerNullPresence(t *testing.T) {
 			qtext += " FROM t"
 			_, q, source := queryCoreFixture(t, qtext)
 			node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
-			usage := node.Calls[0].Argument.ResultUsage()
-			node.Calls[0].Argument = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
+			usage := node.Calls[0].Arguments[0].ResultUsage()
+			node.Calls[0].Arguments[0] = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 				if rejected {
 					t.Fatal("FILTER evaluated rejected argument")
 				}
@@ -190,7 +190,7 @@ func TestJSONArrayAggregateReachedEagerCancellation(t *testing.T) {
 		input, _ := e.CatalogRead().LookupType(sqltype.Text)
 		result := node.Calls[0].Provider.ResultUsage()
 		node.Calls[0].Provider = jsonArrayProviderUnit(t, input.Usage(), result, false)
-		node.Calls[0].Argument = queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
+		node.Calls[0].Arguments[0] = queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
 		rows, n, err := exec.Finalize(probe, q.Root, source, nil)

@@ -46,3 +46,38 @@ func TestCommonTypeCandidate(t *testing.T) {
 		}
 	}
 }
+
+func TestSelectCommonUsage(t *testing.T) {
+	types := testTypes()
+	domain, err := Domain(92000, "common_domain", "common_domain", types[Int4].Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	modified := types[VarChar].Usage()
+	modified.Typmod = 7
+	for _, tc := range []struct {
+		name   string
+		inputs []Usage
+		want   Usage
+	}{
+		{"empty", nil, types[Text].Usage()},
+		{"unknown", []Usage{{}, {}}, types[Text].Usage()},
+		{"numeric", []Usage{types[Int4].Usage(), types[Int8].Usage()}, types[Int8].Usage()},
+		{"same_domain", []Usage{domain.Usage(), domain.Usage()}, domain.Usage()},
+		{"domain_base", []Usage{domain.Usage(), types[Int4].Usage()}, types[Int4].Usage()},
+		{"same_modifier", []Usage{modified, modified}, modified},
+		{"unknown_modifier", []Usage{modified, {}}, types[VarChar].Usage()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, mismatch := SelectCommonUsage(len(tc.inputs), func(i int) Usage { return tc.inputs[i] }, types[Text].Usage())
+			if mismatch.Left != nil || got != tc.want {
+				t.Fatalf("common=%v/%v want=%v", got, mismatch, tc.want)
+			}
+		})
+	}
+	inputs := []Usage{types[Int4].Usage(), types[Int8].Usage(), types[Bool].Usage()}
+	got, mismatch := SelectCommonUsage(len(inputs), func(i int) Usage { return inputs[i] }, types[Text].Usage())
+	if got != (Usage{}) || mismatch.Left == nil || mismatch.Index != 2 || mismatch.Left != types[Int8] || mismatch.Right != types[Bool] {
+		t.Fatalf("lost diagnostic evidence: %v/%v", got, mismatch)
+	}
+}

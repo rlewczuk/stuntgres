@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,7 +20,8 @@ func (p JSONArrayAggregateProvider) Init(ctx context.Context) (any, error) {
 func (p JSONArrayAggregateProvider) InitWithEnvironment(ctx context.Context, env sqltype.OutputEnvironment) (any, error) {
 	return p.plan.Init(ctx, env)
 }
-func (p JSONArrayAggregateProvider) Advance(ctx context.Context, state any, v, _ sqltype.Value) error {
+func (p JSONArrayAggregateProvider) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	v := values[0]
 	s, ok := state.(*sqltype.JSONArrayAggregateState)
 	if !ok {
 		return fmt.Errorf("stuntgres: invalid JSON aggregate state")

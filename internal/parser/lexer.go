@@ -1184,6 +1184,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = BOTH
 			}
 		}
+	case "aggregate":
+		if token.lexeme.keyword != nil && l.previousToken == CREATE {
+			l.operatorDDL = true
+		}
 	case "operator":
 		if token.lexeme.keyword != nil {
 			next := l.nextRaw()

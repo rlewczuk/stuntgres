@@ -13,7 +13,7 @@ var errDefinitionOIDFound = errors.New("definition OID found")
 func DefinitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 	d, relation := descriptor.(*Relation)
 	if !relation {
-		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil && proc.Implementation != nil {
 			for _, helper := range proc.Aggregate.Helpers {
 				if helper.ID == id {
 					return true
@@ -91,7 +91,7 @@ func DefinitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 func ReserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 	d, relation := descriptor.(*Relation)
 	if !relation {
-		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil && proc.Implementation != nil {
 			for _, helper := range proc.Aggregate.Helpers {
 				reserved[helper.ID] = true
 			}
@@ -156,7 +156,7 @@ func ValidateDefinitionOIDs(view Read) error {
 		return nil
 	}
 	for _, descriptor := range view.Descriptors() {
-		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil && proc.Implementation != nil {
 			for _, helper := range proc.Aggregate.Helpers {
 				if err := claim(helper.ID); err != nil {
 					return err

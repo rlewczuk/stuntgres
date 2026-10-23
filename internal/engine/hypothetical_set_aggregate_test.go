@@ -181,7 +181,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 				t.Fatal(err)
 			}
 			call := b.Grouping.Aggregates[node.(plan.AggregateExpr).Slot]
-			if len(call.Direct) != 49 || len(call.Order) != 49 || call.StageWidth != 51 || call.Argument != nil || !call.IncludeNulls {
+			if len(call.Direct) != 49 || len(call.Order) != 49 || call.StageWidth != 51 || len(call.Arguments) != 0 || !call.IncludeNulls {
 				t.Fatal("full tuple layout", call)
 			}
 			for i, key := range call.Order {

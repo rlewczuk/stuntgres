@@ -33,13 +33,13 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 			}
 			_, q, source := queryCoreFixture(t, qtext)
 			node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
-			usage := node.Calls[0].Argument.ResultUsage()
+			usage := node.Calls[0].Arguments[0].ResultUsage()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			calls, advances, finalizations := 0, 0, 0
 			sentinel := errors.New("late any_value argument")
 			first, _ := sqltype.Integer(usage.Type, 41)
-			node.Calls[0].Argument = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+			node.Calls[0].Arguments[0] = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "argument" {
 					cancel()
@@ -61,7 +61,7 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 				if v.IsNull() || v.Type() != usage.Type {
 					t.Fatal("transition datum contract", v)
 				}
-				err := original.Advance(ctx, state, v, separator)
+				err := original.Advance(ctx, state, []sqltype.Value{v, separator}, nil)
 				if phase == "advance" {
 					cancel()
 				}
@@ -114,12 +114,12 @@ func TestAnyValueResultUsage(t *testing.T) {
 		if err != nil {
 			t.Fatal(q, err)
 		}
-		argument := b.Grouping.Aggregates[0].Argument.ResultUsage()
+		argument := b.Grouping.Aggregates[0].Arguments[0].ResultUsage()
 		usage := result.ResultUsage()
 		if usage.Type != argument.Type || usage.Typmod != -1 || usage.Collation != argument.Collation || !result.Properties().StageDependent {
 			t.Fatal("result descriptor/typmod/collation", usage, argument, result.Properties())
 		}
-		input := b.Grouping.Aggregates[0].Argument
+		input := b.Grouping.Aggregates[0].Arguments[0]
 		if result.CollationIndeterminate() != input.CollationIndeterminate() || result.ExplicitCollation() != input.ExplicitCollation() {
 			t.Fatal("lost operand collation provenance", result, input)
 		}

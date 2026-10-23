@@ -78,10 +78,10 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 		}
 		keyValue := sqltype.String(q.KeyUsage().Type, "a")
 		value := sqltype.Null(q.InputUsage().Type)
-		if err = q.Advance(ctx, state, keyValue, value); err != nil {
+		if err = q.Advance(ctx, state, []sqltype.Value{keyValue, value}, nil); err != nil {
 			t.Fatal(err)
 		}
-		err = q.Advance(ctx, state, keyValue, value)
+		err = q.Advance(ctx, state, []sqltype.Value{keyValue, value}, nil)
 		if id == sqltype.JSON {
 			if err == nil {
 				t.Fatal("remap lost transition uniqueness")

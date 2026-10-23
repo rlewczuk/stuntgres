@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -24,7 +25,8 @@ func (p IntegralBitwiseAggregateProvider) Init(ctx context.Context) (any, error)
 	}
 	return &integralBitwiseAggregateState{value: sqltype.Null(p.usage.Type)}, nil
 }
-func (p IntegralBitwiseAggregateProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p IntegralBitwiseAggregateProvider) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -74,7 +76,8 @@ func (p BitStringAggregateProvider) Init(ctx context.Context) (any, error) {
 	}
 	return &bitStringAggregateState{}, nil
 }
-func (p BitStringAggregateProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p BitStringAggregateProvider) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
 	}

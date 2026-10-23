@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Definition registers one builtin family with the engine's function
@@ -36,7 +37,10 @@ type Definition struct {
 	// ProbeCall is pure family-owned applicability for pseudo signatures.
 	// It shares the provider's target-selection helpers; it never calls Bind.
 	ProbeCall CallShape
-	NamedCall NamedCallShape
+	// ResultCall resolves a selected pseudo return through the family's existing
+	// pure type rule. Targets have already passed ProbeCall; no provider runs.
+	ResultCall func(CallTypeContext, parser.FunctionExpr, []sqltype.Usage) (sqltype.Usage, bool)
+	NamedCall  NamedCallShape
 }
 
 // The static table is the registry: no init() registration. Names must not
@@ -63,17 +67,17 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_tablespace_location", "pg_tablespace_databases"}, Bind: bindTablespaceInfo},
 	{Names: []string{"pg_partition_tree", "pg_partition_ancestors", "pg_partition_root"}, Bind: bindPartitionInfo, NamedCall: namedPartitionInfo},
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
-	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall, ProbeCall: probeJSONCall, NamedCall: namedJSONCall},
+	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall, ProbeCall: probeJSONCall, ResultCall: jsonRecordCallResult, NamedCall: namedJSONCall},
 	{Names: mathNames[:], ExactSpelling: true, SharedGates: true, Bind: bindMath, ProbeCall: probeThresholdBucket},
 	{Names: []string{"uuidv4"}, ExactSpelling: true, SharedGates: true, Bind: bindUUIDGeneration},
 	{Names: []string{"uuidv7"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindUUIDGeneration, NamedCall: namedUUIDGeneration},
 	{Names: []string{"format"}, SharedGates: true, Bind: bindFormat, ProbeCall: probeFormat},
 	{Names: []string{"uuid_generate_v4", "uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500", "uuid_generate_v1", "uuid_generate_v1mc", "uuid_generate_v3", "uuid_generate_v5"}, Bind: bindUUIDOssp},
 	{Names: arrayInspectNames[:], Bind: bindArrayInspect, ProbeCall: probeArrayInput},
-	{Names: arrayRandomNames[:], Bind: bindArrayRandom, ProbeCall: probeArrayInput},
-	{Names: arrayTransformNames[:], Bind: bindArrayTransform, ProbeCall: probeArrayTransform, NamedCall: namedArrayTransform},
-	{Names: arraySearchNames[:], Bind: bindArraySearch, ProbeCall: probeArraySearch},
-	{Names: rangeInspectNames[:], Bind: bindRangeInspect, ProbeCall: probeRangeInspect},
+	{Names: arrayRandomNames[:], Bind: bindArrayRandom, ProbeCall: probeArrayInput, ResultCall: arrayInputCallResult},
+	{Names: arrayTransformNames[:], Bind: bindArrayTransform, ProbeCall: probeArrayTransform, ResultCall: arrayTransformCallResult, NamedCall: namedArrayTransform},
+	{Names: arraySearchNames[:], Bind: bindArraySearch, ProbeCall: probeArraySearch, ResultCall: arraySearchCallResult},
+	{Names: rangeInspectNames[:], Bind: bindRangeInspect, ProbeCall: probeRangeInspect, ResultCall: rangeInspectCallResult},
 	{Names: textObjectNames[:], ExactSpelling: true, SharedGates: true, Bind: bindTextObject},
 	{Names: datetimeNames[:], ExactSpelling: true, SharedGates: true, Bind: bindDatetime},
 	{Names: datetimeMakeNames[:], ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindDatetime, NamedCall: namedDatetimeMake},
@@ -84,7 +88,7 @@ var definitions = [...]Definition{
 	{Names: []string{"string_to_table"}, ExactSpelling: true, SharedGates: true, Bind: bindStringToTable},
 	{Names: stringVariadicNames[:], Claims: StringVariadicFunctionName, Bind: bindStringVariadic, ProbeCall: probeStringVariadic},
 	{Names: []string{"parse_ident"}, Bind: bindParseIdent, NamedCall: namedStringIdent},
-	{Names: []string{"lower", "upper"}, Bind: bindLowerUpper, ProbeCall: probeRangeInspect},
+	{Names: []string{"lower", "upper"}, Bind: bindLowerUpper, ProbeCall: probeRangeInspect, ResultCall: rangeInspectCallResult},
 	{Names: binaryNames[:], ExactSpelling: true, SharedGates: true, Bind: bindBinary},
 	{Names: []string{"random", "random_normal", "setseed"}, ExactSpelling: true, SharedGates: true, Bind: bindRandom},
 	{Names: []string{"pg_sleep", "pg_sleep_for", "pg_sleep_until"}, ExactSpelling: true, SharedGates: true, Bind: bindDatetimeSleep},

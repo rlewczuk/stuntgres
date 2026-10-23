@@ -306,6 +306,49 @@ moved them to `view` (`ValidateQueryJoinExecution`,
 
 ## Testing
 
+Owned ordinary aggregate binding retains one ordered argument vector and the
+actual aggregate/support/type identities. `SelectAggregateSupport` reuses
+existing overload ranking with exact declared shape (no default omission or
+variadic expansion), then validates binary compatibility. Pure callable-family
+result inference is shared with detached declaration validation, not duplicated
+as a polymorphic type table or connected through analyzer callbacks.
+
+Owned aggregates fold ordinary-argument collation with existing `CollatedInfo`
+even for an uncollatable result; FILTER and ordering-only expressions remain
+separate.
+The fold starts from an actual ordinary ResultUsage, including default100, not
+the state or a descriptor default. With no collatable ordinary input the exact
+state/result type retains its declared collation, but effective input is zero.
+Full explicit/indeterminate provenance reaches collatable result and builtin
+private parameters. Closed quoted SQL support uses only normalized
+implicit input-collation annotation, with existing declaration slot/type
+ownership. Ordinary scalar and frozen SQL-standard parameter paths stay
+unchanged. `TestCreateAggregateCollationBinding` inspects these private contracts,
+exact usage remap and source immutability; selected Collation/SQLCollation own
+the independent public outcomes.
+
+Builtin aggregate aliases may share immutable-operation state, but every
+distinct written routine remains in the shared call's immutable authority list.
+Both local and outer-owner dedup merge those references; whole-query semantic
+equality still compares exact authority, and stored remap owns a fresh list.
+The existing admission frontier checks primary and aliases with their original
+manifest, including empty input and excluding the existing PresenceOnly path.
+Descriptor-backed owned aggregates retain exact identity rather than adopting
+builtin alias sharing. Public selected Authorization covers independent alias
+revokes/regrant, held/prepared and stored consumers; private Boolean/statistical
+slot counts remain unchanged.
+
+Frozen syntax uses one canonical occurrence key for every writer and lookup:
+postfix casts key on their own `::` position rather than the operand position.
+This keeps explicit outer casts distinct while retaining intentional quantified
+constructor normalization. Private seam proof and the full public/affected
+selection are documented in
+[reference/aggregates](../../../reference/aggregates/README.md#create-aggregate-contract):
+
+```sh
+make check RUN='^TestCreateAggregateStoredSyntaxCastOwnership$'
+```
+
 Catalog-first shared operator diagnostics retain the existing public array
 type/visibility expectations and FTS diagnostic fields. Root selects both modes:
 

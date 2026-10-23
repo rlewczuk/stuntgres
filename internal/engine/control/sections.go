@@ -45,7 +45,7 @@ var dumpSections = [...]dumpSection{
 }
 
 func emitDumpRoutineDirective(_ context.Context, s *dumpScript, w *dumpWriter) error {
-	if len(s.SQLRoutines) == 0 {
+	if len(s.OwnedRoutines) == 0 {
 		return nil
 	}
 	return w.emit(routine.RestoreDirective + "\n")

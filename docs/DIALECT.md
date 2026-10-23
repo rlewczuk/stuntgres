@@ -467,6 +467,39 @@ ordinary recipes, and a stored rule action may itself perform a grouped UPDATE.
 Native dumps persist live resulting rows and stored grouped rule definitions,
 not assignment history or execution scratch. See [selected contracts](../reference/dml/README.md#row-valued-update-assignments).
 
+## User-defined ordinary aggregates
+
+The selected `CREATE AGGREGATE` surface is `SFUNC`, `STYPE`, optional `INITCOND`
+and optional `SSPACE`, for ordinary fixed zero/N concrete inputs. Existing
+callable polymorphic support routines may specialize to a concrete state and
+input signature; the aggregate declaration itself is not polymorphic. Support
+selection uses real overload ranking with an exact declared shape, no omitted
+defaults or variadic expansion, and binary-compatible transition/result checks.
+The state is the result: no final, combine, serialize/deserialize, moving or
+inverse helpers, ordered/hypothetical declarations, parallel aggregation,
+variadic/defaulted aggregate declarations or `CREATE OR REPLACE AGGREGATE` are
+added. Existing SQL-function attributes are not expanded by this feature.
+
+Ordinary-input collation and collatable result metadata use existing derivation
+rules, excluding ordering-only and FILTER expressions.
+The state/result collation is a fallback only without a collatable ordinary
+input; a domain's declared collation does not compete with POSIX/default inputs.
+Quoted aggregate SQL support receives effective input collation implicitly, with collation-sensitive
+description validity; frozen SQL-standard bodies remain creation-analyzed.
+This selected support annotation does not expand generic scalar SQL-function
+collation behavior or add another collation provider.
+
+Strict and non-strict execution, original extracted seed text, signed int32
+estimates and the single syntax example are documented in the
+[execution contract](QUERIES.md#user-defined-ordinary-aggregates). Actual procedure,
+aggregate and dependency identities participate in metadata, authorization and
+native replay. Support EXECUTE is checked as aggregate owner without changing the
+SQL body's ordinary invocation authority. Native default-ACL owner replay requires
+roles to exist in the receiving environment. Explicit aggregate or SQL-routine
+ACLs remain unsupported by Dump, which rejects them before output rather than
+silently dropping permissions. This does not add prerequisite SQL-routine ACL
+serialization. See [selected proof](../reference/aggregates/README.md#create-aggregate-contract).
+
 ## Scalar SQL routines
 
 SQL-language `CREATE FUNCTION` accepts named/anonymous IN, OUT, INOUT and
@@ -3950,7 +3983,7 @@ moving/final/parallel helper identities, modification modes, state types/sizes,
 sort operators and seeds. Such metadata does not add execution of those helpers,
 moving/parallel aggregation or new aggregate input types.
 
-Native inventory is exactly144 already implemented builtin signatures across
+Builtin inventory contains exactly144 already implemented signatures across
 count, average/sum/extrema, Boolean/bitwise, array/string/range/JSON, statistics,
 regression, ordered-set and hypothetical-set families. Polymorphic declarations
 contribute one row each, not one per concrete invocation type. Unsupported
@@ -3966,6 +3999,11 @@ serialization declarations. Those helpers are distinct from builtin array
 kernels; the enum is not an aggregate. Off-path/quoted namespaces affect symbolic
 spelling, not metadata visibility or permission to execute helpers.
 Actual intagg `pg_proc`, qualified routine aliases and `aggfnoid` share identity.
+
+`CREATE AGGREGATE` adds its actual owned ordinary definition, with the same
+`pg_proc`/`aggfnoid` identity, real transition routine, concrete state type,
+original extracted seed text and int32 space estimate. Unused optional helpers
+remain routine0; no callable helper descriptor is invented for a catalog join.
 
 Ordinary-role INSERT/UPDATE/DELETE and existing MERGE/writable-CTE routes fail
 with42501 `permission denied for table pg_aggregate`; TRUNCATE has42501

@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -13,7 +14,8 @@ type RangeAggregateProvider struct {
 
 func (p RangeAggregateProvider) ResultUsage() sqltype.Usage            { return p.usage }
 func (p RangeAggregateProvider) Init(ctx context.Context) (any, error) { return p.bound.Init(ctx) }
-func (p RangeAggregateProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p RangeAggregateProvider) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
 	s, _ := state.(*sqltype.RangeAggregateState)
 	return p.bound.Advance(ctx, s, value)
 }

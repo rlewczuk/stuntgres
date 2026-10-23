@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,7 +28,9 @@ func (p StringAggregateProvider) Init(ctx context.Context) (any, error) {
 	}
 	return &stringAggregateState{typ: p.usage.Type}, nil
 }
-func (p StringAggregateProvider) Advance(ctx context.Context, state any, value, separator sqltype.Value) error {
+func (p StringAggregateProvider) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
+	separator := values[1]
 	if err := ctx.Err(); err != nil {
 		return err
 	}

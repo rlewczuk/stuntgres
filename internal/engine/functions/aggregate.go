@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -17,7 +18,7 @@ func (p CountProvider) Init(ctx context.Context) (any, error) {
 	}
 	return &countState{}, nil
 }
-func (p CountProvider) Advance(ctx context.Context, state any, _, _ sqltype.Value) error {
+func (p CountProvider) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

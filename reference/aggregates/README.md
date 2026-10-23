@@ -6,6 +6,187 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### CREATE AGGREGATE contract
+
+The canonical syntax and semantics live in
+[QUERIES](../../docs/QUERIES.md#user-defined-ordinary-aggregates); exclusions and
+explicit-ACL Dump rejection live in
+[DIALECT](../../docs/DIALECT.md#user-defined-ordinary-aggregates).
+
+The 21 public definitions are independent dual-mode scenarios, not expectations
+derived from native output. Their suffixes and responsibilities are:
+
+| Definitions after `TestReferenceCreateAggregate` | Required observations |
+|---|---|
+| `Creation`, `Values`, `Strictness`, `Arguments` | Actual declaration/seed/estimate, typed empty and NULL states, non-strict calls, strict first-row seeding, fixed zero/N ordered inputs and prepared calls. |
+| `Diagnostics`, `Metadata`, `Consumers`, `Dependencies`, `SupportSelection` | Complete portable diagnostic records, real catalog identities/dependencies, stored consumers, precise overload shape/ranking and binary-only validation. |
+| `Authorization`, `Cancellation`, `Atomicity` | Creator, aggregate caller and support owner are separate actors; body authority is not impersonated; admitted work cancels and failed publication/body effects do not leak. |
+| `Persistence`, `TemporaryRemap`, `FeatureSmoke` | Actual emitted SQL replay, default-ACL owner and enum/array specialization, truthful explicit-ACL rejection, two native Restores and retained TEMP identity under genuine allocator collisions. |
+| `InitialConditionNodes`, `PolymorphicSupport`, `KeywordNames` | Original extracted seed text across 21 grammar-node cases; real array_append specialization including empty/NULL input; AGGREGATE remains an unreserved ordinary identifier. |
+| `Collation`, `SQLCollation` | Actual C/POSIX stored metadata, full explicit-conflict/implicit-indeterminacy diagnostics, ordinary-only derivation and two actual native Restores; quoted runtime input inheritance/cache alternation, implicit function boundary, frozen-body and no-transition controls. |
+| `DomainCollation` | C-collated domain STYPE does not compete with ordinary POSIX/default inputs; five actual view collations and exact domain identities, populated/empty/held values and two native Restores; zero/integer-only inputs retain C result fallback without an effective input collation. |
+
+Run these focused groups in both modes. `REFERENCE=1` uses the shared pinned
+PostgreSQL18.6 fixture; no discovery-only backend filters remain:
+
+```sh
+make check RUN='^TestReferenceCreateAggregate(InitialConditionNodes|PolymorphicSupport|KeywordNames)$'
+make check RUN='^TestReferenceCreateAggregate(InitialConditionNodes|PolymorphicSupport|KeywordNames)$' REFERENCE=1
+make check RUN='^TestReferenceCreateAggregate(Creation|Values|Strictness|Arguments)$'
+make check RUN='^TestReferenceCreateAggregate(Creation|Values|Strictness|Arguments)$' REFERENCE=1
+make check RUN='^TestReferenceCreateAggregate(Diagnostics|Metadata|Consumers|Dependencies|SupportSelection)$'
+make check RUN='^TestReferenceCreateAggregate(Diagnostics|Metadata|Consumers|Dependencies|SupportSelection)$' REFERENCE=1
+make check RUN='^TestReferenceCreateAggregate(Authorization|Cancellation|Atomicity)$'
+make check RUN='^TestReferenceCreateAggregate(Authorization|Cancellation|Atomicity)$' REFERENCE=1
+make check RUN='^TestReferenceCreateAggregate(Persistence|TemporaryRemap|FeatureSmoke)$'
+make check RUN='^TestReferenceCreateAggregate(Persistence|TemporaryRemap|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceCreateAggregate(Collation|SQLCollation|DomainCollation)$'
+make check RUN='^TestReferenceCreateAggregate(Collation|SQLCollation|DomainCollation)$' REFERENCE=1
+```
+
+Persistence replays unchanged native-emitted bytes on PostgreSQL and twice on
+native Restore, rather than recreating an equivalent handwritten definition.
+Nonbootstrap owners are supplied by the existing role fixture and must already
+exist in a fresh consumer environment; PostgreSQL session authorization is reset
+after replay. Explicit aggregate and SQL-routine ACL Dump rejection is asserted
+before writer I/O, with the original state still usable. Authorization coverage
+is independent SQL coverage and is not narrowed to what Dump can serialize.
+The seven lifecycle checks keep identical rows/fields and direct/prepared
+coverage, but select the owning procedure in a filtered derived source before
+catalog joins. This avoids repeatedly joining complete procedure inventories;
+actual aggregate/support OID edges, all same-named candidates and owner/state/
+result comparisons remain asserted. No DISTINCT/LIMIT, fixture deadline
+increase or join-optimizer dependency is used.
+TemporaryRemap records the actual retained namespace/sequence ownership and both
+candidate numeric collisions, then asserts their exact identities after each
+Restore alongside actual imported support/type relationships and query results.
+InitialConditionNodes similarly drives its unchanged seed metadata/OID join
+from the filtered owning procedure for every one of its 21 direct/prepared
+cases; no grammar-node case or fixture deadline is removed or relaxed.
+
+Authorization also exercises the existing Boolean and statistical aliases:
+shared-expression outputs remain equal while all six written routine identities
+retain independent EXECUTE checks. Each primary/alias revoke denies direct,
+fresh prepared, same held, empty-input and reader-owned stored-view calls; the
+permitted counterpart remains callable and regrant recovers. Builtin ACL cleanup
+restores PUBLIC and removes the fixture role's explicit grants.
+
+Builtin computation aliases share state, not authority. The immutable shared
+call retains additional distinct written references, including outer-owner
+dedup; admission uses the original dependency manifest at the existing
+non-PresenceOnly frontier. Stored remap maps an independent alias slice, and
+whole-query equality keeps exact authority even when computation-slot equality
+permits builtin aliases. Owned aggregate identity remains exact.
+
+```sh
+make check RUN='^(TestBooleanAggregateSlotsAndMetadata|TestStatisticalAggregateSlotsAndMetadata|TestBitwiseAggregateIntegralProvider|TestSumIntegralTransitions)$'
+make check RUN='^TestReferenceStatisticalAggregate(Binding|Coercion|ArgumentEvaluation|Lifecycle|Smoke)$'
+make check RUN='^TestReferenceStatisticalAggregate(Binding|Coercion|ArgumentEvaluation|Lifecycle|Smoke)$' REFERENCE=1
+```
+
+The allocation units keep their zero-allocation ceiling: typed caller-owned
+argument scratch, like boxed state and datum construction, is prepared before
+the measured transition rather than allocated inside its interface call.
+
+
+Thirteen private definitions cover structural or unreachable paths without moving
+public SQL-only behavior out of this suite:
+
+- `TestCreateAggregatePublicationCancellation`
+- `TestCreateAggregatePayloadDeclarationFence`
+- `TestCreateAggregateSupportActorPhases`
+- `TestCreateAggregateDetachedPolymorphicSupport`
+- `TestCreateAggregateStrictReturnedNullDoesNotReseed`
+- `TestCreateAggregateNonstrictNullArgumentsAndState`
+- `TestCreateAggregateTransitionCancellation`
+- `TestCreateAggregateFrozenRecipeAuthority`
+- `TestCreateAggregateStoredSyntaxCastOwnership`
+- `TestCreateAggregateTransitionFrameRemap`
+- `TestCreateAggregateTransitionCallIdentity`
+- `TestSelectCommonUsage`
+- `TestCreateAggregateCollationBinding`
+
+The returned-NULL strict unit requires a later non-NULL input not to reseed.
+The frame-remap unit validates exact source and already-mapped destination formal
+usages, immutable source trees and rejection of ordinary public parameters. The
+call-identity unit separately rejects a substituted support address/signature or
+result; detached validation rechecks the real destination specialization. Frozen
+recipe and syntax-key units retain actual reference/dependency authority, original
+arguments and explicit cast ownership rather than bypassing stored validation.
+
+CollationBinding inspects the actual builtin private ParameterExpr Infos and
+formal/result usages, including explicitness, implicit conflict origins, an
+uncollatable state and zero-input fallback. Existing remapping preserves those
+full usages and source immutability; a same-type/different-collation forged frame
+must fail rather than pass a weakened type-only check. Closed quoted SQL formals
+inherit only implicit effective collation, while ordinary/frozen controls retain
+their existing parameter contracts.
+The domain-state cases keep exact domain identity while POSIX951/default100
+drive result, input and collatable private formals. Zero/integer-only cases
+retain C950 result/state-formal fallback with input zero. Actual quoted formal
+binding, source immutability and same-type foreign-collation rejection are checked
+for these SQL support providers, not just the builtin TEXT provider.
+
+Collation, SQLCollation and DomainCollation were independently discovered on
+pinned PostgreSQL before their native RED and production remedies. All discovery filters are
+removed. Recheck affected incumbent derivation seams in both modes:
+
+```sh
+make check RUN='^TestCreateAggregateCollationBinding$'
+make check RUN='^TestReferenceCreateAggregate(Collation|SQLCollation|DomainCollation)$' RACE=1
+make check RUN='^TestReference(StringAggDiagnostics|ExtremaViewCollation|AggregateModifiersDistinctCollation)$'
+make check RUN='^TestReference(StringAggDiagnostics|ExtremaViewCollation|AggregateModifiersDistinctCollation)$' REFERENCE=1
+make check RUN='^(TestArrayAggregateBinding|TestArrayAggregateDomainBinding|TestAnyValueResultUsage|TestExprCollationDomainDerivation)$'
+```
+
+```sh
+make check RUN='^(TestCreateAggregate|TestSelectCommonUsage)'
+make check RUN='^(TestAnyValueSlotsAndMetadata|TestGroupingSetsOncePerSourceModifiers|TestAvgProviders|TestAvgProviderCancellation|TestDefinitionsAreWellFormed)$'
+make check RUN='^(TestRoutineFormalRemapBoundary|TestCommonTypeCandidate|TestArrayCompareCommonType|TestArrayExpressionCommonTypeAndExplicitTarget|TestInsertSelectCommonTypes)$'
+make check RUN='^(TestCreateAggregate.*|TestSelectCommonUsage|TestReferenceCreateAggregate(Cancellation|Atomicity|Persistence|TemporaryRemap))$' RACE=1
+```
+
+The clean cutover to one ordered ordinary-argument vector affects incumbent
+providers and callers. Pure family result inference and canonical stored syntax
+keys also retain their existing consumers. Select the following bounded groups
+in both modes; these are regression selections, not claims of passing runs:
+
+```sh
+make check RUN='^TestReferenceAggregateModifiers(Values|TupleDistinct|Ordering|MatchingCoercions|FilterDemand|Lifecycle)$'
+make check RUN='^TestReferenceAggregateModifiers(Values|TupleDistinct|Ordering|MatchingCoercions|FilterDemand|Lifecycle)$' REFERENCE=1
+make check RUN='^TestReference(GroupingSets(Consumers|Atomicity|Cancellation)|AnyValue(Prepared|Views|Metadata)|StatisticalAggregateSmoke)$'
+make check RUN='^TestReference(GroupingSets(Consumers|Atomicity|Cancellation)|AnyValue(Prepared|Views|Metadata)|StatisticalAggregateSmoke)$' REFERENCE=1
+make check RUN='^TestReference(JSONObjectAggregateControls|JSONObjectUniqueAggregateControls|OrderedSetAggregateFeatureSmoke|HypotheticalAggregateFeatureSmoke)$'
+make check RUN='^TestReference(JSONObjectAggregateControls|JSONObjectUniqueAggregateControls|OrderedSetAggregateFeatureSmoke|HypotheticalAggregateFeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReference(Intagg(Controls|FeatureSmoke|TemporaryControls)|PGAggregateIntaggIdentity)$'
+make check RUN='^TestReference(Intagg(Controls|FeatureSmoke|TemporaryControls)|PGAggregateIntaggIdentity)$' REFERENCE=1
+make check RUN='^TestReferenceRoutine(CoreCreationAndCalls|CorePersistence|SQLBodiesPersistence|SQLBodiesNestedPersistence)$'
+make check RUN='^TestReferenceRoutine(CoreCreationAndCalls|CorePersistence|SQLBodiesPersistence|SQLBodiesNestedPersistence)$' REFERENCE=1
+make check RUN='^TestReferenceArrayTransform(Concat|Typing|Fill|FirstAxis|Sort|Serialization|StoredReplay|FeatureSmoke)$'
+make check RUN='^TestReferenceArrayTransform(Concat|Typing|Fill|FirstAxis|Sort|Serialization|StoredReplay|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceArraySearch(Values|TypesAndFrames|FeatureSmoke|StoredConsumers)$'
+make check RUN='^TestReferenceArraySearch(Values|TypesAndFrames|FeatureSmoke|StoredConsumers)$' REFERENCE=1
+make check RUN='^TestReferenceEnumFunctions(Values|Binding|Metadata|FeatureSmoke)$'
+make check RUN='^TestReferenceEnumFunctions(Values|Binding|Metadata|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceConditional(TypeMatrix|Metadata|Diagnostics|Parameters|Consumers)$'
+make check RUN='^TestReferenceConditional(TypeMatrix|Metadata|Diagnostics|Parameters|Consumers)$' REFERENCE=1
+make check RUN='^TestReference(RowCompare(Constructors|Held|Stored)|ArrayCompareQuantifiedTruth|ArrayOrderQuantifiedArrayBoundary)$'
+make check RUN='^TestReference(RowCompare(Constructors|Held|Stored)|ArrayCompareQuantifiedTruth|ArrayOrderQuantifiedArrayBoundary)$' REFERENCE=1
+```
+
+The standalone public driver smoke checks direct/prepared/empty INT4 totals
+`6/6/0`, non-strict/strict/unseeded-empty `101/6/NULL`, zero/N-input
+`3/43`, catalog identities and atomic rejection, then unchanged logical replay
+twice with retained values `6/0/6`. It exercises public driver/control APIs,
+not internal engine helpers. `FeatureSmoke` above is the reproducible selected
+reference smoke; the standalone program is a session evidence artifact, not a
+second checked-in runner or syntax guide.
+
+Use external900-second deadlines for selected checks and race proof. Reserve
+`make quickcheck` for the root's whole-project Docker-free verification after
+all edits, generation and formatting are complete; neither those targets nor
+this suite introduce their own command deadlines.
+
 ### Ordered-set cancellation fixture ownership
 
 `TestReferenceOrderedSetAggregateActiveCancellation` creates an independent

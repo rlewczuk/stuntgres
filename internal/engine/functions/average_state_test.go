@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -10,7 +11,7 @@ import (
 type numericProviderUnit interface {
 	ResultUsage() sqltype.Usage
 	Init(context.Context) (any, error)
-	Advance(context.Context, any, sqltype.Value, sqltype.Value) error
+	Advance(context.Context, any, []sqltype.Value, expr.Context) error
 	Finalize(context.Context, any) (sqltype.Value, error)
 }
 

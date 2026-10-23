@@ -37,7 +37,7 @@ func TestRangeAggregateProviderState(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err = p.Advance(ctx, s, v, sqltype.Value{}); err != nil {
+			if err = p.Advance(ctx, s, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 			result, err := p.Finalize(ctx, s)

@@ -41,7 +41,7 @@ func bindSum(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName
 	if err != nil {
 		return nil, err
 	}
-	call := AggregateCall{Provider: provider, Argument: arg, Operation: operation}
+	call := AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Operation: operation}
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, "sum", arg.ResultUsage().Type.ID())
 	if err != nil {
 		return nil, err

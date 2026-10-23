@@ -39,7 +39,7 @@ func bindRangeAggregate(b AggregateBinder, raw parser.AggregateExpr, name parser
 	}
 	usage := bound.ResultUsage()
 	provider := NewRangeAggregateProvider(input.Usage(), usage, rangeAggregateKind(raw.Name), bound)
-	call := AggregateCall{Provider: provider, Argument: arg, Operation: identity}
+	call := AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Operation: identity}
 	formal := sqltype.ID(3831)
 	switch input.ID() {
 	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:

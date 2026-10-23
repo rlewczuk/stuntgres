@@ -39,11 +39,11 @@ func TestSumProviders(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if err := p.Advance(ctx, state, sqltype.Null(input), sqltype.Value{}); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Null(input), sqltype.Value{}}, nil); err != nil {
 			t.Fatal(err)
 		}
 		for range 2 {
@@ -59,14 +59,14 @@ func TestSumProviders(t *testing.T) {
 		foreign := numericUnitTypes()[id]
 		wrong, _ := foreign.Input(ctx, "1", -1)
 		for _, invalid := range []sqltype.Value{{}, wrong} {
-			err := p.Advance(ctx, state, invalid, sqltype.Value{})
+			err := p.Advance(ctx, state, []sqltype.Value{invalid, sqltype.Value{}}, nil)
 			var diagnostic *sqlstate.Error
 			if err == nil || errors.As(err, &diagnostic) {
 				t.Fatal("ownership error must remain ordinary", err)
 			}
 		}
 		for _, invalid := range []any{nil, struct{}{}, (*integralSumState)(nil), (*sqltype.NumericSumState)(nil), (*floatSumState)(nil)} {
-			if p.Advance(ctx, invalid, sqltype.Null(input), sqltype.Value{}) == nil {
+			if p.Advance(ctx, invalid, []sqltype.Value{sqltype.Null(input), sqltype.Value{}}, nil) == nil {
 				t.Fatal("invalid state accepted")
 			}
 			if _, err := p.Finalize(ctx, invalid); err == nil {
@@ -88,7 +88,7 @@ func TestSumProviders(t *testing.T) {
 					t.Error(err)
 					return
 				}
-				if err := p.Advance(ctx, s, one, sqltype.Value{}); err != nil {
+				if err := p.Advance(ctx, s, []sqltype.Value{one, sqltype.Value{}}, nil); err != nil {
 					t.Error(err)
 					return
 				}
@@ -116,12 +116,13 @@ func TestSumIntegralTransitions(t *testing.T) {
 			t.Fatal(err)
 		}
 		one, _ := sqltype.Integer(input, 1)
-		// State boxing and all datum construction happen before allocation measurement.
-		if err := p.Advance(ctx, state, one, sqltype.Value{}); err != nil {
+		// State boxing, datum construction and argument scratch precede measurement.
+		arguments := []sqltype.Value{one}
+		if err := p.Advance(ctx, state, arguments, nil); err != nil {
 			t.Fatal(err)
 		}
 		if n := testing.AllocsPerRun(100, func() {
-			if err := p.Advance(ctx, state, one, sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, state, arguments, nil); err != nil {
 				panic(err)
 			}
 		}); n != 0 {
@@ -130,7 +131,7 @@ func TestSumIntegralTransitions(t *testing.T) {
 		// Source-derived unchecked transition boundary, not a fabricated SQL overflow.
 		s := state.(*integralSumState)
 		s.sum = math.MaxInt64
-		if err := p.Advance(ctx, state, one, sqltype.Value{}); err != nil || s.sum != math.MinInt64 {
+		if err := p.Advance(ctx, state, arguments, nil); err != nil || s.sum != math.MinInt64 {
 			t.Fatal("released signed64 transition", s.sum, err)
 		}
 	}
@@ -161,10 +162,10 @@ func TestSumFloatingTransitions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := p.Advance(ctx, state, sqltype.Null(input), sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Null(input), sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
-			if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -188,10 +189,10 @@ func TestSumFloatingTransitions(t *testing.T) {
 			maximum = math.MaxFloat32
 		}
 		value, _ := sqltype.Float(input, maximum)
-		if err := p.Advance(ctx, state, value, sqltype.Value{}); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{value, sqltype.Value{}}, nil); err != nil {
 			t.Fatal(err)
 		}
-		err = p.Advance(ctx, state, value, sqltype.Value{})
+		err = p.Advance(ctx, state, []sqltype.Value{value, sqltype.Value{}}, nil)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "22003" || d.Message != "value out of range: overflow" || d.Position != "" {
 			t.Fatal("finite transition overflow", err)
@@ -234,7 +235,7 @@ func TestSumProviderCancellation(t *testing.T) {
 				t.Fatal(err)
 			}
 			ctx, cancel = sumCancellationAt(at)
-			err = p.Advance(ctx, state, one, sqltype.Value{})
+			err = p.Advance(ctx, state, []sqltype.Value{one, sqltype.Value{}}, nil)
 			cancel()
 			if err != context.Canceled {
 				t.Fatal("Advance cancellation", err)

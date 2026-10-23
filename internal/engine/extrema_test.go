@@ -78,9 +78,9 @@ func TestExtremaEagerEvaluationAndSlots(t *testing.T) {
 			t.Fatal(c)
 		}
 	}
-	original := node.Calls[0].Argument
+	original := node.Calls[0].Arguments[0]
 	calls := 0
-	node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return original.Eval(c) })
+	node.Calls[0].Arguments[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return original.Eval(c) })
 	rows, _, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -101,10 +101,10 @@ func TestExtremaEagerEvaluationAndSlots(t *testing.T) {
 	}
 	_, failed, failedSource := queryCoreFixture(t, "SELECT min(v) FROM t")
 	failedNode := failed.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
-	argument := failedNode.Calls[0].Argument
+	argument := failedNode.Calls[0].Arguments[0]
 	sentinel := errors.New("late extrema argument")
 	calls = 0
-	failedNode.Calls[0].Argument = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	failedNode.Calls[0].Arguments[0] = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 4 {
 			return sqltype.Value{}, sentinel

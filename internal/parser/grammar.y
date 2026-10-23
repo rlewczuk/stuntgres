@@ -215,7 +215,7 @@ package parser
 %token <tok> '+' '-' '*' '/' '%' '^' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN TYPE
-%token <tok> FUNCTION PROCEDURE ROUTINE OUT_ARG INOUT_ARG RETURNS_CLAUSE
+%token <tok> FUNCTION PROCEDURE ROUTINE AGGREGATE OUT_ARG INOUT_ARG RETURNS_CLAUSE
 %token <tok> RETURN_BODY ATOMIC_BODY
 %token <tok> PARAMETER
 %token <tok> LANGUAGE LARGE OBJECT DATA WRAPPER
@@ -445,11 +445,12 @@ package parser
 %type <element> typed_element
 %type <stmt> create_collation alter_collation drop_collation
 %type <stmt> create_conversion alter_conversion drop_conversion
-%type <stmt> create_function drop_routine
+%type <stmt> create_function create_aggregate drop_routine
 %type <tok> returns_word
 %type <routineParameters> function_arguments function_declaration_argument_list
 %type <routineParameter> function_declaration_argument
 %type <routineResult> function_result
+%type <grantRoutineArguments> aggregate_arguments
 %type <statements> standard_routine_body routine_body_list
 %type <stmt> routine_body_statement
 %type <stmt> nontransaction_statement transaction_common
@@ -1362,6 +1363,7 @@ create: create_table { $$=$1 }
  | create_collation { $$=$1 }
  | create_conversion { $$=$1 }
  | create_function { $$=$1 }
+ | create_aggregate { $$=$1 }
  | create_operator { $$=$1 }
  | create_operator_family { $$=$1 }
  | create_operator_class { $$=$1 }
@@ -1475,6 +1477,8 @@ alter_conversion: conversion_alter_head RENAME TO name {$1.Action="rename";$1.Ta
 drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP CONVERSION IF EXISTS relation_names drop_mode {$$=&DropConversion{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}}
  | DROP DEFAULT {sqllex.(*lexer).syntax($2);return 1} ;
+create_aggregate: CREATE AGGREGATE relation_name '(' aggregate_arguments ')' '(' operator_options ')' {$$=&CreateAggregate{Name:$3,Arguments:$5,Options:$8,Pos:$1.pos}} ;
+aggregate_arguments: '*' {$$=nil} | grant_routine_arguments {$$=$1} ;
 create_function: CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$9.text,Pos:$9.pos},Body:$11.text,BodyPos:routineBodyPosition($11),Pos:$1.pos}}
  | CREATE FUNCTION relation_name '(' function_arguments ')' function_result AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$11.text,Pos:$11.pos},Body:$9.text,BodyPos:routineBodyPosition($9),Pos:$1.pos}}
  | CREATE FUNCTION relation_name '(' function_arguments ')' function_result standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:"sql"},Standard:$8,Pos:$1.pos}}
@@ -3121,7 +3125,7 @@ grant_targets: grant_relations { $$=&ObjectGrant{Relations:$1} }
  | LARGE OBJECT grant_large_objects { $$=&ObjectGrant{Kind:"large object",Relations:$3} }
  | ALL name IN SCHEMA grant_schema_list { if $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};kind:="";switch $2.text {case "tables":case "sequences":kind="sequence";case "functions":kind="function";case "procedures":kind="procedure";case "routines":kind="routine";default:sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Kind:kind,Schemas:$5} } ;
 grant_routine_kind: FUNCTION | PROCEDURE | ROUTINE ;
-routine_name_word: FUNCTION | PROCEDURE | ROUTINE | PARAMETER | RETURN_BODY | ATOMIC_BODY | RETURNS_CLAUSE ;
+routine_name_word: FUNCTION | PROCEDURE | ROUTINE | AGGREGATE | PARAMETER | RETURN_BODY | ATOMIC_BODY | RETURNS_CLAUSE ;
 grant_external_name_word: LANGUAGE | LARGE | OBJECT | DATA | WRAPPER ;
 grant_routines: grant_routine { $$=[]GrantRoutineTarget{$1} }
  | grant_routines ',' grant_routine { $$=append($1,$3) } ;

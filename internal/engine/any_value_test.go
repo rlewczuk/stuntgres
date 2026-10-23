@@ -26,8 +26,8 @@ func TestAnyValueSlotsAndMetadata(t *testing.T) {
 		t.Fatal("volatile occurrences shared")
 	}
 	for _, call := range calls {
-		if !call.Argument.Properties().ParameterDependent || call.Argument.Properties().Volatility != expr.Volatile {
-			t.Fatal(call.Argument.Properties())
+		if !call.Arguments[0].Properties().ParameterDependent || call.Arguments[0].Properties().Volatility != expr.Volatile {
+			t.Fatal(call.Arguments[0].Properties())
 		}
 	}
 }

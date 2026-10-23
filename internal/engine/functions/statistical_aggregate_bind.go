@@ -79,7 +79,7 @@ func bindStatisticalAggregate(b AggregateBinder, raw parser.AggregateExpr, name 
 		}
 		provider = NewStatisticalAggregate(args[0].ResultUsage().Type, usage, sample, stddev)
 	}
-	call := AggregateCall{Provider: provider, Argument: args[0], Separator: args[1], Operation: operation}
+	call := AggregateCall{Provider: provider, Arguments: args[:len(raw.Args)], Operation: operation}
 	formals := [2]sqltype.ID{args[0].ResultUsage().Type.ID()}
 	arity := 1
 	if regressionAggregateName(raw.Name) {

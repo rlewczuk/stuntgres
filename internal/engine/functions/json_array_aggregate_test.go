@@ -32,7 +32,7 @@ func TestJSONArrayAggregateProviderEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, state := range []any{hex, escape} {
-		if err = p.Advance(ctx, state, value, sqltype.Value{}); err != nil {
+		if err = p.Advance(ctx, state, []sqltype.Value{value, sqltype.Value{}}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -49,7 +49,7 @@ func TestJSONArrayAggregateProviderEnvironment(t *testing.T) {
 			t.Fatal("execution environment shared", text, tc.want, outputErr)
 		}
 	}
-	if err = p.Advance(ctx, struct{}{}, value, sqltype.Value{}); err == nil {
+	if err = p.Advance(ctx, struct{}{}, []sqltype.Value{value, sqltype.Value{}}, nil); err == nil {
 		t.Fatal("foreign state accepted")
 	}
 	if _, err = p.Finalize(ctx, nil); err == nil {

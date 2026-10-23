@@ -134,10 +134,10 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 				oldValue, _ = sqltype.Integer(oldType, 12)
 				newValue, _ = sqltype.Integer(newType, 12)
 			}
-			if err = call.Provider.Advance(ctx, s, oldValue, sqltype.Value{}); err == nil {
+			if err = call.Provider.Advance(ctx, s, []sqltype.Value{oldValue, sqltype.Value{}}, nil); err == nil {
 				t.Fatal("remapped provider accepted old-generation datum")
 			}
-			if err = call.Provider.Advance(ctx, s, newValue, sqltype.Value{}); err != nil {
+			if err = call.Provider.Advance(ctx, s, []sqltype.Value{newValue, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 			if id == sqltype.Bit {
@@ -145,7 +145,7 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 			} else {
 				newValue, _ = sqltype.Integer(newType, 10)
 			}
-			if err = call.Provider.Advance(ctx, s, newValue, sqltype.Value{}); err != nil {
+			if err = call.Provider.Advance(ctx, s, []sqltype.Value{newValue, sqltype.Value{}}, nil); err != nil {
 				t.Fatal("integral bound signature not rebuilt", err)
 			}
 			v, err := call.Provider.Finalize(ctx, s)

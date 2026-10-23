@@ -50,7 +50,7 @@ func TemporaryCollisionMapping(next *catalog.State, temporary map[ids.ObjectAddr
 		if err := remapCollision(address); err != nil {
 			return nil, err
 		}
-		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil && proc.Implementation != nil {
 			// These are mapping-only identities, not callable descriptors.
 			// Publish their mapping before scalar/default/expression remapping.
 			for _, helper := range proc.Aggregate.Helpers {

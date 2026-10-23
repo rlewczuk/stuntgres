@@ -176,7 +176,7 @@ func TestQueryWindowExcludeFinalizeThenAdvance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := provider.Advance(ctx, state, value, sqltype.Value{}); err != nil {
+			if err := provider.Advance(ctx, state, []sqltype.Value{value, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 			value, err = provider.Finalize(ctx, state)

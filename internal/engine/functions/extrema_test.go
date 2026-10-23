@@ -53,7 +53,7 @@ func TestExtremaProviderFamiliesAndTies(t *testing.T) {
 					t.Fatal(initial, err)
 				}
 				for _, v := range []sqltype.Value{sqltype.Null(d), large, sqltype.Null(d), small, large, small} {
-					if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+					if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -104,10 +104,10 @@ func TestExtremaProviderFamiliesAndTies(t *testing.T) {
 				}
 				p := extremaUnitProvider(t, d, maximum)
 				s, _ := p.Init(ctx)
-				if err := p.Advance(ctx, s, a, sqltype.Value{}); err != nil {
+				if err := p.Advance(ctx, s, []sqltype.Value{a, sqltype.Value{}}, nil); err != nil {
 					t.Fatal(err)
 				}
-				if err := p.Advance(ctx, s, b, sqltype.Value{}); err != nil {
+				if err := p.Advance(ctx, s, []sqltype.Value{b, sqltype.Value{}}, nil); err != nil {
 					t.Fatal(err)
 				}
 				want := b
@@ -145,17 +145,17 @@ func TestExtremaProviderDemandAndInvariants(t *testing.T) {
 	s, _ := p.Init(ctx)
 	first := sqltype.String(typ, "a")
 	for _, v := range []sqltype.Value{sqltype.Null(typ), first, sqltype.Null(typ)} {
-		if err := p.Advance(ctx, s, v, sqltype.Value{}); err != nil {
+		if err := p.Advance(ctx, s, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 			t.Fatal("premature comparison", err)
 		}
 	}
-	aggregateUnitState(t, p.Advance(ctx, s, sqltype.String(typ, "b"), sqltype.Value{}), "42P22")
+	aggregateUnitState(t, p.Advance(ctx, s, []sqltype.Value{sqltype.String(typ, "b"), sqltype.Value{}}, nil), "42P22")
 	got, err := p.Finalize(ctx, s)
 	if err != nil || !sqltype.SameDatum(got, first) {
 		t.Fatal(got, err)
 	}
 	for _, invalid := range []any{nil, struct{}{}, (*extremaState)(nil), &extremaState{}, &extremaState{value: sqltype.Null(foreign)}} {
-		if err := p.Advance(ctx, invalid, first, sqltype.Value{}); err == nil {
+		if err := p.Advance(ctx, invalid, []sqltype.Value{first, sqltype.Value{}}, nil); err == nil {
 			t.Fatal("invalid state", invalid)
 		}
 		if _, err := p.Finalize(ctx, invalid); err == nil {
@@ -163,7 +163,7 @@ func TestExtremaProviderDemandAndInvariants(t *testing.T) {
 		}
 	}
 	for _, invalid := range []sqltype.Value{{}, sqltype.Null(foreign), sqltype.String(foreign, "x")} {
-		if err := p.Advance(ctx, s, invalid, sqltype.Value{}); err == nil {
+		if err := p.Advance(ctx, s, []sqltype.Value{invalid, sqltype.Value{}}, nil); err == nil {
 			t.Fatal("foreign candidate accepted")
 		}
 	}
@@ -175,7 +175,7 @@ func TestExtremaProviderDemandAndInvariants(t *testing.T) {
 	if s, err := p.Init(canceled); s != nil || err != context.Canceled {
 		t.Fatal(s, err)
 	}
-	if err := p.Advance(canceled, s, sqltype.String(typ, "0"), sqltype.Value{}); err != context.Canceled {
+	if err := p.Advance(canceled, s, []sqltype.Value{sqltype.String(typ, "0"), sqltype.Value{}}, nil); err != context.Canceled {
 		t.Fatal(err)
 	}
 	if _, err := p.Finalize(canceled, s); err != context.Canceled {

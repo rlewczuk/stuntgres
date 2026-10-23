@@ -99,7 +99,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 			return c.Row[0], nil
 		})
 		schema := plan.QuerySchema{{Name: "i", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}}
-		node := &plan.AggregateNode{QuerySchema: schema, Child: child, Calls: []plan.AggregateCall{{Provider: p, Argument: argument, Operation: functions.AggregateRangeIntersection}}}
+		node := &plan.AggregateNode{QuerySchema: schema, Child: child, Calls: []plan.AggregateCall{{Provider: p, Arguments: []expr.Expr{argument}, Operation: functions.AggregateRangeIntersection}}}
 		project := &plan.ProjectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{queryProbe(p.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { return c.Row[0], nil })}}
 		return project, &exec.Source{}, calls
 	}

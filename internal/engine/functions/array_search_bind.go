@@ -70,16 +70,9 @@ func bindArraySearch(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := array
-	if name == "array_position" {
-		result = b.Type(sqltype.Int4).Usage()
-	}
-	if name == "array_positions" {
-		positions, ok := b.ArrayType(b.Type(sqltype.Int4))
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing integer array association")
-		}
-		result = positions.Usage()
+	result, valid := arraySearchResult(b, name, array)
+	if !valid {
+		return nil, fmt.Errorf("stuntgres: missing integer array association")
 	}
 	return ArraySearchNode(b, name, raw.Name, raw.Pos, result, args)
 }
@@ -138,4 +131,22 @@ func ArraySearchNode(b Binder, name string, rawName parser.ObjectName, pos parse
 		return nil, err
 	}
 	return NewArraySearch(info, plan, args, arrayNamespace(rawName)), nil
+}
+
+func arraySearchResult(b CallTypeContext, name string, array sqltype.Usage) (sqltype.Usage, bool) {
+	if name == "array_position" {
+		return b.Type(sqltype.Int4).Usage(), true
+	}
+	if name == "array_positions" {
+		positions, ok := b.ArrayType(b.Type(sqltype.Int4))
+		if !ok {
+			return sqltype.Usage{}, false
+		}
+		return positions.Usage(), true
+	}
+	return array, true
+}
+
+func arraySearchCallResult(b CallTypeContext, raw parser.FunctionExpr, targets []sqltype.Usage) (sqltype.Usage, bool) {
+	return arraySearchResult(b, raw.Name.Parts[len(raw.Name.Parts)-1].Text, targets[0])
 }

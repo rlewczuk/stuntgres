@@ -68,11 +68,11 @@ func moneyIntervalSumProviderRemap(t *testing.T, id sqltype.ID) {
 		input, _ = sqltype.IntervalValue(owned, 1, 2, 9007199254740993)
 		foreign, _ = sqltype.IntervalValue(old, 1, 2, 9007199254740993)
 	}
-	if err := provider.Advance(ctx, state, foreign, sqltype.Value{}); err == nil {
+	if err := provider.Advance(ctx, state, []sqltype.Value{foreign, sqltype.Value{}}, nil); err == nil {
 		t.Fatal("source descriptor accepted after remap")
 	}
 	for range 2 {
-		if err := provider.Advance(ctx, state, input, sqltype.Value{}); err != nil {
+		if err := provider.Advance(ctx, state, []sqltype.Value{input, sqltype.Value{}}, nil); err != nil {
 			t.Fatal("remapped bound operator", err)
 		}
 	}

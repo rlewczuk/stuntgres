@@ -234,11 +234,11 @@ func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddre
 
 func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Procedure)
-	if t.SQL != nil {
+	if t.DynamicCallable() {
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
-		c.SQLRoutines = append(c.SQLRoutines, t)
+		c.OwnedRoutines = append(c.OwnedRoutines, t)
 		return nil
 	}
 	// Native foreign and conversion capabilities belong to the bootstrap

@@ -35,6 +35,34 @@ func (h ddlHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signatu
 	return identity, count, nil
 }
 
+func (h ddlHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName, inputs []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error) {
+	v := ddlAuthorityOf(a)
+	path, err := h.e.lookupNamespaces(v, name, analyze.FunctionLookup)
+	if err != nil {
+		return nil, nil, sqltype.Usage{}, err
+	}
+	reader := stageDefinitionReader{h.stage}
+	previous := h.op.Definition
+	h.op.Definition = reader
+	defer func() { h.op.Definition = previous }()
+	v.definition = reader
+	binder := newExpressionBinder(h.Context(), h.e, sqltype.InputEnvironment{}, h.op, nil)
+	binder.Query.Auth = &v
+	selected, err := binder.SelectAggregateSupport(v.Catalog, reader, path, name, inputs)
+	if err != nil {
+		return nil, nil, sqltype.Usage{}, err
+	}
+	if selected.Procedure.Builtin != nil && selected.Procedure.Builtin.ReturnsSet {
+		formals := selected.Inputs
+		if selected.Targets != nil {
+			formals = selected.Targets
+		}
+		return selected.Procedure, formals, sqltype.Usage{}, nil
+	}
+	formals, result, err := routine.AggregateSupportTypes(v.Catalog, reader, selected.Procedure, inputs)
+	return selected.Procedure, formals, result, err
+}
+
 func (h ddlHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
 	input, err := h.e.captureRegtypeInput(ddlAuthorityOf(a), h.op)
 	if err != nil {

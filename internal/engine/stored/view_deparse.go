@@ -626,7 +626,16 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 	path.Node = *ordinal
 	(*ordinal)++
 	if _, captured := v.routineRefs[path]; captured && extension.IntaggRecipeFunction(raw) == "" && !pgrowlocksRecipe(raw) {
-		if call, ok := raw.(parser.FunctionExpr); !ok || !call.StoredSQLRoutine {
+		switch call := raw.(type) {
+		case parser.FunctionExpr:
+			if !call.StoredSQLRoutine {
+				return "", fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
+			}
+		case parser.AggregateExpr:
+			if !call.StoredAggregate {
+				return "", fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
+			}
+		default:
 			return "", fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
 		}
 	}
@@ -1170,7 +1179,13 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		if e.Schema != nil {
 			name = catalog.QuoteIdentifier(e.Schema.Text) + "." + catalog.QuoteIdentifier(e.Name)
 		}
-		if e.Name == "int_array_aggregate" {
+		if e.StoredAggregate {
+			var err error
+			name, err = v.aggregateRecipeName(catalogView, path, e)
+			if err != nil {
+				return "", err
+			}
+		} else if e.Name == "int_array_aggregate" {
 			var err error
 			name, err = v.intaggRecipeName(catalogView, path, e.Name)
 			if err != nil {

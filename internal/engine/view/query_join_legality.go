@@ -189,9 +189,16 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				if err := exec.AdmitRoutineReference(c, call.Routine, "aggregate"); err != nil {
 					return err
 				}
+				for _, alias := range call.RoutineAliases {
+					if err := exec.AdmitRoutineReference(c, alias, "aggregate"); err != nil {
+						return err
+					}
+				}
+				if err := exec.AdmitAggregateSupport(c, call.Provider); err != nil {
+					return err
+				}
 				if len(call.Distinct) > 1 {
-					keys := [2]expr.Expr{call.Argument, call.Separator}
-					if err := admitQueryGroupings(c, call.Distinct, keys[:len(call.Distinct)]); err != nil {
+					if err := admitQueryGroupings(c, call.Distinct, call.Arguments); err != nil {
 						return err
 					}
 				}

@@ -205,6 +205,22 @@ implements it:
 
 ## Testing
 
+Owned SQL routines and ordinary aggregates share routine dependency scheduling:
+actual support/type predecessors precede aggregate declarations and consumers.
+Existing statement owners preserve default-ACL ownership; roles are supplied
+by the receiving environment. Explicit SQL-routine and aggregate ACLs retain
+truthful pre-output Dump rejection, not silent permission reset.
+The aggregate persistence scenario replays the actual unchanged emitted bytes
+on PostgreSQL and twice through native Restore. Its TEMP scenario records real
+namespace/sequence allocator collisions and retained identity after each Restore.
+
+```sh
+make check RUN='^TestReferenceCreateAggregate(Persistence|TemporaryRemap)$'
+make check RUN='^TestReferenceCreateAggregate(Persistence|TemporaryRemap)$' REFERENCE=1
+```
+
+See the complete [owning proof matrix](../../../reference/aggregates/README.md#create-aggregate-contract).
+
 Operator-class events use the ordinary dump dependency scheduler: real family
 and implementation objects precede class, class precedes indexes and partition
 consumers. INTERNAL members are declared exactly once in CREATE CLASS; loose

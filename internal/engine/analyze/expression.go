@@ -210,7 +210,7 @@ func (b *Binder) Column(raw parser.ColumnExpr) (node expr.Expr, err error) {
 					if b.Stored.Syntax == nil {
 						b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 					}
-					b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}] = parser.ParameterExpr{Number: i + 1, Pos: raw.Pos}
+					b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = parser.ParameterExpr{Number: i + 1, Pos: raw.Pos}
 				}
 				return
 			}
@@ -475,6 +475,8 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				return nil, err
 			}
 		case parser.AggregateExpr:
+			ownedAggregate := b.Clause.selectedAggregate
+			b.Clause.selectedAggregate = nil
 			if r.Window == nil && b.cte.recursiveFrames[b.FrameID()] {
 				return nil, expr.ErrorAt("42P19", "aggregate functions are not allowed in a recursive query's recursive term", r.Pos)
 			}
@@ -511,6 +513,9 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			}
 			if r.Within && !functions.OrderedSetName(r.Name) {
 				return b.rejectOrdinaryWithin(r)
+			}
+			if ownedAggregate != nil && r.Window != nil {
+				return nil, expr.ErrorAt("0A000", "user-defined aggregate window execution is unsupported", r.Pos)
 			}
 			if r.Window != nil && !functions.OrderedSetName(r.Name) {
 				var err error
@@ -550,7 +555,9 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			}
 			var err error
 			var returning sqltype.Usage
-			if definition, ok := functions.LookupAggregate(r.Name); ok {
+			if ownedAggregate != nil {
+				node, err = b.bindOwnedAggregate(r, ownedAggregate, diagnosticName)
+			} else if definition, ok := functions.LookupAggregate(r.Name); ok {
 				node, returning, err = b.BindRegisteredAggregate(r, name, definition)
 			} else if r.Name == "int_array_aggregate" {
 				node, err = b.bindIntaggAggregate(r, name)
@@ -723,7 +730,13 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				if err := b.Constrain(r.Number, u, r.Pos); err != nil {
 					return nil, err
 				}
-				node = plan.ParameterExpr{Info: b.Info(u.Type.Usage(), r.Pos, expr.Properties{ParameterDependent: true}), Number: r.Number}
+				info := b.Info(u.Type.Usage(), r.Pos, expr.Properties{ParameterDependent: true})
+				if b.Params.ClosedRoutineFormals && b.Params.routineInputCollation.ID != 0 && info.Usage.Collation.ID != 0 {
+					// Function parameters inherit the effective input collation
+					// implicitly; the caller's COLLATE origin never crosses here.
+					info.Usage.Collation = b.Params.routineInputCollation
+				}
+				node = plan.ParameterExpr{Info: info, Number: r.Number}
 			}
 		case parser.LiteralExpr:
 			v := r.Value

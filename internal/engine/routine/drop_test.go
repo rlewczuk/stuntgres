@@ -60,14 +60,14 @@ func TestRoutineDropCatalogIsolation(t *testing.T) {
 	old := state.ProcedureNames()
 	edit := catalog.ProcedureIndexEdit{Index: old}
 	edit.Replace(procedures[0], nil)
-	if len(old.Buckets[catalog.ProcedureNameKey{Namespace: ns, Name: "pick"}]) != 2 || old.SQLNames["pick"] != 2 {
+	if len(old.Buckets[catalog.ProcedureNameKey{Namespace: ns, Name: "pick"}]) != 2 || old.DynamicNames["pick"] != 2 {
 		t.Fatal("retained index mutated")
 	}
-	if len(edit.Index.Buckets[catalog.ProcedureNameKey{Namespace: ns, Name: "pick"}]) != 1 || edit.Index.SQLNames["pick"] != 1 {
+	if len(edit.Index.Buckets[catalog.ProcedureNameKey{Namespace: ns, Name: "pick"}]) != 1 || edit.Index.DynamicNames["pick"] != 1 {
 		t.Fatal("survivor membership lost")
 	}
 	edit.Replace(procedures[1], nil)
-	if edit.Index.SQLNames["pick"] != 0 || len(edit.Index.Buckets[catalog.ProcedureNameKey{Namespace: ns, Name: "pick"}]) != 0 {
+	if edit.Index.DynamicNames["pick"] != 0 || len(edit.Index.Buckets[catalog.ProcedureNameKey{Namespace: ns, Name: "pick"}]) != 0 {
 		t.Fatal("last-name gate retained")
 	}
 }

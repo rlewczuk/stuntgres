@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -30,7 +31,8 @@ func (p NumericAvg) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p NumericAvg) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p NumericAvg) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
 	}

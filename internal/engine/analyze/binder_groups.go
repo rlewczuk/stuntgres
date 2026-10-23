@@ -43,7 +43,8 @@ type targetContext struct {
 type parameterState struct {
 	Parameters            map[int]sqltype.Usage
 	formalParameters      []sqltype.Usage
-	ClosedRoutineFormals  bool // SQL body slots are declarations, not inferred public parameters.
+	ClosedRoutineFormals  bool                 // SQL body slots are declarations, not inferred public parameters.
+	routineInputCollation sqltype.CollationRef // Quoted aggregate support only; implicit formal authority.
 	RoutineName           string
 	RoutineNames          []string
 	ExecuteParameters     bool
@@ -114,6 +115,7 @@ type ClauseState struct {
 	SelectedCallArguments  bool              // Known arguments remain reusable throughout provider binding.
 	selectedCallReentry    bool              // Only the immediate selected occurrence skips selection once.
 	selectedWindowCallee   parser.ObjectName // Diagnostic spelling, never lookup authority.
+	selectedAggregate      *catalog.Procedure
 }
 
 // GroupingState collects the aggregates, grouping sets and window calls of

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 
 	"stuntgres/internal/sqltype"
 )
@@ -60,7 +61,7 @@ type OrderedSet struct {
 
 func (p *OrderedSet) ResultUsage() sqltype.Usage            { return p.usage }
 func (p *OrderedSet) Init(ctx context.Context) (any, error) { return nil, ctx.Err() }
-func (p *OrderedSet) Advance(context.Context, any, sqltype.Value, sqltype.Value) error {
+func (p *OrderedSet) Advance(context.Context, any, []sqltype.Value, expr.Context) error {
 	return fmt.Errorf("stuntgres: ordered-set input must use borrowed ordering")
 }
 func (p *OrderedSet) Finalize(context.Context, any) (sqltype.Value, error) {

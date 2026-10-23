@@ -42,7 +42,7 @@ func TestJSONObjectAggregateProviderEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, state := range []any{hex, escape} {
-		if err = p.Advance(ctx, state, value, value); err != nil {
+		if err = p.Advance(ctx, state, []sqltype.Value{value, value}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -59,7 +59,7 @@ func TestJSONObjectAggregateProviderEnvironment(t *testing.T) {
 			t.Fatal("shared output environment", text, err)
 		}
 	}
-	if err = p.Advance(ctx, struct{}{}, value, value); err == nil {
+	if err = p.Advance(ctx, struct{}{}, []sqltype.Value{value, value}, nil); err == nil {
 		t.Fatal("foreign state accepted")
 	}
 	if _, err = p.Finalize(ctx, nil); err == nil {
@@ -94,7 +94,7 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 		t.Fatal("incompatible object calls share slots", len(b.Grouping.Aggregates))
 	}
 	for _, call := range b.Grouping.Aggregates {
-		if !call.IncludeNulls || call.Argument.ResultUsage().Type != text || call.Separator.ResultUsage().Type != integer {
+		if !call.IncludeNulls || call.Arguments[0].ResultUsage().Type != text || call.Arguments[1].ResultUsage().Type != integer {
 			t.Fatal("two inputs/presence lost", call)
 		}
 	}
@@ -155,13 +155,13 @@ func TestJSONObjectAggregateProviderRemap(t *testing.T) {
 		}
 		old, _ := sqltype.Integer(input, 1)
 		next, _ := sqltype.Integer(newInput, 1)
-		if err = provider.Advance(ctx, state, sqltype.String(key, "a"), next); err == nil {
+		if err = provider.Advance(ctx, state, []sqltype.Value{sqltype.String(key, "a"), next}, nil); err == nil {
 			t.Fatal("old key accepted")
 		}
-		if err = provider.Advance(ctx, state, sqltype.String(newKey, "a"), old); err == nil {
+		if err = provider.Advance(ctx, state, []sqltype.Value{sqltype.String(newKey, "a"), old}, nil); err == nil {
 			t.Fatal("old value accepted")
 		}
-		if err = provider.Advance(ctx, state, sqltype.String(newKey, "a"), next); err != nil {
+		if err = provider.Advance(ctx, state, []sqltype.Value{sqltype.String(newKey, "a"), next}, nil); err != nil {
 			t.Fatal("remapped plan not rebound", err)
 		}
 		v, err := provider.Finalize(ctx, state)
@@ -193,16 +193,16 @@ func TestJSONObjectAggregateRunnerNullPresence(t *testing.T) {
 			qtext += " FROM t"
 			_, q, source := queryCoreFixture(t, qtext)
 			node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
-			keyUsage, valueUsage := node.Calls[0].Argument.ResultUsage(), node.Calls[0].Separator.ResultUsage()
+			keyUsage, valueUsage := node.Calls[0].Arguments[0].ResultUsage(), node.Calls[0].Arguments[1].ResultUsage()
 			keys, values := 0, 0
-			node.Calls[0].Argument = queryProbe(keyUsage, func(*exec.Context) (sqltype.Value, error) {
+			node.Calls[0].Arguments[0] = queryProbe(keyUsage, func(*exec.Context) (sqltype.Value, error) {
 				if rejected {
 					t.Fatal("FILTER evaluated key")
 				}
 				keys++
 				return sqltype.Integer(keyUsage.Type, 1)
 			})
-			node.Calls[0].Separator = queryProbe(valueUsage, func(*exec.Context) (sqltype.Value, error) {
+			node.Calls[0].Arguments[1] = queryProbe(valueUsage, func(*exec.Context) (sqltype.Value, error) {
 				if rejected {
 					t.Fatal("FILTER evaluated value")
 				}
@@ -243,8 +243,8 @@ func TestJSONObjectAggregateReachedEagerCancellation(t *testing.T) {
 		input, _ := e.CatalogRead().LookupType(sqltype.Text)
 		result := node.Calls[0].Provider.ResultUsage()
 		node.Calls[0].Provider = jsonObjectProviderUnit(t, input.Usage(), input.Usage(), result, tc.name == "jsonb_object_agg_strict")
-		node.Calls[0].Argument = queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
-		node.Calls[0].Separator = queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.String(input, "value"), nil })
+		node.Calls[0].Arguments[0] = queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
+		node.Calls[0].Arguments[1] = queryProbe(input.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.String(input, "value"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
 		rows, n, err := exec.Finalize(probe, q.Root, source, nil)

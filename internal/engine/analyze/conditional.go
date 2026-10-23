@@ -19,65 +19,17 @@ func CommonExpressionUsage(operands []ComparisonOperand, text sqltype.Usage, lab
 	return selectCommonUsage(len(operands), func(i int) ComparisonOperand { return operands[i] }, text, label, (*sqltype.Descriptor).DiagnosticName)
 }
 func selectCommonUsage(count int, operand func(int) ComparisonOperand, text sqltype.Usage, label string, typeName func(*sqltype.Descriptor) string) (sqltype.Usage, error) {
-	var domain *sqltype.Descriptor
-	allDomain := count > 0
-	for i := range count {
-		d := operand(i).descriptor()
-		if d == nil || !d.IsDomain() || domain != nil && domain != d {
-			allDomain = false
-			break
-		}
-		domain = d
-	}
-	if allDomain {
-		return operand(0).Node.ResultUsage(), nil
-	}
-	var candidate sqltype.Usage
-	typmod := int32(-1)
-	sameMod := true
-	for i := range count {
+	common, mismatch := sqltype.SelectCommonUsage(count, func(i int) sqltype.Usage {
 		o := operand(i)
 		if o.descriptor() == nil {
-			sameMod = false
-			continue
+			return sqltype.Usage{}
 		}
-		u := o.Node.ResultUsage()
-		if u.Type.IsDomain() {
-			u.Type = u.Type.BaseType()
-			u.Typmod = -1
-			sameMod = false
-		}
-		if candidate.Type == nil {
-			candidate = u
-			typmod = u.Typmod
-			continue
-		}
-		if u.Type != candidate.Type || u.Typmod != typmod {
-			sameMod = false
-		}
-		if u.Type == candidate.Type {
-			continue
-		}
-		chosen, compatible := sqltype.CommonTypeCandidate(candidate.Type, u.Type)
-		if !compatible {
-			if label == "" {
-				return sqltype.Usage{}, nil
-			}
-			return sqltype.Usage{}, expr.ErrorAt("42804", fmt.Sprintf("%s types %s and %s cannot be matched", label, typeName(candidate.Type), typeName(u.Type)), commonOperandStart(o))
-		}
-		if chosen == u.Type {
-			candidate = u
-		}
+		return o.Node.ResultUsage()
+	}, text)
+	if mismatch.Left == nil || label == "" {
+		return common, nil
 	}
-	if candidate.Type == nil {
-		return text, nil
-	}
-	if sameMod {
-		candidate.Typmod = typmod
-	} else {
-		candidate.Typmod = -1
-	}
-	return candidate, nil
+	return sqltype.Usage{}, expr.ErrorAt("42804", fmt.Sprintf("%s types %s and %s cannot be matched", label, typeName(mismatch.Left), typeName(mismatch.Right)), commonOperandStart(operand(mismatch.Index)))
 }
 func (b *Binder) CoerceConditional(o ComparisonOperand, target sqltype.Usage, label string) (expr.Expr, error) {
 	if err := b.CaptureTypeDiagnosticInput(target.Type); err != nil {

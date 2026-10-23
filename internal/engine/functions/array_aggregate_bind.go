@@ -43,7 +43,7 @@ func bindArrayAggregate(b AggregateBinder, raw parser.AggregateExpr, name parser
 	}
 	call := AggregateCall{
 		Provider:     NewArrayAggregateProvider(arg.ResultUsage().Type, usage, arrays),
-		Argument:     arg,
+		Arguments:    []expr.Expr{arg},
 		Operation:    operation,
 		IncludeNulls: true,
 	}

@@ -40,7 +40,7 @@ func SelectExactRoutine(view catalog.Read, path analyze.NamespaceSelection, name
 			return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, 1
 		}
 		for _, d := range view.Descriptors() {
-			if owner, ok := d.(*catalog.Procedure); ok && owner.Aggregate != nil && owner.Namespace() == namespace {
+			if owner, ok := d.(*catalog.Procedure); ok && owner.Aggregate != nil && owner.Implementation != nil && owner.Namespace() == namespace {
 				for _, helper := range owner.Aggregate.Helpers {
 					if helper.Name == name && helper.Signature == signature {
 						return helper, 1
@@ -85,7 +85,7 @@ func SelectRoutine(view catalog.Read, path analyze.NamespaceSelection, name stri
 				if p.Name() == name && accept(catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}) {
 					return selected, count
 				}
-				if p.Aggregate != nil {
+				if p.Aggregate != nil && p.Implementation != nil {
 					for _, helper := range p.Aggregate.Helpers {
 						if helper.Name == name && accept(helper) {
 							return selected, count
@@ -112,7 +112,7 @@ func RoutineDescriptorOwner(view catalog.Read, id ids.OID) *catalog.Procedure {
 		return p
 	}
 	for _, d := range view.Descriptors() {
-		if p, ok := d.(*catalog.Procedure); ok && p.Aggregate != nil {
+		if p, ok := d.(*catalog.Procedure); ok && p.Aggregate != nil && p.Implementation != nil {
 			for _, helper := range p.Aggregate.Helpers {
 				if helper.ID == id {
 					return p

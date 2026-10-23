@@ -139,8 +139,9 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   engines. Insertion-time hard/loose dependencies and original initdb pinning are
   separate facts; metadata-only routine result facts never grant execution.
 - **Derived procedure membership** (`procedure_index.go`). `ProcedureNameIndex`
-  maps namespace/decoded name to descriptor addresses and carries a SQL-name
-  count for the negative-call fast path. It is not callable or ACL authority.
+  maps namespace/decoded name to descriptor addresses and carries a dynamic-name
+  count for SQL routines and owned aggregates on the negative-call fast path.
+  It is not callable or ACL authority.
   `ProcedureIndexEdit` follows the existing operator COW precedent: detach the
   membership map and touched buckets once; metadata-only replacements share
   unchanged membership. Both seeded indexes are shared read-only by every
@@ -149,7 +150,7 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   index, and wholesale import/remapping rebuilds it before expression binders run.
   Binder definition readers enumerate the indexed base bucket plus only real
   staged deltas, resolving candidates through current descriptor/removal owners.
-  The shared SQL-name gate includes staged additions and removals; ordinary,
+  The shared dynamic-name gate includes staged additions and removals; ordinary,
   aggregate-spelled and function-cast-spelled calls never scan the full base
   descriptor inventory merely to discover routine candidates.
 - **Builtin routine identities** (`builtin_routine_identities.go`,
@@ -284,6 +285,17 @@ definitions, extension implementations). Those register through the same
 
 Follow the [shared testing guide](../../../docs/TESTING.md). Run from the
 repository root.
+
+Owned aggregate procedure/state/support dependencies publish atomically with the
+derived dynamic-name membership. Native replay remaps actual owning identities,
+including collisions with retained TEMP namespace/sequence IDs; it never adopts
+a same-spelled retained object. Declaration/payload/cancellation fences and the
+complete public metadata/dependency/replay selectors are in
+[reference/aggregates](../../../reference/aggregates/README.md#create-aggregate-contract):
+
+```sh
+make check RUN='^TestCreateAggregate(PublicationCancellation|PayloadDeclarationFence|DetachedPolymorphicSupport)$'
+```
 
 Operator classes are real immutable2616 descriptors. Name keys include exact
 method OID; namespace-independent default keys participate in candidate fences.

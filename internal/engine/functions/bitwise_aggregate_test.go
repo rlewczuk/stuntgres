@@ -44,7 +44,7 @@ func TestBitwiseAggregateIntegralProvider(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if err = p.Advance(ctx, s, v, sqltype.Value{}); err != nil {
+					if err = p.Advance(ctx, s, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -76,14 +76,16 @@ func TestBitwiseAggregateIntegralProvider(t *testing.T) {
 			}
 			v, _ := sqltype.Integer(d, 12)
 			s, _ := p.Init(ctx)
-			if err := p.Advance(ctx, s, v, sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, s, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 			state := s.(*integralBitwiseAggregateState)
 			other, _ := sqltype.Integer(d, 10)
+			// The vector belongs to the caller, not the measured transition.
+			arguments := []sqltype.Value{other}
 			if allocations := testing.AllocsPerRun(100, func() {
 				state.value = v
-				if err := p.Advance(ctx, s, other, sqltype.Value{}); err != nil {
+				if err := p.Advance(ctx, s, arguments, nil); err != nil {
 					panic(err)
 				}
 			}); allocations != 0 {
@@ -125,7 +127,7 @@ func TestBitwiseAggregateBitProvider(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err = p.Advance(ctx, s, v, sqltype.Value{}); err != nil {
+				if err = p.Advance(ctx, s, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -146,7 +148,7 @@ func TestBitwiseAggregateBitProvider(t *testing.T) {
 				// not mutate any already finalized value.
 				before := got
 				operand, _ := sqltype.BitString(d, strings.Repeat("1", len(got)))
-				if err = p.Advance(ctx, s, operand, sqltype.Value{}); err != nil {
+				if err = p.Advance(ctx, s, []sqltype.Value{operand, sqltype.Value{}}, nil); err != nil {
 					t.Fatal(err)
 				}
 				if sealed, _ := v.Bits(); sealed != before {
@@ -161,11 +163,11 @@ func TestBitwiseAggregateBitProvider(t *testing.T) {
 		for _, first := range []string{"", "0", "1"} {
 			s, _ := p.Init(ctx)
 			v, _ := sqltype.BitString(d, first)
-			if err := p.Advance(ctx, s, v, sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, s, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 			v, _ = sqltype.BitString(d, "01")
-			err := p.Advance(ctx, s, v, sqltype.Value{})
+			err := p.Advance(ctx, s, []sqltype.Value{v, sqltype.Value{}}, nil)
 			var diagnostic interface{ SQLState() string }
 			if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22026" {
 				t.Fatal("width accepted", err)
@@ -187,17 +189,17 @@ func TestBitwiseAggregateInvalidStatesAndCancellation(t *testing.T) {
 			p := bitwiseAggregateUnitProvider(t, d, op)
 			s, _ := p.Init(ctx)
 			value := sqltype.Null(d)
-			if err := p.Advance(ctx, s, value, sqltype.Value{}); err == nil {
+			if err := p.Advance(ctx, s, []sqltype.Value{value, sqltype.Value{}}, nil); err == nil {
 				t.Fatal("NULL reached strict transition")
 			}
-			if err := p.Advance(ctx, s, sqltype.Boolean(other, true), sqltype.Value{}); err == nil {
+			if err := p.Advance(ctx, s, []sqltype.Value{sqltype.Boolean(other, true), sqltype.Value{}}, nil); err == nil {
 				t.Fatal("foreign datum accepted")
 			}
 			for _, invalid := range []any{nil, &countState{}, (*integralBitwiseAggregateState)(nil), (*bitStringAggregateState)(nil)} {
 				if _, err := p.Finalize(ctx, invalid); err == nil {
 					t.Fatal("invalid state accepted")
 				}
-				if err := p.Advance(ctx, invalid, value, sqltype.Value{}); err == nil {
+				if err := p.Advance(ctx, invalid, []sqltype.Value{value, sqltype.Value{}}, nil); err == nil {
 					t.Fatal("invalid state accepted")
 				}
 			}
@@ -206,7 +208,7 @@ func TestBitwiseAggregateInvalidStatesAndCancellation(t *testing.T) {
 			if state, err := p.Init(canceled); state != nil || err != context.Canceled {
 				t.Fatal(state, err)
 			}
-			if err := p.Advance(canceled, s, value, sqltype.Value{}); err != context.Canceled {
+			if err := p.Advance(canceled, s, []sqltype.Value{value, sqltype.Value{}}, nil); err != context.Canceled {
 				t.Fatal(err)
 			}
 			if _, err := p.Finalize(canceled, s); err != context.Canceled {

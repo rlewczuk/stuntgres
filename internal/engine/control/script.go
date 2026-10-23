@@ -174,7 +174,7 @@ func (s *dumpScript) addDeclarationEdges() error {
 	// Reconstruct final links, not allocation history: asymmetric links remain
 	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
 	routine.OperatorDumpEvents(s.CatalogView, s.Operators, s.Graph)
-	if err := routine.SQLRoutineDumpEvents(Resolver{}, s.CatalogView, s.SQLRoutines, s.Graph); err != nil {
+	if err := routine.RoutineDumpEvents(Resolver{}, s.CatalogView, s.OwnedRoutines, s.Graph); err != nil {
 		return err
 	}
 	for event, predecessors := range s.Graph {
@@ -290,8 +290,8 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 	for oid, statement := range s.familySeedFinal {
 		s.declarations[oid] = statement
 	}
-	for _, d := range s.SQLRoutines {
-		declaration, err := routine.SQLRoutineDumpStatement(Presenter{}, s.CatalogView, s.DomainRoles, d)
+	for _, d := range s.OwnedRoutines {
+		declaration, err := routine.RoutineDumpStatement(Presenter{}, s.CatalogView, s.DomainRoles, d)
 		if err != nil {
 			return err
 		}

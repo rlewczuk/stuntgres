@@ -334,21 +334,26 @@ func RewriteQueryExpressions(node Node, rewrite func(expr.Expr) (expr.Expr, bool
 			}
 			nextCall := call
 			callChanged := false
-			for j, expr := range [3]expr.Expr{call.Argument, call.Separator, call.Filter} {
-				if expr == nil || err != nil {
+			for j := 0; j <= len(call.Arguments); j++ {
+				operand := call.Filter
+				if j < len(call.Arguments) {
+					operand = call.Arguments[j]
+				}
+				if operand == nil || err != nil {
 					continue
 				}
-				next, different, failure := rewrite(expr)
+				next, different, failure := rewrite(operand)
 				err = failure
 				if different {
-					callChanged = true
-					if j == 0 {
-						nextCall.Argument = next
-					} else if j == 1 {
-						nextCall.Separator = next
+					if j < len(call.Arguments) {
+						if !callChanged {
+							nextCall.Arguments = append([]expr.Expr(nil), call.Arguments...)
+						}
+						nextCall.Arguments[j] = next
 					} else {
 						nextCall.Filter = next
 					}
+					callChanged = true
 				}
 			}
 			var direct []expr.Expr

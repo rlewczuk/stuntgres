@@ -76,7 +76,7 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 					}
 					call := b.Grouping.Aggregates[node.(plan.AggregateExpr).Slot]
 					provider := call.Provider.(functions.JSONObjectAggregate)
-					if provider.KeyUsage() != call.Argument.ResultUsage() || provider.InputUsage() != call.Separator.ResultUsage() {
+					if provider.KeyUsage() != call.Arguments[0].ResultUsage() || provider.InputUsage() != call.Arguments[1].ResultUsage() {
 						t.Fatal("provider captured provisional inputs")
 					}
 					if provider.Unique() != strings.Contains(name, "_unique") || provider.Strict() != strings.HasSuffix(name, "_strict") {
@@ -115,7 +115,7 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 					if err != nil {
 						t.Fatal("provider plan not rebound", err)
 					}
-					if err = provider.Advance(ctx, state, key, input); err != nil {
+					if err = provider.Advance(ctx, state, []sqltype.Value{key, input}, nil); err != nil {
 						t.Fatal("provider uses stale owners", err)
 					}
 					value, err := provider.Finalize(ctx, state)
@@ -208,7 +208,7 @@ func TestJSONObjectAggregateModifierRepeatedDistinctCompletion(t *testing.T) {
 			t.Fatal(err)
 		}
 		value := sqltype.String(text, "x")
-		if err = p.Advance(ctx, state, value, value); err != nil {
+		if err = p.Advance(ctx, state, []sqltype.Value{value, value}, nil); err != nil {
 			t.Fatal(err)
 		}
 		out, err := p.Finalize(ctx, state)

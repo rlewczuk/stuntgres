@@ -5,14 +5,20 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
+// DynamicCallable distinguishes catalog-defined SQL bodies and real owned
+// transition aggregates from immutable builtin/extension providers.
+func (d *Procedure) DynamicCallable() bool {
+	return d != nil && (d.SQL != nil || d.Aggregate != nil && d.Builtin == nil && d.Implementation == nil)
+}
+
 // Membership only; callable descriptors and grants come from the captured root.
 type ProcedureNameKey struct {
 	Namespace ids.ObjectAddress
 	Name      string
 }
 type ProcedureNameIndex struct {
-	Buckets  map[ProcedureNameKey][]ids.ObjectAddress
-	SQLNames map[string]int
+	Buckets      map[ProcedureNameKey][]ids.ObjectAddress
+	DynamicNames map[string]int
 }
 type ProcedureIndexEdit struct {
 	Index   *ProcedureNameIndex
@@ -23,9 +29,9 @@ func (edit *ProcedureIndexEdit) detach() {
 	if edit.touched != nil {
 		return
 	}
-	index := &ProcedureNameIndex{Buckets: make(map[ProcedureNameKey][]ids.ObjectAddress), SQLNames: make(map[string]int)}
+	index := &ProcedureNameIndex{Buckets: make(map[ProcedureNameKey][]ids.ObjectAddress), DynamicNames: make(map[string]int)}
 	if edit.Index != nil {
-		index.Buckets, index.SQLNames = cloneMap(edit.Index.Buckets), cloneMap(edit.Index.SQLNames)
+		index.Buckets, index.DynamicNames = cloneMap(edit.Index.Buckets), cloneMap(edit.Index.DynamicNames)
 	}
 	edit.Index = index
 	edit.touched = make(map[ProcedureNameKey]bool)
@@ -45,21 +51,21 @@ func (edit *ProcedureIndexEdit) Replace(old, next Descriptor) {
 	before, was := old.(*Procedure)
 	after, is := next.(*Procedure)
 	same := was && is && before.Address() == after.Address() && before.Namespace() == after.Namespace() && before.Name() == after.Name()
-	if same && (before.SQL != nil) == (after.SQL != nil) {
+	if same && before.DynamicCallable() == after.DynamicCallable() {
 		return
 	}
 	if !was && !is {
 		return
 	}
 	edit.detach()
-	if was && before.SQL != nil {
-		edit.Index.SQLNames[before.Name()]--
-		if edit.Index.SQLNames[before.Name()] == 0 {
-			delete(edit.Index.SQLNames, before.Name())
+	if was && before.DynamicCallable() {
+		edit.Index.DynamicNames[before.Name()]--
+		if edit.Index.DynamicNames[before.Name()] == 0 {
+			delete(edit.Index.DynamicNames, before.Name())
 		}
 	}
-	if is && after.SQL != nil {
-		edit.Index.SQLNames[after.Name()]++
+	if is && after.DynamicCallable() {
+		edit.Index.DynamicNames[after.Name()]++
 	}
 	if same {
 		return
@@ -87,13 +93,13 @@ func (edit *ProcedureIndexEdit) Replace(old, next Descriptor) {
 	}
 }
 func RebuildProcedureNames(descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) *ProcedureNameIndex {
-	index := &ProcedureNameIndex{Buckets: make(map[ProcedureNameKey][]ids.ObjectAddress), SQLNames: make(map[string]int)}
+	index := &ProcedureNameIndex{Buckets: make(map[ProcedureNameKey][]ids.ObjectAddress), DynamicNames: make(map[string]int)}
 	for address, descriptor := range descriptors {
 		if d, ok := descriptor.(*Procedure); ok {
 			key := ProcedureNameKey{d.Namespace(), d.Name()}
 			index.Buckets[key] = append(index.Buckets[key], address)
-			if d.SQL != nil {
-				index.SQLNames[d.Name()]++
+			if d.DynamicCallable() {
+				index.DynamicNames[d.Name()]++
 			}
 		}
 	}
@@ -101,8 +107,8 @@ func RebuildProcedureNames(descriptors iter.Seq2[ids.ObjectAddress, Descriptor])
 }
 func (s *State) ProcedureNames() *ProcedureNameIndex         { return s.procedureNames }
 func (s *State) SetProcedureNames(index *ProcedureNameIndex) { s.procedureNames = index }
-func (s *State) HasSQLProcedureName(name string) bool {
-	return s.procedureNames != nil && s.procedureNames.SQLNames[name] != 0
+func (s *State) HasDynamicProcedureName(name string) bool {
+	return s.procedureNames != nil && s.procedureNames.DynamicNames[name] != 0
 }
 func (s *State) ProceduresNamed(namespace ids.ObjectAddress, name string) []ids.ObjectAddress {
 	if s.procedureNames == nil {

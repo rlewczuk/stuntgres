@@ -692,8 +692,8 @@ func (prepared *preparedDrop) ProceduresNamed(namespace ids.ObjectAddress, name 
 		}
 	}
 }
-func (prepared *preparedDrop) HasSQLProcedureName(name string) bool {
-	return prepared.discovery.State().HasSQLProcedureName(name) || prepared.input != nil && prepared.input.HasSQLProcedureName(name)
+func (prepared *preparedDrop) HasDynamicProcedureName(name string) bool {
+	return prepared.discovery.State().HasDynamicProcedureName(name) || prepared.input != nil && prepared.input.HasDynamicProcedureName(name)
 }
 
 func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name string) string {

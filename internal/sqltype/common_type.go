@@ -50,3 +50,70 @@ func CommonTypeCandidate(candidate, next *Descriptor) (*Descriptor, bool) {
 	}
 	return candidate, true
 }
+
+// CommonUsageMismatch retains diagnostic evidence without depending on SQL
+// syntax or constructing an analyzer error.
+type CommonUsageMismatch struct {
+	Left, Right *Descriptor
+	Index       int
+}
+
+// SelectCommonUsage is the shared domain/type/typmod fold. An absent Type is
+// an unknown analysis operand, not a runtime NULL datum.
+func SelectCommonUsage(count int, usage func(int) Usage, text Usage) (Usage, CommonUsageMismatch) {
+	var domain *Descriptor
+	allDomain := count > 0
+	for i := range count {
+		d := usage(i).Type
+		if d == nil || !d.IsDomain() || domain != nil && domain != d {
+			allDomain = false
+			break
+		}
+		domain = d
+	}
+	if allDomain {
+		return usage(0), CommonUsageMismatch{}
+	}
+	var candidate Usage
+	typmod := int32(-1)
+	sameMod := true
+	for i := range count {
+		u := usage(i)
+		if u.Type == nil {
+			sameMod = false
+			continue
+		}
+		if u.Type.IsDomain() {
+			u.Type = u.Type.BaseType()
+			u.Typmod = -1
+			sameMod = false
+		}
+		if candidate.Type == nil {
+			candidate = u
+			typmod = u.Typmod
+			continue
+		}
+		if u.Type != candidate.Type || u.Typmod != typmod {
+			sameMod = false
+		}
+		if u.Type == candidate.Type {
+			continue
+		}
+		chosen, compatible := CommonTypeCandidate(candidate.Type, u.Type)
+		if !compatible {
+			return Usage{}, CommonUsageMismatch{Left: candidate.Type, Right: u.Type, Index: i}
+		}
+		if chosen == u.Type {
+			candidate = u
+		}
+	}
+	if candidate.Type == nil {
+		return text, CommonUsageMismatch{}
+	}
+	if sameMod {
+		candidate.Typmod = typmod
+	} else {
+		candidate.Typmod = -1
+	}
+	return candidate, CommonUsageMismatch{}
+}

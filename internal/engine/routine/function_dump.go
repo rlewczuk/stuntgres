@@ -11,12 +11,24 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// SQLRoutineDumpEvents adds each SQL routine's declaration event, preceded by
-// the events of its input and result types.
-func SQLRoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.Procedure, events dump.Graph) error {
+// RoutineDumpEvents orders owned SQL bodies and real transition aggregates by
+// their actual type/support/body predecessors.
+func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.Procedure, events dump.Graph) error {
 	for _, d := range routines {
 		key := dump.Event{OID: d.Address().ObjectID}
 		events[key] = nil
+		if d.Aggregate != nil {
+			for address := range catalog.OwnedAggregateDependencies(d) {
+				predecessor, err := r.Predecessor(view, address, d.Address())
+				if err != nil {
+					return err
+				}
+				if predecessor != 0 {
+					events[key] = append(events[key], dump.Event{OID: predecessor})
+				}
+			}
+			continue
+		}
 		for i := range len(d.SQL.Formals) + 1 {
 			usage := d.SQL.Result
 			if i < len(d.SQL.Formals) {
@@ -63,9 +75,11 @@ func SQLRoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalo
 	return nil
 }
 
-// SQLRoutineDumpStatement renders a SQL routine as CREATE FUNCTION, owned by
-// the routine owner.
-func SQLRoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Procedure) (dump.Statement, error) {
+// RoutineDumpStatement renders an owned callable under its actual owner.
+func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Procedure) (dump.Statement, error) {
+	if d.Aggregate != nil {
+		return aggregateDumpStatement(p, view, roles, d)
+	}
 	owner, err := roles.Descriptor(d.Owner)
 	if err != nil {
 		return dump.Statement{}, err

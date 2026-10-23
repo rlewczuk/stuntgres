@@ -130,7 +130,7 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column})
-	aggregate := &plan.Query{Root: &plan.ProjectNode{Child: &plan.AggregateNode{Child: source, Keys: []expr.Expr{variable}, Calls: []plan.AggregateCall{{Argument: variable, Order: []plan.SortKey{{Expression: variable}}}}}, Expressions: []expr.Expr{plan.GroupExpr{}, plan.AggregateExpr{}}}}
+	aggregate := &plan.Query{Root: &plan.ProjectNode{Child: &plan.AggregateNode{Child: source, Keys: []expr.Expr{variable}, Calls: []plan.AggregateCall{{Arguments: []expr.Expr{variable}, Order: []plan.SortKey{{Expression: variable}}}}}, Expressions: []expr.Expr{plan.GroupExpr{}, plan.AggregateExpr{}}}}
 	got, err = stored.QueryDependRefs(context.Background(), view, nil, aggregate)
 	if err != nil {
 		t.Fatal(err)

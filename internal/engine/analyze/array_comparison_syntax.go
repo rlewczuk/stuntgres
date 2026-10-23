@@ -2,6 +2,16 @@ package analyze
 
 import "stuntgres/internal/parser"
 
+// A postfix cast reports its child's SourcePosition for expression diagnostics,
+// but its own token identifies the syntax occurrence. Lowering the child must
+// not erase an enclosing cast; deliberate cast lowering owns that token instead.
+func (b *Binder) storedExpressionSyntaxKey(raw parser.Expr) StoredExpressionSyntaxKey {
+	if cast, ok := raw.(parser.CastExpr); ok && cast.Syntax == parser.PostfixCast {
+		return StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: cast.Pos}
+	}
+	return StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}
+}
+
 // Stored syntax follows analyzed lowering, including independently typed IN
 // operands and erased quantified constructor casts. Only changed ancestors are
 // copied; child queries normalize in their own lexical binding frame.
@@ -38,7 +48,7 @@ func (b *Binder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) 
 	if raw != nil {
 		switch raw.(type) {
 		case parser.InListExpr, parser.CastExpr, parser.AggregateExpr, parser.FunctionExpr, parser.ColumnExpr:
-			if lowered, ok := b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}]; ok {
+			if lowered, ok := b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)]; ok {
 				raw, changed = lowered, true
 			}
 		}

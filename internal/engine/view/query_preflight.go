@@ -189,7 +189,12 @@ func PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		for i, call := range n.Calls {
 			// Ordered-set direct expressions remain group-finalization owned:
 			// preflight must not evaluate them for absent keyed groups.
-			for j, expression := range [3]expr.Expr{call.Argument, call.Separator, call.Filter} {
+			argumentsCopied := false
+			for j := 0; j <= len(call.Arguments); j++ {
+				expression := call.Filter
+				if j < len(call.Arguments) {
+					expression = call.Arguments[j]
+				}
 				if expression == nil {
 					continue
 				}
@@ -201,10 +206,12 @@ func PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 					if calls == nil {
 						calls = append([]plan.AggregateCall(nil), n.Calls...)
 					}
-					if j == 0 {
-						calls[i].Argument = folded
-					} else if j == 1 {
-						calls[i].Separator = folded
+					if j < len(call.Arguments) {
+						if !argumentsCopied {
+							calls[i].Arguments = append([]expr.Expr(nil), call.Arguments...)
+							argumentsCopied = true
+						}
+						calls[i].Arguments[j] = folded
 					} else {
 						calls[i].Filter = folded
 					}

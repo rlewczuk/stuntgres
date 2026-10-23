@@ -66,7 +66,15 @@ func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.RoutineKind == captured.RoutineKind && current.Result == captured.Result &&
 		current.Strict == captured.Strict && current.Volatility == captured.Volatility &&
 		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
-		current.Conversion == captured.Conversion && current.SQL == captured.SQL && current.SQLBody == captured.SQLBody && current.SQLDefaults == captured.SQLDefaults
+		current.Conversion == captured.Conversion && current.SQL == captured.SQL && current.SQLBody == captured.SQLBody &&
+		current.SQLDefaults == captured.SQLDefaults && sameAggregateDefinition(current.Aggregate, captured.Aggregate)
+}
+
+func sameAggregateDefinition(a, b *catalog.OwnedAggregate) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 func ExpressionRecipeDescriptor(node any) (*catalog.Relation, error) {

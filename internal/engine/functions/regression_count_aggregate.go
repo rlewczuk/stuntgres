@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -24,7 +25,9 @@ func (p RegressionCountAggregate) Reconstruct(input *sqltype.Descriptor, usage s
 func (p RegressionCountAggregate) Init(ctx context.Context) (any, error) {
 	return NewCountProvider(p.usage).Init(ctx)
 }
-func (p RegressionCountAggregate) Advance(ctx context.Context, state any, y, x sqltype.Value) error {
+func (p RegressionCountAggregate) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	y := values[0]
+	x := values[1]
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -38,7 +41,7 @@ func (p RegressionCountAggregate) Advance(ctx context.Context, state any, y, x s
 	if y.IsNull() || x.IsNull() {
 		return ctx.Err()
 	}
-	return NewCountProvider(p.usage).Advance(ctx, s, y, x)
+	return NewCountProvider(p.usage).Advance(ctx, s, values, nil)
 }
 func (p RegressionCountAggregate) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {

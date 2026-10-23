@@ -17,6 +17,23 @@ Edit `grammar.y`; root generation owns `grammar_gen.go`.
 make check RUN='^TestAccessMethodGrammar$'
 ```
 
+### Ordinary aggregate declarations
+
+The dedicated AGGREGATE create-head token remains an unreserved identifier in
+ordinary table/column/function contexts; it must not become a generic
+`CREATE name` grammar head. Four-option definition nodes retain the existing
+numeric/name/type/operator shapes for original INITCOND extraction. The public
+oracle-first diagnostics and identifier/value cases are owned by
+[reference/aggregates](../../reference/aggregates/README.md#create-aggregate-contract):
+
+```sh
+make check RUN='^TestReferenceCreateAggregate(InitialConditionNodes|KeywordNames)$'
+make check RUN='^TestReferenceCreateAggregate(InitialConditionNodes|KeywordNames)$' REFERENCE=1
+```
+
+Generation belongs to the root's normal make workflow; edit `grammar.y`, not
+`grammar_gen.go`.
+
 ### Recursive view lowering
 
 `make check RUN='^TestCreateRecursiveView(Lowering|SyntheticPositions)$'`

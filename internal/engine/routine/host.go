@@ -22,6 +22,7 @@ type DDLHost interface {
 	SelectFunction(auth ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error)
 	// ResolveRegtype resolves a type name as regtype input does.
 	ResolveRegtype(ddl.Authority, parser.TypeName) (ids.OID, error)
+	SelectAggregateSupport(ddl.Authority, parser.ObjectName, []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error)
 	// BindSQLRoutine binds d's body against the stage. It returns nil during
 	// Restore SQL body replay.
 	BindSQLRoutine(auth ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error

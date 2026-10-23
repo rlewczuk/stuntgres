@@ -96,7 +96,7 @@ var keywords = [...]keyword{
 	{"add", Unreserved, true, ADD},
 	{"admin", Unreserved, true, ADMIN},
 	{"after", Unreserved, true, 0},
-	{"aggregate", Unreserved, true, 0},
+	{"aggregate", Unreserved, true, AGGREGATE},
 	{"all", Reserved, true, ALL},
 	{"also", Unreserved, true, ALSO},
 	{"alter", Unreserved, true, ALTER},

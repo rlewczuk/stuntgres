@@ -148,10 +148,10 @@ func TestGroupingSetsOncePerSourceModifiers(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(DISTINCT v ORDER BY v) FILTER(WHERE TRUE) FROM t GROUP BY GROUPING SETS((),(),())")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	call := &node.Calls[0]
-	filter, argument := call.Filter, call.Argument
+	filter, argument := call.Filter, call.Arguments[0]
 	filters, values := 0, 0
 	call.Filter = queryProbe(filter.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { filters++; return filter.Eval(c) })
-	call.Argument = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { values++; return argument.Eval(c) })
+	call.Arguments[0] = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { values++; return argument.Eval(c) })
 	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 3 || filters != 4 || values != 4 {
 		t.Fatal(count, err, filters, values)
@@ -191,7 +191,7 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 			advances := 0
 			node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
 				advances++
-				err := provider.Advance(ctx, s, v, d)
+				err := provider.Advance(ctx, s, []sqltype.Value{v, d}, nil)
 				if phase == "fanout" && advances == 2 {
 					cancel()
 				}
@@ -261,7 +261,7 @@ func TestGroupingSetsInsertLateFailureAndActiveCancellation(t *testing.T) {
 			node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: provider,
 				advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
 					advances++
-					err := provider.Advance(ctx, s, v, d)
+					err := provider.Advance(ctx, s, []sqltype.Value{v, d}, nil)
 					if phase == "fanout_cancel" && advances == 2 {
 						cancel()
 					}

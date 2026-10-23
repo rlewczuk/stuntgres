@@ -34,11 +34,11 @@ func TestAvgProviders(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+			if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if err := p.Advance(ctx, state, sqltype.Null(input), sqltype.Value{}); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Null(input), sqltype.Value{}}, nil); err != nil {
 			t.Fatal(err)
 		}
 		for range 2 {
@@ -62,14 +62,14 @@ func TestAvgProviders(t *testing.T) {
 		foreign := numericUnitTypes()[id]
 		wrong, _ := foreign.Input(ctx, "1", -1)
 		for _, invalid := range []sqltype.Value{{}, wrong} {
-			err := p.Advance(ctx, state, invalid, sqltype.Value{})
+			err := p.Advance(ctx, state, []sqltype.Value{invalid, sqltype.Value{}}, nil)
 			var diagnostic interface{ SQLState() string }
 			if err == nil || errors.As(err, &diagnostic) {
 				t.Fatal("ownership must be ordinary error", err)
 			}
 		}
 		for _, invalid := range []any{nil, struct{}{}, (*sqltype.NumericAvgState)(nil), (*sqltype.FloatAvgState)(nil)} {
-			if err := p.Advance(ctx, invalid, v, sqltype.Value{}); err == nil {
+			if err := p.Advance(ctx, invalid, []sqltype.Value{v, sqltype.Value{}}, nil); err == nil {
 				t.Fatal("invalid state accepted")
 			}
 			if _, err := p.Finalize(ctx, invalid); err == nil {
@@ -92,7 +92,7 @@ func TestAvgProviders(t *testing.T) {
 					t.Error(err)
 					return
 				}
-				if err := p.Advance(ctx, s, one, sqltype.Value{}); err != nil {
+				if err := p.Advance(ctx, s, []sqltype.Value{one, sqltype.Value{}}, nil); err != nil {
 					t.Error(err)
 					return
 				}
@@ -133,7 +133,7 @@ func TestAvgProviderCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		one, _ := input.Input(context.Background(), "1", -1)
-		if err := p.Advance(ctx, state, one, sqltype.Value{}); err != context.Canceled {
+		if err := p.Advance(ctx, state, []sqltype.Value{one, sqltype.Value{}}, nil); err != context.Canceled {
 			t.Fatal(err)
 		}
 		if out, err := p.Finalize(ctx, state); out.Type() != nil || err != context.Canceled {
@@ -146,7 +146,7 @@ func TestAvgProviderCancellation(t *testing.T) {
 		if state, err := p.Init(&avgCheckContext{Context: context.Background(), cancelAt: 2}); state != nil || err != context.Canceled {
 			t.Fatal(state, err)
 		}
-		if err := p.Advance(&avgCheckContext{Context: context.Background(), cancelAt: 2}, state, one, sqltype.Value{}); err != context.Canceled {
+		if err := p.Advance(&avgCheckContext{Context: context.Background(), cancelAt: 2}, state, []sqltype.Value{one, sqltype.Value{}}, nil); err != context.Canceled {
 			t.Fatal("post-transition cancellation", err)
 		}
 		if out, err := p.Finalize(&avgCheckContext{Context: context.Background(), cancelAt: 2}, state); out.Type() != nil || err != context.Canceled {

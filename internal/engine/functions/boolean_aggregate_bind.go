@@ -30,7 +30,7 @@ func bindBooleanAggregate(b AggregateBinder, raw parser.AggregateExpr, name pars
 	if raw.Name == "bool_or" {
 		operation = AggregateOr
 	}
-	call := AggregateCall{Provider: NewBooleanAggregateProvider(typ.Usage(), operation == AggregateAnd), Argument: arg, Operation: operation}
+	call := AggregateCall{Provider: NewBooleanAggregateProvider(typ.Usage(), operation == AggregateAnd), Arguments: []expr.Expr{arg}, Operation: operation}
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, raw.Name, sqltype.Bool)
 	if err != nil {
 		return nil, err

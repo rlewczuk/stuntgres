@@ -23,11 +23,18 @@ type aggregateProbeProvider struct {
 	finalize func(context.Context, any) (sqltype.Value, error)
 }
 
-func (p aggregateProbeProvider) Advance(ctx context.Context, s any, value, separator sqltype.Value) error {
+func (p aggregateProbeProvider) Advance(ctx context.Context, s any, values []sqltype.Value, evaluation expr.Context) error {
 	if p.advance != nil {
+		var value, separator sqltype.Value
+		if len(values) > 0 {
+			value = values[0]
+		}
+		if len(values) > 1 {
+			separator = values[1]
+		}
 		return p.advance(ctx, s, value, separator)
 	}
-	return p.AggregateProvider.Advance(ctx, s, value, separator)
+	return p.AggregateProvider.Advance(ctx, s, values, evaluation)
 }
 func (p aggregateProbeProvider) Finalize(ctx context.Context, s any) (sqltype.Value, error) {
 	if p.finalize != nil {
@@ -101,7 +108,7 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 			case "advance":
 				original := node.Calls[0].Provider
 				node.Calls[0].Provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, value, separator sqltype.Value) error {
-					err := original.Advance(ctx, s, value, separator)
+					err := original.Advance(ctx, s, []sqltype.Value{value, separator}, nil)
 					cancel()
 					return err
 				}}
@@ -358,9 +365,9 @@ func TestQueryAggregateActualSortComparisonCancellation(t *testing.T) {
 func TestQueryAggregateRealAdvanceFailure(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT sum(1::real) FROM t")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
-	usage := node.Calls[0].Argument.ResultUsage()
+	usage := node.Calls[0].Arguments[0].ResultUsage()
 	argumentEffects := 0
-	node.Calls[0].Argument = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
+	node.Calls[0].Arguments[0] = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 		argumentEffects++
 		return sqltype.Float(usage.Type, math.MaxFloat32)
 	})

@@ -1,8 +1,8 @@
 # internal/engine/routine
 
 Builtin routine and operator inventories, their lookups and validation, the
-operator and CREATE/DROP routine DDL handlers, and the operator and SQL routine
-dump statements. The package sits at layer L9
+operator and CREATE/DROP routine DDL handlers, ordinary aggregate declarations,
+and operator/owned-routine dump statements. The package sits at layer L9
 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access`, `authorization`, `catalog`, `ddl`, `dump`, `expr`,
 `functions`, `ids`, `parser`, `proc`, `session`, `sqltype`, `sqlstate` and the standard
@@ -85,20 +85,31 @@ or the engine. Step 14 of the split moves it here; see
   Checked defaults bind against the legitimate pre-declaration stage, including
   prior staged objects but excluding the new declaration. Only then is the
   declaration staged for body validation and existing self-recursion behavior.
-- **Dumps** (`operator_dump.go`, `function_dump.go`): what native Dump
-  writes for user operators and SQL routines, including all-formal type, checked
-  default and standard-body graph edges.
+- **Ordinary aggregates** (`aggregate_ddl.go`, `aggregate_definition.go`):
+  stage and validate the four-option declaration, real support/state identity
+  and hard dependencies atomically. `AggregateSupportTypes` uses the existing
+  pure callable-family shape/result authority for concrete specialization; it
+  imports no analyzer, registers no callback and stores no executable payload
+  in the catalog. Exact support selection remains on the DDL host.
+  Concrete support formal/result usages retain the caller's derived collation
+  rather than resetting to descriptor defaults, so detached destination
+  specialization agrees with exact private-frame usage validation.
+- **Dumps** (`operator_dump.go`, `function_dump.go`, `aggregate_dump.go`): what
+  native Dump writes for user operators, SQL routines and ordinary aggregates,
+  including formal/state types, actual support, checked default and body edges.
   `OperatorDumped` is the operator Collect decision; `OperatorDumpDependencies`, `OperatorDumpEvents`
   and `NormalizeOperatorDumpPredecessors` add the declaration and deferred
   link events to the `dump.Graph`; `OperatorDumpStatements` (one
   `OperatorDumpDeclaration` per operator, orphan shells through a temporary
   generator) renders CREATE OPERATOR, owner changes and the `OperatorLinks`
   phase text; `OperatorShellGenerator` picks the defined operator that
-  creates a forward shell. `SQLRoutineDumpEvents` and
-  `SQLRoutineDumpStatement` do the same for LANGUAGE SQL functions. They
-  render types and routine identities through `dump.Presenter` and find
-  predecessors through `dump.Resolver`; both are pure, so these functions
-  read only their arguments.
+  creates a forward shell. `RoutineDumpEvents` and `RoutineDumpStatement`
+  cover owned SQL functions and aggregates. They render types and routine
+  identities through `dump.Presenter` and find predecessors through
+  `dump.Resolver`; both are pure, so these functions read only their arguments.
+  Existing statement owners preserve default-ACL ownership; receiving roles
+  must already exist. Explicit SQL-routine or aggregate ACLs reject Dump before
+  output rather than being ignored or reset.
 - **Operator dependencies** (`operator_dependencies.go`):
   `OperatorDependencyAddresses` and `OperatorDependsOn`.
 - **Small helpers**: `GrantRoutineKindMatches` (`grant_kind.go`) and
@@ -124,8 +135,8 @@ or the engine. Step 14 of the split moves it here; see
 The handlers run under `Engine.mu` without a statement scope. They reach the
 engine only through `DDLHost` (`host.go`), which embeds the shared
 [`ddl.Host`](../ddl/README.md) and adds the routine methods
-(`DefinitionType`, `DefinitionLookup`, `SelectFunction`, `ResolveRegtype`,
-`BindSQLRoutine`, `BindSQLDefaults`). The engine implements it on its scope-free staging
+(`DefinitionType`, `DefinitionLookup`, `SelectFunction`, `SelectAggregateSupport`,
+`ResolveRegtype`, `BindSQLRoutine`, `BindSQLDefaults`). The engine implements it on its scope-free staging
 adapter, `ddlHost`, built once per DDL statement (the routine methods are in
 `routine_host.go`):
 
@@ -164,6 +175,16 @@ The Emit entry `emitDumpOperatorLinks`, the `control.Presenter` and
 `control.Resolver` adapters and the script calls are in `control` (step 30).
 
 ## Testing
+
+Ordinary aggregate declaration, authorization, catalog/dependency and actual
+replay proof is owned by
+[reference/aggregates](../../../reference/aggregates/README.md#create-aggregate-contract).
+Private declaration/publication, actor and detached-specialization fences join
+the structural transition/remap units under:
+
+```sh
+make check RUN='^(TestCreateAggregate|TestSelectCommonUsage)'
+```
 
 The seventeen REL_18_6 geometric conversion declarations retain fixed OIDs, exact
 input/result signatures, strict immutable parallel-safe function attributes and

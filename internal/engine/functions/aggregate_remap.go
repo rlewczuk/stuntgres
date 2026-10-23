@@ -3,6 +3,7 @@ package functions
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -17,6 +18,11 @@ type ProviderRemap struct {
 	// Argument is the call's stored argument usage, before remapping. Ordered
 	// sets bind their ordering from it.
 	Argument sqltype.Usage
+	// Routine and Expression reown real transition declarations and the scalar
+	// provider over its private frame. Expression receives exact source and
+	// destination formal usages; ordinary query parameters are not admitted.
+	Routine    func(expr.RoutineReference) (expr.RoutineReference, error)
+	Expression func(expr.Expr, []sqltype.Usage, []sqltype.Usage) (expr.Expr, error)
 }
 
 // RemappableProvider is an aggregate provider that may persist in a stored

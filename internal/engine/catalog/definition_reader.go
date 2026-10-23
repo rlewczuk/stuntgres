@@ -17,5 +17,5 @@ type DefinitionReader interface {
 	Lookup(ids.NameKey) ids.ObjectAddress
 	Descriptors() iter.Seq2[ids.ObjectAddress, Descriptor]
 	ProceduresNamed(ids.ObjectAddress, string) iter.Seq[*Procedure]
-	HasSQLProcedureName(string) bool
+	HasDynamicProcedureName(string) bool
 }

@@ -89,3 +89,22 @@ func probeJSONRecordCall(b CallTypeContext, raw parser.FunctionExpr, operands []
 	}
 	return true
 }
+
+func rangeInspectCallResult(_ CallTypeContext, raw parser.FunctionExpr, targets []sqltype.Usage) (sqltype.Usage, bool) {
+	if targets[0].Type == nil {
+		return sqltype.Usage{}, true
+	}
+	operation, known := sqltype.RangeInspectKind(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	if !known {
+		return sqltype.Usage{}, false
+	}
+	result := sqltype.RangeInspectResult(operation, targets[0].Type)
+	if result == nil {
+		return sqltype.Usage{}, false
+	}
+	return result.Usage(), true
+}
+
+func jsonRecordCallResult(_ CallTypeContext, _ parser.FunctionExpr, targets []sqltype.Usage) (sqltype.Usage, bool) {
+	return targets[0], true
+}

@@ -54,7 +54,7 @@ func (b *Binder) bindIntaggAggregate(raw parser.AggregateExpr, name parser.Objec
 	properties := arg.Properties()
 	properties.StageDependent = true
 	info := b.Info(array.Usage(), raw.Pos, properties)
-	call := plan.AggregateCall{Provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), Argument: arg, Operation: functions.AggregateArrayScalar, IncludeNulls: true, Procedure: proc, Ref: ref, Routine: ref}
+	call := plan.AggregateCall{Provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), Arguments: []expr.Expr{arg}, Operation: functions.AggregateArrayScalar, IncludeNulls: true, Procedure: proc, Ref: ref, Routine: ref}
 	return b.finishAggregate(raw, call, filter, info)
 }
 

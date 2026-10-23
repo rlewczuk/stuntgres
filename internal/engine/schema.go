@@ -204,6 +204,10 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		if err = typedef.StageDropConversionLocked(host, auth, s); err != nil {
 			return nil, err
 		}
+	case *parser.CreateAggregate:
+		if err = routine.StageCreateAggregate(host, auth, s, input); err != nil {
+			return nil, err
+		}
 	case *parser.CreateFunction:
 		if err = routine.StageCreateFunction(host, auth, s, input); err != nil {
 			return nil, err

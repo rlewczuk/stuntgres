@@ -43,7 +43,7 @@ func bindAvg(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName
 	case AggregateFloatAvg:
 		provider = NewFloatAvg(typ, b.Type(sqltype.Float8).Usage())
 	}
-	call := AggregateCall{Provider: provider, Argument: arg, Operation: operation}
+	call := AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Operation: operation}
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, "avg", typ.ID())
 	if err != nil {
 		return nil, err

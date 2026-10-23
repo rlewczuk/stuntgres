@@ -95,10 +95,10 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 		t.Fatal("aggregate query lacks projection", query.Root)
 	}
 	aggregate, ok := project.Child.(*plan.AggregateNode)
-	if !ok || len(aggregate.Calls) != 1 || query.Root.Schema()[0].Usage.Type.ID() != sqltype.Bool || aggregate.Calls[0].Argument.ResultUsage().Type.ID() != sqltype.Bool {
+	if !ok || len(aggregate.Calls) != 1 || query.Root.Schema()[0].Usage.Type.ID() != sqltype.Bool || aggregate.Calls[0].Arguments[0].ResultUsage().Type.ID() != sqltype.Bool {
 		t.Fatal("aggregate did not downcast signature", project.Child, query.Root.Schema())
 	}
-	argument, err := aggregate.Calls[0].Argument.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	argument, err := aggregate.Calls[0].Arguments[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = provider.Advance(context.Background(), state, argument, sqltype.Value{}); err != nil {
+	if err = provider.Advance(context.Background(), state, []sqltype.Value{argument, sqltype.Value{}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	value, err := provider.Finalize(context.Background(), state)

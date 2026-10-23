@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -776,25 +777,34 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 						return nil, fmt.Errorf("stuntgres: missing remapped intagg aggregate")
 					}
 					copy.Calls[i].Procedure = proc
-					if failure := extension.ValidateIntaggIdentity(m.Catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
+					if proc.Aggregate != nil && proc.DynamicCallable() {
+						if failure := routine.ValidateAggregateDefinition(m.Catalog, proc); failure != nil {
+							return nil, failure
+						}
+					} else if failure := extension.ValidateIntaggIdentity(m.Catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
 						return nil, failure
 					}
 				}
 			}
 			copy.Calls[i].Routine = ref(call.Routine)
+			if len(call.RoutineAliases) != 0 {
+				copy.Calls[i].RoutineAliases = make([]ids.ObjectRef, len(call.RoutineAliases))
+				for j, alias := range call.RoutineAliases {
+					copy.Calls[i].RoutineAliases[j] = ref(alias)
+				}
+			}
 			provider, ok := call.Provider.(functions.RemappableProvider)
 			if !ok {
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
 			}
 			if err == nil {
-				err = m.provider(&copy.Calls[i].Provider, provider, call.Argument)
+				var first expr.Expr
+				if len(call.Arguments) > 0 {
+					first = call.Arguments[0]
+				}
+				err = m.provider(&copy.Calls[i].Provider, provider, first)
 			}
-			if call.Argument != nil {
-				copy.Calls[i].Argument = expression(call.Argument)
-			}
-			if call.Separator != nil {
-				copy.Calls[i].Separator = expression(call.Separator)
-			}
+			copy.Calls[i].Arguments = expressions(call.Arguments)
 			copy.Calls[i].Direct = expressions(call.Direct)
 			if call.Filter != nil {
 				copy.Calls[i].Filter = expression(call.Filter)
@@ -803,10 +813,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 			for k := range call.Distinct {
 				copy.Calls[i].Distinct[k] = call.Distinct[k]
 				copy.Calls[i].Distinct[k].Routine = ref(call.Distinct[k].Routine)
-				arg := copy.Calls[i].Argument
-				if k == 1 {
-					arg = copy.Calls[i].Separator
-				}
+				arg := copy.Calls[i].Arguments[k]
 				if err == nil {
 					copy.Calls[i].Distinct[k].Grouping, err = sqltype.BindGrouping(arg.ResultUsage())
 				}
@@ -819,12 +826,10 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 				copy.Calls[i].Order[k].Expression = expression(key.Expression)
 				if err == nil {
 					usage := copy.Calls[i].Order[k].Expression.ResultUsage()
-					if key.Slot == 0 {
-						usage = copy.Calls[i].Argument.ResultUsage()
-					} else if key.Slot == 1 {
-						usage = copy.Calls[i].Separator.ResultUsage()
-					} else if key.Slot >= 2 {
-						usage = copy.Calls[i].Order[key.Slot-2].Expression.ResultUsage()
+					if key.Slot >= 0 && key.Slot < len(call.Arguments) {
+						usage = copy.Calls[i].Arguments[key.Slot].ResultUsage()
+					} else if key.Slot >= len(call.Arguments) {
+						usage = copy.Calls[i].Order[key.Slot-len(call.Arguments)].Expression.ResultUsage()
 					}
 					copy.Calls[i].Order[k].Comparison, err = functions.AggregateOrdering(usage, key.Expression.SourcePosition(), false)
 				}
@@ -852,14 +857,95 @@ func (m *ViewQueryRemapper) usage(old sqltype.Usage) (sqltype.Usage, error) {
 // slot unchanged and returns the error.
 func (m *ViewQueryRemapper) provider(slot *functions.AggregateProvider, provider functions.RemappableProvider, argument expr.Expr) error {
 	remap := functions.ProviderRemap{Type: m.Type, Usage: m.usage}
+	remap.Routine = func(reference expr.RoutineReference) (expr.RoutineReference, error) {
+		old, ok := reference.(*catalog.Procedure)
+		if !ok || old == nil {
+			return nil, fmt.Errorf("stuntgres: invalid transition routine reference")
+		}
+		if m.referencesOnly {
+			return old, nil
+		}
+		address := remapAddress(old.Address(), m.Ref, m.addressMapper)
+		next, ok := m.Catalog.Procedure(address)
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: missing remapped aggregate support declaration")
+		}
+		return next, nil
+	}
+	remap.Expression = m.transitionExpression
 	if argument != nil {
 		remap.Argument = argument.ResultUsage()
 	}
 	next, err := provider.Remap(remap)
-	if err == nil {
-		*slot = next
+	if err != nil {
+		return err
 	}
-	return err
+	if transition, ok := next.(*exec.TransitionAggregate); ok && !m.referencesOnly {
+		if err := validateTransitionFrame(m.Catalog, transition); err != nil {
+			return err
+		}
+	}
+	*slot = next
+	return nil
+}
+
+// Transition support expressions own a separate, closed value frame. Its typed
+// parameters are not the enclosing query/routine's external parameter namespace.
+func (m *ViewQueryRemapper) transitionExpression(old expr.Expr, source, destination []sqltype.Usage) (expr.Expr, error) {
+	if len(source) != len(destination) {
+		return nil, fmt.Errorf("stuntgres: mismatched transition formal namespace")
+	}
+	for i := range source {
+		if source[i].Type == nil || !source[i].Type.Concrete() || !source[i].Valid() || destination[i].Type == nil || !destination[i].Type.Concrete() || !destination[i].Valid() {
+			return nil, fmt.Errorf("stuntgres: invalid transition formal usage")
+		}
+	}
+	if err := validateRoutineScalar(old, source, catalog.Read{}); err != nil {
+		return nil, err
+	}
+	next, err := remapScalar(old, m.Ref, m.Ref, nil, m.Nested, len(source), m.addressMapper)
+	if err != nil {
+		return nil, err
+	}
+	if !m.referencesOnly {
+		next, _, err = RetagTypesWithQuery(m.Catalog, next, m.Type, nil, m.Collation)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := validateRoutineScalar(next, destination, catalog.Read{}); err != nil {
+		return nil, err
+	}
+	return next, nil
+}
+
+func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) error {
+	if err := routine.ValidateAggregateDefinition(read, p.Aggregate); err != nil {
+		return err
+	}
+	invalid := func() error { return fmt.Errorf("stuntgres: mismatched transition frame specialization") }
+	inputs, err := routine.AggregateSignature(read, p.Aggregate.Signature)
+	if err != nil || len(p.Inputs) != len(inputs)+1 || p.Inputs[0] != p.Usage || p.Usage.Type == nil || !p.Usage.Valid() || p.Usage.Type.ID() != sqltype.ID(p.Aggregate.Result) {
+		return invalid()
+	}
+	if p.Support.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[0] {
+		return invalid()
+	}
+	for i, input := range inputs {
+		if p.Inputs[i+1].Type != input.Type {
+			return invalid()
+		}
+	}
+	formals, result, err := routine.AggregateSupportTypes(read, nil, p.Support, p.Inputs)
+	if err != nil || result.Type != p.Usage.Type || len(formals) != len(p.Formals) {
+		return invalid()
+	}
+	for i, formal := range formals {
+		if formal != p.Formals[i] {
+			return invalid()
+		}
+	}
+	return nil
 }
 
 // Ordinary descriptor evolution reowns only consumers of changed type or

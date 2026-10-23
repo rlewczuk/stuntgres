@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 
 	"stuntgres/internal/sqltype"
 )
@@ -16,7 +17,7 @@ type HypotheticalSet struct {
 
 func (p *HypotheticalSet) ResultUsage() sqltype.Usage            { return p.usage }
 func (p *HypotheticalSet) Init(ctx context.Context) (any, error) { return nil, ctx.Err() }
-func (p *HypotheticalSet) Advance(context.Context, any, sqltype.Value, sqltype.Value) error {
+func (p *HypotheticalSet) Advance(context.Context, any, []sqltype.Value, expr.Context) error {
 	return fmt.Errorf("stuntgres: hypothetical input requires borrowed tuples")
 }
 func (p *HypotheticalSet) Finalize(context.Context, any) (sqltype.Value, error) {

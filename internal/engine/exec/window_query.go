@@ -385,6 +385,7 @@ func (s *WindowSums) Evaluate(ctx context.Context, state *State, child *Stage, c
 		s.head, s.next, s.Initialized = head, head, true
 	}
 	evaluation := state.Evaluation(ctx)
+	var values [1]sqltype.Value
 	// Bind each admitted member once, then advance every independent occurrence.
 	// Call-major replay changes volatile values even when the total is unchanged.
 	for member := s.next; member < tail; member++ {
@@ -411,7 +412,8 @@ func (s *WindowSums) Evaluate(ctx context.Context, state *State, child *Stage, c
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if err := call.Provider.Advance(ctx, entry.Aggregate, value, sqltype.Value{}); err != nil {
+			values[0] = value
+			if err := call.Provider.Advance(ctx, entry.Aggregate, values[:], &evaluation); err != nil {
 				return err
 			}
 		}

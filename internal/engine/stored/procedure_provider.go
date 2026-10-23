@@ -49,7 +49,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	case d.SQL != nil:
 		return validateSQLProcedure(v, d)
 	case d.Aggregate != nil:
-		return invalid()
+		return routine.ValidateAggregateDefinition(v, d)
 	case d.Foreign != nil:
 		p := d.Foreign
 		if p.Name.Name != d.Name() || d.Extension != (ids.ObjectAddress{}) || d.Conversion.Name() != "" || d.Builtin != nil {

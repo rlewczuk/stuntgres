@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -43,6 +44,48 @@ func (v *QueryRenderer) sqlRoutineRecipeName(read catalog.Read, path analyze.Vie
 	namespace, ok := read.Namespace(d.Namespace())
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing frozen SQL routine namespace")
+	}
+	return v.Presentation.identifier(namespace.Name()) + "." + v.Presentation.identifier(d.Name()), nil
+}
+
+func (v *View) AggregateRecipeProcedure(read catalog.Read, path analyze.ViewLiteralPath, raw parser.AggregateExpr) (*catalog.Procedure, error) {
+	ref, exists := v.routineRefs[path]
+	consumer, _ := read.Relation(v.consumer)
+	if !raw.StoredAggregate || !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !ViewReferenceValid(read, consumer, ref) || ref.Epoch != read.Epoch() && (consumer == nil || ViewOf(consumer) != v) {
+		return nil, fmt.Errorf("stuntgres: missing or stale frozen aggregate reference")
+	}
+	d, ok := read.Procedure(ref.Address)
+	if !ok || !d.DynamicCallable() || d.Aggregate == nil || raw.Schema == nil || raw.Name != d.Name() {
+		return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate procedure")
+	}
+	if raw.Within || raw.Variadic || raw.Window != nil || raw.JSON != nil || raw.Star != (len(raw.Args) == 0) {
+		return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate call shape")
+	}
+	if _, valid := analyze.SQLCallableShape(read, nil, d, parser.FunctionExpr{Args: raw.Args}); !valid {
+		return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate call shape")
+	}
+	if _, err := exec.ValidateStoredRoutineDescriptor(read, d); err != nil {
+		return nil, err
+	}
+	if err := routine.ValidateAggregateDefinition(read, d); err != nil {
+		return nil, err
+	}
+	for _, dependency := range v.dependencies {
+		if dependency.Ref == ref && dependency.Revision != 0 {
+			return d, nil
+		}
+	}
+	return nil, fmt.Errorf("stuntgres: missing frozen aggregate dependency")
+}
+
+func (v *QueryRenderer) aggregateRecipeName(read catalog.Read, path analyze.ViewLiteralPath, raw parser.AggregateExpr) (string, error) {
+	d, err := v.AggregateRecipeProcedure(read, path, raw)
+	if err != nil {
+		return "", err
+	}
+	namespace, ok := read.Namespace(d.Namespace())
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing frozen aggregate namespace")
 	}
 	return v.Presentation.identifier(namespace.Name()) + "." + v.Presentation.identifier(d.Name()), nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -38,7 +39,8 @@ func (p IntegralSum) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p IntegralSum) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p IntegralSum) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -108,7 +110,8 @@ func (p NumericSum) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p NumericSum) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p NumericSum) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -170,7 +173,8 @@ func (p FloatSum) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p FloatSum) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p FloatSum) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
 	}
