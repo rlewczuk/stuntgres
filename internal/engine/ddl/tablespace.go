@@ -65,6 +65,35 @@ func CheckAlterTablespaceCreate(view access.View, env access.Environment, ref id
 	return view.CheckCreate(env, ref)
 }
 
+// AlterAllTablespace decides ALTER ... ALL IN TABLESPACE. Bulk same-space
+// assignment returns before relation selection or locking. With builtin-only
+// identities every distinct pair includes forbidden pg_global.
+func AlterAllTablespace(view access.View, env access.Environment, s *parser.AlterTableAllInTablespace) error {
+	for _, role := range s.Owners {
+		if _, err := authorization.MembershipRole(view.Roles, view.State, role); err != nil {
+			return err
+		}
+	}
+	source, err := TablespaceRef(view, s.Source.Text)
+	if err != nil {
+		return err
+	}
+	destination, err := TablespaceRef(view, s.Destination.Text)
+	if err != nil {
+		return err
+	}
+	if source.Address.ObjectID == 1664 || destination.Address.ObjectID == 1664 {
+		return sqlError("22023", "cannot move relations in to or out of pg_global tablespace")
+	}
+	if err := CheckAlterTablespaceCreate(view, env, destination); err != nil {
+		return err
+	}
+	if source.Address == destination.Address {
+		return nil
+	}
+	return sqlError("0A000", "physical tablespace relocation is unsupported")
+}
+
 // AlterTablespaceKind rejects SET TABLESPACE on relation kinds that have no
 // storage of their own.
 func AlterTablespaceKind(d *catalog.Relation) error {
