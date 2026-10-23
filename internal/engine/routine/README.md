@@ -101,6 +101,13 @@ package or the engine.
   deferred as quoted body text. On Restore (`RestoreDirective`,
   `ReplayDirective`, `RebindSQLDefinitions`), all formal types stabilize before
   checked defaults and standard captures are remapped.
+- **Language admission** (`language.go`): namespace resolution and CREATE
+  authority come first. Absent optional or custom languages give `42704`,
+  C/internal authority `42501`, unavailable mechanisms `0A000`. It checks only
+  locally decidable AS cardinality and standard-body rules and never loads a
+  library or probes a symbol; `RejectCreateLanguage` checks the effective actor
+  before rejecting explicit custom handlers. There is no callback registry or
+  synthetic language row.
 - **Ordinary aggregates** (`aggregate_ddl.go`, `aggregate_definition.go`): stage
   and validate the four-option declaration, real support/state identity and hard
   dependencies atomically. `AggregateSupportTypes` uses the pure callable-family

@@ -201,6 +201,13 @@ the provider uninterpreted. See `reference/tables/fdw_reader_test.go` and
   savepoints need `ForeignTransactionSavepoints`. Commit is remote-first in
   enlistment order and local last: **not two-phase commit**, so a late failure can
   leave earlier remote commits in place.
+- **Parallel scans.** Optional `ForeignParallelScanProvider`
+  (`IsForeignScanParallelSafe`, `BeginForeignParallelScan(ctx, req, plan, max)`)
+  returns a `ForeignParallelScan` that splits the scan into `PartitionCount()`
+  disjoint, exhaustive partitions (count in `[1, max]`), each read through
+  `BeginPartitionForeignScan`; `EndForeignParallelScan` ends the shared state.
+  Only simple top-level eager SELECTs are eligible; partition `Iterate` calls run
+  concurrently, everything else runs on the leader, and results stay eager.
 - **Import.** `ForeignSchemaImporter` implements `IMPORT FOREIGN SCHEMA`.
 - **Contract.** Callbacks run outside engine locks, may run concurrently, and must
   use the context of each call. Never return `driver.ErrBadConn` or `driver.ErrSkip`

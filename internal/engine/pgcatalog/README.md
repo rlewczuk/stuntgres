@@ -51,20 +51,6 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Information-schema producers emit genuine `sql_identifier` and
   `cardinal_number` domain values, not bare NAME or INT4.
 
-## Enabled-role projection
-
-`enabled_roles` (native relation16208) uses the existing paired immutable
-catalog/role capture and `CurrentPrincipal` execution identity. Its sole cell
-is wrapped by the source-owned sql_identifier domain over NAME. An ordinary
-actor uses one cancellation-aware inherited RoleClosure (self, deduplicated
-INHERIT paths and implicit database-owner hop); an actual current superuser
-enumerates live RoleEntries. No copied membership graph, cached name set or
-per-candidate privilege traversal is introduced. The producer validates current
-principal/source/root authority and discards partial rows on cancellation.
-The existing initializer owns PUBLIC SELECT, origins and row13348/array13347
-links; those builtin types are not duplicated.
-See [public proof](../../../reference/catalogs/README.md#enabled-roles).
-
 ## Registry
 
 `catalog_source_producers.go` holds one process-initialized array of
@@ -158,6 +144,11 @@ authority, never the recorded `Version`.
 - `routine_sequence_usage`: direct stored SQL-body relation references to real
   sequences, validated before duplicate suppression; sequence-owner role
   inheritance is the only visibility predicate.
+- `enabled_roles` (16208): the paired catalog/role capture and
+  `CurrentPrincipal`; an ordinary actor uses one cancellation-aware inherited
+  `RoleClosure` (self, INHERIT paths, implicit database-owner hop), a current
+  superuser enumerates live role entries. No copied membership graph or cached
+  name set; partial rows are discarded on cancellation.
 - `character_sets`: one current-database UTF8 row; encoding and locale facts
   are shared with `pg_database`.
 

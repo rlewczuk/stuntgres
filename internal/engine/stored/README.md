@@ -74,6 +74,18 @@ host methods.
   view-write shape; `ValidateRules`; and `DependencyObject` (object
   descriptions for DROP and role diagnostics).
 
+- **Catalog relation pinning** (`catalog_pinning.go`): bootstrap catalog
+  tables stay pinned, while catalog views such as `pg_views` record ordinary
+  SELECT-rule dependency edges. Relation refs in the immutable source and
+  dependency manifests, including attributes, are validated before the
+  address-only dependency pass. Runtime view-reference capture checks
+  cancellation first, then requires the exact live consumer and a concrete
+  non-nil stored view definition; an invalid consumer returns
+  `ids.ErrCatalogReplaced` with no references. Retained TEMP view lifetime is
+  independent of pinning: `ViewReferenceValid` requires the exact captured
+  catalog-relation descriptor and valid consumer, namespace, domain, epoch and
+  attribute authority.
+
 ## Recipe rules
 
 - **Selected recipes, not endpoints.** Stored trees keep the selected

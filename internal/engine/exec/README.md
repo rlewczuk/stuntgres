@@ -167,25 +167,15 @@ every method panics with `exec: preparation not installed`.
 
 ## Cooperative foreign execution
 
-`FinalizeSelect` alone admits optional foreign partitioning, using the same
-audited graph/expression classifier as physical scans without the physical
-Count-based worker decision. Captured foreign sources start empty and have no
-physical View. Generic finalization remains serial. `State` carries only
-execution-local admission. `foreign_parallel.go` is a ForeignExecution-owned scan
-adapter, not another lifetime owner: leader-only enrollment/startup, bounded
-owned-cell transfer, first-error cancellation, joined scans then shared cleanup.
-Local import/filter/sort/project remain serial. Every failed finalization retains
-nil rows/count0 and the existing last publication fence.
-
-`TestFDWParallelCancellation/backpressured_*` drives this production dispatcher
-inside `testing/synctest`: the existing importer holds an actually delivered row,
-one producer fills the two-partition queue and blocks sending its fourth row,
-and a sibling callback delays its cancellation return. Settled callback counts,
-not elapsed time, establish backpressure. Cancellation and importer failure must
-join both workers before exact-once partition/shared disposal, publish nothing,
-and permit a fresh captured execution on the same foreign owner.
-`TestFDWParallelOwnership` also covers a later nonnil/error partition acquisition
-after an earlier successful Begin.
+Only `FinalizeSelect` admits optional foreign partitioning, using the same
+graph/expression classifier as physical scans but not their row-count worker
+decision. Captured foreign sources start empty and have no physical View;
+generic finalization stays serial and `State` carries only execution-local
+admission. `foreign_parallel.go` is a scan adapter owned by `ForeignExecution`,
+not another lifetime owner: leader-only enrollment and startup, bounded transfer
+of owned cells, cancellation on the first error, then joined scans before shared
+cleanup. Local import, filter, sort and projection stay serial, and every failed
+finalization keeps nil rows, count 0 and the last publication fence.
 
 ## Invariants
 
@@ -335,6 +325,9 @@ routine-admission units build statements through an `Engine` and stay in
 or `exec.AdmitRoutineCall`); run row-lock, cursor, foreign-scan, CTE and detach
 selections with `RACE=1`. Changes to `InputDomainChecks` must keep both the COPY
 filter and JSONB record reference contracts passing.
+Foreign parallel dispatch is unit-tested in `internal/engine` with
+`testing/synctest` (`RUN='^TestFDWParallel'`): settled
+callback counts, never elapsed time, establish backpressure.
 
 **Frame names matched by tests.** `sortOrderedAggregate`
 (`TestReferenceOrderedSetAggregateActiveCancellation`) stays unexported, and the

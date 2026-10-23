@@ -6,6 +6,44 @@ moved verbatim from README.md in their original order.
 
 <!-- moved from README.md -->
 
+## External routine languages — change note
+
+Routine declarations distinguish absent languages (`42704`) from native
+mechanisms that embedded mode cannot supply. Ordinary roles cannot declare
+`LANGUAGE c` or `internal` routines (`42501`); superusers reach an explicit
+`0A000` native-ABI boundary. Both AS strings parse without inspecting libraries
+or looking up symbols. Explicit custom `CREATE LANGUAGE ... HANDLER` declarations
+check superuser authority, then reject unavailable handler execution without
+installing a language or routine. Tcl, Perl and Python interpreters are not
+provisioned. SQL routine execution and native persistence remain supported;
+PL/pgSQL retains its existing unavailable-runtime rejection, not native execution.
+See [availability limits](docs/DIALECT.md#external-routine-language-boundary)
+and [selected proof and smoke](reference/query_core/README.md#external-routine-language-boundary).
+
+## Enabled roles — change note
+
+`information_schema.enabled_roles` exposes its sole nullable `sql_identifier`
+domain column, `role_name` (public NAME metadata), through the ordinary catalog
+query path. Ordinary readers see self and transitively inheritable roles;
+actual current superusers see every live role. SET and ADMIN options do not
+enable privileges, and inherited SUPERUSER membership does not confer that
+attribute. Held queries refresh after role and membership changes while native
+captures retain their original names.
+See [semantics and boundaries](docs/DIALECT.md#enabled-roles) and
+[selected proof and feature smoke](reference/catalogs/README.md#enabled-roles).
+
+## Cooperative foreign parallel scans — change note
+
+An optional registered `ForeignParallelScanProvider` can partition actual source
+occurrences for eligible eager SELECTs with `max_parallel_workers_per_gather>=2`.
+Distinct in-process scans run concurrently; local filtering, typed ordering and
+projection remain serial. Missing/unsafe capabilities retain genuine serial
+scans. Cancellation and cleanup complete before result publication. This is not
+PostgreSQL worker-process/DSM compatibility or child-path remapping; foreign
+hierarchies remain an explicit boundary. Runtime partitions are not dumped.
+See [provider ownership](docs/DRIVER.md#cooperative-foreign-partitions) and
+[selected evidence](reference/tables/README.md#cooperative-foreign-parallel-scans).
+
 ## Relation storage parameters — change note
 
 `ALTER TABLE ... SET (...)` and `RESET (...)` retain validated logical storage
@@ -338,6 +376,23 @@ See [native limits](docs/DIALECT.md#transactional-large-object-bytes),
 [authorization](docs/AUTHORIZATION.md#large-object-authority),
 [replay](docs/FIXTURES.md#large-object-snapshots), and
 [selected proof/smoke](reference/object_grants/README.md#transactional-large-object-byte-storage).
+
+## View table usage — change note
+
+`information_schema.view_table_usage` exposes six nullable `sql_identifier`
+identity columns (public NAME metadata), one distinct pair per stored ordinary
+view and directly referenced table/view/foreign table/partitioned table.
+Repeated columns and self-joins collapse; nested views are not expanded and
+self dependencies are suppressed. Constant-only definitions produce no rows.
+Visibility follows enabled ownership of each referenced relation, not view
+ownership, SELECT grants or schema USAGE. Reads never execute definitions or
+contact foreign providers. Current names, replacement/drop and native replay
+follow the existing catalog and role captures, including held prepared reads;
+already returned rows retain their original values. Bootstrap system tables
+remain excluded while represented system views such as `pg_views` can appear.
+This adds no adjacent information-schema usage views.
+See [native boundaries](docs/DIALECT.md#view-table-usage) and
+[selected proof and smoke](reference/catalogs/README.md#view-table-usage).
 
 ## Routine sequence usage — change note
 
