@@ -83,11 +83,12 @@ func (e *Engine) resolveVacuumReference(auth AuthorizationView, name parser.Obje
 	if len(name.Parts) == 1 {
 		// Share parsing, aliases, precedence, dedup and ACL omission with the
 		// ordinary path builder. Only this maintenance caller permits peer TEMP.
-		path, _, err := explicitPathForPolicy(auth, analyze.RelationLookup, true)
+		in := pathInput(auth, true)
+		path, _, err := analyze.ExplicitPath(in, analyze.RelationLookup, true)
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
-		return resolveRelationPathSnapshot(auth, name, analyze.NamespaceSelection{Path: effectivePath(auth, path, analyze.RelationLookup)})
+		return resolveRelationPathSnapshot(auth, name, analyze.NamespaceSelection{Path: analyze.EffectivePath(in, path, analyze.RelationLookup)})
 	}
 	if len(name.Parts) == 2 && name.Parts[0].Text != "pg_temp" {
 		address := auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
