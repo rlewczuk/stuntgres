@@ -930,11 +930,11 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
-		if !v.Presentation.Deparse && usage.Type.BaseType().ID() == sqltype.Path {
+		if !v.Presentation.Deparse && (usage.Type.BaseType().ID() == sqltype.Path || usage.Type.BaseType().ID() == sqltype.Point || usage.Type.BaseType().ID() == sqltype.Line || usage.Type.BaseType().ID() == sqltype.Lseg || usage.Type.BaseType().ID() == sqltype.Polygon || usage.Type.BaseType().ID() == sqltype.Box || usage.Type.BaseType().ID() == sqltype.Circle) {
 			switch e.Child.(type) {
 			case parser.LiteralExpr, parser.TypedLiteralExpr:
 				if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
-					// Exact PATH literals already own this leaf's type annotation,
+					// Captured geometric literals already own this leaf's annotation,
 					// including a domain's own cast. Preserve all outer casts,
 					// conversions and different domain/typmod usages.
 					return text, nil

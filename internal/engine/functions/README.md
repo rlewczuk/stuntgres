@@ -51,6 +51,22 @@ enter through exported `Bind*`, `Finish*` and `Select*` functions and bypass the
 registry. Shared diagnostics: `call_syntax.go` (`ValidateCallSyntax`),
 `resolution_error.go` and `operator_error.go`.
 
+## Geometric relation operator provider
+
+`GeometryRelation` consumes two already selected/coerced children, preserving
+routine authority, immutable volatility, namespace/group identity and cancellation.
+Runtime row NULL does not hide a later child error; the existing literal-NULL
+shortcut remains. Rebuild rebinds actual operand/result authority. Analyzed
+deparsing retains formal display casts; private scalar replay retains separate
+formal transports, including NULL. Ordinary view dumps use captured source AST
+literals instead, whose owning-type annotations belong to `regobj.ConstantLiteral`.
+Both paths preserve overload identity. Capture is operator-only, not function-call
+admission. Polygon-point and circle-circle nodes retain their existing ownership;
+the callable registry is not expanded by relation routine metadata.
+Public execution, ACLs and stored consumers use
+[`reference/types`](../../../reference/types/README.md#testing).
+
+
 ## Callable competition with SQL overloads
 
 - The analyzer's shared selector ranks builtin and installed providers in the
@@ -303,7 +319,7 @@ make check RUN='^Test(AggregateProviderRemap|(Sum|Avg|Count|Extrema|AnyValue|Mon
 make check RUN='^Test(Composite(Arity|Counted|Leaf|Named|Providerless|Retained|Slice|String|Timezone)|IntrinsicVolatilityExcludesChildren|PlanningHooks|RetagReportsDerivedInputChanges|GroupIdentity|GroupLeaf|SubstituteKeepsTheProvider|FunctionSyntax|ClosureTransparency|Render|CaptureOperands|ResultNullability)'  # node protocol and hooks
 make check RUN='^Test(CatalogInquiry|TransactionInquiry|AdvisoryNode|BlockingInquiry|SequenceCall)'  # runtime-capability nodes
 make check RUN='^Test(ACLValues|ACLNodes|ACLValueEvaluates|ObjectACLEvaluates|AccessInquiryEvaluates)'  # ACL functions
-make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
+make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryRelation|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
 make check RUN='^TestMACOperationsProviderLifecycle$'  # fixed-width MAC function protocol
 ```

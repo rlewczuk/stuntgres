@@ -349,12 +349,12 @@ func TestReferencePGOperatorBoundaries(t *testing.T) {
 			oid       int64
 			signature string
 		}{{517, "<->(point,point)"}, {664, "<(text,text)"}, {2314, "~<~(text,text)"}, {2988, "=(record,record)"}, {3636, "@@(tsvector,tsquery)"}} {
-			// TEXT and RECORD are executable controls among identity-only cases.
+			// POINT distance, TEXT and RECORD are executable controls among identity-only cases.
 			q := fmt.Sprintf("SELECT '%s'::regoperator::oid AS identity FROM operator_catalog_seed", tc.signature)
 			fixture.PgDescriptionRows(t, p, b, fixture.Select(q, []string{"identity"}, []string{"OID"}, [][]any{{tc.oid}}))
 			q = fmt.Sprintf("SELECT oid FROM pg_operator WHERE oid=%d", tc.oid)
 			var want [][]any
-			if b.PG || tc.oid == 664 || tc.oid == 2988 {
+			if b.PG || tc.oid == 517 || tc.oid == 664 || tc.oid == 2988 {
 				want = [][]any{{tc.oid}}
 			}
 			fixture.PgDescriptionRows(t, p, b, fixture.Select(q, []string{"oid"}, []string{"OID"}, want))

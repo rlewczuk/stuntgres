@@ -33,6 +33,26 @@ capture/relationship units consume the independently specified metadata bag
 without filtering or projection exceptions. These records do not imply general
 cross-MAC casts or additional operator capabilities.
 
+### Geometric relation admission
+
+PG18-FUNC-GEOM-REL-A admits exactly the 62 ordered Table9.36 signatures of
+binary `#`, `##`, `<->`, `@>`, `<@`, `&&` and `?#`, including six previously
+admitted polygon-point/circle-circle records. The missing56 rows are merged
+into the existing OID-sorted fifteen-field supported TSV; the temporary
+checkpoint-A selected fixture is removed. All identities, procedures, results,
+commutators, negators and estimators come from
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and [pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat),
+not native projection output. No merge/hash flag or reverse signature is inferred.
+
+The catalog scenario filters these shared release facts and couples each required
+row to real typed-column execution, retaining independent complete metadata and
+symbolic procedure expectations. Full admitted inventory/shape proof remains
+unfiltered. Operator routine declarations/associations grant selected authority,
+not newly callable support names or default geometric index classes. Existing
+polygon-point and circle-circle providers/callables remain. Root owns fresh
+selected native and pinned PostgreSQL18.6 proof plus whole-project verification.
+
 ### Selected text-search algebra admission
 
 PG18-FTS-OPS adds exactly seven released records3633,3680,3681,3682,3693,3694

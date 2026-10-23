@@ -36,6 +36,16 @@ these are shared across families:
   check BOX/POINT/LSEG raw cells before normalization; LSEG (`lsegScenario`),
   POINT, LINE, PATH and POLYGON tests reuse them. After changing it, rerun the
   Box, Point, Lseg, Line, Path and Polygon families.
+  Geometry relations reuse `geometryRelationScenario`, `geometryRelationWitness`
+  and this raw adapter for direct/new-prepared/reused-held execution, NULL/empty
+  metadata and stored consumers. Distance/candidate expectations are exact;
+  epsilon comparisons must not hide endpoint-order differences. Native control
+  phases execute actual emitted SQL on PostgreSQL and retain deterministic dumps.
+  `TestReferenceGeometryRelationClosingEdge` keeps exact horizontal/vertical
+  closing-anchor distances1 for POINT/POLYGON and0.75 for radius0.25
+  CIRCLE/POLYGON, in both operand orders. `TestReferenceGeometryRelationInvalidUnknown`
+  retains same-type LSEG inference and exact22P02/character8 input failure for
+  `'(1,1)' ## lseg '[(0,0),(2,0)]'` on direct analysis and Prepare.
 - `domain_helpers_test.go`: the shared domain fixture `domainReferenceScenario`
   (a pinned notice session per backend with schema `domain_s` and a one-row
   `public.one`; schema cleanup is registered before borrowing so handles close
@@ -126,6 +136,7 @@ COPY test in reference/dml.
 - POLYGON: `RUN='^TestReferencePolygon'`
 - <a id="circle-scalar-contract"></a>CIRCLE: `RUN='^TestReferenceCircle'`
 - <a id="geometric-measurement-oracle-contract"></a>Geometry measurement functions: `RUN='^TestReferenceGeometryMeasure'`
+- <a id="geometric-relation-operator-oracle-contract"></a>Geometry relations: `RUN='^TestReferenceGeometryRelation'`
 - <a id="geometric-constructor-conversion-contract"></a>Geometry constructors and conversions: `RUN='^TestReferenceGeometryConversion'`
 - INET/CIDR (all): `RUN='^TestReferenceINET'`
 - INET operators, mask, formatting, subnet: `RUN='^TestReferenceINET(Operator|Mask|Format|Subnet)'`

@@ -77,6 +77,18 @@ Dump/Reset/Restore with actual emitted SQL replay on PostgreSQL. Feature smoke:
 (also with `REFERENCE=1`); expected witnesses include `[3.500]`, exact thirds,
 `[9007199254740994]`, held division-error recovery and future stored sum `[4.25]`.
 
+## Geometric relation operators
+
+The 62 ordered PostgreSQL 18 Table 9.36 signatures of binary `#`, `##`, `<->`,
+`@>`, `<@`, `&&` and `?#` now execute with typed POINT/BOX/FLOAT8/BOOL results.
+Existing polygon-point and circle-circle providers and callable routines remain.
+The implementation preserves unique-intersection NULLs, raw BOX intersections,
+closest-point candidate order, PATH closure and concave polygon containment,
+selected routine authority and executable stored replay. See the
+[kernel ownership contract](internal/sqltype/README.md#geometry-relations),
+[behavioral tests](reference/types/README.md#testing) and
+[catalog tests](reference/catalogs/README.md#testing).
+
 <!-- moved from README.md -->
 
 ## External routine languages — change note

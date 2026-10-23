@@ -162,6 +162,42 @@ provided by these kernels; scalar operators also grant no default MACADDR8
 ordering/grouping/index authority. Public SQL/API coverage is owned by
 [`reference/types`](../../reference/types/README.md#mac-address-operations).
 
+### Geometry relations
+
+`GeometryRelationKind` selects both ordered operand IDs and spelling;
+`BindGeometryRelation` captures canonical operand/result usages and one
+descriptor generation before `GeometryRelationPlan.Evaluate` handles NULL.
+POINT/BOX/FLOAT8/BOOL results keep their selected descriptor, including NULL.
+Existing polygon-point and circle-circle expression providers retain their
+kernels; new relation plans delegate those operations rather than migrating them.
+
+The linear, path and polygon kernels read immutable payloads, use stack-sized
+linear coordinates and allocate no converted shape or coordinate slice per edge.
+POINT results remain inline; BOX results own raw min-high/max-low corners.
+Checked float8 order, operation-specific epsilon sites and candidate/tie order
+are invariants, not algebraic simplification opportunities. Point/BOX and
+point/CIRCLE containment is exact; whole-object comparisons apply their own
+epsilon. Point/LINE tests the coefficient residual without normalization.
+Unique LINE/LSEG intersections differ from set overlap: nonunique intersections
+are typed NULL/false even when distance is zero.
+
+Closest-point plans return a point on the second operand; equal computed slopes
+and NaN closest distance preserve their NULL rules. BOX distance uses centers.
+PATH iteration owns closure without appending a stored vertex; an open singleton
+has no edges, point distance zero and NULL path/path distance. Filled-polygon
+overlap and distance use ray crossing and closed edges; containment recursively
+checks complete edges through concavities, not only vertices or bounding boxes.
+Long/nested loops and recursive splits check cancellation before publication.
+Point-to-polygon distance initializes its closing candidate first vertex -> last
+vertex, independently of the generic last -> first traversal used by polygon
+overlap, polygon/polygon distance and containment. Epsilon-horizontal/vertical
+projection keeps that first endpoint's anchor; polygon/circle distance shares
+the point-distance helper before radius subtraction. `TestGeometryRelationClosingEdge`
+checks this distinction numerically without reversing the generic traversal.
+The released Table9.36 and `REL_18_6 geo_ops.c` define the finite signature and
+numerical contracts; operator admission does not grant generic comparison,
+array, codec or index authority.
+
 ## Testing
 
 Units here call codec, value and plan functions directly; public SQL and wire
@@ -182,7 +218,7 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 Selectors (add `RACE=1` for cancellation and concurrency units; several also
 match engine tests of the same mechanism):
 
-- Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryConversion|GeometryMeasure|EarthCubeChecks|NetworkSubnet)'`
+- Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryRelation|GeometryConversion|GeometryMeasure|EarthCubeChecks|NetworkSubnet)'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`

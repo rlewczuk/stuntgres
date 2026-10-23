@@ -34,6 +34,13 @@ whose oracle loads the legacy OpenSSL provider
   inventories, and RFC/NIST/Openwall/PostgreSQL regression vectors for pgcrypto,
   uuid-ossp and fuzzystrmatch. Admitting a type or operator changes the shared
   TSV and every consumer, including `TestReferencePGTypeAdmission`.
+  `TestReferenceGeometryRelationOperatorCatalog` restricts these shared facts by
+  selected spellings and geometric formals, independently asserts all15 fields
+  and symbolic procedure links, and couples required rows to typed-column
+  execution. Catalog presence alone does not grant named-call admission.
+  Boundary scenarios distinguish released lookup identities from executable
+  rows: POINT-distance517 is an exact admitted control alongside TEXT/RECORD,
+  while unsupported pattern-order and FTS aliases remain negative controls.
 - Native inventory reads stay unfiltered, so extra native rows fail; PostgreSQL
   reads restrict to the supported candidate identities, because the oracle
   legitimately has more rows. Never assert whole-cluster row-count parity.
@@ -115,6 +122,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Access methods and operator classes: `RUN='^TestReferencePGAM'`, `RUN='^TestReferencePGOpclass'`
 - Operators: `RUN='^TestReferencePGOperator'`, `RUN='^TestReferenceLsegOperatorCatalog$'`
 - Aggregates: `RUN='^TestReferencePGAggregate'`
+- <a id="geometric-relation-operator-catalog-proof"></a>Geometric relation catalogs: `RUN='^TestReferenceGeometryRelationOperatorCatalog$'`
 - Casts: `RUN='^TestReferencePGCast'`
 - Collations, languages, transforms, text search: `RUN='^TestReferencePGCollation'`, `RUN='^TestReferencePGLanguage'`, `RUN='^TestReferencePGTransform'`, `RUN='^TestReferencePGTSConfig'`
 - Large-object pages: `RUN='^TestReferencePGLargeobject'`

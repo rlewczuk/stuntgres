@@ -74,10 +74,11 @@ import it.
   ROW fields and array elements never inherit it. Nested rank-one constructor
   arrays retain their own bounds through closed qualified `array_fill`/`array_cat`
   SQL; non-one-based multidimensional nested arrays need their own bounded INSERT
-  target. Captured BOX, CIRCLE, LSEG, PATH and POLYGON literals retain explicit
-  type annotations, including NULLs. Stored query rendering uses
-  `ConstantLiteral` rather than scalar provider rendering; a quoted display alone
-  could reselect a typename input shortcut, select `length(text)` instead of
+  target. Captured BOX/CIRCLE/PATH/POINT/LINE/LSEG/POLYGON literals retain explicit
+  owning-type annotations, including NULL. Stored query rendering uses captured
+  source AST literals through `ConstantLiteral`, independently of expression
+  providers' display/replay channels. Bare text could reselect a geometric
+  overload or typename input shortcut, select `length(text)` instead of
   `length(lseg)`, or lose the `npoints(path)`/`npoints(polygon)` overload on replay.
 - **Search-path visibility of named objects** (`namespace_visibility.go`,
   `visibility_inquiry.go`): `NamedObjectVisible`, `CollationCandidate`,
@@ -181,7 +182,7 @@ Input-origin changes must keep the direct, parameter and runtime presentation
 groups of every reg\* family passing. Add `REFERENCE=1` for the oracle.
 
 ```sh
-make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|VisibilityInquiryCollation|GeometryConversionCBox)'
+make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|VisibilityInquiryCollation|GeometryConversionCBox|GeometryRelationLiteral)'
 make check RUN='^TestGeometryMeasurePathLiteralTransport$'
 make check RUN='^TestReferenceReg(class|type|role|Proc|Operator|TS|Collation|Namespace|Object)'
 make check RUN='^TestReference(ObjectAddress|ACLItem)'

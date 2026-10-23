@@ -249,7 +249,9 @@ func ConstantLiteral(ctx context.Context, n plan.LiteralExpr) (string, error) {
 		return "NULL::unknown", nil
 	}
 	literal, err := u.Type.SQLLiteral(ctx, n.Value)
-	if err == nil && (u.Type.ID() == sqltype.Box || u.Type.ID() == sqltype.Circle || u.Type.ID() == sqltype.Lseg || u.Type.ID() == sqltype.Path || u.Type.ID() == sqltype.Polygon || sqltype.IsFTS(u.Type.ID())) {
+	// Captured typed geometry must retain its descriptor on every stored
+	// route, including source-AST view dumps that do not visit provider Render.
+	if err == nil && (u.Type.ID() == sqltype.Box || u.Type.ID() == sqltype.Circle || u.Type.ID() == sqltype.Path || u.Type.ID() == sqltype.Point || u.Type.ID() == sqltype.Line || u.Type.ID() == sqltype.Lseg || u.Type.ID() == sqltype.Polygon || sqltype.IsFTS(u.Type.ID())) {
 		return "CAST(" + literal + " AS " + u.Type.SQLName() + ")", nil
 	}
 	if err == nil && (sqltype.IsOperatorAlias(u.Type.ID()) || sqltype.IsRegTS(u.Type.ID())) {

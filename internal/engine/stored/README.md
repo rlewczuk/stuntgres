@@ -97,6 +97,13 @@ host methods.
   CAST syntax, never the placeholders. Selected datum casts render a literal
   with its source type before the target cast, so a quoted value never becomes
   target-codec input on replay.
+- **Geometric literal recipes.** Ordinary view dumps obtain owning-type
+  annotations from `regobj.ConstantLiteral`. Source-AST serialization elides
+  only a matching direct captured literal cast with exactly the same Usage,
+  outside presentation deparsing. Outer casts, domains, typmods and conversions
+  to other usages remain. This keeps Dump/Restore/redump byte-stable instead of
+  accumulating geometric casts; analyzed display and private scalar replay retain
+  their separate formal-cast channels.
 - **SQL/JSON.** Query nodes carry their RETURNING usage in
   `Rendering.OwnedReturning`; replay and display use it, not raw type spelling.
   Raw view capture keeps all query children and options. Reconstruction remints
@@ -184,6 +191,7 @@ add `REFERENCE=1` for the oracle.
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`
 - Aggregate recipes: `RUN='^TestCreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)$'`
 - Engine renderer and `pg_depend` units: `RUN='^Test(Deparse|PGDepend|ViewCheck)'`
+- Geometric captured-source and literal serialization: `RUN='^TestGeometryRelationLiteral'`
 - Views, rules and deparsing: `RUN='^TestReference(Rule|Deparse|Materialized)'`
 - Row security: `RUN='^TestReference(RLS|RowSecurity)'`
 - Catalog projections: `RUN='^TestReference(PGDepend|PGTableViews)'`

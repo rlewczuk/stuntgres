@@ -75,3 +75,36 @@ func TestGeometryMeasurePathLiteralTransport(t *testing.T) {
 		})
 	}
 }
+
+func TestGeometryRelationLiteralTransport(t *testing.T) {
+	types := make(map[sqltype.ID]*sqltype.Descriptor)
+	for _, d := range sqltype.Builtins() {
+		types[d.ID()] = d
+	}
+	ctx := context.Background()
+	for _, tc := range []struct {
+		id                sqltype.ID
+		input, want, null string
+	}{
+		{sqltype.Point, "(1,1)", "CAST('(1,1)' AS POINT)", "CAST(NULL AS POINT)"},
+		{sqltype.Line, "{0,1,0}", "CAST('{0,1,0}' AS LINE)", "CAST(NULL AS LINE)"},
+	} {
+		d := types[tc.id]
+		value, err := d.Input(ctx, tc.input, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, sample := range []struct {
+			value sqltype.Value
+			want  string
+		}{
+			{value, tc.want}, {sqltype.Null(d), tc.null},
+		} {
+			literal := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: sample.value}
+			got, err := ConstantLiteral(ctx, literal)
+			if err != nil || got != sample.want {
+				t.Fatal("captured geometric formal identity", tc.id, got, sample.want, err)
+			}
+		}
+	}
+}

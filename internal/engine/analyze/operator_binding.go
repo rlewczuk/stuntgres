@@ -27,6 +27,9 @@ func (b *Binder) bindBuiltinOperator(r parser.OperatorExpr, policy ExpressionPol
 	if node, selected, err := b.ftsOperator(r, b.Clause.SelectedOperatorArgs); selected {
 		return node, err
 	}
+	if node, selected, err := b.geometryRelationOperator(r, b.Clause.SelectedOperatorArgs); selected {
+		return node, err
+	}
 	if _, point := sqltype.PointKind(name); point && len(b.Clause.SelectedOperatorArgs) == 2 &&
 		b.Clause.SelectedOperatorArgs[0].ResultUsage().Type.ID() == sqltype.Point &&
 		b.Clause.SelectedOperatorArgs[1].ResultUsage().Type.ID() == sqltype.Point {
@@ -84,7 +87,7 @@ func builtinOperatorSpelling(name string) bool {
 	// Shared FTS/geometric spellings require catalog signature selection before
 	// dispatching their actual provider; spelling alone supplies no authority.
 	switch name {
-	case "~=", "<<|", "|>>", "&<|", "|&>", "?-", "<^", ">^", "||", "&&", "@>", "<@":
+	case "#", "##", "?#", "<->", "~=", "<<|", "|>>", "&<|", "|&>", "?-", "<^", ">^", "||", "&&", "@>", "<@":
 		return false
 	}
 	_, comparison := ComparisonOperator(name)
