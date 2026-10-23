@@ -70,7 +70,9 @@ and never the engine.
   current predecessor inside publication, not stale prepare-time facts.
   `Maintenance.RecordBirth` clamps an existing full-width bound against each
   actual unfrozen publisher without rescanning old versions. Unknown bounds
-  remain unknown until engine initialization against the canonical safe cutoff.
+  remain unknown until `visibility.Registry.InitializeMaintenanceLocked` seeds
+  them against the canonical safe cutoff. `Maintenance.RecordVacuum` records an
+  installed VACUUM pass.
   Remint initializes current Live from committed visible capture cardinality,
   Dead 0, and independently resets scan/vacuum/cumulative history; transport is
   not counted as native committed INSERT activity.

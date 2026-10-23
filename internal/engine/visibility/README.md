@@ -101,23 +101,24 @@ standard library. It never imports the root engine. Layering is in
   own release authority: `Retain` returns an independent handle, `Release`
   ends only its own handle, and a forged or copied handle can neither retain,
   release nor read (`Data` panics; `Load` returns the raw pointer).
-- **VACUUM retention and freezing.**
-  - The engine excludes its own canonical maintenance owner and gates current
-    dead-head retirement on any other same-epoch registered
-    snapshot/builder/writer/live ticket, rechecking that gate before
-    installation. Detached owned roots survive compaction independently; old
-    headers, values and end maps are never mutated.
-  - The freezing cutoff is the next canonical full XID clamped by the actual
-    in-progress assigned full XIDs. CommitSeq, writer order and low-32 XIDs are
-    separate ordering domains; special low-32 values are skipped by the
-    canonical allocator. Ticket liveness reads atomics only, never manager
-    metadata under `Engine.mu`.
-  - The same safe cutoff initializes empty relation incarnations, because an
-    already assigned older READ COMMITTED publisher may later insert into a
-    newly created relation. Ordinary, prepared and rewrite publication also
-    retain each real full-width birth in its relation bound; no low-32
-    comparison or read-only-BEGIN inference substitutes for canonical
-    assignment.
+- **VACUUM retention and freezing** (`maintenance.go`, `Registry` methods that
+  run under `Engine.mu` and never allocate).
+  - `VacuumRetirementAllowedLocked` excludes the caller's own canonical
+    maintenance owner and gates current dead-head retirement on any other
+    same-epoch registered snapshot/builder/writer/live ticket, rechecking that
+    gate before installation. Detached owned roots survive compaction independently;
+    old headers, values and end maps are never mutated.
+  - The freezing cutoff (`VacuumCutoffLocked`) is the next canonical full XID
+    clamped by the actual in-progress assigned full XIDs. CommitSeq, writer
+    order and low-32 XIDs are separate ordering domains; special low-32 values
+    are skipped by the canonical allocator. Ticket liveness reads atomics only,
+    never manager metadata under `Engine.mu`.
+  - The same safe cutoff initializes empty relation incarnations
+    (`InitializeMaintenanceLocked`), because an already assigned older READ
+    COMMITTED publisher may later insert into a newly created relation.
+    Ordinary, prepared and rewrite publication also retain each real full-width
+    birth in its relation bound; no low-32 comparison or read-only-BEGIN
+    inference substitutes for canonical assignment.
   - Database calculation also starts from that cutoff before minimizing
     installed relation bounds, so future peer-created relations are protected
     during a database-only pass. Exhaustion and unknown relation bounds keep

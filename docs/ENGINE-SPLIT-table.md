@@ -192,5 +192,26 @@ README (`MissingRelation`, `MergeFills`).
 ## Status
 
 - 154: not started.
-- 156: not started.
+- 156: done (`990a57741`, `c37b29f2a`, `afda91bc2`, then the docs commit).
+  - Moved: the options, entry checks, target selection (`VacuumSelection`),
+    work gates and the detached work pass to `table`; `VacuumCutoffLocked`,
+    `VacuumRetirementAllowedLocked` and `InitializeMaintenanceLocked` to
+    `visibility.Registry`; `Maintenance.RecordVacuum` to `storage`
+    (`PrepareVacuum` deleted); the progress-row rule to
+    `pgcatalog.VacuumProgressViewer`.
+  - Deviations: `InitializeMaintenanceLocked` had 6 call sites (item 153
+    merged two). Two pure helpers beyond the list moved too: `VacuumWork` (the
+    post-grant gates of `vacuumRelation`) and `VacuumReport` (the VERBOSE
+    text). The pass also covers the "scanning heap" and "performing final
+    cleanup" phase updates around today's L151-212, so the phase sequence is
+    unchanged. `vacuumCompletion` keeps its name: test barriers match it.
+  - Tests: `vacuum_options_test.go` moved; `vacuum_indexes_test.go` and
+    `vacuum_visibility_test.go` compose `InspectVacuum` and
+    `MaterializeVacuum` in a local `vacuumScan` helper instead of
+    `storage.PrepareVacuum`.
+  - Note: `AuthorizationView` is now boxed into `access.Environment` at each
+    `table` call, as LOCK TABLE does, so a superuser's VACUUM makes about one
+    small allocation per target that it did not make before; other users
+    already paid it inside `Effective`. Startup and ordinary statements are
+    unchanged.
 - 158: not started.

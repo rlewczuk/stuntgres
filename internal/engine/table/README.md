@@ -52,6 +52,16 @@ call live here.
 - **Relation options** (`relation_options.go`): the storage-parameter registry
   and `RelationOptionsCandidate`, which transforms each option namespace
   independently, base first.
+- **VACUUM** (`vacuum_*.go`): `NormalizeVacuum`, then `CheckVacuumEntry`
+  (transaction block, FULL, ANALYZE); target selection over `access.View`
+  (`VacuumSelection.AddDatabase` and `AddRoot`, whose descendants are
+  breadth-first and OID-ordered per root) with `VacuumAllowed`, and the
+  post-grant gates `VacuumWork`; the detached work pass `PrepareVacuumPass`
+  over a `VacuumCapture` (`CaptureIndexesLocked`, `SameLocked`), plus
+  `DatabaseFrozenXIDLocked` and `VacuumReport`. Selection and gates return
+  `VacuumWarning`s, which the root emits after unlocking, in order. The pass's
+  `phase` callback takes `Engine.mu` once per progress update, so callers hold
+  nothing.
 - **Foreign keys** (`foreign_key*.go`): declarations and comparison binding,
   diagnostics over `access.View`, the probe (`FindForeignKeyParent`,
   `ProbeForeignKeyIndex`), OID-ordered provider walks, initial row scans and
@@ -142,6 +152,7 @@ its pass loop and the other statement handlers; the wrappers that take
 template; lock admission and post-wait checks (`acquireDefinitionProviders`,
 `admitInheritanceAlter`, `acquireRelationTarget` around `AdmitTarget`, ...);
 identity sequence waits; the prepare host and prepared-drop consumers; Finish;
+VACUUM's lock loop, `Engine.mu` windows, retry, install and progress map;
 the binder bodies; and the Restore hook bodies (authorization, the `Engine.mu`
 window, trust checks, `publishRestoreRepairLocked`, `restore_replay.go`).
 
@@ -180,5 +191,7 @@ make check RUN='^Test(TableHost|AlterHost|RelationValidatorsOrder|GeneratedRemap
 make check RUN='^Test(CheckCreateShape|TypedSources|PlanAlterScan|ValidateAddedConstraintRows|RelationOptions|PrepareInheritanceNode|InheritancePendingGrants|InheritanceDropClosure|DefinitionProviders|Deparse(SerialSequence|MissingObjects)|ValidateSelectedDomainRows|OwnedSequenceName)'
 make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|Scan(Restored)?ForeignKeys|RestoredForeignKeyTarget|RestoreInherited|AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit)'
 make check RACE=1 RUN='^Test(NotNull|PhysicalNotNull|Inheritance)'
+make check RUN='^Test(Reference)?Vacuum'
+make check RACE=1 RUN='^TestVacuum(PublicationFences|AuthorizationLocks)$$'
 make check RUN='^TestReference(TableCore|TableLike|NotNull|Check|Inheritance|TypedTable)'
 ```

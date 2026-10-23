@@ -10,16 +10,16 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `c0fa3a453`.
+Last verified against `master` at `8d86f11c0`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 154 (table, DROP), 156 (table, VACUUM), 157 (partition), 158 (table,
-  ALTER), 159 (view), 160 (session, 2PC), 163 (exec, cursors), 165
-  (session, protocol codec) and 166 (ddl, CREATE DATABASE).
+- 154 (table, DROP), 157 (partition), 158 (table, ALTER), 159 (view), 160
+  (session, 2PC), 163 (exec, cursors), 165 (session, protocol codec) and 166
+  (ddl, CREATE DATABASE).
 
 ## Linear plan
 
@@ -55,9 +55,15 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      concurrent foreign DDL, ALTER TYPE repeatable-read, DROP SEQUENCE and
      serial cascade selections passed; racecheck/finalcheck skipped at user
      request
-156. [ ] Table: VACUUM decisions —
+156. [x] Table: VACUUM decisions —
      [table](ENGINE-SPLIT-table.md#item-156--vacuum-decisions) · needs — ·
-     0.49k
+     0.47k (`990a57741`, `c37b29f2a`, `afda91bc2`, then the docs commit) · root
+     VACUUM 894 → 425 lines, root 391 → 390 files and 48.9k → 48.4k lines · no
+     startup allocation change · targeted units (also `RACE=1`), quickcheck and
+     the quick and `REFERENCE=1` VACUUM and pg_database selections passed (an
+     earlier quickcheck hit
+     `TestReferenceUpdateCurrentOfVersionsAndArbitration`, which fails on
+     master too); racecheck/finalcheck skipped at user request
 157. [ ] Partition: `pg_partition_*` values —
      [partition](ENGINE-SPLIT-partition.md#item-157--pg_partition_-values) ·
      needs — · 0.18k

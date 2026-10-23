@@ -128,7 +128,9 @@ The engine calls `ClassKind`, `ClassACL`, `AttributeMetadata`,
 `HasSystemAttributes`, `AttributeNumber`, `InitializeAttributes`,
 `CollationActualVersion`, `DatabaseCollationActualVersion`,
 `DescriptorComment`, `ForeignDependencies`, `VirtualViewWriteError`,
-`LockRows`, `CapturePGSequences` and the OID constants (`LocksOID`,
+`LockRows`, `CapturePGSequences`, `NewVacuumProgressViewer` (which progress
+rows the current user reads in full: superuser, the worker's authenticated
+role or `pg_read_all_stats`) and the OID constants (`LocksOID`,
 `CursorsOID`, `SettingsOID`, `TypeOID`, ...). Engine unit tests also call row
 helpers such as `CollectDepend`, `ClassRow`, `AttributeRow`, `TypeFacts` and
 `ConstraintOperator`. `CollationActualVersion` reads actual provider
