@@ -3,11 +3,9 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -129,18 +127,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 	if err := s.acquireSerializableSnapshot(); err != nil {
 		return err
 	}
-	needsProjection := func(roots map[ids.ObjectAddress]visibility.Root) bool {
-		if !t.Isolation.Stable() || t.Catalog == nil {
-			return false
-		}
-		for address, shape := range t.Catalog.Storage {
-			if root, exists := roots[address]; exists && !shape.HasSnapshot && !slices.Equal(root.Relation.Attributes, shape.Relation.Attributes) {
-				return true
-			}
-		}
-		return false
-	}
-	if t.SnapshotSet && !needsProjection(t.Roots) && s.currentSnapshot != nil {
+	if t.SnapshotSet && !t.NeedsSnapshotProjection(t.Roots) && s.currentSnapshot != nil {
 		return nil
 	}
 	sess := s.op.Session
@@ -174,7 +161,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 	}
 	roots, frontier := t.Roots, t.Frontier
 	sequenceCatalog := t.SequenceCatalog
-	if !needsProjection(roots) {
+	if !t.NeedsSnapshotProjection(roots) {
 		t.Roots, t.Frontier = roots, frontier
 		t.SequenceCatalog = sequenceCatalog
 		t.SnapshotSet = true
@@ -242,14 +229,8 @@ func (e *Engine) retainTransactionSnapshotLocked(t *session.TransactionOwner) er
 	if err != nil {
 		return err
 	}
-	roots := make(map[ids.ObjectAddress]visibility.Root, len(e.storage.Relations))
-	for address, storage := range e.storage.Relations {
-		if relation, ok := e.catalog.state.Relation(address); ok {
-			roots[address] = visibility.Root{storage.Versions, storage.Ends, storage, relation}
-		}
-	}
 	t.CurrentSnapshot, t.Frontier = snapshot, e.visibility.CommitSeq()
-	t.Roots, t.SequenceCatalog = roots, e.catalog.state
+	t.Roots, t.SequenceCatalog = session.CommittedRoots(e.catalog.state, &e.storage), e.catalog.state
 	return nil
 }
 

@@ -30,7 +30,7 @@ func (v AuthorizationView) StorageLocked(a ids.ObjectAddress) *storage.Relation 
 	if v.session != nil && v.session.Transactions != nil {
 		journal = v.session.Transactions.Catalog
 	}
-	return privateStorage(v.inputs.storage, journal, a)
+	return session.PrivateStorage(v.inputs.storage, journal, a)
 }
 
 // ruleAuthorizationOf recovers the full authorization view of a rule

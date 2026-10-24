@@ -34,17 +34,13 @@ func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ids.ObjectRef) (*v
 }
 
 func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ids.ObjectRef) (*visibility.View, error) {
-	return s.captureDataViewsLocked(e, refs, false)
+	return s.captureDataViewsAtLocked(e, refs, false, nil)
 }
 
 // Partition integrity validation uses the grant-time committed frontier plus
 // this owner's earlier commands, without changing its ordinary snapshot.
 func (s *StatementScope) acquirePartitionValidationViewsLocked(e *Engine, refs []ids.ObjectRef) (*visibility.View, error) {
-	return s.captureDataViewsLocked(e, refs, true)
-}
-
-func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef, latest bool) (*visibility.View, error) {
-	return s.captureDataViewsAtLocked(e, refs, latest, nil)
+	return s.captureDataViewsAtLocked(e, refs, true, nil)
 }
 
 // A dynamic relation extends the active snapshot locally, never the outer
