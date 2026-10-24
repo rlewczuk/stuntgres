@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
-	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
@@ -20,7 +19,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
@@ -277,76 +275,12 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	if err := provider.owner.catalog.validateObjectRefLocked(provider.base, ref); err != nil {
 		return err
 	}
-	d := provider.base.Get(ref.Address)
-	switch d.(type) {
-	case *catalog.Relation:
-		if ref.Address.ClassID != ids.RelationClassID {
-			return fmt.Errorf("stuntgres: only user relations can be removed")
-		}
-	case *catalog.Namespace:
-		if !namespace || ref.Address.ClassID != ids.NamespaceClassID {
-			return fmt.Errorf("stuntgres: only user relations can be removed")
-		}
-	case *catalog.Type:
-		t := d.(*catalog.Type)
-		if t.OwningRelation == (ids.ObjectAddress{}) && !t.SQLType.IsUserDefined() && !(t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined()) {
-			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, t.Address(), provider.path)+" because it is required by the database system")
-		}
-	case *catalog.Collation:
-		if d.(*catalog.Collation).Seeded() {
-			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
-		}
-	case *catalog.Conversion:
-		if d.(*catalog.Conversion).Seeded() {
-			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
-		}
-	case *catalog.AccessMethod:
-		method := d.(*catalog.AccessMethod)
-		if catalog.AccessMethodSeeded(method) {
-			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
-		}
-		if err := (catalog.AccessMethodProvider{}).Validate(provider.base, d); err != nil {
-			return err
-		}
-	case *catalog.OperatorClass:
-		if catalog.OperatorClassSeeded(d) {
-			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
-		}
-	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
-		if catalog.OperatorFamilySeeded(d) {
-			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
-		}
-	case *catalog.Operator:
-		if routine.OperatorSeeded(d.(*catalog.Operator)) {
-			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
-		}
-	case *catalog.ForeignObject:
-		if err := provider.owner.catalog.Provider(ref.Address.ClassID).Validate(provider.base, d); err != nil {
-			return err
-		}
-	case *catalog.Cast, *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary:
-		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Seeded() {
-			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
-		}
-		objectProvider := provider.owner.catalog.Provider(ref.Address.ClassID)
-		if objectProvider == nil {
-			return fmt.Errorf("stuntgres: missing installed object provider")
-		}
-		if err := objectProvider.Validate(provider.base, d); err != nil {
-			return err
-		}
-	case *catalog.Parameter:
-		if err := (role.ParameterProvider{Settings: &provider.owner.settings}).Validate(provider.base, d); err != nil {
-			return err
-		}
-	case *catalog.Tablespace:
-		return sqlError("2BP01", "cannot drop tablespace "+catalog.DependencyIdentifier(d.Name())+" because it is required by the database system")
-	default:
-		return fmt.Errorf("stuntgres: only user relations can be removed")
+	if err := checkRemovalLocked(provider.base, provider.path, ref, namespace); err != nil {
+		return err
 	}
 	// Provider/ref validation above belongs to the authentic predecessor.
 	// AUTO retirement below follows the actual metadata entering this phase.
-	d = provider.RetirementDescriptor(ref.Address)
+	d := provider.RetirementDescriptor(ref.Address)
 	if provider.Removed(ref.Address) {
 		return nil
 	}

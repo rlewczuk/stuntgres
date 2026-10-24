@@ -313,28 +313,7 @@ func (p *dropProvider) rewindNotices(position int) {
 }
 
 func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
-	var targets []ids.ObjectAddress
-	if slices.ContainsFunc(roots, func(address ids.ObjectAddress) bool { return address.ClassID == ids.ExtensionClassID }) {
-		// Extension retirement retains its existing complete expression fence.
-		targets = slices.Clone(roots)
-	} else {
-		// SQL/MED observes only whole provider identities selected by the
-		// completed closure, not unrelated relation/type/column targets.
-		targets = make([]ids.ObjectAddress, 0, len(roots))
-		for _, address := range roots {
-			if address.SubID != 0 {
-				continue
-			}
-			switch address.ClassID {
-			case ids.ForeignWrapperClassID, ids.ForeignServerClassID:
-				targets = append(targets, address)
-			case ids.ProcedureClassID:
-				if procedure, ok := p.RetirementDescriptor(address).(*catalog.Procedure); ok && procedure.Foreign != nil {
-					targets = append(targets, address)
-				}
-			}
-		}
-	}
+	targets := identityObservationTargets(p, roots)
 	if p.stage != nil {
 		p.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{p.stage.Base.State(), targets})
 		return

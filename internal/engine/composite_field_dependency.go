@@ -9,16 +9,21 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func stageCompositeFieldDependencies(stage *CatalogStage, source *catalog.Relation, attribute int32, mode parser.DropMode, scope *StatementScope) error {
-	return stageDropProvider(nil, stage, scope, nil, nil).CompositeFieldDependencies(source, attribute, mode)
+func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relation, attribute int32, mode parser.DropMode) error {
+	return compositeFieldDependencies(provider, source, attribute, mode)
 }
 
-func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relation, attribute int32, mode parser.DropMode) error {
+// compositeFieldDependencies drops or rejects the CHECK constraints of tables
+// and domains that use attribute of composite type source. A domain DEFAULT
+// that uses it takes the whole expression-dependency path instead. Notices
+// for CASCADE go through provider.Notice in discovery order.
+func compositeFieldDependencies(provider table.DropDependencyReader, source *catalog.Relation, attribute int32, mode parser.DropMode) error {
 	var relations []*catalog.Relation
 	var domains []*catalog.Type
 	target := source.Address()
@@ -74,7 +79,7 @@ func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relatio
 			label := fmt.Sprintf("constraint %s on table %s", catalog.DependencyIdentifier(check.Name), catalog.DependencyIdentifier(relation.Name()))
 			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, catalog.DependencyIdentifier(source.Columns[source.IndexForAttribute(attribute)].Name), catalog.DependencyIdentifier(source.Name())))
 			if mode == parser.DropCascade {
-				provider.compositeFieldNotice("drop cascades to " + label)
+				compositeFieldNotice(provider, "drop cascades to "+label)
 			}
 		}
 		if len(kept) == len(relation.Constraints.Check) || mode != parser.DropCascade {
@@ -122,10 +127,10 @@ func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relatio
 			label := fmt.Sprintf("constraint %s", catalog.DependencyIdentifier(check.Name))
 			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, catalog.DependencyIdentifier(source.Columns[source.IndexForAttribute(attribute)].Name), catalog.DependencyIdentifier(source.Name())))
 			if mode == parser.DropCascade {
-				if err := provider.removeDomainCheck(domain, check.OID); err != nil {
+				if err := removeDomainCheck(provider, domain, check.OID); err != nil {
 					return err
 				}
-				provider.compositeFieldNotice("drop cascades to " + label)
+				compositeFieldNotice(provider, "drop cascades to "+label)
 			}
 		}
 	}
@@ -140,11 +145,23 @@ func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relatio
 
 // Ordinary composite ALTER owns these immediate notices rather than table/view
 // cascade publication. Preparation records the same notice for its real phase.
-func (provider *dropProvider) compositeFieldNotice(message string) {
-	notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message}
-	if provider.prepared != nil {
-		provider.prepared.recordEffect(dropEffect{missing: &notice})
-	} else if provider.scope != nil {
-		provider.scope.op.EmitNotice(session.LevelNotice, notice)
+func compositeFieldNotice(provider table.DropDependencyReader, message string) {
+	provider.Notice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
+}
+
+// removeDomainCheck replaces domain d, as the drop already changed it, with a
+// copy without its CHECK constraint oid and a new revision.
+func removeDomainCheck(provider table.DropDependencyReader, d *catalog.Type, oid ids.OID) error {
+	if replacement, ok := provider.Replacement(d.Address()).(*catalog.Type); ok {
+		d = replacement
 	}
+	next, err := typedef.WithoutDomainCheck(d, oid)
+	if err != nil {
+		return err
+	}
+	next.ObjectRevision, err = provider.Revision(d.ObjectRevision)
+	if err != nil {
+		return err
+	}
+	return provider.Replace(next)
 }

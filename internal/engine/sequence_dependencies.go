@@ -19,13 +19,20 @@ func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, 
 }
 
 func (provider *dropProvider) OwnedExpressionDependencies(targets []ids.ObjectAddress, mode parser.DropMode) error {
+	return ownedExpressionDependencies(provider, targets, mode)
+}
+
+// ownedExpressionDependencies removes the sequences that targets own, after
+// the expression dependencies of each sequence. Inheritance tables the drop
+// already removed count as targets too.
+func ownedExpressionDependencies(provider table.DropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) error {
 	var closure []ids.ObjectAddress
 	extended := false
 	// Include removed hierarchy owners, not unrelated removals staged by an
 	// earlier pass. Ordinary column projection retains its existing ordering.
 	for address, descriptor := range provider.RemovalDescriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || relation.RelationKind != catalog.TableRelation || !catalog.InheritanceParticipant(provider.base, relation) {
+		if !ok || relation.RelationKind != catalog.TableRelation || !catalog.InheritanceParticipant(provider.BaseRead(), relation) {
 			continue
 		}
 		present := false
@@ -49,7 +56,7 @@ func (provider *dropProvider) OwnedExpressionDependencies(targets []ids.ObjectAd
 		if err := provider.ExpressionDependencies(closure, mode, ids.ObjectAddress{}); err != nil {
 			return err
 		}
-		if provider.scope != nil {
+		if provider.StatementBound() {
 			return provider.Acquire(ref, false)
 		}
 		return nil

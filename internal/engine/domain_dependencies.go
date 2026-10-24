@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -62,16 +61,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	// Previously staged whole removals are retirement roots too. Discover their
 	// complete dependent closure before classifying any surviving-owner mutation.
 	// In particular a schema can remove both a provider and an inheritance parent.
-	var retirementRoots []ids.ObjectAddress
-	for address, descriptor := range provider.RemovalDescriptors() {
-		if _, relation := descriptor.(*catalog.Relation); relation && !slices.Contains(roots, address) {
-			retirementRoots = append(retirementRoots, address)
-		}
-	}
-	if len(retirementRoots) != 0 {
-		sort.Slice(retirementRoots, func(i, j int) bool { return retirementRoots[i].ObjectID < retirementRoots[j].ObjectID })
-		roots = append(append([]ids.ObjectAddress(nil), roots...), retirementRoots...)
-	}
+	roots = dropRoots(roots, provider.RemovalDescriptors())
 	if err := provider.lockInheritanceClosure(roots); err != nil {
 		return err
 	}
@@ -86,83 +76,19 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	if mode == parser.DropRestrict && visible {
 		return view.RestrictError(provider, roots, edges, originalRootCount, subject)
 	}
-	targets := append([]ids.ObjectAddress(nil), roots...)
-	var relations []*catalog.Relation
-	var hierarchyTargets []ids.ObjectAddress
-	seen := make(map[ids.ObjectAddress]bool)
-	for _, target := range targets {
-		if target.ClassID == ids.RelationClassID && target.SubID == 0 {
-			seen[target] = true
-		}
+	plan := planDrop(provider, roots, edges)
+	targets, relations := plan.Targets, plan.Relations
+	if plan.ObserveIdentities {
+		provider.observeIdentityDependencies(targets)
 	}
-	for _, edge := range edges {
-		// Discovery can enter an owned provider without emitting a removal
-		// edge for it: relation retirement already removes its row type and
-		// array. Preserve the captured provider identity when pruning stored
-		// expressions, not just the requested root and dependent addresses.
-		if !slices.Contains(targets, edge.Target) {
-			targets = append(targets, edge.Target)
-		}
-		if ids.IsForeignCatalogClass(edge.Address.ClassID) || edge.Address.ClassID == ids.AccessMethodClassID || edge.Address.ClassID == ids.CastClassID || edge.Address.ClassID == ids.OperatorClassCatalogID || edge.Address.ClassID == ids.OperatorClassID || edge.Address.ClassID == ids.OperatorFamilyClassID || edge.Address.ClassID == ids.AccessMethodOperatorClassID || edge.Address.ClassID == ids.AccessMethodProcedureClassID || edge.Address.ClassID == ids.TypeClassID || edge.Address.ClassID == ids.ExtensionClassID || edge.Address.ClassID == ids.ProcedureClassID || edge.Address.ClassID == ids.TSTemplateClassID || edge.Address.ClassID == ids.TSDictionaryClassID || edge.Column != "" || edge.Relation != nil && edge.Address == edge.Relation.Address() {
-			targets = append(targets, edge.Address)
-			if edge.Address.ClassID == ids.RelationClassID && edge.Address.SubID == 0 {
-				seen[edge.Address] = true
-			}
-		}
-		if edge.Relation != nil && edge.Address == edge.Relation.Address() && catalog.HierarchyRelation(edge.Relation) {
-			hierarchyTargets = append(hierarchyTargets, edge.Address)
-		}
-	}
-	// The final closure can discover SQL/MED providers below a schema,
-	// registered procedure or wrapper root. Fence their incoming identities
-	// together with the existing extension retirement observation.
-	for _, target := range targets {
-		observe := target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ForeignWrapperClassID || target.ClassID == ids.ForeignServerClassID
-		if target.ClassID == ids.ProcedureClassID {
-			procedure, ok := provider.RetirementDescriptor(target).(*catalog.Procedure)
-			observe = ok && procedure.Foreign != nil
-		}
-		if observe {
-			provider.observeIdentityDependencies(targets)
-			break
-		}
-	}
-	for _, edge := range edges {
-		if edge.Relation != nil && (edge.Column != "" || edge.Address.ClassID == 2606) && !seen[edge.Relation.Address()] {
-			relations = append(relations, edge.Relation)
-			seen[edge.Relation.Address()] = true
-		}
-	}
-	for _, edge := range edges {
-		if scope != nil && edge.Relation != nil && edge.Address == edge.Relation.Address() && catalog.HierarchyRelation(edge.Relation) {
-			if err := scope.acquirePartitionDropLocks(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), edge.Address)); err != nil {
+	e := provider.owner
+	if scope != nil {
+		for _, address := range plan.Hierarchy {
+			if err := scope.acquirePartitionDropLocks(e.catalog.Domain.Ref(provider.base.Epoch(), address)); err != nil {
 				return err
 			}
 		}
-	}
-	sort.Slice(relations, func(i, j int) bool { return relations[i].Address().ObjectID < relations[j].Address().ObjectID })
-	e := provider.owner
-	if scope != nil {
-		// Lock owners are not deletion/projection targets. A policy edge
-		// captures its surviving owner's identity, even without a column edge.
-		lockRelations := make([]*catalog.Relation, 0, len(relations))
-		lockSeen := make(map[ids.ObjectAddress]bool)
-		for _, r := range relations {
-			lockRelations = append(lockRelations, r)
-			lockSeen[r.Address()] = true
-		}
-		for _, edge := range edges {
-			r := edge.Relation
-			if r == nil || lockSeen[r.Address()] {
-				continue
-			}
-			if edge.Address.ClassID == ids.PolicyClassID || edge.Address == r.Address() && (r.RelationKind == catalog.TableRelation || r.RelationKind == catalog.ForeignRelation) {
-				lockRelations = append(lockRelations, r)
-				lockSeen[r.Address()] = true
-			}
-		}
-		sort.Slice(lockRelations, func(i, j int) bool { return lockRelations[i].Address().ObjectID < lockRelations[j].Address().ObjectID })
-		for _, r := range lockRelations {
+		for _, r := range plan.lockRelations(edges) {
 			ref := e.catalog.Domain.Ref(provider.base.Epoch(), r.Address())
 			if err := provider.Acquire(ref, true); err != nil {
 				return err
@@ -250,12 +176,12 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 		if provider.Removed(edge.Domain.Address()) {
 			continue
 		}
-		if err := provider.removeDomainCheck(edge.Domain, edge.Address.ObjectID); err != nil {
+		if err := removeDomainCheck(provider, edge.Domain, edge.Address.ObjectID); err != nil {
 			return err
 		}
 	}
 	for _, target := range targets {
-		if ids.IsForeignCatalogClass(target.ClassID) || target.ClassID == ids.AccessMethodClassID || target.ClassID == ids.CastClassID || target.ClassID == ids.OperatorClassCatalogID || target.ClassID == ids.OperatorClassID || target.ClassID == ids.OperatorFamilyClassID || target.ClassID == ids.AccessMethodOperatorClassID || target.ClassID == ids.AccessMethodProcedureClassID || target.ClassID == ids.TypeClassID || target.ClassID == ids.CollationClassID || target.ClassID == ids.ConversionClassID || target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ProcedureClassID || target.ClassID == ids.TSTemplateClassID || target.ClassID == ids.TSDictionaryClassID {
+		if retiredProviderClass(target.ClassID) {
 			if err = provider.Remove(e.catalog.Domain.Ref(provider.base.Epoch(), target)); err != nil {
 				break
 			}
@@ -273,8 +199,8 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	// Newly discovered hierarchy owners are not the caller's original roots.
 	// Stage their AUTO closure after removing them so recursive expression
 	// traversal cannot rediscover the same hierarchy during sequence preparation.
-	if len(hierarchyTargets) != 0 {
-		return provider.OwnedExpressionDependencies(hierarchyTargets, mode)
+	if len(plan.Hierarchy) != 0 {
+		return ownedExpressionDependencies(provider, plan.Hierarchy, mode)
 	}
 	return nil
 }
@@ -353,23 +279,4 @@ func (e *Engine) stageSchemaDomainsLocked(op *session.Operation, auth Authorizat
 		}
 	}
 	return nil
-}
-
-func (stage *CatalogStage) removeDomainCheck(d *catalog.Type, oid ids.OID) error {
-	return stageDropProvider(nil, stage, nil, nil, nil).removeDomainCheck(d, oid)
-}
-
-func (provider *dropProvider) removeDomainCheck(d *catalog.Type, oid ids.OID) error {
-	if replacement, ok := provider.Replacement(d.Address()).(*catalog.Type); ok {
-		d = replacement
-	}
-	next, err := typedef.WithoutDomainCheck(d, oid)
-	if err != nil {
-		return err
-	}
-	next.ObjectRevision, err = provider.Revision(d.ObjectRevision)
-	if err != nil {
-		return err
-	}
-	return provider.Replace(next)
 }

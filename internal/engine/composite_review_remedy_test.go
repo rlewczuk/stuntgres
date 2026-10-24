@@ -89,12 +89,12 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	original := domainUnitType(t, before, "checked_pair")
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	err := stageCompositeFieldDependencies(stage, source, source.Attributes[0], parser.DropRestrict, nil)
+	err := compositeFieldDependencies(stageDropProvider(nil, stage, nil, nil, nil), source, source.Attributes[0], parser.DropRestrict)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop column id of composite type pair because other objects depend on it")
 	if stage.DescriptorCount() != 0 {
 		t.Fatal("RESTRICT staged removal")
 	}
-	if err := stageCompositeFieldDependencies(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
+	if err := compositeFieldDependencies(stageDropProvider(nil, stage, nil, nil, nil), source, source.Attributes[0], parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	next := stage.Get(original.Address()).(*catalog.Type)
@@ -115,7 +115,7 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if e.CatalogRead().State() != before.State() {
 		t.Fatal("private pruning published")
 	}
-	if err := stage.removeDomainCheck(next, next.DomainChecks[0].OID); err != nil {
+	if err := (ddlHost{stage: stage}).RemoveDomainCheck(next, next.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
 	if len(stage.Get(original.Address()).(*catalog.Type).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
@@ -138,7 +138,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	stage.typedState().Source = tbl.OfType
 	stage.typedState().Observed = table.TypedClosure(before, tbl.OfType)
-	if err := stageCompositeFieldDependencies(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
+	if err := compositeFieldDependencies(stageDropProvider(nil, stage, nil, nil, nil), source, source.Attributes[0], parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	for _, original := range []*catalog.Relation{left, right, child} {

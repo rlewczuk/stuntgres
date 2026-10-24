@@ -202,7 +202,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		t.Fatal("container generations/bounds/NULLs lost")
 	}
 	drop := e.BeginCatalogStage(current)
-	if err := drop.removeDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
+	if err := (ddlHost{stage: drop}).RemoveDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
 	drop.domainAlterState().Ctx = context.Background()
