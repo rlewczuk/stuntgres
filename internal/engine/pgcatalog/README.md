@@ -1,7 +1,7 @@
 # internal/engine/pgcatalog
 
 Row producers for the system relations: the `pg_catalog` tables and views and
-the producer-backed `information_schema` views (`table_privileges`,
+the producer-backed `information_schema` tables and views (`sql_features`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
@@ -97,6 +97,20 @@ type Producer func(Input) ([][]sqltype.Value, error)
   while C link symbols remain visible to executors. Declared result identity is
   not domain-unwrapped and does not admit a codec or execute a provider. All 82
   cells, including NULLs, retain their captured information-schema domains.
+
+## SQL feature metadata
+
+`info_sql_features.go` exposes the complete PostgreSQL 18 release conformance
+matrix from `info_sql_features_data.go`, independently of native SQL execution
+capabilities. Released support flags and comments are literal metadata, not
+inferred from parser admission, catalog population or parent/child features.
+The relation is a physical catalog-backed table with seven nullable
+`character_data`/`yes_or_no` domain columns, typed NULL verification values,
+genuine empty strings and PUBLIC SELECT. Ordinary schema/relation ACL admission
+still applies; there is no per-feature identity or object visibility filter.
+Each capture owns its output buffers and captured domain descriptors; process
+data contains only strings. Cancellation or invalid capture authority returns
+no partial matrix.
 
 ## Registry
 
@@ -407,6 +421,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - Routine metadata public scenarios: `RUN='^TestReferenceInfoRoutines'`
 - UDT grant producer/authority units: `RUN='^TestInfoRoleUdtGrants'`
 - UDT grant public scenarios: `RUN='^TestReferenceInfoRoleUdtGrants'`
+- SQL-feature producer/authority units: `RUN='^TestInfoSQLFeatures'`
+- SQL-feature public scenarios: `RUN='^TestReferenceInfoSQLFeatures'`
 
 ### Domain constraints
 

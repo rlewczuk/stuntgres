@@ -98,6 +98,7 @@ var producers = [...]Registration{
 	{InfoRoutinesOID, captureInfoRoutines},
 	{InfoRoleRoutineGrantsOID, captureInfoRoleRoutineGrants},
 	{InfoRoleUdtGrantsOID, captureInfoRoleUdtGrants},
+	{InfoSQLFeaturesOID, captureInfoSQLFeatures},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

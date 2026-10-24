@@ -3,6 +3,11 @@ actual composite type USAGE grant origins, including represented catalog row
 types. Named grantors, grant options and inherited enabled-role visibility
 refresh across direct and held prepared reads without leaking unrelated grants.
 
+information_schema.sql_features now supports ordinary direct and prepared reads
+of the exact PostgreSQL 18 release conformance matrix, with nullable domain-typed
+metadata, PUBLIC readability and standard ACL admission. These release metadata
+flags do not add native execution support for the listed SQL language features.
+
 information_schema.role_routine_grants now exposes ten domain-typed columns over
 real routine EXECUTE grant origins, preserving named grantors, grant options and
 enabled-role visibility across direct and prepared metadata reads.

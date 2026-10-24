@@ -3,7 +3,7 @@
 System catalogs and catalog-facing features: `pg_catalog` tables and views
 (`pg_class`, `pg_attribute`, `pg_type`, `pg_namespace`, `pg_depend`, `pg_operator`,
 `pg_aggregate`, `pg_cast`, ACL, comment, role, sequence and summary views, and
-others), `information_schema` views, catalog foreign keys, visibility, ACL and
+others), `information_schema` tables and views, catalog foreign keys, visibility, ACL and
 partition-navigation inquiry functions, size functions, schemas and
 `search_path`, encoding conversions, tablespaces, VACUUM, LOAD, and extensions
 (registry, installation, TEMP installs, versions, removal, available-extension
@@ -240,6 +240,23 @@ See [producer ownership](../../internal/engine/pgcatalog/README.md#information-s
 
 - Sequence definitions: `RUN='^TestReferenceInfoSequences'`
 - Domain definitions: `RUN='^TestReferenceInfoDomains'`
+
+### SQL feature metadata
+
+`info_sql_features_helpers_test.go` reads the untouched official REL_18_6
+six-column inventory in `testdata/sql_features_pg18.tsv`; expectations never
+come from the native producer or live SQL results. Shared scenarios compare
+the complete matrix as bags and exercise domain/table facts, cursor metadata,
+direct/new/held prepared reads, NULL/empty strings, identity independence and
+complete diagnostics.
+
+Private-table denial is shared SQL coverage. Transactional PostgreSQL-only
+target ACL revocation is rollback-contained, with separate savepoints for
+expected errors and independently bounded cleanup. Native catalog-source
+GRANT/REVOKE admission is not widened: engine units exercise actual ACL
+publication, retained authorization, denial and restoration.
+
+- SQL feature metadata: `RUN='^TestReferenceInfoSQLFeatures'`
 
 ### Column grant metadata
 

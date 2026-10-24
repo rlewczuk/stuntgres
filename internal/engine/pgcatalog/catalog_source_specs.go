@@ -858,4 +858,13 @@ var Specs = [...]Spec{
 	}, true, false, false, false, "stuntgres: missing views domain"},
 	{InfoTablesOID, 13229, "tables", infoTablesColumns, true, false, false, false, "stuntgres: missing tables domain"},
 	{InfoRoutinesOID, 13229, "routines", infoRoutinesColumns, true, false, false, false, "stuntgres: missing routines domain"},
+	{InfoSQLFeaturesOID, 13229, "sql_features", []ColumnSpec{
+		{"feature_id", 13246, true, 950, 0, -1},
+		{"feature_name", 13246, true, 950, 0, -1},
+		{"sub_feature_id", 13246, true, 950, 0, -1},
+		{"sub_feature_name", 13246, true, 950, 0, -1},
+		{"is_supported", 13256, true, 950, 0, -1},
+		{"is_verified_by", 13246, true, 950, 0, -1},
+		{"comments", 13246, true, 950, 0, -1},
+	}, false, false, false, false, "stuntgres: missing SQL features domain"},
 }
