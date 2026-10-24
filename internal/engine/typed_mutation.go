@@ -174,13 +174,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		checks := *next
 		checks.Constraints.Check = mutation.checks
 		validator.Checks = table.ValidCheckTraversal(&checks)
-		e.mu.Lock()
-		err = e.captureCheckCommentSnapshotLocked(scope, &checks)
-		if err == nil {
-			err = e.captureCheckVisibilitySnapshotLocked(scope, &checks)
-		}
-		e.mu.Unlock()
-		if err != nil {
+		if err := e.captureCheckSnapshots(scope, &checks); err != nil {
 			return err
 		}
 	}

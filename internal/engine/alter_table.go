@@ -234,10 +234,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			} else if table.RelationshipAction(action.Action) {
 				next, err = scope.inheritanceRelationshipCandidate(stage, next, actionIndex, action)
 			} else if action.Action == parser.AddIdentity || action.Action == parser.DropIdentity || action.Action == parser.SetIdentity {
-				if stage == nil {
-					stage = e.BeginCatalogStage(auth.Catalog)
-					stage.authorizeLocked(auth, op.Session)
-				}
+				stage = e.authorizedStage(stage, auth, op.Session)
 				next, err = e.identityCandidate(scope, auth, stage, next, action)
 			} else if action.Action == parser.SetExpression || action.Action == parser.DropExpression {
 				var attribute int32
@@ -246,9 +243,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 					replacements = append(replacements, attribute)
 				}
 			} else if action.Action == parser.DropColumn {
-				if _, exists := next.Index[action.Column.Text]; exists && stage == nil {
-					stage = e.BeginCatalogStage(auth.Catalog)
-					stage.authorizeLocked(auth, op.Session)
+				if _, exists := next.Index[action.Column.Text]; exists {
+					stage = e.authorizedStage(stage, auth, op.Session)
 				}
 				next, err = scope.dropColumnCandidate(stage, next, ref, action, changes)
 			} else if action.Action == parser.AddColumn {
@@ -278,10 +274,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 					addedIndexes = append(addedIndexes, next.Constraints.Unique[len(next.Constraints.Unique)-1].Index)
 				}
 			} else if action.Action == parser.AddExclusion {
-				if stage == nil {
-					stage = e.BeginCatalogStage(auth.Catalog)
-					stage.authorizeLocked(auth, op.Session)
-				}
+				stage = e.authorizedStage(stage, auth, op.Session)
 				copy := *next
 				copy.Constraints.Exclusion = slices.Clone(next.Constraints.Exclusion)
 				next = &copy
@@ -332,10 +325,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		} else if pass == 1 {
 			next, typeChecks, err = e.rebindAlterTypeChecks(scope, op, auth, ref, next, pendingChecks)
 			if err == nil && len(pendingIndexes) > 0 {
-				if stage == nil {
-					stage = e.BeginCatalogStage(auth.Catalog)
-					stage.authorizeLocked(auth, op.Session)
-				}
+				stage = e.authorizedStage(stage, auth, op.Session)
 				err = e.rebindAlterTypeIndexes(scope, auth, next, stage, pendingIndexes)
 			}
 		}
@@ -409,37 +399,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	if stage != nil {
-		for address, descriptor := range stage.Descriptors() {
-			sequence, ok := descriptor.(*catalog.Relation)
-			if !ok || sequence.RelationKind != catalog.SequenceRelation {
-				continue
-			}
-			original := grantCatalog.Get(address)
-			if captured, identity := stage.sequence.IdentityOriginal(address); identity {
-				original = captured
-			}
-			if e.catalog.state.Get(address) != original {
-				e.mu.Unlock()
-				return Result{}, catalog.Conflict{}
-			}
-			e.catalogChangeLocked(changes, address, descriptor)
-			changes.Generators[address] = stage.sequence.Generator(address)
-		}
-		for address, removal := range stage.Removals() {
-			sequence, ok := removal.Descriptor.(*catalog.Relation)
-			if !ok || sequence.RelationKind != catalog.SequenceRelation {
-				continue
-			}
-			original := grantCatalog.Get(address)
-			if captured, identity := stage.sequence.IdentityOriginal(address); identity {
-				original = captured
-			}
-			if e.catalog.state.Get(address) != original {
-				e.mu.Unlock()
-				return Result{}, catalog.Conflict{}
-			}
-			e.catalogChangeLocked(changes, address, nil)
-			delete(changes.Generators, address)
+		if err := e.mergeStageJournalLocked(stage, changes, grantCatalog, true); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
 		}
 	}
 	scope.catalog = changes
@@ -460,10 +422,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			}
 		}
 	}
-	if stage == nil {
-		stage = e.BeginCatalogStage(auth.Catalog)
-		stage.authorizeLocked(auth, op.Session)
-	}
+	stage = e.authorizedStage(stage, auth, op.Session)
 	if err := stage.Replace(next); err != nil {
 		return Result{}, err
 	}
@@ -525,13 +484,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		}
 	}
 	if len(replacements) != 0 {
-		e.mu.Lock()
-		err = e.captureCheckCommentSnapshotLocked(scope, next)
-		if err == nil {
-			err = e.captureCheckVisibilitySnapshotLocked(scope, next)
-		}
-		e.mu.Unlock()
-		if err != nil {
+		if err := e.captureCheckSnapshots(scope, next); err != nil {
 			return Result{}, err
 		}
 	}
@@ -587,13 +540,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		traversal := *next
 		traversal.Constraints.Check = typeChecks
 		validator.Checks = &traversal
-		e.mu.Lock()
-		err = e.captureCheckCommentSnapshotLocked(scope, &traversal)
-		if err == nil {
-			err = e.captureCheckVisibilitySnapshotLocked(scope, &traversal)
-		}
-		e.mu.Unlock()
-		if err != nil {
+		if err := e.captureCheckSnapshots(scope, &traversal); err != nil {
 			return Result{}, err
 		}
 	}
@@ -649,13 +596,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	if scanValidator, scan := table.PlanAlterScan(old, next, schema, rewrite, physicalRows, typeChecks, addedChecks, replacements, validator.NotNull); scan {
 		if scanValidator.Checks != nil {
-			e.mu.Lock()
-			err = e.captureCheckCommentSnapshotLocked(scope, scanValidator.Checks)
-			if err == nil {
-				err = e.captureCheckVisibilitySnapshotLocked(scope, scanValidator.Checks)
-			}
-			e.mu.Unlock()
-			if err != nil {
+			if err := e.captureCheckSnapshots(scope, scanValidator.Checks); err != nil {
 				return Result{}, err
 			}
 		}
@@ -703,33 +644,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			}
 		}
 	}
-	for a, d := range stage.Descriptors() {
-		original := grantCatalog.Get(a)
-		if captured, identity := stage.sequence.IdentityOriginal(a); identity {
-			original = captured
-		}
-		if e.catalog.state.Get(a) != original {
-			e.mu.Unlock()
-			return Result{}, catalog.Conflict{}
-		}
-		e.catalogChangeLocked(changes, a, d)
-	}
-	for a := range stage.Removals() {
-		original := grantCatalog.Get(a)
-		if captured, identity := stage.sequence.IdentityOriginal(a); identity {
-			original = captured
-		}
-		if e.catalog.state.Get(a) != original {
-			e.mu.Unlock()
-			return Result{}, catalog.Conflict{}
-		}
-		e.catalogChangeLocked(changes, a, nil)
-		delete(changes.Generators, a)
-	}
-	for a, generator := range stage.sequence.StagedGenerators() {
-		if _, removed := stage.Removal(a); !removed {
-			changes.Generators[a] = generator
-		}
+	if err := e.mergeStageJournalLocked(stage, changes, grantCatalog, false); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
 	}
 	shape, record, metadataOnly := table.AlterStorageShape(shape, replacement, old, next, changedValues, len(additions), physicalRows, hasAttachments)
 	if record {

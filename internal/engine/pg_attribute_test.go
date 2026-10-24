@@ -315,7 +315,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	ref := e.catalog.Domain.Ref(base.Epoch(), old.Address())
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}, Mode: parser.DropRestrict}
-	next, err := dropColumnCandidate(context.Background(), stage, old, ref, action, scope, session.NewJournal(), nil)
+	next, err := scope.dropColumnCandidate(stage, old, ref, action, session.NewJournal())
 	if err != nil {
 		t.Fatal(err)
 	}
