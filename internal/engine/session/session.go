@@ -254,9 +254,26 @@ func TransactionAuthority(domain *ids.Domain, op *Operation) error {
 	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
+	op.Session.Mu.Lock()
+	defer op.Session.Mu.Unlock()
+	return transactionAuthorityLocked(op)
+}
+
+// PublicationOperationLocked is TransactionAuthority under Session.Mu plus
+// the context check publication needs. Caller holds Session.Mu; row and
+// catalog publication additionally hold Engine.mu.
+func PublicationOperationLocked(domain *ids.Domain, op *Operation) error {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain {
+		return errors.New("stuntgres: foreign or missing operation")
+	}
+	if err := transactionAuthorityLocked(op); err != nil {
+		return err
+	}
+	return op.FatalErrorLocked(op.Ctx.Err())
+}
+
+func transactionAuthorityLocked(op *Operation) error {
 	sess := op.Session
-	sess.Mu.Lock()
-	defer sess.Mu.Unlock()
 	if op.Released || sess.State != Live {
 		if sess.Timeouts.Fatal != nil {
 			copy := *sess.Timeouts.Fatal

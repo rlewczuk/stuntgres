@@ -37,7 +37,7 @@ func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStor
 	defer owner.Mu.Unlock()
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
-	return applySettingLocked(owner, op, domainOf(e), e.settings, d, value, notice, local)
+	return owner.ApplyLocked(op, domainOf(e), e.settings, d, value, notice, local)
 }
 
 func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
@@ -76,7 +76,7 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 			unlock()
 		}
 	}()
-	if err := admitSettingsLocked(owner, domainOf(e), op); err != nil {
+	if err := owner.AdmitLocked(domainOf(e), op); err != nil {
 		return Result{}, err
 	}
 	typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
@@ -85,10 +85,10 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 			if err := op.Ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			resetAllSettingsLocked(owner, e.settings)
+			owner.ResetAllLocked(e.settings)
 			return Result{}, nil
 		}
-		rows, err := showAllSettingRowsLocked(owner, op.Ctx, e.settings, typ)
+		rows, err := owner.ShowAllRowsLocked(op.Ctx, e.settings, typ)
 		if err != nil {
 			return Result{}, err
 		}

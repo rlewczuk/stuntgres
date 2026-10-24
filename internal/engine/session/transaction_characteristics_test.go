@@ -81,3 +81,21 @@ func TestCharacteristicModeMapping(t *testing.T) {
 		t.Error("Characteristic did not follow the owner's modes")
 	}
 }
+
+func TestSessionCharacteristicSetting(t *testing.T) {
+	for _, tc := range []struct {
+		mode        parser.TransactionMode
+		name, value string
+	}{
+		{parser.TransactionMode{}, "", ""},
+		{parser.TransactionMode{Isolation: parser.IsolationSerializable}, "default_transaction_isolation", "serializable"},
+		{parser.TransactionMode{AccessSet: true, ReadOnly: true}, "default_transaction_read_only", "on"},
+		{parser.TransactionMode{AccessSet: true}, "default_transaction_read_only", "off"},
+		{parser.TransactionMode{DeferrableSet: true, Deferrable: true}, "default_transaction_deferrable", "on"},
+		{parser.TransactionMode{Isolation: parser.IsolationSerializable, DeferrableSet: true}, "default_transaction_deferrable", "off"},
+	} {
+		if name, value := SessionCharacteristicSetting(tc.mode); name != tc.name || value != tc.value {
+			t.Errorf("SessionCharacteristicSetting(%+v) = %q, %q, want %q, %q", tc.mode, name, value, tc.name, tc.value)
+		}
+	}
+}

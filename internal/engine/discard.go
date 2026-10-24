@@ -69,7 +69,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		e.mu.Lock()
 		sess.Settings.Mu.Lock()
 		sess.Mu.Lock()
-		resetAllSettingsLocked(sess.Settings, e.settings)
+		sess.Settings.ResetAllLocked(e.settings)
 		sess.Mu.Unlock()
 		sess.Settings.Mu.Unlock()
 		e.mu.Unlock()
@@ -114,12 +114,12 @@ func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) 
 	defer sess.Settings.Mu.Unlock()
 	sess.Mu.Lock()
 	defer sess.Mu.Unlock()
-	if err := admitSettingsLocked(sess.Settings, domainOf(e), s.op); err != nil {
+	if err := sess.Settings.AdmitLocked(domainOf(e), s.op); err != nil {
 		return authorization.RoleState{}, err
 	}
-	reset := discardRoleReset(sess.Authorization)
+	reset := session.DiscardRoleReset(sess.Authorization)
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
-	if err := validateRoleResetLocked(sess.Authorization, reset, roles); err != nil {
+	if err := session.ValidateRoleResetLocked(sess.Authorization, reset, roles); err != nil {
 		return authorization.RoleState{}, err
 	}
 	return reset, nil

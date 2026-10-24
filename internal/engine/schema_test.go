@@ -193,7 +193,7 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 		tc.session.Mu.Lock()
 		tc.session.Settings.Values["search_path"] = "public"
 		tc.session.Settings.Typed["search_path"] = override
-		resetAllSettingsLocked(tc.session.Settings, e.settings)
+		tc.session.Settings.ResetAllLocked(e.settings)
 		got := tc.session.Settings.TypedValue("search_path").Path
 		tc.session.Mu.Unlock()
 		tc.session.Settings.Mu.Unlock()

@@ -162,16 +162,16 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}()
 	owner.Mu.Lock()
 	op.Session.Mu.Lock()
-	if err := admitSettingsLocked(owner, domainOf(e), op); err != nil {
+	if err := owner.AdmitLocked(domainOf(e), op); err != nil {
 		return Result{}, err
 	}
 	var output sqltype.Value
 	if s.Name == "current_setting" {
-		if output, err = currentSettingLocked(owner, op.Ctx, e.settings, typ, inputs[0]); err != nil {
+		if output, err = owner.CurrentSettingLocked(op.Ctx, e.settings, typ, inputs[0]); err != nil {
 			return Result{}, err
 		}
 	} else {
-		d, input, local, err := setConfigInputLocked(owner, e.settings, inputs)
+		d, input, local, err := owner.SetConfigInputLocked(e.settings, inputs)
 		if err != nil {
 			return Result{}, err
 		}

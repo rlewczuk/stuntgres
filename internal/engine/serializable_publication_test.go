@@ -202,7 +202,7 @@ func (c *serializableRetryContext) Err() error {
 	for {
 		frame, more := frames.Next()
 		merge = merge || strings.HasSuffix(frame.Function, ".MergeIndexRoot")
-		final = final || strings.HasSuffix(frame.Function, ".publicationOperationLocked")
+		final = final || strings.HasSuffix(frame.Function, "session.PublicationOperationLocked")
 		if !more {
 			break
 		}

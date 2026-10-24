@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"context"
@@ -6,16 +6,15 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-// admitSettingsLocked checks that op is a live publication operation and that
+// AdmitLocked checks that op is a live publication operation and that
 // the store is still attached. Caller holds Settings.Mu then Session.Mu.
-func admitSettingsLocked(s *session.SettingsStore, domain *ids.Domain, op *session.Operation) error {
-	if err := publicationOperationDomainLocked(domain, op); err != nil {
+func (s *SettingsStore) AdmitLocked(domain *ids.Domain, op *Operation) error {
+	if err := PublicationOperationLocked(domain, op); err != nil {
 		return err
 	}
 	if s.Ended {
@@ -24,11 +23,11 @@ func admitSettingsLocked(s *session.SettingsStore, domain *ids.Domain, op *sessi
 	return nil
 }
 
-// applySettingLocked atomically installs recognition, the transaction action
+// ApplyLocked atomically installs recognition, the transaction action
 // and the effective typed/text override of d for op. A nil value resets d.
 // Caller holds Engine.mu, Settings.Mu and op.Session.Mu, in that order.
-func applySettingLocked(s *session.SettingsStore, op *session.Operation, domain *ids.Domain, registry settings.Registry, d settings.Definition, value *settings.Value, notice *sqlstate.Error, local bool) (string, error) {
-	if err := admitSettingsLocked(s, domain, op); err != nil {
+func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry settings.Registry, d settings.Definition, value *settings.Value, notice *sqlstate.Error, local bool) (string, error) {
+	if err := s.AdmitLocked(domain, op); err != nil {
 		return "", err
 	}
 	s.Touch(d.Name, local)
@@ -46,15 +45,15 @@ func applySettingLocked(s *session.SettingsStore, op *session.Operation, domain 
 		op.Session.PublishTimeoutSettingsLocked(s, d.Name == "transaction_timeout", time.Now())
 	}
 	if notice != nil {
-		op.EmitNotice(session.LevelNotice, *notice)
+		op.EmitNotice(LevelNotice, *notice)
 	}
 	return s.Value(d.Name), nil
 }
 
-// resetAllSettingsLocked resets every session-settable override. Defaults and
+// ResetAllLocked resets every session-settable override. Defaults and
 // placeholder recognition remain intact; the default provider is never
 // invoked again. Caller holds Settings.Mu then Session.Mu of s.Session.
-func resetAllSettingsLocked(s *session.SettingsStore, registry settings.Registry) {
+func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 	timeoutChanged, transactionAssignment := false, false
 	for key := range s.Values {
 		if d, ok := registry.Definitions()[key]; ok && d.Access != settings.Session && d.Name != "lc_messages" {
@@ -75,9 +74,9 @@ func resetAllSettingsLocked(s *session.SettingsStore, registry settings.Registry
 	}
 }
 
-// showAllSettingRowsLocked returns the SHOW ALL rows (name, setting,
+// ShowAllRowsLocked returns the SHOW ALL rows (name, setting,
 // description) in registry order. Caller holds Settings.Mu.
-func showAllSettingRowsLocked(s *session.SettingsStore, ctx context.Context, registry settings.Registry, typ *sqltype.Descriptor) ([][]sqltype.Value, error) {
+func (s *SettingsStore) ShowAllRowsLocked(ctx context.Context, registry settings.Registry, typ *sqltype.Descriptor) ([][]sqltype.Value, error) {
 	rows := make([][]sqltype.Value, 0, len(registry.Order()))
 	for _, key := range registry.Order() {
 		if err := ctx.Err(); err != nil {

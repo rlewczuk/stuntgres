@@ -59,6 +59,27 @@ func CharacteristicMode(name, value string) parser.TransactionMode {
 	return mode
 }
 
+// SessionCharacteristicSetting maps one SET SESSION CHARACTERISTICS mode to
+// its default_transaction_* setting and value; the last mode kind set wins.
+func SessionCharacteristicSetting(mode parser.TransactionMode) (name, value string) {
+	if mode.Isolation != parser.IsolationDefault {
+		name, value = "default_transaction_isolation", IsolationText(Isolation(mode.Isolation))
+	}
+	if mode.AccessSet {
+		name, value = "default_transaction_read_only", "off"
+		if mode.ReadOnly {
+			value = "on"
+		}
+	}
+	if mode.DeferrableSet {
+		name, value = "default_transaction_deferrable", "off"
+		if mode.Deferrable {
+			value = "on"
+		}
+	}
+	return name, value
+}
+
 // Characteristic returns the setting text of t's current transaction
 // characteristic name, as CharacteristicMode names them.
 func (t *TransactionOwner) Characteristic(name string) string {
