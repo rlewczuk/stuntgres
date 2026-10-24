@@ -72,27 +72,13 @@ const (
 	catalogDiscarded
 )
 
-type catalogRowShape struct {
-	original       *storage.Relation
-	root           []storage.RowVersion
-	replacement    *storage.Relation
-	observedLength int
-	observedEnds   *storage.DeletionRoot
-	generation     uint64
-	// Typed evolution has already transformed its own rows alongside the heap.
-	ownProjected bool
-	rewritten    bool
-	frontier     ids.CommitSeq
-	fills        map[int32]sqltype.Value
-}
-
 // CatalogStage is a private catalog change: the pure overlay it embeds plus
 // the publication coordination the engine owns (storage row shapes, index
 // candidates, domain validation, materialized replacement, role candidates).
 type CatalogStage struct {
 	owner *Engine
 	catalog.Candidate
-	rowShapes           map[ids.ObjectAddress]catalogRowShape
+	rowShapes           map[ids.ObjectAddress]storage.RowShape
 	storageReads        []session.StorageReadFence
 	sequence            *sequence.Stage
 	typed               *typedef.TypedStage
@@ -242,9 +228,9 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ids.ObjectRef, d *
 		return err
 	}
 	if s.rowShapes == nil {
-		s.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
+		s.rowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 	}
-	s.rowShapes[ref.Address] = catalogRowShape{original: original, root: beforeRows, replacement: replacement, observedLength: observedLength, observedEnds: observedEnds, generation: observedGeneration}
+	s.rowShapes[ref.Address] = storage.RowShape{Original: original, Root: beforeRows, Replacement: replacement, ObservedLength: observedLength, ObservedEnds: observedEnds, Generation: observedGeneration}
 	return nil
 }
 
@@ -386,7 +372,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	for address, shape := range s.rowShapes {
-		if e.stageStorageLocked(s, address) != shape.original || shape.original.Generation != shape.generation || len(shape.original.Versions) != shape.observedLength {
+		if !shape.Matches(e.stageStorageLocked(s, address)) {
 			e.mu.Unlock()
 			return nil, catalog.Conflict{}
 		}
@@ -538,7 +524,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			return ChangeSet{}, catalog.Conflict{}
 		}
 		for a, shape := range s.rowShapes {
-			if currentStorage[a] != shape.original || len(shape.original.Versions) != shape.observedLength || shape.original.Generation != shape.generation || shape.original.Ends != shape.observedEnds {
+			if !shape.MatchesWithEnds(currentStorage[a]) {
 				e.mu.Unlock()
 				return ChangeSet{}, catalog.Conflict{}
 			}
@@ -561,7 +547,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			}
 			store := currentStorage[index.SQLIndex.Parent]
 			if shape, changed := s.rowShapes[index.SQLIndex.Parent]; changed {
-				store = shape.replacement
+				store = shape.Replacement
 			} else if initial := s.initialTables[index.SQLIndex.Parent]; initial != nil {
 				store = initial
 			}
@@ -615,7 +601,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			}
 		}
 		for a, shape := range s.rowShapes {
-			relations[a] = shape.replacement
+			relations[a] = shape.Replacement
 		}
 		if replacement := s.materializedOrZero().Replacement; replacement != nil {
 			relations[replacement.Original.Address()] = replacement.Storage
@@ -634,7 +620,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			candidateStores = true
 			rebuildIndexes = make(map[ids.ObjectAddress]bool, len(s.rowShapes))
 			for a, shape := range s.rowShapes {
-				buildStores[a] = shape.replacement
+				buildStores[a] = shape.Replacement
 				rebuildIndexes[a] = true
 			}
 			if replacement := s.materializedOrZero().Replacement; replacement != nil {
@@ -772,7 +758,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			return ChangeSet{}, catalog.Conflict{}
 		}
 		for a, shape := range s.rowShapes {
-			if e.storage.Relations[a] != shape.original || len(shape.original.Versions) != shape.observedLength || shape.original.Generation != shape.generation || shape.original.Ends != shape.observedEnds {
+			if !shape.MatchesWithEnds(e.storage.Relations[a]) {
 				if op != nil {
 					op.Session.Mu.Unlock()
 				}

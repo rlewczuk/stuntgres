@@ -59,7 +59,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	if store == nil {
 		t.Fatal("unit fixture missing physical table")
 	}
-	stage.rowShapes = map[ids.ObjectAddress]catalogRowShape{table.Address(): {original: store, replacement: &storage.Relation{Generation: store.Generation + 1}, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation}}
+	stage.rowShapes = map[ids.ObjectAddress]storage.RowShape{table.Address(): {Original: store, Replacement: &storage.Relation{Generation: store.Generation + 1}, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, Generation: store.Generation}}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)

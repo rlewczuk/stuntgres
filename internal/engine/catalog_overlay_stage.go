@@ -94,15 +94,15 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 	for a, rowShape := range stage.rowShapes {
 		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = session.StorageChange{Original: rowShape.original, Root: rowShape.root, Ends: rowShape.observedEnds, Generation: rowShape.generation}
+			shape = session.StorageChange{Original: rowShape.Original, Root: rowShape.Root, Ends: rowShape.ObservedEnds, Generation: rowShape.Generation}
 		}
-		if shape.Replacement != rowShape.replacement {
+		if shape.Replacement != rowShape.Replacement {
 			shape.Truncated = false
 			shape.MaterializedConcurrent, shape.MaterializedContinuous = false, false
 		}
-		shape.Replacement = rowShape.replacement
-		if rowShape.rewritten {
-			shape.Rewritten, shape.Frontier = true, rowShape.frontier
+		shape.Replacement = rowShape.Replacement
+		if rowShape.Rewritten {
+			shape.Rewritten, shape.Frontier = true, rowShape.Frontier
 			shape.Snapshot, shape.HasSnapshot = nil, false
 		}
 		shape.Relation, _ = stage.Get(a).(*catalog.Relation)

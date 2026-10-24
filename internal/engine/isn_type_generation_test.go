@@ -51,7 +51,7 @@ func TestIsnTypeGenerationIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	shape := stage.rowShapes[table.Address()]
-	if shape.replacement == nil || shape.replacement == original {
+	if shape.Replacement == nil || shape.Replacement == original {
 		t.Fatal("changed generation did not copy its store")
 	}
 	current := e.stageRead(stage)
@@ -61,7 +61,7 @@ func TestIsnTypeGenerationIdentity(t *testing.T) {
 	if _, err := typedef.ReownDomainDatum(value, next.SQLType, nil, current.State().ScalarImports(), nil); err == nil {
 		t.Fatal("staged generation retained transient remint authority")
 	}
-	for i, row := range shape.replacement.Versions {
+	for i, row := range shape.Replacement.Versions {
 		source, mapped := original.Versions[i].Values[0], row.Values[0]
 		if mapped.Type() != next.SQLType || mapped.IsNull() != source.IsNull() || row.Row != original.Versions[i].Row || row.Version != original.Versions[i].Version || row.Born != original.Versions[i].Born {
 			t.Fatal("generation changed row identity, NULL framing or destination")

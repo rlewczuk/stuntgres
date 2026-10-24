@@ -207,7 +207,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 	}
 	for address, shape := range stage.rowShapes {
 		store := e.storage.Relations[address]
-		if store != shape.original || store == nil || store.Generation != shape.generation || store.Ends != shape.observedEnds || !storage.SameVersionRoot(store.Versions, shape.root) {
+		if store != shape.Original || store == nil || store.Generation != shape.Generation || store.Ends != shape.ObservedEnds || !storage.SameVersionRoot(store.Versions, shape.Root) {
 			return true
 		}
 	}
@@ -241,7 +241,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *C
 	}
 	for address, shape := range stage.rowShapes {
 		store := e.storage.Relations[address]
-		if store != shape.original || store.Generation != shape.generation || store.Ends != shape.observedEnds || !storage.SameVersionRoot(store.Versions, shape.root) {
+		if store != shape.Original || store.Generation != shape.Generation || store.Ends != shape.ObservedEnds || !storage.SameVersionRoot(store.Versions, shape.Root) {
 			return false, nil
 		}
 	}
@@ -271,7 +271,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *C
 		roots[a] = root
 	}
 	for address, shape := range stage.rowShapes {
-		relations[address] = shape.replacement
+		relations[address] = shape.Replacement
 	}
 	if indexes != nil {
 		for address, root := range indexes.roots {
@@ -329,7 +329,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	next := e.stageRead(stage).State()
 	parents := make(map[ids.ObjectAddress]bool, len(stage.rowShapes))
 	for address, shape := range stage.rowShapes {
-		if shape.original == nil || shape.replacement == nil {
+		if shape.Original == nil || shape.Replacement == nil {
 			e.mu.Unlock()
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -350,7 +350,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if _, _, err := transportIndexLayouts(&evaluation, stage, changes, parent, shape.original, shape.replacement, nil, nil); err != nil {
+		if _, _, err := transportIndexLayouts(&evaluation, stage, changes, parent, shape.Original, shape.Replacement, nil, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -363,7 +363,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 			}
 			shape, ok := stage.rowShapes[idx.SQLIndex.Parent]
 			candidate, produced := index.JournalIndexesOrZero(changes).Candidates[address]
-			if !ok || !produced || !candidate.MatchesIndex(idx, shape.replacement) {
+			if !ok || !produced || !candidate.MatchesIndex(idx, shape.Replacement) {
 				return nil, ids.ErrCatalogReplaced
 			}
 			result.roots[address] = candidate.Root

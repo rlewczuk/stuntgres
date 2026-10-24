@@ -258,9 +258,9 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	if replacement != store {
 		if stage.rowShapes == nil {
-			stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
+			stage.rowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 		}
-		stage.rowShapes[old.Address()] = catalogRowShape{original: store, root: store.Versions, replacement: replacement, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation, ownProjected: true, rewritten: rewrite, frontier: frontier, fills: fills}
+		stage.rowShapes[old.Address()] = storage.RowShape{Original: store, Root: store.Versions, Replacement: replacement, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, Generation: store.Generation, OwnProjected: true, Rewritten: rewrite, Frontier: frontier, Fills: fills}
 	}
 	if !rewrite && len(stage.indexesOrZero().Layouts) != 0 {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}

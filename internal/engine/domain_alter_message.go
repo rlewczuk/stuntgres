@@ -83,7 +83,7 @@ func (scope *StatementScope) reownTypeOverlayRows(stage *CatalogStage, changes *
 		if err != nil {
 			return err
 		}
-		scope.stageProjectedColumnRoots(address, rebound.Versions, session.ProjectDeletions(deletes, rowShape.replacement))
+		scope.stageProjectedColumnRoots(address, rebound.Versions, session.ProjectDeletions(deletes, rowShape.Replacement))
 		shape := changes.Storage[address]
 		if len(shape.Fills) != 0 {
 			shape.Fills = maps.Clone(shape.Fills)

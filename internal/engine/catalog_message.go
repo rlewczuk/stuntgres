@@ -173,7 +173,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		if shape, changed := s.rowShapes[index.SQLIndex.Parent]; changed {
 			// capture precedes stageCatalogChangesLocked: supplied generation
 			// roots belong to this stage's destination heap, not c's predecessor.
-			store = shape.replacement
+			store = shape.Replacement
 		}
 		if !candidate.MatchesIndex(index, store) {
 			return catalog.Conflict{}

@@ -91,7 +91,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			if columnsChanged {
 				store := e.stageStorageLocked(stage, address)
 				if shape, ok := stage.rowShapes[address]; ok {
-					store = shape.replacement
+					store = shape.Replacement
 				}
 				if store != nil {
 					if stores == nil {
@@ -107,7 +107,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				if stores[parent] == nil {
 					store := e.stageStorageLocked(stage, parent)
 					if shape, ok := stage.rowShapes[parent]; ok {
-						store = shape.replacement
+						store = shape.Replacement
 					}
 					if store != nil {
 						if stores == nil {
@@ -136,16 +136,16 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 		}
 	}
 	if stage.rowShapes == nil {
-		stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
+		stage.rowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 	}
 	for address, replacement := range stores {
 		if shape, ok := stage.rowShapes[address]; ok {
-			shape.replacement = replacement
+			shape.Replacement = replacement
 			stage.rowShapes[address] = shape
 			continue
 		}
 		original := e.stageStorageLocked(stage, address)
-		stage.rowShapes[address] = catalogRowShape{original: original, root: original.Versions, replacement: replacement, observedLength: len(original.Versions), observedEnds: original.Ends, generation: original.Generation}
+		stage.rowShapes[address] = storage.RowShape{Original: original, Root: original.Versions, Replacement: replacement, ObservedLength: len(original.Versions), ObservedEnds: original.Ends, Generation: original.Generation}
 	}
 	return nil
 }

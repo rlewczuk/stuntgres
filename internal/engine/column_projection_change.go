@@ -145,18 +145,18 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 			continue
 		}
 		shape := changes.Storage[address]
-		shape.MergeFills(rowShape.fills, next)
+		shape.MergeFills(rowShape.Fills, next)
 		projection, err := session.NewColumnProjection(old, next, shape.Fills)
 		if err != nil {
 			return err
 		}
-		if !rowShape.ownProjected {
+		if !rowShape.OwnProjected {
 			writes, deletes := scope.columnProjectionRoots(address)
 			writes, err = projection.Versions(scope.op.Context(), writes)
 			if err != nil {
 				return err
 			}
-			scope.stageProjectedColumnRoots(address, writes, session.ProjectDeletions(deletes, rowShape.replacement))
+			scope.stageProjectedColumnRoots(address, writes, session.ProjectDeletions(deletes, rowShape.Replacement))
 		}
 		stage.owner.mu.Lock()
 		snapshot, snapshotExists := scope.owner.Roots[address]

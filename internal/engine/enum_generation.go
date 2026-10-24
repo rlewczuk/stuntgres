@@ -30,12 +30,12 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *sess
 		}
 		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = session.StorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation}
+			shape = session.StorageChange{Original: rebound.Original, Root: rebound.Original.Versions, Ends: rebound.ObservedEnds, Generation: rebound.Generation}
 		}
-		if shape.Replacement != rebound.replacement {
+		if shape.Replacement != rebound.Replacement {
 			shape.Truncated = false
 		}
-		shape.Replacement, shape.Relation = rebound.replacement, consumer
+		shape.Replacement, shape.Relation = rebound.Replacement, consumer
 		if shape.Fills != nil {
 			shape.Fills = maps.Clone(shape.Fills)
 			for attribute, value := range shape.Fills {

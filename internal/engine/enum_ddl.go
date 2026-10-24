@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -111,9 +112,9 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		// rather than the committed stores they already superseded.
 		for a, shape := range changes.Storage {
 			if stage.rowShapes == nil {
-				stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
+				stage.rowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 			}
-			stage.rowShapes[a] = catalogRowShape{original: shape.Original, replacement: shape.Replacement, generation: shape.Generation, observedEnds: shape.Ends, observedLength: len(shape.Root)}
+			stage.rowShapes[a] = storage.RowShape{Original: shape.Original, Replacement: shape.Replacement, Generation: shape.Generation, ObservedEnds: shape.Ends, ObservedLength: len(shape.Root)}
 		}
 		if err := e.reownStagedTypeGenerationsLocked(stage); err != nil {
 			return Result{}, err

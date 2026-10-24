@@ -173,7 +173,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 		}
 	})
 	stage, indexes := temporaryProjectionStage(t, e, provider)
-	projected := stage.rowShapes[survivor.Address()].replacement
+	projected := stage.rowShapes[survivor.Address()].Replacement
 	next := stage.Get(survivor.Address()).(*catalog.Relation)
 	nextIndex := stage.Get(idx.Address()).(*catalog.Relation)
 	if next == &maximum || next.Revision() != maximum.Revision() || nextIndex == &maximumIndex || nextIndex.Revision() != maximumIndex.Revision() || projected == &maximumStore || projected.Generation != maximumStore.Generation || projected.Ends != maximumStore.Ends || storage.SameVersionRoot(projected.Versions, retained) {

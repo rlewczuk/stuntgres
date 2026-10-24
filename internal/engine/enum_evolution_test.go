@@ -92,13 +92,13 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	shape := stage.rowShapes[ref.Address]
-	row := shape.replacement.Versions[0]
+	row := shape.Replacement.Versions[0]
 	oldID, _ := value.EnumMemberID()
 	newID, _ := row.Values[0].EnumMemberID()
 	if oldID != newID || row.Row != 7 || row.Version != 11 || row.Born != 3 || row.KeyChangedAt != 2 || !reflect.DeepEqual(oldRelation.Attributes, stage.Get(ref.Address).(*catalog.Relation).Attributes) {
 		t.Fatal("row/column/member identity rewritten")
 	}
-	if stage.rowShapes[other.Address].replacement != nil || e.storage.Relations[other.Address] != otherStore {
+	if stage.rowShapes[other.Address].Replacement != nil || e.storage.Relations[other.Address] != otherStore {
 		t.Fatal("unaffected store copied")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
