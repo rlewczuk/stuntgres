@@ -120,6 +120,23 @@ func PartitionIndexDropDependency(view catalog.Read, index *catalog.Relation) er
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because index %s requires it", index.Name(), parent.Name()), Hint: "You can drop index " + parent.Name() + " instead."}
 }
 
+// DroppedUniqueOIDs are the OIDs of old's UNIQUE and PRIMARY KEY constraints
+// that the DROP CONSTRAINT actions name, in action order.
+func DroppedUniqueOIDs(old *catalog.Relation, actions []parser.AlterTableAction) []ids.OID {
+	var dropped []ids.OID
+	for _, action := range actions {
+		if action.Action != parser.DropConstraint {
+			continue
+		}
+		for _, c := range old.Constraints.Unique {
+			if c.Name == action.Constraint.Text {
+				dropped = append(dropped, c.OID)
+			}
+		}
+	}
+	return dropped
+}
+
 func PartitionConstraintDropActions(table *catalog.Relation, actions []parser.AlterTableAction) bool {
 	if len(actions) == 0 {
 		return false

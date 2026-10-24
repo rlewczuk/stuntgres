@@ -145,12 +145,7 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 			continue
 		}
 		shape := changes.Storage[address]
-		shape.Fills = maps.Clone(shape.Fills)
-		for attribute := range shape.Fills {
-			if !next.HasAttribute(attribute) {
-				delete(shape.Fills, attribute)
-			}
-		}
+		shape.MergeFills(nil, next)
 		projection, err := session.NewColumnProjection(old, next, shape.Fills)
 		if err != nil {
 			return err

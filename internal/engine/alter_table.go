@@ -19,7 +19,6 @@ import (
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // The strictest captured ALTER grant protects the incarnation until Finish.
@@ -129,14 +128,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, access.RowSecurityFlags(old, s.Actions))
 	}
 	if table.RelationOptionsOnly(s.Actions) {
-		next := old
-		for _, action := range s.Actions {
-			next, err = table.RelationOptionsCandidate(next, action)
-			if err != nil {
-				return fail(err)
-			}
-		}
-		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
+		next, err := table.RelationOptionsOnlyCandidate(old, s.Actions, destination)
+		if err != nil {
 			return fail(err)
 		}
 		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, next)
@@ -372,57 +365,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			}
 		}
 		if err == nil && pass == 4 {
-			inlineIndex := 0
-			for _, added := range additions {
-				if added.Declaration.ColumnNotNull {
-					before := next
-					if definition != nil && !definition.PhaseZeroOnly {
-						if inlineIndex >= len(definition.Inline) || definition.Inline[inlineIndex].Old != next {
-							return Result{}, ids.ErrCatalogReplaced
-						}
-						preparedInline := definition.Inline[inlineIndex]
-						inlineIndex++
-						if preparedInline.Err != nil {
-							err = preparedInline.Err
-						} else {
-							next = preparedInline.Next
-						}
-					} else {
-						next, err = table.NotNullCandidate(op, auth.Catalog, next, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.Column.Name}, Constraint: parser.Identifier{Text: added.Declaration.ColumnName}}, table.NotNullDirect)
-					}
-					if err != nil {
-						break
-					}
-					scope.inheritancePlan().RecordAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
-				}
-			}
-		}
-		if err == nil && pass == 4 {
-			for index, captured := range attachments {
-				before := next
-				if definition != nil && !definition.PhaseZeroOnly {
-					prepared := definition.UsingNotNull[index]
-					if prepared.Old != next {
-						err = ids.ErrCatalogReplaced
-					} else if prepared.Err != nil {
-						err = prepared.Err
-					} else {
-						next = prepared.Next
-					}
-				} else {
-					next, err = table.UsingIndexNotNullCandidate(op, auth.Catalog, stageDefinitions(stage), next, captured)
-					if err == nil {
-						err = scope.inheritancePlan().OnlyCreatedConstraint(before, next)
-					}
-					if err == nil {
-						attachments[index].NotNullPrepared = true
-					}
-				}
-				if err != nil {
-					break
-				}
-				scope.inheritancePlan().RecordAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
-			}
+			next, err = table.AlterNotNullPass(op, auth.Catalog, stageDefinitions(stage), scope.inheritancePlan(), definition, next, additions, attachments)
 		}
 		if err == nil && pass == 6 {
 			raw := table.AddedCheckSyntax(s.Actions, additions)
@@ -436,36 +379,26 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			return Result{}, err
 		}
 	}
-	if catalog.HierarchyRelation(old) && table.HasRelationOptions(s.Actions) && !table.PartitionConstraintActions(old, s.Actions) {
-		return Result{}, sqlError("0A000", "altering partition hierarchies is unsupported")
-	}
 	op.Definition = originalDefinition
 	auth.definition = nil
-	if definition != nil && next != old {
-		next = table.DetachPreparedInheritanceDefinition(next)
-	}
-	storedReplacements := table.StoredReplacements(next, replacements)
-	changedValues := len(transformations) != 0 || len(storedReplacements) != 0
-	next = access.RowSecurityFlags(next, s.Actions)
-	next, err = scope.finishInheritanceAlterCandidate(old, next)
+	finish, err := table.FinishAlterCandidate(table.AlterFinishInput{
+		Old: old, Next: next, Actions: s.Actions, Prepared: definition != nil,
+		Transformations: transformations, Replacements: replacements,
+		FinishInheritance: scope.finishInheritanceAlterCandidate,
+		RelationshipOnly:  relationshipOnly, ForeignKeys: hasForeignKeys,
+		StageEmpty:  stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.sequence.StagedGenerators()) == 0,
+		Destination: destination,
+	})
 	if err != nil {
 		return Result{}, err
 	}
+	next, storedReplacements, changedValues := finish.Next, finish.StoredReplacements, finish.ChangedValues
 	if relationshipOnly {
 		stage.UpdateDescriptor(next)
 		return Result{}, nil
 	}
-	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.sequence.StagedGenerators()) == 0) {
-		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
-			return Result{}, err
-		}
+	if finish.NoOp {
 		return Result{}, nil
-	}
-	if next != old {
-		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
-			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
-		}
-		next.ObjectRevision = old.Revision() + 1
 	}
 	// USING/CHECK demand must allocate from the AS replacement, not the live
 	// generator. This statement overlay is discarded on failure, never installed
@@ -511,10 +444,6 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	scope.catalog = changes
 	e.mu.Unlock()
-	rewrite := len(storedReplacements) != 0
-	for _, transformation := range transformations {
-		rewrite = rewrite || transformation.Rewrite
-	}
 	if next != old {
 		next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
 		next.Constraints.Check = slices.Clone(next.Constraints.Check)
@@ -583,10 +512,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		fkIndex++
 	}
 	if hasForeignKeys && next.Revision() == old.Revision() {
-		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
-			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
+		if err := table.BumpAlterRevision(old, next); err != nil {
+			return Result{}, err
 		}
-		next.ObjectRevision = old.Revision() + 1
 	}
 	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
@@ -622,16 +550,12 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if err != nil {
 		return Result{}, err
 	}
-	rowRewrite := changedValues || perRowAdd
-	for _, fill := range fills {
-		rowRewrite = rowRewrite || !fill.IsNull()
-	}
+	rewrite, rowRewrite := table.AlterRewrites(transformations, storedReplacements, changedValues, perRowAdd, fills)
 	if rowRewrite {
 		if err := typedef.RowRewriteError(auth.Catalog, old); err != nil {
 			return Result{}, err
 		}
 	}
-	rewrite = rewrite || perRowAdd
 	if rewrite {
 		scope.owner.Mu.Lock()
 		err = scope.acquireSerializableSnapshot()
@@ -652,20 +576,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		storageOwner = accumulated.Relation
 		versions, ends = store.Versions, store.Ends
 	}
-	if len(fills) != 0 || len(shape.Fills) != 0 {
-		shape.Fills = maps.Clone(shape.Fills)
-		if shape.Fills == nil {
-			shape.Fills = make(map[int32]sqltype.Value, len(fills))
-		}
-		for attribute, value := range fills {
-			shape.Fills[attribute] = value
-		}
-		for attribute := range shape.Fills {
-			if !next.HasAttribute(attribute) {
-				delete(shape.Fills, attribute)
-			}
-		}
-	}
+	shape.MergeFills(fills, next)
 	replacement := store
 	projectedWrites, projectedDeletes := scope.columnProjectionRoots(ref.Address)
 	validator := table.NewAlterRowValidator(next, schema)
@@ -707,16 +618,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		replacement = shape.Replacement
 		versions, ends = replacement.Versions, replacement.Ends
 	}
-	for _, action := range s.Actions {
-		if action.Action != parser.DropConstraint {
-			continue
-		}
-		for _, c := range old.Constraints.Unique {
-			if c.Name == action.Constraint.Text {
-				if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
-					return Result{}, err
-				}
-			}
+	for _, oid := range index.DroppedUniqueOIDs(old, s.Actions) {
+		if err := e.stagePartitionConstraintDrop(stage, oid); err != nil {
+			return Result{}, err
 		}
 	}
 	// Recapture effective authority after provider waits and row rewriting.
@@ -827,14 +731,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			changes.Generators[a] = generator
 		}
 	}
-	if shape.Replacement != replacement {
-		shape.Truncated = false
-	}
-	shape.Replacement, shape.Relation = replacement, next
-	metadataOnly := !changedValues && len(additions) == 0 && slices.Equal(old.Attributes, next.Attributes)
-	// A storage entry requests index reconstruction at publication. Attachment
-	// metadata needs none; retain any earlier private shape without restamping it.
-	if physicalRows && (!hasAttachments || !metadataOnly) {
+	shape, record, metadataOnly := table.AlterStorageShape(shape, replacement, old, next, changedValues, len(additions), physicalRows, hasAttachments)
+	if record {
 		changes.Storage[ref.Address] = shape
 	}
 	e.mu.Unlock()

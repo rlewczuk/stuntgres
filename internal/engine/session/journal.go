@@ -1,6 +1,8 @@
 package session
 
 import (
+	"maps"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -56,6 +58,22 @@ type StorageChange struct {
 	// original-to-final concurrent provenance. A plain rewrite breaks the latter.
 	MaterializedConcurrent bool
 	MaterializedContinuous bool
+}
+
+// MergeFills merges the added-column fills into the change and drops the
+// fills of attributes that next no longer has. It replaces, never mutates, the
+// change's fill map, which earlier journals may share.
+func (c *StorageChange) MergeFills(fills map[int32]sqltype.Value, next *catalog.Relation) {
+	if len(fills) == 0 && len(c.Fills) == 0 {
+		return
+	}
+	merged := maps.Clone(c.Fills)
+	if merged == nil {
+		merged = make(map[int32]sqltype.Value, len(fills))
+	}
+	maps.Copy(merged, fills)
+	maps.DeleteFunc(merged, func(attribute int32, _ sqltype.Value) bool { return !next.HasAttribute(attribute) })
+	c.Fills = merged
 }
 
 // DependencyObservation records the dependency targets a statement observed
