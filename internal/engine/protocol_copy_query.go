@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -17,7 +18,7 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 	s.Expected = nil
 	s.setProtocolBind(nil)
 	defer func() { s.Expected = expected; s.setProtocolBind(binding) }()
-	if !(s.protocolOrZero().command || s.protocolOrZero().simple) || !protocolPlainSelect(query) {
+	if !(s.protocolOrZero().command || s.protocolOrZero().simple) || !session.ProtocolPlainSelect(query) {
 		result, err := s.engine().executeStatement(s, query, 0, nil)
 		return result.Rows, err
 	}

@@ -36,18 +36,10 @@ type preparedAnalysis struct {
 	needsReanalysis bool // A granted definition evolved after this attempt resolved names.
 }
 
-func preparableBody(stmt parser.Statement) bool {
-	switch stmt.(type) {
-	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-		return true
-	}
-	return false
-}
-
 // Capture the resolution environment before any relation wait. A later path or
 // namespace change must not certify old resolution under a newer environment.
 func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
-	if !preparableBody(stmt) {
+	if !session.PreparableBody(stmt) {
 		return nil
 	}
 	e := s.engine()

@@ -611,7 +611,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if err := s.gate(stmt); err != nil {
 		return Result{}, err
 	}
-	if s.protocolOrZero().simpleStreaming && !wrapped && protocolPlainSelect(stmt) {
+	if s.protocolOrZero().simpleStreaming && !wrapped && session.ProtocolPlainSelect(stmt) {
 		p := &protocolPortal{entry: sqlPreparedStatement{body: stmt}, tx: s.txRef}
 		s.protocol().simplePortal, s.protocol().bind = p, p
 		if count == 0 && importFrame == nil {
@@ -620,7 +620,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			}
 		}
 	}
-	if !protocolPlannedStatement(stmt) {
+	if !session.ProtocolPlannedStatement(stmt) {
 		if err := s.beginProtocolSimplePortal(); err != nil {
 			return Result{}, err
 		}

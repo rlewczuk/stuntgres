@@ -12,7 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -188,7 +188,7 @@ type loggedParameter struct {
 	Value    *string `json:"value"`
 }
 
-func logParameters(parameters []engine.ProtocolLogParameter) []loggedParameter {
+func logParameters(parameters []session.ProtocolLogParameter) []loggedParameter {
 	out := make([]loggedParameter, len(parameters))
 	for i, p := range parameters {
 		entry := loggedParameter{Index: i + 1, OID: p.OID, Type: p.Type, Format: "text", Null: p.Null, Encoding: "text"}

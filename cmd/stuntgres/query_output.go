@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"math"
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -37,7 +37,7 @@ func (c *client) writeDescription(schema []catalog.Column, formats []int16) erro
 
 // writeFields frames already encoded values from the engine's shared codecs.
 // It never retains the borrowed fields after this synchronous write.
-func (c *client) writeFields(fields []engine.ProtocolField, buffer *[]byte) (logicalErr, transportErr error) {
+func (c *client) writeFields(fields []session.ProtocolField, buffer *[]byte) (logicalErr, transportErr error) {
 	if len(fields) > math.MaxInt16 {
 		return &sqlstate.Error{Code: "54000", Message: "too many result columns"}, nil
 	}
@@ -103,9 +103,9 @@ func (c *client) writeRows(ctx context.Context, rows exec.RowResult, buffer *[]b
 	}
 }
 func (c *client) writeSQLError(ctx context.Context, source string, err error) error {
-	return c.writeContextError(ctx, engine.ProtocolContext{Source: source}, err)
+	return c.writeContextError(ctx, session.ProtocolContext{Source: source}, err)
 }
-func (c *client) writeContextError(ctx context.Context, source engine.ProtocolContext, err error) error {
+func (c *client) writeContextError(ctx context.Context, source session.ProtocolContext, err error) error {
 	// An execution owner may already have enriched the typed diagnostic (COPY
 	// line context, for example). Never replace that primary error with a
 	// context cause just because cleanup also returned context.Canceled.

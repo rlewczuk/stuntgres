@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -91,7 +92,7 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 			}
 			return e
 		}
-		row := func(fields []engine.ProtocolField) error {
+		row := func(fields []session.ProtocolField) error {
 			if e := op.Context().Err(); e != nil {
 				return e
 			}

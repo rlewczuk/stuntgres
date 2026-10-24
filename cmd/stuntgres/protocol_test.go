@@ -81,7 +81,7 @@ func TestServerProtocolFraming(t *testing.T) {
 	t.Run("encoded fields preserve null empty and buffer ownership", func(t *testing.T) {
 		conn := framingInput(nil)
 		c := &client{wire: newWire(conn)}
-		fields := []engine.ProtocolField{{Null: true}, {Bytes: []byte{}}, {Bytes: []byte{0, 255}}}
+		fields := []session.ProtocolField{{Null: true}, {Bytes: []byte{}}, {Bytes: []byte{0, 255}}}
 		buffer := make([]byte, 0, 64)
 		original := buffer[:cap(buffer)]
 		logical, transport := c.writeFields(fields, &buffer)
@@ -104,7 +104,7 @@ func TestServerProtocolFraming(t *testing.T) {
 		conn = framingInput(nil)
 		conn.writeErr = failure
 		c.wire = newWire(conn)
-		logical, transport = c.writeFields([]engine.ProtocolField{{Bytes: make([]byte, 5000)}}, &buffer)
+		logical, transport = c.writeFields([]session.ProtocolField{{Bytes: make([]byte, 5000)}}, &buffer)
 		if logical != nil || !errors.Is(transport, failure) {
 			t.Fatalf("socket failure misclassified: %v / %v", logical, transport)
 		}
@@ -306,7 +306,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 				logs := &serverLogs{ops: logHandler(io.Discard, false), sql: logHandler(&log, false)}
 				conn := framingInput(nil)
 				c := &client{server: &server{logs: logs}, wire: newWire(conn)}
-				err := c.writeContextError(ctx, engine.ProtocolContext{Source: "exact source"}, tc.input)
+				err := c.writeContextError(ctx, session.ProtocolContext{Source: "exact source"}, tc.input)
 				if tc.fatal {
 					var d *sqlstate.Error
 					if !errors.As(err, &d) || d.Code != tc.code || !c.fatalSent {
@@ -571,7 +571,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 	})
 }
 func TestServerPreparedLogValues(t *testing.T) {
-	parameters := []engine.ProtocolLogParameter{
+	parameters := []session.ProtocolLogParameter{
 		{OID: 23, Type: "integer", Format: 1, Decoded: true, Bytes: []byte("42")},
 		{OID: 25, Type: "text", Null: true},
 		{OID: 25, Type: "text", Decoded: true, Bytes: []byte{}},

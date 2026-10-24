@@ -461,7 +461,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, er
 			}
 			var prepared *preparedAnalysis
-			if replan && preparableBody(stmt) {
+			if replan && session.PreparableBody(stmt) {
 				prepared, er = e.preparedAnalysisLocked(scope, auth, b)
 				if er != nil {
 					e.mu.Unlock()
@@ -485,7 +485,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if replan {
 				scope.Expected.temporals = b.Prepared.Temporals
 				scope.Expected.types = analyze.PublishDomainCasts(scope.Expected.types, b.Prepared.Types)
-				if preparableBody(stmt) {
+				if session.PreparableBody(stmt) {
 					scope.Expected.analysis = prepared
 				}
 				scope.Expected.planGeneration = op.Session.DiscardPlansGeneration
@@ -551,7 +551,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if b.Query != nil && !b.CommandQuery {
 			p.columns = b.Query.Root.Schema()
 		}
-		if !protocolPlainSelect(stmt) {
+		if !session.ProtocolPlainSelect(stmt) {
 			e.mu.Unlock()
 			return Result{}, nil
 		}

@@ -20,15 +20,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolField, error) {
+func (s *StatementScope) CallProtocolFunction(input session.ProtocolInput) (session.ProtocolField, error) {
 	if err := s.active(); err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	t := s.owner
 	t.Mu.Lock()
 	if t.State == session.TxAborted {
 		t.Mu.Unlock()
-		return ProtocolField{}, sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
+		return session.ProtocolField{}, sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 	}
 	if c := t.ProtocolCycle; c != nil {
 		c.Active = c.Executed
@@ -36,15 +36,15 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	err := s.admitTransactionLocked(s.engine())
 	t.Mu.Unlock()
 	if err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	s.worked = true
 	if err = s.snapshotDataPhase(); err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	rawOID, err := input.Int32()
 	if err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	oid := uint32(rawOID)
 	e := s.engine()
@@ -52,20 +52,20 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	auth, err := e.authorizationLocked(s.op)
 	if err != nil {
 		e.mu.Unlock()
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	d, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(oid)})
 	if !ok {
 		identity, found := regobj.RoutineIdentityByOID(auth.Catalog, ids.OID(oid))
 		e.mu.Unlock()
 		if found {
-			return ProtocolField{}, sqlError("0A000", fmt.Sprintf("function \"%s\" is not supported", identity.Name))
+			return session.ProtocolField{}, sqlError("0A000", fmt.Sprintf("function \"%s\" is not supported", identity.Name))
 		}
-		return ProtocolField{}, sqlError("42883", fmt.Sprintf("function with OID %d does not exist", oid))
+		return session.ProtocolField{}, sqlError("42883", fmt.Sprintf("function with OID %d does not exist", oid))
 	}
 	if d.RoutineKind != catalog.FunctionRoutine || procedureReturnsSet(d) {
 		e.mu.Unlock()
-		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.Name()))
+		return session.ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.Name()))
 	}
 	ns := auth.Catalog.Get(d.Namespace())
 	nsRef := auth.Catalog.Owner().Domain.Ref(auth.Catalog.Epoch(), d.Namespace())
@@ -75,7 +75,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	}
 	if err != nil {
 		e.mu.Unlock()
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	var usages []sqltype.Usage
 	if d.Signature != "" {
@@ -83,12 +83,12 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 			id, parseErr := strconv.ParseUint(word, 10, 32)
 			if parseErr != nil {
 				e.mu.Unlock()
-				return ProtocolField{}, parseErr
+				return session.ProtocolField{}, parseErr
 			}
 			typ, found := auth.Catalog.LookupType(sqltype.ID(id))
 			if !found {
 				e.mu.Unlock()
-				return ProtocolField{}, sqlError("0A000", "function argument type is unavailable")
+				return session.ProtocolField{}, sqlError("0A000", "function argument type is unavailable")
 			}
 			usages = append(usages, typ.Usage())
 		}
@@ -102,7 +102,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	}
 	if err != nil {
 		e.mu.Unlock()
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, &StatementDescription{Parameters: formal})
 	binder.Query.Auth = &auth
@@ -119,7 +119,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	}
 	if err != nil {
 		e.mu.Unlock()
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	s.routineAuth, s.routineDependencies = auth, binder.Dependencies
 	s.input = binder.Input
@@ -127,64 +127,64 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
 	evaluation.Input.DomainChecks = &evaluation
 	e.mu.Unlock()
-	formats, err := protocolFormats(input)
+	formats, err := session.ProtocolFormats(input)
 	if err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	count, err := input.Uint16()
 	if err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	if int(count) != formal.Count {
-		return ProtocolField{}, sqlError("08P01", fmt.Sprintf("function call message contains %d arguments but function requires %d", count, formal.Count))
+		return session.ProtocolField{}, sqlError("08P01", fmt.Sprintf("function call message contains %d arguments but function requires %d", count, formal.Count))
 	}
 	if len(formats) > 1 && len(formats) != int(count) {
-		return ProtocolField{}, sqlError("08P01", fmt.Sprintf("function call message contains %d argument formats but %d arguments", len(formats), count))
+		return session.ProtocolField{}, sqlError("08P01", fmt.Sprintf("function call message contains %d argument formats but %d arguments", len(formats), count))
 	}
-	var log ProtocolContext
-	if err = protocolImport(s.op.Context(), s.output, input, formats, formal.Count, formal.Types, evaluation.Parameters, evaluation.Input, &log, protocolFunctionInput); err != nil {
+	var log session.ProtocolContext
+	if err = session.ImportProtocolParameters(s.op.Context(), s.output, input, formats, formal.Count, formal.Types, evaluation.Parameters, evaluation.Input, &log, session.ProtocolFunctionInput); err != nil {
 		var diagnostic *sqlstate.Error
 		if errors.As(err, &diagnostic) && diagnostic.Code == "22P03" {
 			copy := *diagnostic
 			copy.Message = fmt.Sprintf("incorrect binary data format in function argument %d", len(log.Parameters))
 			err = &copy
 		}
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	format, err := input.Uint16()
 	if err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	if err = input.End(); err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	node, _, err = exec.PreflightCoercionsWithPolicy(&evaluation, node, true)
 	if err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	value, err := node.Eval(&evaluation)
 	if err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	if value.IsNull() {
-		return ProtocolField{Null: true}, nil
+		return session.ProtocolField{Null: true}, nil
 	}
 	if format != 0 && format != 1 {
-		return ProtocolField{}, sqlError("22023", fmt.Sprintf("unsupported format code: %d", int16(format)))
+		return session.ProtocolField{}, sqlError("22023", fmt.Sprintf("unsupported format code: %d", int16(format)))
 	}
 	rows := exec.NewFinalRows(nil, 1)
 	rows.Values = []sqltype.Value{value}
 	rows.Output = s.output
 	if err = s.captureSQLCursorOutput(rows, auth.Catalog); err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	output := rows.Output
 	output.Regclass, output.Regtype, output.Regproc, output.Regrole = rows, rows, rows, rows
 	output.Operator, output.Regcollation, output.Regnamespace, output.RegTS = rows, rows, rows, rows
 	output.ACLItem = rows
-	fields, _, err := encodeProtocolRow(s.op.Context(), rows.Values, []int16{int16(format)}, output, nil, nil)
+	fields, _, err := session.EncodeProtocolRow(s.op.Context(), rows.Values, []int16{int16(format)}, output, nil, nil)
 	if err != nil {
-		return ProtocolField{}, err
+		return session.ProtocolField{}, err
 	}
 	return fields[0], nil
 }

@@ -298,7 +298,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		_, attaching := stmt.(*parser.AlterTableAttachPartition)
 		_, detaching := stmt.(*parser.AlterTableDetachPartition)
 		alter, altering := stmt.(*parser.AlterTable)
-		if source || preparableBody(stmt) || attaching || detaching || altering && table.HasRelationshipActions(alter.Actions) {
+		if source || session.PreparableBody(stmt) || attaching || detaching || altering && table.HasRelationshipActions(alter.Actions) {
 			lexical := ref
 			if retained {
 				lexical, err = e.admissionNameReference(auth, name)

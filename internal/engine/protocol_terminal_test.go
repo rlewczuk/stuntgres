@@ -19,16 +19,16 @@ import (
 
 func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	e := New()
-	session := sessionStart(t, e, nil)
-	sessionSQL(t, session, "BEGIN")
+	sess := sessionStart(t, e, nil)
+	sessionSQL(t, sess, "BEGIN")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	op, _, err := session.AcquireCommand(ctx)
+	op, _, err := sess.AcquireCommand(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	scope, err := e.StartProtocolCommand(op, session.NewProtocolCycle())
+	scope, err := e.StartProtocolCommand(op, sess.NewProtocolCycle())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	rows := exec.NewFinalRows(columns, 1)
 	rows.Values = []sqltype.Value{value}
 	disposals := 0
-	p := &protocolPortal{tx: scope.txRef, born: 1, entry: sqlPreparedStatement{body: &parser.Select{}}, columns: columns, started: true, context: ProtocolContext{Source: "retained source"}}
+	p := &protocolPortal{tx: scope.txRef, born: 1, entry: sqlPreparedStatement{body: &parser.Select{}}, columns: columns, started: true, context: session.ProtocolContext{Source: "retained source"}}
 	p.rows = protocolDisposalProbe{RowResult: rows, close: func() error {
 		disposals++
 		if op.Context().Err() == nil {
@@ -70,10 +70,10 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 		}
 		return rows.Close()
 	}}
-	payloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"p": p}
+	payloadOf(sess).preparedSQL.portals = map[string]*protocolPortal{"p": p}
 	e.replacementMu.RLock()
 	scope.replacementRead = true
-	_, err = scope.ExecuteProtocolPortal("p", 0, func(fields []ProtocolField) error {
+	_, err = scope.ExecuteProtocolPortal("p", 0, func(fields []session.ProtocolField) error {
 		if len(fields) != 1 || string(fields[0].Bytes) != "1" {
 			t.Error("actual store row was not delivered", fields)
 		}
@@ -83,7 +83,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	if !errors.Is(err, primary) || disposals != 1 || !rows.Closed {
 		t.Fatal("failed executor lost primary or retained resources", err, disposals)
 	}
-	if p.retired || payloadOf(session).preparedSQL.portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {
+	if p.retired || payloadOf(sess).preparedSQL.portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {
 		t.Fatal("failed resource release removed identity or retained executor buffers")
 	}
 	// Restoring a frontier that includes this owner keeps its identity, without
@@ -91,13 +91,13 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	scope.owner.Mu.Lock()
 	retireProtocolPortalsAfter(scope.owner, 1)
 	scope.owner.Mu.Unlock()
-	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(session).preparedSQL.portals["p"] != p || disposals != 1 {
+	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(sess).preparedSQL.portals["p"] != p || disposals != 1 {
 		t.Fatal("older failed identity did not survive frontier", err, disposals)
 	}
 	scope.owner.Mu.Lock()
 	retireProtocolPortalsAfter(scope.owner, 0)
 	scope.owner.Mu.Unlock()
-	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(session).preparedSQL.portals["p"] != nil || disposals != 1 {
+	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(sess).preparedSQL.portals["p"] != nil || disposals != 1 {
 		t.Fatal("retirement leaked identity or repeated executor disposal", err, disposals)
 	}
 }

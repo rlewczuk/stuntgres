@@ -13,13 +13,13 @@ import (
 type ProtocolStatement struct {
 	Description    StatementDescription
 	ParameterOIDs  []uint32
-	Context        ProtocolContext
+	Context        session.ProtocolContext
 	Empty, HasRows bool
 }
 type ProtocolPortalDescription struct {
 	Columns        []catalog.Column
 	Formats        []int16
-	Context        ProtocolContext
+	Context        session.ProtocolContext
 	Empty, HasRows bool
 }
 
@@ -61,7 +61,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 			return ProtocolStatement{}, err
 		}
 		s.completed, s.sessionCompleted = true, true
-		return ProtocolStatement{Description: description, ParameterOIDs: slices.Clone(hints), Context: ProtocolContext{Source: source}, Empty: true}, nil
+		return ProtocolStatement{Description: description, ParameterOIDs: slices.Clone(hints), Context: session.ProtocolContext{Source: source}, Empty: true}, nil
 	}
 	types := make([]sqltype.Usage, len(hints))
 	e := s.engine()
@@ -107,7 +107,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 		return ProtocolStatement{}, err
 	}
 	s.completed, s.sessionCompleted = true, true
-	return ProtocolStatement{Description: description, ParameterOIDs: protocolParameterOIDs(description.Parameters.Count, description.Parameters.Types), Context: ProtocolContext{Source: source}, Empty: body == nil, HasRows: protocolHasRows(body, description.Results)}, nil
+	return ProtocolStatement{Description: description, ParameterOIDs: session.ProtocolParameterOIDs(description.Parameters.Count, description.Parameters.Types), Context: session.ProtocolContext{Source: source}, Empty: body == nil, HasRows: session.ProtocolHasRows(body, description.Results)}, nil
 }
 
 func (s *StatementScope) publishProtocolStatement(name string, entry *sqlPreparedStatement) error {
@@ -131,14 +131,14 @@ func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStateme
 	}
 	description := entry.description
 	if s.op.Session.TransactionState() == session.TxAborted {
-		if protocolHasRows(entry.body, description.Results) {
+		if session.ProtocolHasRows(entry.body, description.Results) {
 			return ProtocolStatement{}, protocolAbortedError()
 		}
 		oids := entry.parameterOIDs
 		if entry.body != nil {
-			oids = protocolParameterOIDs(description.Parameters.Count, description.Parameters.Types)
+			oids = session.ProtocolParameterOIDs(description.Parameters.Count, description.Parameters.Types)
 		}
-		return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: ProtocolContext{Source: entry.source}, Empty: entry.body == nil}, nil
+		return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: session.ProtocolContext{Source: entry.source}, Empty: entry.body == nil}, nil
 	}
 	if entry.body != nil {
 		s.Expected = &entry.description
@@ -155,9 +155,9 @@ func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStateme
 	}
 	oids := entry.parameterOIDs
 	if entry.body != nil {
-		oids = protocolParameterOIDs(description.Parameters.Count, description.Parameters.Types)
+		oids = session.ProtocolParameterOIDs(description.Parameters.Count, description.Parameters.Types)
 	}
-	return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: ProtocolContext{Source: entry.source}, Empty: entry.body == nil, HasRows: protocolHasRows(entry.body, description.Results)}, nil
+	return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: session.ProtocolContext{Source: entry.source}, Empty: entry.body == nil, HasRows: session.ProtocolHasRows(entry.body, description.Results)}, nil
 }
 
 // COPY and EXECUTE retain their own unused wire formals as untransformed
@@ -195,39 +195,17 @@ func (s *StatementScope) CloseProtocolStatement(name string) error {
 func (s *StatementScope) InvalidateUnnamedProtocolStatement() error {
 	return s.CloseProtocolStatement("")
 }
-func (s *StatementScope) ProtocolStatementContext(name string) ProtocolContext {
+func (s *StatementScope) ProtocolStatementContext(name string) session.ProtocolContext {
 	if e := payloadOf(s.op.Session).preparedSQL.entries[name]; e != nil {
-		return ProtocolContext{Source: e.source}
+		return session.ProtocolContext{Source: e.source}
 	}
-	return ProtocolContext{}
+	return session.ProtocolContext{}
 }
-func (s *StatementScope) ProtocolPortalContext(name string) ProtocolContext {
+func (s *StatementScope) ProtocolPortalContext(name string) session.ProtocolContext {
 	if p := payloadOf(s.op.Session).preparedSQL.portals[name]; p != nil {
 		return p.context
 	}
-	return ProtocolContext{}
-}
-func protocolPlainSelect(stmt parser.Statement) bool {
-	q, ok := stmt.(*parser.Select)
-	if !ok {
-		return false
-	}
-	for _, cte := range q.With {
-		if !protocolPlainSelect(cte.Query) {
-			return false
-		}
-	}
-	return true
-}
-
-func protocolParameterOIDs(count int, types []sqltype.Usage) []uint32 {
-	ids := make([]uint32, count)
-	for i, usage := range types {
-		if usage.Type != nil {
-			ids[i] = uint32(usage.Type.ID())
-		}
-	}
-	return ids
+	return session.ProtocolContext{}
 }
 
 func protocolPortalExists(session *session.Session, name string) bool {
@@ -237,23 +215,4 @@ func protocolPortalExists(session *session.Session, name string) bool {
 
 func missingProtocolPortal(name string) error {
 	return sqlError("34000", fmt.Sprintf("portal \"%s\" does not exist", name))
-}
-
-func protocolHasRows(stmt parser.Statement, columns []catalog.Column) bool {
-	if columns != nil {
-		return true
-	}
-	switch raw := stmt.(type) {
-	case *parser.Select:
-		return true
-	case *parser.Insert:
-		return raw.Returning != nil
-	case *parser.Update:
-		return raw.Returning != nil
-	case *parser.Delete:
-		return raw.Returning != nil
-	case *parser.Merge:
-		return raw.Returning != nil
-	}
-	return false
 }

@@ -55,7 +55,7 @@ func TestProtocolPreparedRegistry(t *testing.T) {
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	r := payloadOf(a).preparedSQL
 	entry := &sqlPreparedStatement{body: &parser.Select{}}
-	p := &protocolPortal{entry: *entry, context: ProtocolContext{Source: "original"}}
+	p := &protocolPortal{entry: *entry, context: session.ProtocolContext{Source: "original"}}
 	r.entries["s"] = entry
 	r.portals = map[string]*protocolPortal{"p": p}
 	delete(r.entries, "s")
@@ -67,9 +67,6 @@ func TestProtocolPreparedRegistry(t *testing.T) {
 	}
 	if err := r.EndSession(a.SessionToken, session.CleanClose); err != nil || !p.retired || len(r.portals) != 0 {
 		t.Fatal("owned retirement retained portal", err)
-	}
-	if protocolHasRows(&parser.Select{}, nil) != true || protocolHasRows(&parser.CreateTable{}, nil) {
-		t.Fatal("zero-column rows confused with NoData")
 	}
 }
 
@@ -155,24 +152,6 @@ func TestProtocolValueCodecs(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	e := New()
-	usage := testUsage(e, sqltype.Text)
-	empty := sqltype.String(usage.Type, "")
-	large := sqltype.String(usage.Type, string(bytes.Repeat([]byte{'x'}, 4096)))
-	values := []sqltype.Value{empty, large, sqltype.Null(usage.Type)}
-	fields, scratch, err := encodeProtocolRow(context.Background(), values, []int16{0}, sqltype.OutputEnvironment{}, nil, make([]byte, 0, 1))
-	if err != nil || len(fields) != 3 || fields[0].Null || len(fields[0].Bytes) != 0 || !bytes.Equal(fields[1].Bytes, bytes.Repeat([]byte{'x'}, 4096)) || !fields[2].Null {
-		t.Fatal("scratch growth or NULL/empty identity lost", fields, err)
-	}
-	fields, scratch, err = encodeProtocolRow(context.Background(), []sqltype.Value{large, empty}, []int16{1}, sqltype.OutputEnvironment{}, fields, scratch)
-	if err != nil || fields[0].Null || len(fields[0].Bytes) != 4096 || fields[1].Null || len(fields[1].Bytes) != 0 || len(scratch) != 4096 {
-		t.Fatal("reused output scratch lost field boundaries", err)
-	}
-	// Invalid result selectors are used only when there is an actual column.
-	input := &protocolUnitInput{data: []byte{0, 1, 0, 9}}
-	if got, err := protocolResultFormats(input, 0); err != nil || len(got) != 0 {
-		t.Fatal("unused result selector was evaluated", got, err)
-	}
 }
 
 func TestProtocolCycleRetention(t *testing.T) {

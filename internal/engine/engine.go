@@ -289,7 +289,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.ExecuteSQL:
 		if entry := payloadOf(op.Session).preparedSQL.entries[s.Name.Text]; entry != nil {
-			if !scope.rowSecurity && preparableBody(entry.body) {
+			if !scope.rowSecurity && session.PreparableBody(entry.body) {
 				// Reuse the named statement's analyzed identities without changing
 				// its session definition or executing its argument expressions.
 				expected, parameters := scope.Expected, scope.initialParameters
@@ -434,7 +434,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	var prepared *preparedAnalysis
-	if preparableBody(stmt) {
+	if session.PreparableBody(stmt) {
 		prepared, err = e.preparedAnalysisLocked(scope, auth, b)
 		if err != nil {
 			return StatementDescription{}, err

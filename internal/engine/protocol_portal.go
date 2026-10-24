@@ -33,7 +33,7 @@ type protocolPortal struct {
 	tx                ids.TxRef
 	born              uint64 // Shared canonical cursor/portal birth frontier.
 	entry             sqlPreparedStatement
-	context           ProtocolContext
+	context           session.ProtocolContext
 	columns           []catalog.Column
 	formats           []int16
 	values            []sqltype.Value
@@ -46,7 +46,7 @@ type protocolPortal struct {
 	completionCounted bool
 	completionInsert  bool
 	row               []sqltype.Value
-	fields            []ProtocolField
+	fields            []session.ProtocolField
 	scratch           []byte
 	outputRows        *exec.FinalRows
 }
@@ -79,13 +79,13 @@ func (p *protocolPortal) releaseExecutor(ctx context.Context) error {
 	p.row, p.fields, p.scratch, p.outputRows = nil, nil, nil, nil
 	return err
 }
-func (s *StatementScope) BindProtocolPortal(name, statement string, input ProtocolInput) (out ProtocolContext, err error) {
+func (s *StatementScope) BindProtocolPortal(name, statement string, input session.ProtocolInput) (out session.ProtocolContext, err error) {
 	entry := payloadOf(s.op.Session).preparedSQL.entries[statement]
 	if entry == nil {
 		return out, missingSQLPrepared(statement)
 	}
 	out.Source = entry.source
-	formats, err := protocolFormats(input)
+	formats, err := session.ProtocolFormats(input)
 	if err != nil {
 		return out, err
 	}
@@ -146,7 +146,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 		}
 	}()
 	importer := func(ctx context.Context, formal analyze.ParameterInfo, frame []sqltype.Value, env sqltype.InputEnvironment) error {
-		if e := protocolImport(s.op.Context(), s.output, input, formats, formal.Count, formal.Types, frame, env, &p.context, protocolBindInput); e != nil {
+		if e := session.ImportProtocolParameters(s.op.Context(), s.output, input, formats, formal.Count, formal.Types, frame, env, &p.context, session.ProtocolBindInput); e != nil {
 			var diagnostic *sqlstate.Error
 			if errors.As(e, &diagnostic) {
 				copy := *diagnostic
@@ -181,12 +181,12 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 			return e
 		}
 		var e error
-		p.formats, e = protocolResultFormats(input, len(p.columns))
+		p.formats, e = session.ProtocolResultFormats(input, len(p.columns))
 		return e
 	}
 	if entry.body == nil {
 		if count == 0 {
-			p.formats, err = protocolResultFormats(input, 0)
+			p.formats, err = session.ProtocolResultFormats(input, 0)
 			return out, err
 		}
 		if count != 0 {
@@ -240,10 +240,10 @@ func (s *StatementScope) DescribeProtocolPortal(name string) (ProtocolPortalDesc
 	if p == nil || p.retired {
 		return ProtocolPortalDescription{}, missingProtocolPortal(name)
 	}
-	if protocolHasRows(p.entry.body, p.columns) && s.op.Session.TransactionState() == session.TxAborted {
+	if session.ProtocolHasRows(p.entry.body, p.columns) && s.op.Session.TransactionState() == session.TxAborted {
 		return ProtocolPortalDescription{}, protocolAbortedError()
 	}
-	return ProtocolPortalDescription{Columns: p.columns, Formats: p.formats, Context: p.context, Empty: p.entry.body == nil, HasRows: protocolHasRows(p.entry.body, p.columns)}, nil
+	return ProtocolPortalDescription{Columns: p.columns, Formats: p.formats, Context: p.context, Empty: p.entry.body == nil, HasRows: session.ProtocolHasRows(p.entry.body, p.columns)}, nil
 }
 func (s *StatementScope) CloseProtocolPortal(name string) error {
 	r := payloadOf(s.op.Session).preparedSQL
@@ -307,7 +307,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	return Result{}, nil
 }
 
-func (s *StatementScope) ExecuteProtocolPortal(name string, maxRows uint32, sink func([]ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (out ProtocolExecution, err error) {
+func (s *StatementScope) ExecuteProtocolPortal(name string, maxRows uint32, sink func([]session.ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (out ProtocolExecution, err error) {
 	p := payloadOf(s.op.Session).preparedSQL.portals[name]
 	if p == nil || p.retired {
 		return out, missingProtocolPortal(name)
@@ -315,7 +315,7 @@ func (s *StatementScope) ExecuteProtocolPortal(name string, maxRows uint32, sink
 	return s.executeProtocolPortal(p, name, maxRows, sink, source, destination, hooks, true)
 }
 
-func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, maxRows uint32, sink func([]ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks, extended bool) (out ProtocolExecution, err error) {
+func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, maxRows uint32, sink func([]session.ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks, extended bool) (out ProtocolExecution, err error) {
 	if p.entry.body == nil {
 		out.Empty = true
 		return out, nil
@@ -400,7 +400,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 			// Destination setup belongs to its first delivered tuple, not
 			// Bind/Describe or an empty result. Reuse it for later tuples.
 			for i, column := range p.columns {
-				if protocolFormat(p.formats, i) == 1 {
+				if session.ProtocolFormat(p.formats, i) == 1 {
 					if err = column.Usage.Type.CheckBinaryOutput(); err != nil {
 						return out, err
 					}
@@ -428,7 +428,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		if err = s.captureProtocolOutput(p.outputRows, values, catalog); err != nil {
 			return out, err
 		}
-		fields, scratch, err = encodeProtocolRow(s.op.Context(), values, p.formats, p.outputRows.Output, fields, scratch)
+		fields, scratch, err = session.EncodeProtocolRow(s.op.Context(), values, p.formats, p.outputRows.Output, fields, scratch)
 		if err != nil {
 			return out, err
 		}

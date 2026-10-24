@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/session"
 )
 
 func (c *client) rejectProtocolCommand(ctx context.Context, err error) error {
@@ -40,7 +41,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 		c.protocolState = protocolRecovery
 		return c.writeSQLError(ctx, "", op.CommandError(err))
 	}
-	var provenance engine.ProtocolContext
+	var provenance session.ProtocolContext
 	var response func() error
 	var stream *protocolCopy
 	switch message.tag {
@@ -162,7 +163,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 			stream.ctx = op.Context()
 			defer stream.closeCommand()
 			var body []byte
-			sink := func(fields []engine.ProtocolField) error {
+			sink := func(fields []session.ProtocolField) error {
 				if e := op.Context().Err(); e != nil {
 					return e
 				}
@@ -229,7 +230,7 @@ func (c *client) functionCommand(ctx context.Context, input *protocolInput) erro
 	}
 	defer op.Done()
 	scope, err := c.db.engine.StartStatement(op)
-	var field engine.ProtocolField
+	var field session.ProtocolField
 	if err == nil {
 		field, err = scope.CallProtocolFunction(input)
 		err = scope.Finish(err)
@@ -262,4 +263,4 @@ func (c *client) functionCommand(ctx context.Context, input *protocolInput) erro
 
 // Ensure the receiver contract stays mechanical, without importing transport
 // ownership into engine or introducing a second parameter conversion registry.
-var _ engine.ProtocolInput = (*protocolInput)(nil)
+var _ session.ProtocolInput = (*protocolInput)(nil)
