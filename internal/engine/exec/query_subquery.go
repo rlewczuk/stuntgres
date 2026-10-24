@@ -200,6 +200,7 @@ func (c *Context) EvalSubquery(e plan.SubqueryExpr) (value sqltype.Value, err er
 		}
 	}
 	state := State{Source: c.Query.Source, SourceMode: c.Query.subquerySourceMode(), Parameters: c.Parameters, Input: c.Input, Output: c.Output, Locking: c.Query.Locking, Outer: c, Ctes: c.Query.Ctes, hashOwner: c.Query.membershipOwner()}
+	state.inheritAsyncAdmission(c.Query)
 	stage, err := OpenQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
 	if err != nil {
 		return sqltype.Value{}, err
@@ -314,6 +315,7 @@ type subqueryMembership struct {
 
 func (c *Context) subqueryMembership(e plan.SubqueryExpr) (membership *subqueryMembership, err error) {
 	state := State{Source: c.Query.Source, SourceMode: c.Query.subquerySourceMode(), Parameters: c.Parameters, Input: c.Input, Output: c.Output, Locking: c.Query.Locking, Outer: c, Ctes: c.Query.Ctes, hashOwner: c.Query.membershipOwner()}
+	state.inheritAsyncAdmission(c.Query)
 	stage, err := OpenQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
 	if err != nil {
 		return nil, err

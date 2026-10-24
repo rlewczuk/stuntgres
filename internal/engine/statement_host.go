@@ -67,6 +67,12 @@ func (h *statementHost) EnlistForeign(ctx context.Context, wrapper catalog.Forei
 	return h.scope().enlistForeign(ctx, wrapper, request, writing)
 }
 
+// Detached/internal evaluation can borrow a host without command admission.
+// It has no admitted async work; never consult live settings as a fallback.
+func (h *statementHost) AsyncAppendEnabled() bool {
+	return h != nil && h.op != nil && h.op.CommandAdmission && h.op.AsyncAppend
+}
+
 // TrackForeignModification records m so statement end finishes it.
 func (h *statementHost) TrackForeignModification(m *fdw.Modification) {
 	s := h.scope()

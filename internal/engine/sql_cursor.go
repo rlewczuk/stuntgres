@@ -214,6 +214,7 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	c.statement, c.created = declaration.Source, created
 	c.scroll = scroll
 	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state.CaptureAsyncAdmission()
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	// Presentation readers stored in query frames must not retain this admission.
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
@@ -407,6 +408,9 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 	moved, motionErr := c.Move(fetch, rows, c.motionInput(s))
 	if motionErr != nil {
 		return Result{}, motionErr
+	}
+	if err := c.foreignOwner.Quiesce(s.op.Context()); err != nil {
+		return Result{}, err
 	}
 	// HOLD commit continues from the same live producer's next occurrence.
 	if c.stage != nil {

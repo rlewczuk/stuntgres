@@ -302,6 +302,10 @@ const (
 // delegates to the sole expression evaluator; each stage owns its private state.
 type State struct {
 	foreignParallelMaximum int // Only admitted eager top-level SELECT may set this.
+	AsyncAppend            bool
+	asyncCaptured          bool
+	asyncInvocation        bool // Sticky lifetime exclusion, even when a child omits lexical frames.
+	asyncFrontier          *foreignAppendFrontier
 	Source                 *Source
 	SourceMode             SourceMode
 	Invocation             *Context // Borrowed same-query P+L frame; outer remains lexical.
@@ -523,6 +527,9 @@ func (s *Stage) Close() error {
 }
 
 func (s *Stage) fail(err error) error {
+	if err == errForeignPending {
+		return err
+	}
 	if s.onFailure != nil {
 		err = s.onFailure(err)
 	}
@@ -532,6 +539,7 @@ func (s *Stage) fail(err error) error {
 }
 
 func OpenNode(ctx context.Context, state *State, node plan.Node) (Stage, error) {
+	state.CaptureAsyncAdmission()
 	state.inheritCTEs()
 	return openRetainedQueryNode(ctx, state, node)
 }
@@ -866,6 +874,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		if n.RuleInvocation {
 			local := *state
 			local.Outer = state.Invocation
+			local.inheritAsyncAdmission(state)
 			state = &local
 		}
 		if !state.VirtualReads {
@@ -875,6 +884,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		if n.CTEOwner {
 			state.membershipOwner()
 			owner = &CTEInvocation{Frame: n.Frame, Parent: state.Ctes, State: *state}
+			owner.State.inheritAsyncAdmission(state)
 			state.Ctes = owner
 		}
 		if n.Frame != 0 {

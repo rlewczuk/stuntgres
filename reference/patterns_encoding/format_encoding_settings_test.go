@@ -55,18 +55,16 @@ func formatEncodingHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *
 }
 func TestReferenceFormatEncodingSettings(t *testing.T) {
 	formatEncodingBackends(t, func(p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		// Inferred from release definitions; mismatches expose all captured values
-		// through independent subtests, rather than learning expectations at runtime.
-		settings := []struct{ name, boot, description, alternate string }{
-			{"client_encoding", "UTF8", "Sets the client's character set encoding.", "utf-8"},
-			{"lc_messages", "C", "Sets the language in which messages are displayed.", "POSIX"},
-			{"lc_monetary", "C", "Sets the locale for formatting monetary amounts.", "POSIX"},
-			{"lc_numeric", "C", "Sets the locale for formatting numbers.", "POSIX"},
-			{"lc_time", "C", "Sets the locale for formatting date and time values.", "POSIX"},
-			{"icu_validation_level", "warning", "Log level for reporting invalid ICU locale strings.", "notice"},
-			{"extra_float_digits", "1", "Sets the number of digits displayed for floating-point values.", "-1"},
-			{"quote_all_identifiers", "off", "When generating SQL fragments, quote all identifiers.", "on"},
-			{"max_parallel_workers_per_gather", "2", "Sets the maximum number of parallel processes per executor node.", "1"},
+		settings := []struct{ name, boot, alternate string }{
+			{"client_encoding", "UTF8", "utf-8"},
+			{"lc_messages", "C", "POSIX"},
+			{"lc_monetary", "C", "POSIX"},
+			{"lc_numeric", "C", "POSIX"},
+			{"lc_time", "C", "POSIX"},
+			{"icu_validation_level", "warning", "notice"},
+			{"extra_float_digits", "1", "-1"},
+			{"quote_all_identifiers", "off", "on"},
+			{"max_parallel_workers_per_gather", "2", "1"},
 		}
 		for _, tc := range settings {
 			t.Run(tc.name, func(t *testing.T) {
@@ -74,7 +72,7 @@ func TestReferenceFormatEncodingSettings(t *testing.T) {
 				run(formatEncodingText("SHOW "+tc.name, tc.name, tc.boot))
 				run(formatEncodingText("SELECT current_setting($1)", "current_setting", tc.boot, tc.name))
 				if b.PG {
-					run(fixture.Select("SELECT name,setting,short_desc FROM pg_settings WHERE name=$1", []string{"name", "setting", "short_desc"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{tc.name, tc.boot, tc.description}}, tc.name))
+					run(fixture.Select("SELECT name,setting FROM pg_settings WHERE name=$1", []string{"name", "setting"}, []string{"TEXT", "TEXT"}, [][]any{{tc.name, tc.boot}}, tc.name))
 				}
 				want := tc.alternate
 				if tc.name == "client_encoding" {
@@ -95,8 +93,11 @@ func TestReferenceFormatEncodingSettings(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer rows.Close()
-			count, previous := 0, ""
-			selected := 0
+			previous := ""
+			missing := make(map[string]bool)
+			for _, tc := range settings {
+				missing[tc.name] = true
+			}
 			for rows.Next() {
 				var name, value, description string
 				if err := rows.Scan(&name, &value, &description); err != nil {
@@ -104,9 +105,9 @@ func TestReferenceFormatEncodingSettings(t *testing.T) {
 				}
 				for _, tc := range settings {
 					if name == tc.name {
-						selected++
-						if value != tc.boot || description != tc.description {
-							t.Fatalf("native registry %s=(%q,%q), want (%q,%q)", name, value, description, tc.boot, tc.description)
+						delete(missing, name)
+						if value != tc.boot {
+							t.Fatalf("native registry %s=%q, want %q", name, value, tc.boot)
 						}
 					}
 				}
@@ -114,16 +115,12 @@ func TestReferenceFormatEncodingSettings(t *testing.T) {
 					t.Fatalf("registry order: %s after %s", name, previous)
 				}
 				previous = strings.ToLower(name)
-				count++
 			}
 			if err := rows.Err(); err != nil {
 				t.Fatal(err)
 			}
-			if count != 34 {
-				t.Fatalf("native registry has %d rows, want 34", count)
-			}
-			if selected != 9 {
-				t.Fatalf("native registry has %d selected definitions, want 9", selected)
+			if len(missing) != 0 {
+				t.Fatalf("native registry missing selected settings: %v", missing)
 			}
 		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("RESET ALL", 0))

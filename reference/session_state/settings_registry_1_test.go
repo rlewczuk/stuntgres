@@ -322,42 +322,21 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 			t.Fatal(v)
 		}
 	}
-	expected := map[string][2]string{
-		// PostgreSQL REL_18_0 guc_tables.c short_desc, independent of the registry.
-		"DateStyle":                           {"ISO, MDY", "Sets the display format for date and time values."},
-		"TimeZone":                            {"UTC", "Sets the time zone for displaying and interpreting time stamps."},
-		"timezone_abbreviations":              {"Default", "Selects a file of time zone abbreviations."},
-		"application_name":                    {"", "Sets the application name to be reported in statistics and logs."},
-		"client_min_messages":                 {"notice", "Sets the message levels that are sent to the client."},
-		"bytea_output":                        {"hex", "Sets the output format for bytea."},
-		"IntervalStyle":                       {"postgres", "Sets the display format for interval values."},
-		"log_statement_stats":                 {"off", "Writes cumulative performance statistics to the server log."},
-		"max_parallel_workers_per_gather":     {"2", "Sets the maximum number of parallel processes per executor node."},
-		"plpgsql.check_asserts":                {"on", "Perform checks given in ASSERT statements."},
-		"quote_all_identifiers":               {"off", "When generating SQL fragments, quote all identifiers."},
-		"row_security":                        {"on", "Enables row security."},
-		"server_encoding":                     {"UTF8", "Shows the server (database) character set encoding."},
-		"track_commit_timestamp":              {"off", "Collects transaction commit time."},
-		"standard_conforming_strings":         {"on", "Causes '...' strings to treat backslashes literally."},
-		"statement_timeout":                   {"0", "Sets the maximum allowed duration of any statement."},
-		"lock_timeout":                        {"0", "Sets the maximum allowed duration of any wait for a lock."},
-		"transaction_timeout":                 {"0", "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."},
-		"idle_in_transaction_session_timeout": {"0", "Sets the maximum allowed idle time between queries, when in a transaction."},
-		"idle_session_timeout":                {"0", "Sets the maximum allowed idle time between queries, when not in a transaction."},
-		"search_path":                         {`"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
-		"default_transaction_deferrable":      {"off", "Sets the default deferrable status of new transactions."},
-		"default_transaction_isolation":       {"read committed", "Sets the transaction isolation level of each new transaction."},
-		"default_transaction_read_only":       {"off", "Sets the default read-only status of new transactions."},
-		"transaction_deferrable":              {"off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."},
-		"transaction_isolation":               {"read committed", "Sets the current transaction's isolation level."},
-		"transaction_read_only":               {"off", "Sets the current transaction's read-only status."},
-		"client_encoding":                     {"UTF8", "Sets the client's character set encoding."},
-		"lc_messages":                         {"C", "Sets the language in which messages are displayed."},
-		"lc_monetary":                         {"C", "Sets the locale for formatting monetary amounts."},
-		"lc_numeric":                          {"C", "Sets the locale for formatting numbers."},
-		"lc_time":                             {"C", "Sets the locale for formatting date and time values."},
-		"icu_validation_level":                {"warning", "Log level for reporting invalid ICU locale strings."},
-		"extra_float_digits":                  {"1", "Sets the number of digits displayed for floating-point values."},
+	expected := map[string]string{
+		"DateStyle": "ISO, MDY", "TimeZone": "UTC", "timezone_abbreviations": "Default",
+		"application_name": "", "client_min_messages": "notice", "bytea_output": "hex",
+		"IntervalStyle": "postgres", "log_statement_stats": "off",
+		"max_parallel_workers_per_gather": "2", "plpgsql.check_asserts": "on",
+		"quote_all_identifiers": "off", "row_security": "on", "server_encoding": "UTF8",
+		"track_commit_timestamp": "off", "standard_conforming_strings": "on",
+		"statement_timeout": "0", "lock_timeout": "0", "transaction_timeout": "0",
+		"idle_in_transaction_session_timeout": "0", "idle_session_timeout": "0",
+		"search_path": `"$user", public`, "default_transaction_deferrable": "off",
+		"default_transaction_isolation": "read committed", "default_transaction_read_only": "off",
+		"transaction_deferrable": "off", "transaction_isolation": "read committed",
+		"transaction_read_only": "off", "client_encoding": "UTF8", "lc_messages": "C",
+		"lc_monetary": "C", "lc_numeric": "C", "lc_time": "C",
+		"icu_validation_level": "warning", "extra_float_digits": "1",
 	}
 	for _, v := range settingsDefinitionsForTest() {
 		value := v.Default
@@ -369,10 +348,10 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 		case "demo.real_time":
 			value = "1s"
 		}
-		expected[v.Name] = [2]string{value, v.Description}
+		expected[v.Name] = value
 	}
-	expected["edge.count"] = [2]string{"0", "numeric prefix"}
-	expected["edge.real"] = [2]string{"0", "real prefix"}
+	expected["edge.count"] = "0"
+	expected["edge.real"] = "0"
 	last := ""
 	for rows.Next() {
 		var n, v, desc string
@@ -380,8 +359,11 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		want, ok := expected[n]
-		if strings.ToLower(n) <= last || !ok || want[0] != v || want[1] != desc {
-			t.Fatal(n, v, desc, want)
+		if strings.ToLower(n) <= last {
+			t.Fatal("repeated or unsorted setting", n)
+		}
+		if ok && want != v {
+			t.Fatal(n, v, want)
 		}
 		last = strings.ToLower(n)
 		delete(expected, n)

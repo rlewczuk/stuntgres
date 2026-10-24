@@ -21,6 +21,8 @@ func builtinMetadata(d Definition) Definition {
 		d.Category = "Version and Platform Compatibility / Previous PostgreSQL Versions"
 	case "max_parallel_workers_per_gather":
 		d.Category = "Resource Usage / Worker Processes"
+	case "enable_async_append":
+		d.Category = "Query Tuning / Planner Method Configuration"
 	}
 	switch d.Name {
 	case "row_security":

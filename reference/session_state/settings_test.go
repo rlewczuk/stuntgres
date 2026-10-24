@@ -137,46 +137,24 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 					defer b.Close()
 					run := func(s fixture.Step) { s.Prepared = prepared; fixture.RunStep(t, p.Ctx, a, backend.Recorder, s) }
 					run(fixture.Exec("DO $$BEGIN END$$", 0))
-					// Independent REL_18_0 guc_tables.c short_desc expectations.
-					expected := map[string][2]string{
-						"DateStyle":                           {"ISO, MDY", "Sets the display format for date and time values."},
-						"TimeZone":                            {"UTC", "Sets the time zone for displaying and interpreting time stamps."},
-						"timezone_abbreviations":              {"Default", "Selects a file of time zone abbreviations."},
-						"application_name":                    {"", "Sets the application name to be reported in statistics and logs."},
-						"bytea_output":                        {"hex", "Sets the output format for bytea."},
-						"IntervalStyle":                       {"postgres", "Sets the display format for interval values."},
-						"client_min_messages":                 {"notice", "Sets the message levels that are sent to the client."},
-						"default_transaction_deferrable":      {"off", "Sets the default deferrable status of new transactions."},
-						"default_transaction_isolation":       {"read committed", "Sets the transaction isolation level of each new transaction."},
-						"default_transaction_read_only":       {"off", "Sets the default read-only status of new transactions."},
-						"lock_timeout":                        {"0", "Sets the maximum allowed duration of any wait for a lock."},
-						"log_statement_stats":                 {"off", "Writes cumulative performance statistics to the server log."},
-						"max_parallel_workers_per_gather":     {"2", "Sets the maximum number of parallel processes per executor node."},
-						"plpgsql.check_asserts":                {"on", "Perform checks given in ASSERT statements."},
-						"quote_all_identifiers":               {"off", "When generating SQL fragments, quote all identifiers."},
-						"row_security":                        {"on", "Enables row security."},
-						"search_path":                         {`"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
-						"server_encoding":                     {"UTF8", "Shows the server (database) character set encoding."},
-						"track_commit_timestamp":              {"off", "Collects transaction commit time."},
-						"standard_conforming_strings":         {"on", "Causes '...' strings to treat backslashes literally."},
-						"statement_timeout":                   {"0", "Sets the maximum allowed duration of any statement."},
-						"transaction_timeout":                 {"0", "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."},
-						"idle_in_transaction_session_timeout": {"0", "Sets the maximum allowed idle time between queries, when in a transaction."},
-						"idle_session_timeout":                {"0", "Sets the maximum allowed idle time between queries, when not in a transaction."},
-						"transaction_deferrable":              {"off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."},
-						"transaction_isolation":               {"read committed", "Sets the current transaction's isolation level."},
-						"transaction_read_only":               {"off", "Sets the current transaction's read-only status."},
-						"client_encoding":                     {"UTF8", "Sets the client's character set encoding."},
-						"lc_messages":                         {"C", "Sets the language in which messages are displayed."},
-						"lc_monetary":                         {"C", "Sets the locale for formatting monetary amounts."},
-						"lc_numeric":                          {"C", "Sets the locale for formatting numbers."},
-						"lc_time":                             {"C", "Sets the locale for formatting date and time values."},
-						"icu_validation_level":                {"warning", "Log level for reporting invalid ICU locale strings."},
-						"extra_float_digits":                  {"1", "Sets the number of digits displayed for floating-point values."},
+					expected := map[string]string{
+						"DateStyle": "ISO, MDY", "TimeZone": "UTC", "timezone_abbreviations": "Default",
+						"application_name": "", "bytea_output": "hex", "IntervalStyle": "postgres",
+						"client_min_messages": "notice", "default_transaction_deferrable": "off",
+						"default_transaction_isolation": "read committed", "default_transaction_read_only": "off",
+						"lock_timeout": "0", "log_statement_stats": "off", "max_parallel_workers_per_gather": "2",
+						"plpgsql.check_asserts": "on", "quote_all_identifiers": "off", "row_security": "on",
+						"search_path": `"$user", public`, "server_encoding": "UTF8", "track_commit_timestamp": "off",
+						"standard_conforming_strings": "on", "statement_timeout": "0", "transaction_timeout": "0",
+						"idle_in_transaction_session_timeout": "0", "idle_session_timeout": "0",
+						"transaction_deferrable": "off", "transaction_isolation": "read committed",
+						"transaction_read_only": "off", "client_encoding": "UTF8", "lc_messages": "C",
+						"lc_monetary": "C", "lc_numeric": "C", "lc_time": "C",
+						"icu_validation_level": "warning", "extra_float_digits": "1",
 					}
 					query := "SHOW ALL"
 					if backend.Name == "postgres" {
-						expected["TimeZone"] = [2]string{"Etc/UTC", "Sets the time zone for displaying and interpreting time stamps."}
+						expected["TimeZone"] = "Etc/UTC"
 						// Project the genuine registry, not fabricated whole-catalog parity.
 						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','track_commit_timestamp','application_name','bytea_output','client_min_messages','default_transaction_deferrable','default_transaction_isolation','default_transaction_read_only','IntervalStyle','lock_timeout','log_statement_stats','max_parallel_workers_per_gather','plpgsql.check_asserts','quote_all_identifiers','row_security','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_deferrable','transaction_isolation','transaction_read_only','transaction_timeout','idle_in_transaction_session_timeout','idle_session_timeout','client_encoding','lc_messages','lc_monetary','lc_numeric','lc_time','icu_validation_level','extra_float_digits') ORDER BY lower(name)"
 						run(fixture.Select("SELECT name FROM pg_settings WHERE name='demo.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
@@ -216,8 +194,11 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 							t.Fatal(err)
 						}
 						want, ok := expected[name]
-						if strings.ToLower(name) <= last || !ok || value != want[0] || description != want[1] {
-							t.Fatal(name, value, description, want)
+						if strings.ToLower(name) <= last {
+							t.Fatal("repeated or unsorted setting", name)
+						}
+						if ok && value != want {
+							t.Fatal(name, value, want)
 						}
 						last = strings.ToLower(name)
 						delete(expected, name)

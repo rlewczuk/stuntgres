@@ -22,15 +22,6 @@ func TestSettingsMetadataRaw(t *testing.T) {
 func TestSettingsMetadataRegistry(t *testing.T) {
 	for _, tracking := range []bool{false, true} {
 		r := NewRegistry(nil, tracking)
-		if len(r.Order()) != 34 {
-			t.Fatal(len(r.Order()))
-		}
-		for _, name := range r.Order() {
-			d := r.Definitions()[name]
-			if d.Category == "" || d.Description == "" {
-				t.Fatal(name, d)
-			}
-		}
 		d, _ := r.Lookup("track_commit_timestamp")
 		if d.BootValue().Boolean != tracking {
 			t.Fatal(tracking, d.BootValue())

@@ -322,6 +322,8 @@ func openSetArm(ctx context.Context, state *State, project *plan.ProjectNode, ex
 
 func openSetArmScratch(ctx context.Context, state *State, project *plan.ProjectNode, expressions []expr.Expr, schema []catalog.Column, scratch []sqltype.Value) (SetArm, error) {
 	innerState := &State{Source: state.Source, SourceMode: state.subquerySourceMode(), Parameters: state.Parameters, Input: state.Input, Output: state.Output, Locking: state.Locking, Outer: state.Outer, Ctes: state.Ctes, hashOwner: state.membershipOwner()}
+	innerState.inheritAsyncAdmission(state)
+	innerState.foreignOwner = state.foreignOwner
 	inner, err := OpenQueryProjectStage(ctx, innerState, project)
 	if err != nil {
 		return SetArm{}, err
@@ -441,6 +443,16 @@ func OpenSetNode(ctx context.Context, state *State, n *plan.SetNode) (out Stage,
 }
 
 func openUnionAll(ctx context.Context, state *State, n *plan.SetNode) (Stage, error) {
+	if !state.asyncAppendEligible() {
+		return openSerialUnionAll(ctx, state, n)
+	}
+	if state.asyncFrontier != nil {
+		return openForeignAppend(ctx, state, n, state.asyncFrontier, false)
+	}
+	return openForeignAppendRoot(ctx, state, n)
+}
+
+func openSerialUnionAll(ctx context.Context, state *State, n *plan.SetNode) (Stage, error) {
 	out := Stage{Source: &Source{FlatWidth: len(n.Schema()), Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host}, Columns: n.Schema(), Selection: []int{}}
 	var child SetArm
 	opened, side := false, 0

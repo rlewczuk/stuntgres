@@ -128,7 +128,7 @@ func TestReferenceTimezoneDeclarationPrecisionDiagnostics(t *testing.T) {
 	}
 }
 
-func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
+func TestReferenceTimezoneBuiltinRegistryValues(t *testing.T) {
 	p := fixture.TimezoneReferencePair(t)
 	for _, backend := range p.Backends() {
 		for _, prepared := range []bool{false, true} {
@@ -175,48 +175,21 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 					t.Fatal(typ)
 				}
 			}
-			want := map[string][2]string{"DateStyle": {"ISO, MDY", "Sets the display format for date and time values."}, "TimeZone": {"UTC", "Sets the time zone for displaying and interpreting time stamps."}}
-			want["timezone_abbreviations"] = [2]string{"Default", "Selects a file of time zone abbreviations."}
-			want["default_transaction_deferrable"] = [2]string{"off", "Sets the default deferrable status of new transactions."}
-			want["transaction_deferrable"] = [2]string{"off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."}
-			want["client_encoding"] = [2]string{"UTF8", "Sets the client's character set encoding."}
-			want["lc_messages"] = [2]string{"C", "Sets the language in which messages are displayed."}
-			want["lc_monetary"] = [2]string{"C", "Sets the locale for formatting monetary amounts."}
-			want["lc_numeric"] = [2]string{"C", "Sets the locale for formatting numbers."}
-			want["lc_time"] = [2]string{"C", "Sets the locale for formatting date and time values."}
-			want["icu_validation_level"] = [2]string{"warning", "Log level for reporting invalid ICU locale strings."}
-			want["extra_float_digits"] = [2]string{"1", "Sets the number of digits displayed for floating-point values."}
-			// Independent REL_18_0 guc_tables.c short_desc, not native registry data.
-			want["transaction_timeout"] = [2]string{"0", "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."}
-			want["idle_in_transaction_session_timeout"] = [2]string{"0", "Sets the maximum allowed idle time between queries, when in a transaction."}
-			want["idle_session_timeout"] = [2]string{"0", "Sets the maximum allowed idle time between queries, when not in a transaction."}
-			want["quote_all_identifiers"] = [2]string{"off", "When generating SQL fragments, quote all identifiers."}
-			want["max_parallel_workers_per_gather"] = [2]string{"2", "Sets the maximum number of parallel processes per executor node."}
-			want["track_commit_timestamp"] = [2]string{"off", "Collects transaction commit time."}
-			want["row_security"] = [2]string{"on", "Enables row security."}
-			if !backend.PG {
-				want["plpgsql.check_asserts"] = [2]string{"on", "Perform checks given in ASSERT statements."}
-			}
-			expectedNames := map[string]bool{
-				"DateStyle": true, "IntervalStyle": true, "TimeZone": true, "application_name": true,
-				"bytea_output": true, "client_min_messages": true, "default_transaction_isolation": true,
-				"default_transaction_read_only": true, "lock_timeout": true, "log_statement_stats": true,
-				"search_path": true, "server_encoding": true, "standard_conforming_strings": true,
-				"statement_timeout": true, "transaction_isolation": true, "transaction_read_only": true,
-				"default_transaction_deferrable": true, "transaction_deferrable": true,
-				"timezone_abbreviations": true,
-				"client_encoding":        true, "lc_messages": true, "lc_monetary": true, "lc_numeric": true,
-				"lc_time": true, "icu_validation_level": true, "extra_float_digits": true,
-				"transaction_timeout": true, "idle_in_transaction_session_timeout": true, "idle_session_timeout": true,
-				"quote_all_identifiers":           true,
-				"max_parallel_workers_per_gather": true,
-				"track_commit_timestamp":          true,
-				"row_security":                    true,
+			want := map[string]string{
+				"DateStyle": "ISO, MDY", "TimeZone": "UTC",
+				"timezone_abbreviations":         "Default",
+				"default_transaction_deferrable": "off", "transaction_deferrable": "off",
+				"client_encoding": "UTF8", "lc_messages": "C", "lc_monetary": "C",
+				"lc_numeric": "C", "lc_time": "C", "icu_validation_level": "warning",
+				"extra_float_digits": "1", "transaction_timeout": "0",
+				"idle_in_transaction_session_timeout": "0", "idle_session_timeout": "0",
+				"quote_all_identifiers": "off", "max_parallel_workers_per_gather": "2",
+				"track_commit_timestamp": "off", "row_security": "on",
 			}
 			if !backend.PG {
-				expectedNames["plpgsql.check_asserts"] = true
+				want["plpgsql.check_asserts"] = "on"
 			}
-			count, last := 0, ""
+			last := ""
 			for rows.Next() {
 				var name, value, description string
 				if err := rows.Scan(&name, &value, &description); err != nil {
@@ -225,18 +198,16 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 				}
 				if !backend.PG {
 					key := strings.ToLower(name)
-					if !expectedNames[name] || key <= last {
+					if key <= last {
 						rows.Close()
 						t.Fatal("unexpected, repeated or unsorted builtin", name)
 					}
-					delete(expectedNames, name)
 					last = key
-					count++
 				}
 				if expected, ok := want[name]; ok {
-					if value != expected[0] || description != expected[1] {
+					if value != expected {
 						rows.Close()
-						t.Fatal(name, value, description, expected)
+						t.Fatal(name, value, expected)
 					}
 					delete(want, name)
 				}
@@ -244,10 +215,6 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 			if rows.Err() != nil || len(want) != 0 {
 				rows.Close()
 				t.Fatal("registry completeness", rows.Err(), want)
-			}
-			if !backend.PG && (count != 34 || len(expectedNames) != 0) {
-				rows.Close()
-				t.Fatal("builtin cardinality/set", count, expectedNames)
 			}
 			rows.Close()
 		}

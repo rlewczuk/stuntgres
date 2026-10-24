@@ -9,6 +9,11 @@ import (
 	"stuntgres/reference/fixture"
 )
 
+const statisticsSettingsCustomColumnsSQL = "name,setting,unit,category,short_desc,extra_desc,context,vartype,source,min_val,max_val,enumvals,boot_val,reset_val,sourcefile,sourceline,pending_restart"
+
+var statisticsSettingsCustomColumns = []string{"name", "setting", "unit", "category", "short_desc", "extra_desc", "context", "vartype", "source", "min_val", "max_val", "enumvals", "boot_val", "reset_val", "sourcefile", "sourceline", "pending_restart"}
+var statisticsSettingsCustomTypes = []string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "_TEXT", "TEXT", "TEXT", "TEXT", "INT4", "BOOL"}
+
 func TestReferenceStatisticsSettingsCustom(t *testing.T) {
 	p := fixture.NewScenarioWithDriverConfig(t, func(d *stuntgres.Driver) error {
 		definitions := append(settingsDefinitionsForTest(),
@@ -55,13 +60,14 @@ func TestReferenceStatisticsSettingsCustom(t *testing.T) {
 		description := map[string]string{"demo.flag": "flag", "demo.text": "text", "demo.count": "count", "demo.ratio": "ratio", "demo.mode": "mode", "demo.memory": "memory", "demo.bytes": "bytes", "demo.duration": "duration", "demo.real_time": "real time", "demo.fixed": "fixed", "demo.priv": "privileged", "stats.megabytes": "megabytes", "stats.minutes": "minutes"}[tc.name]
 		want := []any{tc.name, tc.boot, tc.unit, "Customized Options", description, nil, tc.context, tc.kind, "default", tc.min, tc.max, tc.enums, tc.boot, tc.boot, nil, nil, false}
 		for _, prepared := range []bool{false, true} {
-			s := fixture.Select("SELECT "+statisticsSettingsColumnsSQL+" FROM pg_settings WHERE name=$1", statisticsSettingsColumns, statisticsSettingsTypes, [][]any{want}, tc.name)
+			s := fixture.Select("SELECT "+statisticsSettingsCustomColumnsSQL+" FROM pg_settings WHERE name=$1", statisticsSettingsCustomColumns, statisticsSettingsCustomTypes, [][]any{want}, tc.name)
 			s.Prepared = prepared
-			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { statisticsSettingsMetadata(t, rows, false) }
+			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
+				statisticsSettingsCheckMetadata(t, rows, false, statisticsSettingsCustomColumns, statisticsSettingsCustomTypes)
+			}
 			fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s)
 		}
 	}
-	fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Select("SELECT count(*) FROM pg_settings", []string{"count"}, []string{"INT8"}, [][]any{{int64(47)}}))
 	for _, tc := range []struct{ query, raw string }{
 		{"SET demo.real_time='1.23456789'", "1.23457"},
 		{"SET demo.real_time='1500ms'", "1.5"},

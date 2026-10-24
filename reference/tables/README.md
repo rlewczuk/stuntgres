@@ -35,6 +35,16 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   `fdwCleanup` runs on the case's own connection under a fresh 15-second
   context (ROLLBACK, RESET ROLE, then drops), so it still works after the case
   context is canceled.
+  Async scenarios (`fdw_async_*_test.go`) use a test-only HTTP provider that
+  advances independent real source SQL cursors. PostgreSQL uses two loopback
+  servers and an advisory-lock gate in a volatile fetched target; admission
+  observes blocked slow FETCH and completed ready FETCH, never cursor creation.
+  Native HTTP response delivery is gated after selecting a real source row.
+  Every gated worker is released/canceled/joined on exit, and cancellation must
+  join before the external gate is released.
+  Repeated-invocation scenarios release the external gate and inspect live
+  resource high-water bounds, distinguishing optional async requests from
+  synchronous HTTP reads and live cursors from cumulative ReScan generations.
 - Native-control phases replay their actual Dump output, unmodified, on
   PostgreSQL. Roles named by the dump must already exist there (pass them as
   `inheritanceScenario` replay roles) and need their schema USAGE regranted after
@@ -79,6 +89,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Partitioned exclusion constraints: `RUN='^TestReferencePartitionExclusion'`
 - <a id="inherited-partition-constraints"></a>Inherited partition CHECK/NOT NULL: `RUN='^TestReferencePartitionInherited'`
 - Foreign tables: `RUN='^TestReferenceFDW'`
+- Async foreign scans: `RUN='^TestReferenceFDWAsync'`
 - `pg_user_mapping`: `RUN='^TestReferencePGUserMapping'`
 
 Also in this package: `make check RUN='^TestReferenceSeriesCheckRestrictions$'`

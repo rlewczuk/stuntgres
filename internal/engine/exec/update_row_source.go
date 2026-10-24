@@ -14,6 +14,7 @@ func (c *Context) subqueryUpdateOutputs(e plan.SubqueryExpr) (value sqltype.Valu
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing UPDATE tuple output owner")
 	}
 	state := State{Source: c.Query.Source, SourceMode: c.Query.subquerySourceMode(), Parameters: c.Parameters, Input: c.Input, Output: c.Output, Locking: c.Query.Locking, Outer: c, Ctes: c.Query.Ctes, hashOwner: c.Query.membershipOwner()}
+	state.inheritAsyncAdmission(c.Query)
 	stage, err := OpenQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
 	if err != nil {
 		return sqltype.Value{}, err

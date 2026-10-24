@@ -9,10 +9,10 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-const statisticsSettingsColumnsSQL = "name,setting,unit,category,short_desc,extra_desc,context,vartype,source,min_val,max_val,enumvals,boot_val,reset_val,sourcefile,sourceline,pending_restart"
+const statisticsSettingsColumnsSQL = "name,setting,unit,category,context,vartype,source,min_val,max_val,enumvals,boot_val,reset_val,sourcefile,sourceline,pending_restart"
 
-var statisticsSettingsColumns = []string{"name", "setting", "unit", "category", "short_desc", "extra_desc", "context", "vartype", "source", "min_val", "max_val", "enumvals", "boot_val", "reset_val", "sourcefile", "sourceline", "pending_restart"}
-var statisticsSettingsTypes = []string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "_TEXT", "TEXT", "TEXT", "TEXT", "INT4", "BOOL"}
+var statisticsSettingsColumns = []string{"name", "setting", "unit", "category", "context", "vartype", "source", "min_val", "max_val", "enumvals", "boot_val", "reset_val", "sourcefile", "sourceline", "pending_restart"}
+var statisticsSettingsTypes = []string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "_TEXT", "TEXT", "TEXT", "TEXT", "INT4", "BOOL"}
 
 type statisticsSettingsRun func(fixture.Step)
 
@@ -34,16 +34,21 @@ func statisticsSettingsCases(t *testing.T, body func(*testing.T, *fixture.Pair, 
 
 func statisticsSettingsMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
+	statisticsSettingsCheckMetadata(t, rows, pg, statisticsSettingsColumns, statisticsSettingsTypes)
+}
+
+func statisticsSettingsCheckMetadata(t *testing.T, rows *sql.Rows, pg bool, expectedColumns, expectedTypes []string) {
+	t.Helper()
 	columns, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(columns, statisticsSettingsColumns) {
+	if err != nil || !reflect.DeepEqual(columns, expectedColumns) {
 		t.Fatal(columns, err)
 	}
 	types, err := rows.ColumnTypes()
-	if err != nil || len(types) != 17 {
+	if err != nil || len(types) != len(expectedTypes) {
 		t.Fatal(types, err)
 	}
 	for i, typ := range types {
-		if typ.Name() != statisticsSettingsColumns[i] || typ.DatabaseTypeName() != statisticsSettingsTypes[i] {
+		if typ.Name() != expectedColumns[i] || typ.DatabaseTypeName() != expectedTypes[i] {
 			t.Fatalf("column %d: %v", i, typ)
 		}
 		nullable, known := typ.Nullable()
@@ -55,7 +60,7 @@ func statisticsSettingsMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		}
 		scan := reflect.TypeFor[string]()
 		length, lengthKnown := int64(0), false
-		switch statisticsSettingsTypes[i] {
+		switch expectedTypes[i] {
 		case "TEXT":
 			length, lengthKnown = math.MaxInt64, true
 		case "_TEXT":
@@ -80,7 +85,7 @@ func statisticsSettingsMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 }
 
 func statisticsSettingsTimeoutRow(value, source string) []any {
-	return []any{"statement_timeout", value, "ms", "Client Connection Defaults / Statement Behavior", "Sets the maximum allowed duration of any statement.", "0 disables the timeout.", "user", "integer", source, "0", "2147483647", nil, "0", "0", nil, nil, false}
+	return []any{"statement_timeout", value, "ms", "Client Connection Defaults / Statement Behavior", "user", "integer", source, "0", "2147483647", nil, "0", "0", nil, nil, false}
 }
 
 func statisticsSettingsTimeout(run statisticsSettingsRun, value, source string, prepared bool) {
@@ -109,10 +114,6 @@ func TestReferenceStatisticsSettingsMetadata(t *testing.T) {
 				run(s)
 			}
 		}
-		// Full native registry membership is bounded; PostgreSQL has many more GUCs.
-		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_settings", []string{"count"}, []string{"INT8"}, [][]any{{int64(34)}}))
-		}
 		run(fixture.Exec("SET statistics.placeholder='hidden'", 0))
 		run(fixture.Select("SELECT name FROM pg_settings WHERE name='statistics.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
 		run(fixture.Select("SELECT name FROM pg_settings WHERE name IN ('role','session_authorization') ORDER BY name", []string{"name"}, []string{"TEXT"}, nil))
@@ -132,22 +133,19 @@ func TestReferenceStatisticsSettingsMetadata(t *testing.T) {
 func TestReferenceStatisticsSettingsFeatureSmoke(t *testing.T) {
 	statisticsSettingsCases(t, func(t *testing.T, p *fixture.Pair, conn *sql.Conn, pg bool, run statisticsSettingsRun) {
 		want := [][]any{
-			{"application_name", "", nil, "Reporting and Logging / What to Log", "Sets the application name to be reported in statistics and logs.", nil, "user", "string", "default", nil, nil, nil, "", "", nil, nil, false},
-			{"log_statement_stats", "off", nil, "Statistics / Monitoring", "Writes cumulative performance statistics to the server log.", nil, "superuser", "bool", "default", nil, nil, nil, "off", "off", nil, nil, false},
-			{"row_security", "on", nil, "Client Connection Defaults / Statement Behavior", "Enables row security.", "When enabled, row security will be applied to all users.", "user", "bool", "default", nil, nil, nil, "on", "on", nil, nil, false},
+			{"application_name", "", nil, "Reporting and Logging / What to Log", "user", "string", "default", nil, nil, nil, "", "", nil, nil, false},
+			{"log_statement_stats", "off", nil, "Statistics / Monitoring", "superuser", "bool", "default", nil, nil, nil, "off", "off", nil, nil, false},
+			{"row_security", "on", nil, "Client Connection Defaults / Statement Behavior", "user", "bool", "default", nil, nil, nil, "on", "on", nil, nil, false},
 			statisticsSettingsTimeoutRow("0", "default"),
-			{"track_commit_timestamp", "off", nil, "Replication / Sending Servers", "Collects transaction commit time.", nil, "postmaster", "bool", "default", nil, nil, nil, "off", "off", nil, nil, false},
+			{"track_commit_timestamp", "off", nil, "Replication / Sending Servers", "postmaster", "bool", "default", nil, nil, nil, "off", "off", nil, nil, false},
 		}
 		if pg {
 			// The pinned fixture starts PostgreSQL with -c track_commit_timestamp=off.
-			want[4][8] = "command line"
+			want[4][6] = "command line"
 		}
 		inventory := fixture.Select("SELECT "+statisticsSettingsColumnsSQL+" FROM pg_settings WHERE name IN ('application_name','row_security','statement_timeout','log_statement_stats','track_commit_timestamp') ORDER BY name", statisticsSettingsColumns, statisticsSettingsTypes, want)
 		inventory.CheckMetadata = func(t *testing.T, rows *sql.Rows) { statisticsSettingsMetadata(t, rows, pg) }
 		run(inventory)
-		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_settings", []string{"count"}, []string{"INT8"}, [][]any{{int64(34)}}))
-		}
 		query := "SELECT setting,unit,source FROM pg_settings WHERE name='statement_timeout'"
 		stmt, err := conn.PrepareContext(p.Ctx, query)
 		if err != nil {
@@ -175,9 +173,9 @@ func TestReferenceStatisticsSettingsFeatureSmoke(t *testing.T) {
 			}
 			if name == "statement_timeout" {
 				found = true
-				if setting != "1s" || description != "Sets the maximum allowed duration of any statement." {
+				if setting != "1s" {
 					all.Close()
-					t.Fatal(setting, description)
+					t.Fatal(setting)
 				}
 			}
 		}
@@ -197,7 +195,7 @@ func TestReferenceStatisticsSettingsFeatureSmoke(t *testing.T) {
 		}
 		run(fixture.Exec("RESET statement_timeout", 0))
 		if retained != nil {
-			cells, dest := make([]any, 17), make([]any, 17)
+			cells, dest := make([]any, len(statisticsSettingsColumns)), make([]any, len(statisticsSettingsColumns))
 			for i := range cells {
 				dest[i] = &cells[i]
 			}

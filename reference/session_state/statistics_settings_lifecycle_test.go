@@ -122,8 +122,8 @@ func TestReferenceStatisticsSettingsConsumers(t *testing.T) {
 			if !pg {
 				run(fixture.Exec("RESET statement_timeout", 0))
 			}
-			cells := make([]any, 17)
-			dest := make([]any, 17)
+			cells := make([]any, len(statisticsSettingsColumns))
+			dest := make([]any, len(statisticsSettingsColumns))
 			for i := range cells {
 				dest[i] = &cells[i]
 			}

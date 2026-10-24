@@ -39,6 +39,8 @@ type ForeignExecution struct {
 	Slots         []int
 	planned       bool
 	closeError    error
+	asyncProbe    bool
+	async         foreignAsyncState
 }
 
 func CopyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
@@ -126,6 +128,15 @@ func (f *ForeignQuerySource) Plan(ctx context.Context, request catalog.ForeignRe
 			selected = i
 		}
 	}
+	if execution.asyncProbe {
+		if provider, ok := f.Wrapper.(catalog.ForeignAsyncScanProvider); ok {
+			capable, err := provider.IsForeignPathAsyncCapable(ctx, CopyForeignRequest(request), paths[selected])
+			if err != nil {
+				return ForeignCallbackError(err)
+			}
+			execution.async.capable = capable
+		}
+	}
 	plan, err := f.Wrapper.GetForeignPlan(ctx, CopyForeignRequest(request), paths[selected])
 	if err != nil {
 		return ForeignCallbackError(err)
@@ -192,6 +203,7 @@ func (execution *ForeignExecution) end(ctx context.Context) error {
 	execution.Plan = catalog.ForeignPlan{}
 	execution.Slots = nil
 	execution.owner = nil
+	execution.async = foreignAsyncState{}
 	return execution.closeError
 }
 
@@ -201,10 +213,17 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 		return Stage{}, fmt.Errorf("stuntgres: foreign scan owner has ended")
 	}
 	var execution *ForeignExecution
-	for _, candidate := range f.Executions {
-		if candidate.owner == state.foreignOwner && !candidate.active && !candidate.ended {
-			execution = candidate
-			break
+	if state.asyncAppendEligible() && state.asyncFrontier != nil {
+		execution = state.asyncFrontier.admitted[node]
+	}
+	if execution != nil {
+		f.Executions = append(f.Executions, execution)
+	} else {
+		for _, candidate := range f.Executions {
+			if candidate.owner == state.foreignOwner && !candidate.active && !candidate.ended {
+				execution = candidate
+				break
+			}
 		}
 	}
 	if execution == nil {
@@ -234,9 +253,14 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 			if err != nil {
 				return err
 			}
+			if execution.async.capable {
+				if err := host.TouchForeignScan(ctx, f); err != nil {
+					return err
+				}
+			}
 		}
 		if execution.Scan == nil {
-			if provider, ok := f.Wrapper.(catalog.ForeignParallelScanProvider); ok && state.foreignParallelMaximum >= 2 {
+			if provider, ok := f.Wrapper.(catalog.ForeignParallelScanProvider); ok && !execution.async.capable && state.foreignParallelMaximum >= 2 {
 				safe, err := provider.IsForeignScanParallelSafe(ctx, CopyForeignRequest(request), execution.Plan)
 				if err != nil {
 					return ForeignCallbackError(err)
@@ -274,6 +298,21 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 		started = true
 		return nil
 	}
+	importRow := func(ctx context.Context, row catalog.ForeignRow) ([]sqltype.Value, error) {
+		if len(row) != len(execution.Plan.Attributes) {
+			return nil, fmt.Errorf("stuntgres: foreign scan row width does not match its plan")
+		}
+		input, output := state.Input, state.Output
+		if host := source.LiveHost(); host != nil {
+			input, output = host.Environments()
+		}
+		return f.ImportValues(ctx, row, execution.Slots, input, output, node)
+	}
+	if execution.async.capable {
+		execution.async.start = start
+		execution.async.importRow = importRow
+		state.asyncFrontier.executions = append(state.asyncFrontier.executions, execution)
+	}
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
 		if host := source.LiveHost(); host != nil {
 			host.ReleaseReplacementRead()
@@ -288,20 +327,28 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 				return false, err
 			}
 		}
-		row, present, err := execution.Scan.IterateForeignScan(ctx)
-		if err != nil || !present {
-			return false, ForeignCallbackError(err)
-		}
-		if len(row) != len(execution.Plan.Attributes) {
-			return false, fmt.Errorf("stuntgres: foreign scan row width does not match its plan")
-		}
-		input, output := state.Input, state.Output
-		if host := source.LiveHost(); host != nil {
-			input, output = host.Environments()
-		}
-		values, err := f.ImportValues(ctx, row, execution.Slots, input, output, node)
-		if err != nil {
-			return false, err
+		var values []sqltype.Value
+		if execution.async.capable {
+			if err := execution.requestAsync(ctx); err != nil {
+				return false, err
+			}
+			if err := execution.settleAsync(ctx, false); err != nil {
+				return false, err
+			}
+			if execution.async.eof {
+				return false, nil
+			}
+			values = execution.async.values
+			execution.async.values, execution.async.buffered = nil, false
+		} else {
+			row, present, err := execution.Scan.IterateForeignScan(ctx)
+			if err != nil || !present {
+				return false, ForeignCallbackError(err)
+			}
+			values, err = importRow(ctx, row)
+			if err != nil {
+				return false, err
+			}
 		}
 		index := len(source.Anonymous)
 		source.Anonymous = append(source.Anonymous, values)
@@ -319,6 +366,11 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 					return false, err
 				}
 			}
+			execution.cancelAsync()
+			if err := execution.closeAsync(ctx); err != nil {
+				return false, err
+			}
+			execution.async.values, execution.async.buffered, execution.async.eof = nil, false, false
 			parameters, err := ForeignParameters(ctx, state, f)
 			if err != nil {
 				return false, err
@@ -404,6 +456,9 @@ func (owner *ForeignScanOwner) finishSource(ctx context.Context, source *Foreign
 		return source.closeError
 	}
 	source.LifetimeClosed = true
+	if err := owner.finishRequests(ctx); source.closeError == nil {
+		source.closeError = err
+	}
 	for _, execution := range source.Executions {
 		if err := execution.end(ctx); source.closeError == nil {
 			source.closeError = err

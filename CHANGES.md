@@ -55,6 +55,14 @@ and whole row/record members in scalar target lists at definition admission.
 SLICE integer constants support radix prefixes and digit separators within the
 nonnegative signed-32-bit range, including unreachable clauses.
 
+Opt-in foreign scans under UNION ALL now progress independent requests through
+the optional asynchronous FDW protocol, controlled by enable_async_append.
+Cancellation joins requests before scan cleanup; finite cursor motions retain
+owned rows rather than request contexts. Native persistence keeps declarations
+and options, never live requests.
+Repeated expression and correlated-input invocations reuse their synchronous
+scan frontier without accumulating async requests or remote cursors.
+
 Shipped function, aggregate and operator definitions and routine identity changes
 now share SQL BEGIN and Go BeginTx with autocommit and retained messages.
 Private callable programs, overload names, dependencies and rows publish or roll

@@ -140,7 +140,7 @@ on `statementHost`, a defined type over `StatementScope`.
 | Environment | `Context`, `Environments`, `StatementStart`, `CTEInvocation` | Read where the runtime reads them; a held cursor detaches the host between fetches. |
 | Presentation | the nine `sqltype` formatters | Read the statement's comment/deparse snapshot. With no host, output uses `DetachedPresentation`. |
 | Row locks | `AcquireQueryRow`, `LatestQueryRow`, `QueryLocks` | `AcquireQueryRow` may block in the lock manager; it releases the replacement read lock across the wait, then takes `Engine.mu`. `LatestQueryRow` takes `Engine.mu` and records the physical row event after releasing it. |
-| Foreign owner | `ReleaseReplacementRead`, `TouchForeignScan`, `EnlistForeign` | Release the replacement read lock before external I/O; enlist the statement's foreign transaction participant. |
+| Foreign owner | `ReleaseReplacementRead`, `TouchForeignScan`, `EnlistForeign`, `AsyncAppendEnabled` | Release the replacement read lock before external I/O; enlist the statement's foreign transaction participant. Async eligibility reads the immutable admission snapshot once. |
 | Admission | `RoutineAdmission` | Reads statement-owned routine authority and dependency manifest without a lock; fails once the statement has finished. |
 | Sequences | `CompletePGSequence` | Acquires the sequence lock, then reads the generator under `Engine.mu`. |
 | Capabilities | the function, expression and plan runtime bodies | Take `Engine.mu`, read session state or have side effects (advisory locks, XID assignment, sequence calls, notices). |
@@ -230,6 +230,23 @@ NULL VARIADIC array and the strict single-range overload retain NULL results.
   bounded transfer of owned cells, cancellation on the first error, joined scans
   before shared cleanup. Local import, filter, sort and projection stay serial;
   a failed finalization keeps nil rows, count 0 and the last publication fence.
+- **Async append.** Compatible UNION ALL arms share an execution-local foreign
+  request frontier while retaining their ordinary nested SetArm evaluators.
+  First demand primes every admitted leaf before waiting. Only the root waits
+  on readiness; nested filters/projections propagate the exact private pending
+  control token without closing, marking EOF, or changing occurrence position.
+  No expression or callback error is reclassified as pending. Local evaluation,
+  raw field import and publication stay on the leader. Each ForeignExecution
+  owns one request or one imported buffered row, never an unbounded pump.
+  ForeignScanOwner cancels all requests, joins all requests, then Ends scans.
+  Its finite cursor Quiesce boundary imports pending source rows without local
+  expression evaluation or further I/O; successful motion retains no request
+  context. The next motion uses current authority and its admitted context.
+  Expression invocations and repeatedly reopened correlated RHS use ordinary
+  reusable scans instead of new async frontiers. A sticky lifetime fact survives
+  frame-dropping child constructors; eligibility is checked at append admission
+  and source adoption. CTE producers inherit their owner's state, not a reader's
+  exclusion, so safe enclosing producers and root cursors remain eligible.
 - **No per-row allocations** from the seams: the host and preparation are
   interface values stored once.
 
@@ -283,6 +300,9 @@ foreign-scan, CTE and detach selections with `RACE=1`. `InputDomainChecks`
 changes must keep the COPY filter and JSONB record reference tests passing.
 Foreign parallel dispatch uses `testing/synctest` (`RUN='^TestFDWParallel'`):
 settled callback counts, never elapsed time, establish backpressure.
+Async protocol, cleanup, filtered-frontier and cursor-boundary units use
+`RUN='^TestFDWAsync'`; public authentic-transport scenarios live in
+`reference/tables` (`RUN='^TestReferenceFDWAsync'`).
 
 **Frame names matched by tests.** `sortOrderedAggregate`
 (`TestReferenceOrderedSetAggregateActiveCancellation`) stays unexported, and the

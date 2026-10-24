@@ -132,6 +132,7 @@ func OpenSourceStage(ctx context.Context, state *State, source *Source, schema [
 				return false, fmt.Errorf("stuntgres: view lacks final projection")
 			}
 			innerState := &State{Source: source.NestedInputs, SourceMode: state.SourceMode, Locking: source.Locks.RowMarked(), Input: state.Input, Output: state.Output, inherited: source.Inherited, Retain: state.Retain || state.SourceMode == SourceBorrowed, hashOwner: state.membershipOwner()}
+			innerState.inheritAsyncAdmission(state)
 			inner, err := OpenNode(ctx, innerState, project)
 			if err != nil {
 				return false, err

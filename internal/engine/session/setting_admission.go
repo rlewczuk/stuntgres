@@ -26,6 +26,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	timeout := s.Settings.TypedValue("statement_timeout").Number
 	op.LockTimeout = time.Duration(s.Settings.TypedValue("lock_timeout").Number) * time.Millisecond
 	op.ParallelWorkers = int(s.Settings.TypedValue("max_parallel_workers_per_gather").Number)
+	op.AsyncAppend = s.Settings.TypedValue("enable_async_append").Boolean
 	transactionTimeout := s.Settings.TypedValue("transaction_timeout").Number
 	op.NoticeThreshold, _ = messageLevel(s.Settings.Value(settings.ClientMinMessages.Name))
 	op.CommandAdmission = true

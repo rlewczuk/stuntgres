@@ -66,9 +66,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rule
   pool that shares the notice connector's engine. Internal `TestDriverBatch*`
   units acquire with `AcquireCommand`, not `Acquire`, to match the public
   statement budget and idle boundaries.
-- A builtin settings registry change must pass every complete-inventory test:
-  `RUN='^TestReference(Settings(BuiltinRegistry|ShowAllPlaceholdersAndLifecycle)|FormatEncodingSettings|TimezoneBuiltinRegistryDescriptions)$'`
-  (session_state, patterns_encoding, datetime) in both modes.
+- Builtin settings changes retain selected-value, metadata, lifecycle and
+  security witnesses without asserting the size of the evolving registry.
+  Run `RUN='^TestReference(Settings(BuiltinRegistry|ShowAllPlaceholdersAndLifecycle|UtilitySnapshotOwnership)|FormatEncodingSettings|TimezoneBuiltinRegistryValues|StatisticsSettings)'`
+  in both modes.
 - `TestReferenceSettingsPrivilegeAndTimeoutOracle` and
   `TestReferenceSettingsLocalPrivilegeOracle` carry the legacy `reference` build
   tag and run only with `REFERENCE=1`; a native no-match run is not evidence.

@@ -333,6 +333,24 @@ the provider uninterpreted. See `reference/tables/fdw_reader_test.go` and
   `BeginPartitionForeignScan`; `EndForeignParallelScan` ends the shared state.
   Only simple top-level eager SELECTs are eligible; partition `Iterate` calls run
   concurrently, everything else runs on the leader, and results stay eager.
+- **Asynchronous scans.** Optional `ForeignAsyncScanProvider` checks the selected
+  path with `IsForeignPathAsyncCapable`. When admitted under compatible UNION ALL
+  arms, its scan must implement `ForeignAsyncScan.RequestForeignScan`, returning
+  a `ForeignAsyncRequest`. `Ready` is a stable channel closed when one row,
+  error or EOF is available; pending is not EOF. The leader calls `Complete`
+  once after readiness and imports cells before `Close`; cells must remain stable
+  until then. At most one request is outstanding per scan. `Cancel` is idempotent
+  and nonblocking; `Close` is idempotent and joins all request work. A nonnil
+  request returned with an error still transfers cleanup ownership. The engine
+  cancels all outstanding requests before joining any, then Ends scans with an
+  uncanceled cleanup context. At a successful finite FETCH/MOVE it settles and
+  closes requests, retaining at most one imported source row per scan; the next
+  motion uses its own admitted context. `enable_async_append` defaults on and is
+  captured at statement/DECLARE admission. Provider options, including any
+  `async_capable` policy, remain provider-owned. Absent/false capability uses the
+  synchronous protocol; async admission does not also start parallel partitions.
+  Expression subqueries and repeatedly opened correlated inputs use ordinary
+  reusable scans; safe enclosing producers and top-level cursors remain eligible.
 - **Import.** `ForeignSchemaImporter` implements `IMPORT FOREIGN SCHEMA`.
 - **Contract.** Callbacks run outside engine locks, may run concurrently, and must
   use the context of each call. Never return `driver.ErrBadConn` or `driver.ErrSkip`

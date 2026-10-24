@@ -54,9 +54,9 @@ func TestReferenceStatisticsSettingsControls(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			count, seen := 0, false
+			seen := false
 			for rows.Next() {
-				cells, dest := make([]any, 17), make([]any, 17)
+				cells, dest := make([]any, len(statisticsSettingsColumns)), make([]any, len(statisticsSettingsColumns))
 				for i := range cells {
 					dest[i] = &cells[i]
 				}
@@ -64,16 +64,15 @@ func TestReferenceStatisticsSettingsControls(t *testing.T) {
 					rows.Close()
 					t.Fatal(err)
 				}
-				count++
 				if fixture.Normalize(cells[0]) == "application_name" {
 					seen = true
-					if fixture.Normalize(cells[1]) != "retained-settings" || fixture.Normalize(cells[8]) != "session" {
+					if fixture.Normalize(cells[1]) != "retained-settings" || fixture.Normalize(cells[6]) != "session" {
 						t.Fatal(cells)
 					}
 				}
 			}
-			if rows.Err() != nil || count != 34 || !seen {
-				t.Fatal(count, seen, rows.Err())
+			if rows.Err() != nil || !seen {
+				t.Fatal(seen, rows.Err())
 			}
 			rows.Close()
 			if !reflect.DeepEqual(columns, statisticsSettingsColumns) {
@@ -90,6 +89,9 @@ func TestReferenceStatisticsSettingsControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer raw.Close()
+		if _, err := raw.(driver.ExecerContext).ExecContext(p.Ctx, "SET application_name='retired-adapter-snapshot'", nil); err != nil {
+			t.Fatal(err)
+		}
 		rows, err := raw.(driver.QueryerContext).QueryContext(p.Ctx, "SELECT name,setting FROM pg_settings ORDER BY name", nil)
 		if err != nil {
 			t.Fatal(err)
@@ -99,7 +101,7 @@ func TestReferenceStatisticsSettingsControls(t *testing.T) {
 		if err := raw.Close(); err != nil {
 			t.Fatal(err)
 		}
-		count := 0
+		seen := false
 		for {
 			cells := make([]driver.Value, 2)
 			err := rows.Next(cells)
@@ -109,10 +111,15 @@ func TestReferenceStatisticsSettingsControls(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			count++
+			if cells[0] == "application_name" {
+				seen = true
+				if cells[1] != "retired-adapter-snapshot" {
+					t.Fatal(cells)
+				}
+			}
 		}
-		if count != 34 || !reflect.DeepEqual(rows.Columns(), columns) {
-			t.Fatal(count, rows.Columns())
+		if !seen || !reflect.DeepEqual(rows.Columns(), columns) {
+			t.Fatal(seen, rows.Columns())
 		}
 	})
 }

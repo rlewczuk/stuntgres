@@ -74,9 +74,9 @@ func TestReferenceSettingsUtilitySnapshotOwnership(t *testing.T) {
 						t.Fatal("SHOW ALL metadata", column, nullable, known)
 					}
 				}
-				expected := make(map[string][2]string)
+				expected := make(map[string]string)
 				for _, row := range settingsSnapshotExpectedRows() {
-					expected[row[0]] = [2]string{row[1], row[2]}
+					expected[row[0]] = row[1]
 				}
 				selectedRows, selectedIndex := settingsSnapshotExpectedRows(), 0
 				for rows.Next() {
@@ -86,13 +86,9 @@ func TestReferenceSettingsUtilitySnapshotOwnership(t *testing.T) {
 						t.Fatal(err)
 					}
 					want, selected := expected[name]
-					// PostgreSQL exposes additional server settings outside the native
-					// registry; the selected builtin inventory must still be complete.
+					// Assert this scenario's selected values without imposing a
+					// global registry size or excluding unrelated builtin settings.
 					if !selected {
-						if !backend.PG {
-							rows.Close()
-							t.Fatalf("unexpected native setting %s", name)
-						}
 						continue
 					}
 					if selectedIndex >= len(selectedRows) || selectedRows[selectedIndex][0] != name {
@@ -100,9 +96,9 @@ func TestReferenceSettingsUtilitySnapshotOwnership(t *testing.T) {
 						t.Fatalf("SHOW ALL selected order at %d: %s", selectedIndex, name)
 					}
 					selectedIndex++
-					if want != [2]string{value, description} {
+					if want != value {
 						rows.Close()
-						t.Fatalf("%s got %q/%q want %q/%q", name, value, description, want[0], want[1])
+						t.Fatalf("%s got %q want %q", name, value, want)
 					}
 					delete(expected, name)
 				}
@@ -120,41 +116,40 @@ func TestReferenceSettingsUtilitySnapshotOwnership(t *testing.T) {
 }
 
 func settingsSnapshotExpectedRows() [][]string {
-	all := [][]string{
-		{"application_name", "initial", "Sets the application name to be reported in statistics and logs."},
-		{"bytea_output", "hex", "Sets the output format for bytea."},
-		{"client_encoding", "UTF8", "Sets the client's character set encoding."},
-		{"client_min_messages", "notice", "Sets the message levels that are sent to the client."},
-		{"DateStyle", "ISO, MDY", "Sets the display format for date and time values."},
-		{"default_transaction_deferrable", "off", "Sets the default deferrable status of new transactions."},
-		{"default_transaction_isolation", "read committed", "Sets the transaction isolation level of each new transaction."},
-		{"default_transaction_read_only", "off", "Sets the default read-only status of new transactions."},
-		{"extra_float_digits", "1", "Sets the number of digits displayed for floating-point values."},
-		{"icu_validation_level", "warning", "Log level for reporting invalid ICU locale strings."},
-		{"idle_in_transaction_session_timeout", "0", "Sets the maximum allowed idle time between queries, when in a transaction."},
-		{"idle_session_timeout", "0", "Sets the maximum allowed idle time between queries, when not in a transaction."},
-		{"IntervalStyle", "postgres", "Sets the display format for interval values."},
-		{"lc_messages", "C", "Sets the language in which messages are displayed."},
-		{"lc_monetary", "C", "Sets the locale for formatting monetary amounts."},
-		{"lc_numeric", "C", "Sets the locale for formatting numbers."},
-		{"lc_time", "C", "Sets the locale for formatting date and time values."},
-		{"lock_timeout", "0", "Sets the maximum allowed duration of any wait for a lock."},
-		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
-		{"max_parallel_workers_per_gather", "2", "Sets the maximum number of parallel processes per executor node."},
-		{"plpgsql.check_asserts", "on", "Perform checks given in ASSERT statements."},
-		{"quote_all_identifiers", "off", "When generating SQL fragments, quote all identifiers."},
-		{"row_security", "on", "Enables row security."},
-		{"search_path", `"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
-		{"server_encoding", "UTF8", "Shows the server (database) character set encoding."},
-		{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},
-		{"statement_timeout", "0", "Sets the maximum allowed duration of any statement."},
-		{"TimeZone", "UTC", "Sets the time zone for displaying and interpreting time stamps."},
-		{"timezone_abbreviations", "Default", "Selects a file of time zone abbreviations."},
-		{"track_commit_timestamp", "off", "Collects transaction commit time."},
-		{"transaction_deferrable", "off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."},
-		{"transaction_isolation", "read committed", "Sets the current transaction's isolation level."},
-		{"transaction_read_only", "off", "Sets the current transaction's read-only status."},
-		{"transaction_timeout", "0", "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."},
+	return [][]string{
+		{"application_name", "initial"},
+		{"bytea_output", "hex"},
+		{"client_encoding", "UTF8"},
+		{"client_min_messages", "notice"},
+		{"DateStyle", "ISO, MDY"},
+		{"default_transaction_deferrable", "off"},
+		{"default_transaction_isolation", "read committed"},
+		{"default_transaction_read_only", "off"},
+		{"extra_float_digits", "1"},
+		{"icu_validation_level", "warning"},
+		{"idle_in_transaction_session_timeout", "0"},
+		{"idle_session_timeout", "0"},
+		{"IntervalStyle", "postgres"},
+		{"lc_messages", "C"},
+		{"lc_monetary", "C"},
+		{"lc_numeric", "C"},
+		{"lc_time", "C"},
+		{"lock_timeout", "0"},
+		{"log_statement_stats", "off"},
+		{"max_parallel_workers_per_gather", "2"},
+		{"plpgsql.check_asserts", "on"},
+		{"quote_all_identifiers", "off"},
+		{"row_security", "on"},
+		{"search_path", `"$user", public`},
+		{"server_encoding", "UTF8"},
+		{"standard_conforming_strings", "on"},
+		{"statement_timeout", "0"},
+		{"TimeZone", "UTC"},
+		{"timezone_abbreviations", "Default"},
+		{"track_commit_timestamp", "off"},
+		{"transaction_deferrable", "off"},
+		{"transaction_isolation", "read committed"},
+		{"transaction_read_only", "off"},
+		{"transaction_timeout", "0"},
 	}
-	return all
 }

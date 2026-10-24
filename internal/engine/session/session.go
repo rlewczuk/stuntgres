@@ -118,7 +118,8 @@ type Operation struct {
 	NoticeThreshold    NoticeLevel
 	TimerCancel        context.CancelFunc
 	LockTimeout        time.Duration
-	ParallelWorkers    int // Immutable prior-setting snapshot at command admission.
+	ParallelWorkers    int  // Immutable prior-setting snapshot at command admission.
+	AsyncAppend        bool // Immutable prior-setting snapshot at command admission.
 	StatementDeadline  time.Time
 	CommandStart       time.Time
 	SourceContext      context.Context

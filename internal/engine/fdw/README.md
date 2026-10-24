@@ -123,6 +123,14 @@ Iterate. SQL/MED Dump/Restore never invokes or serializes runtime coordination.
 Child-path reparameterization remains the explicit foreign-hierarchy boundary,
 not a no-op private-state callback or correlated ReScan alias.
 
+Optional `catalog.ForeignAsyncScanProvider` likewise adds no registry or
+persistence state. Its resource-free selected-path capability admits requests
+only under eligible append frontiers. `ForeignExecution` owns each live request;
+the existing source owner signals every request before joining any and then Ends
+scans. Finite cursor motions settle requests into owned source rows before
+detaching authority. Provider options remain opaque catalog data, including a
+provider's own async capability policy; Dump/Restore never starts requests.
+
 ## Invariants
 
 - **No locks, no callbacks under locks.** The package adds no mutex.

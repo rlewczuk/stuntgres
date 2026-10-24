@@ -102,6 +102,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 	if n.CorrelatedRight {
 		invocation.SourceMode = state.subquerySourceMode()
 		invocation.Invocation = &correlation
+		invocation.inheritAsyncAdmission(state)
 	}
 	rightIdentity := false
 	frame := make([]sqltype.Value, width)

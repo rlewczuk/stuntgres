@@ -38,6 +38,7 @@ type Host interface {
 	ReleaseReplacementRead()
 	TouchForeignScan(ctx context.Context, source *ForeignQuerySource) error
 	EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error)
+	AsyncAppendEnabled() bool
 
 	// Admission: the statement's routine admission authority and its
 	// original dependency manifest. Reads statement-owned fields only; fails

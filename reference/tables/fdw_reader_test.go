@@ -21,6 +21,7 @@ type fdwSQLReader struct {
 	dsn                                                                                       string
 	mu                                                                                        sync.Mutex
 	begins, rescans, ends, generations, queries, iterations, openRows, openCursors, openPools int
+	peakOpenCursors                                                                           int
 	parameters                                                                                []stuntgres.ForeignScanParameters
 	calls                                                                                     int
 	validations                                                                               []fdwValidation
@@ -288,6 +289,7 @@ func (s *fdwSQLScan) open(ctx context.Context) error {
 	s.reader.mu.Lock()
 	s.reader.generations++
 	s.reader.openCursors++
+	s.reader.peakOpenCursors = max(s.reader.peakOpenCursors, s.reader.openCursors)
 	s.reader.mu.Unlock()
 	return nil
 }
