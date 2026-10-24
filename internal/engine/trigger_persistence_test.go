@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -103,7 +104,7 @@ func TestTriggerCorePersistence(t *testing.T) {
 	}
 	mappedOwner := reordered
 	mappedOwner.Triggers = relation.Triggers
-	principal := catalog.NewProcedureRemapper(destination.replacementPrincipalRemap(source.Roles(), destination.Roles(), nil))
+	principal := catalog.NewProcedureRemapper(destination.roles.principalRemap(&destination.catalog, source.Roles(), destination.Roles(), nil, routine.OperatorSeeded))
 	remap := stored.NewRoutineRemap(targetRead, nil, mapType, principal, false)
 	mapped, err := stored.RemapTriggers(targetRead, &mappedOwner, nil, mapRef, remap.Type, remap.Collation, remap.Procedure)
 	if err == nil {

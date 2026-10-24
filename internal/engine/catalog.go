@@ -1047,7 +1047,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err := e.storage.ReplacementCapacityLocked(relations, e.catalog.State.Epoch(), e.visibility.CommitSeq()); err != nil {
 		return ChangeSet{}, err
 	}
-	replacement.State().SetACLItemImport(e.aclItemImporter(source, sourceRoles, targetRoles, source.importTargets))
+	replacement.State().SetACLItemImport(e.roles.aclItemImporter(source.roles, &e.catalog, sourceRoles, targetRoles, source.importTargets))
 	defer func() { replacement.State().SetACLItemImport(nil) }()
 	var procedure catalog.ProcedureRemapper
 	next, procedure, err = e.remapPreparedCatalog(replacement.State(), sourceRoles, targetRoles, source.importTargets)
@@ -1092,13 +1092,8 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 // replacementACLsLocked validates the default ACLs and every descriptor ACL of
 // a replacement catalog and returns the revision frontier it needs.
 func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevision, error) {
-	if err := catalog.ValidateDefaultACLs(e.roles.read(&e.catalog.Owner, e.catalog.Read(next), e.roles.published), e.catalog.Read(next)); err != nil {
+	if err := e.roles.validateReplacementACLsLocked(&e.catalog.Owner, e.catalog.Read(next), next); err != nil {
 		return 0, err
-	}
-	for _, d := range next.Descriptors() {
-		if err := access.ValidateACL(e.roles.read(&e.catalog.Owner, e.catalog.Read(next), e.roles.published), d); err != nil {
-			return 0, err
-		}
 	}
 	return catalog.RevisionFrontier(e.catalog.NextRevision(), next.Descriptors()), nil
 }

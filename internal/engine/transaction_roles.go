@@ -133,12 +133,7 @@ func (e *Engine) refreshOperationRolesLocked(op *session.Operation) error {
 	}
 	c := t.Catalog.Clone()
 	c.Roles, c.RolesBase = next, e.roles.published
-	if next.Revision >= e.roles.nextRevision {
-		e.roles.nextRevision = next.Revision
-		if next.Revision != ^uint64(0) {
-			e.roles.nextRevision++
-		}
-	}
+	e.roles.advanceRevisionFrontierLocked(next.Revision)
 	t.Catalog = c
 	return nil
 }
@@ -244,9 +239,6 @@ func (e *Engine) reserveMixedACLRevisionLocked(c *session.Journal) error {
 		return err
 	}
 	c.Roles.Revision = max(c.Roles.Revision, revision)
-	e.roles.nextRevision = c.Roles.Revision
-	if c.Roles.Revision != ^uint64(0) {
-		e.roles.nextRevision++
-	}
+	e.roles.advanceRevisionFrontierLocked(c.Roles.Revision)
 	return nil
 }

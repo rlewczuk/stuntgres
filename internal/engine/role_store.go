@@ -65,3 +65,43 @@ func (s *roleStore) revisionCandidateLocked() (uint64, error) {
 	}
 	return max(s.nextRevision, s.published.Revision+1), nil
 }
+
+// publishedRead returns the role view of the committed record as seen by
+// view's current database owner.
+func (s *roleStore) publishedRead(owner *catalog.Owner, view catalog.Read) authorization.Read {
+	return s.read(owner, view, s.published)
+}
+
+// advanceRevisionFrontierLocked moves the revision frontier past revision. It
+// never moves the frontier back, and it saturates at the last revision.
+func (s *roleStore) advanceRevisionFrontierLocked(revision uint64) {
+	if revision < s.nextRevision {
+		return
+	}
+	s.nextRevision = revision
+	if revision != ^uint64(0) {
+		s.nextRevision++
+	}
+}
+
+// roleCapture is a store's committed record and principal frontier, captured
+// together under Engine.mu.
+type roleCapture struct {
+	record        *access.RoleRecord
+	nextPrincipal uint64
+}
+
+// captureLocked captures the committed record and the principal frontier.
+func (s *roleStore) captureLocked() roleCapture {
+	return roleCapture{record: s.published, nextPrincipal: s.nextPrincipal}
+}
+
+// installCapture publishes a captured record in this store's domain, keeping
+// its revision and principal frontier. It returns the source-to-target
+// principal map of the copy. The store must not be shared yet.
+func (s *roleStore) installCapture(c roleCapture) map[authorization.PrincipalRef]authorization.PrincipalRef {
+	targets := make(map[authorization.PrincipalRef]authorization.PrincipalRef, c.record.Root.Read(authorization.PrincipalRef{}).RoleCount())
+	s.published = &access.RoleRecord{Root: c.record.Root.Reprovenance(&s.domain, targets), Revision: c.record.Revision}
+	s.nextPrincipal = c.nextPrincipal
+	return targets
+}

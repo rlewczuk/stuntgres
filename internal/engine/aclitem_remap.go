@@ -5,10 +5,14 @@ import (
 	"math"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) aclItemImporter(sourceEngine *Engine, source, target authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) func(sqltype.Value) (sqltype.Value, error) {
+// aclItemImporter reowns typed aclitem values of a replacement from the
+// source store's ACL authority to this store's. catalogs is the destination
+// catalog store this role store backs.
+func (s *roleStore) aclItemImporter(sourceStore *roleStore, catalogs *catalog.Store, source, target authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) func(sqltype.Value) (sqltype.Value, error) {
 	var principal func(authorization.PrincipalRef) (authorization.PrincipalRef, error)
 	// Structural traversal belongs to typedef.ReownDomainDatum, combining descriptor and
 	// principal changes in one copy-on-change array/composite pass.
@@ -21,20 +25,20 @@ func (e *Engine) aclItemImporter(sourceEngine *Engine, source, target authorizat
 			return sqltype.Value{}, err
 		}
 		// Retained destination-owned temporary objects must not be reimported.
-		if authority == &e.roles.aclAuthority {
+		if authority == &s.aclAuthority {
 			return value, nil
 		}
-		if sourceEngine == nil || authority != &sourceEngine.roles.aclAuthority || !source.BelongsTo(&sourceEngine.roles.domain) {
+		if sourceStore == nil || authority != &sourceStore.aclAuthority || !source.BelongsTo(&sourceStore.domain) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign ACL import identity")
 		}
 		if principal == nil {
-			principal = e.replacementPrincipalMapper(source, target, expected)
+			principal = s.principalMapper(catalogs, source, target, expected)
 		}
 		remap := func(id uint32) (uint32, error) {
 			if id == 0 {
 				return 0, nil
 			}
-			ref, err := principal(sourceEngine.roles.domain.Principal(uint64(id)))
+			ref, err := principal(sourceStore.domain.Principal(uint64(id)))
 			if err != nil {
 				return 0, err
 			}
@@ -58,7 +62,7 @@ func (e *Engine) aclItemImporter(sourceEngine *Engine, source, target authorizat
 				return sqltype.Value{}, err
 			}
 		}
-		physical, err = sqltype.ACLItemValue(physical.Type(), &e.roles.aclAuthority, grantee, grantor, privileges, options)
+		physical, err = sqltype.ACLItemValue(physical.Type(), &s.aclAuthority, grantee, grantor, privileges, options)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

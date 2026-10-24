@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -176,5 +177,5 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 func replacementProcedurePolicyFixture(source, target *Engine) catalog.ProcedureRemapper {
 	sourceRoles := source.roles.read(&source.catalog.Owner, source.catalog.Current(), source.roles.published)
 	targetRoles := target.roles.read(&target.catalog.Owner, target.catalog.Current(), target.roles.published)
-	return catalog.NewProcedureRemapper(target.replacementPrincipalRemap(sourceRoles, targetRoles, nil))
+	return catalog.NewProcedureRemapper(target.roles.principalRemap(&target.catalog, sourceRoles, targetRoles, nil, routine.OperatorSeeded))
 }

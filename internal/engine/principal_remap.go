@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -38,7 +37,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 			foreignTokens[destination] = destination
 		}
 	}
-	policy := e.replacementPrincipalRemap(source, targetSnapshot, expected)
+	policy := e.roles.principalRemap(&e.catalog, source, targetSnapshot, expected, routine.OperatorSeeded)
 	var graph catalog.ProcedureRemapper
 	policy.Procedure = func(original *catalog.Procedure) (*catalog.Procedure, error) {
 		mapped, err := graph(original)
@@ -65,67 +64,18 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 	return state, policy.Procedure, nil
 }
 
-func (e *Engine) replacementPrincipalRemap(source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) catalog.PrincipalRemap {
-	remap := e.replacementPrincipalMapper(source, targetSnapshot, expected)
-	seedOwner := func(ref authorization.PrincipalRef, seeded bool) (authorization.PrincipalRef, error) {
-		if !seeded || ref.ID() != authorization.BootstrapPrincipalID {
-			return remap(ref)
-		}
-		if _, err := source.Descriptor(ref); err != nil {
-			return authorization.PrincipalRef{}, err
-		}
-		target := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
-		if _, err := targetSnapshot.Descriptor(target); err != nil {
-			return authorization.PrincipalRef{}, err
-		}
-		if _, err := e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published).Descriptor(target); err != nil {
-			return authorization.PrincipalRef{}, err
-		}
-		return target, nil
-	}
-	return catalog.PrincipalRemap{Principal: remap, SeededOwner: seedOwner, OperatorSeeded: routine.OperatorSeeded}
-}
-
-// Both authorization ACLs and typed ACL data use the same captured name mapping
-// and target-incarnation fences. Each replacement owns its private memoization.
-func (e *Engine) replacementPrincipalMapper(source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) func(authorization.PrincipalRef) (authorization.PrincipalRef, error) {
-	mapping := make(map[authorization.PrincipalRef]authorization.PrincipalRef)
-	return func(ref authorization.PrincipalRef) (authorization.PrincipalRef, error) {
-		if target, ok := mapping[ref]; ok {
-			return target, nil
-		}
-		d, err := source.Descriptor(ref)
-		if err != nil {
-			return authorization.PrincipalRef{}, err
-		}
-		target, ok := targetSnapshot.Lookup(d.Name)
-		if !ok {
-			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q does not exist", d.Name)
-		}
-		if _, err := e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published).Descriptor(target.Ref); err != nil {
-			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
-		}
-		if expected != nil && expected[ref] != target.Ref {
-			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
-		}
-		mapping[ref] = target.Ref
-		return target.Ref, nil
-	}
-}
-
 func (e *Engine) restoreStage() *Engine {
 	// Capture before reading: dropping and recreating an owner while a reader
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
-	sourceRoles, nextPrincipal := e.roles.published, e.roles.nextPrincipal
+	sourceRoles := e.roles.captureLocked()
 	database := e.catalog.State.MustDatabase(e.catalog.DatabaseAddress())
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
 	if err := stage.InstallForeignDefinitions(e.foreign.Definitions()); err != nil {
 		panic(err)
 	}
-	stage.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef, sourceRoles.Root.Read(authorization.PrincipalRef{}).RoleCount())
-	roles := sourceRoles.Root.Reprovenance(&stage.roles.domain, stage.importTargets)
+	stage.importTargets = stage.roles.installCapture(sourceRoles)
 	retainedDatabase := *database
 	// The private staging engine has its own principal authority, but retains
 	// the selected database address rather than silently reverting to default.
@@ -144,8 +94,6 @@ func (e *Engine) restoreStage() *Engine {
 	}
 	stage.catalog.State.SetDescriptor(database.Address(), &retainedDatabase)
 	stage.catalog.State.BindName(catalog.DescriptorNameKey(&retainedDatabase), database.Address())
-	stage.roles.published = &access.RoleRecord{Root: roles, Revision: sourceRoles.Revision}
-	stage.roles.nextPrincipal = nextPrincipal
 	return stage
 }
 

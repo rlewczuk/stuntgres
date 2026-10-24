@@ -565,12 +565,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.catalog.InstallRevisionFrontierLocked(nextRevision)
 			if c.Roles != nil {
 				e.roles.published = rolePublication
-				if rolePublication.Revision >= e.roles.nextRevision {
-					e.roles.nextRevision = rolePublication.Revision
-					if rolePublication.Revision != ^uint64(0) {
-						e.roles.nextRevision++
-					}
-				}
+				e.roles.advanceRevisionFrontierLocked(rolePublication.Revision)
 			}
 			for a, d := range c.Descriptors {
 				if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == sess.SessionToken {

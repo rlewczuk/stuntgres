@@ -151,7 +151,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	importer := target.aclItemImporter(source, source.Roles(), target.Roles(), nil)
+	importer := target.roles.aclItemImporter(source.roles, &target.catalog, source.Roles(), target.Roles(), nil)
 	snapshot := &index.Snapshot{}
 	mapped, err := snapshot.Datum(composite, toComposite, nil, importer)
 	if err != nil {

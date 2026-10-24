@@ -50,7 +50,7 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 		t.Fatal("zero grantor dump accepted")
 	}
 	target := New()
-	mapped, err := target.aclItemImporter(e, e.Roles(), target.Roles(), nil)(value)
+	mapped, err := target.roles.aclItemImporter(e.roles, &target.catalog, e.Roles(), target.Roles(), nil)(value)
 	if err != nil {
 		t.Fatal(err)
 	}

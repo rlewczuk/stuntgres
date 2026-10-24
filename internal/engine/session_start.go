@@ -134,7 +134,8 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 			err = authorization.ValidateInitialRole(e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), authenticated, resetRole)
 		}
 		if err == nil && !private {
-			err = e.checkDatabaseConnectLocked(ctx, authenticated)
+			view := e.catalog.Current()
+			err = checkDatabaseConnect(ctx, view, e.roles.read(&e.catalog.Owner, view, e.roles.published), authenticated)
 		}
 	}
 	s.Mu.Lock()
