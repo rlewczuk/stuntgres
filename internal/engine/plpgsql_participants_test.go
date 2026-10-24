@@ -91,7 +91,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		ownerExtensionOf(s.owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}}}}
-		_, flow, err := (*plWalk)(s.newPLRun(nil, frame, e.CatalogRead())).Block(block)
+		_, flow, err := s.newPLRun(nil, frame, e.CatalogRead()).Block(block)
 		if flow.Kind != proc.PLNormal || !errors.Is(err, failure) || len(s.owner.Savepoints) != 0 || !reflect.DeepEqual(tx.calls, []string{"save:stuntgres_sql_1", "rollback"}) {
 			t.Fatal("failed acquisition ran body/retained provider mark", flow, err, tx.calls)
 		}
@@ -119,7 +119,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		frame.EnterHandler(scope, original)
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Rethrow: true}}}, HandlerScope: scope, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
 		enclosing := &proc.PLBlock{Statements: []proc.PLInstruction{{Block: block}}, HandlerScope: scope, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
-		_, flow, err := (*plWalk)(s.newPLRun(nil, frame, e.CatalogRead())).Block(enclosing)
+		_, flow, err := s.newPLRun(nil, frame, e.CatalogRead()).Block(enclosing)
 		var diagnostic *sqlstate.Error
 		var cleanup *proc.PLExceptionCleanupError
 		if flow.Kind != proc.PLNormal || !errors.As(err, &cleanup) || !errors.As(err, &diagnostic) || diagnostic != original || !errors.Is(err, failure) {
@@ -152,7 +152,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		s.op.Ctx = ctx
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
-		_, flow, err := (*plWalk)(s.newPLRun(nil, frame, e.CatalogRead())).Block(block)
+		_, flow, err := s.newPLRun(nil, frame, e.CatalogRead()).Block(block)
 		if flow.Kind != proc.PLNormal || !errors.Is(err, context.Canceled) || len(s.owner.Savepoints) != 0 {
 			t.Fatal("OTHERS swallowed ordinary context error", flow, err)
 		}

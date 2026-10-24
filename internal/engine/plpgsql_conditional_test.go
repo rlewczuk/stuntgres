@@ -71,7 +71,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 				defer cancel()
 				s.op.Ctx = conditionalFrameCancel{Context: ctx, cancel: cancel, frame: f}
 			}
-			value, flow, err := (*plWalk)(s.newPLRun(d, f, read)).Block(d.SQL.PL.Root)
+			value, flow, err := s.newPLRun(d, f, read).Block(d.SQL.PL.Root)
 			if tc.cancel {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal("active search cancellation lost", err)

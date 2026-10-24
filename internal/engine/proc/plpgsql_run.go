@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -66,4 +67,8 @@ type PLRun struct {
 	Host       PLHost
 	Definition *Definition
 	Frame      *PLFrame
+}
+
+func plError(code, message string) *sqlstate.Error {
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }

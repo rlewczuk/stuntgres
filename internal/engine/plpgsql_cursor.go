@@ -78,7 +78,7 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 				if i < len(values) {
 					value = values[i]
 				}
-				if _, e = (*plWalk)(run).AssignVariable(arg.Slot, value, proc.PLOrigin{}); e != nil {
+				if _, e = run.AssignVariable(arg.Slot, value, proc.PLOrigin{}); e != nil {
 					return nil, name, e
 				}
 			}
@@ -259,7 +259,7 @@ func (s *StatementScope) assignPLCursorTargets(run *proc.PLRun, f *proc.PLFrame,
 	if len(targets) == 1 {
 		v := f.Program.Variables[targets[0].Slot]
 		if len(targets[0].Steps) == 0 && (v.Record || v.Usage.Type.BaseType().IsComposite()) {
-			return (*plWalk)(run).AssignRow(targets[0].Slot, &cursor.recordShape, (*plColumns)(&cursor.schema), fields, proc.PLOrigin{})
+			return run.AssignRow(targets[0].Slot, &cursor.recordShape, (*plColumns)(&cursor.schema), fields, proc.PLOrigin{})
 		}
 		value := sqltype.Null(f.Program.Variables[f.Program.FoundSlot].Usage.Type)
 		if len(fields) != 0 {
@@ -346,7 +346,7 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, run *proc.PLRun, f *p
 			break
 		}
 		iterated = true
-		value, flow, err = (*plWalk)(run).Block(in.Cursor.Loop)
+		value, flow, err = run.Block(in.Cursor.Loop)
 		if err != nil {
 			return value, flow, err
 		}

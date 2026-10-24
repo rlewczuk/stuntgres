@@ -32,5 +32,5 @@ func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, 
 	previousIdentity := s.sqlRoutine.plDiagnostic
 	s.sqlRoutine.plDiagnostic = diagnosticIdentity
 	defer func() { s.sqlRoutine.plDiagnostic = previousIdentity }()
-	return (*plWalk)(s.newPLRun(d, f, read)).Trigger(relation.RowType)
+	return s.newPLRun(d, f, read).Trigger(relation.RowType)
 }

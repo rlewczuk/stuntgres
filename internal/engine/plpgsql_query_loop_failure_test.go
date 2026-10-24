@@ -51,7 +51,7 @@ func queryLoopDemandFailure(t *testing.T) {
 			rows, source := queryLoopUnitRows(t, schema, [][]sqltype.Value{{value}}, projection)
 			owner := &exec.CTEInvocation{Frame: 1}
 			owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
-			_, flow, err := (*plWalk)(plQueryLoopTestRun(s, d, f, read, owned)).Statements(outer.Statements[:1])
+			_, flow, err := plQueryLoopTestRun(s, d, f, read, owned).Statements(outer.Statements[:1])
 			if assignment {
 				var state interface{ SQLState() string }
 				if !errors.As(err, &state) || state.SQLState() != "22P02" {

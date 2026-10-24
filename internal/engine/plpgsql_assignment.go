@@ -50,7 +50,7 @@ func (s *StatementScope) assignPLTarget(f *proc.PLFrame, checked proc.PLTarget, 
 // the selected leaf conversion, and each ancestor is reconstructed exactly once.
 func (s *StatementScope) preparePLTargetValue(run *proc.PLRun, f *proc.PLFrame, checked proc.PLTarget, value, current sqltype.Value, read catalog.Read) (candidate sqltype.Value, err error) {
 	if len(checked.Steps) == 0 {
-		return (*plWalk)(run).PrepareVariable(checked.Slot, value, proc.PLOrigin{})
+		return run.PrepareVariable(checked.Slot, value, proc.PLOrigin{})
 	}
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()

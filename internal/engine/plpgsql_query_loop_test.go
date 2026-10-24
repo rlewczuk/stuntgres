@@ -62,7 +62,7 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 			rows, source := queryLoopUnitRows(t, schema, [][]sqltype.Value{{one}, {two}}, projection)
 			owner := &exec.CTEInvocation{Frame: 1}
 			owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
-			_, flow, err := (*plWalk)(plQueryLoopTestRun(s, d, f, read, owned)).Statements(outer.Statements[:1])
+			_, flow, err := plQueryLoopTestRun(s, d, f, read, owned).Statements(outer.Statements[:1])
 			if retained.Type() != nil {
 				if got, _ := retained.CompositeField(0).Integer(); got != 1 {
 					t.Fatal("later row mutated retained first row", got)
@@ -106,7 +106,7 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 		schema := []catalog.Column{{Name: "i", Usage: integer.Usage()}}
 		projection := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 		rows, _ := queryLoopUnitRows(t, schema, nil, projection)
-		_, _, err := (*plWalk)(plQueryLoopTestRun(s, d, f, read, rows)).Statements(outer.Statements[:1])
+		_, _, err := plQueryLoopTestRun(s, d, f, read, rows).Statements(outer.Statements[:1])
 		if found, _ := f.Values[f.Program.FoundSlot].Boolean(); err != nil || found || !rows.closed {
 			t.Fatal("empty demand", found, err)
 		}
@@ -168,7 +168,7 @@ func TestPLpgSQLQueryLoopCancellation(t *testing.T) {
 	rows, source := queryLoopUnitRows(t, []catalog.Column{{Name: "i", Usage: integer.Usage()}}, [][]sqltype.Value{{value}, {value}}, plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0})
 	owner := &exec.CTEInvocation{Frame: 1}
 	owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
-	_, flow, err := (*plWalk)(plQueryLoopTestRun(s, d, f, read, owned)).Statements(outer.Statements[:1])
+	_, flow, err := plQueryLoopTestRun(s, d, f, read, owned).Statements(outer.Statements[:1])
 	s.op.Ctx = originalContext
 	if f.Values[in.QueryLoop.Target.Slot].Type() == nil || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
 		t.Fatal("empty-body cancellation retained producer authority", flow, err)

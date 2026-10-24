@@ -38,7 +38,7 @@ func (h *plHost) beginQueryRows(f *proc.PLFrame, in proc.PLInstruction) *plQuery
 	h.depth++
 	s := h.s
 	diagnosticIdentity := s.sqlRoutine.plDiagnostic
-	*q = plQueryRows{host: h, position: in.Syntax.Pos, origin: s.plNoticeOrigin(f, in.Syntax.Pos, plQueryLoopAction)}
+	*q = plQueryRows{host: h, position: in.Syntax.Pos, origin: s.plNoticeOrigin(f, in.Syntax.Pos, proc.PLQueryLoopAction)}
 	q.restore = s.activateSQLRoutine(nil, h.read)
 	s.sqlRoutine.lexical, s.sqlRoutine.scalar, s.sqlRoutine.rows = f, false, true
 	s.sqlRoutine.plDiagnostic = diagnosticIdentity
@@ -57,7 +57,7 @@ func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
 	raw, query := in.Syntax.QueryLoop, in.QueryLoop.Query
 	planningError := func(cause error) error {
 		diagnostic := proc.PLDiagnosticQuery{Text: parser.PLExpressionSource(f.Program.Source, raw.Start, raw.End), Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
-		return s.plRuntimeQueryError(cause, q.host.read, q.host.d, q.position, plQueryLoopAction, diagnostic)
+		return s.plRuntimeQueryError(cause, q.host.read, q.host.d, q.position, proc.PLQueryLoopAction, diagnostic)
 	}
 	s.sqlRoutine.plPlanning = true
 	if err = s.acquireRelation(query, true); err != nil {
@@ -99,7 +99,7 @@ func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
 }
 
 func (q *plQueryRows) queryError(cause error) error {
-	return q.host.s.plRuntimeQueryError(cause, q.host.read, q.host.d, q.position, plQueryLoopAction, proc.PLDiagnosticQuery{})
+	return q.host.s.plRuntimeQueryError(cause, q.host.read, q.host.d, q.position, proc.PLQueryLoopAction, proc.PLDiagnosticQuery{})
 }
 
 func (q *plQueryRows) Width() int { return len(q.schema) }

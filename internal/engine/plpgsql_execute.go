@@ -24,7 +24,7 @@ func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame
 	previousIdentity := s.sqlRoutine.plDiagnostic
 	s.sqlRoutine.plDiagnostic = identity
 	defer func() { s.sqlRoutine.plDiagnostic = previousIdentity }()
-	return (*plWalk)(s.newPLRun(d, nil, read)).Invoke(input, collation)
+	return s.newPLRun(d, nil, read).Invoke(input, collation)
 }
 
 // Admission and the real executor handoff are shared by scalar expressions and
