@@ -214,4 +214,33 @@ host does both. Move the walk paragraphs of the root README there.
   as prefixes, without `$`. Finding for 180: the feature commit `f3a050354`
   (transactional role DDL) added root production code, for example
   `transaction_roles.go`.
-- 170: not started.
+- 170: done (`2a1ad8f5b`, `83e97e898`, `e10a85e40`, `7509d27ef`, `18db099f5`,
+  docs commit). Deviations:
+  - Feature commit `df178ae19` (RAISE/ASSERT) landed in the walk after this
+    item was planned. `PLHost` gained an eleventh method, `Message(f, in)`, and
+    notice-context bracketing moved into `Evaluate`, `Convert` and
+    `AssignTarget` through a `PLOrigin` argument (a zero origin adds none).
+  - `Cursor` returns `(sqltype.Value, PLFlow, error)`: a RETURN inside a
+    cursor-FOR body carries its value.
+  - `PLRun.Statements` is exported (root query-loop units run one instruction);
+    `PLColumns` is split from `PLRows` so the root cursor passes its schema to
+    `AssignRow`; `PLQueryLoopAction` is exported for the root adapter.
+  - The loop method keeps the name `executePLLoop`: the reference loop
+    cancellation fixture waits for that stack frame.
+  - `invokePLRoutine` and `invokePLTrigger` stay as root entries that publish
+    the diagnostic identity; the identity lookup now precedes the two internal
+    program/collation invariant checks.
+  - Allocation: one `plInvocation` (run and host) per invocation; the
+    outermost query-FOR adapter is inline and nested ones are reused per depth.
+    `BenchmarkPLpgSQLWalk` (new): +1 allocation and +320 B per invocation,
+    unchanged per statement, iteration and query loop. `BenchmarkOpenDatabase`
+    unchanged (about 2 ms and 5,460 allocations on this machine before and after).
+  - Tests: new `TestPLRun(ControlFlow|ExceptionBoundary|Origins|LoopCancellation|QueryLoop)`
+    in `proc`. Root units call `s.newPLRun(...)`; the query-loop units inject
+    their producer through a test host that overrides `OpenQuery` but keeps
+    the real `plQueryRows` activation and close. None deleted.
+
+  Notes for 177 and 180: the root keeps the PL adapters (`plpgsql_host.go`,
+  `plpgsql_query_loop.go`), cursors, messages, checkpoints and expression
+  execution. Feature commit `3c8844b8c` (transactional privileges) added root
+  production code, for example `privilege_admission.go`.

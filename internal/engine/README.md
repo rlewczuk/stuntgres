@@ -33,13 +33,11 @@ before the boundary. Success releases it; failure restores effects before matchi
 and runs the handler outside the failed mark. Provider callbacks run unlocked,
 cleanup ignores cancellation, and failed cleanup prevents further handler execution
 while preserving the originating diagnostic and secondary failure.
-RETURN/EXIT/CONTINUE use compact non-error flow, so successful protected transfers
-release checkpoints rather than invoking handlers. Blocks and loops consume only
-their own transfers; cursor-FOR publishes FOUND and retires its owned portal before
-propagating outward flow, restoring initially NULL cursor variables. Loop iteration
-checks the admitted operation context even for an empty body, without allocating a
-control signal per iteration. The hidden function namespace is not a block-exit
-consumer; an escaping EXIT reaches the routine's missing-RETURN diagnostic.
+The statement walk is `proc.PLRun` ([proc README](proc/README.md)); `plpgsql_host.go`
+adapts it per invocation (`plHost`, allocated once with its run) and keeps
+expression execution, conversion, checkpoints, cursors and RAISE/ASSERT here.
+Cursor-FOR re-enters `PLRun.Block`, publishes FOUND and retires its owned portal
+before propagating outward flow, restoring initially NULL cursor variables.
 PL diagnostic signatures belong to the existing per-session routine-analysis
 cache, seeded by CREATE validation or that session's first admitted invocation.
 They use exact-signature visibility over the current definition overlay and
@@ -61,16 +59,14 @@ before lexical scratch activation. Query-loop producer execute/fetch/close range
 exclude body execution, so a body message does not gain a spurious FOR frame.
 No callback stack or rendered context is allocated when a range is empty; error
 unwinding and later adapter callback delivery remain separate.
-Static query loops borrow a private all-row producer under a live lexical
-activation. Pure SELECT CTE resources transfer to the returned row owner, whose
-main stage closes before its CTE chain and captured sources. Borrowed CTE scope
-pointers restore independently of retained resource ownership. DML and modifying
-CTEs complete eagerly and settle command effects before body execution, with one
-width-sized traversal buffer and no second result materialization. Detached
-records or ordinal named-row conversion share FETCH's assignment owner; an empty
-first demand assigns descriptor-shaped NULLs. Targets survive loop transfer.
-FOUND publishes only after successful producer cleanup; body/error diagnostics
-retain their own action, and runtime source failures use the FOR action alone.
+Static query loops borrow a private all-row producer (`plQueryRows`, reused per
+nesting depth) under a live lexical activation that spans the body. Pure SELECT
+CTE resources transfer to the returned row owner, whose main stage closes before
+its CTE chain and captured sources. Borrowed CTE scope pointers restore
+independently of retained resource ownership. DML and modifying CTEs complete
+eagerly and settle command effects before body execution, with no second result
+materialization. Its `Close` closes the producers, formats their failures and
+then ends the activation; open failures are already formatted.
 
 Accepted write events retain their actual predecessor/successor and command token.
 `sql_command_effects.go` completes only the active nested SQL command's pending

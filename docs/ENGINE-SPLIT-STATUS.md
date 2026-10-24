@@ -16,17 +16,17 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `6bd13811c` (item 171 based on it; three
-feature commits, `7ae826adb`, `cae4fce3f` and `6bd13811c`, added root
-production code since item 169).
+Last verified against `master` at `3c8844b8c` (item 170 rebased on it; feature
+commits `df178ae19` and `3c8844b8c` added root production code since item 171's
+check, `df178ae19` inside the PL walk).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 170, 172, 173, 174, 175 and 176. Item 174 and item 170 both edit the
-  PL/pgSQL query-loop unit tests, so whichever merges second rebases.
+- 172, 173, 174, 175 and 176. Item 174 rebases over item 170's rewritten
+  PL/pgSQL query-loop unit tests.
 
 ## Linear plan
 
@@ -56,9 +56,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      to `plan`; quickcheck, quick and `REFERENCE=1`
      selections and deps passed; bench skipped (error paths and a value
      type only); racecheck and finalcheck skipped (user decision)
-170. [ ] Proc: PL/pgSQL statement walk —
+170. [x] Proc: PL/pgSQL statement walk —
      [proc](ENGINE-SPLIT-proc.md#item-170--plpgsql-statement-walk) · needs
-     169 · 0.45k
+     169 · 0.45k (`2a1ad8f5b`, `83e97e898`, `e10a85e40`, `7509d27ef`,
+     `18db099f5`, docs commit) · the walk moved to `proc.PLRun` behind the
+     11-method `proc.PLHost`, adapted by the root `plHost`; quickcheck, quick
+     and `REFERENCE=1` selections, `RACE=1` exception and cancellation units,
+     bench (+1 allocation per invocation only) and deps passed; racecheck and
+     finalcheck skipped (user decision)
 171. [x] View: trigger DDL decisions —
      [view](ENGINE-SPLIT-view.md#item-171--trigger-ddl-decisions) · needs —
      · 0.25k (`72e54064b`, `8f6aeb486`, docs commit) · CREATE, ALTER and DROP

@@ -228,8 +228,38 @@ The PL action line comes independently from the statement keyword.
 `PLFlow` carries RETURN/EXIT/CONTINUE as a non-error value addressed to a
 `PLControl` token. `NewPLTriggerFrame` builds a trigger invocation frame from a
 caller-resolved `PLTriggerRelation`; `(*PLFrame).CursorName` reads a cursor slot.
-The statement walk, checkpoints and every lookup that needs the catalog stay in
-the root.
+
+## Statement walk
+
+`PLRun{Host, Definition, Frame}` walks one invocation of a checked program
+(`plpgsql_walk*.go`). Entry points: `Invoke` (fresh frame, result selection and
+the missing-RETURN diagnostic), `Trigger` (caller's trigger frame, then
+`TriggerReturn` against the current row type), `Block` and `Statements`.
+`AssignVariable`, `PrepareVariable` and `AssignRow` are exported for the host's
+cursor and target code. The walk holds no lock and allocates nothing per
+statement or loop iteration; record rows are detached once per published row.
+
+`PLHost` is the walk's only capability; every method takes values and runs with
+nothing held. `Evaluate`, `Convert` and `AssignTarget` execute SQL and finalize
+notices emitted during that call with the `PLOrigin` statement action (a zero
+origin adds none). `Identity` is called only on error paths. `BeginException`
+and `EndException` bracket a block with handlers around an opaque `PLCheckpoint`;
+initializers run before it, and a `PLExceptionCleanupError` or a non-SQL error
+(cancellation) skips handler matching. `OpenQuery` returns `PLRows` with errors
+already formatted; the walk calls `PLRows.Close` exactly once with its primary
+error and publishes FOUND only if that returns nil. `Cursor` and `Message` run
+cursor statements and RAISE/ASSERT.
+
+RETURN/EXIT/CONTINUE use compact non-error flow, so successful protected
+transfers release checkpoints rather than invoking handlers. Blocks and loops
+consume only their own transfers. Loop iteration checks `Host.Context()` even for
+an empty body; `executePLLoop` keeps its name because a reference cancellation
+fixture waits for that frame. The hidden function namespace is not a block-exit
+consumer; an escaping EXIT reaches the routine's missing-RETURN diagnostic.
+Query loops use one width-sized demand buffer. Anonymous records are detached
+per row; named rows use ordinal assignment conversion. An empty first demand
+assigns descriptor-shaped NULLs, targets survive loop transfer, body and error
+diagnostics keep their own action, and source failures use the FOR action alone.
 
 ## Testing
 
@@ -243,6 +273,7 @@ PL cursor units use `RUN='^TestPLpgSQLCursor'`; public scenarios live in
 Static query-loop validation units use `RUN='^TestPLpgSQLQueryLoopValidation$'`.
 Runtime diagnostic units use `RUN='^TestPL(FormatError|AssignmentErrorPhase|CaseExpressionError|pgSQLCursorCurrentDiagnostic)'`.
 Message/assertion compilation and validation use `RUN='^TestPLpgSQL(Raise|Assert)'`.
+Statement-walk units over a fake host use `RUN='^TestPLRun'`.
 
 ```sh
 make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'
