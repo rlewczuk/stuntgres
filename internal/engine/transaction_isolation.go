@@ -244,7 +244,7 @@ func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error
 	return session.ReadOnlyRefusal(stmt, t.ReadOnly)
 }
 func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
-	if !session.ExplicitUtility(stmt) || session.TransactionalSchemaUtility(stmt) || transactionalIndexMaintenance(stmt) || s.partitionIndexTransaction(stmt) {
+	if !session.ExplicitUtility(stmt) || session.TransactionalSchemaUtility(stmt) || transactionalIndexMaintenance(stmt) || transactionalRoleUtility(stmt) || s.partitionIndexTransaction(stmt) {
 		return nil
 	}
 	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character == 0 {
@@ -264,6 +264,14 @@ func transactionalIndexMaintenance(stmt parser.Statement) bool {
 		return s.Concurrent.Character == 0
 	case *parser.AlterIndex:
 		return s.Action == "rename" || s.Action == "set" || s.Action == "reset"
+	}
+	return false
+}
+
+func transactionalRoleUtility(stmt parser.Statement) bool {
+	switch stmt.(type) {
+	case *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.RoleMembership, *parser.SessionAuthorization:
+		return true
 	}
 	return false
 }

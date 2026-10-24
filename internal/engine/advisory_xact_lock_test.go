@@ -48,7 +48,7 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 							e := New()
 							a, _ := advisoryUnitOwner(t, e)
 							b, _ := advisoryUnitOwner(t, e)
-							key := lock.Resource{Kind: kind, High: 0xffffffff, Low: 0x80000000}
+							key := lock.Resource{Database: e.catalog.Domain, Kind: kind, High: 0xffffffff, Low: 0x80000000}
 							advisoryXactUnitGrant(t, a, key, held, holderXact)
 							r, err := advisoryXactUnitAcquire(t, b, key, requested, requestXact, true)
 							compatible := held == lock.AdvisoryShare && requested == lock.AdvisoryShare
@@ -76,7 +76,7 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 			a, _ := advisoryUnitOwner(t, e)
 			b, _ := advisoryUnitOwner(t, e)
 			c, _ := advisoryUnitOwner(t, e)
-			key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 7, Low: 8}
+			key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 7, Low: 8}
 			advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, xact)
 			r, err := advisoryXactUnitAcquire(t, b, key, lock.AdvisoryExclusive, true, false)
 			if err != nil || r == nil {
@@ -104,7 +104,7 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, _ := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 32}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 32}
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, true)
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, true)
 		if got := advisoryXactUnitHold(a, key); got != (lock.Hold{Mode: lock.AdvisoryShare}) {
@@ -135,7 +135,7 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		e := New()
 		a, _ := advisoryUnitOwner(t, e)
 		b, _ := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 1, Low: 2}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 1, Low: 2}
 		pair := key
 		pair.Kind = lock.AdvisoryPairResource
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
@@ -164,8 +164,8 @@ func TestAdvisoryXactSavepointLifecycle(t *testing.T) {
 		b, _ := advisoryUnitOwner(t, e)
 		m := e.locks
 		ticket := a.Transactions.Ticket
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 1}
-		child := lock.Resource{Kind: lock.AdvisoryPairResource, Low: 1}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 1}
+		child := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, Low: 1}
 		advisoryXactUnitGrant(t, a, key, outer, true)
 		mark := m.Checkpoint(ticket)
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, true)
@@ -201,9 +201,9 @@ func TestAdvisoryXactSavepointLifecycle(t *testing.T) {
 			e := New()
 			a, ra := advisoryUnitOwner(t, e)
 			b, rb := advisoryUnitOwner(t, e)
-			key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 8, Low: 9}
+			key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 8, Low: 9}
 			advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
-			persistent := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 88}
+			persistent := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 88}
 			advisoryUnitGrant(t, a, ra, persistent, lock.AdvisoryShare)
 			transactionEnd(t, b, rb, false)
 			ticket, _, done := advisoryUnitScopeWait(t, b, key, functions.AdvisoryTransaction)

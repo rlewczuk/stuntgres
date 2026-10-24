@@ -57,7 +57,7 @@ func TestRelationLockIdentity(t *testing.T) {
 	if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: newref}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.Fence(tref.Epoch)
+	e.locks.Fence(e.catalog.Domain, tref.Epoch)
 	e.endLockOwner(ticket)
 	lockState := e.locks.Inspect()
 	held := lockState.Resources[lock.Resource{ObjectRef: newref}].Holders[a.Transactions.Ticket].Mode

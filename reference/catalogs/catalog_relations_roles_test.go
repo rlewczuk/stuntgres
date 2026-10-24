@@ -135,18 +135,13 @@ func catalogRelationsHeld(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("BEGIN", 0))
 	defer conn.ExecContext(p.Ctx, "ROLLBACK")
 	utility := "CREATE ROLE cr_held_rollback NOLOGIN"
-	if b.PG {
-		fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(utility, 0))
-		rolled := catalogRelationsRoleOID(t, p, conn, "cr_held_rollback")
-		lookup(rolled, "cr_held_rollback")
-		fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("ROLLBACK", 0))
-		lookup(rolled, fmt.Sprintf("unknown (OID=%d)", rolled))
-	} else {
-		s := fixture.ImplicitError(utility, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-		s.ErrorStage = "execute"
-		fixture.RunStep(t, p.Ctx, conn, b.Recorder, s)
-		fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("ROLLBACK", 0))
-	}
+	fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(utility, 0))
+	rolled := catalogRelationsRoleOID(t, p, conn, "cr_held_rollback")
+	lookup(rolled, "cr_held_rollback")
+	fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select("SELECT pg_get_userbyid(oid)=rolname AS same FROM pg_catalog.pg_roles WHERE rolname='cr_held_rollback'", []string{"same"}, []string{"BOOL"}, [][]any{{true}}))
+	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT count(*) AS n FROM pg_catalog.pg_roles WHERE rolname='cr_held_rollback'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
+	fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("ROLLBACK", 0))
+	lookup(rolled, fmt.Sprintf("unknown (OID=%d)", rolled))
 	fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select("SELECT count(*) AS n FROM pg_catalog.pg_roles WHERE rolname='cr_held_rollback'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
 	lookup(fresh, "cr_held_role")
 	// Both backends support transactional effective-role changes. Retain the

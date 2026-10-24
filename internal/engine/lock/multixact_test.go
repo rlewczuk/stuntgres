@@ -33,7 +33,7 @@ func (f *lockFixture) multiEmit(owner *Ticket, tuple MultiTuple, mode MultiMode)
 
 func (f *lockFixture) multiWant(id uint32, want ...string) {
 	f.t.Helper()
-	members, err := f.m.MultiXactMembers(nil, id)
+	members, err := f.m.MultiXactMembers(f.domain, nil, id)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestMultiXactCounterWrapCacheAndRetirement(t *testing.T) {
 	a.MirrorFullXID(3)
 	b.MirrorFullXID(4)
 	f.m.mu.Lock()
-	f.m.multiNext = 4294967295
+	f.m.domains[f.domain].multiNext = 4294967295
 	f.m.mu.Unlock()
 	first := f.multiTuple(1)
 	second := f.multiTuple(2)
@@ -93,7 +93,7 @@ func TestMultiXactCounterWrapCacheAndRetirement(t *testing.T) {
 		f.multiGrant(b, tuple, ForShare)
 		f.multiEmit(b, tuple, MultiShare)
 	}
-	if f.m.NextMultiXact() != 1 {
+	if f.m.NextMultiXact(f.domain) != 1 {
 		t.Fatal("zero skip/owner-local same-bag cache")
 	}
 	f.multiWant(4294967295, "3/keysh", "4/sh")
@@ -101,16 +101,16 @@ func TestMultiXactCounterWrapCacheAndRetirement(t *testing.T) {
 		t.Fatal("same backend did not reuse exact member set")
 	}
 	f.m.mu.Lock()
-	f.m.retireMultiXactsLocked()
+	f.m.retireMultiXactsLocked(f.domain)
 	f.m.mu.Unlock()
-	if f.m.NextMultiXact() != 1 {
+	if f.m.NextMultiXact(f.domain) != 1 {
 		t.Fatal("retirement reset counter")
 	}
 	for _, tc := range []struct {
 		id      uint32
 		message string
 	}{{0, "invalid MultiXactId: 0"}, {1, "MultiXactId 1 has not been created yet -- apparent wraparound"}, {4294967295, "MultiXactId 4294967295 does no longer exist -- apparent wraparound"}} {
-		_, err := f.m.MultiXactMembers(nil, tc.id)
+		_, err := f.m.MultiXactMembers(f.domain, nil, tc.id)
 		var state *sqlstate.Error
 		code := "XX000"
 		if tc.id == 0 {

@@ -125,28 +125,32 @@ func canonicalMultiMembers(members []MultiMember) {
 		return int(a.Mode) - int(b.Mode)
 	})
 }
-func (m *Manager) NextMultiXact() uint32 {
+func (m *Manager) NextMultiXact(domain *ids.Domain) uint32 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.multiNext
+	if state := m.domains[domain]; state != nil {
+		return state.multiNext
+	}
+	return 0
 }
-func (m *Manager) MultiXactMembers(owner *Ticket, id uint32) ([]MultiMember, error) {
+func (m *Manager) MultiXactMembers(domain *ids.Domain, owner *Ticket, id uint32) ([]MultiMember, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if owner != nil && (!m.valid(owner) || owner.OwnershipEnded()) {
+	state := m.domains[domain]
+	if state == nil || owner != nil && (!m.valid(owner) || owner.persistent || owner.ref.Domain() != domain || owner.OwnershipEnded()) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if id == 0 {
 		return nil, sqlError("22023", "invalid MultiXactId: 0")
 	}
-	if members, ok := m.multiHistory[id]; ok {
+	if members, ok := state.multiHistory[id]; ok {
 		if owner != nil {
 			owner.multiCache = rememberMultiXact(owner.multiCache, id)
 		}
 		return slices.Clone(members), nil
 	}
 	message := "does no longer exist"
-	if int32(id-m.multiNext) >= 0 {
+	if int32(id-state.multiNext) >= 0 {
 		message = "has not been created yet"
 	}
 	return nil, sqlError("XX000", fmt.Sprintf("MultiXactId %d %s -- apparent wraparound", id, message))
@@ -154,23 +158,29 @@ func (m *Manager) MultiXactMembers(owner *Ticket, id uint32) ([]MultiMember, err
 func (m *Manager) MultiAge(owner *Ticket, id uint32) (int32, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !m.valid(owner) || owner.OwnershipEnded() {
+	if !m.valid(owner) || owner.persistent || owner.OwnershipEnded() {
 		return 0, ids.ErrCatalogReplaced
 	}
-	return multiTransactionAge(m.multiNext, id), nil
+	return multiTransactionAge(m.domains[owner.ref.Domain()].multiNext, id), nil
 }
 
-func (m *Manager) retireMultiXactsLocked() {
-	clear(m.multiRows)
-	clear(m.multiHistory)
+func (m *Manager) retireMultiXactsLocked(domain *ids.Domain) {
+	for tuple := range m.multiRows {
+		if tuple.Domain() == domain {
+			delete(m.multiRows, tuple)
+		}
+	}
+	clear(m.domains[domain].multiHistory)
 	for _, owner := range m.owners {
-		clear(owner.multiContributions)
-		owner.multiCache = nil
+		if owner.ref.Domain() == domain {
+			clear(owner.multiContributions)
+			owner.multiCache = nil
+		}
 	}
 }
 
 func (m *Manager) validMultiTuple(owner *Ticket, key MultiTuple) bool {
-	return key.Kind == OrdinaryResource && key.Name == (ids.NameKey{}) && key.Row != 0 && key.High == 0 && key.Low == 0 && key.Address.ClassID == ids.RelationClassID && key.Address.SubID == 0 && key.key == nil && key.completion == nil && key.Version != 0 && key.ObjectRef.Domain() == m.domain && key.Epoch == owner.ref.Epoch()
+	return !owner.persistent && key.Kind == OrdinaryResource && key.Database == nil && !key.RoleTuple && key.Name == (ids.NameKey{}) && key.Row != 0 && key.High == 0 && key.Low == 0 && key.Address.ClassID == ids.RelationClassID && key.Address.ObjectID != 0 && key.Address.SubID == 0 && key.key == nil && key.completion == nil && key.Version != 0 && key.ObjectRef.Domain() == owner.ref.Domain() && key.Epoch == owner.ref.Epoch()
 }
 
 // No Engine/owner mutex is held. The whole batch is prepared privately before
@@ -181,7 +191,7 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !m.valid(owner) || owner.OwnershipEnded() {
+	if !m.valid(owner) || owner.persistent || owner.OwnershipEnded() {
 		return ErrOwnerEnded
 	}
 	xid := owner.AssignedPublicXID()
@@ -229,7 +239,8 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 		}
 		return m.multiRows[key]
 	}
-	next := m.multiNext
+	state := m.domains[owner.ref.Domain()]
+	next := state.multiNext
 	var records map[uint32][]MultiMember
 	cache := owner.multiCache
 	privateCache := false
@@ -245,7 +256,7 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 	}
 	intern := func(members []MultiMember) (uint32, error) {
 		for _, id := range cache {
-			cached := m.multiHistory[id]
+			cached := state.multiHistory[id]
 			if cached == nil {
 				cached = records[id]
 			}
@@ -254,7 +265,7 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 				return id, nil
 			}
 		}
-		if _, exists := m.multiHistory[next]; exists {
+		if _, exists := state.multiHistory[next]; exists {
 			return 0, errors.New("stuntgres: retained MultiXact identity collision")
 		}
 		if _, exists := records[next]; exists {
@@ -379,8 +390,8 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 	if m.multiRows == nil {
 		m.multiRows = make(map[MultiTuple]multiRow)
 	}
-	if len(records) != 0 && m.multiHistory == nil {
-		m.multiHistory = make(map[uint32][]MultiMember)
+	if len(records) != 0 && state.multiHistory == nil {
+		state.multiHistory = make(map[uint32][]MultiMember)
 	}
 	for key, row := range rows {
 		if len(row.members) == 0 {
@@ -396,12 +407,12 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 		c.owner.multiContributions[c.tuple] = bits
 	}
 	for id, members := range records {
-		m.multiHistory[id] = members
+		state.multiHistory[id] = members
 	}
 	if privateCache {
 		owner.multiCache = cache
 	}
-	m.multiNext = next
+	state.multiNext = next
 	return nil
 }
 

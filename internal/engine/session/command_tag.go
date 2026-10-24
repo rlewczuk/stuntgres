@@ -235,13 +235,24 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 			base = "GRANT"
 		}
 	case *parser.RoleMembership:
-		if s.Revoke {
-			base = "REVOKE"
+		if s.Alias {
+			base = "ALTER ROLE"
+		} else if s.Revoke {
+			base = "REVOKE ROLE"
 		} else {
-			base = "GRANT"
+			base = "GRANT ROLE"
 		}
-	case *parser.Set, *parser.RoleSelection, *parser.SessionAuthorization,
-		*parser.TransactionCharacteristics, *parser.SetConstraints:
+	case *parser.RoleSelection:
+		base = "SET"
+		if s.ResetCommand {
+			base = "RESET"
+		}
+	case *parser.SessionAuthorization:
+		base = "SET"
+		if s.ResetCommand {
+			base = "RESET"
+		}
+	case *parser.Set, *parser.TransactionCharacteristics, *parser.SetConstraints:
 		base = "SET"
 	case *parser.Reset:
 		base = "RESET"

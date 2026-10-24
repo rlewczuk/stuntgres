@@ -21,7 +21,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 				b, _ := advisoryUnitOwner(t, e)
 				m := e.locks
 				at, bt := a.Transactions.Ticket, b.Transactions.Ticket
-				key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 19, Low: 20}
+				key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 19, Low: 20}
 				advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -38,7 +38,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 					case "timeout":
 						m.ExpireWait(request, request.Deadline())
 					case "fence":
-						m.Fence(bt.Ref().Epoch() + 1)
+						m.Fence(bt.Ref().Domain(), bt.Ref().Epoch()+1)
 					}
 				}
 				if grantFirst {
@@ -102,7 +102,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		e := New()
 		a, _ := advisoryUnitOwner(t, e)
 		b, _ := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 66}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 66}
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 		ctx, cancel := context.WithCancel(context.Background())
 		request, err := e.locks.StartAcquire(ctx, b.Transactions.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Timeout: time.Hour})

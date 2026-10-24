@@ -76,18 +76,22 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 	return view.State(), ctx.Err()
 }
 func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
-	if c.RolesBase != nil && e.roles.published != c.RolesBase {
-		return catalog.Conflict{}
-	}
 	if err := e.catalogFencesCurrentLocked(c, fenceCatalogRoleRead); err != nil {
 		return err
-	}
-	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultReads) {
-		return catalog.Conflict{}
 	}
 	roles := e.roles.published
 	if c.Roles != nil {
 		roles = c.Roles
+		if c.RolesBase != e.roles.published {
+			var err error
+			roles, err = e.mergedJournalRolesLocked(context.Background(), c)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultReads) {
+		return catalog.Conflict{}
 	}
 	view := e.privateCatalogLocked(c)
 	read := e.roles.read(e.catalog.owner(), view, roles)

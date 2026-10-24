@@ -44,6 +44,11 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	if err != nil {
 		return Result{}, err
 	}
+	if scope.ticket != nil {
+		if err := scope.acquireRoleAttributeLocks(stmt, target); err != nil {
+			return Result{}, err
+		}
+	}
 	// Expensive crypto, random-source I/O and typed input run with no lifecycle
 	// locks. Preparation has no catalog effects; all semantics are revalidated.
 	var expiry int64
@@ -67,40 +72,71 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	v, actor, target, o, err := e.validateRoleAttributesLocked(op, stmt)
-	if err != nil {
-		return Result{}, err
-	}
-	d := authorization.ApplyRoleOptions(target, o)
-	if o.Present&parser.RolePassword != 0 {
-		d.Password = password
-	}
-	if o.Present&parser.RoleValidUntil != 0 {
-		d.ValidUntil = expiry
-		d.HasValidUntil = true
-	}
-	var create *parser.CreateRole
-	if c, creating := stmt.(*parser.CreateRole); creating {
-		create = c
-		d.Ref, err = e.roles.principalCandidateLocked()
+	for {
+		v, actor, target, o, err := e.validateRoleAttributesLocked(op, stmt)
 		if err != nil {
 			return Result{}, err
 		}
+		d := authorization.ApplyRoleOptions(target, o)
+		d.AuthIDVersion, err = e.roles.revisionCandidateLocked()
+		if err != nil {
+			return Result{}, err
+		}
+		if o.Present&parser.RolePassword != 0 {
+			d.Password = password
+		}
+		if o.Present&parser.RoleValidUntil != 0 {
+			d.ValidUntil = expiry
+			d.HasValidUntil = true
+		}
+		var create *parser.CreateRole
+		if c, creating := stmt.(*parser.CreateRole); creating {
+			create = c
+			d.Ref, err = e.roles.principalCandidateLocked()
+			if err != nil {
+				return Result{}, err
+			}
+		}
+		n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, op.Notices, op.NoticeThreshold <= session.LevelNotice, op.NoticeThreshold <= session.LevelWarning)
+		if err != nil {
+			op.Notices = notices
+		}
+		if err != nil {
+			return Result{}, err
+		}
+		if create != nil && scope.ticket != nil {
+			e.mu.Unlock()
+			lockErr := scope.acquireInitialMembershipLocks(&v.RoleRecord.Root, &n, d.Ref)
+			e.mu.Lock()
+			if lockErr != nil {
+				op.Notices = notices
+				return Result{}, lockErr
+			}
+			fresh, _, _, _, err := e.validateRoleAttributesLocked(op, stmt)
+			if err != nil {
+				return Result{}, err
+			}
+			revision, err := e.roles.revisionCandidateLocked()
+			if err != nil {
+				return Result{}, err
+			}
+			if fresh.RoleRecord != v.RoleRecord || e.roles.nextPrincipal != d.Ref.ID() || revision != d.AuthIDVersion {
+				continue
+			}
+		}
+		op.Notices = notices
+		op.Session.Mu.Lock()
+		defer op.Session.Mu.Unlock()
+		if err := publicationOperationLocked(e, op); err != nil {
+			return Result{}, err
+		}
+		if _, creating := stmt.(*parser.CreateRole); creating {
+			e.roles.nextPrincipal = d.Ref.ID() + 1
+		}
+		if err := e.installOperationRolesLocked(op, &access.RoleRecord{Root: n}); err != nil {
+			return Result{}, err
+		}
+		role.EmitPasswordNotice(op, notice)
+		return Result{}, nil
 	}
-	n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, op.Notices, op.NoticeThreshold <= session.LevelNotice, op.NoticeThreshold <= session.LevelWarning)
-	op.Notices = notices
-	if err != nil {
-		return Result{}, err
-	}
-	op.Session.Mu.Lock()
-	defer op.Session.Mu.Unlock()
-	if err := publicationOperationLocked(e, op); err != nil {
-		return Result{}, err
-	}
-	if _, creating := stmt.(*parser.CreateRole); creating {
-		e.roles.nextPrincipal = d.Ref.ID() + 1
-	}
-	e.installOperationRolesLocked(op, &access.RoleRecord{Root: n, Revision: v.RoleRecord.Revision + 1})
-	role.EmitPasswordNotice(op, notice)
-	return Result{}, nil
 }

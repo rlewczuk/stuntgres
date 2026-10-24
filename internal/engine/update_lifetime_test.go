@@ -95,7 +95,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	newResource := lock.Resource{ObjectRef: newRef, Row: e.storage.Relations[newRef.Address].Versions[0].Row}
 	oldCancel()
 	e.endLockOwner(oldTicket)
-	e.locks.Fence(ref.Epoch)
+	e.locks.Fence(e.catalog.Domain, ref.Epoch)
 	lockState := e.locks.Inspect(oldTicket)
 	entry := lockState.Resources[newResource]
 	held := lock.Mode(0)

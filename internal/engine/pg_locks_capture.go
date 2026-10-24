@@ -43,7 +43,7 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 	if err != nil {
 		return nil, err
 	}
-	records, err := e.locks.PGLocks(epoch)
+	records, err := e.locks.PGLocks(e.catalog.Domain, epoch)
 	if err != nil {
 		return nil, err
 	}

@@ -304,13 +304,13 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 				case "grant":
 					e.endLockOwner(a)
 				case "fence":
-					e.locks.Fence(a.Ref().Epoch() + 1)
+					e.locks.Fence(e.catalog.Domain, a.Ref().Epoch()+1)
 				}
 			}()
 			for range 32 {
 				// A capture is coherent at its manager linearization point. A
 				// terminal outcome after capture need not invalidate owned history.
-				_, err := e.locks.PGLocks(a.Ref().Epoch())
+				_, err := e.locks.PGLocks(e.catalog.Domain, a.Ref().Epoch())
 				if err != nil && !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Error(err)
 				}
@@ -324,7 +324,7 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 			if ending == "fence" {
 				epoch++
 			}
-			records, err := e.locks.PGLocks(epoch)
+			records, err := e.locks.PGLocks(e.catalog.Domain, epoch)
 			if err != nil {
 				t.Fatal(err)
 			}

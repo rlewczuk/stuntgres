@@ -72,16 +72,17 @@ func batchIdentityPromotion(t *testing.T) {
 					batchExec(t, p, b, a, "RESET SESSION AUTHORIZATION; RESET ROLE", 0)
 					identity(original)
 				}
-				// Explicit SET ROLE follows its settings journal; SESSION AUTHORIZATION
-				// retains the independent native exclusion.
+				// Both identity settings participate in the explicit owner journal.
 				batchExec(t, p, b, a, "BEGIN", 0)
-				if b.PG || !sessionAuthorization {
-					batchExec(t, p, b, a, command, 0)
-					identity(reached)
-				} else {
-					batchError(t, p, a, command, batchDiag("0A000", "statement is unsupported in an explicit transaction"))
-				}
+				batchExec(t, p, b, a, command, 0)
+				identity(reached)
 				batchExec(t, p, b, a, "ROLLBACK", 0)
+				identity(original)
+				batchExec(t, p, b, a, "BEGIN", 0)
+				batchExec(t, p, b, a, command, 0)
+				batchExec(t, p, b, a, "COMMIT", 0)
+				identity(reached)
+				batchExec(t, p, b, a, "RESET SESSION AUTHORIZATION; RESET ROLE", 0)
 				identity(original)
 			})
 		})

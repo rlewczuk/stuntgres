@@ -150,7 +150,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 	if scope != nil {
 		input, output = scope.input, scope.output
 	}
+	sourceCatalog := c
 	for {
+		c = sourceCatalog
 		notifications := e.prepareNotificationPublication(op.Session, actions, events)
 		var nextCatalog *catalog.State
 		var err error
@@ -166,6 +168,13 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
+		c, err = e.publicationRolesLocked(op.Context(), c)
+		if err != nil {
+			e.mu.Unlock()
+			return err
+		}
+		mergedRoles := c != nil && sourceCatalog != nil && c.Roles != sourceCatalog.Roles
+		currentRoles := e.roles.published
 		current, frontier := e.catalog.state, e.visibility.CommitSeq()
 		var indexStores map[ids.ObjectAddress]*storage.Relation
 		if len(e.storage.IndexRoots) != 0 || c != nil {
@@ -360,7 +369,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if err == nil && e.visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := e.roles.published != currentRoles || !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || len(p.Store.Versions) != len(p.Root) {
@@ -397,6 +406,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		}
 		if err == nil && op.DiscardRoleResetPending() {
 			err = session.ValidateRoleResetLocked(op.Session.Authorization, op.DiscardRoleReset, e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published))
+		}
+		if err == nil && mergedRoles {
+			c.Roles.Revision, err = e.roles.revisionCandidateLocked()
 		}
 		if err != nil {
 			sess.Mu.Unlock()
@@ -550,6 +562,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.catalog.nextRevision = nextRevision
 			if c.Roles != nil {
 				e.roles.published = c.Roles
+				if c.Roles.Revision >= e.roles.nextRevision {
+					e.roles.nextRevision = c.Roles.Revision + 1
+				}
 			}
 			for a, d := range c.Descriptors {
 				if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == sess.SessionToken {

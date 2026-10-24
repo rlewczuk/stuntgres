@@ -37,7 +37,7 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 			t.Fatal("read-only inquiry mutated queue")
 		}
 		if fence {
-			f.m.Fence(bt.Ref().Epoch() + 1)
+			f.m.Fence(f.domain, bt.Ref().Epoch()+1)
 		} else {
 			cancel()
 		}

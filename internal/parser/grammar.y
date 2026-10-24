@@ -3567,12 +3567,12 @@ session_authorization: SET SESSION AUTHORIZATION name { $$=&SessionAuthorization
  | SET AUTHORIZATION name { $$=&SessionAuthorization{Name:$3.text} }
  | SET AUTHORIZATION STRING { $$=&SessionAuthorization{Name:$3.text} }
  | SET AUTHORIZATION DEFAULT { $$=&SessionAuthorization{Default:true} }
- | RESET SESSION AUTHORIZATION { $$=&SessionAuthorization{Default:true} } ;
+ | RESET SESSION AUTHORIZATION { $$=&SessionAuthorization{Default:true,ResetCommand:true} } ;
 /* All role selection input parses before execution, including LOCAL. */
 role_selection: SET ROLE role_selection_assignment role_selection_target { if $4.keyword!=nil && $4.keyword.token==DEFAULT && $3.text=="" {sqllex.(*lexer).syntax($4);return 1};$$=&RoleSelection{Name:$4.text,Reset:$4.keyword!=nil && $4.keyword.token==DEFAULT,Pos:$2.pos} }
  | SET SESSION ROLE role_selection_assignment role_selection_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Pos:$3.pos} }
  | SET LOCAL ROLE role_selection_assignment role_selection_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Local:true,Pos:$3.pos} }
- | RESET ROLE { $$=&RoleSelection{Reset:true,Pos:$2.pos} } ;
+ | RESET ROLE { $$=&RoleSelection{Reset:true,ResetCommand:true,Pos:$2.pos} } ;
 role_selection_assignment: /* empty */ { $$=lexeme{} } | TO { $$=$1 } | '=' { $$=$1 } ;
 role_selection_target: name | STRING | DEFAULT ;
 schema_owner: name | CURRENT_USER | CURRENT_ROLE | SESSION_USER ;

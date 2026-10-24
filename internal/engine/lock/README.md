@@ -7,7 +7,7 @@ engine.
 
 ## What it owns
 
-`Manager` holds all heavyweight lock state for one engine:
+`Manager` holds heavyweight lock state for one cluster's admitted databases:
 
 - **Tickets.** One `Ticket` per registered transaction (`Register`) and one
   persistent ticket per session for session-level advisory locks
@@ -15,16 +15,17 @@ engine.
   Its transaction ID, phase and completion state are atomic mirrors that the
   engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
   detached from its session (`DetachPrepared`).
-- **Resources and modes.** A `Resource` is a real relation, type or namespace
-  (`ids.ObjectRef`), an exact namespace/relation/type destination binding
-  (`Name`, with its real domain/epoch and namespace), a logical row (`Row`),
-  an interned unique key (`PinUniqueKey`), transaction completion
-  (`CompletionOf`) or an advisory key (`Kind`, `High`, `Low`). Schema-name
-  bindings use the database-wide zero namespace address, never a synthetic OID.
-  Names share ordinary ticket queues/checkpoints/end/fence; distinct keys remain
-  independent. `Mode` uses PostgreSQL's table and row names; modes accumulate as
-  bits and owners never conflict with themselves. Advisory grants are counted
-  (`Hold.Shared`, `Hold.Exclusive`).
+- **Resources and modes.** A `Resource` is a real relation, type, namespace or
+  shared role (`ids.ObjectRef`), an exact catalog destination binding (`Name`),
+  a role attribute tuple claim (`RoleTuple`), a logical row (`Row`), an interned
+  unique key (`PinUniqueKey`), transaction completion (`CompletionOf`) or a
+  database-scoped advisory key (`Database`, `Kind`, `High`, `Low`). Local resources
+  must match their ticket's database domain and epoch; shared role resources use
+  the cluster's stable role domain. Schema and role names use the zero namespace
+  address, never a synthetic OID. All ordinary resources share one ticket,
+  checkpoint and deadlock graph across databases. `Mode` uses PostgreSQL's table
+  and row names; modes accumulate as bits and owners never conflict with
+  themselves. Advisory grants are counted (`Hold.Shared`, `Hold.Exclusive`).
 - **Queues and waits.** `StartAcquire` grants at once or returns the queued
   `Request`, which the caller waits on (`Wait`) after releasing its own
   locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,
@@ -46,10 +47,10 @@ engine.
   claims of one conflict-update candidate. `UniqueJournal` binds the
   manager to one ticket for these (`Checkpoint`, `Restore`, `BeginDelta`,
   `EndDelta`, `RestoreDelta`); the engine's DML code uses it.
-- **MultiXact history.** The manager owns immutable MultiXact records, the
-  nonzero modular counter and the association with exact row versions
-  (`PhysicalEvents`, `MultiXactMembers`, `MultiAge`). Arbitration uses
-  `ObjectRef` and `RowID`; history adds `VersionID`, so a successor copies the
+- **MultiXact history.** The manager owns database-partitioned immutable records,
+  nonzero modular counters and associations with exact row versions
+  (`PhysicalEvents`, `MultiXactMembers`, `MultiAge`).
+  Arbitration uses `ObjectRef` and `RowID`; history adds `VersionID`, so a successor copies the
   predecessor's original raw xmax ID and full member set, including ended or
   mixed-mode members. A batch is prepared completely before any counter or
   history change is published. Member-set reuse is a transaction-local LRU of
@@ -71,9 +72,10 @@ engine.
   the engine uses to validate its own admission (`Holds`, `MissingRowGrant`,
   `ReplacementGrants`, `ValidSession`, `TransactionTicket`, `IndexWriters`,
   `AppendRelationNameClaims`).
-  Namespace existence/removal holds project as real object tags. Exact catalog
-  binding claims are internal, not physical relation/object tags; their real
-  queues remain visible to blocking inquiry and deadlock arbitration.
+  Namespace and shared role holds project as real object tags; shared roles have
+  SQL database zero. Exact name and role-tuple claims are internal, not physical
+  object tags; pending claims project the actual blocker XID. Their queues join
+  blocking inquiry and the same deadlock graph without exposing peer local locks.
   Generated ordinary index naming snapshots only other owners' granted relation
   names for the exact namespace/domain/epoch into caller-owned scratch. Pending
   requests alone reserve no generated name. Capture takes only manager metadata,
@@ -132,10 +134,11 @@ readable without `mu`; the engine updates them under `Engine.mu`, which is why
 - Waiters are notified only after `mu` is released. A queued request waits on
   its done channel with no mutex held.
 - `End` releases a ticket's grants and terminates its pending requests,
-  including session requests that carry its transaction as provenance. `Fence`
-  retires every ticket and resource of older catalog epochs. Both settle the
-  affected queues, so every waiter that can now run is granted and every
-  ended waiter is woken.
+  including session requests that carry its transaction as provenance.
+  `Fence(databaseDomain, epoch)` retires only that database's older tickets,
+  resources and physical history, including its shared-role contributions.
+  Peer database owners and holds survive. Both operations settle affected queues,
+  granting eligible waiters and waking ended owners.
 - Engine transaction tickets end through the engine's `endLockOwner`, which
   first retires engine-held exclusion state.
 

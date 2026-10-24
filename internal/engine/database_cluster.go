@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
@@ -17,6 +18,8 @@ import (
 type databaseCluster struct {
 	mu            sync.Mutex
 	roles         roleStore
+	locks         *lock.Manager
+	roleDomain    ids.Domain
 	defaultTarget *Engine
 	targets       map[string]*Engine
 	nextOID       ids.OID

@@ -63,7 +63,7 @@ func (m *Manager) TransactionTicket(ref ids.TxRef) *Ticket {
 func (m *Manager) IndexWriters(ticket *Ticket, parent ids.ObjectRef) ([]*Ticket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !m.valid(ticket) || parent.Epoch != ticket.ref.Epoch() {
+	if !m.valid(ticket) || ticket.persistent || parent.Domain() != ticket.ref.Domain() || parent.Epoch != ticket.ref.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
 	var cohort []*Ticket
@@ -84,7 +84,7 @@ func (m *Manager) IndexWriters(ticket *Ticket, parent ids.ObjectRef) ([]*Ticket,
 func (m *Manager) AppendRelationNameClaims(dst []ids.NameKey, ticket *Ticket, namespace ids.ObjectRef) ([]ids.NameKey, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !m.valid(ticket) || namespace.Domain() != m.domain || namespace.Epoch != ticket.ref.Epoch() || namespace.Address.ClassID != ids.NamespaceClassID || namespace.Address.SubID != 0 || namespace.Address.ObjectID == 0 {
+	if !m.valid(ticket) || namespace.Domain() != ticket.ref.Domain() || namespace.Epoch != ticket.ref.Epoch() || namespace.Address.ClassID != ids.NamespaceClassID || namespace.Address.SubID != 0 || namespace.Address.ObjectID == 0 {
 		return dst, ids.ErrCatalogReplaced
 	}
 	for resource, entry := range m.entries {

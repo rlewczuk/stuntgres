@@ -395,7 +395,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.locks.Fence(epoch)
+	e.locks.Fence(e.catalog.Domain, epoch)
 	e.replacementMu.Unlock()
 	writerHeld = false
 	deleteReplacementReject(t, scope, done)

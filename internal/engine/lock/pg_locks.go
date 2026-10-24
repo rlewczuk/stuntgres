@@ -39,6 +39,7 @@ type pgLockIdentity struct {
 
 type Record struct {
 	Kind          RecordKind
+	Shared        bool // Real cluster object; SQL database column is zero.
 	Owner         RecordOwner
 	Mode          Mode
 	Object, Class uint32
@@ -64,26 +65,41 @@ func (m *Manager) pgLockOwner(t *Ticket) (RecordOwner, bool, error) {
 	if !m.valid(t) || t.persistent {
 		return RecordOwner{}, false, nil
 	}
-	return PublicOwner(m.domain, t.ref, t.detached)
+	return PublicOwner(t.ref.Domain(), t.ref, t.detached)
 }
 
 // Capture only: no settling, deadlock/timeout evaluation, callbacks, lazy
 // completion registration or Engine/Session/TX synchronization is permitted.
-func (m *Manager) PGLocks(epoch ids.CatalogEpoch) ([]Record, error) {
+func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.epoch > epoch {
+	if state := m.domains[domain]; state == nil || state.epoch > epoch {
 		return nil, ids.ErrCatalogReplaced
 	}
 	var records []Record
 	identities := make(map[*Ticket]pgLockIdentity, len(m.owners))
+	// Only shared-role participants extend the established database-local view.
+	shared := make(map[*Ticket]bool)
+	for resource, entry := range m.entries {
+		if m.roleDomain == nil || resource.Domain() != m.roleDomain || resource.Kind != OrdinaryResource {
+			continue
+		}
+		for ticket := range entry.holders {
+			shared[ticket] = true
+		}
+		for _, request := range entry.pending {
+			if m.validInquiryRequest(request, entry, resource) {
+				shared[request.ticket] = true
+			}
+		}
+	}
 	// Session advisory grants use the current incarnation, or its real idle /0
 	// association. Build this lookup once rather than scanning every owner for
 	// each advisory resource. Prospective CHAIN registrations use their newest
 	// registered incarnation, whose VXID is already genuinely owned.
 	var active map[ids.SessionID]RecordOwner
 	for _, ticket := range m.owners {
-		if ticket.ref.Epoch() != epoch {
+		if ticket.ref.Domain() == domain && ticket.ref.Epoch() != epoch || ticket.ref.Domain() != domain && !shared[ticket] {
 			continue
 		}
 		owner, visible, err := m.pgLockOwner(ticket)
@@ -116,15 +132,16 @@ func (m *Manager) PGLocks(epoch ids.CatalogEpoch) ([]Record, error) {
 	for resource, entry := range m.entries {
 		// Exact binding claims have no physical PostgreSQL lock tag. Their
 		// queued dependencies still participate in blocking/deadlock inquiry.
-		if resource.Name != (ids.NameKey{}) {
+		if resource.Name != (ids.NameKey{}) && resource.Domain() != m.roleDomain {
 			continue
 		}
-		if resource.Kind == OrdinaryResource && resource.completion == nil && resource.Epoch != epoch {
+		if resource.Kind == OrdinaryResource && resource.completion == nil && resource.Domain() != m.roleDomain && (resource.Domain() != domain || resource.Epoch != epoch) ||
+			resource.Kind != OrdinaryResource && resource.Database != domain {
 			continue
 		}
 		// Logical row/key holds have no physical target. Completion ownership
 		// was emitted exactly once from the owning ticket above.
-		projectHolds := resource.Row == 0 && resource.key == nil && resource.completion == nil
+		projectHolds := resource.Row == 0 && resource.key == nil && resource.completion == nil && resource.Name == (ids.NameKey{}) && !resource.RoleTuple
 		advisory := resource.Kind == AdvisoryBigintResource || resource.Kind == AdvisoryPairResource
 		clear(advisoryRows)
 		if projectHolds {
@@ -136,7 +153,7 @@ func (m *Manager) PGLocks(epoch ids.CatalogEpoch) ([]Record, error) {
 				var visible bool
 				var err error
 				if ticket.persistent {
-					owner, visible, err = PublicOwner(m.domain, m.domain.Tx(ticket.session, 0, 0, nil, 0), false)
+					owner, visible, err = PublicOwner(domain, domain.Tx(ticket.session, 0, 0, nil, 0), false)
 					if current, ok := active[owner.Session]; ok {
 						owner = current
 					}
@@ -173,7 +190,7 @@ func (m *Manager) PGLocks(epoch ids.CatalogEpoch) ([]Record, error) {
 			}
 		}
 		for _, request := range entry.pending {
-			if !m.validInquiryRequest(request, entry, resource) || request.provenance.Epoch() != epoch {
+			if !m.validInquiryRequest(request, entry, resource) || request.provenance.Domain() == domain && request.provenance.Epoch() != epoch {
 				continue
 			}
 			identity, visible := identities[m.owners[request.provenance]]
@@ -182,7 +199,7 @@ func (m *Manager) PGLocks(epoch ids.CatalogEpoch) ([]Record, error) {
 			}
 			owner := identity.owner
 			var record Record
-			if resource.completion != nil || resource.Row != 0 || resource.key != nil {
+			if resource.completion != nil || resource.Row != 0 || resource.key != nil || resource.Name != (ids.NameKey{}) || resource.RoleTuple {
 				target := resource.completion
 				purpose := request.policy.CompletionPurpose
 				if target == nil {
@@ -195,6 +212,9 @@ func (m *Manager) PGLocks(epoch ids.CatalogEpoch) ([]Record, error) {
 				targetIdentity, present := identities[target]
 				if !present {
 					continue
+				}
+				if (resource.Name != (ids.NameKey{}) || resource.RoleTuple) && targetIdentity.xid == 0 {
+					return nil, fmt.Errorf("stuntgres: role claim dependency lacks live transaction identity")
 				}
 				record = Record{Kind: VirtualRecord, Owner: owner, Target: targetIdentity.owner}
 				if (purpose == CompletionTransaction || targetIdentity.owner.Prepared) && targetIdentity.xid != 0 {
@@ -258,8 +278,9 @@ func pgResourceRecord(resource Resource, owner RecordOwner, mode Mode) (Record, 
 		switch resource.Address.ClassID {
 		case ids.RelationClassID:
 			r.Kind = RelationRecord
-		case ids.TypeClassID, ids.NamespaceClassID:
+		case ids.TypeClassID, ids.NamespaceClassID, ids.RoleClassID:
 			r.Kind, r.Class = ObjectRecord, uint32(resource.Address.ClassID)
+			r.Shared = resource.Address.ClassID == ids.RoleClassID
 		default:
 			return Record{}, fmt.Errorf("stuntgres: unknown lock object class")
 		}

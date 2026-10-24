@@ -77,7 +77,11 @@ const (
 // Row zero is the relation resource; logical rows use their stable RowID.
 type Resource struct {
 	ids.ObjectRef
-	Kind ResourceKind
+	// Keep the discriminators adjacent: Resource must remain small enough for
+	// by-value closure capture on the allocation-free immediate-acquire path.
+	Kind      ResourceKind
+	RoleTuple bool        // Internal authid tuple claim, distinct from a role object lock.
+	Database  *ids.Domain // Advisory keys are scoped to their originating database.
 	// Name is an exact catalog binding claim. ObjectRef carries its real
 	// domain/epoch and namespace (zero address for database-wide schema names).
 	// It is not a relation lock or a fabricated catalog object identity.
@@ -171,21 +175,54 @@ type relationEntry struct {
 // never taken under Engine.mu or a session mutex, and while it is held no
 // other mutex is taken, no callback runs and nothing blocks.
 type Manager struct {
-	mu           sync.Mutex
-	domain       *ids.Domain // Owning engine's identity domain; provenance checks only.
+	mu         sync.Mutex
+	domains    map[*ids.Domain]*databaseState
+	roleDomain *ids.Domain
+	roleEpoch  ids.CatalogEpoch
+	owners     map[ids.TxRef]*Ticket
+	sessions   map[ids.SessionToken]*Ticket
+	entries    map[Resource]*relationEntry
+	keyBuckets map[uniqueLockBucket]*uniqueLockBucketState
+	multiRows  map[MultiTuple]multiRow
+}
+
+type databaseState struct {
 	epoch        ids.CatalogEpoch
-	owners       map[ids.TxRef]*Ticket
-	sessions     map[ids.SessionToken]*Ticket
-	entries      map[Resource]*relationEntry
-	keyBuckets   map[uniqueLockBucket]*uniqueLockBucketState
 	multiNext    uint32
-	multiRows    map[MultiTuple]multiRow
 	multiHistory map[uint32][]MultiMember
 }
 
-// New returns the manager for one engine's identity domain.
+// New admits the initial database into the cluster's canonical graph.
 func New(domain *ids.Domain) *Manager {
-	return &Manager{domain: domain, multiNext: 1, owners: make(map[ids.TxRef]*Ticket), entries: make(map[Resource]*relationEntry)}
+	m := &Manager{domains: make(map[*ids.Domain]*databaseState), owners: make(map[ids.TxRef]*Ticket), entries: make(map[Resource]*relationEntry)}
+	if domain != nil {
+		m.domains[domain] = &databaseState{multiNext: 1}
+	}
+	return m
+}
+
+// AdmitDomain registers database provenance before any of its owners are admitted.
+func (m *Manager) AdmitDomain(domain *ids.Domain) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if domain == nil || domain == m.roleDomain {
+		return errors.New("stuntgres: invalid lock database domain")
+	}
+	if m.domains[domain] == nil {
+		m.domains[domain] = &databaseState{multiNext: 1}
+	}
+	return nil
+}
+
+// SetRoleDomain installs the cluster's stable shared-role resource authority.
+func (m *Manager) SetRoleDomain(domain *ids.Domain, epoch ids.CatalogEpoch) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if domain == nil || epoch == 0 || m.domains[domain] != nil || m.roleDomain != nil {
+		return errors.New("stuntgres: invalid shared role domain")
+	}
+	m.roleDomain, m.roleEpoch = domain, epoch
+	return nil
 }
 
 // Register admits a transaction ticket. The engine has already checked that
@@ -193,10 +230,11 @@ func New(domain *ids.Domain) *Manager {
 func (m *Manager) Register(ref ids.TxRef) (*Ticket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if ref.Domain() != m.domain || ref.ID() == 0 || ref.Epoch() == 0 || ref.Attachment() == nil || ref.Session().Domain() != m.domain {
+	state := m.domains[ref.Domain()]
+	if state == nil || ref.ID() == 0 || ref.Epoch() == 0 || ref.Attachment() == nil || ref.Session().Domain() != ref.Domain() || ref.Session().ID() == 0 && ref.Session().Private() == nil {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
-	if ref.Epoch() < m.epoch {
+	if ref.Epoch() < state.epoch {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if _, ok := m.owners[ref]; ok {
@@ -495,25 +533,25 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		return nil, err
 	}
 	m.mu.Lock()
-	if !m.valid(t) {
+	if !m.valid(t) || !t.persistent && t.ref.Epoch() < m.domains[t.ref.Domain()].epoch {
 		m.mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}
 	advisory := ref.Kind == AdvisoryBigintResource || ref.Kind == AdvisoryPairResource
 	if advisory {
-		if ref.ObjectRef != (ids.ObjectRef{}) || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil ||
+		if ref.Database != t.session.Domain() || ref.ObjectRef != (ids.ObjectRef{}) || ref.RoleTuple || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil ||
 			mode != AdvisoryShare && mode != AdvisoryExclusive || t.detached {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid advisory lock request")
 		}
 		if t.persistent {
 			source := m.owners[policy.Provenance]
-			if source == nil || source.detached || source.session != t.session || policy.Provenance.Epoch() < m.epoch {
+			if source == nil || source.detached || source.session != t.session || policy.Provenance.Epoch() < m.domains[source.ref.Domain()].epoch {
 				m.mu.Unlock()
 				return nil, ids.ErrCatalogReplaced
 			}
 		}
-	} else if t.persistent || ref.Kind != OrdinaryResource || ref.High != 0 || ref.Low != 0 {
+	} else if t.persistent || ref.Kind != OrdinaryResource || ref.Database != nil || ref.High != 0 || ref.Low != 0 || ref.RoleTuple && ref.Address.ClassID != ids.RoleClassID {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid ordinary lock resource")
 	}
@@ -524,33 +562,45 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		validNamespace := key.Namespace.ClassID == ids.NamespaceClassID && key.Namespace.ObjectID != 0 && key.Namespace.SubID == 0
 		validClass := (key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID) && validNamespace ||
 			key.ClassID == ids.NamespaceClassID && key.Namespace == (ids.ObjectAddress{})
-		if !validClass || key.Name == "" || key.Signature != "" || ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() ||
-			ref.Address != key.Namespace || ref.Row != 0 || ref.key != nil || ref.completion != nil || mode != AccessExclusive {
+		roleName := key.ClassID == ids.RoleClassID && key.Namespace == (ids.ObjectAddress{}) && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
+		localName := validClass && ref.Domain() == t.ref.Domain() && ref.Epoch == t.ref.Epoch()
+		if (!localName && !roleName) || key.Name == "" || key.Signature != "" ||
+			ref.Address != key.Namespace || ref.RoleTuple || ref.Row != 0 || ref.key != nil || ref.completion != nil || mode != AccessExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid catalog name lock request")
 		}
 	} else if ref.completion != nil {
 		owner := ref.completion
-		if mode != TransactionCompletion || owner == t || owner.manager != m || owner.ref.Epoch() != t.ref.Epoch() {
+		if mode != TransactionCompletion || owner == t || owner.manager != m || owner.persistent || ref.ObjectRef != (ids.ObjectRef{}) || ref.RoleTuple || ref.Row != 0 || ref.key != nil {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid transaction completion request")
 		}
 		if !m.valid(owner) {
+			if !owner.OwnershipEnded() {
+				m.mu.Unlock()
+				return nil, errors.New("stuntgres: invalid transaction completion owner")
+			}
 			m.mu.Unlock()
 			return nil, nil
 		}
+	} else if ref.Address.ClassID == ids.RoleClassID {
+		if ref.Domain() != m.roleDomain || ref.Epoch != m.roleEpoch || ref.Address.ObjectID == 0 || ref.Address.SubID != 0 || ref.Row != 0 || ref.key != nil ||
+			ref.RoleTuple && mode != AccessExclusive || !ref.RoleTuple && mode != AccessShare && mode != ShareUpdateExclusive && mode != AccessExclusive {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid shared role lock request")
+		}
 	} else if ref.Address.ClassID == ids.NamespaceClassID {
-		if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 ||
+		if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 ||
 			ref.Row != 0 || ref.key != nil || mode != AccessShare && mode != AccessExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid namespace lock request")
 		}
 	} else if ref.Address.ClassID == ids.TypeClassID {
-		if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.Row != 0 || ref.key != nil || mode != TypeExclusive {
+		if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.Row != 0 || ref.key != nil || mode != TypeExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid type lock request")
 		}
-	} else if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.Row != 0 || mode != UniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.Row != 0 && mode != ForUpdate && mode != ForNoKeyUpdate && mode != ForKeyShare && mode != ForShare) || (ref.Row == 0 && mode != AccessShare && mode != RowExclusive && mode != AccessExclusive && mode != ShareUpdateExclusive && mode != ShareRowExclusive && mode != RowShare && mode != Share && mode != Exclusive))) {
+	} else if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.Row != 0 || mode != UniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.Row != 0 && mode != ForUpdate && mode != ForNoKeyUpdate && mode != ForKeyShare && mode != ForShare) || (ref.Row == 0 && mode != AccessShare && mode != RowExclusive && mode != AccessExclusive && mode != ShareUpdateExclusive && mode != ShareRowExclusive && mode != RowShare && mode != Share && mode != Exclusive))) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}
@@ -705,39 +755,24 @@ func (m *Manager) endLocked(t *Ticket, err error, notify **relationRequest) {
 	t.multiContributions = nil
 	t.multiCache = nil
 }
-func (m *Manager) Fence(epoch ids.CatalogEpoch) {
+
+// Fence retires only replaced database owners, including their shared-role holds.
+func (m *Manager) Fence(domain *ids.Domain, epoch ids.CatalogEpoch) {
 	var notify *relationRequest
 	m.mu.Lock()
-	if epoch > m.epoch {
-		m.retireMultiXactsLocked()
-		m.epoch = epoch
-		for ref := range m.owners {
-			if ref.Epoch() < epoch {
-				m.owners[ref].retireOwnership()
-				clear(m.owners[ref].resources)
-				delete(m.owners, ref)
+	if state := m.domains[domain]; state != nil && epoch > state.epoch {
+		state.epoch = epoch
+		for ref, owner := range m.owners {
+			if ref.Domain() == domain && ref.Epoch() < epoch {
+				m.endLocked(owner, ids.ErrCatalogReplaced, &notify)
 			}
 		}
-		for ref, e := range m.entries {
-			if ref.Kind != OrdinaryResource {
-				for ticket := range e.holders {
-					if !ticket.persistent && ticket.ref.Epoch() < epoch {
-						delete(e.holders, ticket)
-					}
-				}
-				for _, r := range e.pending {
-					if !r.terminal && r.provenance.Epoch() < epoch {
-						terminalRequest(r, ids.ErrCatalogReplaced, &notify)
-					}
-				}
-				m.settle(e, &notify)
-				m.retire(ref, e)
-				continue
-			}
-			if ref.Epoch < epoch && (ref.completion == nil || ref.completion.ref.Epoch() < epoch) {
-				for _, r := range e.pending {
-					if !r.terminal {
-						terminalRequest(r, ids.ErrCatalogReplaced, &notify)
+		m.retireMultiXactsLocked(domain)
+		for ref, entry := range m.entries {
+			if ref.Kind == OrdinaryResource && ref.Domain() == domain && ref.Epoch < epoch {
+				for _, request := range entry.pending {
+					if !request.terminal {
+						terminalRequest(request, ids.ErrCatalogReplaced, &notify)
 					}
 				}
 				delete(m.entries, ref)

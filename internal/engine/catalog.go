@@ -431,6 +431,9 @@ func (e *Engine) publishCatalogOperation(op *session.Operation, scope *Statement
 		if scope.op != op || op == nil {
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication scope")
 		}
+		if err := scope.acquireStageRoleDependencies(p.stage); err != nil {
+			return ChangeSet{}, err
+		}
 		if err := scope.acquireCatalogNames(p.stage); err != nil {
 			return ChangeSet{}, err
 		}
@@ -849,6 +852,10 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if err == nil && commitRef != (ids.TxRef{}) {
 			err = e.assignTransactionXIDLocked(commitRef)
 		}
+		var roleRevision uint64
+		if err == nil && s.roleCandidate != nil {
+			roleRevision, err = e.roles.revisionCandidateLocked()
+		}
 		var databaseRoots map[*Engine]*catalog.State
 		if err == nil {
 			databaseRoots = e.databaseProjectionLocked(next)
@@ -924,7 +931,9 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			}
 			e.catalog.nextRevision = nextRevision
 			if s.roleCandidate != nil {
+				s.roleCandidate.Revision = roleRevision
 				e.roles.published = s.roleCandidate
+				e.roles.nextRevision = roleRevision + 1
 			}
 			if commitRef != (ids.TxRef{}) {
 				e.visibility.RecordCommitTimestampLocked(commitRef)
@@ -981,7 +990,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	var installed ids.CatalogEpoch
 	defer func() {
 		if installed != 0 {
-			e.locks.Fence(installed)
+			e.locks.Fence(e.catalog.Domain, installed)
 		}
 	}()
 	if replacement.State() == nil || replacement.Owner() == nil || source == nil || replacement.Owner() != source.catalog.owner() {

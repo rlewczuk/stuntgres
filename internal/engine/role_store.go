@@ -24,6 +24,7 @@ type roleStore struct {
 	aclAuthority  sqltype.ACLAuthority
 	published     *access.RoleRecord
 	nextPrincipal uint64
+	nextRevision  uint64
 }
 
 // initialize seeds the predefined roles and the principal allocator. It runs
@@ -31,6 +32,7 @@ type roleStore struct {
 func (s *roleStore) initialize() {
 	s.published = &access.RoleRecord{Root: authorization.Seed(&s.domain), Revision: 1}
 	s.nextPrincipal = authorization.LastPredefinedRoleID + 1
+	s.nextRevision = 2
 }
 
 // principalCandidateLocked returns a private candidate; only successful
@@ -55,4 +57,11 @@ func (s *roleStore) principalCandidateLocked() (authorization.PrincipalRef, erro
 // store backs, and root belongs to this store's domain.
 func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *access.RoleRecord) authorization.Read {
 	return access.RoleRead(owner, &s.domain, view, root)
+}
+
+func (s *roleStore) revisionCandidateLocked() (uint64, error) {
+	if s.published.Revision == ^uint64(0) || s.nextRevision == ^uint64(0) {
+		return 0, fmt.Errorf("stuntgres: authorization revision exhausted")
+	}
+	return max(s.nextRevision, s.published.Revision+1), nil
 }

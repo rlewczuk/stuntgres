@@ -15,7 +15,7 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 		e := New()
 		a, _ := advisoryUnitOwner(t, e)
 		peer := sessionStart(t, e, nil)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 1, Low: 2}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 1, Low: 2}
 		mark := e.locks.Checkpoint(a.Transactions.Ticket)
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 		advisoryXactUnitGrant(t, a, key, sessionMode, false)
@@ -68,13 +68,13 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	e := New()
 	a, _ := advisoryUnitOwner(t, e)
 	b, _ := advisoryUnitOwner(t, e)
-	key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 0xffffffff, Low: 2}
+	key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 0xffffffff, Low: 2}
 	advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, false)
 	advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, false)
 	advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, true)
 	capture := func() []lock.Record {
 		t.Helper()
-		records, err := e.locks.PGLocks(e.CatalogRead().Epoch())
+		records, err := e.locks.PGLocks(e.catalog.Domain, e.CatalogRead().Epoch())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +134,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	transactionBegin(t, b)
-	records, err := e.locks.PGLocks(e.CatalogRead().Epoch())
+	records, err := e.locks.PGLocks(e.catalog.Domain, e.CatalogRead().Epoch())
 	if err != nil {
 		t.Fatal(err)
 	}

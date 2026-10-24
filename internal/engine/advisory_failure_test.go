@@ -17,7 +17,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 	t.Run("failed initialization and duplicate attachment preserve incumbent", func(t *testing.T) {
 		e := New()
 		s, ref := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 18}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 18}
 		advisoryUnitGrant(t, s, ref, key, lock.AdvisoryExclusive)
 		injected := errors.New("advisory initialization default failed")
 		_, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: injected}})
@@ -52,13 +52,13 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 19, Low: 20}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 19, Low: 20}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 		transactionEnd(t, b, rb, false)
 		source, provenance, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
 		lockState := e.locks.Inspect()
-		oldManagerEpoch := lockState.Epoch
+		oldManagerEpoch := lockState.Epochs[e.catalog.Domain]
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if err := e.Reset(ctx); !errors.Is(err, context.Canceled) {
@@ -71,7 +71,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		entry := lockState.Resources[key]
 		pending := entry != nil && len(entry.Pending) == 1 && !entry.Pending[0].Terminal && entry.Pending[0].Provenance == provenance
 		sourceLive := lockState.Valid(source)
-		epoch := lockState.Epoch
+		epoch := lockState.Epochs[e.catalog.Domain]
 		if !pending || !sourceLive || epoch != oldManagerEpoch || e.CatalogRead().Epoch() != provenance.Epoch() || advisoryUnitHold(a, key).Shared != 1 || advisoryUnitHold(b, key).Shared != 1 {
 			t.Fatal("failed stage fenced/discarded live state", pending, sourceLive, epoch)
 		}
@@ -85,7 +85,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b := sessionStart(t, e, nil)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 21}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 21}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		_, provenance, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
 		advisoryUnitUnlock(t, a, key, lock.AdvisoryExclusive, true)

@@ -71,7 +71,7 @@ func (h *statementHost) TransactionStatus(full uint64) (string, bool, error) {
 
 func (h *statementHost) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	scope := h.scope()
-	members, err := scope.engine().locks.MultiXactMembers(scope.ticket, xid)
+	members, err := scope.engine().locks.MultiXactMembers(scope.engine().catalog.Domain, scope.ticket, xid)
 	if err != nil {
 		return nil, err
 	}

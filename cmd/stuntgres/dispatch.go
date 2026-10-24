@@ -222,7 +222,11 @@ func (c *client) readyBoundary() error {
 	if c.ctx.Err() != nil {
 		return nil
 	}
-	if err := c.sendSettings(c.settingsSnapshot()); err != nil {
+	values, err := c.settingsSnapshot()
+	if err != nil {
+		return err
+	}
+	if err := c.sendSettings(values); err != nil {
 		return err
 	}
 	if _, err := c.drainNotifications(); err != nil {

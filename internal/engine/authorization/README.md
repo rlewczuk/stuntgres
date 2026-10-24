@@ -32,6 +32,11 @@ and ACL DDL decisions are in [`role`](../role/README.md).
   Candidates: `PutDescriptor`, `Retire`, `Reprovenance`,
   `ValidateRoleAttributes`, `AttributeCandidate`, `MembershipCandidate`,
   `OwnedMembershipCandidate` and `ValidateDeletionCandidate`.
+  `MergeRoots` combines an existing base, private candidate and current root:
+  exact touched descriptor/name/edge preconditions protect peer changes, while
+  disjoint changes survive and the merged graph is validated before publication.
+  `RoleDescriptor.AuthIDVersion` identifies attribute tuple replacements,
+  including no-op updates; membership and comments preserve that identity.
 - **ACL algorithms:** `Privileges`, `ACLValue`, `ACLEntry` and `ACLGrantee`.
   `ACLRights` evaluates an ACL. `ObjectGrantSource`, `ChangeObjectACL`,
   `ScopedACLGrantOptions` and `OwnedACL` plan GRANT, REVOKE and DROP OWNED;

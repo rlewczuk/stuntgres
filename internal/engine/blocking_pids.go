@@ -23,7 +23,7 @@ func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token id
 
 // blockingPidValues projects the lock manager's blocking PIDs of one session.
 func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
-	pids, err := e.locks.BlockingPids(pid)
+	pids, err := e.locks.BlockingPids(e.catalog.Domain, pid)
 	if err != nil || len(pids) == 0 {
 		return nil, err
 	}

@@ -132,13 +132,15 @@ implement its slots, so either import would form a cycle.
   `RecordCandidateDefaults` and `MergeCandidate` (a `catalog.Candidate`
   checked and recorded against the published base). The root's `…Locked`
   wrappers pass the published base under `Engine.mu`.
-  Role comments use the same immutable role overlay and committed `RolesBase`;
-  savepoint marks restore that authority along with descriptors and locks.
-  `RolesBase` fences actual private role-root writes, not the authorization
-  consulted by a completed catalog statement; execution authority ends at Finish.
-  Pending query-derived rows and materialized replacements separately retain a
-  root-owned role-read fence until publication. Journal clones and savepoint
-  marks retain or discard that fence with its producer, not as a role overlay.
+  Role mutations and comments use the same immutable role overlay. The first
+  actual role delta captures its predecessor as `RolesBase`; later private
+  deltas preserve that base. `RolesBase` fences actual private role-root writes,
+  not authorization consulted by a completed catalog statement; execution
+  authority ends at Finish. Pending query-derived rows and materialized
+  replacements separately retain a root-owned role-read fence until publication.
+  Journal clones and savepoint marks retain or discard that fence with its
+  producer, not as a role overlay. Savepoints also restore the private role root,
+  retirement obligations, session identity and lock marks.
   `StorageChange.MergeFills` merges added-column fills and drops those of
   removed attributes, replacing the shared fill map instead of mutating it.
 - **Journal capture** (`journal_capture.go`): `JournalCapture` turns a

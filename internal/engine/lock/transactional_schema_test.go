@@ -55,11 +55,11 @@ func TestTransactionalSchemaLockResources(t *testing.T) {
 		if waiting == nil {
 			t.Fatal("collision did not queue")
 		}
-		pids, err := f.m.BlockingPids(b.Session().ID())
+		pids, err := f.m.BlockingPids(f.domain, b.Session().ID())
 		if err != nil || len(pids) != 1 || pids[0] != int32(a.Session().ID()) {
 			t.Fatal(pids, err)
 		}
-		records, err := f.m.PGLocks(f.epoch)
+		records, err := f.m.PGLocks(f.domain, f.epoch)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -84,7 +84,7 @@ func TestTransactionalSchemaLockResources(t *testing.T) {
 		if err := f.result(r); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		if pids, err := f.m.BlockingPids(b.Session().ID()); err != nil || len(pids) != 0 {
+		if pids, err := f.m.BlockingPids(f.domain, b.Session().ID()); err != nil || len(pids) != 0 {
 			t.Fatal("canceled request remains", pids, err)
 		}
 		f.m.End(a)
@@ -100,7 +100,7 @@ func TestTransactionalSchemaLockResources(t *testing.T) {
 		if r == nil {
 			t.Fatal("namespace drop bypassed existence hold")
 		}
-		records, err := f.m.PGLocks(f.epoch)
+		records, err := f.m.PGLocks(f.domain, f.epoch)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -124,7 +124,7 @@ func TestTransactionalSchemaLockResources(t *testing.T) {
 		if queued == nil {
 			t.Fatal("missing name waiter")
 		}
-		f.m.Fence(f.epoch + 1)
+		f.m.Fence(f.domain, f.epoch+1)
 		if err := f.result(queued); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal(err)
 		}

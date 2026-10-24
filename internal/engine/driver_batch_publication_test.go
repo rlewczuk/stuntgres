@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
@@ -159,16 +161,21 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 		})
 	}
 }
-func TestDriverBatchRoleACLConflictKeepsPeerRoot(t *testing.T) {
+
+// Independently covered by TestReferenceRoleTransactionalCompletedACL: completed
+// ACL metadata plus real role deltas can publish alongside a disjoint peer role.
+func TestDriverBatchRoleACLPublicationKeepsPeerRoot(t *testing.T) {
 	for _, roleChange := range []bool{false, true} {
-		t.Run(map[bool]string{false: "acl_authority", true: "roles_and_acl"}[roleChange], func(t *testing.T) {
+		t.Run(map[bool]string{false: "acl_metadata", true: "roles_and_acl"}[roleChange], func(t *testing.T) {
 			e := New()
 			s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
 			if !roleChange {
 				sessionSQL(t, s, "CREATE ROLE pending LOGIN")
 			}
-			state := e.catalog.state
+			table := roleTableRef(t, e, "t")
+			state, store := e.catalog.state, e.storage.Relations[table.Address]
+			identity, peerIdentity := s.Authorization.State, peer.Authorization.State
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			if roleChange {
@@ -185,21 +192,47 @@ func TestDriverBatchRoleACLConflictKeepsPeerRoot(t *testing.T) {
 			if c == nil || c.RolesBase == nil || c.Roles == nil {
 				t.Fatal("missing pending role/ACL revision authority")
 			}
-			sessionSQL(t, peer, "CREATE ROLE peer LOGIN")
-			roles, frontier := e.roles.published, e.visibility.CommitSeq()
-			if err := m.end(nil); err == nil {
-				t.Fatal("role authority conflict committed")
+			pending := c.Descriptors[table.Address]
+			pendingRef := c.Roles.Root.Read(authorization.PrincipalRef{}).LookupRef("pending")
+			if pending == nil || pendingRef == (authorization.PrincipalRef{}) || e.catalog.state != state {
+				t.Fatal("private ACL/role candidate missing or published early")
 			}
-			if e.catalog.state != state || e.roles.published != roles || e.visibility.CommitSeq() != frontier {
-				t.Fatal("private ACL or stale role root overwrote peer")
+			owner, acl, _ := access.DescriptorACL(pending)
+			granted := false
+			for _, entry := range acl.Entries {
+				if !entry.Grantee.Public && entry.Grantee.Role == pendingRef && entry.Grantor == owner && entry.Privileges == authorization.SelectPrivilege && entry.GrantOptions == 0 {
+					granted = true
+				}
 			}
-			if _, ok := e.Roles().Lookup("peer"); !ok {
-				t.Fatal("peer role lost")
-			}
-			if _, ok := e.Roles().Lookup("pending"); ok == roleChange {
-				t.Fatal("pending role disposition")
+			if !granted {
+				t.Fatal("candidate lost the actual owner-origin SELECT grant")
 			}
 			transactionRows(t, peer, "SELECT v FROM t")
+			sessionSQL(t, peer, "CREATE ROLE peer LOGIN")
+			roles, frontier := e.roles.published, e.visibility.CommitSeq()
+			peerRole, exists := e.Roles().Lookup("peer")
+			if !exists {
+				t.Fatal("committed peer role missing")
+			}
+			if err := m.end(nil); err != nil {
+				t.Fatal("compatible completed ACL publication rejected", err)
+			}
+			if e.catalog.state == state || e.catalog.state.Get(table.Address) != pending || e.storage.Relations[table.Address] != store || e.visibility.CommitSeq() != frontier+1 {
+				t.Fatal("ACL and rows did not publish exactly once on the retained providers")
+			}
+			if got, exists := e.Roles().Find(peerRole.Ref); !exists || got != peerRole {
+				t.Fatal("publication overwrote committed peer role", got)
+			}
+			if e.Roles().LookupRef("pending") != pendingRef {
+				t.Fatal("publication lost or retargeted pending role")
+			}
+			if _, predecessorHadPending := roles.Root.Read(authorization.PrincipalRef{}).Find(pendingRef); predecessorHadPending == roleChange {
+				t.Fatal("publication mutated the retained committed role predecessor")
+			}
+			if s.Authorization.State != identity || peer.Authorization.State != peerIdentity {
+				t.Fatal("ACL publication changed session identity")
+			}
+			transactionRows(t, peer, "SELECT v FROM t", 1)
 		})
 	}
 }

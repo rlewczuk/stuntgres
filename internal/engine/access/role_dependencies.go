@@ -1,6 +1,7 @@
 package access
 
 import (
+	"iter"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -20,60 +21,92 @@ type RoleDependency struct {
 // collector stops at the first dependency without building diagnostics.
 // Admission and final publication share the exact same descriptor classification.
 func DescriptorRoleDependencies(d catalog.Descriptor, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
+	var lastACL ids.ObjectAddress
+	aclSeen := false
+	return descriptorRoleDependencies(d, func(principal authorization.PrincipalRef, dependency RoleDependency) bool {
+		if principal != ref {
+			return true
+		}
+		// An ACL has one shared dependency per role, not per ACL entry.
+		// Column ACLs are separate, contiguous visits with their own sub-ID.
+		if dependency.Kind == 'a' {
+			if aclSeen && dependency.Address == lastACL {
+				return true
+			}
+			lastACL, aclSeen = dependency.Address, true
+		}
+		return !recordRoleDependency(deps, dependency)
+	})
+}
+
+// DescriptorRoleReferences uses the same dependency classification as retirement.
+func DescriptorRoleReferences(d catalog.Descriptor) iter.Seq[authorization.PrincipalRef] {
+	return func(yield func(authorization.PrincipalRef) bool) {
+		descriptorRoleDependencies(d, func(ref authorization.PrincipalRef, _ RoleDependency) bool { return yield(ref) })
+	}
+}
+
+// The return value reports early termination by the visitor.
+func descriptorRoleDependencies(d catalog.Descriptor, yield func(authorization.PrincipalRef, RoleDependency) bool) bool {
 	if relation, ok := d.(*catalog.Relation); ok {
 		for _, policy := range relation.Security.Policies {
-			for _, role := range policy.Roles {
-				if !role.Public && role.Ref == ref {
-					if recordRoleDependency(deps, RoleDependency{Address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, Kind: 'r', PolicyTable: relation.Address(), PolicyName: policy.Name}) {
-						return true
-					}
+			for _, principal := range policy.Roles {
+				if !principal.Public && !yield(principal.Ref, RoleDependency{Address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, Kind: 'r', PolicyTable: relation.Address(), PolicyName: policy.Name}) {
+					return true
 				}
 			}
 		}
-	}
-	if typ, ok := d.(*catalog.Type); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
-		// Dependent row/array ownership belongs to the relation; independent
-		// composite types still carry their own named ACL dependency.
-		if !typ.SQLType.IsComposite() {
-			return false
-		}
-		if typ.Owner == ref {
+		if relation.RelationKind == catalog.IndexRelation {
 			return false
 		}
 	}
-	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.IndexRelation {
-		// Index ownership belongs to its validated parent relation.
-		return false
+	skipOwner := false
+	if typ, ok := d.(*catalog.Type); ok {
+		if typ.OwningRelation != (ids.ObjectAddress{}) {
+			if !typ.SQLType.IsComposite() {
+				return false
+			}
+			skipOwner = true
+		}
+		skipOwner = skipOwner || typ.SQLType.IsArray()
 	}
 	owner, acl, columns := DescriptorACL(d)
-	if owner == ref {
-		if typ, array := d.(*catalog.Type); array && typ.SQLType.IsArray() {
-			// Associated array ownership is represented by its parent.
-			return false
-		}
-		// The owner's shared ACL dependencies are represented by ownership.
-		return recordRoleDependency(deps, RoleDependency{Address: d.Address(), Kind: 'o'})
+	if owner != (authorization.PrincipalRef{}) && !skipOwner && !yield(owner, RoleDependency{Address: d.Address(), Kind: 'o'}) {
+		return true
 	}
-	if aclRoleDependencies(d.Address(), acl, ref, deps) {
+	if aclRoleReferences(d.Address(), owner, acl, yield) {
 		return true
 	}
 	for sub, acl := range columns {
 		address := d.Address()
 		address.SubID = sub
-		if aclRoleDependencies(address, acl, ref, deps) {
+		if aclRoleReferences(address, owner, acl, yield) {
 			return true
 		}
 	}
 	return false
 }
 
-func aclRoleDependencies(address ids.ObjectAddress, acl authorization.ACLValue, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
+func aclRoleReferences(address ids.ObjectAddress, owner authorization.PrincipalRef, acl authorization.ACLValue, yield func(authorization.PrincipalRef, RoleDependency) bool) bool {
 	for _, entry := range acl.Entries {
-		if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
-			return recordRoleDependency(deps, RoleDependency{Address: address, Kind: 'a'})
+		dependency := RoleDependency{Address: address, Kind: 'a'}
+		if entry.Grantor != owner && !yield(entry.Grantor, dependency) {
+			return true
+		}
+		if !entry.Grantee.Public && entry.Grantee.Role != owner && entry.Grantee.Role != entry.Grantor && !yield(entry.Grantee.Role, dependency) {
+			return true
 		}
 	}
 	return false
+}
+
+func DefaultACLRoleReferences(key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) iter.Seq[authorization.PrincipalRef] {
+	return func(yield func(authorization.PrincipalRef) bool) {
+		if record == nil || !yield(key.Creator) {
+			return
+		}
+		aclRoleReferences(ids.ObjectAddress{}, key.Creator, record.ACL, func(ref authorization.PrincipalRef, _ RoleDependency) bool { return yield(ref) })
+	}
 }
 
 func recordRoleDependency(deps *[]RoleDependency, dependency RoleDependency) bool {

@@ -185,7 +185,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 	t.Run("admitted_loop_cancellation", func(t *testing.T) {
 		e, s := cursorUnitScope(t)
 		holder, provenance := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 987654321}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 987654321}
 		advisoryUnitGrant(t, holder, provenance, key, lock.AdvisoryExclusive)
 		defer advisoryUnitUnlock(t, holder, key, lock.AdvisoryExclusive, true)
 		d := cursorOwnerRoutine(t, e, s, "DECLARE c CURSOR FOR SELECT 7 AS i; f boolean; BEGIN c:='unit_cancel_loop'; FOR r IN c LOOP f:=pg_advisory_lock(987654321::bigint) IS NULL; END LOOP; RETURN 0; END")

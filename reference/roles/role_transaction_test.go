@@ -39,29 +39,17 @@ func TestReferenceRoleTransactionMutationBoundary(t *testing.T) {
 							stmt, e := tx.PrepareContext(p.Ctx, q)
 							err = e
 							if stmt != nil {
-								if backend.PG {
-									_, err = stmt.ExecContext(p.Ctx)
-								}
+								_, err = stmt.ExecContext(p.Ctx)
 								stmt.Close()
 							}
 						} else {
 							_, err = tx.ExecContext(p.Ctx, q)
 						}
-						if backend.PG {
-							fixture.State(t, err, "")
-							if q == "SET SESSION AUTHORIZATION tx_reader" {
-								if _, err := tx.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION"); err != nil {
-									t.Fatal(err)
-								}
-							}
-							fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Exec("INSERT INTO tx_sentinel VALUES(9)", 1))
-						} else {
-							want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
-							fixture.AssertDiagnostic(t, err, &want)
-							_, err = tx.ExecContext(p.Ctx, "INSERT INTO tx_sentinel VALUES(9)")
-							want = fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block")
-							fixture.AssertDiagnostic(t, err, &want)
+						fixture.State(t, err, "")
+						if q == "SET SESSION AUTHORIZATION tx_reader" {
+							fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 						}
+						fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Exec("INSERT INTO tx_sentinel VALUES(9)", 1))
 						if err := tx.Rollback(); err != nil {
 							t.Fatal(err)
 						}

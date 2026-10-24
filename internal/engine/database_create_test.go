@@ -22,6 +22,9 @@ import (
 func databaseCreateUnitTarget(t *testing.T, e, seed *Engine, name string) *Engine {
 	t.Helper()
 	target := e.newDatabaseRuntime(seed, name, e.Roles().LookupRef("postgres"))
+	if err := e.locks.AdmitDomain(target.catalog.Domain); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := target.replaceCatalog(context.Background(), seed, seed.CatalogRead(), nil); err != nil {
 		t.Fatal("clone retained template:", err)
 	}

@@ -38,7 +38,7 @@ func TestReferenceTransactionalSchemaUtilityBoundaries(t *testing.T) {
 		{name: "Composite", query: "CREATE TYPE tx_bound_new AS(a INT)", tag: "CREATE TYPE", nativeExcluded: true, probe: "SELECT count(*) FROM pg_type WHERE typnamespace='public'::regnamespace AND typname='tx_bound_new'"},
 		{name: "Domain", query: "CREATE DOMAIN tx_bound_new AS INT", tag: "CREATE DOMAIN", nativeExcluded: true, probe: "SELECT count(*) FROM pg_type WHERE typnamespace='public'::regnamespace AND typname='tx_bound_new'"},
 		{name: "Routine", query: "CREATE FUNCTION tx_bound_new() RETURNS INT LANGUAGE SQL RETURN 11", tag: "CREATE FUNCTION", nativeExcluded: true, probe: "SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='tx_bound_new'"},
-		{name: "Role", query: "CREATE ROLE tx_bound_role NOLOGIN", tag: "CREATE ROLE", nativeExcluded: true, probe: "SELECT count(*) FROM pg_roles WHERE rolname='tx_bound_role'"},
+		{name: "Role", query: "CREATE ROLE tx_bound_role NOLOGIN", tag: "CREATE ROLE", probe: "SELECT count(*) FROM pg_roles WHERE rolname='tx_bound_role'"},
 		{name: "Conversion", query: "CREATE CONVERSION tx_bound_new FOR 'UTF8' TO 'LATIN1' FROM pg_catalog.utf8_to_iso8859_1", tag: "CREATE CONVERSION", nativeExcluded: true, probe: "SELECT count(*) FROM pg_conversion WHERE connamespace='public'::regnamespace AND conname='tx_bound_new'"},
 		{name: "Grant", query: "GRANT SELECT ON tx_bound TO PUBLIC", tag: "GRANT", nativeExcluded: true, probe: "SELECT count(*) FROM pg_class WHERE oid='tx_bound'::regclass AND relacl IS NOT NULL"},
 		{name: "Comment", query: "COMMENT ON TABLE tx_bound IS 'private comment'", tag: "COMMENT", probe: "SELECT count(*) FROM pg_description WHERE classoid='pg_class'::regclass AND objoid='tx_bound'::regclass AND objsubid=0"},
@@ -131,6 +131,9 @@ func TestReferenceTransactionalSchemaUtilityBoundaries(t *testing.T) {
 								run(fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
 							} else if tc.probe != "" {
 								run(fixture.Select(tc.probe, []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}))
+								if tc.name == "Role" {
+									fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select(tc.probe, []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+								}
 							}
 							rollback()
 							base(fixture.Select("SELECT a FROM tx_bound", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))

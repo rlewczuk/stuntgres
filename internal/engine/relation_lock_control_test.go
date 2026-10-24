@@ -138,7 +138,7 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 	epoch := next.Epoch()
 	e.mu.Unlock()
 	e.replacementMu.Unlock()
-	e.locks.Fence(epoch)
+	e.locks.Fence(e.catalog.Domain, epoch)
 	lockAwait(t, done, ids.ErrCatalogReplaced)
 	if err = scope.Finish(ids.ErrCatalogReplaced); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)

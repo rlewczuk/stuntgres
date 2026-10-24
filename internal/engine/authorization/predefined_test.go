@@ -23,13 +23,13 @@ func TestPredefinedRoleInitialization(t *testing.T) {
 	}
 	for name, id := range want {
 		d, ok := r.Lookup(name)
-		expected := RoleDescriptor{Ref: domain.Principal(id), Name: name, Inherit: true, ConnectionLimit: -1, predefined: true}
+		expected := RoleDescriptor{Ref: domain.Principal(id), Name: name, AuthIDVersion: 1, Inherit: true, ConnectionLimit: -1, predefined: true}
 		if !ok || d != expected {
 			t.Fatalf("%s: %#v want %#v", name, d, expected)
 		}
 	}
 	bootstrap, ok := r.Lookup("postgres")
-	if !ok || bootstrap.Ref.id != 10 || !bootstrap.Superuser || !bootstrap.Login {
+	if !ok || bootstrap.Ref.id != 10 || bootstrap.AuthIDVersion != 1 || !bootstrap.Superuser || !bootstrap.Login {
 		t.Fatal(bootstrap)
 	}
 	edges := []Membership{

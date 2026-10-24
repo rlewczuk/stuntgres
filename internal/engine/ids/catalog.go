@@ -29,6 +29,7 @@ type NameKey struct {
 
 const (
 	NamespaceClassID             OID = 2615
+	RoleClassID                  OID = 1260
 	RelationClassID              OID = 1259
 	TypeClassID                  OID = 1247
 	CollationClassID             OID = 3456

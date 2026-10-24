@@ -35,7 +35,7 @@ func TestRelationLockWaitsLifecycle(t *testing.T) {
 			case "end":
 				e.endLockOwner(b.Transactions.Ticket)
 			case "fence":
-				e.locks.Fence(ref.Epoch + 1)
+				e.locks.Fence(e.catalog.Domain, ref.Epoch+1)
 			case "grant":
 				e.endLockOwner(a.Transactions.Ticket)
 				cancel()

@@ -52,8 +52,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if err := publicationOperationLocked(e, op); err != nil {
 			return nil, err
 		}
-		e.installOperationRolesLocked(op, roles)
-		return nil, nil
+		return nil, e.installOperationRolesLocked(op, roles)
 	}
 	updated, err := role.PlanObjectComment(auth.View, auth, e.catalog.Domain, s, scope.lockedRef, text, e.catalog.revisionLocked)
 	if err != nil {

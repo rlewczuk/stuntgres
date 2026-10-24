@@ -168,6 +168,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
 			return e.executeDatabaseGrant(scope, grant, count)
 		}
+		if drop, ok := stmt.(*parser.DropRole); ok && count == 0 {
+			if err := scope.acquireRoleRetirementLocks(drop); err != nil {
+				return Result{}, err
+			}
+		}
 		result, err := e.executeRole(op, stmt, count, !scope.owner.InBlock())
 		if err == nil {
 			scope.completed = true

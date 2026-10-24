@@ -17,6 +17,7 @@ func (r PrincipalRef) ID() uint64 { return r.id }
 type RoleDescriptor struct {
 	Ref                                                                     PrincipalRef
 	Name                                                                    string
+	AuthIDVersion                                                           uint64
 	Login, Superuser, CreateDB, CreateRole, Inherit, Replication, BypassRLS bool
 	ConnectionLimit                                                         int32
 	Password                                                                string // Empty is SQL NULL; verifiers are immutable strings.

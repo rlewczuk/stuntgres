@@ -99,7 +99,11 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.domain, &e.roles.aclAuthority
 	e.visibility = visibility.NewRegistry(trackCommitTimestamp)
 	e.databaseFrozenXID = 3
-	e.locks = lock.New(e.catalog.Domain)
+	cluster.locks = lock.New(e.catalog.Domain)
+	if err := cluster.locks.SetRoleDomain(&cluster.roleDomain, 1); err != nil {
+		return nil, err
+	}
+	e.locks = cluster.locks
 	e.mu.Lock()
 	e.storage.ReplaceSequencesLocked(make(map[ids.ObjectAddress]*storage.SequenceGenerator))
 	e.mu.Unlock()

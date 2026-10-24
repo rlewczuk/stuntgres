@@ -430,6 +430,10 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		s.controlOutcome = controlDescribed
 		return StatementDescription{}, nil
 	}
+	if transactionalRoleUtility(stmt) {
+		// Selected role utilities have no preparation-time authority effects.
+		return StatementDescription{}, nil
+	}
 	switch session.DescribeBeforeSnapshot(stmt) {
 	case session.DescribeEmpty:
 		return StatementDescription{}, nil

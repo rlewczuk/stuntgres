@@ -90,7 +90,7 @@ func TestDeadlockResultScheduling(t *testing.T) {
 				e := New()
 				a, ra := advisoryUnitOwner(t, e)
 				b, rb := advisoryUnitOwner(t, e)
-				key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 71}
+				key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 71}
 				advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()

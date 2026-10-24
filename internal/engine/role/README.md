@@ -77,9 +77,8 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   ownership and returns the commented descriptor with a new revision.
   These existing kinds work in autocommit and explicit transactions. Object
   metadata is database-local; role text is cluster-shared, with private changes
-  visible only to the transaction owner until commit. This does not extend
-  COMMENT authorization, admit role-renaming SQL or enable transactional role
-  creation.
+  visible only to the transaction owner until commit. Role renaming remains a
+  separate command family.
 - **Role retirement** (`retirement.go`): `RetirementPreflightLocked`, the
   final-publication check that no default ACL, descriptor or membership edge
   still references a retired role.
@@ -101,6 +100,10 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   path), or a `ddl.Authority` it reads through the host; none captures or
   caches authority. `PlanOwned` names objects through a `describe`
   callback, which the root builds over `stored.DependencyObject`.
+- **Retirement admission precedes waiting.** The actor gate precedes target
+  lookup; each target's current/session identity checks precede its lock wait.
+  Engine readmission repeats these shared checks against the captured principal
+  before planning whole-group dependencies and atomic retirement.
 - **No locks, no publication.** The package adds no mutex and publishes
   nothing. Every `Host` and `StageHost` method runs with `Engine.mu` held;
   none takes, releases or waits on a lock. Plans return candidates and
@@ -133,9 +136,19 @@ notice).
 
 `installOperationRolesLocked` publishes ordinary autocommit changes but installs
 an immutable journal role root for active explicit or retained-message/protocol
-transactions. It captures `RolesBase` once; Finish, savepoints and combined commit
-own failure disposal, restoration and final shared publication. Dump omits role
-comments, and Reset/Restore preserve committed role text rather than importing it.
+transactions. The first actual role mutation captures its predecessor as
+`RolesBase`; later mutations preserve that base. Finish and savepoints own failure
+disposal and restoration. Combined commit merges disjoint role changes without
+overwriting peer work and validates retirement dependencies across databases.
+Completed catalog metadata, including ACL/default-privilege changes, does not
+retain its execution authorization or pin an unrelated committed role root.
+Pending query-derived rows and materialized replacements keep their separate
+producer role-read fence until publication; actual role deltas retain exact
+touched descriptor, name and membership preconditions.
+Role object, tuple and name admission uses the cluster's canonical lock manager
+outside `Engine.mu`. Session authorization changes only the physical owner's
+identity; commit retains it, while full or savepoint rollback restores it.
+Dump omits shared roles, and Reset/Restore preserve their committed state.
 
 ## Testing
 

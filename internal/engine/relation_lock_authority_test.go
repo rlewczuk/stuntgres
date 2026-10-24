@@ -112,7 +112,7 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.endLockOwner(old)
-	e.locks.Fence(ref.Epoch)
+	e.locks.Fence(e.catalog.Domain, ref.Epoch)
 	lockState = e.locks.Inspect()
 	held = lockState.Resources[lock.Resource{ObjectRef: ref}].Holders[tb].Mode
 	if held != lock.RowExclusive {

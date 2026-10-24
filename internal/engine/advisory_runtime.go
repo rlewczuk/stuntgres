@@ -23,9 +23,9 @@ func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryActio
 		}
 		return sqltype.VoidValue(result), nil
 	}
-	ref := lock.Resource{Kind: lock.AdvisoryBigintResource, High: uint32(uint64(first) >> 32), Low: uint32(first)}
+	ref := lock.Resource{Database: s.engine().catalog.Domain, Kind: lock.AdvisoryBigintResource, High: uint32(uint64(first) >> 32), Low: uint32(first)}
 	if pair {
-		ref = lock.Resource{Kind: lock.AdvisoryPairResource, High: uint32(first), Low: uint32(second)}
+		ref = lock.Resource{Database: s.engine().catalog.Domain, Kind: lock.AdvisoryPairResource, High: uint32(first), Low: uint32(second)}
 	}
 	lockMode := lock.AdvisoryExclusive
 	if mode == functions.AdvisoryShare {

@@ -11,7 +11,7 @@ import (
 func (m *Manager) RegisterSession(token ids.SessionToken) (*Ticket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if token.Domain() != m.domain || token.ID() == 0 && token.Private() == nil {
+	if m.domains[token.Domain()] == nil || token.ID() == 0 && token.Private() == nil {
 		return nil, errors.New("stuntgres: invalid advisory session")
 	}
 	if m.sessions[token] != nil {
@@ -55,10 +55,10 @@ func (m *Manager) validRequest(r *relationRequest) bool {
 		return false
 	}
 	if !r.ticket.persistent {
-		return true
+		return r.ticket.ref.Epoch() >= m.domains[r.ticket.ref.Domain()].epoch
 	}
 	source := m.owners[r.provenance]
-	return source != nil && !source.detached && source.session == r.ticket.session && r.provenance.Epoch() >= m.epoch
+	return source != nil && !source.detached && source.session == r.ticket.session && r.provenance.Epoch() >= m.domains[source.ref.Domain()].epoch
 }
 
 // Caller holds manager metadata. Both immediate and queued grants use this
@@ -99,7 +99,7 @@ func (m *Manager) grant(t *Ticket, ref Resource, e *relationEntry, mode Mode) er
 func (m *Manager) UnlockAdvisory(t *Ticket, ref Resource, mode Mode) (bool, error) {
 	var notify *relationRequest
 	m.mu.Lock()
-	if !m.valid(t) || !t.persistent || ref.Kind != AdvisoryBigintResource && ref.Kind != AdvisoryPairResource || mode != AdvisoryShare && mode != AdvisoryExclusive {
+	if !m.valid(t) || !t.persistent || ref.Database != t.session.Domain() || ref.ObjectRef != (ids.ObjectRef{}) || ref.RoleTuple || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil || ref.Kind != AdvisoryBigintResource && ref.Kind != AdvisoryPairResource || mode != AdvisoryShare && mode != AdvisoryExclusive {
 		m.mu.Unlock()
 		return false, errors.New("stuntgres: invalid advisory unlock")
 	}

@@ -16,7 +16,7 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	c := sessionStart(t, e, nil)
 	sessionSQL(t, a, "CREATE TABLE advisory_soft_relation(v INT)")
 	ra, rb, rc := transactionBegin(t, a), transactionBegin(t, b), transactionBegin(t, c)
-	x := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 21, Low: 22}
+	x := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 21, Low: 22}
 	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "advisory_soft_relation")}
 	advisoryUnitGrant(t, a, ra, x, lock.AdvisoryShare)
 	if err := e.locks.Acquire(context.Background(), c.Transactions.Ticket, y, lock.AccessExclusive); err != nil {

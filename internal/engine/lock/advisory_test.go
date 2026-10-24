@@ -53,7 +53,7 @@ func (f *lockFixture) advisoryUnlock(p advisoryUnitParticipant, key Resource, mo
 // blocking fails unless pid's blocking PIDs are exactly want.
 func (f *lockFixture) blocking(pid ids.SessionID, want ...int32) {
 	f.t.Helper()
-	got, err := f.m.BlockingPids(pid)
+	got, err := f.m.BlockingPids(f.domain, pid)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func (f *lockFixture) blocking(pid ids.SessionID, want ...int32) {
 func TestAdvisoryCountedGrantsAndOverflow(t *testing.T) {
 	f := newLockFixture(t)
 	a, b := f.advisoryParticipant(), f.advisoryParticipant()
-	big := Resource{Kind: AdvisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
+	big := Resource{Database: f.domain, Kind: AdvisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
 	pair := big
 	pair.Kind = AdvisoryPairResource
 	f.advisoryGrant(a, big, AdvisoryShare)
@@ -110,8 +110,8 @@ func TestAdvisoryCountedGrantsAndOverflow(t *testing.T) {
 func TestAdvisoryExpiredSourceWinsDelayedCallback(t *testing.T) {
 	f := newLockFixture(t)
 	a, b := f.advisoryParticipant(), f.advisoryParticipant()
-	key := Resource{Kind: AdvisoryBigintResource, Low: 16}
-	prior := Resource{Kind: AdvisoryPairResource, High: 16, Low: 17}
+	key := Resource{Database: f.domain, Kind: AdvisoryBigintResource, Low: 16}
+	prior := Resource{Database: f.domain, Kind: AdvisoryPairResource, High: 16, Low: 17}
 	f.advisoryGrant(a, key, AdvisoryExclusive)
 	f.advisoryGrant(b, prior, AdvisoryExclusive)
 	ctx, cancel := context.WithTimeout(context.Background(), 70*time.Millisecond)
@@ -134,7 +134,7 @@ func TestAdvisoryExpiredSourceWinsDelayedCallback(t *testing.T) {
 func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 	f := newLockFixture(t)
 	a, b := f.advisoryParticipant(), f.advisoryParticipant()
-	key := Resource{Kind: AdvisoryBigintResource, Low: 187418}
+	key := Resource{Database: f.domain, Kind: AdvisoryBigintResource, Low: 187418}
 	f.advisoryGrant(a, key, AdvisoryExclusive)
 	m := f.m
 	sessionTicket, source := b.advisory, b.tx

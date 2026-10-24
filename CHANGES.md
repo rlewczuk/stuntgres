@@ -17,6 +17,11 @@ at commit. Pending query-derived producers and materialized replacements retain
 their separate role-read publication guard; actual role writes keep their own
 baseline conflict fence. REINDEX and concurrent-operation boundaries remain.
 
+Existing role creation, attributes, retirement and membership options now support
+SQL and Go transactions, including private visibility, savepoints and atomic
+cluster-wide publication. Session authorization rolls back with its physical
+owner; role conflicts share the canonical lock and deadlock lifecycle.
+
 PL/pgSQL static query FOR loops assign existing RECORD and row variables,
 preserve query ordering and duplicates, retain VOID query-result members,
 shape empty results as NULL fields, stream SELECT demand across CTE lifetimes,

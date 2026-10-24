@@ -57,7 +57,7 @@ func (m *Manager) PinUniqueKey(ctx context.Context, ticket *Ticket, ref ids.Obje
 			return Resource{}, nil, err
 		}
 		m.mu.Lock()
-		if !m.valid(ticket) || ref.Epoch != ticket.ref.Epoch() {
+		if !m.valid(ticket) || ticket.persistent || ref.Domain() != ticket.ref.Domain() || ref.Epoch != ticket.ref.Epoch() || ref.Address.ClassID != ids.RelationClassID || ref.Address.ObjectID == 0 || ref.Address.SubID != 0 {
 			m.mu.Unlock()
 			return Resource{}, nil, ids.ErrCatalogReplaced
 		}

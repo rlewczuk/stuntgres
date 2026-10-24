@@ -15,7 +15,7 @@ import (
 
 // Snapshot is an owned, point-in-time copy of manager state.
 type Snapshot struct {
-	Epoch     ids.CatalogEpoch
+	Epochs    map[*ids.Domain]ids.CatalogEpoch
 	Owners    map[ids.TxRef]*Ticket        // registered transaction tickets
 	Sessions  map[ids.SessionToken]*Ticket // registered session tickets
 	Resources map[Resource]*ResourceState
@@ -26,8 +26,8 @@ type Snapshot struct {
 	Detached   map[*Ticket]bool // prepared tickets among Journals' keys
 	KeyBuckets int              // live unique-key buckets
 
-	MultiNext    uint32                  // next MultiXact ID to allocate
-	MultiHistory int                     // retained MultiXact member sets
+	MultiNext    map[*ids.Domain]uint32  // next database-local MultiXact IDs
+	MultiHistory map[*ids.Domain]int     // retained database-local member sets
 	MultiRows    map[MultiTuple]MultiRow // current physical row status
 	// Contributions holds each Journals ticket's physical status bits by tuple.
 	Contributions map[*Ticket]map[MultiTuple]uint8
@@ -68,7 +68,7 @@ func (m *Manager) Inspect(tickets ...*Ticket) Snapshot {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := Snapshot{
-		Epoch:      m.epoch,
+		Epochs:     make(map[*ids.Domain]ids.CatalogEpoch, len(m.domains)),
 		Owners:     maps.Clone(m.owners),
 		Sessions:   maps.Clone(m.sessions),
 		Resources:  make(map[Resource]*ResourceState, len(m.entries)),
@@ -76,11 +76,16 @@ func (m *Manager) Inspect(tickets ...*Ticket) Snapshot {
 		Detached:   make(map[*Ticket]bool),
 		KeyBuckets: len(m.keyBuckets),
 
-		MultiNext:     m.multiNext,
-		MultiHistory:  len(m.multiHistory),
+		MultiNext:     make(map[*ids.Domain]uint32, len(m.domains)),
+		MultiHistory:  make(map[*ids.Domain]int, len(m.domains)),
 		MultiRows:     make(map[MultiTuple]MultiRow, len(m.multiRows)),
 		Contributions: make(map[*Ticket]map[MultiTuple]uint8),
 		UniqueDeltas:  make(map[*Ticket][]Resource),
+	}
+	for domain, state := range m.domains {
+		s.Epochs[domain] = state.epoch
+		s.MultiNext[domain] = state.multiNext
+		s.MultiHistory[domain] = len(state.multiHistory)
 	}
 	for tuple, row := range m.multiRows {
 		s.MultiRows[tuple] = MultiRow{ID: row.id, Members: slices.Clone(row.members)}

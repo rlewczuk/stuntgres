@@ -93,7 +93,7 @@ func TestPGLocksConcurrentAssignmentCapture(t *testing.T) {
 			f.m.mu.Lock()
 			go func() {
 				close(started)
-				records, err := f.m.PGLocks(holder.Ref().Epoch())
+				records, err := f.m.PGLocks(f.domain, holder.Ref().Epoch())
 				done <- outcome{records, err}
 			}()
 			<-started

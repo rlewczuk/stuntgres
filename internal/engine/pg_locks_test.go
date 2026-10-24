@@ -23,7 +23,7 @@ import (
 
 func pgLocksUnitCapture(t *testing.T, e *Engine) []lock.Record {
 	t.Helper()
-	records, err := e.locks.PGLocks(e.catalog.state.Epoch())
+	records, err := e.locks.PGLocks(e.catalog.Domain, e.catalog.state.Epoch())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,11 +218,11 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		if e.visibility.Entries[ticket.Ref()].Xmin != before.Xmin || !e.visibility.Entries[ticket.Ref()].Snapshot {
 			t.Fatal("assignment discarded visibility")
 		}
-		e.locks.Fence(ticket.Ref().Epoch() + 1)
-		if rows, err := e.locks.PGLocks(ticket.Ref().Epoch()); !errors.Is(err, ids.ErrCatalogReplaced) || rows != nil {
+		e.locks.Fence(e.catalog.Domain, ticket.Ref().Epoch()+1)
+		if rows, err := e.locks.PGLocks(e.catalog.Domain, ticket.Ref().Epoch()); !errors.Is(err, ids.ErrCatalogReplaced) || rows != nil {
 			t.Fatal("old epoch snapshot", rows, err)
 		}
-		if rows, err := e.locks.PGLocks(ticket.Ref().Epoch() + 1); err != nil || len(rows) != 0 {
+		if rows, err := e.locks.PGLocks(e.catalog.Domain, ticket.Ref().Epoch()+1); err != nil || len(rows) != 0 {
 			t.Fatal("fenced owner resurrection", rows, err)
 		}
 	})

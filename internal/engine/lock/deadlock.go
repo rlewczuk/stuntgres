@@ -168,6 +168,8 @@ func (m *Manager) detectDeadlockSnapshot(newRequest *relationRequest, notify **r
 				kind = "type"
 			} else if r.ref.Address.ClassID == ids.NamespaceClassID {
 				kind = "namespace"
+			} else if r.ref.Address.ClassID == ids.RoleClassID {
+				kind = "role"
 			}
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on %s %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), kind, r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)
 			if r.ref.Row != 0 {
@@ -175,6 +177,9 @@ func (m *Manager) detectDeadlockSnapshot(newRequest *relationRequest, notify **r
 			}
 			if r.ref.key != nil {
 				detail.WriteString(" unique key")
+			}
+			if r.ref.RoleTuple {
+				detail.WriteString(" tuple claim")
 			}
 		}
 		fmt.Fprintf(&detail, "; blocked by transaction %d (session %d, epoch %d).", blocker.ref.ID(), blocker.ref.Session().ID(), blocker.ref.Epoch())

@@ -49,7 +49,7 @@ func TestAdvisorySessionKeysCountsCompatibility(t *testing.T) {
 				e := New()
 				a, ra := advisoryUnitOwner(t, e)
 				b, rb := advisoryUnitOwner(t, e)
-				key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 0xffffffff, Low: 0x80000000}
+				key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 0xffffffff, Low: 0x80000000}
 				advisoryUnitGrant(t, a, ra, key, held)
 				r, err := advisoryUnitAcquire(t, b, rb, key, requested, true)
 				compatible := held == lock.AdvisoryShare && requested == lock.AdvisoryShare
@@ -73,7 +73,7 @@ func TestAdvisorySessionKeysCountsCompatibility(t *testing.T) {
 		ra := transactionBegin(t, a)
 		object := catalogRef(t, e, e.CatalogRead(), "t")
 		ordinary := lock.Resource{ObjectRef: object}
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: uint32(object.Address.ObjectID)}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: uint32(object.Address.ObjectID)}
 		ticket := a.Transactions.Ticket
 		m := e.locks
 		if err := m.Acquire(context.Background(), ticket, ordinary, lock.AccessShare); err != nil {

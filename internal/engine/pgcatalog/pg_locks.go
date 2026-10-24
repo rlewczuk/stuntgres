@@ -121,7 +121,11 @@ func pgLockRow(d *catalog.Relation, database uint32, record lock.Record, mode, o
 		if record.Kind == lock.AdvisoryRecord {
 			kind = "advisory"
 		}
-		oid(1, database)
+		if record.Shared {
+			oid(1, 0)
+		} else {
+			oid(1, database)
+		}
 		oid(7, record.Class)
 		oid(8, record.Object)
 		integer(9, int64(record.Subobject))

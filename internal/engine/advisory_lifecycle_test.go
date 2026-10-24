@@ -116,7 +116,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.locks.Fence(epoch)
+	e.locks.Fence(e.catalog.Domain, epoch)
 }
 func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 	for _, grantBeforeFence := range []bool{false, true} {
@@ -124,7 +124,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			e := New()
 			a, ra := advisoryUnitOwner(t, e)
 			b, rb := advisoryUnitOwner(t, e)
-			key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 0x80000000, Low: 9}
+			key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 0x80000000, Low: 9}
 			advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 			advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 			transactionEnd(t, b, rb, false)
@@ -194,7 +194,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 10, Low: 11}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 10, Low: 11}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 		transactionEnd(t, b, rb, false)

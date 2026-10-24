@@ -180,7 +180,11 @@ func (c *client) startup() (bool, error) {
 	if err := c.wire.send('R', appendInt32(nil, 0)); err != nil {
 		return false, err
 	}
-	if err := c.sendSettings(c.settingsSnapshot()); err != nil {
+	values, err := c.settingsSnapshot()
+	if err != nil {
+		return false, err
+	}
+	if err := c.sendSettings(values); err != nil {
 		return false, err
 	}
 	body := appendInt32(nil, c.id)
@@ -322,14 +326,25 @@ func startupOptions(options string) (startupDefaults, error) {
 	return defaults, nil
 }
 
-func (c *client) settingsSnapshot() []parameterValue {
+func (c *client) settingsSnapshot() ([]parameterValue, error) {
 	values := []parameterValue{{"server_version", "18.0"}, {"integer_datetimes", "on"}}
 	for _, name := range []string{"application_name", "client_encoding", "server_encoding", "DateStyle", "IntervalStyle", "TimeZone", "standard_conforming_strings", "search_path"} {
 		if value, ok := c.session.Setting(name); ok {
 			values = append(values, parameterValue{name, value})
 		}
 	}
-	return values
+	name, superuser, retired, err := c.db.engine.ProtocolAuthorizationStatus(c.session)
+	if err != nil {
+		return nil, err
+	}
+	if !retired {
+		privilege := "off"
+		if superuser {
+			privilege = "on"
+		}
+		values = append(values, parameterValue{"session_authorization", name}, parameterValue{"is_superuser", privilege})
+	}
+	return values, nil
 }
 
 // Startup and readyBoundary are the only report boundaries. Final current

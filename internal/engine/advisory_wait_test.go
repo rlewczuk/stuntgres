@@ -18,7 +18,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
 		c, rc := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 0x80000000, Low: 0xffffffff}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 0x80000000, Low: 0xffffffff}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		waiter, err := advisoryUnitAcquire(t, b, rb, key, lock.AdvisoryExclusive, false)
 		if err != nil || waiter == nil {
@@ -47,7 +47,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 3}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 3}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 		first, err := advisoryUnitAcquire(t, a, ra, key, lock.AdvisoryExclusive, false)
@@ -86,7 +86,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		ra := transactionBegin(t, a)
 		rb := transactionBegin(t, b)
 		ordinary := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-		key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 7, Low: 8}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 7, Low: 8}
 		live := e.locks.Inspect()
 		if live.Participant(a.Transactions.Ticket) != live.Participant(a.Advisory.Ticket) || live.Participant(b.Transactions.Ticket) != live.Participant(b.Advisory.Ticket) {
 			t.Fatal("live tickets did not collapse")
@@ -121,8 +121,8 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 						e := New()
 						a, ra := advisoryUnitOwner(t, e)
 						b, rb := advisoryUnitOwner(t, e)
-						key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 4}
-						prior := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 98}
+						key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 4}
+						prior := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 98}
 						advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 						advisoryUnitGrant(t, b, rb, prior, lock.AdvisoryExclusive)
 						blockerHold, priorHold := advisoryUnitHold(a, key), advisoryUnitHold(b, prior)
@@ -228,7 +228,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 5}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 5}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
@@ -259,7 +259,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		ra := transactionBegin(t, a)
 		old := a.Transactions.Ticket
 		ordinary := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 6}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 6}
 		if err := e.locks.Acquire(context.Background(), old, ordinary, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}

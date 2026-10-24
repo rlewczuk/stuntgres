@@ -58,10 +58,13 @@ func (m *Manager) pendingInquiryRequest(t *Ticket) *relationRequest {
 // Only manager metadata is held. Inspect the authoritative journal and resource
 // queue without granting, settling, copying the graph, or invoking callbacks.
 // Pids are public session IDs, or zero for a prepared transaction.
-func (m *Manager) BlockingPids(pid ids.SessionID) ([]int32, error) {
+func (m *Manager) BlockingPids(domain *ids.Domain, pid ids.SessionID) ([]int32, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	token := m.domain.Session(pid)
+	if m.domains[domain] == nil {
+		return nil, ids.ErrCatalogReplaced
+	}
+	token := domain.Session(pid)
 	r := m.pendingInquiryRequest(m.sessions[token])
 	if r == nil {
 		for _, t := range m.owners {
@@ -74,6 +77,17 @@ func (m *Manager) BlockingPids(pid ids.SessionID) ([]int32, error) {
 		}
 	}
 	if r == nil {
+		for _, ticket := range m.owners {
+			if ticket.session.ID() != pid || ticket.session.Private() != nil || ticket.detached {
+				continue
+			}
+			if pending := m.pendingInquiryRequest(ticket); m.roleDomain != nil && pending != nil && pending.ref.Domain() == m.roleDomain {
+				r = pending
+				break
+			}
+		}
+	}
+	if r == nil {
 		return nil, nil
 	}
 	var values []int32
@@ -81,7 +95,7 @@ func (m *Manager) BlockingPids(pid ids.SessionID) ([]int32, error) {
 	// different TxRefs must retain separate zero entries. Scanning the small
 	// resource-local prefixes avoids allocating a second identity registry.
 	appendParticipant := func(t *Ticket) error {
-		pid, visible, err := BlockingPid(t.session, t.detached, m.domain)
+		pid, visible, err := BlockingPid(t.session, t.detached, t.session.Domain())
 		if visible {
 			values = append(values, pid)
 		}

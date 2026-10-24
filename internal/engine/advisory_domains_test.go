@@ -17,9 +17,11 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 	boundaries := [][2]uint32{{0, 0}, {0x80000000, 0}, {0x7fffffff, 0xffffffff}, {0xffffffff, 0xffffffff}}
 	for _, words := range boundaries {
 		for _, kind := range []lock.ResourceKind{lock.AdvisoryBigintResource, lock.AdvisoryPairResource} {
-			key := lock.Resource{Kind: kind, High: words[0], Low: words[1]}
+			key := lock.Resource{Database: e.catalog.Domain, Kind: kind, High: words[0], Low: words[1]}
 			advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
-			advisoryUnitGrant(t, isolated, ri, key, lock.AdvisoryExclusive)
+			isolatedKey := key
+			isolatedKey.Database = other.catalog.Domain
+			advisoryUnitGrant(t, isolated, ri, isolatedKey, lock.AdvisoryExclusive)
 			request, err := advisoryUnitAcquire(t, b, rb, key, lock.AdvisoryExclusive, true)
 			if request != nil || !errors.Is(err, lock.ErrUnavailable) {
 				t.Fatal("busy try created/succeeded request", request, err)
@@ -32,12 +34,12 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 			if pending != 0 || persistentJournal != 0 || transientJournal != 0 || !unallocated {
 				t.Fatal("false try allocated/journaled ownership", pending, persistentJournal, transientJournal, unallocated)
 			}
-			if advisoryUnitHold(a, key).Exclusive != 1 || advisoryUnitHold(isolated, key).Exclusive != 1 {
+			if advisoryUnitHold(a, key).Exclusive != 1 || advisoryUnitHold(isolated, isolatedKey).Exclusive != 1 {
 				t.Fatal("key/domain isolation")
 			}
 		}
 	}
-	key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
+	key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
 	forged := *a.Advisory.Ticket
 	if _, err := e.locks.StartAcquire(context.Background(), &forged, key, lock.AdvisoryExclusive, lock.Policy{Provenance: ra, NoWait: true}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("copied ticket authorized", err)
@@ -55,7 +57,9 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 	if _, err := advisoryUnitAcquire(t, a, retiredSource, key, lock.AdvisoryExclusive, true); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing exact transient provenance authorized", err)
 	}
-	if advisoryUnitHold(a, key).Exclusive != 1 || advisoryUnitHold(isolated, key).Exclusive != 1 {
+	isolatedKey := key
+	isolatedKey.Database = other.catalog.Domain
+	if advisoryUnitHold(a, key).Exclusive != 1 || advisoryUnitHold(isolated, isolatedKey).Exclusive != 1 {
 		t.Fatal("invalid request mutated registered counts")
 	}
 }

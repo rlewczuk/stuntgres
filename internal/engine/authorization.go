@@ -23,6 +23,40 @@ func (e *Engine) Roles() authorization.Read {
 	defer e.mu.Unlock()
 	return e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
 }
+
+// ProtocolAuthorizationStatus reads the restored identity and its owner-private
+// role root without admitting a statement, refreshing roots or checking rights.
+// retired distinguishes a domain-valid cached identity whose role was dropped
+// from a foreign/invalid identity. Its last reported transport values remain
+// cached; a same-name replacement must never be adopted for that old principal.
+func (e *Engine) ProtocolAuthorizationStatus(s *session.Session) (name string, superuser, retired bool, err error) {
+	if s == nil || engineOf(s) != e || s.Transactions == nil {
+		return "", false, false, fmt.Errorf("stuntgres: foreign authorization status session")
+	}
+	s.Transactions.Mu.Lock()
+	defer s.Transactions.Mu.Unlock()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	if s.Authorization == nil {
+		return "", false, false, fmt.Errorf("stuntgres: missing authorization")
+	}
+	state := s.Authorization.State
+	roles := e.sessionRolesLocked(s).Root.Read(authorization.PrincipalRef{})
+	if err := roles.ValidatePrincipal(state.SessionUser); err != nil {
+		return "", false, false, err
+	}
+	if err := roles.ValidatePrincipal(state.CurrentUser); err != nil {
+		return "", false, false, err
+	}
+	selected, sessionExists := roles.Find(state.SessionUser)
+	current, currentExists := roles.Find(state.CurrentUser)
+	if !sessionExists || !currentExists {
+		return "", false, true, nil
+	}
+	return selected.Name, current.Superuser, false, nil
+}
 func (e *Engine) ResolveLogin(name string) (authorization.PrincipalRef, error) {
 	d, ok := e.Roles().Lookup(name)
 	if !ok {
@@ -225,6 +259,9 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 	a := s.Authorization
 	if a == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: missing authorization")
+	}
+	if err := e.refreshOperationRolesLocked(op); err != nil {
+		return AuthorizationView{}, err
 	}
 	view := e.catalog.read(e.catalog.state)
 	if s.Transactions != nil {

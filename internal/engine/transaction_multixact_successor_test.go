@@ -27,7 +27,7 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		}
 		successor := original
 		successor.Version = 2
-		if _, ok := e.locks.Inspect().MultiRows[successor]; ok || e.locks.NextMultiXact() != 1 {
+		if _, ok := e.locks.Inspect().MultiRows[successor]; ok || e.locks.NextMultiXact(e.catalog.Domain) != 1 {
 			t.Fatal("ended single locker or fresh updater leaked into successor")
 		}
 	})
@@ -52,7 +52,7 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		}
 		successor := original
 		successor.Version = 2
-		if e.locks.Inspect().MultiRows[successor].ID != 1 || len(e.locks.Inspect().MultiRows[successor].Members) != 2 || e.locks.NextMultiXact() != 3 {
+		if e.locks.Inspect().MultiRows[successor].ID != 1 || len(e.locks.Inspect().MultiRows[successor].Members) != 2 || e.locks.NextMultiXact(e.catalog.Domain) != 3 {
 			t.Fatal("ended member was pruned while copying original raw K")
 		}
 		identityMultiWant(t, e, 1, "3/keysh", "4/keysh")
@@ -78,7 +78,7 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		}
 		successor := original
 		successor.Version = 3
-		if e.locks.NextMultiXact() != 3 || e.locks.Inspect().MultiRows[successor].ID != 1 {
+		if e.locks.NextMultiXact(e.catalog.Domain) != 3 || e.locks.Inspect().MultiRows[successor].ID != 1 {
 			t.Fatal("successor fabricated an ID or lost original raw K")
 		}
 		identityMultiWant(t, e, 1, "3/keysh", "4/keysh")
@@ -117,7 +117,7 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		identityMultiWant(t, e, 2, "3/keysh", "4/fornokeyupd", "4/nokeyupd")
 		identityMultiGrant(t, e, c, successor, lock.ForShare)
 		identityMultiEmit(t, e, c, successor, lock.MultiShare)
-		if e.locks.NextMultiXact() != 3 || e.locks.Inspect().MultiRows[successor].ID != 1 {
+		if e.locks.NextMultiXact(e.catalog.Domain) != 3 || e.locks.Inspect().MultiRows[successor].ID != 1 {
 			t.Fatal("strong own member appended a weaker status")
 		}
 		identityMultiWant(t, e, 1, "3/keysh", "4/fornokeyupd")
@@ -131,7 +131,7 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		identityMultiEmit(t, e, a, original, lock.MultiUpdateLock)
 		identityMultiEmit(t, e, a, original, lock.MultiNoKeyAction)
 		row := e.locks.Inspect().MultiRows[original]
-		if row.ID != 0 || len(row.Members) != 1 || row.Members[0].Mode != lock.MultiUpdateAction || e.locks.NextMultiXact() != 1 {
+		if row.ID != 0 || len(row.Members) != 1 || row.Members[0].Mode != lock.MultiUpdateAction || e.locks.NextMultiXact(e.catalog.Domain) != 1 {
 			t.Fatal("single same-XID strength merge confused lock versus action")
 		}
 		if err := e.locks.PhysicalEvents(a, []lock.MultiEvent{{Tuple: original, Mode: lock.MultiNoKeyAction, Successor: 2}}); err != nil {
@@ -163,7 +163,7 @@ func identityMultiCacheUnits(t *testing.T) {
 		identityMultiEmit(t, e, b, first, lock.MultiKeyShare)
 		identityMultiGrant(t, e, a, second, lock.ForKeyShare)
 		identityMultiEmit(t, e, a, second, lock.MultiKeyShare)
-		if e.locks.NextMultiXact() != 3 {
+		if e.locks.NextMultiXact(e.catalog.Domain) != 3 {
 			t.Fatal("different backend incorrectly used universal member-set interning")
 		}
 		identityMultiWant(t, e, 1, "3/keysh", "4/keysh")
@@ -182,24 +182,24 @@ func identityMultiCacheUnits(t *testing.T) {
 		identityMultiGrant(t, e, b, first, lock.ForKeyShare)
 		identityMultiEmit(t, e, b, first, lock.MultiKeyShare)
 		counter := e.visibility.LastAssignedXID()
-		if _, err := e.locks.MultiXactMembers(reader, 1); err != nil {
+		if _, err := e.locks.MultiXactMembers(e.catalog.Domain, reader, 1); err != nil {
 			t.Fatal(err)
 		}
 		if reader.AssignedPublicXID() != 0 || e.visibility.LastAssignedXID() != counter {
 			t.Fatal("member inquiry assigned an observer XID")
 		}
-		if _, err := e.locks.MultiXactMembers(a, 1); err != nil {
+		if _, err := e.locks.MultiXactMembers(e.catalog.Domain, a, 1); err != nil {
 			t.Fatal(err)
 		}
 		identityMultiGrant(t, e, b, second, lock.ForKeyShare)
 		identityMultiEmit(t, e, b, second, lock.MultiKeyShare)
 		identityMultiGrant(t, e, a, second, lock.ForKeyShare)
 		identityMultiEmit(t, e, a, second, lock.MultiKeyShare)
-		if e.locks.NextMultiXact() != 2 || e.locks.Inspect().MultiRows[second].ID != 1 {
+		if e.locks.NextMultiXact(e.catalog.Domain) != 2 || e.locks.Inspect().MultiRows[second].ID != 1 {
 			t.Fatal("inquiry did not populate the actual caller cache")
 		}
 		e.endLockOwner(reader)
-		if _, err := e.locks.MultiXactMembers(reader, 1); !errors.Is(err, ids.ErrCatalogReplaced) {
+		if _, err := e.locks.MultiXactMembers(e.catalog.Domain, reader, 1); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("retired owner resurrected read/cache authority", err)
 		}
 		if _, err := e.locks.MultiAge(reader, 1); !errors.Is(err, ids.ErrCatalogReplaced) {

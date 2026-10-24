@@ -124,8 +124,10 @@ func (e *Engine) publishDroppedRolesLocked(op *session.Operation, plan role.Drop
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	e.installOperationRolesLocked(op, plan.Roles)
-	if t := op.Session.Transactions; t.RetainsTransaction() {
+	if err := e.installOperationRolesLocked(op, plan.Roles); err != nil {
+		return Result{}, err
+	}
+	if t := op.Session.Transactions; t.State == session.TxActive || t.RetainsTransaction() {
 		// installOperationRolesLocked cloned the same catalog owner; no saved
 		// candidate shares this mutable set. Standalone publication needs none.
 		if t.Catalog.RetiredRoles == nil {

@@ -17,7 +17,7 @@ import (
 
 // This is the ordinary ticket/request lifecycle, including savepoint checkpoints
 // and replacement fencing. No manager call or wait is made under Engine.mu.
-func (s *StatementScope) acquireCatalogResource(resource lock.Resource, mode lock.Mode) error {
+func (s *StatementScope) acquireTransactionResource(resource lock.Resource, mode lock.Mode) error {
 	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, resource, mode, policy)
@@ -35,6 +35,14 @@ func (s *StatementScope) acquireCatalogResource(resource lock.Resource, mode loc
 		e.replacementMu.RLock()
 		s.replacementRead = true
 	}
+	return nil
+}
+
+func (s *StatementScope) acquireCatalogResource(resource lock.Resource, mode lock.Mode) error {
+	if err := s.acquireTransactionResource(resource, mode); err != nil {
+		return err
+	}
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if resource.Domain() != e.catalog.Domain || resource.Epoch != s.txRef.Epoch() || resource.Epoch != e.catalog.state.Epoch() {

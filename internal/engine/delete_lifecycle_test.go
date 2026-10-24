@@ -47,7 +47,7 @@ func TestDeleteCoreRowLifecycle(t *testing.T) {
 			case "end":
 				manager.End(b.Transactions.Ticket)
 			case "fence":
-				manager.Fence(target.Epoch + 1)
+				manager.Fence(target.Domain(), target.Epoch+1)
 			case "grant":
 				manager.End(a.Transactions.Ticket)
 				cancel()

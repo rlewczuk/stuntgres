@@ -155,7 +155,7 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
 	session := scope.op.Session
-	key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 42}
+	key := lock.Resource{Database: scope.engine().catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 42}
 	for range 2 {
 		advisoryUnitGrant(t, session, scope.txRef, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, session, scope.txRef, key, lock.AdvisoryExclusive)

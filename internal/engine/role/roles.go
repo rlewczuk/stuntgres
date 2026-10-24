@@ -69,27 +69,55 @@ type DropRolesPlan struct {
 	Retired []authorization.PrincipalRef
 }
 
+// CheckDropRoleActor preserves the supported superuser-only DROP gate before
+// target lookup. CREATEROLE/ADMIN-only retirement is not admitted here.
+func CheckDropRoleActor(view access.View) error {
+	actor, exists := view.Roles.Find(view.State.CurrentUser)
+	if !exists || !actor.Superuser {
+		return Diagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
+	}
+	return nil
+}
+
+// CheckDropRoleIdentity checks a captured principal without resolving its name.
+// Lock readmission must never adopt a same-name replacement.
+func CheckDropRoleIdentity(view access.View, ref authorization.PrincipalRef) error {
+	if ref == view.State.CurrentUser {
+		return sqlError("55006", "current user cannot be dropped")
+	}
+	if ref == view.State.SessionUser {
+		return sqlError("55006", "session user cannot be dropped")
+	}
+	return nil
+}
+
+// DropRoleTarget resolves one operand in SQL order, then rejects protected
+// session identities before the caller may wait for that target's locks.
+func DropRoleTarget(view access.View, name string) (authorization.RoleDescriptor, error) {
+	d, exists := view.Roles.Lookup(name)
+	if !exists {
+		return authorization.RoleDescriptor{}, sqlError("42704", fmt.Sprintf("role \"%s\" does not exist", name))
+	}
+	if err := CheckDropRoleIdentity(view, d.Ref); err != nil {
+		return authorization.RoleDescriptor{}, err
+	}
+	return d, nil
+}
+
 // PlanDropRoles decides DROP ROLE: the superuser gate, missing, current and
 // session roles, predefined roles and every remaining dependency, in
 // PostgreSQL's order.
 func PlanDropRoles(h Host, auth ddl.Authority, s *parser.DropRole) (DropRolesPlan, error) {
 	view := h.AccessView(auth)
-	actor, exists := view.Roles.Find(view.State.CurrentUser)
-	if !exists || !actor.Superuser {
-		return DropRolesPlan{}, Diagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
+	if err := CheckDropRoleActor(view); err != nil {
+		return DropRolesPlan{}, err
 	}
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor, len(s.Names))
 	ordered := make([]authorization.PrincipalRef, 0, len(s.Names))
 	for _, name := range s.Names {
-		d, ok := view.Roles.Lookup(name)
-		if !ok {
-			return DropRolesPlan{}, sqlError("42704", fmt.Sprintf("role \"%s\" does not exist", name))
-		}
-		if d.Ref == view.State.CurrentUser {
-			return DropRolesPlan{}, sqlError("55006", "current user cannot be dropped")
-		}
-		if d.Ref == view.State.SessionUser {
-			return DropRolesPlan{}, sqlError("55006", "session user cannot be dropped")
+		d, err := DropRoleTarget(view, name)
+		if err != nil {
+			return DropRolesPlan{}, err
 		}
 		if _, ok := targets[d.Ref]; !ok {
 			ordered = append(ordered, d.Ref)

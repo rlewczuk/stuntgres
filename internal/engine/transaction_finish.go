@@ -81,6 +81,13 @@ func (s *StatementScope) Finish(err error) error {
 	if err == nil && s.worked && !s.completed {
 		err = e.validateOperation(s.op)
 	}
+	if err == nil && s.worked && s.catalog != nil {
+		t.Mu.Unlock()
+		e.mu.Lock()
+		err = s.acquireJournalRoleDependenciesLocked(s.catalog)
+		e.mu.Unlock()
+		t.Mu.Lock()
+	}
 	// Implicit HOLD declaration installation is not its external completion:
 	// unfetched targets must settle before publication and ON COMMIT actions.
 	if err == nil && s.worked && t.State == session.TxImplicit && !t.RetainsTransaction() {

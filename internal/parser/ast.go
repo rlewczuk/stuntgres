@@ -2390,6 +2390,8 @@ type SessionAuthorization struct {
 	Name           string
 	Default        bool
 	OwnerDirective bool
+	// ResetCommand preserves RESET versus SET ... DEFAULT for completion tags.
+	ResetCommand bool
 }
 
 func (*SessionAuthorization) statement() {}
@@ -2398,7 +2400,9 @@ type RoleSelection struct {
 	Name  string
 	Reset bool
 	Local bool
-	Pos   Position
+	// ResetCommand preserves RESET versus SET ROLE TO DEFAULT.
+	ResetCommand bool
+	Pos          Position
 }
 
 func (*RoleSelection) statement() {}

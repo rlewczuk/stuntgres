@@ -10,11 +10,15 @@ import (
 )
 
 func TestReferenceRoleMembershipTransactionBoundary(t *testing.T) {
-	for _, q := range []string{"GRANT mt_role TO mt_member", "REVOKE mt_role FROM mt_member", "ALTER GROUP mt_role ADD USER mt_member", "CREATE ROLE mt_new IN ROLE mt_role"} {
+	for _, q := range []string{"GRANT mt_role TO mt_member", "REVOKE mt_role FROM mt_member", "ALTER GROUP mt_role ADD USER mt_member", "ALTER GROUP mt_role DROP USER mt_member", "CREATE ROLE mt_new IN ROLE mt_role"} {
 		t.Run(q, func(t *testing.T) {
 			fixture.RoleReferenceCleanup(t, []string{"mt_new"})
 			membershipCases(t, []string{"mt_role", "mt_member"}, func(s *membershipScenario) {
 				t := s.t
+				removing := strings.HasPrefix(q, "REVOKE") || strings.Contains(q, "DROP USER")
+				if removing {
+					s.exec("GRANT mt_role TO mt_member")
+				}
 				tx, err := s.c.BeginTx(s.p.Ctx, nil)
 				if err != nil {
 					t.Fatal(err)
@@ -30,21 +34,23 @@ func TestReferenceRoleMembershipTransactionBoundary(t *testing.T) {
 				} else {
 					_, err = tx.ExecContext(s.p.Ctx, q)
 				}
-				if s.backend.PG {
-					fixture.State(t, err, "")
-				} else {
-					want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
-					fixture.AssertDiagnostic(t, err, &want)
+				fixture.State(t, err, "")
+				member := "mt_member"
+				present := !removing
+				if strings.HasPrefix(q, "CREATE") {
+					member = "mt_new"
 				}
-				if !s.backend.PG {
-					_, failed := tx.ExecContext(s.p.Ctx, "SELECT current_user")
-					want := fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block")
-					fixture.AssertDiagnostic(t, failed, &want)
-				}
+				fixture.RunStep(t, s.p.Ctx, tx, s.record, fixture.Select(
+					"SELECT pg_has_role('"+member+"','mt_role','MEMBER') AS member",
+					[]string{"member"}, []string{"BOOL"}, [][]any{{present}}))
 				if err := tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}
-				s.flags("mt_role", "mt_member", s.bootstrap, 0, false, false, false)
+				if removing {
+					s.flags("mt_role", "mt_member", s.bootstrap, 1, false, true, true)
+				} else {
+					s.flags("mt_role", "mt_member", s.bootstrap, 0, false, false, false)
+				}
 				s.fail("DROP ROLE mt_new", "42704", `role "mt_new" does not exist`, "")
 				tx, err = s.c.BeginTx(s.p.Ctx, &sql.TxOptions{ReadOnly: true})
 				if err != nil {
@@ -74,33 +80,28 @@ func TestReferenceRoleMembershipTransactionBoundary(t *testing.T) {
 					t.Fatal(err)
 				}
 				stmt, err = tx.PrepareContext(s.p.Ctx, q)
-				if s.backend.PG {
-					if err != nil {
-						t.Fatal("PG read-only utility Prepare", err)
-					}
-					_, err = stmt.ExecContext(s.p.Ctx)
-					stmt.Close()
-					fixture.AssertDiagnostic(t, err, &want)
-				} else {
-					boundary := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
-					fixture.AssertDiagnostic(t, err, &boundary)
+				if err != nil {
+					t.Fatal("read-only utility Prepare", err)
 				}
+				_, err = stmt.ExecContext(s.p.Ctx)
+				stmt.Close()
+				fixture.AssertDiagnostic(t, err, &want)
 				tx.Rollback()
-				if s.backend.PG {
-					tx, err = s.c.BeginTx(s.p.Ctx, nil)
-					if err != nil {
-						t.Fatal(err)
-					}
-					fixture.RunStep(t, s.p.Ctx, tx, s.record, fixture.Exec(q, 0))
-					if err := tx.Commit(); err != nil {
-						t.Fatal(err)
-					}
-					if strings.HasPrefix(q, "CREATE") {
-						s.exec("DROP ROLE mt_new")
-					} else if !strings.HasPrefix(q, "REVOKE") {
-						s.flags("mt_role", "mt_member", s.bootstrap, 1, false, true, true)
-						s.exec("REVOKE mt_role FROM mt_member")
-					}
+				tx, err = s.c.BeginTx(s.p.Ctx, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fixture.RunStep(t, s.p.Ctx, tx, s.record, fixture.Exec(q, 0))
+				if err := tx.Commit(); err != nil {
+					t.Fatal(err)
+				}
+				if strings.HasPrefix(q, "CREATE") {
+					s.exec("DROP ROLE mt_new")
+				} else if !removing {
+					s.flags("mt_role", "mt_member", s.bootstrap, 1, false, true, true)
+					s.exec("REVOKE mt_role FROM mt_member")
+				} else {
+					s.flags("mt_role", "mt_member", s.bootstrap, 0, false, false, false)
 				}
 			})
 		})

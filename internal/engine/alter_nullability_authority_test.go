@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-// Explicit-transaction SQL role/session-authorization changes remain excluded.
-// This lifetime test uses the internal executor to change the actor/revision
-// inside that transaction after ALTER has successfully finished.
+// This package-level lifetime witness changes the actor/revision through the
+// internal executor after ALTER has finished, then inspects its captured
+// authorization and final catalog/storage publication directly.
 func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)

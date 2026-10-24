@@ -16,8 +16,8 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		b, rb := advisoryUnitOwner(t, e)
 		c, rc := advisoryUnitOwner(t, e)
 		d, rd := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 12, Low: 13}
-		prior := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 14}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 12, Low: 13}
+		prior := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 14}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, prior, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -57,7 +57,7 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 15}
+		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 15}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)

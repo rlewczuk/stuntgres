@@ -28926,7 +28926,7 @@ sqldefault:
 	case 3291:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.stmt = &SessionAuthorization{Default: true}
+			sqlVAL.stmt = &SessionAuthorization{Default: true, ResetCommand: true}
 		}
 	case 3292:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
@@ -28958,7 +28958,7 @@ sqldefault:
 	case 3295:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.stmt = &RoleSelection{Reset: true, Pos: sqlDollar[2].tok.pos}
+			sqlVAL.stmt = &RoleSelection{Reset: true, ResetCommand: true, Pos: sqlDollar[2].tok.pos}
 		}
 	case 3296:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]

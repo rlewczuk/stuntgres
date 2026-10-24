@@ -30,7 +30,7 @@ func TestPgrowlocksCapture(t *testing.T) {
 	identityMultiEmit(t, e, b, tuple, lock.MultiShare)
 	before := e.locks.Inspect()
 	frontier := e.visibility.LastAssignedXID()
-	next := e.locks.NextMultiXact()
+	next := e.locks.NextMultiXact(e.catalog.Domain)
 	rows := pgrowlocksUnitCapture(t, e, observer, tuple, false)
 	if len(rows) != 1 || !rows[0].Multi || rows[0].Locker != before.MultiRows[tuple].ID || len(rows[0].Members) != 2 {
 		t.Fatal(rows)
@@ -39,7 +39,7 @@ func TestPgrowlocksCapture(t *testing.T) {
 	if !reflect.DeepEqual(rows[0].Members, want) {
 		t.Fatal(rows[0].Members, want)
 	}
-	if observer.AssignedPublicXID() != 0 || e.visibility.LastAssignedXID() != frontier || e.locks.NextMultiXact() != next || !reflect.DeepEqual(before, e.locks.Inspect()) {
+	if observer.AssignedPublicXID() != 0 || e.visibility.LastAssignedXID() != frontier || e.locks.NextMultiXact(e.catalog.Domain) != next || !reflect.DeepEqual(before, e.locks.Inspect()) {
 		t.Fatal("capture mutated lock/XID authority")
 	}
 	wrong := tuple

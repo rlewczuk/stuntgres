@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -40,6 +41,12 @@ func (e *Engine) executeCreateDatabase(scope *StatementScope, statement *parser.
 	if err != nil {
 		return Result{}, err
 	}
+	if err := scope.acquireRolePrincipal(owner, lock.AccessShare, false); err != nil {
+		return Result{}, err
+	}
+	if err := scope.roleStillPresent(owner); err != nil {
+		return Result{}, err
+	}
 	return e.createDatabaseTarget(ctx, scope, statement.Name, options.Owner, owner)
 }
 
@@ -58,6 +65,9 @@ func (e *Engine) createDatabaseTarget(ctx context.Context, scope *StatementScope
 	}
 	seed := e.cluster.seed
 	target := e.newDatabaseRuntime(seed, name, owner)
+	if err := e.locks.AdmitDomain(target.catalog.Domain); err != nil {
+		return Result{}, err
+	}
 	if _, err := target.replaceCatalog(ctx, seed, seed.CatalogRead(), nil); err != nil {
 		return Result{}, err
 	}

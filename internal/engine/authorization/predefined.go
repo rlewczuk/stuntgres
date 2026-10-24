@@ -30,11 +30,11 @@ var predefinedRoleDefinitions = [...]struct {
 func Seed(domain *Domain) Root {
 	bootstrap := PrincipalRef{domain, BootstrapPrincipalID}
 	r := Root{domain: domain, roles: make(map[PrincipalRef]RoleDescriptor, 17), names: make(map[string]PrincipalRef, 17)}
-	r.roles[bootstrap] = RoleDescriptor{Ref: bootstrap, Name: "postgres", Login: true, Superuser: true, CreateDB: true, CreateRole: true, Inherit: true, Replication: true, BypassRLS: true, ConnectionLimit: -1}
+	r.roles[bootstrap] = RoleDescriptor{Ref: bootstrap, Name: "postgres", AuthIDVersion: 1, Login: true, Superuser: true, CreateDB: true, CreateRole: true, Inherit: true, Replication: true, BypassRLS: true, ConnectionLimit: -1}
 	r.names["postgres"] = bootstrap
 	for _, definition := range predefinedRoleDefinitions {
 		ref := PrincipalRef{domain, definition.id}
-		r.roles[ref] = RoleDescriptor{Ref: ref, Name: definition.name, Inherit: true, ConnectionLimit: -1, predefined: true}
+		r.roles[ref] = RoleDescriptor{Ref: ref, Name: definition.name, AuthIDVersion: 1, Inherit: true, ConnectionLimit: -1, predefined: true}
 		r.names[definition.name] = ref
 	}
 	r.edges = make([]Membership, 3)
