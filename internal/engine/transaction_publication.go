@@ -94,7 +94,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				err = e.preparedPublicationPreflightLocked(op, phase)
 			}
 			if err == nil {
-				err = e.discardResetPreflightLocked(op)
+				err = discardResetPreflightLocked(e, op)
 			}
 			if err == nil {
 				err = e.visibility.SerializablePrecommitLocked(ref)
@@ -139,7 +139,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				e.visibility.SerializableCommittedLocked(ref, e.visibility.CommitSeq())
 				e.visibility.RecordCommitTimestampLocked(ref)
 				e.finishPreparedLocked(phase)
-				e.finishDiscardRoleResetLocked(op)
+				finishDiscardRoleResetLocked(op)
 			}
 			op.Session.Mu.Unlock()
 			e.mu.Unlock()
@@ -396,7 +396,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			err = e.preparedPublicationPreflightLocked(op, phase)
 		}
 		if err == nil {
-			err = e.discardResetPreflightLocked(op)
+			err = discardResetPreflightLocked(e, op)
 		}
 		if err != nil {
 			sess.Mu.Unlock()
@@ -563,16 +563,32 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		e.visibility.RecordCommitTimestampLocked(ref)
 		e.visibility.SerializableCommittedLocked(ref, e.visibility.CommitSeq())
 		e.finishPreparedLocked(phase)
-		e.finishDiscardRoleResetLocked(op)
+		finishDiscardRoleResetLocked(op)
 		sess.Mu.Unlock()
 		e.mu.Unlock()
 		return nil
 	}
 }
 
+// discardResetPreflightLocked revalidates a pending DISCARD ALL identity in
+// the combined publisher. The role read stays lazy so ordinary publication
+// pays nothing. Caller holds Engine.mu and Session.mu.
+func discardResetPreflightLocked(e *Engine, op *session.Operation) error {
+	if !discardRoleResetPending(op) {
+		return nil
+	}
+	return validateRoleResetLocked(op.Session.Authorization, op.DiscardRoleReset, e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published))
+}
+
 // Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
 func publicationOperationLocked(e *Engine, op *session.Operation) error {
-	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domainOf(e) {
+	return publicationOperationDomainLocked(domainOf(e), op)
+}
+
+// publicationOperationDomainLocked checks that op is a live member of a live
+// session in domain and that its context is still valid.
+func publicationOperationDomainLocked(domain *ids.Domain, op *session.Operation) error {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	if op.Released || op.Session.State != session.Live {

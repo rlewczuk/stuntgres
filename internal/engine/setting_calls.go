@@ -162,54 +162,18 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}()
 	owner.Mu.Lock()
 	op.Session.Mu.Lock()
-	if err := publicationOperationLocked(e, op); err != nil {
+	if err := admitSettingsLocked(owner, domainOf(e), op); err != nil {
 		return Result{}, err
 	}
-	if owner.Ended {
-		return Result{}, fmt.Errorf("stuntgres: settings attachment ended")
-	}
-	output := sqltype.Null(typ)
+	var output sqltype.Value
 	if s.Name == "current_setting" {
-		if !inputs[0].IsNull() {
-			name, err := inputs[0].Text()
-			if err != nil {
-				return Result{}, err
-			}
-			d, err := owner.LookupDefinition(e.settings, name, false)
-			if err != nil {
-				return Result{}, err
-			}
-			output = sqltype.String(typ, owner.Value(d.Name))
-		}
-		if err := op.Ctx.Err(); err != nil {
+		if output, err = currentSettingLocked(owner, op.Ctx, e.settings, typ, inputs[0]); err != nil {
 			return Result{}, err
 		}
 	} else {
-		if inputs[0].IsNull() {
-			return Result{}, sqlError("22004", "SET requires parameter name")
-		}
-		local := false
-		if !inputs[2].IsNull() {
-			local, err = inputs[2].Boolean()
-			if err != nil {
-				return Result{}, err
-			}
-		}
-		name, err := inputs[0].Text()
+		d, input, local, err := setConfigInputLocked(owner, e.settings, inputs)
 		if err != nil {
 			return Result{}, err
-		}
-		d, err := owner.LookupDefinition(e.settings, name, true)
-		if err != nil {
-			return Result{}, err
-		}
-		var input *string
-		if !inputs[1].IsNull() {
-			text, err := inputs[1].Text()
-			if err != nil {
-				return Result{}, err
-			}
-			input = &text
 		}
 		unlock()
 		locked = false

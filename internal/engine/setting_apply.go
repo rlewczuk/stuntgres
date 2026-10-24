@@ -2,7 +2,6 @@ package engine
 
 import (
 	"errors"
-	"time"
 
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -11,8 +10,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// applySetting stages callbacks without publication locks, then atomically
-// installs recognition, transaction action and effective typed/text override.
+// applySetting stages callbacks without publication locks, then installs the
+// parsed value in one Engine.mu -> Settings.Mu -> Session.Mu window.
 func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool) (string, error) {
 	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" || d.Name == "transaction_deferrable" {
 		return e.applyCurrentCharacteristic(op, d, input)
@@ -20,17 +19,17 @@ func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStor
 	if err := settingAccess(d, op); err != nil {
 		return "", err
 	}
-	var v settings.Value
+	var value *settings.Value
 	var notice *sqlstate.Error
 	if input != nil {
-		var err error
-		v, notice, err = owner.ParseValue(d, *input)
+		v, parseNotice, err := owner.ParseValue(d, *input)
 		if err != nil {
-			if notice != nil {
-				op.EmitNotice(session.LevelWarning, *notice)
+			if parseNotice != nil {
+				op.EmitNotice(session.LevelWarning, *parseNotice)
 			}
 			return "", err
 		}
+		value, notice = &v, parseNotice
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -38,30 +37,7 @@ func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStor
 	defer owner.Mu.Unlock()
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
-	if err := publicationOperationLocked(e, op); err != nil {
-		return "", err
-	}
-	if owner.Ended {
-		return "", errors.New("stuntgres: settings attachment ended")
-	}
-	owner.Touch(d.Name, local)
-	if _, registered := e.settings.Definitions()[d.Name]; !registered {
-		owner.Placeholders[d.Name] = true
-	}
-	if input == nil {
-		delete(owner.Values, d.Name)
-		delete(owner.Typed, d.Name)
-	} else {
-		owner.Values[d.Name] = d.Format(v)
-		owner.Typed[d.Name] = v
-	}
-	if d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout" {
-		op.Session.PublishTimeoutSettingsLocked(owner, d.Name == "transaction_timeout", time.Now())
-	}
-	if notice != nil {
-		op.EmitNotice(session.LevelNotice, *notice)
-	}
-	return owner.Value(d.Name), nil
+	return applySettingLocked(owner, op, domainOf(e), e.settings, d, value, notice, local)
 }
 
 func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
@@ -100,11 +76,8 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 			unlock()
 		}
 	}()
-	if err := publicationOperationLocked(e, op); err != nil {
+	if err := admitSettingsLocked(owner, domainOf(e), op); err != nil {
 		return Result{}, err
-	}
-	if owner.Ended {
-		return Result{}, errors.New("stuntgres: settings attachment ended")
 	}
 	typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
 	if all {
@@ -112,18 +85,11 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 			if err := op.Ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			e.resetAllSettingsLocked(op.Session)
+			resetAllSettingsLocked(owner, e.settings)
 			return Result{}, nil
 		}
-		rows := make([][]sqltype.Value, 0, len(e.settings.Order()))
-		for _, key := range e.settings.Order() {
-			if err := op.Ctx.Err(); err != nil {
-				return Result{}, err
-			}
-			d := e.settings.Definitions()[key]
-			rows = append(rows, []sqltype.Value{sqltype.String(typ, settings.DisplayName(key)), sqltype.String(typ, owner.Value(key)), sqltype.String(typ, d.Description)})
-		}
-		if err := op.Ctx.Err(); err != nil {
+		rows, err := showAllSettingRowsLocked(owner, op.Ctx, e.settings, typ)
+		if err != nil {
 			return Result{}, err
 		}
 		return anonymousResult(settingColumns(typ, "name", "setting", "description"), rows, 0)

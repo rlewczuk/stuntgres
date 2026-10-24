@@ -9,9 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
-	"time"
 )
 
 // DISCARD retains physical attachments. Only TEMP uses the rollbackable catalog
@@ -71,7 +69,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		e.mu.Lock()
 		sess.Settings.Mu.Lock()
 		sess.Mu.Lock()
-		e.resetAllSettingsLocked(sess)
+		resetAllSettingsLocked(sess.Settings, e.settings)
 		sess.Mu.Unlock()
 		sess.Settings.Mu.Unlock()
 		e.mu.Unlock()
@@ -116,76 +114,15 @@ func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) 
 	defer sess.Settings.Mu.Unlock()
 	sess.Mu.Lock()
 	defer sess.Mu.Unlock()
-	if err := publicationOperationLocked(e, s.op); err != nil {
+	if err := admitSettingsLocked(sess.Settings, domainOf(e), s.op); err != nil {
 		return authorization.RoleState{}, err
 	}
-	if sess.Settings.Ended {
-		return authorization.RoleState{}, fmt.Errorf("stuntgres: settings attachment ended")
-	}
-	if err := session.RoleRevisionHeadroom(sess.Authorization, 3); err != nil {
-		return authorization.RoleState{}, err
-	}
-	reset := sess.Authorization.State
-	reset.SessionUser, reset.CurrentUser = reset.Authenticated, reset.Authenticated
-	if reset.ResetRole != (authorization.PrincipalRef{}) {
-		reset.CurrentUser = reset.ResetRole
-	}
+	reset := discardRoleReset(sess.Authorization)
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
-	for _, principal := range []authorization.PrincipalRef{reset.Authenticated, reset.CurrentUser} {
-		if _, err := roles.Descriptor(principal); err != nil {
-			return authorization.RoleState{}, err
-		}
+	if err := validateRoleResetLocked(sess.Authorization, reset, roles); err != nil {
+		return authorization.RoleState{}, err
 	}
 	return reset, nil
-}
-
-// The combined publisher calls these under Engine -> session locks, closing the
-// gap between role-identity validation and irreversible TEMP publication.
-func (e *Engine) discardResetPreflightLocked(op *session.Operation) error {
-	if op.DiscardRoleReset.Authenticated == (authorization.PrincipalRef{}) {
-		return nil
-	}
-	if err := session.RoleRevisionHeadroom(op.Session.Authorization, 3); err != nil {
-		return err
-	}
-	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
-	for _, principal := range []authorization.PrincipalRef{op.DiscardRoleReset.Authenticated, op.DiscardRoleReset.CurrentUser} {
-		if _, err := roles.Descriptor(principal); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (e *Engine) finishDiscardRoleResetLocked(op *session.Operation) {
-	if op.DiscardRoleReset.Authenticated != (authorization.PrincipalRef{}) {
-		op.Session.Authorization.State = op.DiscardRoleReset
-		op.Session.Authorization.Revision++
-	}
-}
-
-// Caller holds Engine -> settings -> session locks. Defaults and placeholder
-// recognition remain intact; the default provider is never invoked again.
-func (e *Engine) resetAllSettingsLocked(session *session.Session) {
-	owner := session.Settings
-	timeoutChanged, transactionAssignment := false, false
-	for key := range owner.Values {
-		if d, ok := e.settings.Definitions()[key]; ok && d.Access != settings.Session && d.Name != "lc_messages" {
-			continue
-		}
-		owner.Touch(key, false)
-		delete(owner.Values, key)
-		delete(owner.Typed, key)
-		switch key {
-		case "transaction_timeout":
-			timeoutChanged, transactionAssignment = true, true
-		case "idle_in_transaction_session_timeout", "idle_session_timeout":
-			timeoutChanged = true
-		}
-	}
-	if timeoutChanged {
-		session.PublishTimeoutSettingsLocked(owner, transactionAssignment, time.Now())
-	}
 }
 
 func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {

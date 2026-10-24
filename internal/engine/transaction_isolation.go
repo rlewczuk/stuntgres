@@ -33,6 +33,27 @@ func assignModes(t *session.TransactionOwner, modes []parser.TransactionMode) er
 	syncCharacteristics(t)
 	return nil
 }
+
+// sessionCharacteristicSetting maps one SET SESSION CHARACTERISTICS mode to
+// its default_transaction_* setting and value; the last mode kind set wins.
+func sessionCharacteristicSetting(mode parser.TransactionMode) (name, value string) {
+	if mode.Isolation != parser.IsolationDefault {
+		name, value = "default_transaction_isolation", session.IsolationText(session.Isolation(mode.Isolation))
+	}
+	if mode.AccessSet {
+		name, value = "default_transaction_read_only", "off"
+		if mode.ReadOnly {
+			value = "on"
+		}
+	}
+	if mode.DeferrableSet {
+		name, value = "default_transaction_deferrable", "off"
+		if mode.Deferrable {
+			value = "on"
+		}
+	}
+	return name, value
+}
 func (e *Engine) applyCurrentCharacteristic(op *session.Operation, d settings.Definition, input *string) (string, error) {
 	if input == nil {
 		return "", sqlError("0A000", fmt.Sprintf(`parameter "%s" cannot be reset`, d.Name))
@@ -63,22 +84,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	}
 	if stmt.Session {
 		for _, mode := range stmt.Modes {
-			name, value := "", ""
-			if mode.Isolation != parser.IsolationDefault {
-				name, value = "default_transaction_isolation", session.IsolationText(session.Isolation(mode.Isolation))
-			}
-			if mode.AccessSet {
-				name, value = "default_transaction_read_only", "off"
-				if mode.ReadOnly {
-					value = "on"
-				}
-			}
-			if mode.DeferrableSet {
-				name, value = "default_transaction_deferrable", "off"
-				if mode.Deferrable {
-					value = "on"
-				}
-			}
+			name, value := sessionCharacteristicSetting(mode)
 			e.mu.Lock()
 			d := e.settings.Definitions()[name]
 			e.mu.Unlock()
