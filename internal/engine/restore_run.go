@@ -33,7 +33,7 @@ type restoreRun struct {
 	domainDefaultPairs map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
 	extensionOwners    []extension.OwnerRecord
 	snapshots          []view.MaterializedSnapshot
-	comparison         comparisonRestore
+	comparison         control.ComparisonRestore
 
 	// Table, NOT NULL and foreign key captures.
 	pendingForeignKeys      []table.RestoredForeignKeys

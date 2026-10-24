@@ -1,36 +1,19 @@
-package engine
+package control
 
 import (
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
-// Only checked roots published by this exact parsed statement can satisfy a
-// window. An unchanged earlier capture on the same relation is not a receipt.
-func (e *Engine) validateComparisonBindingStatement(op *session.Operation, stmt parser.Statement, check comparisonCheck) error {
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	if err := auth.Check(access.Requirement{Object: auth.Owner.Domain.Ref(auth.Catalog.Epoch(), check.Namespace), Privileges: authorization.UsagePrivilege}); err != nil {
-		return err
-	}
-	return validateComparisonBinding(auth.Catalog, check.Before, stmt, check.Namespace, check.Position)
-}
-
-// validateComparisonBinding checks that stmt published, in current, a
+// ValidateComparisonBinding checks that stmt published, in current, a
 // definition whose expressions at or after position bind comparisons only
-// through namespace.
-func validateComparisonBinding(current, before catalog.Read, stmt parser.Statement, namespace ids.ObjectAddress, position int) error {
+// through namespace. Only checked roots published by this exact parsed
+// statement can satisfy a window: a descriptor unchanged since before is not
+// a receipt.
+func ValidateComparisonBinding(current, before catalog.Read, stmt parser.Statement, namespace ids.ObjectAddress, position int) error {
 	var target parser.ObjectName
 	var kind uint8
 	switch s := stmt.(type) {
@@ -66,7 +49,7 @@ func validateComparisonBinding(current, before catalog.Read, stmt parser.Stateme
 		kind = 1
 		target.Parts = append([]parser.Identifier(nil), target.Parts...)
 		if len(target.Parts) != 2 {
-			return control.InvalidComparisonContext()
+			return InvalidComparisonContext()
 		}
 		target.Parts[1] = s.Name
 	case *parser.CreateDomain:
@@ -79,10 +62,10 @@ func validateComparisonBinding(current, before catalog.Read, stmt parser.Stateme
 		target = s.Name
 		kind = 3
 	default:
-		return control.InvalidComparisonContext()
+		return InvalidComparisonContext()
 	}
 	if len(target.Parts) != 2 {
-		return control.InvalidComparisonContext()
+		return InvalidComparisonContext()
 	}
 	found := false
 	for address, d := range current.Descriptors() {
@@ -128,7 +111,7 @@ func validateComparisonBinding(current, before catalog.Read, stmt parser.Stateme
 			}
 			if required != (ids.ObjectAddress{}) {
 				if required != namespace {
-					failure = control.InvalidComparisonContext()
+					failure = InvalidComparisonContext()
 					return
 				}
 				found = true
@@ -142,7 +125,7 @@ func validateComparisonBinding(current, before catalog.Read, stmt parser.Stateme
 		}
 	}
 	if !found {
-		return control.InvalidComparisonContext()
+		return InvalidComparisonContext()
 	}
 	return nil
 }

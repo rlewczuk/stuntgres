@@ -1,14 +1,11 @@
-package engine
+package control
 
 import (
-	"context"
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -27,7 +24,12 @@ const (
 	comparisonClosing                        // the window's DDL ran; the close marker comes next
 )
 
-type comparisonRestore struct {
+// ComparisonRestore is Restore's comparison-context state machine. Decode
+// collects the markers while the script is parsed, Pair ties each to the SET
+// or RESET that follows it, Before walks the states per statement, After and
+// Bound wrap the root's check of a bound window's DDL, and Finish rejects an
+// unclosed context. It holds no lock; one Restore run owns it.
+type ComparisonRestore struct {
 	markers           []comparisonMarker
 	paired            map[int]comparisonMarker
 	state             comparisonState
@@ -38,15 +40,18 @@ type comparisonRestore struct {
 	position          int
 }
 
-// comparisonCheck is what the root checks after a bound window's DDL ran.
-type comparisonCheck struct {
+// ComparisonCheck is what the root checks, with ValidateComparisonBinding,
+// after a bound window's DDL ran.
+type ComparisonCheck struct {
 	Before    catalog.Read
 	Namespace ids.ObjectAddress
 	Position  int
 }
 
-func (c *comparisonRestore) Decode(comment string, position parser.Position) (bool, error) {
-	kind, namespace, recognized, err := control.DecodeComparisonContext(comment)
+// Decode records a comparison marker comment; it does not claim other
+// comments.
+func (c *ComparisonRestore) Decode(comment string, position parser.Position) (bool, error) {
+	kind, namespace, recognized, err := DecodeComparisonContext(comment)
 	if err != nil || !recognized {
 		return recognized, err
 	}
@@ -54,7 +59,9 @@ func (c *comparisonRestore) Decode(comment string, position parser.Position) (bo
 	return true, nil
 }
 
-func (c *comparisonRestore) Pair(source string, statements []parser.Statement) error {
+// Pair ties each marker to the first SET or RESET after it. Only blank text
+// may separate them, and no statement takes two markers.
+func (c *ComparisonRestore) Pair(source string, statements []parser.Statement) error {
 	c.paired = make(map[int]comparisonMarker)
 	for _, marker := range c.markers {
 		found := false
@@ -72,17 +79,17 @@ func (c *comparisonRestore) Pair(source string, statements []parser.Statement) e
 				continue
 			}
 			if strings.TrimSpace(source[marker.End:position]) != "" {
-				return control.InvalidComparisonContext()
+				return InvalidComparisonContext()
 			}
 			if _, exists := c.paired[i]; exists {
-				return control.InvalidComparisonContext()
+				return InvalidComparisonContext()
 			}
 			c.paired[i] = marker
 			found = true
 			break
 		}
 		if !found {
-			return control.InvalidComparisonContext()
+			return InvalidComparisonContext()
 		}
 	}
 	return nil
@@ -120,9 +127,12 @@ func comparisonDDLPosition(stmt parser.Statement) (int, bool) {
 	return 0, false
 }
 
-func (c *comparisonRestore) Before(index int, stmt parser.Statement, current catalog.Read) (bool, error) {
+// Before advances the state machine for statement index. current is the
+// catalog before the statement runs. execute reports a marked statement the
+// caller must run itself, skipping the other Restore entries.
+func (c *ComparisonRestore) Before(index int, stmt parser.Statement, current catalog.Read) (execute bool, err error) {
 	if c.finished {
-		return false, control.InvalidComparisonContext()
+		return false, InvalidComparisonContext()
 	}
 	marker, marked := c.paired[index]
 	if marked {
@@ -132,58 +142,58 @@ func (c *comparisonRestore) Before(index int, stmt parser.Statement, current cat
 		switch marker.Kind {
 		case "begin":
 			if c.started || c.finished || c.state != comparisonClosed || !baseline {
-				return false, control.InvalidComparisonContext()
+				return false, InvalidComparisonContext()
 			}
 			c.started = true
 			c.state = comparisonOpen
 		case "bind":
 			if c.state != comparisonOpen || !setting || set.Name.Text != "search_path" || set.Local || set.Default || set.Interval != nil || len(set.Values) != 2 || set.Values[0] != "pg_catalog" {
-				return false, control.InvalidComparisonContext()
+				return false, InvalidComparisonContext()
 			}
 			installation, exists := current.Extension(current.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
 			if !exists || current.Owner() == nil || current.Owner().Extensions["cube"] != extension.StockCube {
-				return false, control.InvalidComparisonContext()
+				return false, InvalidComparisonContext()
 			}
 			if err := extension.StockCube.ValidateExtension(current, installation); err != nil {
 				return false, err
 			}
 			ns, exists := current.Namespace(installation.TargetNamespace)
 			if !exists || ns.Temporary != (ids.SessionToken{}) || ns.Name() == "$user" || ns.Name() == "pg_temp" || ns.Name() != marker.Namespace || set.Values[1] != ns.Name() && set.Values[1] != catalog.QuoteIdentifier(ns.Name()) {
-				return false, control.InvalidComparisonContext()
+				return false, InvalidComparisonContext()
 			}
 			c.namespace = ns.Address()
 			c.state = comparisonBound
 		case "close":
 			if c.state != comparisonClosing || !baseline {
-				return false, control.InvalidComparisonContext()
+				return false, InvalidComparisonContext()
 			}
 			c.state = comparisonOpen
 			c.windows++
 		case "finish":
 			reset, ok := stmt.(*parser.Reset)
 			if c.state != comparisonOpen || c.windows == 0 || !ok || reset.All || reset.Name.Text != "search_path" {
-				return false, control.InvalidComparisonContext()
+				return false, InvalidComparisonContext()
 			}
 			c.state = comparisonClosed
 			c.finished = true
 		default:
-			return false, control.InvalidComparisonContext()
+			return false, InvalidComparisonContext()
 		}
 		return true, nil
 	}
 	if _, ok := stmt.(*parser.Reset); ok {
-		return false, control.InvalidComparisonContext()
+		return false, InvalidComparisonContext()
 	}
 	if s, ok := stmt.(*parser.Set); ok && s.Name.Text == "search_path" {
-		return false, control.InvalidComparisonContext()
+		return false, InvalidComparisonContext()
 	}
 	if c.state == comparisonClosing {
-		return false, control.InvalidComparisonContext()
+		return false, InvalidComparisonContext()
 	}
 	if c.state == comparisonBound {
 		position, ok := comparisonDDLPosition(stmt)
 		if !ok {
-			return false, control.InvalidComparisonContext()
+			return false, InvalidComparisonContext()
 		}
 		c.position = position
 		c.before = current
@@ -191,56 +201,24 @@ func (c *comparisonRestore) Before(index int, stmt parser.Statement, current cat
 	return false, nil
 }
 
-func (c *comparisonRestore) After() (comparisonCheck, bool) {
+// After reports the check due once a bound window's DDL ran.
+func (c *ComparisonRestore) After() (ComparisonCheck, bool) {
 	if c.state != comparisonBound {
-		return comparisonCheck{}, false
+		return ComparisonCheck{}, false
 	}
-	return comparisonCheck{Before: c.before, Namespace: c.namespace, Position: c.position}, true
+	return ComparisonCheck{Before: c.before, Namespace: c.namespace, Position: c.position}, true
 }
 
-func (c *comparisonRestore) Bound() {
+// Bound records that the window's DDL passed its check.
+func (c *ComparisonRestore) Bound() {
 	c.before = catalog.Read{}
 	c.state = comparisonClosing
 }
 
-func (c *comparisonRestore) Finish() error {
+// Finish rejects unconsumed markers and an unfinished context.
+func (c *ComparisonRestore) Finish() error {
 	if len(c.paired) != 0 || c.state != comparisonClosed || c.started != c.finished {
-		return control.InvalidComparisonContext()
+		return InvalidComparisonContext()
 	}
 	return nil
-}
-
-func decodeRestoreComparisonContext(r *restoreRun, comment string, position parser.Position) (bool, error) {
-	return r.comparison.Decode(comment, position)
-}
-
-func pairRestoreComparisonContext(r *restoreRun) error {
-	return r.comparison.Pair(r.source, r.statements)
-}
-
-// beforeRestoreComparisonContext runs a marked SET or RESET itself, so no
-// later entry sees it.
-func beforeRestoreComparisonContext(r *restoreRun, op *session.Operation, stmt parser.Statement) (bool, error) {
-	execute, err := r.comparison.Before(r.cur.index, stmt, r.stage.CatalogRead())
-	if err != nil || !execute {
-		return false, err
-	}
-	_, err = r.stage.Execute(op, stmt, 0, nil)
-	return true, err
-}
-
-func afterRestoreComparisonContext(r *restoreRun, op *session.Operation, stmt parser.Statement, _ control.Outcome) error {
-	check, ok := r.comparison.After()
-	if !ok {
-		return nil
-	}
-	if err := r.stage.validateComparisonBindingStatement(op, stmt, check); err != nil {
-		return err
-	}
-	r.comparison.Bound()
-	return nil
-}
-
-func finishRestoreComparisonContext(r *restoreRun, _ context.Context, _ *session.Operation) error {
-	return r.comparison.Finish()
 }
