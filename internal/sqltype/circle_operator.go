@@ -215,6 +215,10 @@ func geometryDistance(ax, ay, bx, by float64) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	return geometryHypot(x, y)
+}
+
+func geometryHypot(x, y float64) (float64, error) {
 	// REL_18_6 pg_hypot: infinity wins over NaN; scale by the larger
 	// coordinate, retaining its operation order rather than squaring directly.
 	if math.IsInf(x, 0) || math.IsInf(y, 0) {

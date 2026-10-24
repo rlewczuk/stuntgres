@@ -73,9 +73,9 @@ package or the engine.
   `pg_operator` only through `SupportedOperatorMetadata`; every published
   descriptor must also be a row of `docs/design/pg-operator-pg18-supported.tsv`,
   which the engine and `reference/catalogs` inventory tests read.
-  Geometric relation declarations carry `OperatorRoutineProvider`: associations
-  authorize operator execution, not newly callable support names. Existing
-  polygon-point/circle-circle providers and callable registrations retain ownership.
+  Geometric relation and transform declarations carry `OperatorRoutineProvider`:
+  associations authorize operator execution, not newly callable support names.
+  Existing polygon-point/circle-circle providers and callable registrations retain ownership.
   The metadata array remains OID-sorted for binary lookup and publishes genuine
   result/procedure/link/estimator facts without inferred reverse signatures.
   BOX/POLYGON positions publish their released BOOL signatures and zero

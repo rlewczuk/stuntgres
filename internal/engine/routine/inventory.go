@@ -15,6 +15,23 @@ import (
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	// Selected REL_18_6 Table 9.36 operators; names do not grant call admission.
+	{catalog.RoutineIdentity{1441, ids.PGCatalogNamespaceOID, "point_add", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1442, ids.PGCatalogNamespaceOID, "point_sub", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1443, ids.PGCatalogNamespaceOID, "point_mul", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1444, ids.PGCatalogNamespaceOID, "point_div", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1435, ids.PGCatalogNamespaceOID, "path_add", "602,602"}, catalog.FunctionRoutine, 602, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1436, ids.PGCatalogNamespaceOID, "path_add_pt", "602,600"}, catalog.FunctionRoutine, 602, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1437, ids.PGCatalogNamespaceOID, "path_sub_pt", "602,600"}, catalog.FunctionRoutine, 602, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1438, ids.PGCatalogNamespaceOID, "path_mul_pt", "602,600"}, catalog.FunctionRoutine, 602, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1439, ids.PGCatalogNamespaceOID, "path_div_pt", "602,600"}, catalog.FunctionRoutine, 602, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1422, ids.PGCatalogNamespaceOID, "box_add", "603,600"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1423, ids.PGCatalogNamespaceOID, "box_sub", "603,600"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1424, ids.PGCatalogNamespaceOID, "box_mul", "603,600"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1425, ids.PGCatalogNamespaceOID, "box_div", "603,600"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1146, ids.PGCatalogNamespaceOID, "circle_add_pt", "718,600"}, catalog.FunctionRoutine, 718, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1147, ids.PGCatalogNamespaceOID, "circle_sub_pt", "718,600"}, catalog.FunctionRoutine, 718, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1148, ids.PGCatalogNamespaceOID, "circle_mul_pt", "718,600"}, catalog.FunctionRoutine, 718, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1149, ids.PGCatalogNamespaceOID, "circle_div_pt", "718,600"}, catalog.FunctionRoutine, 718, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{995, ids.PGCatalogNamespaceOID, "lseg_parallel", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{996, ids.PGCatalogNamespaceOID, "lseg_perp", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{997, ids.PGCatalogNamespaceOID, "lseg_vertical", "601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

@@ -31,6 +31,7 @@ var arithmeticAddSignatures = [...]ArithmeticSignature{
 	{Timetz, Interval, Timetz}, {Interval, Timetz, Timetz},
 	{Interval, Interval, Interval},
 	{Inet, Int8, Inet}, {Int8, Inet, Inet},
+	{Point, Point, Point}, {Box, Point, Box}, {Path, Point, Path}, {Circle, Point, Circle}, {Path, Path, Path},
 }
 var arithmeticSubtractSignatures = [...]ArithmeticSignature{
 	arithmeticNumericSignatures[0], arithmeticNumericSignatures[1], arithmeticNumericSignatures[2],
@@ -45,6 +46,7 @@ var arithmeticSubtractSignatures = [...]ArithmeticSignature{
 	{Time, Interval, Time}, {Timetz, Interval, Timetz}, {Time, Time, Interval},
 	{Interval, Interval, Interval},
 	{Inet, Int8, Inet}, {Inet, Inet, Int8},
+	{Point, Point, Point}, {Box, Point, Box}, {Path, Point, Path}, {Circle, Point, Circle},
 }
 var arithmeticMultiplySignatures = [...]ArithmeticSignature{
 	arithmeticNumericSignatures[0], arithmeticNumericSignatures[1], arithmeticNumericSignatures[2],
@@ -55,6 +57,7 @@ var arithmeticMultiplySignatures = [...]ArithmeticSignature{
 	{Money, Int2, Money}, {Money, Int4, Money}, {Money, Int8, Money}, {Money, Float4, Money}, {Money, Float8, Money},
 	{Int2, Money, Money}, {Int4, Money, Money}, {Int8, Money, Money}, {Float4, Money, Money}, {Float8, Money, Money},
 	{Interval, Float8, Interval}, {Float8, Interval, Interval},
+	{Point, Point, Point}, {Box, Point, Box}, {Path, Point, Path}, {Circle, Point, Circle},
 }
 var arithmeticDivideSignatures = [...]ArithmeticSignature{
 	arithmeticNumericSignatures[0], arithmeticNumericSignatures[1], arithmeticNumericSignatures[2],
@@ -65,6 +68,7 @@ var arithmeticDivideSignatures = [...]ArithmeticSignature{
 	{Money, Money, Float8},
 	{Money, Int2, Money}, {Money, Int4, Money}, {Money, Int8, Money}, {Money, Float4, Money}, {Money, Float8, Money},
 	{Interval, Float8, Interval},
+	{Point, Point, Point}, {Box, Point, Box}, {Path, Point, Path}, {Circle, Point, Circle},
 }
 
 func arithmeticCandidates(operator ArithmeticOperator) []ArithmeticSignature {

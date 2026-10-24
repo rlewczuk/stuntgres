@@ -61,6 +61,11 @@ these are shared across families:
   witnesses distinguish corner-local NaNs and vertex sequence matching from
   area-based comparison. Select this family with
   `make check RUN='^TestReferenceGeometry(Alignment|SamenessArea)'`.
+  Geometric transforms reuse this adapter through `geometry_transform_helpers_test.go`
+  for POINT/BOX/PATH/CIRCLE raw results and metadata. Independent value, numeric-edge,
+  corner, concatenation, diagnostic and stored-replay witnesses share direct,
+  prepared and retained-statement routes. Select them with
+  `make check RUN='^TestReferenceGeometryTransform'`.
 - `domain_helpers_test.go`: the shared domain fixture `domainReferenceScenario`
   (a pinned notice session per backend with schema `domain_s` and a one-row
   `public.one`; schema cleanup is registered before borrowing so handles close

@@ -15,6 +15,20 @@ No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
 
+### Geometric transform admission
+
+The supported inventory includes binary operators731–739,804–807 and1516–1519.
+Their fifteen-field records follow
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and [REL_18_6 pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat),
+independently of native metadata. All have namespace11, owner10, false merge/hash,
+and zero negator/restriction/join. Only731,733 and735 have self commutators;
+the PATH735 association does not authorize reordering concatenation.
+The sixteen POINT transforms and PATH concatenation retain the left result type.
+Strict immutable parallel-safe routine associations grant operator execution,
+not new callable support-function names. Existing complete catalog consumers
+own inventory/link assertions; source provenance is not verification.
+
 ### Geometric alignment admission
 
 The supported inventory includes LSEG operators1526–1529 and LINE

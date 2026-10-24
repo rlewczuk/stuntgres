@@ -109,6 +109,9 @@ func (p Arithmetic) Binary(ctx context.Context, a, b Value, input InputEnvironme
 	if temporalArithmeticType(p.left.id) || temporalArithmeticType(p.right.id) {
 		return p.datetimeBinary(a, b, input)
 	}
+	if p.left.id == Point || p.left.id == Box || p.left.id == Path || p.left.id == Circle {
+		return p.geometryBinary(ctx, a, b)
+	}
 	if isFloat(p.result.id) {
 		return p.floatingBinary(a.floating, b.floating)
 	}

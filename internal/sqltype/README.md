@@ -181,6 +181,14 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
 
 - Checked arithmetic order in geometry, earth and crypto kernels is a contract,
   not an optimization opportunity; long kernel loops check cancellation.
+- Arithmetic binds POINT/BOX/PATH/CIRCLE with POINT through the ordinary
+  overload resolver. Coordinate complex arithmetic checks each FLOAT8 intermediate;
+  circle scaling shares the released checked norm with geometry distances.
+  BOX translation preserves raw corner order; multiplication/division normalize
+  the two transformed stored corners, not a four-vertex bounding rectangle.
+  PATH transforms allocate one private destination, preserve closure and vertex
+  order, and poll cancellation. Open PATH concatenation preserves duplicates;
+  a closed operand returns typed NULL, and combined size is checked before allocation.
 - No geometric type gains default ordering/hash/index authority from its
   scalar operators.
 - `FTSQueryPlan` checks source/result descriptor authority for query inspection
