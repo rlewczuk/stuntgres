@@ -89,3 +89,28 @@ func SelectRowSecurity(roles authorization.Read, d *catalog.Relation, principal 
 	}
 	return result, nil
 }
+
+// SameRLSSelection reports whether a and b select the same policy clauses
+// in the same groups and order.
+func SameRLSSelection(a, b RLSSelection) bool {
+	if a.Count != b.Count {
+		return false
+	}
+	for i := range a.Count {
+		x, y := &a.Groups[i], &b.Groups[i]
+		if len(x.Permissive) != len(y.Permissive) || len(x.Restrictive) != len(y.Restrictive) {
+			return false
+		}
+		for j := range x.Permissive {
+			if x.Permissive[j] != y.Permissive[j] {
+				return false
+			}
+		}
+		for j := range x.Restrictive {
+			if x.Restrictive[j] != y.Restrictive[j] {
+				return false
+			}
+		}
+	}
+	return true
+}
