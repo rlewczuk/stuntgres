@@ -17,6 +17,10 @@ type StageHost interface {
 	ddl.Host
 	ddl.TypeStaging
 
+	// StagedTemporary classifies the session's own non-TOAST namespace
+	// before publication without granting CREATE authority.
+	StagedTemporary(auth ddl.Authority, namespace *catalog.Namespace) ddl.Authority
+
 	// TrustedRestoreDestination reports whether the statement replays a
 	// trusted Restore destination. It fails, naming what, when the replay
 	// authority is not the bootstrap superuser of an import.

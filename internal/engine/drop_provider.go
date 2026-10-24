@@ -207,6 +207,11 @@ func (p *dropProvider) rewindNotices(position int) {
 
 func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 	targets := view.IdentityObservationTargets(p, roots)
+	for _, address := range roots {
+		if address.SubID == 0 && (address.ClassID == ids.TypeClassID || definitionObjectClass(address.ClassID)) && !slices.Contains(targets, address) {
+			targets = append(targets, address)
+		}
+	}
 	if p.stage != nil {
 		p.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{p.stage.Base.State(), targets})
 		return

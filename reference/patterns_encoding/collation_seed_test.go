@@ -58,17 +58,13 @@ func TestReferenceCollationSeedAlterLifecycle(t *testing.T) {
 		}
 		mutations := []string{`ALTER COLLATION pg_catalog."C" RENAME TO coll_seed_c`, `ALTER COLLATION pg_catalog.coll_seed_c SET SCHEMA coll_seed_schema`, `ALTER COLLATION coll_seed_schema.coll_seed_c OWNER TO coll_seed_owner`}
 		exec(`BEGIN`)
-		if b.PG {
-			exec(mutations...)
-			run(metadata("coll_seed_c", transferredOwnerID))
-			run(fixture.Select(`SELECT upper('é' COLLATE coll_seed_schema.coll_seed_c) AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{"é"}}))
-		} else {
-			run(fixture.ErrorDiagnostic(mutations[0], fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
-		}
+		exec(mutations...)
+		run(metadata("coll_seed_c", transferredOwnerID))
+		run(fixture.Select(`SELECT upper('é' COLLATE coll_seed_schema.coll_seed_c) AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{"é"}}))
 		exec(`ROLLBACK`)
 		run(metadata("C", originalOwnerID))
-		// Native DDL is autocommit-only; successful seed metadata changes must still
-		// preserve the pinned identity and immutable execution capability.
+		// Autocommit seed changes preserve the same pinned identity and
+		// immutable execution capability as the rolled-back private changes.
 		exec(mutations...)
 		run(metadata("coll_seed_c", transferredOwnerID))
 		value := fixture.Select(`SELECT upper('é' COLLATE coll_seed_schema.coll_seed_c) AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{"é"}})

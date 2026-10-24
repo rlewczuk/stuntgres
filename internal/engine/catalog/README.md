@@ -146,8 +146,15 @@ private frames, not catalog authority.
   binds. After the root holds the claim's name lock, `BindingCurrent` rechecks
   it: a vanished binding is `ids.ErrCatalogReplaced`, another one the
   PostgreSQL unique-index violation of `pg_class`, `pg_type`, `pg_namespace`,
-  `pg_proc` or `pg_operator`. Procedure bindings include the full input signature;
-  operator bindings include both operand identities, including NONE.
+  `pg_proc`, `pg_operator`, `pg_collation`, `pg_conversion` or `pg_cast`, with
+  exact key fields. Procedure bindings include the full input signature;
+  operator bindings include both operand identities, including NONE. Collation
+  claims retain the staged encoding; collation preparation's initial binding is
+  retained across catalog lock admission, so a newly committed exact-encoding
+  key is `23505` even with IF NOT EXISTS. Serial same-encoding duplicates are
+  handled before that wait; cross-encoding shadows are checked after it with
+  generic duplicate diagnostics. Cast claims use the canonical directed
+  source/target pair in the zero namespace, not a schema or a second pair store.
 - **Prepared type identity** (`type_identity.go`):
   `SamePreparedTypeDefinition` decides whether held prepared analysis survives
   a type revision; domains never do.
@@ -220,6 +227,19 @@ assignment (the Restore remap is `control.RemapDefinitionOIDs`), the stage
 reader's index layouts (`stageDefinitionReader.IndexLayout`); the
 prepared-drop `DefinitionReader` is `table.DropPreparation`. Callers name the
 declarations here directly, without aliases.
+
+The engine's retirement preflight checks newly committed cast, conversion and
+collation dependencies against the final candidate, so candidate-removed edges
+do not impersonate surviving dependents. It composes touched identities and
+bindings with unrelated committed work rather than fencing the whole root.
+
+ALTER collation/conversion stages retain original descriptor bases independently
+of DROP roots, including no-op actions. Admission validates the original name,
+address and namespace identity before final staging; a vanished original binding
+cannot redirect to another search-path target. Native's ordinary
+`ErrCatalogReplaced` is intentionally stronger than PostgreSQL's possible fallback
+retargeting. Its explicit-transaction failure clears savepoints and requires full
+rollback before fresh same-owner transaction use.
 
 ## Testing
 

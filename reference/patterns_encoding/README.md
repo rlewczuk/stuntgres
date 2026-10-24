@@ -19,6 +19,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   `regexp_{cancel_rows,held_sets,namespace,set_walks,stored_overloads,timeout_rows}_test.go`,
   `like_metadata_test.go`, and `likeReferenceCancelEntered` in
   `like_cancellation_test.go`.
+- **Collation transactions.** Reuse `fixture.CollationScenario`,
+  `SequenceCoreConn` and `HeldStatement` for owner/peer, SQL BEGIN and Go BeginTx
+  routes. Keep actual collation behavior coupled to identity/provider/version
+  metadata, conditional notices and full/savepoint rollback. Conflict scenarios
+  use the shared deterministic lock observers and join every worker; native
+  controls use unwrapped pools and replay the actual committed-only Dump.
 - **Cancellation admission** uses one of two patterns; both reject early
   completion, join workers under bounded cleanup and check nil outputs, the
   sentinel and same-owner/held recovery:

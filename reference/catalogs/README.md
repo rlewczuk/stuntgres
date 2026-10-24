@@ -29,6 +29,15 @@ exercise owner-authorized type removal.
   `*_fixture_test.go` or `*_helpers_test.go` files (for example
   `vacuumScenario`, `partitionInfoScenario`, `pgcryptoCase`, `uuidOsspCase`,
   `objectACLScenario`, `catalogRelationsMetadata`, `tablespaceContainer`).
+- Conversion helpers (`conversion_helpers_test.go`) own scenario setup, registered
+  handler declarations, metadata and real byte assertions. `conversionHideSeed`
+  registers repair before moving a default; owner-transaction assertions use the
+  owner executor, never `b.DB`. Direct/held autocommit, SQL BEGIN and Go BeginTx
+  routes couple dispatch to private metadata, transition/savepoint restoration,
+  current authority and peer isolation. DEFAULT checks distinguish serial
+  visible conflicts from legal moved/concurrent distinct-name definitions.
+  Conflict workers use shared lock observers and are always joined; native
+  controls use unwrapped pools for committed-only Dump and fresh-driver Restore.
 - Expected data comes from released inventories and published vectors, never
   from native output: `docs/design/pg-operator-pg18-supported.tsv` (shared by
   every `TestReferencePGOperator` test, `TestReferenceLsegOperatorCatalog` and

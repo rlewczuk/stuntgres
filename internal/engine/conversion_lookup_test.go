@@ -136,6 +136,40 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		if e.CatalogRead().State() != before {
 			t.Fatal("denied EXECUTE published conversion")
 		}
+		if err = e.SetObjectACL(context.Background(), ref, authorization.ACLValue{}); err != nil {
+			t.Fatal(err)
+		}
+		e.mu.Lock()
+		auth, refreshErr = e.authorizationLocked(op)
+		e.mu.Unlock()
+		if refreshErr != nil {
+			t.Fatal(refreshErr)
+		}
+		auth.State.CurrentUser = actor
+		stage = e.BeginCatalogStage(auth.Catalog)
+		e.mu.Lock()
+		err = typedef.StageCreateConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, create)
+		e.mu.Unlock()
+		if err != nil {
+			t.Fatal("restored real handler grant did not recover CREATE", err)
+		}
+		var created *catalog.Conversion
+		for _, descriptor := range stage.Descriptors() {
+			created, _ = descriptor.(*catalog.Conversion)
+			if created != nil {
+				break
+			}
+		}
+		if created == nil || created.Owner != actor || created.Handler != ref.Address || created.Source != 6 || created.Destination != 8 {
+			t.Fatal("granted CREATE lost actual authority/provider", created)
+		}
+		if e.CatalogRead().Get(created.Address()) != nil {
+			t.Fatal("granted staging published before validation")
+		}
+		collationUnitPublish(t, e, stage)
+		if e.CatalogRead().Get(created.Address()) != created {
+			t.Fatal("recovered CREATE did not publish real descriptor")
+		}
 	})
 	e.mu.Lock()
 	auth, refreshErr = e.authorizationLocked(op)

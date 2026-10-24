@@ -423,6 +423,9 @@ func (e *Engine) publishCatalogOperation(op *session.Operation, scope *Statement
 		if scope.op != op || op == nil {
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication scope")
 		}
+		if err := scope.acquireDefinitionObjectDependencies(p.stage); err != nil {
+			return ChangeSet{}, err
+		}
 		if err := scope.acquireStageRoleDependencies(p.stage); err != nil {
 			return ChangeSet{}, err
 		}

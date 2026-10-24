@@ -132,7 +132,8 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 	for resource, entry := range m.entries {
 		// Exact binding claims have no physical PostgreSQL lock tag. Their
 		// queued dependencies still participate in blocking/deadlock inquiry.
-		if resource.Name != (ids.NameKey{}) && resource.Domain() != m.roleDomain {
+		if resource.Name != (ids.NameKey{}) && resource.Domain() != m.roleDomain &&
+			resource.Name.ClassID != ids.CollationClassID && resource.Name.ClassID != ids.ConversionClassID && resource.Name.ClassID != ids.CastClassID {
 			continue
 		}
 		catalogACL := resource.Kind == CatalogACLResource || resource.Kind == DefaultACLResource
@@ -215,7 +216,7 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 					continue
 				}
 				if (resource.Name != (ids.NameKey{}) || resource.RoleTuple) && targetIdentity.xid == 0 {
-					return nil, fmt.Errorf("stuntgres: role claim dependency lacks live transaction identity")
+					return nil, fmt.Errorf("stuntgres: catalog claim dependency lacks live transaction identity")
 				}
 				record = Record{Kind: VirtualRecord, Owner: owner, Target: targetIdentity.owner}
 				if (purpose == CompletionTransaction || targetIdentity.owner.Prepared) && targetIdentity.xid != 0 {
@@ -279,7 +280,7 @@ func pgResourceRecord(resource Resource, owner RecordOwner, mode Mode) (Record, 
 		switch resource.Address.ClassID {
 		case ids.RelationClassID:
 			r.Kind = RelationRecord
-		case ids.TypeClassID, ids.NamespaceClassID, ids.RoleClassID, ids.ProcedureClassID:
+		case ids.TypeClassID, ids.NamespaceClassID, ids.RoleClassID, ids.CollationClassID, ids.ConversionClassID, ids.CastClassID, ids.ProcedureClassID:
 			r.Kind, r.Class = ObjectRecord, uint32(resource.Address.ClassID)
 			r.Shared = resource.Address.ClassID == ids.RoleClassID
 		default:

@@ -88,15 +88,23 @@ ordinary SQL errors leave the connection reusable.
   ALTER INDEX rename/SET/RESET, CREATE/OR REPLACE/ALTER/DROP VIEW,
   CREATE/ALTER/DROP MATERIALIZED VIEW, CREATE DOMAIN/composite TYPE, domain
   rule changes, composite attribute evolution, type/domain rename, schema move
-  and DROP, and CREATE/OR REPLACE, ALTER RENAME and DROP RULE see earlier
-  successful own changes. Direct and held prepared rule commands use the same
-  transaction; subsequent owner DML uses the private rules.
+  and DROP, CREATE/OR REPLACE, ALTER RENAME and DROP RULE, shipped function
+  and aggregate creation, routine identity ALTER/DROP, operator CREATE/ALTER/DROP,
+  CREATE/ALTER/DROP COLLATION and CONVERSION, and CREATE/DROP CAST see earlier
+  successful own changes. Direct and held prepared commands use the same transaction; subsequent
+  owner consumers use private definitions without exposing them to peers.
   Ordinary and concurrent REFRESH consume earlier own source writes and keep
   stored rows, indexes and population private until commit. Peers see complete
   definitions, constraints, consuming rows and logical keys only after commit.
   Rollback/savepoints restore definitions, dependencies, row layouts and data
   together; sequence counters are not rewound. Autocommit and retained simple-query
-  messages use the same supported forms.
+  messages use the same supported forms. Feature-specific collation and conversion
+  OWNER is included; procedure creation and language lifecycle keep their separate
+  admission policies. Native collation/conversion ALTER retains its original
+  target across lock waits rather than adopting a search-path fallback.
+  `ErrCatalogReplaced` is an ordinary native error without SQLSTATE and clears
+  explicit-transaction savepoints: fully roll back and begin a fresh transaction
+  on the same connection before qualified recovery.
 - ALTER OWNER for tables, types, domains and databases, feature-specific view/
   materialized-view OWNER, REASSIGN OWNED and DROP OWNED share autocommit, SQL
   transaction controls and Go `BeginTx`. They see earlier successful own changes;
@@ -156,7 +164,7 @@ ordinary SQL errors leave the connection reusable.
   a cursor.
 
 Routine rename/schema/owner DDL has no parameter/result signature; Prepare stays
-effect-free and Execute owns authorization and read-only/autocommit admission.
+effect-free and Execute owns authorization and read-only/transaction admission.
 Affected original Go/SQL prepared source reanalyzes: an old spelling may fail
 42883, and recreating it legitimately binds the replacement. Hard stored calls
 instead retain checked callee identity with current owner/EXECUTE checks.

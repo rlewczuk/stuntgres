@@ -166,6 +166,30 @@ production dependency is involved.
   driver object; `BatchSet`, `BatchReadSet` and `BatchSets` assert multi-result
   direct-message batches; `NoticeWitnesses` and `NoticesInternalDebug` keep SQL
   notices exact while treating PostgreSQL DEBUG tracing as incidental.
+- **Transactional definitions.** `DefinitionLockOperation` uses the existing
+  joined worker/native scheduler observer and checks the oracle's exact queued
+  relation, transaction-ID or object lock, mode and blocker. `DefinitionLockCall`
+  accepts an execution closure for genuinely held statements on the same owner,
+  with the same queue observation and joined-worker lifetime. Object queues include
+  captured class/OID/subobject identity; no name-derived replacement is accepted.
+  `DefinitionActiveCancel` cancels only after this admission and joins before
+  returning. `DefinitionIndexWaitDiagnostic` checks all portable error fields,
+  allowing only physical heap coordinates to vary in the anchored PostgreSQL
+  index-insertion Context; native Context remains empty. Consumers include the
+  collation, conversion and cast `TransactionConflicts` reference definitions.
+  `DefinitionIdentityRows` captures every exposed catalog field and
+  `DefinitionIdentityEqual` compares the full identity/settings rows.
+  `DefinitionAlterIdentity` shares collation/conversion original-target cases:
+  observe the original AX wait, commit a holder rename/schema move or roll it
+  back, then assert full OID/settings/dependency preservation and healthy reuse.
+  After holder commit PostgreSQL may alter the search-path fallback; native
+  instead returns ordinary `ErrCatalogReplaced` without SQLSTATE and leaves that
+  fallback untouched. Native recovery fully rolls back, opens a fresh transaction
+  and savepoint on the same physical owner, and exercises qualified ALTER;
+  PostgreSQL and holder-rollback success paths retain rollback-to-savepoint.
+  Collation CREATE admission cases distinguish pre-SRX semantic errors and
+  same-encoding duplicate/skip completion from protected cross-encoding checks
+  and concurrent exact-key `23505`, including IF NOT EXISTS.
 - **Server.** `NewServerFixture(t)` builds and launches a real `cmd/stuntgres`
   subprocess (temporary userfile, dumps, logs and PID file; reduced-KDF build tag)
   for `reference/sessions` wire tests. Embedded scenarios never start a server.

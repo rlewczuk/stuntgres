@@ -42,6 +42,40 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   provider validation, the import remapper, the builtin conversion routine table
   and seed constructor `BuiltinConversionProcedures`, and the bootstrap seed dump
   statements.
+  Their shipped CREATE/ALTER/DROP forms use the engine's canonical journal in
+  autocommit, retained messages, SQL BEGIN and Go BeginTx. Owner-private lookup,
+  provider authority and actual consumers share that catalog; commit publishes
+  definitions with rows, while full/savepoint rollback restores identity,
+  namespace, owner, version, handler and dependency state. FROM copies retain
+  independent collation capabilities; REFRESH VERSION changes the recorded
+  version, not dependent indexes. ALTER records its original descriptor with
+  `AddDomainBase`, including no-op actions, independently of DROP target roots.
+  Native replacement fencing requires full rollback and a fresh transaction;
+  old savepoints cannot recover that fence.
+  `PrepareCreateCollationLocked` performs namespace/CREATE authorization,
+  option and provider-specific validation, FROM resolution and requested-encoding
+  normalization before catalog ShareRowExclusive admission. An existing
+  same-name, same-encoding definition errors or emits IF NOT EXISTS's skip notice
+  in this phase, without waiting for that lock. `StagePreparedCollationLocked`
+  owns completion for both admitted execution and effect-free direct staging.
+  It recaptures supplied authority onto the candidate catalog and restores only
+  the captured destination's TEMP classification through the session-token and
+  non-TOAST guard. Admitted execution supplies fresh post-wait authority; direct
+  composition acquires no locks. Both retain captured namespace/source identity
+  and current CREATE checks, including the role's database TEMP privilege,
+  without publishing the private namespace or granting peers authority.
+  Cross-encoding shadows then error or skip with the generic duplicate message;
+  remaining provider semantics, actual-version checks/warnings, allocation and
+  insertion follow. A same-encoding key first committed during the wait is an
+  exact unique-index `23505`, even with IF NOT EXISTS, not a serial duplicate or
+  skip. `StageCreateCollationLocked` composes the same phases synchronously.
+  Conversion CREATE checks handler EXECUTE and the registered six-argument
+  integer-returning capability. Serial DEFAULT creation checks the visible
+  schema/directed pair; legal moved or concurrent distinct-name defaults are
+  not rejected by a global pair invariant. Runtime dispatch captures the owner's
+  catalog once per statement, selecting by non-TEMP path then OID, without
+  creating a stored dependency on the chosen conversion. Provider availability,
+  encoding boundaries and conversion ABI remain provider-owned.
 - **Domains** (`domain_*.go`): builtin `information_schema` seeds, ALTER DOMAIN
   discovery, own NOT NULL records, generation reownership, captured input
   providers and default snapshot records (qualified usage, never source OIDs).

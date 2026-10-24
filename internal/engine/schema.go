@@ -35,6 +35,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	}
 	var stage *CatalogStage
 	var err error
+	noticeMark := len(op.Notices)
 	if drop, ok := stmt.(*parser.DropSchema); ok {
 		var manifest ddl.SchemaDropManifest
 		manifest, err = scope.acquireSchemaDrop(drop)
@@ -44,12 +45,41 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		e.mu.Lock()
 		stage, err = e.stageSchemaDropLocked(op, drop, manifest)
 		e.mu.Unlock()
+	} else if create, ok := stmt.(*parser.CreateCollation); ok {
+		var plan typedef.CollationCreatePlan
+		e.mu.Lock()
+		stage, plan, err = e.prepareCollationCreateLocked(op, create)
+		e.mu.Unlock()
+		if err != nil || !plan.NeedsCatalogLock() {
+			e.DiscardCatalogStage(stage)
+			return Result{}, err
+		}
+		// Only the protected cross-encoding/insertion phase waits. Preparation
+		// retains the original exact-key absence for concurrent index errors.
+		if err = scope.acquireCollationCatalog(stage.Base); err != nil {
+			op.Notices = op.Notices[:noticeMark]
+			e.DiscardCatalogStage(stage)
+			return Result{}, err
+		}
+		e.mu.Lock()
+		stage, err = e.completeCollationCreateLocked(op, stage, &plan)
+		e.mu.Unlock()
+		if err != nil {
+			op.Notices = op.Notices[:noticeMark]
+			e.DiscardCatalogStage(stage)
+			return Result{}, err
+		}
 	} else {
 		e.mu.Lock()
 		stage, err = e.stageSchemaLocked(op, stmt, input, scope.output)
 		e.mu.Unlock()
 	}
 	if err != nil || stage == nil {
+		return Result{}, err
+	}
+	stage, err = scope.admitDefinitionMutation(stage, stmt, input, noticeMark)
+	if err != nil {
+		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
 	// Retain the constructor's actual fresh domain identity for bounded Restore
@@ -231,6 +261,44 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		return Result{}, err
 	}
 	return Result{created: created}, nil
+}
+
+// Preparation owns the normal candidate, including any newly materialized TEMP
+// namespace. No collation OID or provider instance is allocated before admission.
+func (e *Engine) prepareCollationCreateLocked(op *session.Operation, stmt *parser.CreateCollation) (*CatalogStage, typedef.CollationCreatePlan, error) {
+	auth, err := e.schemaAuthorizationLocked(op)
+	if err != nil {
+		return nil, typedef.CollationCreatePlan{}, err
+	}
+	stage := e.BeginCatalogStage(auth.Catalog)
+	stage.authorizeLocked(auth, op.Session)
+	plan, err := typedef.PrepareCreateCollationLocked(ddlHost{e: e, op: op, stage: stage}, auth, stmt)
+	return stage, plan, err
+}
+
+func (e *Engine) completeCollationCreateLocked(op *session.Operation, prepared *CatalogStage, plan *typedef.CollationCreatePlan) (*CatalogStage, error) {
+	auth, err := e.schemaAuthorizationLocked(op)
+	if err != nil {
+		return prepared, err
+	}
+	if auth.Catalog.Domain() != prepared.Base.Domain() || auth.Catalog.Epoch() != prepared.Base.Epoch() {
+		return prepared, ids.ErrCatalogReplaced
+	}
+	stage := prepared
+	if auth.Catalog.State() != prepared.Base.State() {
+		stage = e.BeginCatalogStage(auth.Catalog)
+		for _, descriptor := range prepared.Descriptors() {
+			if err = stage.Create(descriptor); err != nil {
+				e.DiscardCatalogStage(stage)
+				return prepared, err
+			}
+		}
+		e.DiscardCatalogStage(prepared)
+	}
+	stage.authorizeLocked(auth, op.Session)
+	host := ddlHost{e: e, op: op, stage: stage}
+	err = typedef.StagePreparedCollationLocked(host, auth, plan)
+	return stage, err
 }
 
 // schemaAuthorizationLocked supplies the same current authority and early

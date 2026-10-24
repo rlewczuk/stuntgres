@@ -22,6 +22,19 @@ Sole-target policy deletion retains AccessExclusive on its surviving containing
 table until transaction end or rollback to an earlier savepoint, without blanket
 partial-policy or ACL-survivor locking.
 
+CREATE/ALTER/DROP COLLATION and CONVERSION and CREATE/DROP CAST now share
+autocommit, retained messages, SQL BEGIN and Go BeginTx. Supported consumers use
+owner-private definitions immediately; identities, settings and dependencies
+commit or roll back with rows, including savepoints and held prepared execution.
+Conflicting definitions and provider retirement use transaction-lifetime locks
+and current authority. ALTER fences its original identity rather than retargeting
+a search-path fallback; native replacement failures require full rollback before
+fresh transaction use. Collation CREATE handles semantic checks and serial
+same-encoding duplicate/skip cases before catalog lock admission, with protected
+cross-encoding checks and exact-key insertion conflicts afterward.
+Candidate-only TEMP namespace authority is preserved through both admitted and
+direct collation staging without granting peer sessions access.
+
 CREATE, ALTER (including rename) and DROP POLICY now participate in SQL BEGIN
 and Go BeginTx as well as autocommit and retained messages. Private definitions,
 role bindings, dependencies and rows commit or roll back together, with savepoint

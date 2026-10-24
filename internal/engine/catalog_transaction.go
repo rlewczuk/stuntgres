@@ -156,7 +156,7 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 // Candidate overrides matter: an owner removed or rewired by this transaction
 // must not impersonate a surviving edge into an absent provider.
 // Existing expression/ownership observations also fence retained-message
-// admission before removals are overlaid; only new type edges require absence.
+// admission before removals are overlaid; new type/definition edges require absence.
 func catalogDependencyPreflight(current, candidate *catalog.State, observations []session.DependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
 	for _, observation := range observations {
 		if current == observation.Base {
@@ -190,6 +190,22 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 					}
 					if owner.SQLType.IsDomain() && typedef.UsageDependsOn(owner.SQLType.DomainBase(), target) ||
 						owner.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(owner.SQLType.Element().ID())}) {
+						return catalog.Conflict{}
+					}
+				case *catalog.Cast:
+					if candidate.Get(target) == nil {
+						for _, dependency := range catalog.CastDependencies(owner) {
+							if dependency == target {
+								return catalog.Conflict{}
+							}
+						}
+					}
+				case *catalog.Conversion:
+					if candidate.Get(target) == nil && (owner.Handler == target || owner.Namespace() == target) {
+						return catalog.Conflict{}
+					}
+				case *catalog.Collation:
+					if candidate.Get(target) == nil && owner.Namespace() == target {
 						return catalog.Conflict{}
 					}
 				case *catalog.ForeignObject:

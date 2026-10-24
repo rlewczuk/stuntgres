@@ -13,10 +13,11 @@ import (
 // then namespaces); RelationRename marks a relation rowtype renamed with its
 // relation.
 type BindingClaim struct {
-	Key            ids.NameKey
-	Address        ids.ObjectAddress
-	Priority       int
-	RelationRename bool
+	Key               ids.NameKey
+	Address           ids.ObjectAddress
+	Priority          int
+	RelationRename    bool
+	CollationEncoding int32 // Actual staged encoding, including encoding-independent -1.
 }
 
 // BindingCurrent rechecks claim against current after its name lock is held:
@@ -52,6 +53,13 @@ func bindingDuplicate(claim BindingClaim) error {
 	case ids.OperatorClassID:
 		left, right, _ := strings.Cut(key.Signature, ",")
 		table, constraint, detail = "pg_operator", "pg_operator_oprname_l_r_n_index", fmt.Sprintf("Key (oprname, oprleft, oprright, oprnamespace)=(%s, %s, %s, %d) already exists.", key.Name, left, right, key.Namespace.ObjectID)
+	case ids.CollationClassID:
+		table, constraint, detail = "pg_collation", "pg_collation_name_enc_nsp_index", fmt.Sprintf("Key (collname, collencoding, collnamespace)=(%s, %d, %d) already exists.", key.Name, claim.CollationEncoding, key.Namespace.ObjectID)
+	case ids.ConversionClassID:
+		table, constraint, detail = "pg_conversion", "pg_conversion_name_nsp_index", fmt.Sprintf("Key (conname, connamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
+	case ids.CastClassID:
+		source, target, _ := strings.Cut(key.Name, ",")
+		table, constraint, detail = "pg_cast", "pg_cast_source_target_index", fmt.Sprintf("Key (castsource, casttarget)=(%s, %s) already exists.", source, target)
 	default:
 		table, constraint, detail = "pg_class", "pg_class_relname_nsp_index", fmt.Sprintf("Key (relname, relnamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
 	}

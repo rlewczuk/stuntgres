@@ -96,19 +96,8 @@ func TestReferenceInfoCharacterSetsLifecycle(t *testing.T) {
 		c.check(held, "pg_catalog", "C")
 		c.exec("BEGIN")
 		create := `CREATE COLLATION public.cs_rollback_selected_long_name FROM pg_catalog."C"`
-		if c.b.PG {
-			c.exec(create)
-			c.check(held, "public", "cs_rollback_selected_long_name")
-		} else {
-			// Native collation utilities retain their existing explicit-
-			// transaction boundary; this view does not expand DDL support.
-			s := fixture.ErrorDiagnostic(create, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction"))
-			s.ErrorStage = "execute"
-			c.run(c.conn, s)
-			s = fixture.ErrorDiagnostic(csQuery, fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block"))
-			s.SelectRows, s.ErrorStage = true, "execute"
-			c.run(held, s)
-		}
+		c.exec(create)
+		c.check(held, "public", "cs_rollback_selected_long_name")
 		c.exec("ROLLBACK")
 		c.check(held, "pg_catalog", "C")
 		c.run(c.conn, fixture.Select("SELECT collname FROM pg_catalog.pg_collation WHERE collname='cs_rollback_selected_long_name'", []string{"collname"}, []string{"NAME"}, nil))

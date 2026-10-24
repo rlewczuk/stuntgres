@@ -258,9 +258,10 @@ func ExplicitUtility(stmt parser.Statement) bool {
 }
 
 // TransactionalSchemaUtility reports whether stmt runs on the transaction
-// journal. It is the bounded relation/schema/type/routine/ownership integration
-// boundary, including ordinary and concurrent materialized refresh, not a relaxation of
-// independent standalone utility policies. Describe uses the
+// journal. It is the bounded relation/schema/type/routine/ownership and
+// collation/conversion/cast integration boundary, including ordinary and
+// concurrent materialized refresh, not a relaxation of independent standalone
+// utility policies. Describe uses the
 // same boundary as Execute, but query-derived creation still analyzes its
 // source.
 func TransactionalSchemaUtility(stmt parser.Statement) bool {
@@ -279,7 +280,10 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.AlterTableAllInTablespace, *parser.CreateView, *parser.AlterView, *parser.DropView,
 		*parser.RefreshMaterializedView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy,
 		*parser.CreateDomain, *parser.CreateComposite, *parser.AlterDomain, *parser.AlterComposite,
-		*parser.AlterType, *parser.DropDomain, *parser.DropType:
+		*parser.AlterType, *parser.DropDomain, *parser.DropType,
+		*parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation,
+		*parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion,
+		*parser.CreateCast, *parser.DropCast:
 		return true
 	case *parser.AlterOwner:
 		return s.Kind == "table" || s.Kind == "type" || s.Kind == "domain" || s.Kind == "database"

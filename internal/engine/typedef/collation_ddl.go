@@ -31,7 +31,34 @@ func collationVersionWarning(h StageHost, d *catalog.Collation, view catalog.Rea
 	return nil
 }
 
+// CollationCreatePlan retains pre-SRX semantic facts, not provider instances or
+// authorization. Completion uses current authority without rebinding the source.
+type CollationCreatePlan struct {
+	base        catalog.Read
+	descriptor  catalog.Collation
+	namespace   catalog.Descriptor
+	source      *catalog.Collation
+	ifNotExists bool
+	ready       bool
+}
+
+func (p *CollationCreatePlan) NeedsCatalogLock() bool { return p.ready }
+
+func PrepareCreateCollationLocked(h StageHost, auth ddl.Authority, s *parser.CreateCollation) (CollationCreatePlan, error) {
+	var plan CollationCreatePlan
+	err := prepareCreateCollationLocked(h, auth, s, &plan)
+	return plan, err
+}
+
 func StageCreateCollationLocked(h StageHost, auth ddl.Authority, s *parser.CreateCollation) error {
+	plan, err := PrepareCreateCollationLocked(h, auth, s)
+	if err != nil || !plan.NeedsCatalogLock() {
+		return err
+	}
+	return StagePreparedCollationLocked(h, auth, &plan)
+}
+
+func prepareCreateCollationLocked(h StageHost, auth ddl.Authority, s *parser.CreateCollation, plan *CollationCreatePlan) error {
 	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -84,6 +111,7 @@ func StageCreateCollationLocked(h StageHost, auth ddl.Authority, s *parser.Creat
 		if source.Provider == "d" {
 			return sqlError("42P17", `collation "default" cannot be copied`)
 		}
+		plan.source = source
 		d.Version, err = pgcatalog.CollationActualVersion(source)
 		if err != nil {
 			return err
@@ -168,16 +196,64 @@ func StageCreateCollationLocked(h StageHost, auth ddl.Authority, s *parser.Creat
 		return sqlError("42P17", "ICU rules cannot be specified unless locale provider is ICU")
 	}
 	key := ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns.Address, Name: name}
-	if old := h.Stage().LookupName(key); old != (ids.ObjectAddress{}) {
-		message := fmt.Sprintf(`collation "%s" already exists`, name)
-		if d.Encoding != -1 {
-			message = fmt.Sprintf(`collation "%s" for encoding "UTF8" already exists`, name)
+	if old, ok := view.Catalog.Collation(h.Stage().LookupName(key)); ok && old.Encoding == d.Encoding {
+		return collationCreateDuplicate(h, name, d.Encoding, s.IfNotExists)
+	}
+	plan.base = h.StageBase()
+	plan.descriptor, plan.namespace = d, view.Catalog.Get(ns.Address)
+	plan.ifNotExists, plan.ready = s.IfNotExists, true
+	return nil
+}
+
+func collationCreateDuplicate(h StageHost, name string, encoding int32, skip bool) error {
+	message := fmt.Sprintf(`collation "%s" already exists`, name)
+	if encoding != -1 {
+		message = fmt.Sprintf(`collation "%s" for encoding "UTF8" already exists`, name)
+	}
+	if skip {
+		ddl.Notice(h, "42710", message+", skipping")
+		return nil
+	}
+	return sqlError("42710", message)
+}
+
+func StagePreparedCollationLocked(h StageHost, auth ddl.Authority, plan *CollationCreatePlan) error {
+	if !plan.ready {
+		return nil
+	}
+	auth = h.Recapture(auth, h.StageRead())
+	if namespace, ok := plan.namespace.(*catalog.Namespace); ok {
+		auth = h.StagedTemporary(auth, namespace)
+	}
+	d := plan.descriptor
+	view := h.AccessView(auth)
+	if view.Catalog.Domain() != plan.base.Domain() || view.Catalog.Epoch() != plan.base.Epoch() {
+		return ids.ErrCatalogReplaced
+	}
+	ns := plan.namespace
+	if ns == nil || view.Catalog.NameAddress(catalog.DescriptorNameKey(ns)) != ns.Address() ||
+		plan.source != nil && view.Catalog.Get(plan.source.Address()) != plan.source {
+		return ids.ErrCatalogReplaced
+	}
+	trusted, err := h.TrustedRestoreDestination(auth, "collation")
+	if err != nil {
+		return err
+	}
+	if err = view.CheckCreate(auth, view.Owner.Domain.Ref(view.Catalog.Epoch(), ns.Address())); err != nil {
+		denied, ok := err.(*sqlstate.Error)
+		if !trusted || !ok || denied.Code != "42501" {
+			return err
 		}
-		if s.IfNotExists {
-			ddl.Notice(h, "42710", message+", skipping")
-			return nil
+	}
+	d.Owner = view.State.CurrentUser
+	key := catalog.DescriptorNameKey(&d)
+	if old, ok := view.Catalog.Collation(view.Catalog.NameAddress(key)); ok {
+		// Exact-key races are index conflicts, even with IF NOT EXISTS.
+		// Serial cross-encoding shadows use the generic duplicate message.
+		if old.Encoding == d.Encoding {
+			return catalog.BindingCurrent(plan.base, view.Catalog, catalog.BindingClaim{Key: key, CollationEncoding: d.Encoding})
 		}
-		return sqlError("42710", message)
+		return collationCreateDuplicate(h, d.Name(), -1, plan.ifNotExists)
 	}
 	d.Semantics, err = catalog.CollationSemantics(&d)
 	if err != nil {
@@ -192,6 +268,11 @@ func StageCreateCollationLocked(h StageHost, auth ddl.Authority, s *parser.Creat
 	}
 	if err = collationVersionWarning(h, &d, view.Catalog, actual); err != nil {
 		return err
+	}
+	// A FROM copy is independent after publication, but admission cannot adopt
+	// a changed source while waiting for catalog serialization.
+	if plan.source != nil {
+		h.AddDomainBase(plan.source)
 	}
 	d.OID, err = h.AllocateOID()
 	if err != nil {
@@ -209,6 +290,7 @@ func StageAlterCollationLocked(h StageHost, auth ddl.Authority, s *parser.AlterC
 	if err != nil {
 		return err
 	}
+	h.AddDomainBase(d)
 	view := h.AccessView(auth)
 	var ownerTarget authorization.PrincipalRef
 	if s.Action == "owner" {
@@ -297,6 +379,9 @@ func StageDropCollationLocked(h StageHost, auth ddl.Authority, s *parser.DropCol
 		}
 		ref := ddl.ObjectRef(h, auth, d.Address())
 		if err = ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
+				return sqlError("42501", "must be owner of collation "+catalog.ObjectNameText(name))
+			}
 			return err
 		}
 		if d.Seeded() {

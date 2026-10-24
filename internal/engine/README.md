@@ -254,11 +254,25 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
 - `session.TransactionalSchemaUtility` selects the table, schema, rule, trigger,
   view and materialized-view DDL (including ordinary/concurrent REFRESH), policy
   definitions, domain/composite creation and alterations, type/domain identity/drop,
-  generic table/type/domain/database OWNER and REASSIGN/DROP OWNED that Describe and
-  Execute run on the existing transaction journal
+  shipped function and aggregate creation, routine identity ALTER/DROP,
+  operator CREATE/ALTER/DROP, CREATE/ALTER/DROP COLLATION and CONVERSION,
+  CREATE/DROP CAST, generic table/type/domain/database OWNER and REASSIGN/DROP
+  OWNED that Describe and Execute run on the existing transaction journal
   ([policy](session/README.md#what-it-owns)). Feature-specific view/materialized OWNER
-  is AlterView. Concurrent index variants
-  keep their independent restrictions.
+  is AlterView; collation/conversion OWNER is included. Procedure creation,
+  language lifecycle and concurrent index variants keep their independent restrictions.
+  Definition mutation admission captures original identities, waits outside
+  `Engine.mu`, then builds at most one final stage from current authority when
+  needed. ALTER retains its original target independently of DROP roots, even for
+  no-op actions; neither final replacements nor removals may expand that set.
+  A renamed or relocated original cannot redirect an unqualified ALTER to a
+  search-path fallback. Native returns ordinary `ErrCatalogReplaced`, without
+  SQLSTATE, where PostgreSQL may alter the fallback after the wait. This fence
+  aborts the explicit transaction and clears its savepoints: fully roll back,
+  then start a fresh transaction on the same owner for qualified recovery.
+  Conditional DROP cannot expand its captured targets. Provisional notices are
+  discarded without losing earlier message notices. This is bounded admission
+  recapture, not command retry.
 - Ordinary non-concurrent CREATE INDEX (including UNIQUE and shipped methods)
   is admitted separately at Execute. It uses the same private catalog/storage,
   journal, Finish and combined publication path as table/schema DDL. Its canonical
@@ -458,6 +472,10 @@ Producers, the OID registry and descriptor specs live in
   authorization, lifecycle, rowtype synchronization, the extension
   materialized-view fence and the post-apply validators. Recipe rewrites
   retain the original routine authority, never recovering it from an OID.
+  Effect-free dependency staging does not require an admitted transaction:
+  definition-retirement locks belong only to an execution scope's real ticket.
+  Direct validated publication still enforces captured identity, epoch and
+  incoming-dependency fences without manufacturing a transaction for preparation.
 - Every engine seeds the same built-in catalog in one bulk load (`newEngine`'s
   `BeginBulkLoad` … `finishSeed`) from pure constructors; `builtin_catalog.go`
   validates the shared seed once per process, and each engine validates and

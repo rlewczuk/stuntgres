@@ -108,11 +108,17 @@ package or the engine.
   imports no analyzer, registers no callback and stores no executable payload
   in the catalog; declared binary edges keep immutable recipes that stay valid
   after their cast row changes.
-- **Cast DDL** (`cast.go`): CREATE/DROP CAST with endpoint authority and
-  signature checks; it never evaluates the routine. Casts depend on endpoints,
-  the function and selected adapters. Removal goes through the shared
-  expression-dependency retirement path, which retires both the pair index and
-  its name binding.
+- **Cast DDL** (`cast.go`): CREATE/DROP CAST with endpoint ownership/USAGE and
+  signature checks; declaration neither evaluates the routine nor requires its
+  EXECUTE privilege. Actual use checks current EXECUTE authority. Casts depend
+  on endpoints, the function and selected adapters. Removal goes through the
+  shared expression-dependency retirement path, retiring the directed pair index
+  and its name binding. The engine journals these stages in autocommit, retained
+  messages, SQL BEGIN and Go BeginTx, including earlier-private endpoint types,
+  atomic row publication and full/savepoint rollback. Private pair observations
+  never enter peer analysis; retained stored recipes keep their own captures.
+  Binary casts still require superuser authority and genuine representation
+  compatibility. Cast admission does not widen routine utility admission.
 - **Dumps** (`operator_dump.go`, `function_dump.go`, `aggregate_dump.go`): the
   operator Collect decision (`OperatorDumped`), dump events
   (`OperatorDumpEvents`, `RoutineDumpEvents`) and statements

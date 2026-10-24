@@ -573,8 +573,10 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		key := ref.Name
 		validNamespace := key.Namespace.ClassID == ids.NamespaceClassID && key.Namespace.ObjectID != 0 && key.Namespace.SubID == 0
 		overloaded := key.ClassID == ids.ProcedureClassID || key.ClassID == ids.OperatorClassID
-		validClass := (key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID || overloaded) && validNamespace ||
-			key.ClassID == ids.NamespaceClassID && key.Namespace == (ids.ObjectAddress{})
+		validClass := (key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID || overloaded ||
+			key.ClassID == ids.CollationClassID || key.ClassID == ids.ConversionClassID) && validNamespace ||
+			key.ClassID == ids.NamespaceClassID && key.Namespace == (ids.ObjectAddress{}) ||
+			key.ClassID == ids.CastClassID && key.Namespace == (ids.ObjectAddress{}) && validCastName(key.Name)
 		roleName := key.ClassID == ids.RoleClassID && key.Namespace == (ids.ObjectAddress{}) && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
 		localName := validClass && ref.Domain() == t.ref.Domain() && ref.Epoch == t.ref.Epoch()
 		if (!localName && !roleName) || key.Name == "" || !overloaded && key.Signature != "" ||
@@ -618,6 +620,13 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.Row != 0 || ref.key != nil || mode != TypeExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid type lock request")
+		}
+	} else if ref.Address.ClassID == ids.CollationClassID || ref.Address.ClassID == ids.ConversionClassID ||
+		ref.Address.ClassID == ids.CastClassID {
+		if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 ||
+			ref.RoleTuple || ref.Row != 0 || ref.key != nil || mode != AccessShare && mode != AccessExclusive {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid definition lock request")
 		}
 	} else if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.Row != 0 || mode != UniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.Row != 0 && mode != ForUpdate && mode != ForNoKeyUpdate && mode != ForKeyShare && mode != ForShare) || (ref.Row == 0 && mode != AccessShare && mode != RowExclusive && mode != AccessExclusive && mode != ShareUpdateExclusive && mode != ShareRowExclusive && mode != RowShare && mode != Share && mode != Exclusive))) {
 		m.mu.Unlock()

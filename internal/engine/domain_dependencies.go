@@ -86,10 +86,20 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 			targets = append(targets, edge.Address)
 		}
 	}
-	if plan.ObserveIdentities {
+	if plan.ObserveIdentities || slices.ContainsFunc(targets, func(address ids.ObjectAddress) bool {
+		return address.ClassID == ids.TypeClassID || definitionObjectClass(address.ClassID)
+	}) {
 		provider.observeIdentityDependencies(targets)
 	}
 	e := provider.owner
+	// Effect-free stage preparation may have a scope but no admitted transaction.
+	// Only execution with a real ticket schedules retirement locks; direct stage
+	// publication still checks the captured identities and dependency observations.
+	if scope != nil && scope.ticket != nil {
+		if err := scope.acquireRetiredDefinitionObjects(provider.base, targets); err != nil {
+			return err
+		}
+	}
 	if scope != nil {
 		for _, address := range plan.Hierarchy {
 			if err := scope.acquirePartitionDropLocks(e.catalog.Domain.Ref(provider.base.Epoch(), address)); err != nil {

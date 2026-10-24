@@ -16,7 +16,8 @@ engine.
   engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
   detached from its session (`DetachPrepared`).
 - **Resources and modes.** A `Resource` is a real relation, type, namespace,
-  procedure or shared role (`ids.ObjectRef`), an exact catalog destination binding (`Name`),
+  collation, conversion, cast, procedure or shared role (`ids.ObjectRef`),
+  an exact catalog destination binding (`Name`),
   a role attribute tuple claim (`RoleTuple`), a logical row (`Row`), an interned
   unique key (`PinUniqueKey`), transaction completion (`CompletionOf`) or a
   database-scoped advisory key (`Database`, `Kind`, `High`, `Low`). Local resources
@@ -111,6 +112,25 @@ backing AX when required, then typed-table closure AX. Schema moves retain sourc
 type authority without adding backing AX; scalar sources never fabricate a
 relation resource. These are ordinary ticket contributions, restored by savepoint
 checkpoints and released at owner end.
+
+Definition admission uses real `pg_collation` relation ShareRowExclusive for
+the protected phase of collation CREATE, AccessExclusive on mutated/retired
+definition objects, and AccessShare on actual declaration providers. Namespace,
+option, FROM and provider-specific preparation and serial same-encoding
+duplicate/skip checks precede ShareRowExclusive; cross-encoding shadow checks,
+remaining provider loading/version work and insertion follow it. Exact-key
+insertion races retain `23505`, including IF NOT EXISTS. Definition addresses are
+sorted by class/OID and deduplicated. Collation/conversion names use their real namespace;
+cast names use the zero namespace and canonical directed endpoint key. No
+conversion DEFAULT-pair lock is manufactured. These contributions share ordinary
+savepoint, cancellation, owner-end and replacement lifetimes. Object holds project
+as object tags; internal destination claims expose only actual blocker XIDs.
+
+ALTER retains its original target even for no-op actions, independently of DROP
+roots. After the exact object grant, current authority must still identify that
+original name/address/namespace; a search-path fallback is never locked or adopted.
+Native replacement failure clears explicit-transaction savepoints and requires
+full rollback before starting a fresh transaction on the same physical owner.
 
 
 ## Mutex ownership and lock order

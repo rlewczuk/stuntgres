@@ -96,15 +96,24 @@ implement its slots, so either import would form a cycle.
   CREATE/ALTER/DROP MATERIALIZED VIEW plus ordinary/concurrent REFRESH,
   CREATE/ALTER/DROP POLICY (including rename), CREATE DOMAIN/composite TYPE,
   ALTER DOMAIN/composite attributes, type/domain rename, schema move and DROP,
-  shipped function creation, routine identity ALTER/DROP, aggregate creation and
-  operator CREATE/ALTER/DROP use the existing transaction journal, as do generic
+  shipped function creation, routine identity ALTER/DROP, aggregate creation,
+  operator CREATE/ALTER/DROP, CREATE/ALTER/DROP COLLATION and CONVERSION, and
+  CREATE/DROP CAST use the existing transaction journal, as do generic
   table/type/domain/database OWNER and REASSIGN/DROP OWNED. Feature-specific
-  view/materialized OWNER is AlterView. CreateFunction admits only non-procedure
-  declarations; procedure creation and language lifecycle keep their separate
-  admission. Unrelated utility exclusions retain their independent policies. The root reads
-  state, InBlock and ReadOnly under `t.Mu` and keeps its locks, preflights,
-  short-circuits (`partitionIndexTransaction`, `transactionalIndexMaintenance`)
-  and call order.
+  view/materialized OWNER is AlterView; collation/conversion OWNER is included.
+  CreateFunction admits only non-procedure declarations; procedure creation and
+  language lifecycle keep their separate admission. Unrelated utility exclusions
+  retain their independent policies. Collation/conversion/cast Describe is
+  syntax-only: lookup, authorization, locks, provider checks and notices belong
+  to Execute. Execute's collation preparation can reject or skip before catalog
+  ShareRowExclusive admission; protected cross-encoding/provider/insertion work
+  follows admission, not Describe. An ordinary native `ErrCatalogReplaced` from
+  definition identity admission aborts the explicit transaction and clears its
+  savepoints: full rollback and a fresh same-owner transaction are required,
+  unlike ordinary semantic errors recoverable with ROLLBACK TO.
+  The root reads state, InBlock and ReadOnly under `t.Mu` and keeps its locks,
+  preflights, short-circuits (`partitionIndexTransaction`,
+  `transactionalIndexMaintenance`) and call order.
   Supported object GRANT/REVOKE and ALTER DEFAULT PRIVILEGES use the canonical
   transaction path and syntax-only utility Describe classification. Execution
   keeps read-only/aborted-state precedence and current identity checks. These

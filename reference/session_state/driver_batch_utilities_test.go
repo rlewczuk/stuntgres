@@ -32,6 +32,11 @@ func TestReferenceDriverBatchUtilityAtomicity(t *testing.T) {
 		{"collation", nil, "CREATE COLLATION uc(provider=libc,locale='C'); CREATE TABLE u(v TEXT COLLATE uc)", "SELECT count(*) AS v FROM pg_collation WHERE collname='uc'", int64(0), int64(1), "INT8"},
 		{"collation_alter", []string{"CREATE COLLATION uc(provider=libc,locale='C')"}, "ALTER COLLATION uc RENAME TO renamed", "SELECT count(*) AS v FROM pg_collation WHERE collname='renamed'", int64(0), int64(1), "INT8"},
 		{"collation_drop", []string{"CREATE COLLATION uc(provider=libc,locale='C')"}, "DROP COLLATION uc", "SELECT count(*) AS v FROM pg_collation WHERE collname='uc'", int64(1), int64(0), "INT8"},
+		{"conversion", nil, "CREATE CONVERSION ub_conv FOR 'UTF8' TO 'LATIN1' FROM pg_catalog.utf8_to_iso8859_1", "SELECT count(*) AS v FROM pg_conversion WHERE conname='ub_conv'", int64(0), int64(1), "INT8"},
+		{"conversion_alter", []string{"CREATE CONVERSION ub_conv FOR 'UTF8' TO 'LATIN1' FROM pg_catalog.utf8_to_iso8859_1"}, "ALTER CONVERSION ub_conv RENAME TO ub_renamed", "SELECT count(*) AS v FROM pg_conversion WHERE conname='ub_renamed'", int64(0), int64(1), "INT8"},
+		{"conversion_drop", []string{"CREATE CONVERSION ub_conv FOR 'UTF8' TO 'LATIN1' FROM pg_catalog.utf8_to_iso8859_1"}, "DROP CONVERSION ub_conv", "SELECT count(*) AS v FROM pg_conversion WHERE conname='ub_conv'", int64(1), int64(0), "INT8"},
+		{"cast", []string{"CREATE TYPE ub_src AS ENUM ('red')", "CREATE TYPE ub_dst AS ENUM ('red')"}, "CREATE CAST (ub_src AS ub_dst) WITH INOUT", "SELECT count(*) AS v FROM pg_cast WHERE castsource='ub_src'::regtype AND casttarget='ub_dst'::regtype", int64(0), int64(1), "INT8"},
+		{"cast_drop", []string{"CREATE TYPE ub_src AS ENUM ('red')", "CREATE TYPE ub_dst AS ENUM ('red')", "CREATE CAST (ub_src AS ub_dst) WITH INOUT"}, "DROP CAST (ub_src AS ub_dst)", "SELECT count(*) AS v FROM pg_cast WHERE castsource='ub_src'::regtype AND casttarget='ub_dst'::regtype", int64(1), int64(0), "INT8"},
 		{"comment_table", []string{"CREATE TABLE u(i INT)"}, "COMMENT ON TABLE u IS 'new'", "SELECT obj_description('u'::regclass,'pg_class') AS v", nil, "new", "TEXT"},
 		{"comment_column", []string{"CREATE TABLE u(i INT)"}, "COMMENT ON COLUMN u.i IS 'new'", "SELECT col_description('u'::regclass,1) AS v", nil, "new", "TEXT"},
 		{"comment_schema", []string{"CREATE SCHEMA us", "CREATE TABLE us.schema_anchor(i INT)"}, "COMMENT ON SCHEMA us IS 'new'", "SELECT obj_description(relnamespace,'pg_namespace') AS v FROM pg_class WHERE relname='schema_anchor' AND relkind='r'", nil, "new", "TEXT"},
@@ -131,6 +136,10 @@ func TestReferenceDriverBatchUtilityAtomicity(t *testing.T) {
 					consumer = "SELECT * FROM u"
 				case "column_rename":
 					consumer = "SELECT i=4 AS typed FROM column_anchor"
+				case "collation":
+					consumer = "SELECT upper('é' COLLATE uc)='é' AS typed"
+				case "cast":
+					consumer = "SELECT ('red'::ub_src)::ub_dst::text='red' AS typed"
 				}
 				privateSets := []fixture.BatchSet{{[]string{"v"}, []string{tc.typ}, [][]any{{tc.after}}, false}}
 				if consumer != "" {

@@ -40,6 +40,17 @@ func (s *StatementScope) acquireTransactionResource(resource lock.Resource, mode
 }
 
 func (s *StatementScope) acquireCatalogResource(resource lock.Resource, mode lock.Mode) error {
+	// These unique-index claims project a real blocker transaction, including
+	// the interval before an implicit statement reaches catalog publication.
+	if resource.Name.ClassID == ids.CollationClassID || resource.Name.ClassID == ids.ConversionClassID || resource.Name.ClassID == ids.CastClassID {
+		e := s.engine()
+		e.mu.Lock()
+		err := e.assignTransactionXIDLocked(s.txRef)
+		e.mu.Unlock()
+		if err != nil {
+			return err
+		}
+	}
 	if err := s.acquireTransactionResource(resource, mode); err != nil {
 		return err
 	}
@@ -65,7 +76,9 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	namespaces := namespaceScratch[:0]
 	for key, address := range stage.Names() {
 		if key.ClassID != ids.NamespaceClassID && key.ClassID != ids.RelationClassID && key.ClassID != ids.TypeClassID &&
-			key.ClassID != ids.ProcedureClassID && key.ClassID != ids.OperatorClassID || stage.Base.NameAddress(key) == address {
+			key.ClassID != ids.ProcedureClassID && key.ClassID != ids.OperatorClassID &&
+			key.ClassID != ids.CollationClassID && key.ClassID != ids.ConversionClassID && key.ClassID != ids.CastClassID ||
+			stage.Base.NameAddress(key) == address {
 			continue
 		}
 		priority := 1
@@ -78,6 +91,9 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 			priority = 3
 		}
 		claim := catalog.BindingClaim{Key: key, Address: address, Priority: priority}
+		if collation, ok := stage.Get(address).(*catalog.Collation); ok {
+			claim.CollationEncoding = collation.Encoding
+		}
 		if typ, ok := stage.Get(address).(*catalog.Type); ok && stage.Base.Get(address) != nil && typ.OwningRelation != (ids.ObjectAddress{}) {
 			claim.RelationRename = true
 		}

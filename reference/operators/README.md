@@ -74,6 +74,15 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   with fresh bounded contexts even after failed assertions (dependent casts
   before their adapter functions). Replay phases remove these pairs before the
   next backend phase.
+- Cast transaction cases reuse those declarations with `SequenceCoreConn` and
+  `HeldStatement` across autocommit, SQL BEGIN and Go BeginTx. Couple actual
+  explicit/assignment/implicit coercion to directed-pair/function metadata,
+  owner-private types, peer cache isolation and exact rollback restoration.
+  Declaration authority is separate from current routine EXECUTE at use.
+  Conflict workers use shared lock observers and joined cleanup; the function
+  retirement witness pairs a private cast creator with an autocommit waiter.
+  Native controls restore through unwrapped pools and keep replacement-fenced
+  old handles distinct from fresh same-owner recovery.
 - Retained aggregate binary lifecycle tests publish immutable source Dump bytes
   only after the source subtest and its cleanup succeed. Fresh-native and
   PostgreSQL replay consume those original bytes unchanged. A separate native

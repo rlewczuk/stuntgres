@@ -103,6 +103,7 @@ func StageAlterConversionLocked(h StageHost, auth ddl.Authority, s *parser.Alter
 	if err != nil {
 		return err
 	}
+	h.AddDomainBase(d)
 	view := h.AccessView(auth)
 	var target authorization.PrincipalRef
 	if s.Action == "owner" {

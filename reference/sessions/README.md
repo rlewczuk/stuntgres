@@ -54,6 +54,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   simple messages and held named Parse/Describe(S), Bind/Describe(P)/Execute.
   Assert effect-free preparation, utility NoData/tags, private owner effects,
   peer invisibility, bound consumers and error/savepoint/readiness recovery.
+- Collation/conversion/cast utilities reuse the raw wire helpers and
+  `transactionalTypesCommandTag`. Separate Parse/statement Describe and
+  Bind/portal Describe from Execute to assert quiet phases, exact utility tags,
+  private real consumers, peer invisibility and savepoint/error recovery.
+  Named statements survive idle Sync; portals do not, so autocommit execution
+  binds in its executing cycle. Server-backed Go BeginTx uses held handles.
 - Transactional rewrite rules reuse the named wire and command-tag helpers.
   Parse/Describe must be quiet and effect-free even for utilities whose target
   will be created later. Execute proves real action rows, held DML freshness,
@@ -110,7 +116,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Prepared-statement revalidation and rebind: `RUN='^TestReferencePrepared(Rebind|QueryRevalidates)'`
 - DISCARD: `RUN='^TestReferenceDiscard'`
 - SQL PREPARE/EXECUTE/DEALLOCATE: `RUN='^TestReferenceSQLPrepared'`
-- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol|TransactionalMaterializedRefreshProtocol|TransactionalTypesProtocol|TransactionalPoliciesProtocol|TransactionalRulesProtocol)'`
+- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol|TransactionalMaterializedRefreshProtocol|TransactionalTypesProtocol|TransactionalPoliciesProtocol|TransactionalRulesProtocol|TransactionalCollationConversionCastProtocol)'`
 - Wire extended protocol and portals: `RUN='^TestReferenceServer(Extended|Portal|Unnamed|FailedPortal|WrappedPortal)'`
 - Wire transactional comments: `RUN='^TestReferenceTransactionalCommentProtocol$'`
 - Wire transactional view/materialized definitions: `RUN='^TestReferenceTransactionalViewsProtocol$'`
@@ -118,6 +124,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Wire transactional domain/composite/type lifecycle: `RUN='^TestReferenceTransactionalTypesProtocol$'`
 - Wire transactional policy definitions: `RUN='^TestReferenceTransactionalPoliciesProtocol$'`
 - Wire transactional rewrite-rule definitions: `RUN='^TestReferenceTransactionalRulesProtocol$'`
+- Wire transactional collation/conversion/cast definitions: `RUN='^TestReferenceTransactionalCollationConversionCastProtocol$'`
 - Wire COPY: `RUN='^TestReferenceServer(Copy|PreparedCopy)'`
 - Wire comparison matrix: `RUN='^TestReferenceServerComparison'`
 - Wire notifications: `RUN='^TestReferenceServerNotifications'`
