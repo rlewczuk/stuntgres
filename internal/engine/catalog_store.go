@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -24,6 +25,14 @@ type catalogStore struct {
 	nextRevision   ids.DefinitionRevision
 	nextEnumMember int64
 }
+
+// The store is the ddl.Allocator of identity-only callers such as partition
+// trigger synchronization. A pointer fits an interface without allocating, so
+// those callers add no allocation per publication. Engine.mu is held.
+var _ ddl.Allocator = (*catalogStore)(nil)
+
+func (s *catalogStore) AllocateOID() (ids.OID, error)             { return s.allocateOIDLocked() }
+func (s *catalogStore) Revision() (ids.DefinitionRevision, error) { return s.revisionLocked() }
 
 // owner returns the store's owner record.
 func (s *catalogStore) owner() *catalog.Owner { return &s.Owner }

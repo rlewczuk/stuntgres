@@ -6,23 +6,27 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 )
 
 // synchronizeStageTriggersLocked maintains partition clone provenance at catalog
 // publication, including CREATE/ATTACH/DETACH and parent replacement. Runtime
-// dispatch reads only the physical relation's immutable list. Engine.mu is held.
-func (e *Engine) synchronizeStageTriggersLocked(stage *CatalogStage) error {
-	read := e.stageRead(stage)
+// dispatch reads only the physical relation's immutable list. stageRead reads
+// the candidate's current state, alloc issues clone OIDs and revisions, and
+// replacement names the CREATE OR REPLACE definition. Engine.mu is held.
+func synchronizeStageTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Read, alloc ddl.Allocator, replacement view.TriggerReplacement) error {
+	read := stageRead()
 	relevant := false
-	for address, descriptor := range stage.Descriptors() {
+	for address, descriptor := range c.Descriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
-		old, _ := stage.Base.Relation(address)
+		old, _ := c.Base.Relation(address)
 		if relation.HasTriggers() || old != nil && old.HasTriggers() {
 			relevant = true
 			break
@@ -46,7 +50,6 @@ func (e *Engine) synchronizeStageTriggersLocked(stage *CatalogStage) error {
 		return exec.ValidateStoredRoutineDescriptor(read, original)
 	})
 	var replacementSources map[ids.OID]bool
-	replacement := stage.triggerReplacement
 	if root, ok := read.Relation(replacement.Relation); ok && root.Partition != nil && len(root.Partition.Children) != 0 {
 		for _, definition := range stored.TriggersOf(root) {
 			if definition.OID() == replacement.OID {
@@ -76,7 +79,7 @@ func (e *Engine) synchronizeStageTriggersLocked(stage *CatalogStage) error {
 			if err := sync(parent); err != nil {
 				return err
 			}
-			read = e.stageRead(stage)
+			read = stageRead()
 			parent = read.MustRelation(parent.Address())
 		}
 		list := stored.TriggersOf(child)
@@ -121,7 +124,7 @@ func (e *Engine) synchronizeStageTriggersLocked(stage *CatalogStage) error {
 					}
 				} else {
 					var err error
-					oid, err = e.catalog.allocateOIDLocked()
+					oid, err = alloc.AllocateOID()
 					if err != nil {
 						return err
 					}
@@ -162,17 +165,17 @@ func (e *Engine) synchronizeStageTriggersLocked(stage *CatalogStage) error {
 				copy := *child
 				copy.Triggers = stored.TriggersPayload(next)
 				var err error
-				copy.ObjectRevision, err = e.catalog.revisionLocked()
+				copy.ObjectRevision, err = alloc.Revision()
 				if err != nil {
 					return err
 				}
 				// Trigger-only publication does not change or reconstruct the row type.
-				if stage.Base.Get(address) == nil {
-					stage.Candidate.UpdateDescriptor(&copy)
-				} else if err := stage.Candidate.Replace(&copy); err != nil {
+				if c.Base.Get(address) == nil {
+					c.UpdateDescriptor(&copy)
+				} else if err := c.Replace(&copy); err != nil {
 					return err
 				}
-				read = e.stageRead(stage)
+				read = stageRead()
 			}
 		}
 		delete(visiting, address)
