@@ -115,6 +115,10 @@ WHEN projection aliases use the ordinary projection grammar and remain positione
 syntax. Target legality belongs to checked compilation, including unreachable flow.
 Label diagnostics surround decoded contents with literal quotes without applying
 Go string escaping.
+Static query FOR retains an existing positioned target, an ordinary SQL statement
+and its own query/LOOP boundary. SELECT/WITH and DML use the same SQL grammar;
+the procedural delimiter is recognized only outside parentheses/brackets and
+only from an unquoted identifier/keyword token, never a string's decoded payload.
 Diagnostic compound-name accounting scans bounded original expression and
 assignment-target tokens, not SQL AST node kinds. It shares identifier/Unicode
 decoding with the lexer and applies PL's reserved-word list and greedy,
@@ -152,7 +156,7 @@ feature prefix.
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`
 - Typed literals and operators: `RUN='^Test(GeometryConversionCLiteralSyntax|INETSubnetParser)$'`
 - Database creation: `RUN='^TestCreateDatabase'`
-- PL block/conditional/control syntax and full consumption: `RUN='^TestPLpgSQL(ConditionalParser|LoopParser|ParserFullConsumption)$'`
+- PL block/conditional/control syntax and full consumption: `RUN='^TestPLpgSQL(ConditionalParser|LoopParser|QueryLoopParser|ParserFullConsumption)$'`
 - Exception syntax and handler full consumption: `RUN='^TestPLExceptionParsing$'`
 
 **Benchmarks.** Compare scratch-receiver changes with the unchanged

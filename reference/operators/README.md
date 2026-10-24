@@ -116,6 +116,17 @@ make check RUN='^TestReferencePLpgSQLConditional(If|Conversion|SearchedCase|Simp
 make check RUN='^TestReferencePLpgSQLLoop(Bounded|Continue|Conditions|Labels|Diagnostics|HiddenLabel|Atomicity|Cancellation|Persistence)$'
 ```
 
+Static query-result loops reuse `plpgsqlScenario`, direct/prepared value and
+complete-diagnostic helpers. Shared scenarios assert ordered duplicate rows,
+ordinal/private target shapes, shaped empty rows, control transfers, tuple-source
+effects, demand-sensitive CTEs, admitted cancellation and held/native replay.
+Unordered sources assert counts and multiplicities, never traversal order.
+
+```sh
+make check RUN='^TestReferencePLpgSQLQueryLoops(Ordered|Targets|Empty|Control|Diagnostics|Lifecycle|Sources)$'
+make check REFERENCE=1 RUN='^TestReferencePLpgSQLQueryLoops(Ordered|Targets|Empty|Control|Diagnostics|Lifecycle|Sources)$'
+```
+
 ### PL/pgSQL exception blocks
 
 The exception family reuses `plpgsqlScenario`, value/complete-diagnostic helpers

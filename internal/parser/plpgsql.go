@@ -51,6 +51,16 @@ type PLStatement struct {
 	Case                *PLConditional
 	Pos                 Position
 	Cursor              *PLCursorStatement
+	QueryLoop           *PLQueryLoop
+}
+
+// PLQueryLoop retains the ordinary SQL syntax and its original source boundary.
+// Unlike a cursor FOR, its target belongs to the enclosing lexical namespace.
+type PLQueryLoop struct {
+	Target                Expr
+	Query                 Statement
+	Start, End, Delimiter Position
+	Body                  *PLBlock
 }
 type PLBlock struct {
 	Label        Identifier
@@ -92,6 +102,7 @@ const (
 	plWhenBoundary
 	plWhenItemBoundary
 	plSemicolonBoundary
+	plLoopBoundary
 )
 
 func (l *lexer) plBeginExpression(boundary plExpressionBoundary) {
@@ -119,6 +130,8 @@ func (l *lexer) plExpressionToken(token rawToken) rawToken {
 			code = PL_WHEN_COMMA
 		case token.code == ';' && l.plBoundary == plSemicolonBoundary:
 			code = ';'
+		case l.plBoundary == plLoopBoundary && (token.lexeme.keyword != nil || token.code == IDENT) && !quotedIdentifierLexeme(token.lexeme) && token.lexeme.text == "loop":
+			code = PL_LOOP
 		}
 		if code != 0 {
 			token.code = code

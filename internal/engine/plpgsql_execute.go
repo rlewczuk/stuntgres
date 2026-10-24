@@ -152,6 +152,13 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			}
 			continue
 		}
+		if instruction.QueryLoop != nil {
+			value, flow, err := s.forPLQuery(d, f, instruction, read)
+			if err != nil || flow.kind != plNormal {
+				return value, flow, err
+			}
+			continue
+		}
 		if instruction.Cursor != nil {
 			value, flow, err := s.executePLCursor(d, f, instruction, read)
 			if err != nil || flow.kind != plNormal {

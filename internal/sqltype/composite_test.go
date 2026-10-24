@@ -98,6 +98,75 @@ func TestCompositeDescriptorOwnership(t *testing.T) {
 	if _, err := Composite(50000, "r", "r", 50001, limit); err == nil {
 		t.Fatal("1601 members admitted")
 	}
+	t.Run("query_void", func(t *testing.T) {
+		sized := b[VarChar].Usage()
+		sized.Typmod = 6
+		members := []CompositeMember{{1, "i", b[Int4].Usage()}, {2, "wait", b[Void].Usage()}, {3, "label", sized}}
+		shape, err := RecordShape(members)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, member := range members {
+			if shape.CompositeMember(i) != member {
+				t.Fatal("query member lost its complete usage", i)
+			}
+		}
+		for _, id := range []ID{50000, 2249} {
+			if _, err := Composite(id, "named", "named", id+1, members); err == nil {
+				t.Fatal("catalog composite admitted VOID", id)
+			}
+		}
+		members[1] = CompositeMember{}
+		if shape.CompositeMember(1).Usage.Type != b[Void] || shape.CompositeMember(1).Name != "wait" {
+			t.Fatal("query shape borrowed its member definitions")
+		}
+		integer, err := Integer(b[Int4], 7)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fields := []Value{integer, VoidValue(b[Void]), String(b[VarChar], "ok")}
+		value, err := CompositeValue(shape, fields)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fields[1] = Null(b[Void])
+		if value.Type() != shape || value.IsNull() || value.CompositeField(1).Type() != b[Void] || value.CompositeField(1).IsNull() {
+			t.Fatal("query VOID value lost identity or borrowed its buffer")
+		}
+		if text := compositeOutputForTest(t, value.CompositeField(1)); text != "" {
+			t.Fatal("successful VOID is not empty text", text)
+		}
+		nulls := []Value{Null(b[Int4]), Null(b[Void]), Null(b[VarChar])}
+		empty, err := OwnedCompositeValue(shape, nulls)
+		if err != nil || empty.Type() != shape || empty.IsNull() || empty.CompositeLen() != 3 || &empty.composite.fields[0] != &nulls[0] {
+			t.Fatal("owned empty-result fields were copied or collapsed", err)
+		}
+		for i, member := range []CompositeMember{shape.CompositeMember(0), shape.CompositeMember(1), shape.CompositeMember(2)} {
+			if field := empty.CompositeField(i); !field.IsNull() || field.Type() != member.Usage.Type {
+				t.Fatal("empty-result field lost its exact type", i)
+			}
+		}
+		for _, invalid := range [][]Value{
+			nil,
+			{integer, VoidValue(foreign[Void]), String(b[VarChar], "ok")},
+			{integer, Null(foreign[Void]), String(b[VarChar], "ok")},
+		} {
+			if _, err := OwnedCompositeValue(shape, invalid); err == nil {
+				t.Fatal("invalid query payload admitted")
+			}
+		}
+		invalidUsage := b[Void].Usage()
+		invalidUsage.Typmod = 1
+		for _, invalid := range [][]CompositeMember{
+			{{1, "wait", invalidUsage}},
+			{{1, "wait", b[Void].Usage()}, {2, "foreign", foreign[Void].Usage()}},
+			{{1, "wait", b[Void].Usage()}, {1, "duplicate", b[Int4].Usage()}},
+		} {
+			if _, err := RecordShape(invalid); err == nil {
+				t.Fatal("invalid query descriptor admitted")
+			}
+		}
+	})
 }
 
 func TestCompositePayloadOwnership(t *testing.T) {

@@ -1,3 +1,9 @@
+PL/pgSQL static query FOR loops assign existing RECORD and row variables,
+preserve query ordering and duplicates, retain VOID query-result members,
+shape empty results as NULL fields, stream SELECT demand across CTE lifetimes,
+and complete RETURNING effects before loop bodies while retaining statement
+atomicity and cancellation cleanup.
+
 PL/pgSQL supports unconditional LOOP, labeled EXIT/CONTINUE and WHEN conditions,
 including nested block/cursor transfers, cancellation and stored-definition replay.
 Quoted label diagnostics preserve literal identifier contents.

@@ -142,6 +142,11 @@ Immutable acyclic control tokens identify each executable block/loop and the
 hidden function namespace; transfers retain the exact enclosing target token.
 Validation reconstructs owner order, kind, ancestry and condition queries, including
 positioned projection aliases. No invocation flow or evaluated WHEN value persists.
+Static query-loop instructions resolve existing whole RECORD/composite slots in
+the enclosing namespace, without cursor recipes, implicit records or extra Usages.
+Their ordinary statement syntax, source spans, target and loop body are checked
+together. Query and body compound names participate in the diagnostic ledger in
+lexical order without a cursor-private ROW datum.
 Checked ordered branches cache syntax queries, never bound
 evaluators. Simple CASE search slots are separate invocation-private Value/Usage
 pairs, not declarations, formals or persisted type dependencies. Their canonical
@@ -201,6 +206,7 @@ SQL bodies, review) and [reference/operators](../../../reference/operators/READM
 (parameters). Add `REFERENCE=1` to reference selectors for the oracle.
 PL cursor units use `RUN='^TestPLpgSQLCursor'`; public scenarios live in
 [reference/cursors](../../../reference/cursors/README.md#testing).
+Static query-loop validation units use `RUN='^TestPLpgSQLQueryLoopValidation$'`.
 
 ```sh
 make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'

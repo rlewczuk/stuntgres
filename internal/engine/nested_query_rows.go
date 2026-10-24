@@ -10,10 +10,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// rewriteQueryRows borrows the live lexical scope for its entire lifetime.
-// Only the nested rewrite consumer sees this demand; outer SELECT publication
-// stays eager. Planning/open errors and row-demand errors remain distinct.
-type rewriteQueryRows struct {
+// nestedQueryRows borrows the live lexical scope for its entire lifetime.
+// Private all-row consumers share this producer; ordinary publication stays
+// eager. Planning/open errors and row-demand errors remain distinct.
+type nestedQueryRows struct {
 	state  exec.State
 	stage  exec.Stage
 	schema []catalog.Column
@@ -21,13 +21,13 @@ type rewriteQueryRows struct {
 	closed bool
 }
 
-func openRewriteQueryRows(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value) (exec.RowResult, error) {
+func openNestedQueryRows(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value) (exec.RowResult, error) {
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		source.Close()
-		return nil, fmt.Errorf("stuntgres: rewrite query lacks projection")
+		return nil, fmt.Errorf("stuntgres: nested query lacks projection")
 	}
-	r := &rewriteQueryRows{schema: project.Schema(), ctx: ctx}
+	r := &nestedQueryRows{schema: project.Schema(), ctx: ctx}
 	r.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
 	if scope := scopeOf(source.LiveHost()); scope != nil {
 		r.state.Input, r.state.Output = scope.input, scope.output
@@ -42,14 +42,14 @@ func openRewriteQueryRows(ctx context.Context, root plan.Node, source *exec.Sour
 	r.stage = stage
 	return r, nil
 }
-func (r *rewriteQueryRows) Schema() []catalog.Column { return r.schema }
-func (r *rewriteQueryRows) Next(ctx context.Context, row []sqltype.Value) (bool, error) {
+func (r *nestedQueryRows) Schema() []catalog.Column { return r.schema }
+func (r *nestedQueryRows) Next(ctx context.Context, row []sqltype.Value) (bool, error) {
 	if r.closed {
-		return false, fmt.Errorf("stuntgres: closed rewrite query rows")
+		return false, fmt.Errorf("stuntgres: closed nested query rows")
 	}
 	return r.stage.NextProjected(ctx, row)
 }
-func (r *rewriteQueryRows) Close() error {
+func (r *nestedQueryRows) Close() error {
 	if r.closed {
 		return nil
 	}
@@ -62,7 +62,7 @@ func (r *rewriteQueryRows) Close() error {
 	r.state.Source.Close()
 	return err
 }
-func (r *rewriteQueryRows) RegclassText(value sqltype.Value) (string, error) { return value.Text() }
-func (r *rewriteQueryRows) OutputEnvironment() sqltype.OutputEnvironment     { return r.state.Output }
+func (r *nestedQueryRows) RegclassText(value sqltype.Value) (string, error) { return value.Text() }
+func (r *nestedQueryRows) OutputEnvironment() sqltype.OutputEnvironment     { return r.state.Output }
 
-var _ exec.RowResult = (*rewriteQueryRows)(nil)
+var _ exec.RowResult = (*nestedQueryRows)(nil)

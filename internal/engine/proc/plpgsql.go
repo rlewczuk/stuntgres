@@ -74,15 +74,21 @@ type PLTarget struct {
 	Steps []parser.TargetStep
 }
 type PLInstruction struct {
-	Syntax   *parser.PLStatement
-	Query    *parser.Select
-	Block    *PLBlock
-	Target   PLTarget
-	If       *PLConditional
-	Case     *PLConditional
-	Cursor   *PLCursorInstruction
-	Loop     *PLBlock
-	Transfer *PLControl
+	Syntax    *parser.PLStatement
+	Query     *parser.Select
+	Block     *PLBlock
+	Target    PLTarget
+	If        *PLConditional
+	Case      *PLConditional
+	Cursor    *PLCursorInstruction
+	Loop      *PLBlock
+	Transfer  *PLControl
+	QueryLoop *PLQueryLoop
+}
+type PLQueryLoop struct {
+	Target PLTarget
+	Query  parser.Statement
+	Body   *PLBlock
 }
 type PLConditional struct {
 	Search     *parser.Select
@@ -266,6 +272,23 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 			}
 			var err error
 			switch {
+			case statement.QueryLoop != nil:
+				rawLoop := statement.QueryLoop
+				target, targetErr := p.queryLoopTarget(rawLoop.Target, scopes)
+				if targetErr != nil {
+					return nil, targetErr
+				}
+				if err := diagnostics.expression(p, definition.Source, rawLoop.Target.SourcePosition(), rawLoop.Start, scopes); err != nil {
+					return nil, err
+				}
+				if err := diagnostics.expression(p, definition.Source, rawLoop.Start, rawLoop.End, scopes); err != nil {
+					return nil, err
+				}
+				body, bodyErr := compile(rawLoop.Body, scopes)
+				if bodyErr != nil {
+					return nil, bodyErr
+				}
+				instruction.QueryLoop = &PLQueryLoop{Target: target, Query: rawLoop.Query, Body: body}
 			case statement.Cursor != nil:
 				cursor, err := p.compileCursor(statement.Cursor, scopes, statement.Pos)
 				if err != nil {

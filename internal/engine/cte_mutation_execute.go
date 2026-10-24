@@ -242,7 +242,12 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		addOwners(commands[i].execution.binding.CTEs)
 	}
 	scope.cteInvocation = owner
+	transferred := false
 	defer func() {
+		if transferred {
+			scope.cteInvocation = previousOwner
+			return
+		}
 		for current := owner; current != previousOwner; current = current.Parent {
 			if err := current.Close(); failure == nil {
 				failure = err
@@ -293,5 +298,10 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	scope.activateMutation(main)
 	scope.installRuleScratch(prepared.mainScratch)
 	scope.ruleAction = originalRuleAction
-	return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
+	result, failure = e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
+	if failure == nil && result.Rows != nil && scope.sqlRoutine.rows && !parser.HasModifyingCTE(statement) {
+		result.Rows = &cteOwnedRows{RowResult: result.Rows, owner: owner, previous: previousOwner, source: source}
+		transferred = true
+	}
+	return result, failure
 }

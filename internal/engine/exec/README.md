@@ -188,10 +188,12 @@ NULL VARIADIC array and the strict single-range overload retain NULL results.
   completion: late projection, sort, source-close or cancellation failure exposes
   no successful prefix. Public result reads do not resume SQL evaluation,
   acquire grants or publish writes, and expose copied values or immutable owned
-  backing, never execution scratch. Nested SQL rewrite rows instead borrow an
-  active lexical scope and `OpenQueryProjectStage`, exposing schema before
-  ordered row demand; their owner closes the stage, memberships and sources
-  before scope restoration. Grouping, distinct and windows are serial; the
+  backing, never execution scratch. Nested SQL rewrite and PL query-loop rows
+  instead borrow an active lexical scope and `OpenQueryProjectStage`, exposing
+  schema before ordered row demand. Their owner closes the main stage before any
+  retained CTE chain, memberships and sources, then restores lexical scratch.
+  DML results retain their ordinary eager owner and are traversed without copying
+  the full result. Grouping, distinct and windows are serial; the
   bounded SELECT scan is the parallel exception.
 - **Row locks.** Rowmarks lock actual physical identities. After a wait only
   frozen contributors are followed to current heads; rechecks rebuild their

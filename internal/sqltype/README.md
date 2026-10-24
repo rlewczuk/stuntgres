@@ -28,6 +28,12 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   construction. `SameDatum`/`Value.SamePayload` compare stored bits,
   independently of SQL equality. NULL belongs to the caller's framing, not to
   empty text, empty bytes or the zero `Value`.
+- `Composite` freezes catalog members and rejects VOID storage attributes.
+  `RecordShape` freezes an anonymous expression/query-result occurrence and
+  retains VOID members, including their exact typed NULLs for empty results.
+  Both preserve complete member usages and coherent descriptor generations;
+  `CompositeValue` copies borrowed fields, while `OwnedCompositeValue` takes
+  exclusive ownership without copying. Neither exposes mutable field backing.
 - Domains delegate physical codecs to their base, keep their logical identity
   and check fresh input; `Descriptor.RebindDomain` rebuilds a same-ID
   generation with current naming and base authority.
@@ -335,3 +341,4 @@ match engine tests of the same mechanism):
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
 - Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
 - Refcursor scalar codecs and admission: `RUN='^TestPLpgSQLCursorCodec$'`
+- Composite descriptors, expression shapes and payload ownership: `RUN='^TestComposite'`

@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/dml"
+import (
+	"fmt"
+	"stuntgres/internal/engine/dml"
+)
 
 // Complete only the caller's accepted command events. Visibility remains the
 // full owner/stage view; an outer producer can be suspended with unfinished
@@ -27,4 +30,22 @@ func (s *StatementScope) completeCommandEffects(allExclusions, bounded bool) err
 		return dml.CheckForeignKeys(s.writeHost())
 	}
 	return nil
+}
+
+// Nested SQL commands settle their own effects without publishing the root.
+// Call the returned completion before executing a query-loop body.
+func (s *StatementScope) beginRoutineCommand() (func(error) error, error) {
+	if s.effectSerial == ^uint64(0) {
+		return nil, fmt.Errorf("stuntgres: SQL command identity exhausted")
+	}
+	previous := s.effectCommand
+	s.effectSerial++
+	s.effectCommand = s.effectSerial
+	return func(primary error) error {
+		if primary == nil {
+			primary = s.completeCommandEffects(false, true)
+		}
+		s.effectCommand = previous
+		return primary
+	}, nil
 }

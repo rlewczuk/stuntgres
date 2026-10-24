@@ -70,6 +70,7 @@ package parser
  plArm PLArm
  plCursor *PLCursorStatement
  plQuery plCursorQuery
+ plQueryLoop *PLQueryLoop
  plMotion PLCursorMotion
  plActual PLCursorActual
  plActuals []PLCursorActual
@@ -528,6 +529,8 @@ package parser
 %type <plDeclarations> pl_cursor_arguments pl_cursor_argument_list
 %type <plDeclaration> pl_cursor_argument
 %type <plQuery> pl_cursor_query
+%type <plQueryLoop> pl_query_loop_source
+%type <stmt> pl_query_loop_statement
 %type <tok> pl_cursor_for pl_cursor_from
 %type <row> pl_cursor_targets
 %type <plExpressions> pl_using pl_using_values
@@ -1722,7 +1725,8 @@ pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | FETCH pl_cursor_motion pl_cursor_from pl_target INTO pl_cursor_targets {cursor:=sqllex.(*lexer).plCursorTargets(&PLCursorStatement{Action:PLFetchCursor,Variable:$4,Motion:$2,Targets:$6},$5);$$=PLStatement{Cursor:cursor,Pos:$1.pos}}
  | MOVE pl_cursor_motion pl_cursor_from pl_target {$$=PLStatement{Cursor:&PLCursorStatement{Action:PLMoveCursor,Variable:$4,Motion:$2},Pos:$1.pos}}
  | CLOSE pl_target {$$=PLStatement{Cursor:&PLCursorStatement{Action:PLCloseCursor,Variable:$2},Pos:$1.pos}}
- | pl_label FOR pl_name IN pl_target pl_cursor_actuals PL_LOOP pl_statements END PL_LOOP pl_end_label {$6.Action=PLForCursor;$6.Variable=$5;$6.LoopName=Identifier{Text:$3.text,Pos:$3.pos};$6.Loop=sqllex.(*lexer).plLoop($1,$8,$11,$7.pos);$$=PLStatement{Cursor:$6,Pos:$2.pos};if sqllex.(*lexer).err!=nil{return 1}}
+ | pl_label FOR pl_target IN pl_target pl_cursor_actuals PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);name,ok:=$3.(ColumnExpr);if !ok||len(name.Name.Parts)!=1{l.failAt("42601","invalid cursor FOR loop variable",$3.SourcePosition().Offset);return 1};$6.Action=PLForCursor;$6.Variable=$5;$6.LoopName=name.Name.Parts[0];$6.Loop=l.plLoop($1,$8,$11,$7.pos);$$=PLStatement{Cursor:$6,Pos:$2.pos};if l.err!=nil{return 1}}
+ | pl_label FOR pl_target IN pl_query_loop_source PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);$5.Target=$3;$5.Start=l.plSourceStart($5.End,$5.Delimiter,$4);$5.Body=l.plLoop($1,$7,$10,$6.pos);$$=PLStatement{QueryLoop:$5,Pos:$2.pos};if l.err!=nil{return 1}}
  | pl_label PL_LOOP pl_statements END PL_LOOP pl_end_label {$$=PLStatement{Loop:sqllex.(*lexer).plLoop($1,$3,$6,$2.pos),Pos:$2.pos};if sqllex.(*lexer).err!=nil{return 1}}
  | pl_transfer_kind pl_end_label pl_transfer_when {value:=$3;$$=PLStatement{Transfer:&PLTransfer{Continue:$1.text=="continue",Label:$2,Alias:value.Alias},Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
  | pl_case_head pl_search pl_case_arms pl_else END CASE {l:=sqllex.(*lexer);search:=l.plBoundExpression($2,$1);if search.Expression==nil {for _,arm:=range $3 {if len(arm.Conditions)!=1 {l.failAt("42601","syntax error at or near \",\"",arm.Conditions[0].Delimiter.Offset);return 1}}};$$=PLStatement{Case:&PLConditional{Search:search,Arms:$3,HasElse:$4.HasElse,Else:$4.Else},Pos:$1.pos}} ;
@@ -1765,6 +1769,9 @@ pl_cursor_argument_list: pl_cursor_argument {$$=[]PLDeclaration{$1}}
 pl_cursor_argument: pl_name pl_type {$$=PLDeclaration{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2}} ;
 pl_cursor_for: FOR | IS ;
 pl_cursor_query: pl_expression_start query_select {l:=sqllex.(*lexer);l.plExpression=false;$$=plCursorQuery{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
+pl_query_loop_source: pl_query_loop_start pl_query_loop_statement {l:=sqllex.(*lexer);l.plExpression=false;$$=&PLQueryLoop{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
+pl_query_loop_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | merge {$$=$1} | with_mutation {$$=$1} ;
+pl_query_loop_start: /* empty */ {sqllex.(*lexer).plBeginExpression(plLoopBoundary)} ;
 pl_open_tail: pl_cursor_actuals {$$=$1}
  | cursor_scroll FOR pl_cursor_query {query:=sqllex.(*lexer).plBoundCursorQuery($3,$2);$$=&PLCursorStatement{Scroll:CursorScroll($1),Query:query.Query,QueryStart:query.Start,QueryEnd:query.End,QueryDelimiter:query.Delimiter}}
  | cursor_scroll FOR EXECUTE pl_expression pl_using {command:=sqllex.(*lexer).plBoundExpression($4,$3);$$=&PLCursorStatement{Scroll:CursorScroll($1),Command:command.Expression,CommandStart:command.Start,CommandEnd:command.End,CommandDelimiter:command.Delimiter,Using:$5}} ;

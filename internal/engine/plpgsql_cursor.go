@@ -263,29 +263,7 @@ func (s *StatementScope) assignPLCursorTargets(f *proc.PLFrame, targets []proc.P
 	if len(targets) == 1 {
 		v := f.Program.Variables[targets[0].Slot]
 		if len(targets[0].Steps) == 0 && (v.Record || v.Usage.Type.BaseType().IsComposite()) {
-			if cursor.recordShape == nil {
-				members := make([]sqltype.CompositeMember, len(cursor.schema))
-				for i, column := range cursor.schema {
-					members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: column.Name, Usage: column.Usage}
-				}
-				shape, err := sqltype.RecordShape(members)
-				if err != nil {
-					return err
-				}
-				cursor.recordShape = shape
-			}
-			if len(fields) == 0 && len(cursor.schema) != 0 {
-				fields = make([]sqltype.Value, len(cursor.schema))
-				for i, column := range cursor.schema {
-					fields[i] = sqltype.Null(column.Usage.Type)
-				}
-			}
-			row, err := sqltype.OwnedCompositeValue(cursor.recordShape, fields)
-			if err != nil {
-				return err
-			}
-			_, err = s.assignPLVariable(f, targets[0].Slot, row)
-			return err
+			return s.assignPLRow(f, targets[0].Slot, &cursor.recordShape, cursor.schema, fields)
 		}
 		value := sqltype.Null(f.Program.Variables[f.Program.FoundSlot].Usage.Type)
 		if len(fields) != 0 {

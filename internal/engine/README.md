@@ -48,6 +48,16 @@ character-coordinate mapping. The original positive Position chooses translation
 before any rewrite; otherwise eligible expression, SQL or assignment callbacks
 append their frame even when an inner diagnostic already has Context/InternalQuery.
 The PL action line comes independently from the statement keyword.
+Static query loops borrow a private all-row producer under a live lexical
+activation. Pure SELECT CTE resources transfer to the returned row owner, whose
+main stage closes before its CTE chain and captured sources. Borrowed CTE scope
+pointers restore independently of retained resource ownership. DML and modifying
+CTEs complete eagerly and settle command effects before body execution, with one
+width-sized traversal buffer and no second result materialization. Detached
+records or ordinal named-row conversion share FETCH's assignment owner; an empty
+first demand assigns descriptor-shaped NULLs. Targets survive loop transfer.
+FOUND publishes only after successful producer cleanup; body/error diagnostics
+retain their own action, and runtime source failures use the FOR action alone.
 
 Accepted write events retain their actual predecessor/successor and command token.
 `sql_command_effects.go` completes only the active nested SQL command's pending
@@ -508,6 +518,7 @@ tested only in `reference/` ([docs/TESTING.md](../../docs/TESTING.md)). SHOW ALL
 description rules are in the [`settings` README](settings/README.md#testing).
 Add `RACE=1` for lifecycle, cancellation and contention selections.
 PL cursor compiler/provider/ownership units: `RUN='^TestPLpgSQLCursor'`.
+Internal producer lifetime/cancellation units use `RUN='^TestPLpgSQLQueryLoop(Lifetime|Cancellation)$'`.
 
 - Fixtures never enter `Engine.Execute` while owning admission (that acquires
   its mutex recursively); create stored recipes before retaining admission.

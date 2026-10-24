@@ -27,19 +27,20 @@ type compositePayload struct{ fields []Value }
 // Composite freezes the catalog's coherent, ordered live-member projection.
 // Catalog ownership and relation reciprocity are validated by the provider.
 func Composite(id ID, name, declaration string, associatedArray ID, members []CompositeMember) (*Descriptor, error) {
-	return compositeDescriptor(id, name, declaration, associatedArray, members, 1600)
+	return compositeDescriptor(id, name, declaration, associatedArray, members, 1600, true)
 }
 
 // RecordShape is an expression occurrence, never a catalog storage identity.
+// Query-result attributes may have type VOID; catalog composites may not.
 func RecordShape(members []CompositeMember) (*Descriptor, error) {
-	d, err := compositeDescriptor(2249, "record", "RECORD", 2287, members, 1664)
+	d, err := compositeDescriptor(2249, "record", "RECORD", 2287, members, 1664, false)
 	if err == nil {
 		d.database = "RECORD"
 	}
 	return d, err
 }
 
-func compositeDescriptor(id ID, name, declaration string, associatedArray ID, members []CompositeMember, maximum int) (*Descriptor, error) {
+func compositeDescriptor(id ID, name, declaration string, associatedArray ID, members []CompositeMember, maximum int, catalog bool) (*Descriptor, error) {
 	if id == 0 || id == Unknown || name == "" || declaration == "" || len(members) > maximum || associatedArray == id {
 		return nil, fmt.Errorf("invalid composite descriptor")
 	}
@@ -77,7 +78,7 @@ func compositeDescriptor(id ID, name, declaration string, associatedArray ID, me
 		return true
 	}
 	for i, member := range definition.members {
-		if member.Attribute <= 0 || member.Name == "" || len(member.Name) > 63 || !member.Usage.Valid() || member.Usage.Type.BaseType().id == Void || !coherent(member.Usage.Type) {
+		if member.Attribute <= 0 || member.Name == "" || len(member.Name) > 63 || !member.Usage.Valid() || catalog && member.Usage.Type.BaseType().id == Void || !coherent(member.Usage.Type) {
 			return nil, fmt.Errorf("invalid composite member")
 		}
 		if err := ValidateTextInput(member.Name); err != nil {
