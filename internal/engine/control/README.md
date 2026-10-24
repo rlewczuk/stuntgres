@@ -135,6 +135,22 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   Ownership uses ordinary authority checks and staged base/companion transfer.
   Canonical extension member-role owner metadata resolves through genuine
   destination manifests, not final names, and validates independent member owners.
+- **Comparison context** (`comparison_restore.go`, `comparison_binding.go`):
+  `ComparisonRestore` is the run's slot for the cube comparison windows that
+  Dump writes (`emitDefinition`). `Decode` collects the marker comments,
+  `Pair` ties each to the `SET`/`RESET search_path` right after it (only blank
+  text between). `Before(index, stmt, current)` walks begin → bind → one DDL
+  → close, repeated, then finish: bind needs the stock cube installed in the
+  named persistent namespace; any unmarked `search_path` change, a non-DDL or
+  second DDL in a window, or a statement after finish is invalid. A marked
+  statement returns `execute`, and the root runs it with no other entry.
+  `After` hands the bound window's check to the root, which captures its
+  authorization under `Engine.mu`, checks USAGE on the namespace and calls
+  `ValidateComparisonBinding`; `Bound` then closes the window. Only
+  definitions this statement published, with expressions at or after its
+  position, count as a receipt. `Finish` rejects unconsumed markers and an
+  unfinished context. The state machine holds nothing; its hook entries keep
+  their table positions, so error precedence is unchanged.
 
 ### Host contract
 
@@ -197,7 +213,9 @@ candidate, these owning operations retain the engine's error contracts:
 `Engine.mu`, the capture window (`dump_capture.go`), the OID allocator and
 `preserveTemporaryLocked`; the restore stage (`restoreStage`) and atomic
 publication (`replaceCatalog`) with their lock order and fences; `restoreRun`,
-`restoreHost`, `restoreHooks` and every hook that reads the run; `Engine.Reset`
+`restoreHost`, `restoreHooks` and every hook that reads the run (the
+comparison hooks only forward, run marked statements and capture
+authorization); `Engine.Reset`
 and the `Engine.Dump`/`Engine.Restore` wrappers (`control.go`).
 
 ## Testing
@@ -225,6 +243,9 @@ dumps again; run it on a detached `master` worktree and on the branch and
 compare byte for byte. Never commit the program.
 
 - Driver and hooks: `RUN='^TestRestore(Driver|Hooks|AdmitsInsertTargetIndirection)'`
+- Comparison context: `RUN='^Test(Comparison(Restore|Context)|ValidateComparisonBinding)'`,
+  and `RUN='^TestReferenceCubeComparison(BindingPath|InheritedBindings|WrittenDefaults|Controls)$'`
+  in native and `REFERENCE=1` modes
 - FDW dump units: `RUN='^TestFDW(Dump|ReplacementRemap)'`
 - Engine remap and TEMP preservation: `RUN='^Test(RuleNamedConstraintRemap|ViewRuleOIDUniquenessAfterRestore|PartitionConstraintsDefinitionRemapping|.*RetainedTemporary.*|.*TemporaryCollision)$'`
 - Round trips: `RUN='^TestReference(Control|DumpRoundTrip)'`

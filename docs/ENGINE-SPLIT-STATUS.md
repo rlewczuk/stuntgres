@@ -16,15 +16,16 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `634372291` (item 172 rebased on it; no
-feature commit added root production code since item 170's check).
+Last verified against `master` at `850203e30` (item 173 rebased on it;
+`850203e30` and `49c23b98b` added root production code since item 172's
+check, a finding for item 180).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 173, 174, 175 and 176. Item 174 rebases over item 170's rewritten
+- 174, 175 and 176. Item 174 rebases over item 170's rewritten
   PL/pgSQL query-loop unit tests.
 
 ## Linear plan
@@ -77,9 +78,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      the catalog store became its pointer-shaped `ddl.Allocator`; quickcheck,
      quick and `REFERENCE=1` selections, bench (allocations unchanged) and
      deps passed; racecheck and finalcheck skipped (user decision)
-173. [ ] Control: Restore comparison context —
+173. [x] Control: Restore comparison context —
      [control](ENGINE-SPLIT-control.md#item-173--restore-comparison-context)
-     · needs — · 0.29k
+     · needs — · 0.29k (`92e17acb0`, `b7a0c629e`, docs commit) · the
+     comparison-context state machine moved to `control.ComparisonRestore`
+     and the bound-definition check to `control.ValidateComparisonBinding`;
+     quickcheck, quick and `REFERENCE=1` selections and deps passed; bench
+     skipped (Restore-only path); racecheck and finalcheck skipped (user
+     decision)
 174. [ ] Exec: row owners —
      [exec](ENGINE-SPLIT-exec.md#item-174--row-owners) · needs — · 0.17k
 175. [ ] Table: prepared DROP log —

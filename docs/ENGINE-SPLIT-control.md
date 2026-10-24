@@ -74,4 +74,16 @@ README.
 
 ## Status
 
-- 173: not started.
+- 173: done (`92e17acb0`, `b7a0c629e`, docs commit). `control.ComparisonRestore`
+  (`comparison_restore.go`) and `control.ValidateComparisonBinding`
+  (`comparison_binding.go`) moved; the root keeps `restore_comparison.go`
+  (the five forwarders, stage `Execute` and the authorization capture).
+  Deviations: the two root files merged into one; the `uint8` states got
+  named constants; `ComparisonCheck` carries `before`, the namespace and the
+  position from `After` to the root. The root now takes
+  `r.stage.CatalogRead()` once per restored statement, at the same point as
+  before (the comparison entry runs first), instead of only on bind and
+  window statements. The bound-window units seed the state, because a valid
+  stock cube manifest needs the engine; the reference selection covers bind.
+  For 180: `850203e30` (`definition_providers.go`, +139) and `49c23b98b`
+  added root production code since item 172's check.
