@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -135,7 +136,7 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		}
 		if err == nil && !private {
 			view := e.catalog.Current()
-			err = checkDatabaseConnect(ctx, view, e.roles.PublishedRead(&e.catalog.Owner, view), authenticated)
+			err = access.CheckDatabaseConnect(ctx, view, e.roles.PublishedRead(&e.catalog.Owner, view), authenticated)
 		}
 	}
 	s.Mu.Lock()

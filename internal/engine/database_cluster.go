@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -17,7 +18,7 @@ import (
 // storage, object domains, visibility and session registries.
 type databaseCluster struct {
 	mu            sync.Mutex
-	roles         roleStore
+	roles         access.RoleStore
 	locks         *lock.Manager
 	roleDomain    ids.Domain
 	defaultTarget *Engine

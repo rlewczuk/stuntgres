@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
@@ -56,7 +57,7 @@ type Engine struct {
 	indexWaits        index.WaitRegistry
 	exclusions        index.ExclusionRegistry
 	prepared          session.PreparedRegistry
-	roles             *roleStore
+	roles             *access.RoleStore
 	cluster           *databaseCluster
 	importTargets     map[authorization.PrincipalRef]authorization.PrincipalRef
 	foreign           fdw.Registry

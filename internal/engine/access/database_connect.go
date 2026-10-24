@@ -1,20 +1,19 @@
-package engine
+package access
 
 import (
 	"context"
 	"fmt"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 )
 
-// checkDatabaseConnect reports whether authenticated may connect to view's
+// CheckDatabaseConnect reports whether authenticated may connect to view's
 // current database. It is used only at physical session publication; identity
 // switches and already admitted operations do not call it.
-func checkDatabaseConnect(ctx context.Context, view catalog.Read, roles authorization.Read, authenticated authorization.PrincipalRef) error {
-	rights, err := access.DatabaseRights(ctx, view, roles, authenticated)
+func CheckDatabaseConnect(ctx context.Context, view catalog.Read, roles authorization.Read, authenticated authorization.PrincipalRef) error {
+	rights, err := DatabaseRights(ctx, view, roles, authenticated)
 	if err != nil || rights&authorization.ConnectPrivilege != 0 {
 		return err
 	}

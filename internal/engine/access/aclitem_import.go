@@ -1,4 +1,4 @@
-package engine
+package access
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 // ACLItemImporter reowns typed aclitem values of a replacement from the
 // source store's ACL authority to this store's. catalogs is the destination
 // catalog store this role store backs.
-func (s *roleStore) ACLItemImporter(sourceStore *roleStore, catalogs *catalog.Store, source, target authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) func(sqltype.Value) (sqltype.Value, error) {
+func (s *RoleStore) ACLItemImporter(sourceStore *RoleStore, catalogs *catalog.Store, source, target authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) func(sqltype.Value) (sqltype.Value, error) {
 	var principal func(authorization.PrincipalRef) (authorization.PrincipalRef, error)
 	// Structural traversal belongs to typedef.ReownDomainDatum, combining descriptor and
 	// principal changes in one copy-on-change array/composite pass.

@@ -1,9 +1,8 @@
-package engine
+package access
 
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 )
@@ -13,7 +12,7 @@ import (
 // current view is read at each mapping, under the caller's install lock.
 // operatorSeeded reports seeded builtin operators, whose bootstrap owner maps
 // to the destination bootstrap principal.
-func (s *roleStore) PrincipalRemap(catalogs *catalog.Store, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef, operatorSeeded func(*catalog.Operator) bool) catalog.PrincipalRemap {
+func (s *RoleStore) PrincipalRemap(catalogs *catalog.Store, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef, operatorSeeded func(*catalog.Operator) bool) catalog.PrincipalRemap {
 	remap := s.PrincipalMapper(catalogs, source, targetSnapshot, expected)
 	seedOwner := func(ref authorization.PrincipalRef, seeded bool) (authorization.PrincipalRef, error) {
 		if !seeded || ref.ID() != authorization.BootstrapPrincipalID {
@@ -37,7 +36,7 @@ func (s *roleStore) PrincipalRemap(catalogs *catalog.Store, source, targetSnapsh
 // PrincipalMapper maps source principals to this store's principals by name.
 // Both authorization ACLs and typed ACL data use the same captured name mapping
 // and target-incarnation fences. Each replacement owns its private memoization.
-func (s *roleStore) PrincipalMapper(catalogs *catalog.Store, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) func(authorization.PrincipalRef) (authorization.PrincipalRef, error) {
+func (s *RoleStore) PrincipalMapper(catalogs *catalog.Store, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) func(authorization.PrincipalRef) (authorization.PrincipalRef, error) {
 	mapping := make(map[authorization.PrincipalRef]authorization.PrincipalRef)
 	return func(ref authorization.PrincipalRef) (authorization.PrincipalRef, error) {
 		if target, ok := mapping[ref]; ok {
@@ -65,13 +64,13 @@ func (s *roleStore) PrincipalMapper(catalogs *catalog.Store, source, targetSnaps
 // ValidateReplacementACLsLocked validates the default ACLs and every
 // descriptor ACL of a replacement state against the committed roles. view
 // reads next through owner.
-func (s *roleStore) ValidateReplacementACLsLocked(owner *catalog.Owner, view catalog.Read, next *catalog.State) error {
+func (s *RoleStore) ValidateReplacementACLsLocked(owner *catalog.Owner, view catalog.Read, next *catalog.State) error {
 	roles := s.PublishedRead(owner, view)
 	if err := catalog.ValidateDefaultACLs(roles, view); err != nil {
 		return err
 	}
 	for _, d := range next.Descriptors() {
-		if err := access.ValidateACL(roles, d); err != nil {
+		if err := ValidateACL(roles, d); err != nil {
 			return err
 		}
 	}
