@@ -41,6 +41,12 @@ type Host interface {
 	// BindPolicyExpression binds and freezes a USING or WITH CHECK expression
 	// of a policy on relation; nil for a nil expression.
 	BindPolicyExpression(auth ddl.Authority, relation *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*stored.Policy, error)
+	// SelectFunction selects the functions named name with exactly
+	// signature on auth's function search path; the int is the match count.
+	SelectFunction(auth ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error)
+	// BindTriggerWhen binds a trigger's WHEN condition in a trigger
+	// namespace, returning what BindRuleCondition returns.
+	BindTriggerWhen(auth ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error)
 }
 
 // StageHost is what CREATE VIEW staging needs: the decisions host and the
@@ -60,14 +66,23 @@ type StageHost interface {
 	ReownDisplacedTypes() error
 }
 
-// RelationChange is a planned RULE or POLICY change of one relation. A
-// non-empty Skip is the NOTICE text of an IF EXISTS miss, and nothing else is
-// set. Otherwise Next replaces the relation Ref names (Ref.Epoch is the
-// publication token), and Sources are the descriptors the stage records as
-// its query sources.
+// RelationChange is a planned RULE, POLICY or TRIGGER change of one
+// relation. A non-empty Skip is the NOTICE text of an IF EXISTS miss, and
+// nothing else is set. Otherwise Next replaces the relation Ref names
+// (Ref.Epoch is the publication token), Sources are the descriptors the stage
+// records as its query sources, and Replacement names the definition a
+// CREATE OR REPLACE TRIGGER replaces (zero otherwise).
 type RelationChange struct {
-	Skip    string
-	Ref     ids.ObjectRef
-	Next    *catalog.Relation
-	Sources []catalog.Descriptor
+	Skip        string
+	Ref         ids.ObjectRef
+	Next        *catalog.Relation
+	Sources     []catalog.Descriptor
+	Replacement TriggerReplacement
+}
+
+// TriggerReplacement authorizes local-child replacement only for the exact
+// CREATE OR REPLACE definition and its descendant clone lineage in this stage.
+type TriggerReplacement struct {
+	Relation ids.ObjectAddress
+	OID      ids.OID
 }

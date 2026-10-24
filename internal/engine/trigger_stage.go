@@ -11,13 +11,6 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-// triggerReplacement authorizes local-child replacement only for the exact
-// CREATE OR REPLACE definition and its descendant clone lineage in this stage.
-type triggerReplacement struct {
-	Relation ids.ObjectAddress
-	OID      ids.OID
-}
-
 // synchronizeStageTriggersLocked maintains partition clone provenance at catalog
 // publication, including CREATE/ATTACH/DETACH and parent replacement. Runtime
 // dispatch reads only the physical relation's immutable list. Engine.mu is held.

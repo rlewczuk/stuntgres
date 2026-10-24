@@ -102,7 +102,7 @@ type CatalogStage struct {
 	authRevision        uint64
 	roleRevision        uint64
 	extensionNamespace  ids.ObjectAddress
-	triggerReplacement  triggerReplacement
+	triggerReplacement  view.TriggerReplacement
 	creationName        parser.ObjectName // Original destination position across namespace waits.
 	namesAdmitted       bool
 	databasePredecessor catalog.Descriptor

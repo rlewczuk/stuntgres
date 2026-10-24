@@ -30,10 +30,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
-	case *parser.CreateTrigger:
-		return e.executeTrigger(scope, stmt.(*parser.CreateTrigger), count)
-	case *parser.AlterTrigger, *parser.DropTrigger:
-		return e.executeTriggerLifecycle(scope, stmt, count)
+	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger:
+		return e.executeTrigger(scope, stmt, count)
 	case *parser.CreateFunction, *parser.CreateAggregate:
 		return e.executeSQLRoutineDDL(scope, stmt, count)
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:

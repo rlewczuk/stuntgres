@@ -7,8 +7,8 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
@@ -16,23 +16,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// Lifecycle utilities alter only immutable attached payloads. Locks are acquired
-// before Engine.mu; publication retains the relation and extension source fences.
-func (e *Engine) executeTriggerLifecycle(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
-	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
-	}
-	if s, ok := stmt.(*parser.AlterTrigger); ok && s.Action == "rename" {
-		if err := scope.acquirePartitionDescendants(scope.lockedRef, lock.AccessExclusive); err != nil {
-			return Result{}, err
-		}
-	}
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
-	if err != nil {
-		return fail(err)
-	}
+// planTriggerLifecycle decides ALTER TRIGGER RENAME, ALTER TRIGGER [NO]
+// DEPENDS ON EXTENSION and DROP TRIGGER. Lifecycle utilities alter only the
+// immutable attached payload; publication retains the relation and extension
+// source fences.
+func planTriggerLifecycle(h view.Host, auth ddl.Authority, stmt parser.Statement, locked ids.ObjectRef) (view.RelationChange, error) {
 	var target parser.ObjectName
 	var name string
 	alter, renaming := stmt.(*parser.AlterTrigger)
@@ -42,19 +30,18 @@ func (e *Engine) executeTriggerLifecycle(scope *StatementScope, stmt parser.Stat
 	} else {
 		target, name = drop.Table, drop.Name.Text
 	}
-	h := ddlHost{e: e, op: scope.op}
 	ref, err := h.ResolveRelation(auth, target)
 	if err != nil {
 		if dropping && drop.IfExists && table.RenameMissing(err) {
-			d := err.(*sqlstate.Error)
-			return e.finishPolicyNoticeLocked(scope, d.Message+", skipping")
+			return view.RelationChange{Skip: err.(*sqlstate.Error).Message + ", skipping"}, nil
 		}
-		return fail(err)
+		return view.RelationChange{}, err
 	}
-	if ref != scope.lockedRef {
-		return fail(ids.ErrCatalogReplaced)
+	if ref != locked {
+		return view.RelationChange{}, ids.ErrCatalogReplaced
 	}
-	old := auth.Catalog.MustRelation(ref.Address)
+	catalogAccess := h.AccessView(auth)
+	old := catalogAccess.Catalog.MustRelation(ref.Address)
 	list := stored.TriggersOf(old)
 	index := slices.IndexFunc(list, func(t stored.Trigger) bool { return t.Name() == name })
 	missing := func() error {
@@ -62,86 +49,91 @@ func (e *Engine) executeTriggerLifecycle(scope *StatementScope, stmt parser.Stat
 	}
 	// Generic attached-object lookup checks absence before ownership. Rename
 	// checks table ownership first, including when the trigger is missing.
-	if (!renaming || alter.Action != "rename") && index < 0 {
+	rename := renaming && alter.Action == "rename"
+	if !rename && index < 0 {
 		if dropping && drop.IfExists {
-			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`trigger "%s" for relation "%s" does not exist, skipping`, name, catalog.ObjectNameText(target)))
+			return view.RelationChange{Skip: fmt.Sprintf(`trigger "%s" for relation "%s" does not exist, skipping`, name, catalog.ObjectNameText(target))}, nil
 		}
-		return fail(missing())
+		return view.RelationChange{}, missing()
 	}
 	noun := "relation"
-	if renaming && alter.Action == "rename" {
+	if rename {
 		noun = "table"
 	}
-	if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: noun}); err != nil {
-		return fail(err)
+	if err := catalogAccess.Check(auth, access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: noun}); err != nil {
+		return view.RelationChange{}, err
 	}
 	if index < 0 {
-		return fail(missing())
+		return view.RelationChange{}, missing()
 	}
-	p := list[index].Parts()
-	var sources []catalog.Descriptor
 	if dropping {
-		if p.Parent.ObjectID != 0 {
-			path, err := referencePath(auth)
+		if list[index].Parts().Parent.ObjectID != 0 {
+			path, err := auth.ReferencePath()
 			if err != nil {
-				return fail(err)
+				return view.RelationChange{}, err
 			}
-			return fail(view.TriggerPartitionDropError(auth.Catalog, old, list[index], path))
+			return view.RelationChange{}, view.TriggerPartitionDropError(catalogAccess.Catalog, old, list[index], path)
 		}
-		list = append(slices.Clone(list[:index]), list[index+1:]...)
-	} else {
-		switch alter.Action {
-		case "rename":
-			if p.Parent.ObjectID != 0 {
-				parent, _ := stored.TriggerParent(auth.Catalog, p.Parent)
-				if parent == nil {
-					return fail(ids.ErrCatalogReplaced)
-				}
-				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot rename trigger "%s" on table "%s"`, name, old.Name()), Hint: fmt.Sprintf(`Rename the trigger on the partitioned table "%s" instead.`, parent.Name())})
-			}
-			if p.Name != alter.Target.Text && slices.ContainsFunc(list, func(t stored.Trigger) bool { return t.Name() == alter.Target.Text }) {
-				return fail(sqlError("42710", fmt.Sprintf(`trigger "%s" for relation "%s" already exists`, alter.Target.Text, old.Name())))
-			}
-			if p.Name == alter.Target.Text {
-				return e.publishRelationChangeLocked(scope, auth, view.RelationChange{Ref: ref, Next: old}, triggerReplacement{})
-			}
-			p.Name = alter.Target.Text
-		case "depends", "no_depends":
-			address, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: alter.Target.Text})
-			if !exists {
-				return fail(sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, alter.Target.Text)))
-			}
-			extension, ok := auth.Catalog.Extension(address)
-			if !ok {
-				return fail(ids.ErrCatalogReplaced)
-			}
-			sources = append(sources, extension)
-			present := slices.Contains(p.AutoExtensions, address)
-			if present == (alter.Action == "depends") {
-				return e.publishRelationChangeLocked(scope, auth, view.RelationChange{Ref: ref, Next: old, Sources: sources}, triggerReplacement{})
-			}
-			if alter.Action == "depends" && !present {
-				p.AutoExtensions = append(slices.Clone(p.AutoExtensions), address)
-			}
-			if alter.Action == "no_depends" && present {
-				p.AutoExtensions = slices.DeleteFunc(slices.Clone(p.AutoExtensions), func(a ids.ObjectAddress) bool { return a == address })
-			}
-		default:
-			return fail(sqlError("0A000", "unsupported ALTER TRIGGER action"))
-		}
-		definition, err := stored.NewTrigger(p)
-		if err != nil {
-			return fail(err)
-		}
-		list = slices.Clone(list)
-		list[index] = definition
-		slices.SortFunc(list, func(a, b stored.Trigger) int { return strings.Compare(a.Name(), b.Name()) })
+		return triggerListChange(h, ref, old, append(slices.Clone(list[:index]), list[index+1:]...), nil)
 	}
-	next := *old
-	next.Triggers = stored.TriggersPayload(list)
-	next.ObjectRevision, err = h.Revision()
+	p, sources, changed, err := alterTriggerParts(catalogAccess, alter, old, list, list[index].Parts())
 	if err != nil {
-		return fail(err)
+		return view.RelationChange{}, err
 	}
-	return e.publishRelationChangeLocked(scope, auth, view.RelationChange{Ref: ref, Next: &next, Sources: sources}, triggerReplacement{})
+	if !changed {
+		return view.RelationChange{Ref: ref, Next: old, Sources: sources}, nil
+	}
+	definition, err := stored.NewTrigger(p)
+	if err != nil {
+		return view.RelationChange{}, err
+	}
+	list = slices.Clone(list)
+	list[index] = definition
+	slices.SortFunc(list, func(a, b stored.Trigger) int { return strings.Compare(a.Name(), b.Name()) })
+	return triggerListChange(h, ref, old, list, sources)
+}
+
+// alterTriggerParts applies a RENAME or [NO] DEPENDS ON EXTENSION to p.
+// changed is false when the trigger already has the requested state; sources
+// holds the named extension.
+func alterTriggerParts(catalogAccess access.View, alter *parser.AlterTrigger, old *catalog.Relation, list []stored.Trigger, p stored.TriggerParts) (_ stored.TriggerParts, sources []catalog.Descriptor, changed bool, _ error) {
+	switch alter.Action {
+	case "rename":
+		if p.Parent.ObjectID != 0 {
+			parent, _ := stored.TriggerParent(catalogAccess.Catalog, p.Parent)
+			if parent == nil {
+				return p, nil, false, ids.ErrCatalogReplaced
+			}
+			return p, nil, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot rename trigger "%s" on table "%s"`, p.Name, old.Name()), Hint: fmt.Sprintf(`Rename the trigger on the partitioned table "%s" instead.`, parent.Name())}
+		}
+		if p.Name != alter.Target.Text && slices.ContainsFunc(list, func(t stored.Trigger) bool { return t.Name() == alter.Target.Text }) {
+			return p, nil, false, sqlError("42710", fmt.Sprintf(`trigger "%s" for relation "%s" already exists`, alter.Target.Text, old.Name()))
+		}
+		if p.Name == alter.Target.Text {
+			return p, nil, false, nil
+		}
+		p.Name = alter.Target.Text
+	case "depends", "no_depends":
+		address, exists := catalogAccess.Catalog.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: alter.Target.Text})
+		if !exists {
+			return p, nil, false, sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, alter.Target.Text))
+		}
+		extension, ok := catalogAccess.Catalog.Extension(address)
+		if !ok {
+			return p, nil, false, ids.ErrCatalogReplaced
+		}
+		sources = append(sources, extension)
+		present := slices.Contains(p.AutoExtensions, address)
+		if present == (alter.Action == "depends") {
+			return p, sources, false, nil
+		}
+		if alter.Action == "depends" {
+			p.AutoExtensions = append(slices.Clone(p.AutoExtensions), address)
+		} else {
+			p.AutoExtensions = slices.DeleteFunc(slices.Clone(p.AutoExtensions), func(a ids.ObjectAddress) bool { return a == address })
+		}
+	default:
+		return p, nil, false, sqlError("0A000", "unsupported ALTER TRIGGER action")
+	}
+	return p, sources, true, nil
 }
