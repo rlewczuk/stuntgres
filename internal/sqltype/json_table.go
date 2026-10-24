@@ -26,7 +26,7 @@ func (p JSONTableRows) Start(ctx context.Context, passing []Value, output Output
 	bindings, err := p.plan.bindings(ctx, passing, output, make([]jsonpathBinding, len(passing)))
 	return JSONTableInvocation{plan: p.plan, bindings: bindings}, err
 }
-func (p JSONTableInvocation) Select(ctx context.Context, document, path Value, throw bool, input InputEnvironment) ([]Value, error) {
+func (p JSONTableInvocation) Select(ctx context.Context, document, path Value, throw bool, env JSONPathEnvironment) ([]Value, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (p JSONTableInvocation) Select(ctx context.Context, document, path Value, t
 	if document.jsonb == nil || path.jsonpath == nil {
 		return nil, fmt.Errorf("missing JSON_TABLE row payload")
 	}
-	executor := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, strict: path.jsonpath.strict, bindings: p.bindings, input: input}
+	executor := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, strict: path.jsonpath.strict, bindings: p.bindings, input: env.Input, notice: env.Notice, timezone: true}
 	var rows []Value
 	status, err := executor.execute(path, func(item jsonpathItem) (bool, error) {
 		node, err := sqlJSONMaterialize(item)

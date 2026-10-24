@@ -54,7 +54,11 @@ func sqlJSONTemporalJSON(v Value) string {
 	if v.typ.ID() == Time {
 		return text
 	}
-	east := -v.west
+	return jsonpathTemporalOffset(text, v.west)
+}
+
+func jsonpathTemporalOffset(text string, west int32) string {
+	east := -west
 	sign := byte('+')
 	if east < 0 {
 		sign = '-'

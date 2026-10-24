@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"stuntgres/internal/sqlstate"
 )
 
 // DatetimeFormatPlan owns only the selected temporal overloads. Numeric
@@ -48,7 +50,7 @@ func BindDatetimeFormat(ctx context.Context, name string, result, source Usage, 
 	}
 	if template != nil {
 		var err error
-		p.constant, err = compileDatetime(ctx, *template)
+		p.constant, err = compileDatetime(ctx, *template, datetimeSQLFormat)
 		if err != nil {
 			return p, err
 		}
@@ -69,7 +71,7 @@ func (p DatetimeFormatPlan) Evaluate(ctx context.Context, source, template Value
 	nodes := p.constant
 	if nodes == nil {
 		var err error
-		nodes, err = compileDatetime(ctx, template.text)
+		nodes, err = compileDatetime(ctx, template.text, datetimeSQLFormat)
 		if err != nil {
 			return Value{}, err
 		}
@@ -77,7 +79,7 @@ func (p DatetimeFormatPlan) Evaluate(ctx context.Context, source, template Value
 	if p.name == "to_char" {
 		return datetimeOutput(ctx, p.result.Type, source, nodes, template.text, output, p.conflict)
 	}
-	return datetimeInput(ctx, p.result.Type, source.text, nodes, input, p.conflict)
+	return datetimeInput(ctx, p.result.Type, source.text, nodes, input, p.conflict, false, nil)
 }
 func datetimeSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' || c == '\v'
@@ -85,7 +87,15 @@ func datetimeSpace(c byte) bool {
 func datetimeSeparator(c byte) bool {
 	return c > 0x20 && c < 0x7f && !(c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z')
 }
-func compileDatetime(ctx context.Context, template string) ([]datetimeNode, error) {
+
+type datetimeCompileMode uint8
+
+const (
+	datetimeSQLFormat datetimeCompileMode = iota
+	datetimeJSONPathFormat
+)
+
+func compileDatetime(ctx context.Context, template string, mode datetimeCompileMode) ([]datetimeNode, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -148,11 +158,17 @@ func compileDatetime(ctx context.Context, template string) ([]datetimeNode, erro
 			}
 			continue
 		}
-		if template[i] == '\\' && i+1 < len(template) && template[i+1] == '"' {
+		if mode == datetimeSQLFormat && template[i] == '\\' && i+1 < len(template) && template[i+1] == '"' {
 			i++
 		}
 		_, width := utf8.DecodeRuneInString(template[i:])
 		n.literal = template[i : i+width]
+		// Quoted literals have already taken the branch above. Strict masks
+		// admit only the released separator set for an unrecognized rune.
+		// Reject here, before any input reading can change error precedence.
+		if mode == datetimeJSONPathFormat && !jsonpathDatetimeSeparator(n.literal) {
+			return nil, sqlstate.HardInputError(datetimeError("22007", `invalid datetime format separator: "`+n.literal+`"`, "", ""))
+		}
 		if datetimeSpace(template[i]) {
 			n.class = 1
 		} else if datetimeSeparator(template[i]) {
@@ -219,7 +235,7 @@ func (p DatetimeFormatPlan) WithConstantTemplate(ctx context.Context, template V
 	if template.typ == nil || template.typ.id != Text {
 		return p, false, fmt.Errorf("invalid datetime template descriptor")
 	}
-	nodes, err := compileDatetime(ctx, template.text)
+	nodes, err := compileDatetime(ctx, template.text, datetimeSQLFormat)
 	if err != nil {
 		return p, false, err
 	}

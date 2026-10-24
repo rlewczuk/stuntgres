@@ -45,7 +45,7 @@ func TestJSONPathNavigateTraversal(t *testing.T) {
 		{`[[1,2],[3]]`, `$[*][last]`, `[2, 3]`},
 		{`[{"x":1,"c":[{"y":2}]},{"x":2,"c":[{"y":0}]}]`, `$[*]?(exists(@.c[*]?(@.y > 1))).x`, `[1]`},
 	} {
-		v, err := p.Evaluate(context.Background(), navigateValues(t, types, tc.doc, tc.path, `{}`, false))
+		v, err := p.Evaluate(context.Background(), navigateValues(t, types, tc.doc, tc.path, `{}`, false), JSONPathEnvironment{})
 		if err != nil || v.text != tc.want {
 			t.Fatalf("%s: %s %v; want %s", tc.path, v.text, err, tc.want)
 		}
@@ -63,7 +63,7 @@ func TestJSONPathNavigateTraversal(t *testing.T) {
 				{`{"a":` + scalar + `}`, `$.a.**{last}[$v]`, `[]`},
 				{`{"a":` + scalar + `}`, `$.**{last}`, `[` + scalar + `]`},
 			} {
-				v, err := p.Evaluate(context.Background(), navigateValues(t, types, tc.doc, mode+tc.path, `{}`, false))
+				v, err := p.Evaluate(context.Background(), navigateValues(t, types, tc.doc, mode+tc.path, `{}`, false), JSONPathEnvironment{})
 				if err != nil || v.text != tc.want {
 					t.Fatal(mode, tc.doc, tc.path, v.text, err, tc.want)
 				}
@@ -74,12 +74,12 @@ func TestJSONPathNavigateTraversal(t *testing.T) {
 	depth := 12000
 	doc := strings.Repeat(`[`, depth) + `1` + strings.Repeat(`]`, depth)
 	values := navigateValues(t, types, doc, `$`+strings.Repeat(`[0]`, depth), `{}`, false)
-	got, err := p.Evaluate(context.Background(), values)
+	got, err := p.Evaluate(context.Background(), values, JSONPathEnvironment{})
 	if err != nil || got.text != `[1]` {
 		t.Fatal(got.text, err)
 	}
 	values[1] = jsonbSetUnitInput(t, types[JSONPath], `$`)
-	got, err = p.Evaluate(context.Background(), values)
+	got, err = p.Evaluate(context.Background(), values, JSONPathEnvironment{})
 	if err != nil || got.text != `[`+doc+`]` {
 		t.Fatal("deep output", err)
 	}
@@ -98,7 +98,7 @@ func TestJSONPathNavigateConditions(t *testing.T) {
 				if op == "||" {
 					want = or[i][j]
 				}
-				v, err := p.Evaluate(context.Background(), navigateValues(t, types, `0`, a+op+b, `{}`, false))
+				v, err := p.Evaluate(context.Background(), navigateValues(t, types, `0`, a+op+b, `{}`, false), JSONPathEnvironment{})
 				if err != nil || v.text != `[`+want+`]` {
 					t.Fatal(a, op, b, v.text, err)
 				}
@@ -110,7 +110,7 @@ func TestJSONPathNavigateConditions(t *testing.T) {
 			{"!" + a, []string{"[false]", "[true]", "[null]"}[i]},
 			{a + " is unknown", []string{"[false]", "[false]", "[true]"}[i]},
 		} {
-			v, err := p.Evaluate(context.Background(), navigateValues(t, types, `0`, tc.path, `{}`, false))
+			v, err := p.Evaluate(context.Background(), navigateValues(t, types, `0`, tc.path, `{}`, false), JSONPathEnvironment{})
 			if err != nil || v.text != tc.want {
 				t.Fatal(tc.path, v.text, err)
 			}
@@ -127,7 +127,7 @@ func TestJSONPathNavigateConditions(t *testing.T) {
 		{`"a\nb"`, `$ like_regex "^b$" flag "m"`, `[true]`},
 		{`["A.B","axb"]`, `$[*]?(@ like_regex "a.b" flag "iqsmx")`, `["A.B"]`},
 	} {
-		v, err := p.Evaluate(context.Background(), navigateValues(t, types, tc.doc, tc.path, `{}`, false))
+		v, err := p.Evaluate(context.Background(), navigateValues(t, types, tc.doc, tc.path, `{}`, false), JSONPathEnvironment{})
 		if err != nil || v.text != tc.want {
 			t.Fatal(tc.path, v.text, err, tc.want)
 		}
@@ -139,15 +139,15 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 	p := navigatePlan(t, types)
 	values := navigateValues(t, types, `[{"x":1},{},{"x":3}]`, `strict $[*].x`, `{}`, true)
 	var nodes []*jsonbNode
-	status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(n jsonpathItem) (bool, error) { nodes = append(nodes, n.jsonbNode); return true, nil })
+	status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], JSONPathEnvironment{}, func(n jsonpathItem) (bool, error) { nodes = append(nodes, n.jsonbNode); return true, nil })
 	if err != nil || status.kind != jsonpathSuppressibleStop || status.diagnostic == nil || len(nodes) != 1 || nodes[0] != &values[0].jsonb.root.items[0].fields[0].value {
 		t.Fatal(status, err, nodes)
 	}
-	v, err := p.Evaluate(context.Background(), values)
+	v, err := p.Evaluate(context.Background(), values, JSONPathEnvironment{})
 	if err != nil || v.text != `[1]` {
 		t.Fatal(v.text, err)
 	}
-	status, err = executeJSONPath(context.Background(), values[0], jsonbSetUnitInput(t, types[JSONPath], `$[*]`), values[2], func(jsonpathItem) (bool, error) { return false, nil })
+	status, err = executeJSONPath(context.Background(), values[0], jsonbSetUnitInput(t, types[JSONPath], `$[*]`), values[2], JSONPathEnvironment{}, func(jsonpathItem) (bool, error) { return false, nil })
 	if err != nil || status.kind != jsonpathConsumerStop {
 		t.Fatal(status, err)
 	}
@@ -158,7 +158,7 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 	} {
 		for _, silent := range []bool{false, true} {
 			vals := navigateValues(t, types, `[1]`, tc.path, `{}`, silent)
-			_, err := p.Evaluate(context.Background(), vals)
+			_, err := p.Evaluate(context.Background(), vals, JSONPathEnvironment{})
 			if tc.code == "22033" && silent {
 				if err != nil {
 					t.Fatal(err)
@@ -172,7 +172,7 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 		}
 	}
 	for _, silent := range []bool{false, true} {
-		v, err := p.Evaluate(context.Background(), navigateValues(t, types, `1`, `exists(1+2)`, `{}`, silent))
+		v, err := p.Evaluate(context.Background(), navigateValues(t, types, `1`, `exists(1+2)`, `{}`, silent), JSONPathEnvironment{})
 		if err != nil || v.text != `[true]` {
 			t.Fatal(v.text, err)
 		}
@@ -188,7 +188,7 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 	} {
 		vals := navigateValues(t, types, tc.doc, tc.path, `{}`, true)
 		emitted := 0
-		status, err := executeJSONPath(context.Background(), vals[0], vals[1], vals[2], func(jsonpathItem) (bool, error) { emitted++; return true, nil })
+		status, err := executeJSONPath(context.Background(), vals[0], vals[1], vals[2], JSONPathEnvironment{}, func(jsonpathItem) (bool, error) { emitted++; return true, nil })
 		if emitted != 0 {
 			t.Fatal("subscript emitted before operand completed", emitted)
 		}
@@ -216,7 +216,7 @@ func TestJSONPathNavigateStateIsolation(t *testing.T) {
 	for range 12 {
 		wg.Go(func() {
 			for range 25 {
-				v, err := p.Evaluate(context.Background(), values)
+				v, err := p.Evaluate(context.Background(), values, JSONPathEnvironment{})
 				if err != nil || v.text != `["A"]` {
 					t.Errorf("state leak: %s %v", v.text, err)
 					return
@@ -241,12 +241,19 @@ func TestJSONPathNavigateCancellation(t *testing.T) {
 	for _, path := range []string{`$[*]`, `$.**`, `$[*]?(@>"` + strings.Repeat("a", 2048) + `")`, `$[*]?(@ like_regex "a+")`, `$`} {
 		values := navigateValues(t, types, doc, path, `{}`, true)
 		ctx := &groupingCancelContext{Context: context.Background(), at: 100}
-		if _, err := p.Evaluate(ctx, values); !errors.Is(err, context.Canceled) {
+		if _, err := p.Evaluate(ctx, values, JSONPathEnvironment{}); !errors.Is(err, context.Canceled) {
 			t.Fatal(path, err)
 		}
 		values[0] = jsonbSetUnitInput(t, types[JSONB], `[]`)
-		if _, err := p.Evaluate(context.Background(), values); err != nil {
-			t.Fatal("recovery", err)
+		// Cancellation is terminal for ctx. Reuse the immutable plan and path,
+		// but give the next execution its own uncanceled invocation context.
+		want := `[]`
+		if path == `$` || path == `$.**` {
+			want = `[[]]`
+		}
+		got, err := p.Evaluate(context.Background(), values, JSONPathEnvironment{})
+		if err != nil || got.text != want {
+			t.Fatal("recovery", path, got.text, err, "want", want)
 		}
 	}
 	long := strings.Repeat("1", 20000)
@@ -272,7 +279,7 @@ func TestJSONBPathQueryArrayPlan(t *testing.T) {
 	for slot := range 4 {
 		copy := append([]Value(nil), values...)
 		copy[slot] = Null(copy[slot].typ)
-		v, err := p.Evaluate(context.Background(), copy)
+		v, err := p.Evaluate(context.Background(), copy, JSONPathEnvironment{})
 		if err != nil || !v.null || v.typ != types[JSONB] {
 			t.Fatal(slot, v, err)
 		}
@@ -284,14 +291,14 @@ func TestJSONBPathQueryArrayPlan(t *testing.T) {
 			t.Fatal(err)
 		}
 		copy[slot] = v
-		if _, err := p.Evaluate(context.Background(), copy); err == nil {
+		if _, err := p.Evaluate(context.Background(), copy, JSONPathEnvironment{}); err == nil {
 			t.Fatal("foreign slot", slot)
 		}
 	}
 	for _, slot := range []int{0, 1, 2} {
 		copy := append([]Value(nil), values...)
 		copy[slot] = Value{typ: copy[slot].typ}
-		if _, err := p.Evaluate(context.Background(), copy); err == nil {
+		if _, err := p.Evaluate(context.Background(), copy, JSONPathEnvironment{}); err == nil {
 			t.Fatal("missing payload", slot)
 		}
 	}
@@ -306,16 +313,16 @@ func TestJSONBPathQueryArrayPlan(t *testing.T) {
 	}
 	for _, vars := range []string{`[]`, `null`, `1`, `"x"`} {
 		vals := navigateValues(t, types, `1`, `$`, vars, true)
-		if _, err := p.Evaluate(context.Background(), vals); err == nil {
+		if _, err := p.Evaluate(context.Background(), vals, JSONPathEnvironment{}); err == nil {
 			t.Fatal("accepted variables", vars)
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := p.Evaluate(ctx, values); !errors.Is(err, context.Canceled) {
+	if _, err := p.Evaluate(ctx, values, JSONPathEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	result, err := p.Evaluate(context.Background(), values)
+	result, err := p.Evaluate(context.Background(), values, JSONPathEnvironment{})
 	if err != nil || result.typ != types[JSONB] || result.text != `[null]` {
 		t.Fatal(fmt.Sprint(result), err)
 	}

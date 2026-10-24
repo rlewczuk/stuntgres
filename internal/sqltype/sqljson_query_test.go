@@ -21,34 +21,34 @@ func TestSQLJSONQueryPlan(t *testing.T) {
 	}
 	document := jsonbSetUnitInput(t, types[JSONB], `[{"x":1},{}]`)
 	p := bind("json_query", "unconditional", JSONB, nil, nil)
-	outcome, err := p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `strict $[*].x`), nil, InputEnvironment{}, OutputEnvironment{})
+	outcome, err := p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `strict $[*].x`), nil, JSONPathEnvironment{}, OutputEnvironment{})
 	if err != nil || outcome.Error == nil || outcome.Value.Type() != nil {
 		t.Fatalf("structural prefix leaked: %+v %v", outcome, err)
 	}
-	_, err = p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `$missing`), nil, InputEnvironment{}, OutputEnvironment{})
+	_, err = p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `$missing`), nil, JSONPathEnvironment{}, OutputEnvironment{})
 	if diagnostic, ok := err.(*sqlstate.Error); !ok || diagnostic.Code != "42704" {
 		t.Fatalf("ordinary variable error: %v", err)
 	}
-	_, err = p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `$.double()`), nil, InputEnvironment{}, OutputEnvironment{})
+	_, err = p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `$.double()`), nil, JSONPathEnvironment{}, OutputEnvironment{})
 	if diagnostic, ok := err.(*sqlstate.Error); !ok || diagnostic.Code != "0A000" {
 		t.Fatalf("unsupported error: %v", err)
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	_, err = p.Evaluate(canceled, Null(types[JSONB]), Null(types[JSONPath]), nil, InputEnvironment{}, OutputEnvironment{})
+	_, err = p.Evaluate(canceled, Null(types[JSONB]), Null(types[JSONPath]), nil, JSONPathEnvironment{}, OutputEnvironment{})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	p = bind("json_value", "", Int4, []Usage{types[Int4].Usage(), types[Int4].Usage()}, []string{"x", "x"})
 	first := jsonbSetUnitInput(t, types[Int4], "1")
 	second := jsonbSetUnitInput(t, types[Int4], "2")
-	outcome, err = p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `$x`), []Value{first, second}, InputEnvironment{}, OutputEnvironment{})
+	outcome, err = p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `$x`), []Value{first, second}, JSONPathEnvironment{}, OutputEnvironment{})
 	if err != nil || outcome.Error != nil || outcome.Value.integer != 1 {
 		t.Fatal(outcome, err)
 	}
 	// Descriptor identity, rather than equal type IDs, owns executable inputs.
 	foreign := testTypes()
-	_, err = p.Evaluate(ctx, Null(foreign[JSONB]), Null(types[JSONPath]), []Value{first, second}, InputEnvironment{}, OutputEnvironment{})
+	_, err = p.Evaluate(ctx, Null(foreign[JSONB]), Null(types[JSONPath]), []Value{first, second}, JSONPathEnvironment{}, OutputEnvironment{})
 	if err == nil {
 		t.Fatal("foreign document accepted")
 	}
@@ -95,7 +95,7 @@ func TestSQLJSONMarkedInputConversion(t *testing.T) {
 				t.Fatal(err)
 			}
 			document := jsonbSetUnitInput(t, types[JSONB], tc.document)
-			outcome, err := plan.Evaluate(ctx, document, path, nil, InputEnvironment{}, OutputEnvironment{})
+			outcome, err := plan.Evaluate(ctx, document, path, nil, JSONPathEnvironment{}, OutputEnvironment{})
 			cause := err
 			if tc.caught {
 				if err != nil || outcome.Error == nil {

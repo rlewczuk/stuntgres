@@ -64,7 +64,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 		for _, slot := range []int{1, 3} {
 			foreign := values
 			foreign[slot] = sqltype.Null(d[ids[slot]])
-			if _, err := got.Plan.Evaluate(ctx.Context, foreign[:]); err == nil {
+			if _, err := got.Plan.Evaluate(ctx.Context, foreign[:], sqltype.JSONPathEnvironment{}); err == nil {
 				t.Fatal("foreign value accepted before strict NULL", slot)
 			}
 		}
@@ -123,7 +123,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 		for _, slot := range []int{1, 3} {
 			foreign := values
 			foreign[slot] = sqltype.Null(d[ids[slot]])
-			if _, err := got.Plan.Evaluate(ctx.Context, foreign[:]); err == nil {
+			if _, err := got.Plan.Evaluate(ctx.Context, foreign[:], sqltype.JSONPathEnvironment{}); err == nil {
 				t.Fatal("foreign value accepted before strict NULL", slot)
 			}
 		}
@@ -182,7 +182,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 		for _, slot := range []int{1, 3} {
 			foreign := values
 			foreign[slot] = sqltype.Null(d[ids[slot]])
-			if _, err := got.Plan.Evaluate(ctx.Context, foreign[:]); err == nil {
+			if _, err := got.Plan.Evaluate(ctx.Context, foreign[:], sqltype.JSONPathEnvironment{}); err == nil {
 				t.Fatal("foreign value accepted before strict NULL", slot)
 			}
 		}
@@ -241,7 +241,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 		for _, slot := range []int{1, 3} {
 			foreign := values
 			foreign[slot] = sqltype.Null(d[ids[slot]])
-			if _, err := got.Plan.Evaluate(ctx.Context, foreign[:]); err == nil {
+			if _, err := got.Plan.Evaluate(ctx.Context, foreign[:], sqltype.JSONPathEnvironment{}); err == nil {
 				t.Fatal("foreign value accepted before strict NULL", slot)
 			}
 		}

@@ -218,6 +218,20 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   operands materialize before emission. Invocation-local results and only
   operation-origin numeric failures use the walker's existing consumer and
   suppressible-error channels; input errors and cancellation retain identity.
+  Temporal methods share the formatting compiler and field reader with explicit
+  SQL versus JSONPath compiler modes. Strict compilation validates unquoted
+  separators while preserving quoted literals. Compiler failures return through
+  the ordinary path-execution error channel, before SQL/JSON result conversion;
+  valid-template input mismatches retain their recoverable reader channel.
+  Destination conversion retains its existing SQL/JSON diagnostic-class policy,
+  independently of source input-soft annotations. Ordinary SQL formatting stays
+  permissive, and temporal input diagnostics retain the raw decoded string.
+  Invocation-owned typed items retain parsed timestamp offsets until JSON
+  materialization, without changing typed PASSING serialization. Path consumers
+  take an execution-owned `JSONPathEnvironment` for captured input and notices;
+  ordinary JSONB paths prohibit zone-dependent promotion while SQL/JSON retains
+  its own enabled policy. Private temporal headers never become result metadata
+  or persistent JSONB node kinds.
 - Unicode tables come from `unicode16/`; there is no ICU, cgo or host-Go
   Unicode dependency.
 - `RegexpPlan` evaluation shares the statement-local `PGRegexExecution` (no

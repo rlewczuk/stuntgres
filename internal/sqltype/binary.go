@@ -296,8 +296,6 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return p.jsonbContainment(ctx, values[0], values[1])
 	case "?", "?|", "?&":
 		return p.jsonbExistence(ctx, values[0], values[1])
-	case "@?", "@@":
-		return p.jsonbPathOperator(ctx, values[0], values[1])
 	case "#-":
 		return p.jsonbPathDelete(ctx, values[0], values[1])
 	case "-":

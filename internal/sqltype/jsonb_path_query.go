@@ -57,7 +57,13 @@ func BindJSONBPathQuery(result Usage, args ...Usage) (JSONBPathQueryPlan, error)
 // The evaluator only reads vars; this empty payload is shared immutably.
 var jsonbPathOperatorVars = jsonbPayload{root: jsonbNode{kind: jsonbObject}}
 
-func (p BinaryPlan) jsonbPathOperator(ctx context.Context, document, path Value) (Value, error) {
+// EvaluateJSONPath executes the ordinary @?/@@ policy with invocation-owned
+// input and warnings. Other BinaryPlan operations use Evaluate.
+func (p BinaryPlan) EvaluateJSONPath(ctx context.Context, operands []Value, env JSONPathEnvironment) (Value, error) {
+	if len(operands) != 2 || (p.name != "@?" && p.name != "@@") {
+		return Value{}, fmt.Errorf("invalid JSONPath operator operands")
+	}
+	document, path := operands[0], operands[1]
 	consumer := jsonbPathConsumer{result: p.result, args: p.args}
 	values := [4]Value{
 		document, path,
@@ -65,9 +71,9 @@ func (p BinaryPlan) jsonbPathOperator(ctx context.Context, document, path Value)
 		Boolean(p.args[3].Type, true),
 	}
 	if p.name == "@?" {
-		return (JSONBPathExistsPlan{consumer}).Evaluate(ctx, values[:])
+		return (JSONBPathExistsPlan{consumer}).Evaluate(ctx, values[:], env)
 	}
-	return (JSONBPathMatchPlan{consumer}).Evaluate(ctx, values[:])
+	return (JSONBPathMatchPlan{consumer}).Evaluate(ctx, values[:], env)
 }
 
 func (p jsonbPathConsumer) validate(ctx context.Context, values []Value) (bool, error) {
@@ -104,7 +110,7 @@ func (p jsonbPathConsumer) output(ctx context.Context, n *jsonbNode) (Value, err
 	return Value{typ: p.result.Type, text: text, jsonb: &jsonbPayload{root: *n}}, nil
 }
 
-func (p JSONBPathExistsPlan) Evaluate(ctx context.Context, values []Value) (Value, error) {
+func (p JSONBPathExistsPlan) Evaluate(ctx context.Context, values []Value, env JSONPathEnvironment) (Value, error) {
 	null, err := p.validate(ctx, values)
 	if err != nil {
 		return Value{}, err
@@ -113,7 +119,7 @@ func (p JSONBPathExistsPlan) Evaluate(ctx context.Context, values []Value) (Valu
 		return Null(p.result.Type), nil
 	}
 	found := false
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(jsonpathItem) (bool, error) {
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], env, func(jsonpathItem) (bool, error) {
 		found = true
 		// Strict existence must demand the tail, including ordinary errors.
 		return values[1].jsonpath.strict, ctx.Err()
@@ -130,7 +136,7 @@ func (p JSONBPathExistsPlan) Evaluate(ctx context.Context, values []Value) (Valu
 	return Boolean(p.result.Type, found), nil
 }
 
-func (p JSONBPathMatchPlan) Evaluate(ctx context.Context, values []Value) (Value, error) {
+func (p JSONBPathMatchPlan) Evaluate(ctx context.Context, values []Value, env JSONPathEnvironment) (Value, error) {
 	null, err := p.validate(ctx, values)
 	if err != nil {
 		return Value{}, err
@@ -138,11 +144,11 @@ func (p JSONBPathMatchPlan) Evaluate(ctx context.Context, values []Value) (Value
 	if null {
 		return Null(p.result.Type), nil
 	}
-	var first *jsonbNode
+	var first jsonpathItem
 	count := 0
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n jsonpathItem) (bool, error) {
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], env, func(n jsonpathItem) (bool, error) {
 		if count == 0 {
-			first = n.jsonbNode
+			first = n
 		}
 		if count < 2 {
 			count++
@@ -157,10 +163,10 @@ func (p JSONBPathMatchPlan) Evaluate(ctx context.Context, values []Value) (Value
 	}
 	// A silent structural stop still leaves a meaningful singleton bool prefix.
 	if count == 1 {
-		if first.kind == jsonbBoolean {
+		if first.itemKind() == jsonbBoolean {
 			return Boolean(p.result.Type, first.boolean), nil
 		}
-		if first.kind == jsonbNull {
+		if first.itemKind() == jsonbNull {
 			return Null(p.result.Type), nil
 		}
 	}
@@ -170,7 +176,7 @@ func (p JSONBPathMatchPlan) Evaluate(ctx context.Context, values []Value) (Value
 	return Value{}, failure("22038", "single boolean result is expected")
 }
 
-func (p JSONBPathQueryFirstPlan) Evaluate(ctx context.Context, values []Value) (Value, error) {
+func (p JSONBPathQueryFirstPlan) Evaluate(ctx context.Context, values []Value, env JSONPathEnvironment) (Value, error) {
 	null, err := p.validate(ctx, values)
 	if err != nil {
 		return Value{}, err
@@ -178,10 +184,11 @@ func (p JSONBPathQueryFirstPlan) Evaluate(ctx context.Context, values []Value) (
 	if null {
 		return Null(p.result.Type), nil
 	}
-	var first *jsonbNode
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n jsonpathItem) (bool, error) {
-		if first == nil {
-			first = n.jsonbNode
+	var first jsonpathItem
+	found := false
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], env, func(n jsonpathItem) (bool, error) {
+		if !found {
+			first, found = n, true
 		}
 		// First selects one item, but never truncates demanded traversal.
 		return true, ctx.Err()
@@ -192,17 +199,28 @@ func (p JSONBPathQueryFirstPlan) Evaluate(ctx context.Context, values []Value) (
 	if status.kind == jsonpathSuppressibleStop && !values[3].boolean {
 		return Value{}, status.diagnostic
 	}
-	return p.output(ctx, first)
+	if !found {
+		return Null(p.result.Type), nil
+	}
+	node, err := sqlJSONMaterialize(first)
+	if err != nil {
+		return Value{}, err
+	}
+	return p.output(ctx, node)
 }
 
-func (p JSONBPathQueryPlan) Evaluate(ctx context.Context, values []Value) ([]Value, error) {
+func (p JSONBPathQueryPlan) Evaluate(ctx context.Context, values []Value, env JSONPathEnvironment) ([]Value, error) {
 	null, err := p.validate(ctx, values)
 	if err != nil || null {
 		return nil, err
 	}
 	var result []Value
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n jsonpathItem) (bool, error) {
-		v, err := p.output(ctx, n.jsonbNode)
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], env, func(n jsonpathItem) (bool, error) {
+		node, err := sqlJSONMaterialize(n)
+		if err != nil {
+			return false, err
+		}
+		v, err := p.output(ctx, node)
 		if err != nil {
 			return false, err
 		}

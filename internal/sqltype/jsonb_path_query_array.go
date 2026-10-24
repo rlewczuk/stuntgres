@@ -29,7 +29,7 @@ func BindJSONBPathQueryArray(result Usage, args ...Usage) (JSONBPathQueryArrayPl
 	return p, nil
 }
 
-func (p JSONBPathQueryArrayPlan) Evaluate(ctx context.Context, values []Value) (Value, error) {
+func (p JSONBPathQueryArrayPlan) Evaluate(ctx context.Context, values []Value, env JSONPathEnvironment) (Value, error) {
 	if p.result.Type == nil || len(values) != 4 {
 		return Value{}, fmt.Errorf("invalid JSONPath array values")
 	}
@@ -50,8 +50,12 @@ func (p JSONBPathQueryArrayPlan) Evaluate(ctx context.Context, values []Value) (
 		return Value{}, fmt.Errorf("missing JSONPath array payload")
 	}
 	root := jsonbNode{kind: jsonbArray}
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(n jsonpathItem) (bool, error) {
-		root.items = append(root.items, *n.jsonbNode)
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], env, func(n jsonpathItem) (bool, error) {
+		node, err := sqlJSONMaterialize(n)
+		if err != nil {
+			return false, err
+		}
+		root.items = append(root.items, *node)
 		return true, ctx.Err()
 	})
 	if err != nil {

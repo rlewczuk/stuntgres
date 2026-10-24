@@ -30,7 +30,9 @@ func jsonpathStructure(code, message string) error {
 // temporal datum. Temporal items never become persistent JSONB node kinds.
 type jsonpathItem struct {
 	*jsonbNode
-	temporal *Value
+	temporal          *Value
+	offsetSecondsWest int32
+	hasOffset         bool
 }
 
 func (v jsonpathItem) itemKind() jsonbKind {
@@ -62,11 +64,19 @@ type jsonpathExecutor struct {
 	nextOrigin uint64
 	bindings   []jsonpathBinding
 	input      InputEnvironment
+	notice     func(sqlstate.Error)
+	timezone   bool
+}
+
+// JSONPathEnvironment belongs to one execution, never a held plan or AST.
+type JSONPathEnvironment struct {
+	Input  InputEnvironment
+	Notice func(sqlstate.Error)
 }
 
 // The executor owns neither its inputs nor a result collection. Consumer stop
 // and structural stop are distinct, and neither discards previously emitted items.
-func executeJSONPath(ctx context.Context, document, path, variables Value, emit func(jsonpathItem) (bool, error)) (jsonpathExecStatus, error) {
+func executeJSONPath(ctx context.Context, document, path, variables Value, env JSONPathEnvironment, emit func(jsonpathItem) (bool, error)) (jsonpathExecStatus, error) {
 	if document.jsonb == nil || path.jsonpath == nil || path.jsonpath.root == nil || variables.jsonb == nil {
 		return jsonpathExecStatus{}, fmt.Errorf("missing JSONPath executor payload")
 	}
@@ -76,7 +86,7 @@ func executeJSONPath(ctx context.Context, document, path, variables Value, emit 
 	if variables.jsonb.root.kind != jsonbObject {
 		return jsonpathExecStatus{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: `"vars" argument is not an object`, Detail: `Jsonpath parameters should be encoded as key-value pairs of "vars" object.`}
 	}
-	e := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, vars: &variables.jsonb.root, strict: path.jsonpath.strict}
+	e := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, vars: &variables.jsonb.root, strict: path.jsonpath.strict, input: env.Input, notice: env.Notice}
 	return e.execute(path, emit)
 }
 
@@ -221,7 +231,7 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input jsonpathItem, scope js
 			continue
 		}
 		// Only the first level is automatically unwrapped by each relevant operation.
-		if !e.strict && w.unwrap && v.itemKind() == jsonbArray && (n.kind == "key" || n.kind == "anykey" || n.kind == "filter" || n.kind == "method" && (n.text == "boolean" || n.text == "string" || n.text == "keyvalue")) {
+		if !e.strict && w.unwrap && v.itemKind() == jsonbArray && (n.kind == "key" || n.kind == "anykey" || n.kind == "filter" || n.kind == "method" && (n.text == "boolean" || n.text == "string" || n.text == "keyvalue" || jsonpathDatetimeMethod(n.text))) {
 			stack = append(stack, jsonpathWork{path: n, node: v, scope: s, children: true})
 			continue
 		}
@@ -333,8 +343,39 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input jsonpathItem, scope js
 				push(n.next, v, s)
 			}
 		case "method":
+			if jsonpathDatetimeMethod(n.text) {
+				result, err := e.datetimeMethod(n, v)
+				if err != nil {
+					return false, err
+				}
+				push(n.next, result, s)
+				break
+			}
 			if v.temporal != nil {
-				return false, failure("0A000", "stuntgres: JSONPath scalar methods on temporal items are unsupported")
+				switch n.text {
+				case "type":
+					label := ""
+					switch v.temporal.typ.id {
+					case Date:
+						label = "date"
+					case Time:
+						label = "time without time zone"
+					case Timetz:
+						label = "time with time zone"
+					case Timestamp:
+						label = "timestamp without time zone"
+					case Timestamptz:
+						label = "timestamp with time zone"
+					}
+					push(n.next, jsonpathItem{jsonbNode: &jsonbNode{kind: jsonbString, text: label}}, s)
+					continue
+				case "string":
+					push(n.next, jsonpathItem{jsonbNode: &jsonbNode{kind: jsonbString, text: jsonpathTemporalText(v)}}, s)
+					continue
+				}
+				// Retain method-specific wrong-kind errors without dereferencing
+				// the absent JSON node of a typed item.
+				v = jsonpathItem{jsonbNode: &jsonbNode{kind: jsonbKind(255)}}
 			}
 			if n.text == "keyvalue" {
 				if v.itemKind() != jsonbObject {

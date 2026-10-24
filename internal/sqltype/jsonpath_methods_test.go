@@ -14,7 +14,7 @@ func TestJSONPathMethodsRetainedNodes(t *testing.T) {
 		t.Fatal(err)
 	}
 	var nodes []*jsonbNode
-	_, err = executeJSONPath(context.Background(), values[0], values[1], values[2], func(n jsonpathItem) (bool, error) { nodes = append(nodes, n.jsonbNode); return true, nil })
+	_, err = executeJSONPath(context.Background(), values[0], values[1], values[2], JSONPathEnvironment{}, func(n jsonpathItem) (bool, error) { nodes = append(nodes, n.jsonbNode); return true, nil })
 	if err != nil || len(nodes) != 3 {
 		t.Fatal(len(nodes), err)
 	}
@@ -32,7 +32,7 @@ func TestJSONPathMethodsRetainedNodes(t *testing.T) {
 	}
 	p := navigatePlan(t, types)
 	for range 10 {
-		if _, err := p.Evaluate(context.Background(), values); err != nil {
+		if _, err := p.Evaluate(context.Background(), values, JSONPathEnvironment{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -59,7 +59,7 @@ func TestJSONPathMethodsIsolation(t *testing.T) {
 		wg.Go(func() {
 			for range 25 {
 				var nodes []*jsonbNode
-				_, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(n jsonpathItem) (bool, error) { nodes = append(nodes, n.jsonbNode); return true, nil })
+				_, err := executeJSONPath(context.Background(), values[0], values[1], values[2], JSONPathEnvironment{}, func(n jsonpathItem) (bool, error) { nodes = append(nodes, n.jsonbNode); return true, nil })
 				if err != nil || len(nodes) != 6 {
 					t.Errorf("execution: %d %v", len(nodes), err)
 					return
@@ -80,7 +80,7 @@ func TestJSONPathMethodsIsolation(t *testing.T) {
 					t.Errorf("identity classes: %v", ids)
 					return
 				}
-				v, err := p.Evaluate(context.Background(), values)
+				v, err := p.Evaluate(context.Background(), values, JSONPathEnvironment{})
 				if err != nil || v.jsonb == nil {
 					t.Error("plan execution", err)
 					return

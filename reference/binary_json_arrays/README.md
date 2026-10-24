@@ -98,6 +98,7 @@ Add `REFERENCE=1` for the oracle.
 - `jsonb_path_query_array` and path navigation: `RUN='^TestReferenceJSONPathNavigate'`
 - `jsonb_path_exists`/`match`/`query`/`query_first`: `RUN='^TestReferenceJSONPathQuery'`
 - JSONPath item methods: `RUN='^TestReferenceJSONPathMethods'`
+- JSONPath temporal methods: `RUN='^TestReferenceJSONPathDatetime'`
 - JSONPath arithmetic: `RUN='^TestReferenceJSONPathArithmetic'`
 - SQL/JSON constructors, `IS JSON`, `JSON_SERIALIZE` (also selects `SQLJSONQuery`): `RUN='^TestReferenceSQLJSON'`
 - <a id="sqljson-query-functions"></a>`JSON_EXISTS`, `JSON_QUERY`, `JSON_VALUE`: `RUN='^TestReferenceSQLJSONQuery'`

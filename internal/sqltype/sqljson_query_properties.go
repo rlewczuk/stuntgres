@@ -32,6 +32,20 @@ func SQLJSONPathMutable(path Value, names []string, usages []Usage) bool {
 			}
 		case "@":
 			category = current
+		case "method":
+			if jsonpathDatetimeMethod(n.text) {
+				// Parsing methods carry session-dependent interpretation even
+				// when this invocation happens to yield an unzoned date.
+				mutable = true
+				switch n.text {
+				case "time_tz", "timestamp_tz":
+					category = 2
+				case "datetime":
+					category = 3
+				default:
+					category = 1
+				}
+			}
 		case "filter":
 			// The predicate sees this candidate as @; the result remains
 			// the candidate, and nested predicates cannot overwrite outer @.
@@ -50,10 +64,10 @@ func SQLJSONPathMutable(path Value, names []string, usages []Usage) bool {
 		if n.kind != "filter" {
 			left, lm := walk(n.left, 0, current)
 			right, rm := walk(n.right, 0, current)
-			mutable = lm || rm
+			mutable = mutable || lm || rm
 			switch n.kind {
 			case "==", "!=", "<", ">", "<=", ">=":
-				mutable = mutable || left != 0 && right != 0 && left != right
+				mutable = mutable || left != 0 && right != 0 && (left&1 != 0 && right&2 != 0 || left&2 != 0 && right&1 != 0)
 			}
 		}
 		for _, arg := range n.args {

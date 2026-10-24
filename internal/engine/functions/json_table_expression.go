@@ -133,7 +133,7 @@ func (e JSONTable) OpenSource(c expr.Context) (expr.SourceCursor, error) {
 		if err != nil {
 			return nil, err
 		}
-		return invocation.Select(ctx, parent, path, e.Raw.Error.Kind == "error", c.FunctionInput())
+		return invocation.Select(ctx, parent, path, e.Raw.Error.Kind == "error", jsonpathEnvironment(c))
 	}
 	var expandSelected func(*JSONTableLevel, []sqltype.Value) (bool, error)
 	expandSelected = func(level *JSONTableLevel, matches []sqltype.Value) (bool, error) {

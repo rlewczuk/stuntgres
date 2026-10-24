@@ -95,7 +95,7 @@ func (e SQLJSONQuery) evalDocument(ctx context.Context, c expr.Context, document
 			return sqltype.Value{}, err
 		}
 	}
-	outcome, err := e.Plan.Evaluate(ctx, document, path, values, c.FunctionInput(), c.FunctionOutput())
+	outcome, err := e.Plan.Evaluate(ctx, document, path, values, jsonpathEnvironment(c), c.FunctionOutput())
 	if err != nil {
 		return sqltype.Value{}, err
 	}

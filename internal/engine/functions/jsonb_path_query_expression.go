@@ -3,8 +3,17 @@ package functions
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
+
+func jsonpathEnvironment(c expr.Context) sqltype.JSONPathEnvironment {
+	env := sqltype.JSONPathEnvironment{Input: c.FunctionInput()}
+	if sink, ok := any(c).(interface{ FunctionJSONPathNotice(sqlstate.Error) }); ok {
+		env.Notice = sink.FunctionJSONPathNotice
+	}
+	return env
+}
 
 // jsonbPathArguments evaluates supplied children once in written order, then
 // the genuine omitted defaults. Strictness belongs to the typed consumer.
@@ -52,7 +61,7 @@ func (e JSONBPathExists) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.Plan.Evaluate(ctx, values[:])
+	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
 }
 func (e JSONBPathExists) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathExists, error) {
 	var usages [4]sqltype.Usage
@@ -100,7 +109,7 @@ func (e JSONBPathMatch) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.Plan.Evaluate(ctx, values[:])
+	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
 }
 func (e JSONBPathMatch) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathMatch, error) {
 	var usages [4]sqltype.Usage
@@ -148,7 +157,7 @@ func (e JSONBPathQueryFirst) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.Plan.Evaluate(ctx, values[:])
+	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
 }
 func (e JSONBPathQueryFirst) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathQueryFirst, error) {
 	var usages [4]sqltype.Usage
@@ -196,7 +205,7 @@ func (e JSONBPathQuery) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	return e.Plan.Evaluate(ctx, values[:])
+	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
 }
 func (e JSONBPathQuery) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathQuery, error) {
 	var usages [4]sqltype.Usage

@@ -17,6 +17,11 @@ the authority behind evaluation capabilities in the root
 - It reaches the engine only through `Binder` at bind time and through
   `expr.Context` plus the capability interfaces asserted from it at evaluation
   time. `expr.Context` does not grow per family.
+  JSONPath functions, operators and SQL/JSON consumers pass the current captured
+  input through `JSONPathEnvironment`. Precision warnings borrow the current
+  statement's `FunctionJSONPathNotice` capability; neither plans nor parsed paths
+  retain a session, notice sink or execution scratch. Ordinary path operators
+  use the explicit environment-bearing `BinaryPlan.EvaluateJSONPath` entry point.
 - `expr` owns `RoutineReference`, `RoutineRecipeReference`, `RandomOwner`,
   `IntrinsicPropertyRule` and the `RoutineProvider` representation;
   `routine_provider.go` aliases the type (so catalog declarations need not

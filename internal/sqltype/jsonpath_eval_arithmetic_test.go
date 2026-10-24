@@ -30,7 +30,7 @@ func TestJSONPathArithmeticValues(t *testing.T) {
 		values := navigateValues(t, types, tc.doc, tc.path, `{}`, false)
 		var got jsonbDecimal
 		count := 0
-		status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(item jsonpathItem) (bool, error) {
+		status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], JSONPathEnvironment{}, func(item jsonpathItem) (bool, error) {
 			count++
 			if item.itemKind() != jsonbNumber {
 				t.Fatal("nonnumeric arithmetic result")
@@ -49,7 +49,7 @@ func TestJSONPathArithmeticOperands(t *testing.T) {
 	types := testTypes()
 	values := navigateValues(t, types, `[1.20,-2.00]`, `+$`, `{}`, false)
 	index := 0
-	status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(item jsonpathItem) (bool, error) {
+	status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], JSONPathEnvironment{}, func(item jsonpathItem) (bool, error) {
 		if item.jsonbNode != &values[0].jsonb.root.items[index] {
 			t.Fatal("unary plus copied numeric input")
 		}
@@ -98,7 +98,7 @@ func TestJSONPathArithmeticDemand(t *testing.T) {
 	} {
 		values := navigateValues(t, types, tc.doc, tc.path, `{}`, true)
 		count := 0
-		status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(jsonpathItem) (bool, error) { count++; return true, nil })
+		status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], JSONPathEnvironment{}, func(jsonpathItem) (bool, error) { count++; return true, nil })
 		diagnosticErr := err
 		if tc.structural {
 			if err != nil || status.kind != jsonpathSuppressibleStop {
@@ -114,12 +114,12 @@ func TestJSONPathArithmeticDemand(t *testing.T) {
 	// A consumer stop or ordinary continuation failure must propagate without
 	// processing the next unary item or converting it into a silent stop.
 	values := navigateValues(t, types, `[1,"x"]`, `-$`, `{}`, true)
-	status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], func(jsonpathItem) (bool, error) { return false, nil })
+	status, err := executeJSONPath(context.Background(), values[0], values[1], values[2], JSONPathEnvironment{}, func(jsonpathItem) (bool, error) { return false, nil })
 	if err != nil || status.kind != jsonpathConsumerStop {
 		t.Fatal(status, err)
 	}
 	consumerErr := errors.New("consumer failure")
-	status, err = executeJSONPath(context.Background(), values[0], values[1], values[2], func(jsonpathItem) (bool, error) { return true, consumerErr })
+	status, err = executeJSONPath(context.Background(), values[0], values[1], values[2], JSONPathEnvironment{}, func(jsonpathItem) (bool, error) { return true, consumerErr })
 	if !errors.Is(err, consumerErr) || status.kind == jsonpathSuppressibleStop {
 		t.Fatal(status, err)
 	}
@@ -136,7 +136,7 @@ func TestJSONPathArithmeticStateIsolation(t *testing.T) {
 	for range 12 {
 		workers.Go(func() {
 			for range 25 {
-				v, err := plan.Evaluate(context.Background(), values)
+				v, err := plan.Evaluate(context.Background(), values, JSONPathEnvironment{})
 				if err != nil || v.text != `[1.20, 2.30]` {
 					t.Errorf("arithmetic state leak: %s %v", v.text, err)
 					return
@@ -160,17 +160,17 @@ func TestJSONPathArithmeticCancellation(t *testing.T) {
 	for _, path := range []string{`+$`, `-$`, `$[*]?(@ * @ > 0)`, `$[*] + 1`} {
 		values := navigateValues(t, types, `[`+strings.Repeat(`1,`, 511)+`1]`, path, `{}`, true)
 		ctx := &groupingCancelContext{Context: context.Background(), at: 100}
-		if _, err := plan.Evaluate(ctx, values); !errors.Is(err, context.Canceled) {
+		if _, err := plan.Evaluate(ctx, values, JSONPathEnvironment{}); !errors.Is(err, context.Canceled) {
 			t.Fatal(path, err)
 		}
 	}
 	values := navigateValues(t, types, `[1,2]`, `-$`, `{}`, true)
 	ctx, cancel := context.WithCancel(context.Background())
-	status, err := executeJSONPath(ctx, values[0], values[1], values[2], func(jsonpathItem) (bool, error) { cancel(); return true, nil })
+	status, err := executeJSONPath(ctx, values[0], values[1], values[2], JSONPathEnvironment{}, func(jsonpathItem) (bool, error) { cancel(); return true, nil })
 	if !errors.Is(err, context.Canceled) || status.kind == jsonpathSuppressibleStop {
 		t.Fatal("cancellation was suppressed", status, err)
 	}
-	if v, err := plan.Evaluate(context.Background(), values); err != nil || v.text != `[-1, -2]` {
+	if v, err := plan.Evaluate(context.Background(), values, JSONPathEnvironment{}); err != nil || v.text != `[-1, -2]` {
 		t.Fatal("cancellation leaked into next execution", v.text, err)
 	}
 }

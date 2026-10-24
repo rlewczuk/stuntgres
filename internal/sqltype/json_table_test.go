@@ -20,15 +20,15 @@ func TestJSONTablePlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	document := input(JSONB, `[{"x":1},{}]`)
-	rows, err := invocation.Select(ctx, document, input(JSONPath, `strict $[*].x`), false, InputEnvironment{})
+	rows, err := invocation.Select(ctx, document, input(JSONPath, `strict $[*].x`), false, JSONPathEnvironment{})
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("suppressed prefix: %v %v", rows, err)
 	}
-	_, err = invocation.Select(ctx, document, input(JSONPath, `strict $[*].x`), true, InputEnvironment{})
+	_, err = invocation.Select(ctx, document, input(JSONPath, `strict $[*].x`), true, JSONPathEnvironment{})
 	if d, ok := err.(*sqlstate.Error); !ok || d.Code != "2203A" {
 		t.Fatalf("strict failure: %v", err)
 	}
-	rows, err = invocation.Select(ctx, document, input(JSONPath, `$x`), false, InputEnvironment{})
+	rows, err = invocation.Select(ctx, document, input(JSONPath, `$x`), false, JSONPathEnvironment{})
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("typed binding: %v %v", rows, err)
 	}
@@ -38,7 +38,7 @@ func TestJSONTablePlan(t *testing.T) {
 	}
 	// Selected row values obey the ordinary JSONB codec contract, not only
 	// the downstream column evaluator's tree-payload contract.
-	rows, err = invocation.Select(ctx, document, input(JSONPath, `$[*]`), false, InputEnvironment{})
+	rows, err = invocation.Select(ctx, document, input(JSONPath, `$[*]`), false, JSONPathEnvironment{})
 	if err != nil || len(rows) != 2 {
 		t.Fatalf("row payloads: %v %v", rows, err)
 	}
@@ -48,18 +48,18 @@ func TestJSONTablePlan(t *testing.T) {
 			t.Fatalf("row %d output: %q %v; want %q", i, text, err, want)
 		}
 	}
-	_, err = invocation.Select(ctx, document, input(JSONPath, `$missing`), false, InputEnvironment{})
+	_, err = invocation.Select(ctx, document, input(JSONPath, `$missing`), false, JSONPathEnvironment{})
 	if d, ok := err.(*sqlstate.Error); !ok || d.Code != "42704" {
 		t.Fatalf("hard missing variable: %v", err)
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	_, err = invocation.Select(canceled, Null(types[JSONB]), input(JSONPath, `$`), false, InputEnvironment{})
+	_, err = invocation.Select(canceled, Null(types[JSONB]), input(JSONPath, `$`), false, JSONPathEnvironment{})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	foreign := testTypes()
-	if _, err = invocation.Select(ctx, Null(foreign[JSONB]), input(JSONPath, `$`), false, InputEnvironment{}); err == nil {
+	if _, err = invocation.Select(ctx, Null(foreign[JSONB]), input(JSONPath, `$`), false, JSONPathEnvironment{}); err == nil {
 		t.Fatal("foreign owner accepted")
 	}
 	for _, id := range []ID{Int4, Text, Int2, Int8} {
@@ -68,7 +68,7 @@ func TestJSONTablePlan(t *testing.T) {
 			t.Fatal(err)
 		}
 		column = column.TableColumn("exists_column", types[id].Usage())
-		outcome, err := column.Evaluate(ctx, document, input(JSONPath, `$`), nil, InputEnvironment{}, OutputEnvironment{})
+		outcome, err := column.Evaluate(ctx, document, input(JSONPath, `$`), nil, JSONPathEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}

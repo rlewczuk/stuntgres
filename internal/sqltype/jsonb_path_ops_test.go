@@ -28,17 +28,17 @@ func TestJSONBPathOpsSignatures(t *testing.T) {
 			}
 			values := navigateValues(t, d, `true`, `$`, `{}`, true)[:2]
 			values[slot] = Null(foreign[args[slot].Type.ID()])
-			if _, err := p.Evaluate(context.Background(), values...); err == nil {
+			if _, err := p.EvaluateJSONPath(context.Background(), values, JSONPathEnvironment{}); err == nil {
 				t.Fatal("foreign value accepted", slot)
 			}
 		}
 		values := []Value{Null(d[JSONB]), Null(d[JSONPath])}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if _, err := p.Evaluate(ctx, values...); !errors.Is(err, context.Canceled) {
+		if _, err := p.EvaluateJSONPath(ctx, values, JSONPathEnvironment{}); !errors.Is(err, context.Canceled) {
 			t.Fatal("context before NULL", err)
 		}
-		v, err := p.Evaluate(context.Background(), values...)
+		v, err := p.EvaluateJSONPath(context.Background(), values, JSONPathEnvironment{})
 		if err != nil || !v.null || v.typ != d[Bool] {
 			t.Fatal("typed NULL", v, err)
 		}
@@ -69,7 +69,7 @@ func TestJSONBPathOpsConsumers(t *testing.T) {
 			go func() {
 				defer workers.Done()
 				for _, values := range inputs {
-					got, gotErr := p.Evaluate(ctx, values[:2]...)
+					got, gotErr := p.EvaluateJSONPath(ctx, values[:2], JSONPathEnvironment{})
 					var want Value
 					var wantErr error
 					if name == "@?" {
@@ -78,14 +78,14 @@ func TestJSONBPathOpsConsumers(t *testing.T) {
 							t.Error(err)
 							return
 						}
-						want, wantErr = plan.Evaluate(ctx, values)
+						want, wantErr = plan.Evaluate(ctx, values, JSONPathEnvironment{})
 					} else {
 						plan, err := BindJSONBPathMatch(d[Bool].Usage(), p.args[:]...)
 						if err != nil {
 							t.Error(err)
 							return
 						}
-						want, wantErr = plan.Evaluate(ctx, values)
+						want, wantErr = plan.Evaluate(ctx, values, JSONPathEnvironment{})
 					}
 					if (gotErr == nil) != (wantErr == nil) || gotErr != nil && gotErr.Error() != wantErr.Error() || gotErr == nil && (got.typ != want.typ || got.null != want.null || got.boolean != want.boolean) {
 						t.Errorf("adapter diverged from completed consumer: %v/%v, %v/%v", got, gotErr, want, wantErr)

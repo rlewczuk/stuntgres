@@ -131,7 +131,7 @@ func TestDatetimeFormatDiagnosticsAndCancellation(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := compileDatetime(canceled, strings.Repeat("YYYY", 1024)); !errors.Is(err, context.Canceled) {
+	if _, err := compileDatetime(canceled, strings.Repeat("YYYY", 1024), datetimeSQLFormat); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	template := "YYYY"

@@ -404,6 +404,13 @@ func (c *Context) FunctionPgcryptoNotice(notice sqlstate.Error) {
 	}
 }
 
+// FunctionJSONPathNotice borrows the current execution, not a prepared owner.
+func (c *Context) FunctionJSONPathNotice(notice sqlstate.Error) {
+	if host, ok := c.LiveHost().(interface{ JSONPathNotice(sqlstate.Error) }); ok {
+		host.JSONPathNotice(notice)
+	}
+}
+
 func (c *Context) FunctionRandomOwner() (expr.RandomOwner, error) {
 	host := c.LiveHost()
 	if host == nil {

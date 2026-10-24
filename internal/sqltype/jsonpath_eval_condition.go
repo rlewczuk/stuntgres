@@ -176,7 +176,7 @@ func (e *jsonpathExecutor) pair(op string, a, b jsonpathItem) (jsonpathTruth, er
 		if a.temporal == nil || b.temporal == nil {
 			return jsonpathUnknown, nil
 		}
-		c, comparable, err := compareSQLJSONTemporal(e.ctx, *a.temporal, *b.temporal, e.input)
+		c, comparable, err := e.temporalCompare(*a.temporal, *b.temporal)
 		if err != nil || !comparable {
 			return jsonpathUnknown, err
 		}

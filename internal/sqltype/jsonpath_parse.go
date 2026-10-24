@@ -435,7 +435,12 @@ func (p *jsonpathParser) method(name string) *jsonpathNode {
 	case "time", "time_tz", "timestamp", "timestamp_tz":
 		if p.tok.kind != ")" {
 			if p.tok.kind != "int" {
-				p.syntax()
+				// NULL's reserved-token diagnostic carries no numeric lexeme.
+				if p.tok.kind == "null" {
+					p.err = jsonpathSyntax("syntax error", "")
+				} else {
+					p.syntax()
+				}
 				return nil
 			}
 			a.left = p.number()

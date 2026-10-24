@@ -32,6 +32,9 @@ func (e Binary) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
+	if e.Plan.Name() == "@?" || e.Plan.Name() == "@@" {
+		return e.Plan.EvaluateJSONPath(ctx, values[:len(e.Args)], jsonpathEnvironment(c))
+	}
 	if !e.Plan.Immutable() {
 		return e.evalConversion(c, values[:len(e.Args)])
 	}

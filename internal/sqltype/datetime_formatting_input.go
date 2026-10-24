@@ -16,8 +16,15 @@ type datetimeFields struct {
 	zone                                                                       zoneSpecification
 }
 
-func datetimeInput(ctx context.Context, result *Descriptor, source string, nodes []datetimeNode, env InputEnvironment, conflict bool) (Value, error) {
+func datetimeInput(ctx context.Context, result *Descriptor, source string, nodes []datetimeNode, env InputEnvironment, conflict, strict bool, offset *int32) (Value, error) {
 	fields := datetimeFields{zone: zoneSpecification{zone: env.Zone}}
+	if strict {
+		var err error
+		result, err = jsonpathDatetimeDescriptor(ctx, nodes)
+		if err != nil {
+			return Value{}, err
+		}
+	}
 	position, extra := 0, 0
 	fixed := false
 	for i, node := range nodes {
@@ -26,10 +33,17 @@ func datetimeInput(ctx context.Context, result *Descriptor, source string, nodes
 				return Value{}, err
 			}
 		}
+		if strict && node.key != nil && node.key.kind == "FX" {
+			fixed = true
+			continue
+		}
 		if position >= len(source) {
+			if strict {
+				return Value{}, datetimeError("22007", "input string is too short for datetime format", "", "")
+			}
 			break
 		}
-		if !fixed && (node.key == nil || node.key.kind != "FX") && (node.key != nil || i == 0) {
+		if !strict && !fixed && (node.key == nil || node.key.kind != "FX") && (node.key != nil || i == 0) {
 			for position < len(source) && datetimeSpace(source[position]) {
 				if position%1024 == 0 {
 					if err := ctx.Err(); err != nil {
@@ -41,6 +55,17 @@ func datetimeInput(ctx context.Context, result *Descriptor, source string, nodes
 			}
 		}
 		if node.key == nil {
+			if strict {
+				if len(source)-position < len(node.literal) || source[position:position+len(node.literal)] != node.literal {
+					kind := "character"
+					if node.class != 0 {
+						kind = "separator"
+					}
+					return Value{}, datetimeError("22007", fmt.Sprintf("unmatched format %s %q", kind, node.literal), "", "")
+				}
+				position += len(node.literal)
+				continue
+			}
 			// This admitted literal can exhaust whitespace without demanding a
 			// field reader. Numeric/name actions still run with an empty fragment.
 			if position >= len(source) {
@@ -368,7 +393,7 @@ func datetimeInput(ctx context.Context, result *Descriptor, source string, nodes
 				position = min(len(source), position+2)
 			}
 		}
-		if !fixed {
+		if !strict && !fixed {
 			extra = 0
 			for position < len(source) && datetimeSpace(source[position]) {
 				if position%1024 == 0 {
@@ -381,10 +406,13 @@ func datetimeInput(ctx context.Context, result *Descriptor, source string, nodes
 			}
 		}
 	}
-	return fields.complete(result, source, env)
+	if strict && position != len(source) {
+		return Value{}, datetimeError("22007", "trailing characters remain in input string after datetime format", "", "")
+	}
+	return fields.complete(result, source, env, strict, offset)
 }
 
-func (f datetimeFields) complete(result *Descriptor, source string, env InputEnvironment) (Value, error) {
+func (f datetimeFields) complete(result *Descriptor, source string, env InputEnvironment, strict bool, offset *int32) (Value, error) {
 	overflow := func() (Value, error) {
 		return Value{}, datetimeError("22008", fmt.Sprintf("date/time field value out of range: %q", source), "", "")
 	}
@@ -520,6 +548,13 @@ func (f datetimeFields) complete(result *Descriptor, source string, env InputEnv
 		}
 		f.zone = zoneSpecification{fixed: true, east: int32(f.zoneSign * (f.zoneHour*3600 + f.zoneMinute*60))}
 	}
+	if result.id == Time {
+		return TimeValue(result, int64(h)*3600000000+int64(minute)*60000000+int64(second)*1000000+fraction)
+	}
+	if result.id == Timetz {
+		west := -f.zone.offsetCivil(civilDay(y, m, d)*86400 + int64(h*3600+minute*60+second) + 946684800)
+		return TimetzValue(result, int64(h)*3600000000+int64(minute)*60000000+int64(second)*1000000+fraction, west)
+	}
 	if result.id == Date {
 		return result.dateFromCivil(source, y, m, d)
 	}
@@ -527,7 +562,13 @@ func (f datetimeFields) complete(result *Descriptor, source string, env InputEnv
 	if err != nil {
 		return Value{}, failure("22008", "timestamp out of range")
 	}
-	n -= int64(f.zone.offsetCivil(floorDiv(n, 1000000)+946684800)) * 1000000
+	if !strict || result.id == Timestamptz {
+		east := f.zone.offsetCivil(floorDiv(n, 1000000) + 946684800)
+		if offset != nil {
+			*offset = -east
+		}
+		n -= int64(east) * 1000000
+	}
 	if n < timestampMinimum || n >= timestampEnd {
 		return Value{}, failure("22008", "timestamp out of range")
 	}

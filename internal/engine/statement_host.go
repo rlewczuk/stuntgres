@@ -140,3 +140,10 @@ func (h *statementHost) PgcryptoNotice(notice sqlstate.Error) {
 	}
 	h.op.EmitNotice(session.LevelNotice, notice)
 }
+
+func (h *statementHost) JSONPathNotice(notice sqlstate.Error) {
+	if h == nil || h.op == nil {
+		return
+	}
+	h.op.EmitNotice(session.LevelWarning, notice)
+}

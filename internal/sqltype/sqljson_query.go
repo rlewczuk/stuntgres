@@ -62,7 +62,7 @@ func bindSQLJSONQuery(kind, wrapper string, omit bool, result, document, path, j
 	return SQLJSONQueryPlan{kind: kind, wrapper: wrapper, omit: omit, result: result, document: document, path: path, jsonb: jsonb, passing: append([]Usage(nil), passing...), names: append([]string(nil), names...)}, nil
 }
 
-func (p SQLJSONQueryPlan) Evaluate(ctx context.Context, document, path Value, passing []Value, input InputEnvironment, output OutputEnvironment) (SQLJSONQueryOutcome, error) {
+func (p SQLJSONQueryPlan) Evaluate(ctx context.Context, document, path Value, passing []Value, env JSONPathEnvironment, output OutputEnvironment) (SQLJSONQueryOutcome, error) {
 	if err := ctx.Err(); err != nil {
 		return SQLJSONQueryOutcome{}, err
 	}
@@ -84,7 +84,7 @@ func (p SQLJSONQueryPlan) Evaluate(ctx context.Context, document, path Value, pa
 	if err != nil {
 		return SQLJSONQueryOutcome{}, err
 	}
-	return p.evaluate(ctx, document, path, bindings, input, output)
+	return p.evaluate(ctx, document, path, bindings, env, output)
 }
 
 func (p SQLJSONQueryPlan) bindings(ctx context.Context, passing []Value, output OutputEnvironment, bindings []jsonpathBinding) ([]jsonpathBinding, error) {
@@ -130,8 +130,9 @@ func (p SQLJSONQueryPlan) bindings(ctx context.Context, passing []Value, output 
 	return bindings, nil
 }
 
-func (p SQLJSONQueryPlan) evaluate(ctx context.Context, document, path Value, bindings []jsonpathBinding, input InputEnvironment, output OutputEnvironment) (SQLJSONQueryOutcome, error) {
-	executor := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, strict: path.jsonpath.strict, bindings: bindings, input: input}
+func (p SQLJSONQueryPlan) evaluate(ctx context.Context, document, path Value, bindings []jsonpathBinding, env JSONPathEnvironment, output OutputEnvironment) (SQLJSONQueryOutcome, error) {
+	input := env.Input
+	executor := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, strict: path.jsonpath.strict, bindings: bindings, input: input, notice: env.Notice, timezone: true}
 	count := 0
 	var first jsonpathItem
 	var items []jsonbNode
@@ -208,7 +209,7 @@ func (p SQLJSONQueryPlan) evaluate(ctx context.Context, document, path Value, bi
 
 func sqlJSONMaterialize(item jsonpathItem) (*jsonbNode, error) {
 	if item.temporal != nil {
-		return &jsonbNode{kind: jsonbString, text: sqlJSONTemporalJSON(*item.temporal)}, nil
+		return &jsonbNode{kind: jsonbString, text: jsonpathTemporalText(item)}, nil
 	}
 	if item.jsonbNode == nil {
 		return nil, fmt.Errorf("missing SQL/JSON item")

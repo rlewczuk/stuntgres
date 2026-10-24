@@ -62,7 +62,7 @@ func TestJSONBPathOpsReconstruct(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := got.Plan.Evaluate(ctx, foreign, path); err == nil {
+		if _, err := got.Plan.EvaluateJSONPath(ctx, []sqltype.Value{foreign, path}, sqltype.JSONPathEnvironment{}); err == nil {
 			t.Fatal("reminted plan admitted old value")
 		}
 		if _, err := got.Render(); err != nil {

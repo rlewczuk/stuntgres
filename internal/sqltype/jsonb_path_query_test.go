@@ -9,7 +9,7 @@ import (
 )
 
 type jsonpathScalarUnitPlan interface {
-	Evaluate(context.Context, []Value) (Value, error)
+	Evaluate(context.Context, []Value, JSONPathEnvironment) (Value, error)
 }
 
 func queryUnitPlans(t *testing.T, types map[ID]*Descriptor) ([]jsonpathScalarUnitPlan, JSONBPathQueryPlan) {
@@ -71,7 +71,7 @@ func TestJSONBPathQuerySignatures(t *testing.T) {
 		nulls := append([]Value(nil), values...)
 		nulls[slot] = Null(nulls[slot].typ)
 		for i, plan := range plans {
-			v, err := plan.Evaluate(ctx, nulls)
+			v, err := plan.Evaluate(ctx, nulls, JSONPathEnvironment{})
 			want := types[Bool]
 			if i == 2 {
 				want = types[JSONB]
@@ -80,27 +80,27 @@ func TestJSONBPathQuerySignatures(t *testing.T) {
 				t.Fatal("strict scalar NULL", i, slot, v, err)
 			}
 		}
-		if rows, err := query.Evaluate(ctx, nulls); err != nil || rows != nil {
+		if rows, err := query.Evaluate(ctx, nulls, JSONPathEnvironment{}); err != nil || rows != nil {
 			t.Fatal("strict set NULL", rows, err)
 		}
 		foreign := append([]Value(nil), nulls...)
 		foreign[slot] = Null(fresh[values[slot].typ.ID()])
 		for _, plan := range plans {
-			if _, err := plan.Evaluate(ctx, foreign); err == nil {
+			if _, err := plan.Evaluate(ctx, foreign, JSONPathEnvironment{}); err == nil {
 				t.Fatal("foreign value before strict NULL", slot)
 			}
 		}
-		if _, err := query.Evaluate(ctx, foreign); err == nil {
+		if _, err := query.Evaluate(ctx, foreign, JSONPathEnvironment{}); err == nil {
 			t.Fatal("foreign set value", slot)
 		}
 		canceled, cancel := context.WithCancel(ctx)
 		cancel()
 		for _, plan := range plans {
-			if _, err := plan.Evaluate(canceled, nulls); !errors.Is(err, context.Canceled) {
+			if _, err := plan.Evaluate(canceled, nulls, JSONPathEnvironment{}); !errors.Is(err, context.Canceled) {
 				t.Fatal("context before NULL", err)
 			}
 		}
-		if rows, err := query.Evaluate(canceled, nulls); !errors.Is(err, context.Canceled) || rows != nil {
+		if rows, err := query.Evaluate(canceled, nulls, JSONPathEnvironment{}); !errors.Is(err, context.Canceled) || rows != nil {
 			t.Fatal("set context before NULL", rows, err)
 		}
 	}
@@ -108,11 +108,11 @@ func TestJSONBPathQuerySignatures(t *testing.T) {
 		bad := append([]Value(nil), values...)
 		bad[slot] = Value{typ: bad[slot].typ}
 		for _, plan := range plans {
-			if _, err := plan.Evaluate(ctx, bad); err == nil {
+			if _, err := plan.Evaluate(ctx, bad, JSONPathEnvironment{}); err == nil {
 				t.Fatal("missing payload", slot)
 			}
 		}
-		if _, err := query.Evaluate(ctx, bad); err == nil {
+		if _, err := query.Evaluate(ctx, bad, JSONPathEnvironment{}); err == nil {
 			t.Fatal("missing set payload", slot)
 		}
 	}
@@ -134,7 +134,7 @@ func TestJSONBPathQueryConsumers(t *testing.T) {
 	for _, path := range []string{`$[0,$missing]`, `strict $[0,$missing]`, `strict $[0,0,$missing]`} {
 		values := navigateValues(t, types, `[true]`, path, `{}`, true)
 		for i, plan := range plans {
-			v, err := plan.Evaluate(ctx, values)
+			v, err := plan.Evaluate(ctx, values, JSONPathEnvironment{})
 			if i == 0 && path[0] == '$' {
 				if err != nil || v.null || !v.boolean {
 					t.Fatal(v, err)
@@ -143,7 +143,7 @@ func TestJSONBPathQueryConsumers(t *testing.T) {
 				state(err, "42704")
 			}
 		}
-		rows, err := query.Evaluate(ctx, values)
+		rows, err := query.Evaluate(ctx, values, JSONPathEnvironment{})
 		state(err, "42704")
 		if rows != nil {
 			t.Fatal("ordinary failure published prefix", rows)
@@ -152,23 +152,23 @@ func TestJSONBPathQueryConsumers(t *testing.T) {
 	for _, prefix := range []string{`true`, `false`, `null`, `1`} {
 		values := navigateValues(t, types, `[{"x":`+prefix+`},{},{"x":false}]`, `strict $[*].x`, `{}`, false)
 		for _, plan := range plans {
-			v, err := plan.Evaluate(ctx, values)
+			v, err := plan.Evaluate(ctx, values, JSONPathEnvironment{})
 			state(err, "2203A")
 			if v.typ != nil {
 				t.Fatal("scalar error published value", v)
 			}
 		}
-		if rows, err := query.Evaluate(ctx, values); rows != nil {
+		if rows, err := query.Evaluate(ctx, values, JSONPathEnvironment{}); rows != nil {
 			t.Fatal("structural failure published prefix", rows, err)
 		} else {
 			state(err, "2203A")
 		}
 		values[3] = Boolean(types[Bool], true)
-		exists, err := plans[0].Evaluate(ctx, values)
+		exists, err := plans[0].Evaluate(ctx, values, JSONPathEnvironment{})
 		if err != nil || !exists.null {
 			t.Fatal("strict silent existence", exists, err)
 		}
-		match, err := plans[1].Evaluate(ctx, values)
+		match, err := plans[1].Evaluate(ctx, values, JSONPathEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -179,22 +179,22 @@ func TestJSONBPathQueryConsumers(t *testing.T) {
 		} else if !match.null {
 			t.Fatal("nonboolean silent prefix", match)
 		}
-		first, err := plans[2].Evaluate(ctx, values)
+		first, err := plans[2].Evaluate(ctx, values, JSONPathEnvironment{})
 		if err != nil || first.null || first.text != prefix {
 			t.Fatal("first retained prefix", first, err)
 		}
-		rows, err := query.Evaluate(ctx, values)
+		rows, err := query.Evaluate(ctx, values, JSONPathEnvironment{})
 		if err != nil || len(rows) != 1 || rows[0].text != prefix {
 			t.Fatal("query retained prefix", rows, err)
 		}
 	}
 	// Returned slice mutation and later invocations cannot replace retained data.
 	values := navigateValues(t, types, `[1,2,3]`, `$[*]`, `{}`, false)
-	old, err := query.Evaluate(ctx, values)
+	old, err := query.Evaluate(ctx, values, JSONPathEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	fresh, err := query.Evaluate(ctx, navigateValues(t, types, `[4]`, `$[*]`, `{}`, false))
+	fresh, err := query.Evaluate(ctx, navigateValues(t, types, `[4]`, `$[*]`, `{}`, false), JSONPathEnvironment{})
 	if err != nil || len(fresh) != 1 || fresh[0].text != "4" {
 		t.Fatal(fresh, err)
 	}
@@ -204,7 +204,7 @@ func TestJSONBPathQueryConsumers(t *testing.T) {
 	}
 	// Saturation tracks many results without turning match into first-value truth.
 	for _, silent := range []bool{false, true} {
-		v, err := plans[1].Evaluate(ctx, navigateValues(t, types, `[true,true,true]`, `$[*]`, `{}`, silent))
+		v, err := plans[1].Evaluate(ctx, navigateValues(t, types, `[true,true,true]`, `$[*]`, `{}`, silent), JSONPathEnvironment{})
 		if silent {
 			if err != nil || !v.null {
 				t.Fatal(v, err)

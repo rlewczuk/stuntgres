@@ -1,3 +1,12 @@
+JSONPath datetime, date, time, time_tz, timestamp and timestamp_tz methods now
+execute typed temporal conversions, strict templates and precision rounding
+through existing JSONB and SQL/JSON consumers, retaining parsed offsets,
+execution-local timezone policy and precision warnings.
+Strict template compilation distinguishes quoted literals from invalid unquoted
+characters and preserves hard compiler errors separately from recoverable input
+mismatches. Unrecognized temporal-input diagnostics retain decoded characters
+without Go-style escaping.
+
 Shipped function, aggregate and operator definitions and routine identity changes
 now share SQL BEGIN and Go BeginTx with autocommit and retained messages.
 Private callable programs, overload names, dependencies and rows publish or roll

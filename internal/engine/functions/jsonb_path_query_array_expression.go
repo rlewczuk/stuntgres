@@ -45,7 +45,7 @@ func (e JSONBPathQueryArray) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
-	return e.Plan.Evaluate(ctx, values[:])
+	return e.Plan.Evaluate(ctx, values[:], jsonpathEnvironment(c))
 }
 
 func (e JSONBPathQueryArray) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPathQueryArray, error) {
