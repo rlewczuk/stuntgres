@@ -683,7 +683,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return scope.installProtocolProducer(queryRoot, source, canonical)
 		}
 		if scope.sqlRoutine.rewrite || scope.sqlRoutine.rows && !parser.HasModifyingCTE(stmt) {
-			rows, err := openNestedQueryRows(ctx, queryRoot, source, canonical)
+			rows, err := exec.OpenNestedQueryRows(ctx, queryRoot, source, canonical)
 			return Result{Rows: rows}, err
 		}
 		if scope.sqlRoutine.scalar || scope.sqlRoutine.plArgumentRow {

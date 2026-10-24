@@ -300,7 +300,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	scope.ruleAction = originalRuleAction
 	result, failure = e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 	if failure == nil && result.Rows != nil && scope.sqlRoutine.rows && !parser.HasModifyingCTE(statement) {
-		result.Rows = &cteOwnedRows{RowResult: result.Rows, owner: owner, previous: previousOwner, source: source}
+		result.Rows = &exec.CTEOwnedRows{RowResult: result.Rows, Owner: owner, Previous: previousOwner, Source: source}
 		transferred = true
 	}
 	return result, failure

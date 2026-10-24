@@ -50,7 +50,7 @@ func queryLoopDemandFailure(t *testing.T) {
 			found := f.Values[f.Program.FoundSlot]
 			rows, source := queryLoopUnitRows(t, schema, [][]sqltype.Value{{value}}, projection)
 			owner := &exec.CTEInvocation{Frame: 1}
-			owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
+			owned := &exec.CTEOwnedRows{RowResult: rows, Owner: owner, Source: source}
 			_, flow, err := plQueryLoopTestRun(s, d, f, read, owned).Statements(outer.Statements[:1])
 			if assignment {
 				var state interface{ SQLState() string }

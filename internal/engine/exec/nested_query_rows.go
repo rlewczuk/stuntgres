@@ -1,11 +1,10 @@
-package engine
+package exec
 
 import (
 	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -14,28 +13,30 @@ import (
 // Private all-row consumers share this producer; ordinary publication stays
 // eager. Planning/open errors and row-demand errors remain distinct.
 type nestedQueryRows struct {
-	state  exec.State
-	stage  exec.Stage
+	state  State
+	stage  Stage
 	schema []catalog.Column
 	ctx    context.Context
 	closed bool
 }
 
-func openNestedQueryRows(ctx context.Context, root plan.Node, source *exec.Source, parameters []sqltype.Value) (exec.RowResult, error) {
+// OpenNestedQueryRows opens the private all-row producer over a projected
+// root. It owns source from the call on, and closes it on an open failure.
+func OpenNestedQueryRows(ctx context.Context, root plan.Node, source *Source, parameters []sqltype.Value) (RowResult, error) {
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		source.Close()
 		return nil, fmt.Errorf("stuntgres: nested query lacks projection")
 	}
 	r := &nestedQueryRows{schema: project.Schema(), ctx: ctx}
-	r.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
+	r.state = State{Source: source, SourceMode: SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
 	if host := source.LiveHost(); host != nil {
 		r.state.Input, r.state.Output = host.Environments()
 	}
-	stage, err := exec.OpenQueryProjectStage(ctx, &r.state, project)
+	stage, err := OpenQueryProjectStage(ctx, &r.state, project)
 	if err != nil {
 		r.state.ReleaseMemberships()
-		_ = exec.FinishForeignSources(ctx, source)
+		_ = FinishForeignSources(ctx, source)
 		source.Close()
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func (r *nestedQueryRows) Close() error {
 	}
 	r.closed = true
 	err := r.stage.Close()
-	if failure := exec.FinishForeignSources(r.ctx, r.state.Source); err == nil {
+	if failure := FinishForeignSources(r.ctx, r.state.Source); err == nil {
 		err = failure
 	}
 	r.state.ReleaseMemberships()
@@ -65,4 +66,4 @@ func (r *nestedQueryRows) Close() error {
 func (r *nestedQueryRows) RegclassText(value sqltype.Value) (string, error) { return value.Text() }
 func (r *nestedQueryRows) OutputEnvironment() sqltype.OutputEnvironment     { return r.state.Output }
 
-var _ exec.RowResult = (*nestedQueryRows)(nil)
+var _ RowResult = (*nestedQueryRows)(nil)

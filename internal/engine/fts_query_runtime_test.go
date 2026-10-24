@@ -68,7 +68,7 @@ func TestFTSQueryFunctionsProducerDemand(t *testing.T) {
 	}
 	root := &plan.ProjectNode{QuerySchema: columns, Child: &plan.SourceNode{QuerySchema: columns}, Frame: 1, Expressions: []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}}}
 	source := &exec.Source{Anonymous: [][]sqltype.Value{{value}, {value}, {value}}}
-	rows, err := openNestedQueryRows(ctx, root, source, nil)
+	rows, err := exec.OpenNestedQueryRows(ctx, root, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestFTSQueryFunctionsProducerDemand(t *testing.T) {
 	failure := errors.New("reached projection failure")
 	calls := 0
 	root.Expressions[0] = queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
-	rows, err = openNestedQueryRows(ctx, root, &exec.Source{Anonymous: [][]sqltype.Value{{value}}}, nil)
+	rows, err = exec.OpenNestedQueryRows(ctx, root, &exec.Source{Anonymous: [][]sqltype.Value{{value}}}, nil)
 	if err != nil || calls != 0 {
 		t.Fatal("open demanded projection", calls, err)
 	}
@@ -108,7 +108,7 @@ func TestFTSQueryFunctionsProducerDemand(t *testing.T) {
 	}
 	_ = rows.Close()
 	root.Expressions[0] = plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
-	rows, err = openNestedQueryRows(ctx, root, &exec.Source{Anonymous: [][]sqltype.Value{{value}}}, nil)
+	rows, err = exec.OpenNestedQueryRows(ctx, root, &exec.Source{Anonymous: [][]sqltype.Value{{value}}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

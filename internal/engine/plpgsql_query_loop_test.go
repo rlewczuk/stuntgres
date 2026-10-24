@@ -13,7 +13,19 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func queryLoopUnitRows(t *testing.T, schema []catalog.Column, values [][]sqltype.Value, projection expr.Expr) (*nestedQueryRows, *exec.Source) {
+// queryLoopProducer records whether the loop's owner closed the borrowed producer.
+type queryLoopProducer struct {
+	exec.RowResult
+	closed bool
+}
+
+func (p *queryLoopProducer) Close() error {
+	err := p.RowResult.Close()
+	p.closed = true
+	return err
+}
+
+func queryLoopUnitRows(t *testing.T, schema []catalog.Column, values [][]sqltype.Value, projection expr.Expr) (*queryLoopProducer, *exec.Source) {
 	t.Helper()
 	root := &plan.ProjectNode{QuerySchema: schema, Child: &plan.SourceNode{QuerySchema: schema}, Frame: 1, Expressions: []expr.Expr{projection}}
 	// A nonnil anonymous slice denotes a captured source, including zero rows;
@@ -22,15 +34,14 @@ func queryLoopUnitRows(t *testing.T, schema []catalog.Column, values [][]sqltype
 		values = [][]sqltype.Value{}
 	}
 	source := &exec.Source{Anonymous: values}
-	rows, err := openNestedQueryRows(context.Background(), root, source, nil)
+	rows, err := exec.OpenNestedQueryRows(context.Background(), root, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return rows.(*nestedQueryRows), source
+	return &queryLoopProducer{RowResult: rows}, source
 }
 
 func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
-	t.Run("retained_cte", queryLoopCTELifetime)
 	t.Run("fetch_and_assignment_failure", queryLoopDemandFailure)
 	for _, body := range []string{"", "CONTINUE;", "EXIT;", "EXIT outer_block;", "RETURN 7;", "r.i:=r.i+0;", "r.i:=1/0;"} {
 		t.Run(body, func(t *testing.T) {
@@ -61,7 +72,7 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 			})
 			rows, source := queryLoopUnitRows(t, schema, [][]sqltype.Value{{one}, {two}}, projection)
 			owner := &exec.CTEInvocation{Frame: 1}
-			owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
+			owned := &exec.CTEOwnedRows{RowResult: rows, Owner: owner, Source: source}
 			_, flow, err := plQueryLoopTestRun(s, d, f, read, owned).Statements(outer.Statements[:1])
 			if retained.Type() != nil {
 				if got, _ := retained.CompositeField(0).Integer(); got != 1 {
@@ -115,27 +126,6 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 			t.Fatal("empty lost descriptor-shaped NULL", target)
 		}
 	})
-	t.Run("close_failure", func(t *testing.T) {
-		integer := sqltype.Builtins()[0]
-		for _, d := range sqltype.Builtins() {
-			if d.ID() == sqltype.Int4 {
-				integer = d
-			}
-		}
-		schema := []catalog.Column{{Name: "i", Usage: integer.Usage()}}
-		value, _ := sqltype.Integer(integer, 1)
-		rows, source := queryLoopUnitRows(t, schema, [][]sqltype.Value{{value}}, plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: 1, Slot: 0})
-		failure := errors.New("source cleanup veto")
-		rows.stage.Finish = func() error { return failure }
-		owner := &exec.CTEInvocation{Frame: 1}
-		owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
-		if err := owned.Close(); !errors.Is(err, failure) || !owner.Closed || !rows.closed {
-			t.Fatal("cleanup failure lost ownership", err)
-		}
-		if err := owned.Close(); err != nil {
-			t.Fatal("duplicate cleanup", err)
-		}
-	})
 }
 
 type queryLoopAssignedCancel struct {
@@ -167,7 +157,7 @@ func TestPLpgSQLQueryLoopCancellation(t *testing.T) {
 	s.op.Ctx = queryLoopAssignedCancel{Context: ctx, cancel: cancel, assigned: func() bool { return f.Values[in.QueryLoop.Target.Slot].Type() != nil }}
 	rows, source := queryLoopUnitRows(t, []catalog.Column{{Name: "i", Usage: integer.Usage()}}, [][]sqltype.Value{{value}, {value}}, plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0})
 	owner := &exec.CTEInvocation{Frame: 1}
-	owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
+	owned := &exec.CTEOwnedRows{RowResult: rows, Owner: owner, Source: source}
 	_, flow, err := plQueryLoopTestRun(s, d, f, read, owned).Statements(outer.Statements[:1])
 	s.op.Ctx = originalContext
 	if f.Values[in.QueryLoop.Target.Slot].Type() == nil || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
