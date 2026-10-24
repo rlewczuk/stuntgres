@@ -28,21 +28,6 @@ func builtinCatalogCapacity(types int) int {
 		len(catalog.BuiltinConversions) + routine.BuiltinOperatorCount + catalog.BuiltinFamilyDescriptorCount + 128
 }
 
-// installBuiltinProcedures installs the builtin routine descriptors: the
-// encoding conversion routines, the builtin routines and the native access
-// method handlers, in that order, then the native access methods.
-func (e *Engine) installBuiltinProcedures() {
-	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
-	for _, procedures := range [...][]catalog.Procedure{typedef.BuiltinConversionProcedures(owner), routine.BuiltinProcedures(owner), routine.NativeAccessMethodProcedures(owner)} {
-		for i := range procedures {
-			d := &procedures[i]
-			e.catalog.State.SetDescriptor(d.Address(), d)
-			e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
-		}
-	}
-	catalog.InstallBuiltinAccessMethods(e.catalog.State)
-}
-
 // installBuiltinDomainChecks binds the builtin domain CHECK and DEFAULT seeds
 // into their seeded types. It uses the same VALUE binder and dependency
 // cooking as user domains, without a session, SQL execution or a separately
@@ -77,56 +62,53 @@ func (e *Engine) bootstrapAuthorization(user authorization.PrincipalRef) Authori
 	})
 }
 
-// installBuiltinOperators installs the seeded operator descriptors and the
-// shared operator-name index.
-func (e *Engine) installBuiltinOperators() {
-	e.catalog.State.SetOperatorNames(routine.SeededOperatorNames())
-	operators := routine.BuiltinOperatorDescriptors(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
-	for i := range operators {
-		d := &operators[i]
-		e.catalog.State.SetDescriptor(d.Address(), d)
-		e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
+// builtinSeed is the process's seed share: every engine seeds the same
+// builtin catalog, so they share its procedure-name index, name map and
+// validation result.
+var builtinSeed = &seedShare{}
+
+// seedShare memoizes the parts of a builtin seed fixed by the binary. The first
+// seed in the process fills it; later seeds reuse it read-only.
+type seedShare struct {
+	// procedureNames is the procedure-name index of the seeded procedures.
+	// ProcedureIndexEdit copies its maps and buckets before the first change,
+	// as for routine.SeededOperatorNames.
+	procedureNames struct {
+		once  sync.Once
+		index *catalog.ProcedureNameIndex
+	}
+	// names holds the seed's name bindings other than the current database's.
+	// Seeds add their database binding to their own version of the map.
+	names struct {
+		once  sync.Once
+		names util.PersistentMap[ids.NameKey, ids.ObjectAddress]
+	}
+	// validation is the provider validation result of the seed without its
+	// database descriptor, which depends on engine options.
+	validation struct {
+		once sync.Once
+		err  error
 	}
 }
 
-// builtinProcedureNames is the procedure-name index of the seeded procedures.
-// Engines share it read-only: ProcedureIndexEdit copies its maps and buckets
-// before the first change, as for routine.SeededOperatorNames.
-var builtinProcedureNames struct {
-	once  sync.Once
-	index *catalog.ProcedureNameIndex
-}
-
-// seedProcedureNames installs the shared index, building it from this
-// engine's seed when it is the first in the process.
-func (e *Engine) seedProcedureNames() {
-	builtinProcedureNames.once.Do(func() {
-		builtinProcedureNames.index = catalog.RebuildProcedureNames(e.catalog.State.Descriptors())
+// shareProcedureNamesLocked installs the shared procedure-name index, building
+// it from this seed when it is the first.
+func shareProcedureNamesLocked(s *catalog.Store, share *seedShare) {
+	share.procedureNames.once.Do(func() {
+		share.procedureNames.index = catalog.RebuildProcedureNames(s.State.Descriptors())
 	})
-	e.catalog.State.SetProcedureNames(builtinProcedureNames.index)
+	s.State.SetProcedureNames(share.procedureNames.index)
 }
 
-// seedNames holds the name bindings of the built-in seed other than the
-// current database's. Like the rest of the seed they are fixed by the binary,
-// so the first engine's bindings are every engine's: engines share the
-// persistent map and add their database binding to their own version.
-type seedNames struct {
-	once  sync.Once
-	names util.PersistentMap[ids.NameKey, ids.ObjectAddress]
-}
-
-var builtinSeedNames = &seedNames{}
-
-// finishSeed ends the seed's bulk load. The name map is the shared seed names
-// plus this engine's database binding; an engine whose seed bound a different
+// finishSeedLocked ends the seed's bulk load. The name map is the shared seed
+// names plus this store's database binding; a seed that bound a different
 // number of names builds its own map instead.
-func (e *Engine) finishSeed() {
-	state := e.catalog.State
-	address := e.catalog.Owner.DatabaseAddress()
+func finishSeedLocked(s *catalog.Store, share *seedShare) {
+	state := s.State
+	address := s.Owner.DatabaseAddress()
 	database := catalog.DescriptorNameKey(state.Get(address))
-	shared := builtinSeedNames
-	shared.once.Do(func() {
-		shared.names = util.PersistentMapFrom(func(yield func(ids.NameKey, ids.ObjectAddress) bool) {
+	share.names.once.Do(func() {
+		share.names.names = util.PersistentMapFrom(func(yield func(ids.NameKey, ids.ObjectAddress) bool) {
 			for k, a := range state.Names() {
 				if k != database && !yield(k, a) {
 					return
@@ -134,43 +116,35 @@ func (e *Engine) finishSeed() {
 			}
 		})
 	})
-	if bound, ok := state.LookupName(database); !ok || bound != address || state.NameCount() != shared.names.Len()+1 {
+	if bound, ok := state.LookupName(database); !ok || bound != address || state.NameCount() != share.names.names.Len()+1 {
 		state.EndBulkLoad()
 		return
 	}
-	state.EndBulkLoadWithNames(shared.names.Set(database, address))
+	state.EndBulkLoadWithNames(share.names.names.Set(database, address))
 }
 
-// builtinCatalogValidation memoizes provider validation of the built-in seed.
-// The seed is fixed by the binary, so the first engine's result is every
-// engine's result.
-var builtinCatalogValidation struct {
-	once sync.Once
-	err  error
-}
-
-// validateSeed validates the built-in seed once per process and the current
-// database descriptor, which depends on engine options, on every engine.
-func (e *Engine) validateSeed() error {
-	builtinCatalogValidation.once.Do(func() {
-		builtinCatalogValidation.err = e.validateCatalogDescriptors(e.catalog.State.Descriptors())
+// validateSeed validates the seed once per share and the current database
+// descriptor, which depends on engine options, on every call.
+func validateSeed(s *catalog.Store, share *seedShare) error {
+	share.validation.once.Do(func() {
+		share.validation.err = validateCatalogDescriptors(s, s.State.Descriptors())
 	})
-	if builtinCatalogValidation.err != nil {
-		return builtinCatalogValidation.err
+	if share.validation.err != nil {
+		return share.validation.err
 	}
-	address := e.catalog.Owner.DatabaseAddress()
-	database := e.catalog.State.Get(address)
-	return e.validateCatalogDescriptors(func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
+	address := s.Owner.DatabaseAddress()
+	database := s.State.Get(address)
+	return validateCatalogDescriptors(s, func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		yield(address, database)
 	})
 }
 
 // validateCatalogDescriptors checks each built-in descriptor with the
 // provider registered for its class.
-func (e *Engine) validateCatalogDescriptors(descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) error {
-	view := e.catalog.Current()
+func validateCatalogDescriptors(s *catalog.Store, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) error {
+	view := s.Current()
 	for _, d := range descriptors {
-		p := e.catalog.Provider(d.Address().ClassID)
+		p := s.Provider(d.Address().ClassID)
 		if p == nil {
 			return fmt.Errorf("stuntgres: missing catalog provider for built-in %q (class %d)", d.Name(), d.Address().ClassID)
 		}

@@ -25,6 +25,7 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -189,61 +190,21 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	// The seed sets thousands of entries, so it is one bulk load.
 	e.catalog.PublishLocked(catalog.NewState(1))
 	e.catalog.State.BeginBulkLoad(builtinCatalogCapacity(len(types)))
-	for _, ns := range []struct {
-		oid  ids.OID
-		name string
-	}{{ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {ids.PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
-		owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		if ns.oid == ids.PublicNamespaceOID {
-			owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-		}
-		d := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
-		if ns.oid != ids.PGToastNamespaceOID {
-			d.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
-				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
-				{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
-			}}
-		}
-		d.Comment = catalog.NamespaceCommentBaseline(ns.oid)
-		e.catalog.State.SetDescriptor(d.Address(), d)
-		e.catalog.State.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
-	}
-	for _, typ := range types {
-		d := &catalog.Type{SQLType: typ, Comment: catalog.BuiltinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
-		if typ.IsDomain() && typ.Concrete() {
-			d.ObjectRevision = 1
-		}
-		if typ.NamespaceName() == "information_schema" {
-			d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
-		}
-		e.catalog.State.SetDescriptor(d.Address(), d)
-		e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
-	}
-	for i := range catalog.BuiltinCollations {
-		d := new(catalog.Collation)
-		*d = catalog.BuiltinCollations[i]
-		d.Owner = e.roles.domain.Principal(10)
-		e.catalog.State.SetDescriptor(d.Address(), d)
-		e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
-	}
-	e.installBuiltinProcedures()
-	if err := e.installBuiltinLanguages(); err != nil {
+	bootstrap := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
+	principals := e.roles.published.Root.Read(authorization.PrincipalRef{})
+	installBuiltinNamespaces(e.catalog.State, principals.LookupRef("postgres"), principals.LookupRef("pg_database_owner"))
+	installBuiltinTypes(e.catalog.State, types, bootstrap)
+	installBuiltinCollations(e.catalog.State, bootstrap)
+	installBuiltinProcedures(e.catalog.State, typedef.BuiltinConversionProcedures(bootstrap), routine.BuiltinProcedures(bootstrap), routine.NativeAccessMethodProcedures(bootstrap))
+	if err := installBuiltinLanguagesLocked(&e.catalog, bootstrap); err != nil {
 		return nil, err
 	}
-	e.initializeTablespaces()
-	for i := range catalog.BuiltinConversions {
-		d := new(catalog.Conversion)
-		*d = catalog.BuiltinConversions[i]
-		d.Owner = e.roles.domain.Principal(10)
-		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-		d.ObjectRevision = 1
-		e.catalog.State.SetDescriptor(d.Address(), d)
-		e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
-	}
-	e.installBuiltinOperators()
-	catalog.InstallBuiltinFamilies(e.catalog.State, e.roles.domain.Principal(authorization.BootstrapPrincipalID))
-	catalog.InstallBuiltinClasses(e.catalog.State, e.roles.domain.Principal(authorization.BootstrapPrincipalID))
-	e.seedProcedureNames()
+	installBuiltinTablespaces(e.catalog.State, bootstrap)
+	installBuiltinConversions(e.catalog.State, bootstrap)
+	installBuiltinOperators(e.catalog.State, routine.SeededOperatorNames(), routine.BuiltinOperatorDescriptors(bootstrap))
+	catalog.InstallBuiltinFamilies(e.catalog.State, bootstrap)
+	catalog.InstallBuiltinClasses(e.catalog.State, bootstrap)
+	shareProcedureNamesLocked(&e.catalog, builtinSeed)
 	e.initializeDatabase(database)
 	if err := e.installBuiltinDomainChecks(); err != nil {
 		return nil, err
@@ -251,10 +212,10 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
 	}
-	if err := e.validateSeed(); err != nil {
+	if err := validateSeed(&e.catalog, builtinSeed); err != nil {
 		return nil, err
 	}
-	e.finishSeed()
+	finishSeedLocked(&e.catalog, builtinSeed)
 	cluster.defaultTarget, cluster.targets, cluster.nextOID = e, map[string]*Engine{e.databaseName: e}, 16384
 	return e, nil
 }

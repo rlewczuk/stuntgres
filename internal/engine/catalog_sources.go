@@ -37,7 +37,8 @@ func (e *Engine) initializeCatalogSources() error {
 			d.Columns[i] = catalog.Column{Name: column.Name, Usage: usage, Nullable: column.Nullable, NullabilityKnown: true, OriginTable: uint32(spec.OID), OriginAttribute: int16(i + 1), DeclaredDimensions: column.Dimensions}
 			d.Index[column.Name], d.Attributes[i] = i, int32(i+1)
 		}
-		e.registerCatalogSource(d)
+		pgcatalog.InitializeAttributes(d)
+		installCatalogSource(e.catalog.State, d)
 	}
 	return nil
 }
@@ -45,19 +46,4 @@ func (e *Engine) initializeCatalogSources() error {
 func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *catalog.Relation {
 	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), ColumnMeta: catalog.ColumnMetadata{HighWater: int32(count)}, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}}
-}
-
-func (e *Engine) registerCatalogSource(d *catalog.Relation) {
-	pgcatalog.InitializeAttributes(d)
-	if address, ok := e.catalog.State.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.Namespace(), Name: d.Name()}); ok {
-		row := e.catalog.State.MustType(address)
-		row.OwningRelation, row.Owner = d.Address(), d.Owner
-		d.RowType = row.SQLType.ID()
-		if row.Array != 0 {
-			array := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
-			array.OwningRelation, array.Owner = d.Address(), d.Owner
-		}
-	}
-	e.catalog.State.SetDescriptor(d.Address(), d)
-	e.catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 }
