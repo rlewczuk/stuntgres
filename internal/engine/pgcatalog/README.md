@@ -5,10 +5,10 @@ the producer-backed `information_schema` views (`table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
-`sequences`, `role_column_grants`, `role_table_grants`, `columns`, `domains`,
-`views`, `tables`, `routines`). Each producer is a pure function from a captured
-catalog, a paired role read and a narrow runtime capability to rows.
-Orchestration (per-OID catalog choice,
+`sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`,
+`columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
+function from a captured catalog, a paired role read and a narrow runtime
+capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
 [engine README](../README.md).
 
@@ -53,8 +53,9 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Absent and explicit-empty ACLs stay distinct: `ClassACL` returns NULL for an
   absent ACL and `{}` for an empty one.
 - Information-schema producers emit genuine source-owned domains, not bare
-  primitive carriers. `role_column_grants` and `role_table_grants` use
-  `sql_identifier`, `character_data` and `yes_or_no` from the captured type catalog.
+  primitive carriers. `role_column_grants`, `role_table_grants` and
+  `role_routine_grants` use `sql_identifier`, `character_data` and `yes_or_no`
+  from the captured type catalog.
   Numeric metadata likewise retains genuine `cardinal_number` domain values.
 - `role_column_grants` captures one catalog/role frontier and projects actual
   table/column ACL origins on live positive attributes. Its raw-origin UNION
@@ -71,6 +72,12 @@ type Producer func(Input) ([][]sqltype.Value, error)
   owner origins; explicit-empty ACLs supply none. MAINTAIN, column ACLs and
   partition-parent expansion do not contribute rows. Grant options or immediately
   usable owner authority determine grantability; only SELECT has hierarchy.
+- `role_routine_grants` projects EXECUTE ACL origins from actual Procedure
+  descriptors of every represented kind, without inspecting or executing bodies.
+  It shares enabled-grantor-or-named-grantee visibility and per-capture membership
+  authority with other grant views. Absent ACLs supply owner and PUBLIC origins;
+  explicit-empty ACLs supply none. Grantability belongs to the named grantee.
+  Specific names retain the actual routine OID within NAME's UTF8 byte boundary.
 - `pg_type` composes user-domain facts through exact captured immediate-base
   providers, including nominal-only domains and reciprocal arrays. Metadata
   admission does not grant executable codec or storage authority; foreign

@@ -140,6 +140,8 @@ func TestReferenceInfoViewsBuiltinRoutineIdentity(t *testing.T) {
 				queries := []string{
 					"SELECT * FROM information_schema.views WHERE table_schema=$1 AND table_name=$2",
 					"SELECT definition FROM pg_catalog.pg_views WHERE schemaname=$1 AND viewname=$2",
+					"SELECT pg_get_viewdef('pg_catalog.pg_views'::regclass) AS definition",
+					"SELECT pg_get_viewdef('pg_catalog.pg_views'::text) AS definition",
 				}
 				held := make([]fixture.HeldStatement, len(queries))
 				for i, query := range queries {
@@ -157,8 +159,11 @@ func TestReferenceInfoViewsBuiltinRoutineIdentity(t *testing.T) {
 							[]string{"table_catalog", "table_schema", "table_name", "view_definition", "check_option", "is_updatable", "is_insertable_into", "is_trigger_updatable", "is_trigger_deletable", "is_trigger_insertable_into"},
 							[]string{"NAME", "NAME", "NAME", "VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR"},
 							[][]any{{database, "pg_catalog", "pg_views", definition, "NONE", "NO", "NO", "NO", "NO", "NO"}}, "pg_catalog", "pg_views")
-						if i == 1 {
-							step = fixture.Select(query, []string{"definition"}, []string{"TEXT"}, [][]any{{definition}}, "pg_catalog", "pg_views")
+						if i > 0 {
+							step = fixture.Select(query, []string{"definition"}, []string{"TEXT"}, [][]any{{definition}})
+							if i == 1 {
+								step = fixture.Select(query, []string{"definition"}, []string{"TEXT"}, [][]any{{definition}}, "pg_catalog", "pg_views")
+							}
 						} else {
 							step.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 								columns, err := rows.ColumnTypes()
@@ -173,7 +178,7 @@ func TestReferenceInfoViewsBuiltinRoutineIdentity(t *testing.T) {
 								}
 							}
 						}
-						t.Run([]string{"information_schema_views", "pg_views"}[i], func(t *testing.T) {
+						t.Run([]string{"information_schema_views", "pg_views", "pg_get_viewdef_oid", "pg_get_viewdef_text"}[i], func(t *testing.T) {
 							t.Run("direct", func(t *testing.T) { fixture.RunStep(t, p.Ctx, c, b.Recorder, step) })
 							t.Run("prepared", func(t *testing.T) { fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(step)) })
 							t.Run("held", func(t *testing.T) { fixture.RunStep(t, p.Ctx, held[i], b.Recorder, step) })

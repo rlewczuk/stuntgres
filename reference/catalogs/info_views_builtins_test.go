@@ -26,6 +26,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"information_schema", "domain_constraints"}, {"information_schema", "sequences"},
 	{"information_schema", "role_column_grants"}, {"information_schema", "columns"},
 	{"information_schema", "role_table_grants"},
+	{"information_schema", "role_routine_grants"},
 	{"information_schema", "domains"}, {"information_schema", "views"},
 	{"information_schema", "tables"}, {"information_schema", "routines"},
 }
@@ -94,6 +95,11 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 			held := ivHeld(t, p, b, c, ivSelect)
 			summarySQL := "SELECT definition FROM pg_catalog.pg_views WHERE schemaname=$1 AND viewname=$2"
 			heldSummary := ivHeld(t, p, b, c, summarySQL)
+			directQueries := []string{"SELECT pg_get_viewdef($1::regclass) AS definition", "SELECT pg_get_viewdef($1::text) AS definition"}
+			heldDirect := make([]func(fixture.Step), len(directQueries))
+			for i, q := range directQueries {
+				heldDirect[i] = ivHeld(t, p, b, c, q)
+			}
 			for _, mode := range []struct {
 				path, quote string
 				definitions map[string]string
@@ -102,10 +108,11 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 				{"public", "on", ivBuiltinQuoteDefaultDefinitions},
 				{"public,information_schema,pg_catalog", "on", ivBuiltinQuotePathDefinitions},
 				{"public,information_schema,pg_catalog", "off", ivBuiltinPathDefinitions},
+				{"public", "off", ivBuiltinDefinitions},
 			} {
 				run(fixture.Exec("SET search_path="+mode.path, 0))
 				run(fixture.Exec("SET quote_all_identifiers="+mode.quote, 0))
-				for _, candidate := range []struct{ schema, name string }{{"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "role_table_grants"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}, {"information_schema", "routines"}} {
+				for _, candidate := range []struct{ schema, name string }{{"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "role_table_grants"}, {"information_schema", "role_routine_grants"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}, {"information_schema", "routines"}} {
 					update, insert := "NO", "NO"
 					if candidate.name == "pg_group" {
 						update, insert = "YES", "YES"
@@ -113,6 +120,9 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 					definition := mode.definitions[candidate.schema+"."+candidate.name]
 					held(ivStep(b.PG, ivSelect, [][]any{ivRow(database, candidate.schema, candidate.name, definition, "NONE", update, insert)}, candidate.schema, candidate.name))
 					heldSummary(fixture.Select(summarySQL, []string{"definition"}, []string{"TEXT"}, [][]any{{definition}}, candidate.schema, candidate.name))
+					for i, q := range directQueries {
+						heldDirect[i](fixture.Select(q, []string{"definition"}, []string{"TEXT"}, [][]any{{definition}}, candidate.schema+"."+candidate.name))
+					}
 				}
 			}
 		})

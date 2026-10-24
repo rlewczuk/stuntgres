@@ -1,6 +1,7 @@
 package table
 
 import (
+	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
@@ -30,6 +31,10 @@ type DeparseInputs struct {
 	Temporary func() ids.ObjectAddress
 	// ResolveRelation resolves a TEXT relation name as a utility lookup.
 	ResolveRelation func(parser.ObjectName) (ids.ObjectRef, error)
+	// BuiltinViewDefinition renders canonical default-format definitions from
+	// the same captured catalog and presentation authority as catalog sources.
+	// Empty text means the relation has no builtin view definition.
+	BuiltinViewDefinition func(context.Context, catalog.Read, *catalog.Relation) (string, error)
 }
 
 // Deparse answers one deparse inquiry over in.
@@ -235,7 +240,17 @@ func deparseRelation(c *exec.Context, in DeparseInputs, signature functions.Depa
 		text, err = index.DefinitionSQL(c.Context, view, relation, index.Presentation{Column: column, Pretty: pretty, Path: in.Path, Temporary: in.Temporary(), Output: in.Output})
 	} else {
 		if relation.View == nil {
-			return sqltype.Null(result), nil
+			if in.BuiltinViewDefinition == nil || signature != functions.DeparseViewOID && signature != functions.DeparseViewText {
+				return sqltype.Null(result), nil
+			}
+			text, err := in.BuiltinViewDefinition(c.Context, view, relation)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			if text == "" {
+				return sqltype.Null(result), nil
+			}
+			return sqltype.String(result, text+";"), nil
 		}
 		var wrap int64
 		if signature == functions.DeparseViewWrap {

@@ -274,6 +274,15 @@ Builtin definition consumers retain independent PostgreSQL display expectations.
 
 - Table metadata: `RUN='^TestReferenceInfoTables'`
 
+### Routine grant metadata
+
+`info_role_routine_grants_helpers_test.go` owns exact origin bags, independently
+resolved routine identities, domain/adapter metadata and direct/fresh/held reads.
+The family covers enabled identities, live ACL and membership publication,
+represented routine kinds, lifecycle frontiers and structured diagnostics.
+
+- Routine grants: `RUN='^TestReferenceInfoRoleRoutineGrants'`
+
 ### View definition metadata
 
 `info_views_helpers_test.go` owns paired scenarios, exact ten-column domain and

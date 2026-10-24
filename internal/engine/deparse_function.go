@@ -1,11 +1,15 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -38,6 +42,13 @@ func (s *StatementScope) deparseInputs() table.DeparseInputs {
 	}
 	if auth.session != nil {
 		in.Database = auth.session.DatabaseName
+	}
+	runtime := engineCatalogRuntime{auth: auth, presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings}}
+	in.BuiltinViewDefinition = func(ctx context.Context, read catalog.Read, relation *catalog.Relation) (string, error) {
+		if relation.RelationKind != catalog.CatalogRelation || pgcatalog.SummaryViewDefinition(relation.Address().ObjectID) == "" {
+			return "", nil
+		}
+		return runtime.builtinViewDefinition(ctx, read, relation)
 	}
 	return in
 }

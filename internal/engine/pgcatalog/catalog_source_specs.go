@@ -793,6 +793,18 @@ var Specs = [...]Spec{
 		{"is_grantable", 13256, true, 950, 0, -1},
 		{"with_hierarchy", 13256, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing role table grant domain"},
+	{InfoRoleRoutineGrantsOID, 13229, "role_routine_grants", []ColumnSpec{
+		{"grantor", 13248, true, 950, 0, -1},
+		{"grantee", 13248, true, 950, 0, -1},
+		{"specific_catalog", 13248, true, 950, 0, -1},
+		{"specific_schema", 13248, true, 950, 0, -1},
+		{"specific_name", 13248, true, 950, 0, -1},
+		{"routine_catalog", 13248, true, 950, 0, -1},
+		{"routine_schema", 13248, true, 950, 0, -1},
+		{"routine_name", 13248, true, 950, 0, -1},
+		{"privilege_type", 13246, true, 950, 0, -1},
+		{"is_grantable", 13256, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing role routine grant domain"},
 	{InfoColumnsOID, 13229, "columns", infoColumnsColumns, true, false, false, false, "stuntgres: missing columns domain"},
 	{InfoDomainsOID, 13229, "domains", []ColumnSpec{
 		{"domain_catalog", 13248, true, 950, 0, -1},

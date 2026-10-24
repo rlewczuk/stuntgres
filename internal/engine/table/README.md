@@ -131,6 +131,10 @@ call live here.
   belongs to exactly one `TargetEntry`, so entry order cannot change a result),
   `CheckExplicitLock` (LOCK TABLE) and the `Stage` slot (LIKE sources checked
   at publication by `ValidateLikeSources`).
+  Default OID/TEXT view-definition inquiries use the captured
+  `DeparseInputs.BuiltinViewDefinition` capability for builtin views without
+  stored payloads; ordinary nonviews still return NULL. Stored-view rendering
+  retains its own pretty/wrap presentation path.
 
 ## Hosts
 
