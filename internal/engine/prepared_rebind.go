@@ -120,7 +120,7 @@ func (e *Engine) preparedEan13LiteralTemporalsLocked(auth AuthorizationView, exp
 		}
 		nominal := *old
 		nominal.Owner, nominal.ACL = current.Owner, current.ACL
-		if !samePreparedTypeDefinition(&nominal, current) {
+		if !catalog.SamePreparedTypeDefinition(&nominal, current) {
 			return original
 		}
 		ext, ok := auth.Catalog.Extension(current.Extension)
@@ -179,7 +179,7 @@ func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, 
 				return false
 			}
 			old := analysis.types[dep.Ref.Address]
-			if samePreparedTypeDefinition(old, current) {
+			if catalog.SamePreparedTypeDefinition(old, current) {
 				continue
 			}
 			if !eanAuthorityRebind || old == nil || !old.SQLType.IsEan13() || !current.SQLType.IsEan13() {
@@ -189,7 +189,7 @@ func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, 
 			// authority to the fresh binder, not to retained executable analysis.
 			nominal := *old
 			nominal.Owner, nominal.ACL = current.Owner, current.ACL
-			if !samePreparedTypeDefinition(&nominal, current) {
+			if !catalog.SamePreparedTypeDefinition(&nominal, current) {
 				return false
 			}
 		}

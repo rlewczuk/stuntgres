@@ -1,16 +1,17 @@
-package engine
+package catalog
 
 import (
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
-// A revised non-domain type may retain held analysis only when its executable
-// definition and authority are unchanged. Names, namespace and presentation
-// revisions are not executable signatures. Child types have their own dependency
-// entries in the same analysis cell; domains keep their existing domain stamps.
-func samePreparedTypeDefinition(old, current *catalog.Type) bool {
+// SamePreparedTypeDefinition reports whether held analysis may survive the
+// revision of old to current: a revised non-domain type keeps it only when its
+// executable definition and authority are unchanged. Names, namespace and
+// presentation revisions are not executable signatures. Child types have their
+// own dependency entries in the same analysis cell; domains keep their existing
+// domain stamps.
+func SamePreparedTypeDefinition(old, current *Type) bool {
 	if old == nil || current == nil || old.Address() != current.Address() || old.Owner != current.Owner || old.Extension != current.Extension || old.Array != current.Array || old.OwningRelation != current.OwningRelation || old.Dimensions != current.Dimensions || !authorization.EqualACL(old.ACL, current.ACL) {
 		return false
 	}

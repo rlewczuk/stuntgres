@@ -263,7 +263,7 @@ func (h *bindingHost) ReplayInsertAuthority() bool {
 }
 
 func (h *bindingHost) ReplayConstructorCall(raw parser.FunctionExpr) bool {
-	return h.ReplayInsertAuthority() && !dump.RestoreFunctionRecipe(raw) && restoreRangeConstructorEligible(h.CurrentCatalog(), raw)
+	return h.ReplayInsertAuthority() && !dump.RestoreFunctionRecipe(raw) && catalog.RestoreRangeConstructorEligible(h.CurrentCatalog(), raw)
 }
 
 func (h *bindingHost) ReplayDomainCell(b *analyze.Binding, s *parser.Insert, row, column int) (expr.Expr, bool, error) {

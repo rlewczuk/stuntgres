@@ -15,13 +15,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type catalogBindingClaim struct {
-	key            ids.NameKey
-	address        ids.ObjectAddress
-	priority       int
-	relationRename bool
-}
-
 // This is the ordinary ticket/request lifecycle, including savepoint checkpoints
 // and replacement fencing. No manager call or wait is made under Engine.mu.
 func (s *StatementScope) acquireCatalogResource(resource lock.Resource, mode lock.Mode) error {
@@ -57,7 +50,7 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	if stage.namesAdmitted {
 		return nil
 	}
-	var claimScratch [8]catalogBindingClaim
+	var claimScratch [8]catalog.BindingClaim
 	var namespaceScratch [8]ids.ObjectAddress
 	claims := claimScratch[:0]
 	namespaces := namespaceScratch[:0]
@@ -74,9 +67,9 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 		} else if key.ClassID == ids.NamespaceClassID {
 			priority = 3
 		}
-		claim := catalogBindingClaim{key: key, address: address, priority: priority}
+		claim := catalog.BindingClaim{Key: key, Address: address, Priority: priority}
 		if typ, ok := stage.Get(address).(*catalog.Type); ok && stage.Base.Get(address) != nil && typ.OwningRelation != (ids.ObjectAddress{}) {
-			claim.relationRename = true
+			claim.RelationRename = true
 		}
 		claims = append(claims, claim)
 		if key.Namespace != (ids.ObjectAddress{}) && stage.Base.Get(key.Namespace) != nil {
@@ -93,17 +86,17 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 			return err
 		}
 	}
-	slices.SortFunc(claims, func(a, b catalogBindingClaim) int {
-		if n := cmp.Compare(a.key.ClassID, b.key.ClassID); n != 0 {
+	slices.SortFunc(claims, func(a, b catalog.BindingClaim) int {
+		if n := cmp.Compare(a.Key.ClassID, b.Key.ClassID); n != 0 {
 			return n
 		}
-		if n := cmp.Compare(a.key.Namespace.ObjectID, b.key.Namespace.ObjectID); n != 0 {
+		if n := cmp.Compare(a.Key.Namespace.ObjectID, b.Key.Namespace.ObjectID); n != 0 {
 			return n
 		}
-		return cmp.Compare(a.key.Name, b.key.Name)
+		return cmp.Compare(a.Key.Name, b.Key.Name)
 	})
 	for _, claim := range claims {
-		resource := lock.Resource{ObjectRef: stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), claim.key.Namespace), Name: claim.key}
+		resource := lock.Resource{ObjectRef: stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), claim.Key.Namespace), Name: claim.Key}
 		if err := s.acquireCatalogResource(resource, lock.AccessExclusive); err != nil {
 			return err
 		}
@@ -116,8 +109,8 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	}
 	for priority := 0; priority < 4 && err == nil; priority++ {
 		for _, claim := range claims {
-			if claim.priority == priority {
-				err = catalogBindingCurrent(stage.Base, auth.Catalog, claim)
+			if claim.Priority == priority {
+				err = catalog.BindingCurrent(stage.Base, auth.Catalog, claim)
 				if err != nil {
 					break
 				}
@@ -129,8 +122,8 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 		return err
 	}
 	for _, claim := range claims {
-		if claim.key.ClassID == ids.RelationClassID && stage.Base.Get(claim.address) == nil {
-			ref := stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), claim.address)
+		if claim.Key.ClassID == ids.RelationClassID && stage.Base.Get(claim.Address) == nil {
+			ref := stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), claim.Address)
 			if err := s.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 				return err
 			}
@@ -155,8 +148,8 @@ func (s *StatementScope) acquireCatalogNamespace(base catalog.Read, address ids.
 	return err
 }
 
-func (s *StatementScope) acquireCatalogBinding(base catalog.Read, claim catalogBindingClaim) error {
-	key := claim.key
+func (s *StatementScope) acquireCatalogBinding(base catalog.Read, claim catalog.BindingClaim) error {
+	key := claim.Key
 	resource := lock.Resource{ObjectRef: s.engine().catalog.Domain.Ref(base.Epoch(), key.Namespace), Name: key}
 	if err := s.acquireCatalogResource(resource, lock.AccessExclusive); err != nil {
 		return err
@@ -171,35 +164,7 @@ func (s *StatementScope) acquireCatalogBinding(base catalog.Read, claim catalogB
 	if auth.Catalog.Epoch() != base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	return catalogBindingCurrent(base, auth.Catalog, claim)
-}
-
-func catalogBindingCurrent(base, current catalog.Read, claim catalogBindingClaim) error {
-	address := current.NameAddress(claim.key)
-	if address != base.NameAddress(claim.key) && address != claim.address {
-		if address == (ids.ObjectAddress{}) {
-			return ids.ErrCatalogReplaced
-		}
-		return catalogBindingDuplicate(claim)
-	}
-	return nil
-}
-
-func catalogBindingDuplicate(claim catalogBindingClaim) error {
-	key := claim.key
-	// Renaming/moving a table diagnoses the relation uniqueness index, even
-	// when its reciprocal rowtype was the first canonical conflicting claim.
-	if key.ClassID == ids.TypeClassID && claim.relationRename {
-		key.ClassID = ids.RelationClassID
-	}
-	table, constraint, detail := "pg_class", "pg_class_relname_nsp_index", fmt.Sprintf("Key (relname, relnamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
-	switch key.ClassID {
-	case ids.NamespaceClassID:
-		table, constraint, detail = "pg_namespace", "pg_namespace_nspname_index", fmt.Sprintf("Key (nspname)=(%s) already exists.", key.Name)
-	case ids.TypeClassID:
-		table, constraint, detail = "pg_type", "pg_type_typname_nsp_index", fmt.Sprintf("Key (typname, typnamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
-	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: fmt.Sprintf("duplicate key value violates unique constraint %q", constraint), Detail: detail, Schema: "pg_catalog", Table: table, Constraint: constraint}
+	return catalog.BindingCurrent(base, auth.Catalog, claim)
 }
 
 // Schema removal protects the captured namespace before constructing its

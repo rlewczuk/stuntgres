@@ -186,7 +186,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if err := scope.acquireCatalogNamespace(auth.Catalog, ns.Address, s.Name); err != nil {
 				return Result{}, err
 			}
-			if err := scope.acquireCatalogBinding(auth.Catalog, catalogBindingClaim{key: key, address: d.Address(), priority: 1}); err != nil {
+			if err := scope.acquireCatalogBinding(auth.Catalog, catalog.BindingClaim{Key: key, Address: d.Address(), Priority: 1}); err != nil {
 				if s.IfNotExists {
 					skipped, failure := scope.skipConcurrentRelation(auth.Catalog, key, s.Name, err)
 					if skipped {

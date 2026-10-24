@@ -99,6 +99,8 @@ private frames, not catalog authority.
   provider carried by a real `Procedure`. Current owner-type, namespace,
   signature and generation validation never grants capability by routine name.
   `RangeConstructorOwner` supplies its INTERNAL ownership edge.
+  `RestoreRangeConstructorEligible` admits a schema-qualified constructor call
+  in a restored INSERT; it is membership, not overload resolution.
 - **Access methods, operator classes and families, casts** (`access_method.go`,
   `operator_class*.go`, `operator_family*.go`, `cast*.go`). Immutable global
   descriptors read through `Read.AccessMethod`, `Read.OperatorFamily`, ..., the
@@ -130,6 +132,14 @@ private frames, not catalog authority.
   `DependencyIdentifier` follows PostgreSQL `quote_identifier`;
   `TypeDiagnosticNameAt`/`TypeDiagnosticNamer` name a type bare when the search
   path finds it first. The engine and `access` share them.
+- **Name claims** (`name_claims.go`): a `BindingClaim` is one name a stage
+  binds. After the root holds the claim's name lock, `BindingCurrent` rechecks
+  it: a vanished binding is `ids.ErrCatalogReplaced`, another one the
+  PostgreSQL unique-index violation of `pg_class`, `pg_type` or
+  `pg_namespace`.
+- **Prepared type identity** (`type_identity.go`):
+  `SamePreparedTypeDefinition` decides whether held prepared analysis survives
+  a type revision; domains never do.
 - **Record helpers** shared by DDL, query admission and restore: inheritance and
   partition reads (`inheritance.go`, `partition.go`), constraint naming
   (`constraint_names.go`), definition OIDs (`definition_identity.go`), relation

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -119,4 +120,23 @@ func RangeConstructorOwner(d *Procedure) ids.ObjectAddress {
 		return ids.ObjectAddress{}
 	}
 	return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RangeConstructor.Type.ID())}
+}
+
+// RestoreRangeConstructorEligible reports whether raw, a schema-qualified call
+// in a restored INSERT, names a valid generated range constructor in view.
+// Membership is not overload resolution or permission to execute.
+func RestoreRangeConstructorEligible(view Read, raw parser.FunctionExpr) bool {
+	if len(raw.Name.Parts) != 2 {
+		return false
+	}
+	namespace := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: raw.Name.Parts[0].Text})
+	if namespace == (ids.ObjectAddress{}) {
+		return false
+	}
+	for declaration := range DefinitionProceduresNamedAt(view, nil, namespace, raw.Name.Parts[1].Text) {
+		if declaration.RangeConstructor != nil && ValidateRangeConstructor(view, declaration) == nil {
+			return true
+		}
+	}
+	return false
 }

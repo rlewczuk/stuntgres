@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -107,22 +108,22 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			}
 			valid := e.preparedAnalysisValidLocked(auth, analysis, analysis.path)
 			e.mu.Unlock()
-			if !valid || !samePreparedTypeDefinition(old, current) {
+			if !valid || !catalog.SamePreparedTypeDefinition(old, current) {
 				t.Fatal("identity-only edit retired held analysis")
 			}
 			changed := *current
 			changed.Dimensions++
-			if samePreparedTypeDefinition(old, &changed) {
+			if catalog.SamePreparedTypeDefinition(old, &changed) {
 				t.Fatal("physical definition change concealed")
 			}
 			changed = *current
 			changed.ACL.Explicit = !changed.ACL.Explicit
-			if samePreparedTypeDefinition(old, &changed) {
+			if catalog.SamePreparedTypeDefinition(old, &changed) {
 				t.Fatal("authority change concealed")
 			}
 			changed = *current
 			changed.Owner = authorization.PrincipalRef{}
-			if samePreparedTypeDefinition(old, &changed) {
+			if catalog.SamePreparedTypeDefinition(old, &changed) {
 				t.Fatal("owner change concealed")
 			}
 			if current.SQLType.IsEan13() {
@@ -131,7 +132,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if samePreparedTypeDefinition(old, &changed) {
+				if catalog.SamePreparedTypeDefinition(old, &changed) {
 					t.Fatal("foreign installed family concealed")
 				}
 			}
@@ -143,7 +144,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if samePreparedTypeDefinition(old, &changed) {
+				if catalog.SamePreparedTypeDefinition(old, &changed) {
 					t.Fatal("enum definition change concealed")
 				}
 			}
