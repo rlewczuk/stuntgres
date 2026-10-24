@@ -160,6 +160,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - `pg_sequence`, `pg_sequences`: `RUN='^TestReferencePGSequence'`
 - Catalog foreign keys, `pg_get_userbyid`: `RUN='^TestReferenceCatalogRelations'`
 - Information schema: `RUN='^TestReferenceInfo'`, `RUN='^TestReferenceDataTypePrivileges'`
+- Role table grants: `RUN='^TestReferenceInfoRoleTableGrants'`
 - Visibility inquiries: `RUN='^TestReferenceVisibilityInquiry'`, `RUN='^TestReferenceBooleanCall'`
 - Encoding conversions: `RUN='^TestReferenceConversion'`
 - Tablespaces: `RUN='^TestReferenceTablespace'`

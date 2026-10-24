@@ -1,3 +1,8 @@
+information_schema.role_table_grants now exposes eight domain-typed columns and
+live table ACL origins, including grant options, inherited enabled roles and
+enabled-grantor PUBLIC grants. Direct and prepared reads refresh after grant,
+membership and identity changes without exposing unrelated origins.
+
 Native Restore now rejects indirect foreign scans, writes and schema imports
 before provider invocation, including calls reached through stored defaults and
 CHECK expressions. Dependency-ordered table, view, SQL-function and data replay retains

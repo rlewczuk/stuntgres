@@ -73,6 +73,7 @@ func icProviderInventory(c *icCase) {
 		"information_schema.key_column_usage":        kcuColumns,
 		"information_schema.routine_sequence_usage":  rsuColumns,
 		"information_schema.role_column_grants":      strings.Fields("grantor grantee table_catalog table_schema table_name column_name privilege_type is_grantable"),
+		"information_schema.role_table_grants":       rtgColumns,
 		"information_schema.sequences":               isqColumns,
 		"information_schema.tables":                  itColumns,
 		"information_schema.user_mappings":           iumColumns,

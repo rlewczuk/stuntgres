@@ -25,6 +25,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"information_schema", "view_table_usage"}, {"information_schema", "column_column_usage"},
 	{"information_schema", "domain_constraints"}, {"information_schema", "sequences"},
 	{"information_schema", "role_column_grants"}, {"information_schema", "columns"},
+	{"information_schema", "role_table_grants"},
 	{"information_schema", "domains"}, {"information_schema", "views"},
 	{"information_schema", "tables"},
 }
@@ -104,7 +105,7 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 			} {
 				run(fixture.Exec("SET search_path="+mode.path, 0))
 				run(fixture.Exec("SET quote_all_identifiers="+mode.quote, 0))
-				for _, candidate := range []struct{ schema, name string }{{"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}} {
+				for _, candidate := range []struct{ schema, name string }{{"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "role_table_grants"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}} {
 					update, insert := "NO", "NO"
 					if candidate.name == "pg_group" {
 						update, insert = "YES", "YES"
