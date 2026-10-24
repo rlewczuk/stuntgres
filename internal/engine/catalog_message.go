@@ -155,30 +155,23 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	for _, d := range stageIndexes.Parents {
 		captureStorage(d.Address())
 	}
-	for a, candidate := range stageIndexes.Candidates {
-		index, ok := s.Get(a).(*catalog.Relation)
-		if !ok {
-			index, ok = current.Relation(a)
-		}
-		if !ok || index.SQLIndex == nil {
-			return catalog.Conflict{}
+	// A mismatch discards c, so fencing each parent before its match keeps
+	// the successful fence order.
+	if !index.CandidatesMatch(stageIndexes.Candidates, &s.Candidate, current, func(parent ids.ObjectAddress) *storage.Relation {
+		captureStorage(parent)
+		if shape, changed := s.rowShapes[parent]; changed {
+			// capture precedes stageCatalogChangesLocked: supplied generation
+			// roots belong to this stage's destination heap, not c's predecessor.
+			return shape.Replacement
 		}
 		// Candidate data belongs to the actual overlay target, not the
 		// committed/private predecessor used by captureStorage's read fence.
-		shape, staged := c.Storage[index.SQLIndex.Parent]
-		store := shape.Replacement
-		if !staged {
-			store = e.stageStorageLocked(s, index.SQLIndex.Parent)
+		if shape, staged := c.Storage[parent]; staged {
+			return shape.Replacement
 		}
-		if shape, changed := s.rowShapes[index.SQLIndex.Parent]; changed {
-			// capture precedes stageCatalogChangesLocked: supplied generation
-			// roots belong to this stage's destination heap, not c's predecessor.
-			store = shape.Replacement
-		}
-		if !candidate.MatchesIndex(index, store) {
-			return catalog.Conflict{}
-		}
-		captureStorage(index.SQLIndex.Parent)
+		return e.stageStorageLocked(s, parent)
+	}) {
+		return catalog.Conflict{}
 	}
 	c.Dependencies = append(c.Dependencies, s.sequence.IdentityDependencyList()...)
 	// Detached producer rows are still pending publication after statement

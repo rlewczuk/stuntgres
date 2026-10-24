@@ -536,42 +536,19 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			}
 		}
 		stageIndexes := s.indexesOrZero()
-		for address, candidate := range stageIndexes.Candidates {
-			index, ok := s.Get(address).(*catalog.Relation)
-			if !ok {
-				index, ok = current.Relation(address)
+		if !index.CandidatesMatch(stageIndexes.Candidates, &s.Candidate, current, func(parent ids.ObjectAddress) *storage.Relation {
+			if shape, changed := s.rowShapes[parent]; changed {
+				return shape.Replacement
 			}
-			if !ok || index.SQLIndex == nil {
-				e.mu.Unlock()
-				return ChangeSet{}, catalog.Conflict{}
+			if initial := s.initialTables[parent]; initial != nil {
+				return initial
 			}
-			store := currentStorage[index.SQLIndex.Parent]
-			if shape, changed := s.rowShapes[index.SQLIndex.Parent]; changed {
-				store = shape.Replacement
-			} else if initial := s.initialTables[index.SQLIndex.Parent]; initial != nil {
-				store = initial
-			}
-			if !candidate.MatchesIndex(index, store) {
-				e.mu.Unlock()
-				return ChangeSet{}, catalog.Conflict{}
-			}
+			return currentStorage[parent]
+		}) {
+			e.mu.Unlock()
+			return ChangeSet{}, catalog.Conflict{}
 		}
-		indexStores := index.CaptureIndexStores(currentStorage, current)
-		for _, d := range s.Descriptors() {
-			index, ok := d.(*catalog.Relation)
-			if !ok || index.SQLIndex == nil {
-				continue
-			}
-			if indexStores == nil {
-				indexStores = make(map[ids.ObjectAddress]*storage.Relation)
-			}
-			a := index.SQLIndex.Parent
-			if indexStores[a] == nil && currentStorage[a] != nil {
-				copy := *currentStorage[a]
-				copy.IndexSource = currentStorage[a]
-				indexStores[a] = &copy
-			}
-		}
+		indexStores := index.CaptureStagedIndexStores(currentStorage, current, &s.Candidate)
 		indexPredecessors := e.storage.IndexRoots
 		var disclosure *AuthorizationView
 		if op != nil {
@@ -584,60 +561,12 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		}
 		e.mu.Unlock()
 		next := s.ApplyTo(current)
-		relations := s.storagePublication().CandidateRelations(currentStorage, &s.Candidate)
+		published := s.storagePublication()
+		relations := published.CandidateRelations(currentStorage, &s.Candidate)
 		if err := catalogDependencyPreflight(current, next, s.sequence.IdentityDependencyList(), s.sequence.IdentityOriginalMap()); err != nil {
 			return ChangeSet{}, err
 		}
-		buildStores := indexStores
-		candidateStores := false
-		var rebuildIndexes map[ids.ObjectAddress]bool
-		if len(indexStores) > 0 && (len(s.rowShapes) > 0 || s.materializedOrZero().Replacement != nil) {
-			buildStores = make(map[ids.ObjectAddress]*storage.Relation, len(indexStores))
-			for a, store := range indexStores {
-				buildStores[a] = store
-			}
-			candidateStores = true
-			rebuildIndexes = make(map[ids.ObjectAddress]bool, len(s.rowShapes))
-			for a, shape := range s.rowShapes {
-				buildStores[a] = shape.Replacement
-				rebuildIndexes[a] = true
-			}
-			if replacement := s.materializedOrZero().Replacement; replacement != nil {
-				buildStores[replacement.Original.Address()] = replacement.Storage
-				rebuildIndexes[replacement.Original.Address()] = true
-			}
-		}
-		// New parents and their backing indices publish together. Build from
-		// the exact candidate store, but keep committed absence in the fence.
-		for _, d := range s.Descriptors() {
-			index, ok := d.(*catalog.Relation)
-			if !ok || index.SQLIndex == nil {
-				continue
-			}
-			a := index.SQLIndex.Parent
-			parent, staged := s.Get(a).(*catalog.Relation)
-			if !staged || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation) || current.Get(a) != nil {
-				continue
-			}
-			if !candidateStores {
-				buildStores = make(map[ids.ObjectAddress]*storage.Relation, len(indexStores)+1)
-				for address, store := range indexStores {
-					buildStores[address] = store
-				}
-				candidateStores = true
-			}
-			buildStores[a] = relations[a]
-		}
-		sourceRoots := indexPredecessors
-		if len(stageIndexes.Candidates) != 0 {
-			sourceRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(indexPredecessors)+len(stageIndexes.Candidates))
-			for a, root := range indexPredecessors {
-				sourceRoots[a] = root
-			}
-			for a, candidate := range stageIndexes.Candidates {
-				sourceRoots[a] = candidate.Root
-			}
-		}
+		build := index.PublicationBuildStores(indexStores, published, &s.Candidate, current, relations, indexPredecessors, stageIndexes.Candidates)
 		var runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef
 		if r := s.materializedOrZero().Replacement; r != nil && r.Concurrent {
 			runtimeOwners = map[ids.ObjectAddress]authorization.PrincipalRef{r.Original.Address(): r.Original.Owner}
@@ -648,7 +577,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		} else if op != nil {
 			evaluation.Input, evaluation.Output = op.Session.Settings.Presentation()
 		}
-		indexRoots, indexErr := e.prepareIndexCatalog(&evaluation, current, next, buildStores, sourceRoots, rebuildIndexes, stageIndexes.Rebuilds, stageIndexes.Output, disclosure, runtimeOwners, stageIndexes.Candidates)
+		indexRoots, indexErr := e.prepareIndexCatalog(&evaluation, current, next, build.Build, build.Sources, build.Rebuild, stageIndexes.Rebuilds, stageIndexes.Output, disclosure, runtimeOwners, stageIndexes.Candidates)
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}
