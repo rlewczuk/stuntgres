@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -31,104 +32,129 @@ func TestCopyBinaryLifecycle(t *testing.T) {
 	for _, setting := range []string{"statement_timeout", "transaction_timeout", "caller_cancel"} {
 		for _, phase := range []string{"payload", "trailer"} {
 			t.Run(setting+"/"+phase, func(t *testing.T) {
-				e := New()
-				session := sessionStart(t, e, nil)
-				sessionSQL(t, session, "CREATE TABLE t(v INT)")
-				if setting != "caller_cancel" {
-					sessionSQL(t, session, "SET "+setting+" TO '100ms'")
-				}
-				if setting == "transaction_timeout" {
-					sessionSQL(t, session, "BEGIN")
-				}
-				ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
-				defer stop()
-				op, _, err := session.AcquireCommand(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
-				scope, err := e.StartStatement(op)
-				if err != nil {
-					op.Done()
-					t.Fatal(err)
-				}
-				stream := copyBinaryUnitStream(t)
-				split := len(stream)
-				if phase == "payload" {
-					split -= 5
-				}
-				reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{}), first: true, prefix: bytes.NewReader(stream[:split]), suffix: bytes.NewReader(stream[split:])}
-				done := make(chan error, 1)
-				joined := false
-				defer func() {
-					if !joined {
-						close(reader.release)
-						<-done
+				synctest.Test(t, func(t *testing.T) {
+					e := New()
+					session := sessionStart(t, e, nil)
+					sessionSQL(t, session, "CREATE TABLE t(v INT)")
+					if setting != "caller_cancel" {
+						sessionSQL(t, session, "SET "+setting+" TO '100ms'")
 					}
-				}()
-				go func() {
-					_, err := scope.Copy(copyBinaryUnitSyntax(), reader, nil)
-					err = op.CommandError(scope.Finish(err))
-					op.Done()
-					done <- err
-				}()
-				select {
-				case <-reader.entered:
-				case err := <-done:
-					joined = true
-					close(reader.release)
-					t.Fatal("binary COPY failed before barrier", err)
-				case <-ctx.Done():
-					t.Fatal("binary COPY barrier deadline")
-				}
-				if setting == "caller_cancel" {
-					op.Cancel(context.Canceled)
-				}
-				select {
-				case <-op.Context().Done():
-				case <-ctx.Done():
-					t.Fatal("operation deadline did not interrupt binary callback")
-				}
-				close(reader.release)
-				err = <-done
-				joined = true
-				if setting == "caller_cancel" {
-					if !errors.Is(err, context.Canceled) {
-						t.Fatal("caller identity", err)
-					}
-				} else {
-					var record *sqlstate.Error
-					if !errors.As(err, &record) {
-						t.Fatal("SQL deadline identity", err)
-					}
-					code, severity, message := "57014", "ERROR", "canceling statement due to statement timeout"
 					if setting == "transaction_timeout" {
-						code, severity, message = "25P04", "FATAL", "terminating connection due to transaction timeout"
+						sessionSQL(t, session, "BEGIN")
 					}
-					location := "COPY t, line 3"
-					if phase == "payload" {
-						location = "COPY t, line 2, column v"
-					}
-					want := sqlstate.Error{Code: code, Severity: severity, SeverityUnlocalized: severity, Message: message, Context: location}
-					if *record != want {
-						t.Fatalf("binary timeout=%#v want=%#v", record, want)
-					}
-				}
-				if scope.owner.CopyLease != nil || scope.stage.rows != nil {
-					t.Fatal("binary interruption leaked reservation/stage")
-				}
-				if setting == "transaction_timeout" {
-					if err := session.WaitEnd(context.Background()); err != nil {
+					ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+					defer stop()
+					stream := copyBinaryUnitStream(t)
+					op, _, err := session.AcquireCommand(ctx)
+					if err != nil {
 						t.Fatal(err)
 					}
-				}
-				peer := sessionStart(t, e, nil)
-				result := sessionSQL(t, peer, "SELECT v FROM t")
-				if result.Rows != nil {
-					defer result.Rows.Close()
-				}
-				if result.Count != 0 {
-					t.Fatal("binary interruption published rows", result.Count)
-				}
+					scope, err := e.StartStatement(op)
+					if err != nil {
+						op.Done()
+						t.Fatal(err)
+					}
+					split := len(stream)
+					if phase == "payload" {
+						split -= 5
+					}
+					reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{}), first: true, prefix: bytes.NewReader(stream[:split]), suffix: bytes.NewReader(stream[split:])}
+					done := make(chan error, 1)
+					joined, released := false, false
+					release := func() {
+						if !released {
+							close(reader.release)
+							released = true
+						}
+					}
+					go func() {
+						_, err := scope.Copy(copyBinaryUnitSyntax(), reader, nil)
+						err = op.CommandError(scope.Finish(err))
+						op.Done()
+						done <- err
+					}()
+					defer func() {
+						if !joined {
+							op.Cancel(context.Canceled)
+							release()
+							<-done
+							joined = true
+						}
+					}()
+					select {
+					case <-reader.entered:
+					case err := <-done:
+						joined = true
+						release()
+						t.Fatal("binary COPY failed before barrier", err)
+					case <-ctx.Done():
+						t.Fatal("binary COPY barrier deadline")
+					}
+					synctest.Wait()
+					if err := op.Context().Err(); err != nil {
+						t.Fatal("binary COPY expired before interruption", err)
+					}
+					select {
+					case err := <-done:
+						joined = true
+						release()
+						t.Fatal("binary COPY finished before interruption", err)
+					default:
+					}
+					if setting == "caller_cancel" {
+						op.Cancel(context.Canceled)
+					}
+					select {
+					case <-op.Context().Done():
+					case <-ctx.Done():
+						t.Fatal("operation deadline did not interrupt binary callback")
+					}
+					release()
+					select {
+					case err = <-done:
+					case <-ctx.Done():
+						t.Fatal("binary COPY completion deadline")
+					}
+					joined = true
+					if setting == "caller_cancel" {
+						if !errors.Is(err, context.Canceled) {
+							t.Fatal("caller identity", err)
+						}
+					} else {
+						var record *sqlstate.Error
+						if !errors.As(err, &record) {
+							t.Fatal("SQL deadline identity", err)
+						}
+						code, severity, message := "57014", "ERROR", "canceling statement due to statement timeout"
+						if setting == "transaction_timeout" {
+							code, severity, message = "25P04", "FATAL", "terminating connection due to transaction timeout"
+						}
+						location := "COPY t, line 3"
+						if phase == "payload" {
+							location = "COPY t, line 2, column v"
+						}
+						want := sqlstate.Error{Code: code, Severity: severity, SeverityUnlocalized: severity, Message: message, Context: location}
+						if *record != want {
+							t.Fatalf("binary timeout=%#v want=%#v", record, want)
+						}
+					}
+					if scope.owner.CopyLease != nil || scope.stage.rows != nil {
+						t.Fatal("binary interruption leaked reservation/stage")
+					}
+					if setting == "transaction_timeout" {
+						if err := session.WaitEnd(context.Background()); err != nil {
+							t.Fatal(err)
+						}
+					}
+					peer := sessionStart(t, e, nil)
+					result := sessionSQL(t, peer, "SELECT v FROM t")
+					if result.Rows != nil {
+						defer result.Rows.Close()
+					}
+					if result.Count != 0 {
+						t.Fatal("binary interruption published rows", result.Count)
+					}
+				})
 			})
 		}
 	}

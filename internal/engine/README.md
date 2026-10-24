@@ -545,6 +545,11 @@ witnesses belong to the corresponding `reference/catalogs` family.
   virtual time, inspect state only after `synctest.Wait`, and join the delayed
   consumer on every path. Timeouts keep location-free 55P03/57014 diagnostics
   and leave no grant, pending request or journal entry.
+- Binary COPY timeout leaves use `testing/synctest` with actual production timers
+  and blocked payload/post-trailer EOF reader callbacks. Settle with
+  `synctest.Wait` and assert the operation is unexpired and unfinished before
+  interruption; release and join callbacks/operations on every path before
+  session disposal.
 - `deadlockResult` waits for the authoritative `Done` (never `Terminal` alone),
   reads `Err` only after `Done`, and uses one stopped one-second guard.
 
