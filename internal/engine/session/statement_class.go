@@ -263,6 +263,31 @@ func ExplicitUtility(stmt parser.Statement) bool {
 	return false
 }
 
+// TransactionalSchemaUtility reports whether stmt runs on the transaction
+// journal. It is the bounded relation/schema integration boundary, including
+// ordinary and concurrent materialized refresh, not a relaxation of
+// independent standalone utility policies. Describe uses the
+// same boundary as Execute, but query-derived creation still analyzes its
+// source.
+func TransactionalSchemaUtility(stmt parser.Statement) bool {
+	switch s := stmt.(type) {
+	case *parser.AlterTrigger, *parser.DropTrigger:
+		return true
+	case *parser.CreateTable, *parser.DropTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema,
+		*parser.AlterTable, *parser.AlterTableRenameTable, *parser.AlterTableRenameColumn,
+		*parser.AlterTableRenameConstraint, *parser.AlterTableSetSchema, *parser.AlterTableDefault,
+		*parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition,
+		*parser.AlterTableAllInTablespace, *parser.CreateView, *parser.AlterView, *parser.DropView,
+		*parser.RefreshMaterializedView:
+		return true
+	case *parser.AlterOwner:
+		return s.Kind == "table"
+	case *parser.CreateQueryTable:
+		return s.Form == parser.CreateTableAs || s.Form == parser.SelectInto || s.Form == parser.CreateMaterializedView
+	}
+	return false
+}
+
 // Only index utilities have a syntax-only Describe and an early Execute gate.
 // Other utility admission precedence is deliberately unchanged.
 func EarlyIndexUtility(stmt parser.Statement) bool {

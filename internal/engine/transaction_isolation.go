@@ -244,7 +244,7 @@ func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error
 	return session.ReadOnlyRefusal(stmt, t.ReadOnly)
 }
 func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
-	if !session.ExplicitUtility(stmt) || transactionalSchemaUtility(stmt) || transactionalIndexMaintenance(stmt) || s.partitionIndexTransaction(stmt) {
+	if !session.ExplicitUtility(stmt) || session.TransactionalSchemaUtility(stmt) || transactionalIndexMaintenance(stmt) || s.partitionIndexTransaction(stmt) {
 		return nil
 	}
 	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character == 0 {

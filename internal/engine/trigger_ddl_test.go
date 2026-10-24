@@ -379,7 +379,7 @@ func TestTriggerDDLAdmission(t *testing.T) {
 		{&parser.DropTrigger{Table: name}, lock.AccessShare, true},
 	} {
 		target, ok, err := table.TargetAdmission(tc.stmt, true)
-		if err != nil || !ok || target.Mode != tc.mode || transactionalSchemaUtility(tc.stmt) != tc.transaction {
+		if err != nil || !ok || target.Mode != tc.mode || session.TransactionalSchemaUtility(tc.stmt) != tc.transaction {
 			t.Fatal("lifecycle admission", target, err)
 		}
 	}

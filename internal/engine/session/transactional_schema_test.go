@@ -1,4 +1,4 @@
-package engine
+package session
 
 import (
 	"stuntgres/internal/parser"
@@ -15,9 +15,9 @@ func TestTransactionalSchemaAdmission(t *testing.T) {
 		&parser.CreateView{}, &parser.AlterView{}, &parser.AlterView{Materialized: true},
 		&parser.DropView{}, &parser.DropView{Materialized: true},
 		&parser.CreateQueryTable{Form: parser.CreateMaterializedView},
-		&parser.RefreshMaterializedView{}, statement(t, "REFRESH MATERIALIZED VIEW CONCURRENTLY admission_mv"),
+		&parser.RefreshMaterializedView{}, parsedStatement(t, "REFRESH MATERIALIZED VIEW CONCURRENTLY admission_mv"),
 	} {
-		if !transactionalSchemaUtility(stmt) {
+		if !TransactionalSchemaUtility(stmt) {
 			t.Errorf("missing admission: %T", stmt)
 		}
 	}
@@ -27,8 +27,17 @@ func TestTransactionalSchemaAdmission(t *testing.T) {
 		&parser.CreateComposite{}, &parser.CreateDomain{}, &parser.CreateFunction{}, &parser.CreateRole{}, &parser.Comment{},
 		&parser.ObjectGrant{}, &parser.ReassignOwned{}, &parser.DropOwned{}, &parser.CreateConversion{},
 	} {
-		if transactionalSchemaUtility(stmt) {
+		if TransactionalSchemaUtility(stmt) {
 			t.Errorf("widened admission: %T", stmt)
 		}
 	}
+}
+
+func parsedStatement(t *testing.T, sql string) parser.Statement {
+	t.Helper()
+	s, err := parser.Parse(sql)
+	if err != nil || len(s) != 1 {
+		t.Fatal(len(s), err)
+	}
+	return s[0]
 }

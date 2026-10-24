@@ -243,13 +243,11 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   locking and snapshot admission before their read-only execution check. WITH
   NO DATA resolves source names and output types but does not demand the skipped
   SELECT executor's privileges.
-- `transactionalSchemaUtility` is the shared bounded Describe/Execute admission
-  policy: permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA,
-  shipped ALTER TABLE forms, trigger ALTER/DROP, CREATE/OR REPLACE/ALTER/DROP VIEW
-  and CREATE/ALTER/DROP MATERIALIZED VIEW plus ordinary/concurrent REFRESH use the
-  existing transaction journal. CREATE TRIGGER retains its independent utility
-  policy. Generic OWNER admits only tables; feature-specific view/materialized
-  OWNER is AlterView. Concurrent index variants keep their independent restrictions.
+- `session.TransactionalSchemaUtility` selects the table, schema, trigger,
+  view and materialized-view DDL (including REFRESH) that Describe and Execute
+  run on the existing transaction journal
+  ([policy](session/README.md#what-it-owns)). Concurrent index variants keep
+  their independent restrictions.
 - Ordinary non-concurrent CREATE INDEX (including UNIQUE and shipped methods)
   is admitted separately at Execute. It uses the same private catalog/storage,
   journal, Finish and combined publication path as table/schema DDL. Its canonical

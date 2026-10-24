@@ -436,7 +436,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	case session.DescribeOperation:
 		return s.engine().describeOperation(s, stmt)
 	}
-	if transactionalSchemaUtility(stmt) {
+	if session.TransactionalSchemaUtility(stmt) {
 		if _, queryCreation := stmt.(*parser.CreateQueryTable); !queryCreation {
 			return s.engine().describeOperation(s, stmt)
 		}
@@ -616,7 +616,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		return s.engine().executeStatement(s, stmt, count, importFrame)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
-	if queryCreation && !transactionalSchemaUtility(stmt) {
+	if queryCreation && !session.TransactionalSchemaUtility(stmt) {
 		// Rejected creation utilities must not enter a deferrable safe-snapshot wait.
 		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
 			return Result{}, err

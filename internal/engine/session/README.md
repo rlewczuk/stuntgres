@@ -82,15 +82,23 @@ implement its slots, so either import would form a cycle.
 - **Statement classification** (pure functions of the AST and owner values):
   command tags (`command_tag.go`); admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,
-  `ExplicitUtilityRefusal`); snapshot, replacement-read and Describe classes
+  `ExplicitUtilityRefusal`, `TransactionalSchemaUtility`); snapshot, replacement-read and Describe classes
   (`statement_phases.go`); and the transaction-control table
   (`transaction_control.go`: `ClassifyControl` returns a `ControlStep`, plus
   `AbortedControlAllowed`, `SavepointOutsideBlockError` and the shared
   `AbortedError` and `NoTransactionWarning`). For COMMENT, `ExplicitUtility`
   admits only the enumerated shipped kinds; unknown kinds and unrelated
-  utility exclusions remain intact. The root reads state, InBlock and
-  ReadOnly under `t.Mu` and keeps its locks, preflights, short-circuits
-  (`transactionalSchemaUtility`, `partitionIndexTransaction`) and call order.
+  utility exclusions remain intact. `TransactionalSchemaUtility` is the
+  shared bounded Describe/Execute admission policy: permanent CREATE/DROP
+  TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA, shipped ALTER TABLE forms,
+  trigger ALTER/DROP, CREATE/OR REPLACE/ALTER/DROP VIEW and CREATE/ALTER/DROP
+  MATERIALIZED VIEW plus ordinary/concurrent REFRESH use the existing
+  transaction journal. CREATE TRIGGER retains its independent utility policy.
+  Generic OWNER admits only tables; feature-specific view/materialized OWNER is
+  AlterView. The root
+  reads state, InBlock and ReadOnly under `t.Mu` and keeps its locks,
+  preflights, short-circuits (`partitionIndexTransaction`,
+  `transactionalIndexMaintenance`) and call order.
 - **Protocol codec** (`protocol_values.go`, `protocol_statement.go`): the wire
   value types `ProtocolInput`, `ProtocolLogParameter`, `ProtocolContext` and
   `ProtocolField`; format decoding (`ProtocolFormats`,
@@ -240,7 +248,7 @@ column-shape projections, data-view and snapshot capture, and settings
 provider capture.
 
 ```sh
-make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|StatementPhases|DataView|PrivateStorage|CommittedRoots|NeedsSnapshotProjection|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'
+make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|TransactionalSchemaAdmission|StatementPhases|DataView|PrivateStorage|CommittedRoots|NeedsSnapshotProjection|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'
 make check RACE=1 RUN='^Test(SessionHost|SessionPayload|OwnerExtension|ExclusionMark|Operation(AnalysisSlot|ReplaySlot)|UUIDOsspTimeConcurrent$$)'
 make check RUN='^Test(CatalogFences|EnumProvenanceSavepoints|AlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection)$$)'
 make check RACE=1 RUN='^Test(PgrowlocksEligibility|SnapshotStatement(Retention|RootConsistency)|SnapshotBinding|SerializableSafeSnapshot)'
