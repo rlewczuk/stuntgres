@@ -297,6 +297,36 @@ store sentence becomes a pointer to it.
   - For 177: `catalogStore` reads in the moved code now come in as values
     (`e.catalog.state`, `DatabaseAddress()`, `nextRevision`), so the rename
     touches only the root call sites.
-- 177: not started.
+- 177: done (`46cfad58e`, `bdddf63f9`, docs commit), started at master
+  `73e7fb5ff` (item 176), rebased on `4b5a5ad64`.
+  - Commit 1 is scripted and re-runnable
+    (`.cswd/tmp/PG18-ENGINE-SPLIT-CATALOG-STORE/c1.sh`): a new go/types
+    tool, `storerw`, turns the state and frontier writes into
+    `PublishLocked` and `Install…FrontierLocked` calls (13 production
+    publication points, about 150 with tests), frontier reads into `NextOID` and
+    `NextRevision`, `owner()` into `&s.Owner` and the `read(state)` pairs
+    into `Current()`; `movex` exports the rest, including
+    `OIDReservation.Base` and `Next`.
+  - Commit 2 moves the store to `catalog/store.go` and the database
+    helpers to `catalog/database_projection.go`; the `ddl.Allocator`
+    assertion stays in the root, because `catalog` cannot import `ddl`.
+  - Deviations: `ProjectDatabasesLocked` and `DatabaseOIDLocked` take the
+    cluster's stores as an `iter.Seq[*Store]` (the root's
+    `databaseCluster.catalogs` method value) instead of `[]*Store`, so
+    publication builds no slice; `-gcflags=-m` shows it does not escape.
+    Install is `DatabaseProjection.InstallLocked`. CREATE DATABASE now
+    calls `RetainDatabasesLocked` instead of its inline copy. Without a
+    reader for the enum frontier, the root enum tests probe it with
+    `AllocateEnumMemberLocked` on both sides.
+  - Checks: quickcheck; quick and `REFERENCE=1` selections
+    (`TestReferenceDatabaseCreate` as a prefix of its eleven tests,
+    `DatabaseIdentity`, `ControlSnapshotSurvivesCatalogReplacement`,
+    `DriverBatchFeatureSmoke`, `DateDumpRestoreAndPostgresReplay`); deps.
+    `make bench` with interleaved base and branch binaries: 5,462
+    allocations per op on both, ns/op overlapping (about 5 ms on both under
+    load 74–98). Racecheck and finalcheck skipped (user decision).
+  - For 179: the role reads pass `&e.catalog.Owner` where they called
+    `catalog.owner()`, so `PublishedRead` replaces
+    `roles.read(&e.catalog.Owner, view, roles.published)`.
 - 178: not started.
 - 179: not started.

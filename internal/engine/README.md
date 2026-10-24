@@ -1,9 +1,10 @@
 # internal/engine
 
 The root engine is the analysis host and owns transactions, settings and
-lifecycle publication: `Engine.mu`, the catalog store, statement scopes and
-admission, catalog/storage/visibility installation, and the orchestration of
-native Dump/Restore and the wire protocol. Subsystem logic lives in layered
+lifecycle publication: `Engine.mu`, the catalog store (`catalog.Store`, see
+[its README](catalog/README.md)), statement scopes and admission,
+catalog/storage/visibility installation, and the orchestration of native
+Dump/Restore and the wire protocol. Subsystem logic lives in layered
 subpackages ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SPLIT.md) §3) that never
 import the root and reach it through the hosts below.
 
@@ -444,7 +445,7 @@ Producers, the OID registry and descriptor specs live in
   keeps an unlock/capture/relock epoch fence.
 - `catalog_sources.go` registers descriptors from `pgcatalog.Specs`, preserving
   registration order, OIDs, columns and row/array links.
-- Provenance is same-pointer authority (`catalogStore.owner()`), never equal
+- Provenance is same-pointer authority (`&e.catalog.Owner`), never equal
   names, OIDs or epochs.
 
 ## Catalog writes and built-in seed
@@ -453,7 +454,7 @@ Producers, the OID registry and descriptor specs live in
   the global allocator; publication commits its local frontier only at
   successful installation under `Engine.mu`.
 - Persistent replacement reserves OIDs with an operation-local base/next cursor
-  through the same `catalogStore.allocateOIDFromLocked` checks as ordinary
+  through the same `catalog.Store.AllocateOIDFromLocked` checks as ordinary
   issuance. All preservation OID users share it. Only final catalog installation
   commits its frontier; no-fit, cancellation and later validation failures leave
   live capacity unchanged. Unlocked repair and final installation fence the

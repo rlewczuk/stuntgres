@@ -16,15 +16,17 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `94ac1ef52` (item 176 rebased on it;
-no feature commit added root production code since item 175's check).
+Last verified against `master` at `4b5a5ad64` (item 177 rebased on it;
+`c00a2dd91` added about 0.39k lines of root production code since item 176's
+check, mostly `definition_object_locks.go`, a finding for item 180).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 177.
+- 178.
+- 179.
 
 ## Linear plan
 
@@ -111,9 +113,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      concurrent selections, bench (allocations unchanged), `reference/tables`
      CPU time within noise and deps passed; racecheck and finalcheck skipped
      (user decision)
-177. [ ] Catalog: `catalog.Store` —
+177. [x] Catalog: `catalog.Store` —
      [catalog](ENGINE-SPLIT-catalog.md#item-177--catalogstore) · needs 168,
-     169, 170, 171, 172, 173, 174, 175, 176 · 0.29k
+     169, 170, 171, 172, 173, 174, 175, 176 · 0.29k (`46cfad58e`,
+     `bdddf63f9`, docs commit) · the catalog store moved to `catalog.Store`
+     with `NewStore`, `PublishLocked`, the frontier readers and installers,
+     and the database projection helpers; quickcheck, quick and
+     `REFERENCE=1` selections, bench (allocations unchanged) and deps
+     passed; racecheck and finalcheck skipped (user decision)
 178. [ ] Catalog: builtin catalog seed —
      [catalog](ENGINE-SPLIT-catalog.md#item-178--builtin-catalog-seed) ·
      needs 177 · 0.19k

@@ -60,6 +60,25 @@ private frames, not catalog authority.
   `DatabaseProvider`, `TablespaceProvider`, `CollationProvider`,
   `ConversionProvider`, `ForeignCatalogProvider`, `LargeObjectProvider`) validate
   against a `Read`.
+- **Store** (`store.go`). `Store` is one engine's catalog state: it embeds the
+  `Owner` and holds the published `State` and the OID, revision and enum member
+  frontiers. `NewStore` gives it a fresh domain. `Current` reads the published
+  state and `Read` any state of this owner. `State` changes only through
+  `PublishLocked`, the frontiers only through `InstallOIDFrontierLocked` and
+  `InstallRevisionFrontierLocked`; the enum frontier has only
+  `AllocateEnumMemberLocked`. `AllocateOIDLocked` skips reserved and used OIDs;
+  an `OIDReservation` is a replacement's private cursor through
+  `AllocateOIDFromLocked`. `ValidateObjectRefLocked` and
+  `ValidateCatalogViewLocked` check provenance and epoch. The engine holds the
+  store by value and never copies it, because every `Read` points at its
+  `Owner`.
+- **Database projection** (`database_projection.go`). Every store of a cluster
+  carries the same database descriptors. `RetainDatabasesLocked` keeps the
+  store's own in a replacement state, `ProjectDatabasesLocked` prepares one
+  root per store for a database change as a `DatabaseProjection` that
+  `InstallLocked` publishes, and `DatabaseOIDLocked` reserves a database OID
+  past every store's frontier and roots. The stores come as an iterator, so a
+  publication without a database change allocates nothing.
 - **Candidate** (`candidate.go`). The pure copy-on-write overlay of a catalog
   change over an immutable base `Read`; `CatalogStage` embeds it. `Create` and
   `Replace` run name-conflict and sticky relation-history checks;
@@ -193,9 +212,9 @@ private frames, not catalog authority.
   change; a change copies only what it touches. No deep copies on publication or
   capture.
 - The package has no mutex. `Engine.mu` guards the published state and every
-  unpublished state shared between goroutines. Revision frontiers are pure and
-  saturating; the engine store commits them under `Engine.mu` only at successful
-  installation.
+  unpublished state shared between goroutines, including every `Store` field.
+  Revision frontiers are pure and saturating; `Store` commits them under
+  `Engine.mu` only at successful installation.
 - Provenance: a `Read` belongs to the engine whose `Owner` it carries; validators
   compare domains through the owner, never the engine.
 - Identity is never inferred from names or numbers. Relation identities, sparse
@@ -218,8 +237,10 @@ private frames, not catalog authority.
 
 DDL commands, `CatalogStage` and publication (taking `Engine.mu`, the storage,
 index and materialized-view fences including the extension materialized-view
-recheck, the relations map and the post-apply validators), the `catalogStore`
-allocators, seeding, the transaction catalog journal, the registration of
+recheck, the relations map and the post-apply validators), the engine's
+`Store` field and every acquisition of `Engine.mu`, the journal and
+`AuthorizationView` wrappers around the store, seeding, the transaction catalog
+journal, the registration of
 providers that live in their own packages (`role.ParameterProvider`,
 `table.RelationProvider`, `stored.TypeProvider`, `stored.ProcedureProvider`,
 `extension.CatalogProvider`, `routine.OperatorProvider`), definition-OID
@@ -246,7 +267,7 @@ rollback before fresh same-owner transaction use.
 Package units cover the read/write API, persistent storage and bulk loads,
 Candidate ownership, cast pair indexes, operator class and family identity,
 principal and address remaps, diagnostic names, tablespace validators and the
-builtin routine inventory. `testdata/builtin_routine_results_pg18_6.tsv` is the
+builtin routine inventory, and the `Store` allocators and frontiers. `testdata/builtin_routine_results_pg18_6.tsv` is the
 independent record of every builtin routine identity and result, extracted from
 the pinned PostgreSQL 18.6 oracle; `TestBuiltinRoutineResultInventory` checks it.
 Engine-side seams (provider registry, payload accessors, operator index,
@@ -254,8 +275,8 @@ publication, including the candidate publication helpers) are units in
 `internal/engine`.
 
 ```sh
-make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad)|Candidate|BuiltinRoutineResultInventory)'
+make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad)|Candidate|BuiltinRoutineResultInventory|(New)?Store)'
 make check RACE=1 RUN='^Test(CastDefinition(PairIndex|CandidateIsolation)|.*PrincipalRemap|OperatorClass(Catalog|Value))'
-make check RUN='^Test(CatalogAllocatorAndProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload|UserOperatorIndex)'
+make check RUN='^Test(CatalogProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload|UserOperatorIndex)'
 make check RACE=1 RUN='^Test(AccessMethodDescriptor|PgClassSubclass|TableSummary|DefaultPrivileges(PublicationFence|CreationFence)|SQLRoutineStagedLookup|DropReaderSeam)'
 ```
