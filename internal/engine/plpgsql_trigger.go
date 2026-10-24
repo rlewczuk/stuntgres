@@ -76,7 +76,7 @@ func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, 
 		return sqltype.Value{}, err
 	}
 	identity := "PL/pgSQL function " + plRoutineDiagnosticIdentity(read, d)
-	if flow.kind != plReturn {
+	if flow.Kind != proc.PLReturn {
 		return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2F005", Message: "control reached end of trigger procedure without RETURN", Context: identity}
 	}
 	shape, ok := read.LookupType(relation.RowType)

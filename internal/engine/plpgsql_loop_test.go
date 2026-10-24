@@ -53,7 +53,7 @@ func TestPLpgSQLLoopFrame(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s, d, f, read := loopUnitFrame(t, tc.source)
 			value, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
-			if err != nil || flow.kind != plReturn {
+			if err != nil || flow.Kind != proc.PLReturn {
 				t.Fatal("loop flow failed", flow, err)
 			}
 			if len(f.Scopes) != 0 || f.HandledError() != nil || s.sqlRoutine.lexical != nil || s.activeSQLRoutineDepth != 0 {
@@ -96,7 +96,7 @@ func TestPLpgSQLLoopCancellation(t *testing.T) {
 		s.op.Ctx = loopFrameCancel{Context: ctx, cancel: cancel, frame: f}
 		_, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
 		cancel()
-		if !errors.Is(err, context.Canceled) || flow.kind != plNormal {
+		if !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal {
 			t.Fatal("active loop cancellation lost", flow, err)
 		}
 		var state interface{ SQLState() string }

@@ -42,7 +42,7 @@ func (s *StatementScope) assignPLRow(f *proc.PLFrame, slot int, shape **sqltype.
 	return err
 }
 
-func (s *StatementScope) forPLQuery(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow plFlow, err error) {
+func (s *StatementScope) forPLQuery(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
 	iterated, consumed := false, false
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() {
@@ -108,7 +108,7 @@ func (s *StatementScope) forPLQuery(d *catalog.Procedure, f *proc.PLFrame, in pr
 
 // consumePLQuery uses one width-sized demand buffer. Only published anonymous
 // record values need detached backing; no result history or second result buffer.
-func (s *StatementScope) consumePLQuery(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read, rows exec.RowResult, iterated *bool) (value sqltype.Value, flow plFlow, err error) {
+func (s *StatementScope) consumePLQuery(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read, rows exec.RowResult, iterated *bool) (value sqltype.Value, flow proc.PLFlow, err error) {
 	schema := rows.Schema()
 	fields := make([]sqltype.Value, len(schema))
 	var shape *sqltype.Descriptor
@@ -118,16 +118,16 @@ func (s *StatementScope) consumePLQuery(d *catalog.Procedure, f *proc.PLFrame, i
 	}
 	for {
 		if err = s.op.Context().Err(); err != nil {
-			return value, plFlow{}, failure(err)
+			return value, proc.PLFlow{}, failure(err)
 		}
 		present, fetchErr := rows.Next(s.op.Context(), fields)
 		if fetchErr != nil {
-			return value, plFlow{}, failure(fetchErr)
+			return value, proc.PLFlow{}, failure(fetchErr)
 		}
 		if !present {
 			if !*iterated {
 				if err = s.assignPLRow(f, in.QueryLoop.Target.Slot, &shape, schema, nil); err != nil {
-					return value, plFlow{}, failure(err)
+					return value, proc.PLFlow{}, failure(err)
 				}
 			}
 			break
@@ -137,20 +137,20 @@ func (s *StatementScope) consumePLQuery(d *catalog.Procedure, f *proc.PLFrame, i
 			owned = slices.Clone(fields)
 		}
 		if err = s.assignPLRow(f, in.QueryLoop.Target.Slot, &shape, schema, owned); err != nil {
-			return value, plFlow{}, failure(err)
+			return value, proc.PLFlow{}, failure(err)
 		}
 		*iterated = true
 		value, flow, err = s.executePLBlock(d, f, in.QueryLoop.Body, read)
 		if err != nil {
 			return value, flow, err
 		}
-		if flow.kind == plNormal || flow.kind == plContinue && flow.target == owner {
+		if flow.Kind == proc.PLNormal || flow.Kind == proc.PLContinue && flow.Target == owner {
 			continue
 		}
-		if flow.kind == plExit && flow.target == owner {
-			return value, plFlow{}, nil
+		if flow.Kind == proc.PLExit && flow.Target == owner {
+			return value, proc.PLFlow{}, nil
 		}
 		return value, flow, nil
 	}
-	return value, plFlow{}, nil
+	return value, proc.PLFlow{}, nil
 }

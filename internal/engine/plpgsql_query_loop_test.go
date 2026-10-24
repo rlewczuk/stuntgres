@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
 )
 
@@ -86,13 +87,13 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 			if err := owned.Close(); err != nil {
 				t.Fatal("repeat close", err)
 			}
-			if body == "RETURN 7;" && flow.kind != plReturn {
+			if body == "RETURN 7;" && flow.Kind != proc.PLReturn {
 				t.Fatal("return token lost", flow)
 			}
-			if body == "EXIT;" && flow.kind != plNormal {
+			if body == "EXIT;" && flow.Kind != proc.PLNormal {
 				t.Fatal("own EXIT escaped", flow)
 			}
-			if body == "EXIT outer_block;" && (flow.kind != plExit || flow.target != outer.Control) {
+			if body == "EXIT outer_block;" && (flow.Kind != proc.PLExit || flow.Target != outer.Control) {
 				t.Fatal("outward owner token lost", flow)
 			}
 		})
@@ -182,7 +183,7 @@ func TestPLpgSQLQueryLoopCancellation(t *testing.T) {
 	closeErr := owned.Close()
 	err = restore(err)
 	s.op.Ctx = originalContext
-	if !iterated || !errors.Is(err, context.Canceled) || flow.kind != plNormal || closeErr != nil || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
+	if !iterated || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || closeErr != nil || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
 		t.Fatal("empty-body cancellation retained producer authority", flow, err, closeErr)
 	}
 	// The same scope/frame can acquire fresh lexical demand after cancellation.

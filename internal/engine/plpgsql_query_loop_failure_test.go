@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
 )
 
@@ -60,7 +61,7 @@ func queryLoopDemandFailure(t *testing.T) {
 			} else if !errors.Is(err, cause) {
 				t.Fatal("fetch failure lost cause", err)
 			}
-			if iterated || flow.kind != plNormal || f.Values[in.QueryLoop.Target.Slot] != previous || f.Values[f.Program.FoundSlot] != found {
+			if iterated || flow.Kind != proc.PLNormal || f.Values[in.QueryLoop.Target.Slot] != previous || f.Values[f.Program.FoundSlot] != found {
 				t.Fatal("failed demand published target/FOUND/control", iterated, flow)
 			}
 			if err := owned.Close(); err != nil || !owner.Closed || !rows.closed {

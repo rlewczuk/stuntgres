@@ -92,7 +92,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}}}}
 		_, flow, err := s.executePLBlock(nil, frame, block, e.CatalogRead())
-		if flow.kind != plNormal || !errors.Is(err, failure) || len(s.owner.Savepoints) != 0 || !reflect.DeepEqual(tx.calls, []string{"save:stuntgres_sql_1", "rollback"}) {
+		if flow.Kind != proc.PLNormal || !errors.Is(err, failure) || len(s.owner.Savepoints) != 0 || !reflect.DeepEqual(tx.calls, []string{"save:stuntgres_sql_1", "rollback"}) {
 			t.Fatal("failed acquisition ran body/retained provider mark", flow, err, tx.calls)
 		}
 	})
@@ -122,7 +122,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		_, flow, err := s.executePLBlock(nil, frame, enclosing, e.CatalogRead())
 		var diagnostic *sqlstate.Error
 		var cleanup *proc.PLExceptionCleanupError
-		if flow.kind != plNormal || !errors.As(err, &cleanup) || !errors.As(err, &diagnostic) || diagnostic != original || !errors.Is(err, failure) {
+		if flow.Kind != proc.PLNormal || !errors.As(err, &cleanup) || !errors.As(err, &diagnostic) || diagnostic != original || !errors.Is(err, failure) {
 			t.Fatal("cleanup failure swallowed/replaced origin or ran handler", flow, err)
 		}
 	})
@@ -153,7 +153,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
 		_, flow, err := s.executePLBlock(nil, frame, block, e.CatalogRead())
-		if flow.kind != plNormal || !errors.Is(err, context.Canceled) || len(s.owner.Savepoints) != 0 {
+		if flow.Kind != proc.PLNormal || !errors.Is(err, context.Canceled) || len(s.owner.Savepoints) != 0 {
 			t.Fatal("OTHERS swallowed ordinary context error", flow, err)
 		}
 	})

@@ -87,7 +87,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 				}
 			} else {
 				n, failure := value.Integer()
-				if err != nil || failure != nil || flow.kind != plReturn || n != 7 {
+				if err != nil || failure != nil || flow.Kind != proc.PLReturn || n != 7 {
 					t.Fatal("nested RETURN did not propagate", value, flow, err)
 				}
 			}
