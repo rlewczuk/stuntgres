@@ -27,6 +27,7 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		return nil, err
 	}
 	text := name.Parts[len(name.Parts)-1].Text
+	earth := family == functions.EarthdistanceExtension
 	spatial := family == functions.CubeExtension && signature == ""
 	if spatial {
 		if _, selected := sqltype.CubeSpatialKind(text); !selected {
@@ -34,7 +35,7 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		}
 	}
 	var proc *catalog.Procedure
-	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil && (string(selected.Signature) == signature || spatial && extension.CubeProviderOf(selected) == extension.StockCube) {
+	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil && (string(selected.Signature) == signature || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
 		symbol, failure := extension.ProcedureSymbol(auth.ReadCatalog(), selected)
 		if failure != nil {
 			return nil, failure
@@ -42,6 +43,20 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		if symbol == text {
 			proc = selected
 		}
+	}
+	if earth && proc == nil {
+		for i := range path.Count() {
+			for candidate := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.Host.DefinitionOf(auth), path.At(i), text) {
+				if extension.EarthdistanceProviderOf(candidate) != extension.StockEarthdistance {
+					continue
+				}
+				if ProcedureInNamespaces(auth.ReadCatalog(), path, text, candidate.Signature) != candidate {
+					return nil, nil
+				}
+				return installedExtensionRoutine{binder: b, catalog: auth.ReadCatalog(), procedure: candidate}, nil
+			}
+		}
+		return nil, nil
 	}
 	if spatial && proc == nil {
 		// Discover only an authentic binary cube signature, then apply the
@@ -97,6 +112,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.PgrowlocksProviderOf(proc) == extension.StockPgrowlocks
 	case functions.CubeExtension:
 		installed = extension.CubeProviderOf(proc) == extension.StockCube
+	case functions.EarthdistanceExtension:
+		installed = extension.EarthdistanceProviderOf(proc) == extension.StockEarthdistance
 	default:
 		return nil, fmt.Errorf("stuntgres: unknown installed extension %d", family)
 	}
@@ -129,6 +146,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockPgrowlocks.ValidateProcedure(r.catalog, p)
 	case extension.CubeProviderOf(p) != nil:
 		return extension.StockCube.ValidateProcedure(r.catalog, p)
+	case extension.EarthdistanceProviderOf(p) != nil:
+		return extension.StockEarthdistance.ValidateProcedure(r.catalog, p)
 	case extension.UnaccentProviderOf(p) == extension.StockUnaccent:
 		ext, ok := r.catalog.Extension(p.Extension)
 		if !ok {
@@ -142,6 +161,18 @@ func (r installedExtensionRoutine) Validate() error {
 func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
 	ext, ok := r.catalog.Extension(r.procedure.Extension)
 	if !ok || extension.CubeProviderOf(r.procedure) != extension.StockCube || len(ext.Members) == 0 {
+		return nil
+	}
+	base, ok := r.catalog.Type(ext.Members[0])
+	if !ok {
+		return nil
+	}
+	return base.SQLType
+}
+
+func (r installedExtensionRoutine) EarthDescriptor() *sqltype.Descriptor {
+	ext, ok := r.catalog.Extension(r.procedure.Extension)
+	if !ok || extension.EarthdistanceProviderOf(r.procedure) != extension.StockEarthdistance || len(ext.Members) != extension.EarthMemberCount {
 		return nil
 	}
 	base, ok := r.catalog.Type(ext.Members[0])
@@ -166,6 +197,20 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledCubeExpr{Cube: c, Procedure: p, Ref: ref}, nil
+	case functions.EarthCoordinate:
+		if extension.EarthdistanceProviderOf(p) != extension.StockEarthdistance {
+			break
+		}
+		// A freshly constructed domain result demands the same captured
+		// visibility-based diagnostic naming as an ordinary domain conversion.
+		if c.ResultUsage().Type.HasDomainConstraints() {
+			if err := b.CaptureTypeDiagnosticInput(c.ResultUsage().Type); err != nil {
+				return nil, err
+			}
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledEarthExpr{EarthCoordinate: c, Procedure: p, Ref: ref}, nil
 	case functions.UUIDGeneration:
 		if extension.UUIDOsspProviderOf(p) != extension.StockUUIDOssp {
 			break

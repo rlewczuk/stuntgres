@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
@@ -129,6 +130,27 @@ func (c *Context) SelectRoutineDefault(owner ids.ObjectRef, slot int, dependenci
 	c.QuoteOrigin = QuoteOrigin{Owner: owner, Attribute: int32(slot + 1)}
 	c.RoutineRecipe, c.RoutineGraft = true, false
 	c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = dependencies, nil, nil
+}
+
+// EarthCoordinateDiagnosticName follows immutable declaration identity across
+// mutable names, just as stored admission does. Never use the operation symbol
+// or a name captured when the hard expression was first bound.
+func (c *Context) EarthCoordinateDiagnosticName(n functions.EarthCoordinate) (string, error) {
+	if err := EvaluationContext(c); err != nil {
+		return "", err
+	}
+	captured, err := ExpressionRoutineDescriptor(n)
+	if err != nil {
+		return "", err
+	}
+	if captured == nil {
+		return "", fmt.Errorf("stuntgres: missing earth coordinate routine identity")
+	}
+	current, err := ValidateStoredRoutineDescriptor(preparation.DomainCatalog(c), captured)
+	if err != nil {
+		return "", err
+	}
+	return current.Name(), nil
 }
 
 func SQLRoutineContext(err error, name string, runtime bool) error {

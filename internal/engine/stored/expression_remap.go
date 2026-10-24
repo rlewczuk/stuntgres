@@ -366,6 +366,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 	case plan.ExtensionPathsExpr:
 		n.Arg = child(n.Arg)
 		next = n
+	case plan.InstalledEarthExpr:
+		n.Args = args(n.Args)
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case plan.InstalledCubeExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
@@ -1019,6 +1025,9 @@ func ExpressionDescriptorsChanged(view catalog.Read, d *catalog.Relation, typ fu
 		analyze.WalkQueryArgumentExpression(node, func(child expr.Expr) {
 			old := child.ResultUsage().Type
 			changed = changed || old != typ(old)
+			if earth, ok := child.(plan.InstalledEarthExpr); ok {
+				changed = changed || earth.Plan.Earth() != typ(earth.Plan.Earth())
+			}
 			if view.State() != nil {
 				captured, err := exec.ExpressionRoutineDescriptor(child)
 				if err != nil {

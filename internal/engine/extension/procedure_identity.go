@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
 // ProcedureSymbol returns the executable installation symbol, never a mutable
@@ -115,6 +116,20 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		}
 		m := IntaggMembers[slot]
 		name, signature, result, strict, kind = m.Name, m.Signature, m.Result, m.Strict, m.Kind
+	case StockEarthdistance:
+		count = EarthMemberCount
+		if ext.Version != "1.2" || slot < 2 || slot >= count {
+			return invalid()
+		}
+		base, ok := v.Type(ext.Members[0])
+		if !ok || base.SQLType == nil || !base.SQLType.IsDomain() || !base.SQLType.DomainBase().Type.IsCube() || base.Extension != ext.Address() {
+			return invalid()
+		}
+		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+			return invalid()
+		}
+		op := sqltype.EarthOperation(slot - 2)
+		name, signature, result, strict = op.Name(), earthRoutineSignature(op, base.SQLType.ID()), earthRoutineResult(op, base.SQLType.ID()), op != sqltype.EarthRadiusOperation
 	case StockCube:
 		count = CubeMemberCount
 		if ext.Version != StockCube.control.Version || slot < 1 || slot >= cubeSpatialOperatorStart {

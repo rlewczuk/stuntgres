@@ -49,6 +49,20 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return routineCallSQL(n, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), catalog.QuoteIdentifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
+	case plan.InstalledEarthExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("invalid stored earth reference")
+		}
+		if err := ValidateInstalledEarth(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("missing earth function namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
 	case plan.InstalledCubeExpr:
 		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored cube reference")

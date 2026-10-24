@@ -65,7 +65,7 @@ func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, erro
 func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExpr) (sqlCallableSelection, bool, error) {
 	var selection sqlCallableSelection
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	cubeFamily := functions.CubeFunctionName(name)
+	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	providerOverride := b.hasProviderProcedureOverride(name)
 	if !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
@@ -96,7 +96,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if d.DynamicCallable() {
 				hasSQL = true
 			}
-			if (cubeFamily || extension.CubeComparisonName(name)) && extension.CubeProviderOf(d) == extension.StockCube {
+			if (cubeFamily || extension.CubeComparisonName(name)) && (extension.CubeProviderOf(d) == extension.StockCube || extension.EarthdistanceProviderOf(d) == extension.StockEarthdistance) {
 				hasCube = true
 			}
 			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil {
@@ -220,7 +220,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		if selection.Targets != nil {
 			target = selection.Targets[i]
 		}
-		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || extension.CubeProviderOf(selection.Procedure) == extension.StockCube || o.descriptor() != nil) {
+		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || extension.CubeProviderOf(selection.Procedure) == extension.StockCube || extension.EarthdistanceProviderOf(selection.Procedure) == extension.StockEarthdistance || o.descriptor() != nil) {
 			selection.args[i], err = b.CoerceConditional(o, target, "function")
 			if err != nil {
 				return selection, true, err

@@ -41,14 +41,8 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 		if !ok || owner.Ref != ext.Owner {
 			return false, fmt.Errorf("stuntgres: mismatching extension installation owner")
 		}
-		if record.Name == "earthdistance" {
-			if ext.Version != "1.2" || len(record.Members) != 2 || len(ext.Members) != 2 {
-				return false, fmt.Errorf("stuntgres: invalid earthdistance ownership roles")
-			}
-			first, second := record.Members[0], record.Members[1]
-			if first.Kind != "type" || second.Kind != "type" || first.Signature != "" || second.Signature != "" || first.Owner != second.Owner || !(first.Name == "earth" && second.Name == "earth[]" || first.Name == "earth[]" && second.Name == "earth") {
-				return false, fmt.Errorf("stuntgres: inconsistent earthdistance ownership roles")
-			}
+		if record.Name == "earthdistance" && (len(ext.Members) != EarthMemberCount || !validEarthOwnerRoles(record)) {
+			return false, fmt.Errorf("stuntgres: invalid earthdistance ownership roles")
 		}
 		if record.Name == "cube" && (len(record.Members) != CubeMemberCount || len(ext.Members) != CubeMemberCount) {
 			return false, fmt.Errorf("stuntgres: incomplete cube ownership manifest")
@@ -92,7 +86,7 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if IntarrayProviderOf(selected) != nil && symbol == "bqarr_out" {
 					signature = "query_int"
 				}
-				if CubeProviderOf(selected) != nil {
+				if CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil {
 					var valid bool
 					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
 					if !valid {

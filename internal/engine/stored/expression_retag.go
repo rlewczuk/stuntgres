@@ -129,6 +129,8 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			}
 			if cube, cubeCall := node.(plan.InstalledCubeExpr); cubeCall {
 				sameSignature = ok && sameMappedCubeSignature(cube, current, retainedType)
+			} else if earth, earthCall := node.(plan.InstalledEarthExpr); earthCall {
+				sameSignature = ok && sameMappedEarthSignature(earth, current, retainedType)
 			} else if installed, spatialCall := node.(plan.InstalledCubeSpatialExpr); spatialCall {
 				mapped := retainedType(installed.Args[0].ResultUsage().Type)
 				sameSignature = ok && extension.CubeProviderOf(current) == extension.StockCube && extension.CubeProviderOf(captured) == extension.StockCube && mapped != nil && mapped.IsCube() && current.Signature == extension.CubeBinarySignature(mapped.ID())
@@ -239,6 +241,26 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			if _, err := currentIntaggEnumerator(view, n); err != nil {
 				return nil, false, err
 			}
+		}
+		rebound = n
+	case plan.InstalledEarthExpr:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.EarthdistanceProviderOf(proc) != extension.StockEarthdistance {
+			return nil, false, fmt.Errorf("missing remapped earth function")
+		}
+		earth := retainedType(n.Plan.Earth())
+		changed = changed || proc != n.Procedure || earth != n.Plan.Earth()
+		n.EarthCoordinate, err = functions.NewEarthCoordinate(info, n.Plan.Operation(), earth, n.Args)
+		if err != nil {
+			return nil, false, err
+		}
+		n.Procedure = proc
+		if err := ValidateInstalledEarth(n, view); err != nil {
+			return nil, false, err
 		}
 		rebound = n
 	case plan.InstalledCubeExpr:

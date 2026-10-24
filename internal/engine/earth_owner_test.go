@@ -68,7 +68,7 @@ func earthOwnerCodecUnits(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, found, err := extension.DecodeOwners(strings.TrimPrefix(metadata, "-- "))
-	if err != nil || !found || len(record.Members) != 2 || record.Members[0].Name != "earth" || record.Members[1].Name != "earth[]" {
+	if err != nil || !found || len(record.Members) != extension.EarthMemberCount || record.Members[0].Name != "earth" || record.Members[1].Name != "earth[]" {
 		t.Fatal("symbolic companion roles", record, err)
 	}
 	candidate := *view.State()

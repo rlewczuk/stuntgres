@@ -56,6 +56,9 @@ func QueryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqlt
 			if typ(expr.ResultUsage().Type) != expr.ResultUsage().Type {
 				changed = true
 			}
+			if earth, ok := expr.(plan.InstalledEarthExpr); ok && typ(earth.Plan.Earth()) != earth.Plan.Earth() {
+				changed = true
+			}
 			if child, ok := expr.(plan.SubqueryExpr); ok && QueryDescriptorsChanged(child.QueryPlan.Root, typ) {
 				changed = true
 			}

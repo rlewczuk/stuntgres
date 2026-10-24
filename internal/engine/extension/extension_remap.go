@@ -188,7 +188,7 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		} else {
 			n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), mapping)
 		}
-		if n.RangeConstructor != nil || CubeProviderOf(&n) != nil {
+		if n.RangeConstructor != nil || CubeProviderOf(&n) != nil || EarthdistanceProviderOf(&n) != nil {
 			n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			parts := strings.Split(string(n.Signature), ",")
 			for i, part := range parts {

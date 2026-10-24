@@ -77,6 +77,17 @@ host methods.
   Mutation-rule VALUES expressions use the same checked current-label projection
   while preserving their original OLD/NEW bindings and callable input assembly.
   `RetagTypes` is a structural generation rewrite, not a presentation refresh.
+  Earth coordinate captures remap the actual domain, cube base, procedure,
+  formals and result generation together. Stored view/default calls keep their
+  unevaluated kernels; provider validation rejects stale or same-OID foreign
+  descriptors before rendering current qualified labels.
+  Replacement and type-only refresh bootstrap closed installed-domain CHECK
+  recipes before SQL declaration/body/default preparation or other consumers.
+  `ReownInstalledDomainChecks` reuses the operation's type/collation authority;
+  reference remapping occurs once, including callers that prebind routines.
+  This ordering does not relax provider validation or bootstrap user defaults.
+  FLOAT8-only coordinate calls still track their hidden earth generation in
+  the existing descriptor-change scans.
   `StoredProviderRoutine` is distinct from SQL-body/owned-aggregate markers and
   reuses the existing `routineRefs` occurrence map and dependency manifest.
   `StoredProviderSymbol` records immutable symbols to reject substituted captures;
@@ -501,3 +512,4 @@ reject, while healthy fresh current manifests remain usable.
 - Catalog projections: `RUN='^TestReference(PGDepend|PGTableViews)'`
 - Stored generated columns: `RUN='^TestReferenceGeneratedStored'`
 - Installed comparison capture and lifecycle: `RUN='^TestCube'`
+- Installed earth captures and generation ordering: `RUN='^TestEarthCoordinate'`

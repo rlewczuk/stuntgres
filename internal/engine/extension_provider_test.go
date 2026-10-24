@@ -389,18 +389,9 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 		view := e.CatalogRead()
 		ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: tc.name}))
 		if tc.stock == extension.StockEarthdistance {
-			// The domain-only provider has no implementation-bearing routines.
-			// Its concrete CHECKs and both owned types carry the real authority.
 			if err := tc.stock.ValidateExtension(view, ext); err != nil {
 				t.Fatal(err)
 			}
-			for _, a := range ext.Members {
-				d, ok := view.Get(a).(*catalog.Type)
-				if !ok || d.Extension != ext.Address() {
-					t.Fatal("invalid domain-only member", a)
-				}
-			}
-			continue
 		}
 		members := 0
 		for _, a := range ext.Members {

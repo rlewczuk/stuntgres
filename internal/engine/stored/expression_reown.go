@@ -13,21 +13,10 @@ import (
 // their types changed). view is the catalog view of next; its owner supplies
 // the reference domain.
 func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, routineRemap *catalog.RoutineRemap) error {
-	domain := view.Owner().Domain
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
-		if old == (ids.ObjectRef{}) || typesOnly {
-			return old
-		}
-		address := old.Address
-		address.SubID = 0
-		if target, ok := mapping[address]; ok {
-			target.SubID = old.Address.SubID
-			old.Address = target
-		}
-		old = domain.Ref(old.Epoch, old.Address)
-		old.Epoch = next.Epoch()
-		return old
+		return reownExpressionReference(view, next, mapping, typesOnly, old)
 	}
+	createdRemap := routineRemap == nil
 	if routineRemap == nil {
 		leaf := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == nil {
@@ -43,10 +32,13 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			return old
 		}
 		routineRemap = NewRoutineRemap(view, mapping, leaf, nil, typesOnly)
-		if !typesOnly {
-			if err := routine.RebindSQLDefinitions(next, routineRemap); err != nil {
-				return err
-			}
+	}
+	if err := ReownInstalledDomainChecks(view, next, mapping, typesOnly, routineRemap); err != nil {
+		return err
+	}
+	if createdRemap && !typesOnly {
+		if err := routine.RebindSQLDefinitions(next, routineRemap); err != nil {
+			return err
 		}
 	}
 	typ, collation, procedure := routineRemap.Type, routineRemap.Collation, routineRemap.Procedure
@@ -63,6 +55,9 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
 		if domain, ok := descriptor.(*catalog.Type); ok && (len(domain.DomainChecks) != 0 || domain.DomainDefault != nil) {
+			if installedDomainCheckRecipes(domain) && domain.DomainDefault == nil {
+				continue
+			}
 			if typesOnly {
 				changed := false
 				for _, check := range domain.DomainChecks {
@@ -76,26 +71,11 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				}
 			}
 			copy := *domain
-			copy.DomainChecks = append([]catalog.DomainCheckConstraint(nil), domain.DomainChecks...)
-			for i := range copy.DomainChecks {
-				check := &copy.DomainChecks[i]
-				node, err := RemapExpression(check.Expression, ref, nil)
+			if !installedDomainCheckRecipes(domain) {
+				var err error
+				copy.DomainChecks, err = reownDomainCheckDefinitions(view, domain.DomainChecks, ref, retag)
 				if err != nil {
 					return err
-				}
-				node, _, err = retag(node)
-				if err != nil {
-					return err
-				}
-				check.Expression = node
-				check.Dependencies = append([]catalog.ExpressionDependency(nil), check.Dependencies...)
-				for j := range check.Dependencies {
-					check.Dependencies[j].Ref = ref(check.Dependencies[j].Ref)
-					address := check.Dependencies[j].Ref.Address
-					address.SubID = 0
-					if provider, exists := view.Descriptor(address); exists && address.ClassID != ids.ProcedureClassID {
-						check.Dependencies[j].Revision = provider.Revision()
-					}
 				}
 			}
 			if domain.DomainDefault != nil {

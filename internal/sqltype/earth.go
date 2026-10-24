@@ -49,6 +49,6 @@ func (v Value) CheckEarthCube(k EarthCheck) (bool, error) {
 			}
 			sum += d * d
 		}
-		return math.Abs(math.Sqrt(sum)/6378168-1) < 1e-6, nil
+		return math.Abs(math.Sqrt(sum)/EarthRadius-1) < 1e-6, nil
 	}
 }

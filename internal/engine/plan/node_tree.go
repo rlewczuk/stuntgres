@@ -201,6 +201,12 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		}
 		out.WriteString("ExtensionPaths")
 		err = child(n.Arg)
+	case InstalledEarthExpr:
+		if err := n.ValidateStoredProvider(); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "InstalledEarth %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
+		err = args(n.Args)
 	case InstalledCubeExpr:
 		if n.Procedure == nil {
 			return fmt.Errorf("stuntgres: missing cube procedure")

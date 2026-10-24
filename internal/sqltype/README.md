@@ -206,6 +206,11 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   without allocation or text conversion. Normalized bounds retain ordered C
   min/max selection (including NaN and signed-zero ties); signed projections
   widen int4 before absolute value and negate the selected binary64 value.
+- `EarthCoordinatePlan` captures actual earth/cube/FLOAT8 generations and shares
+  `EarthRadius` with the released domain checks. Checked binary64 arithmetic
+  retains SQL NaN ordering, signed zero and underflow. Projection borrows private
+  coordinates; ll construction owns one three-coordinate point allocation and
+  checks the result through the ordinary domain input environment before wrapping.
 - One path walker serves JSONPath, SQL/JSON query plans and `JSONTableRows`.
   Numeric path arithmetic borrows exact decimal operands into private typed
   NUMERIC headers and reuses the numeric kernels; no provider identity escapes
@@ -343,6 +348,7 @@ match engine tests of the same mechanism):
 
 - Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryAlignment|GeometryRelation|GeometryPosition|GeometryConversion|GeometryMeasure|CubeSpatial|EarthCubeChecks|NetworkSubnet)'`
 - Cube constructors, coordinates and spatial kernels: `RUN='^TestCube'`
+- Earth domain and coordinate kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`

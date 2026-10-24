@@ -35,10 +35,10 @@ func TestEarthProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.2" || len(ext.Members) != 2 || d.SQLType.DomainBase().Type == d.SQLType || !d.SQLType.DomainBase().Type.IsCube() {
+	if ext.Version != "1.2" || len(ext.Members) != extension.EarthMemberCount || d.SQLType.DomainBase().Type == d.SQLType || !d.SQLType.DomainBase().Type.IsCube() {
 		t.Fatal("domain identity")
 	}
-	for _, a := range ext.Members {
+	for _, a := range ext.Members[:2] {
 		if err := (stored.TypeProvider{}).Validate(view, view.Get(a)); err != nil {
 			t.Fatal(err)
 		}

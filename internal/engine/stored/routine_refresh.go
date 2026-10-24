@@ -67,16 +67,22 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 	var queue []ids.ObjectAddress
 	for address, descriptor := range state.Descriptors() {
 		d, ok := descriptor.(*catalog.Procedure)
-		if !ok { continue }
+		if !ok {
+			continue
+		}
 		if d.RangeConstructor != nil {
 			if typ(d.RangeConstructor.Type) != d.RangeConstructor.Type {
-				if changes == nil { changes = make(map[ids.ObjectAddress]*refresh) }
-				changes[address] = &refresh{source:d}
-				queue = append(queue,address)
+				if changes == nil {
+					changes = make(map[ids.ObjectAddress]*refresh)
+				}
+				changes[address] = &refresh{source: d}
+				queue = append(queue, address)
 			}
 			continue
 		}
-		if d.SQL == nil { continue }
+		if d.SQL == nil {
+			continue
+		}
 		definition, err := remap.Definition(d.SQL)
 		if err != nil {
 			return err
@@ -279,6 +285,9 @@ func routineExpressionChanged(view catalog.Read, node expr.Expr, typ func(*sqlty
 	changed := false
 	analyze.WalkQueryArgumentExpression(node, func(child expr.Expr) {
 		changed = changed || child.ResultUsage().Type != typ(child.ResultUsage().Type)
+		if earth, ok := child.(plan.InstalledEarthExpr); ok {
+			changed = changed || earth.Plan.Earth() != typ(earth.Plan.Earth())
+		}
 		captured, err := exec.ExpressionRoutineDescriptor(child)
 		if err != nil {
 			changed = true

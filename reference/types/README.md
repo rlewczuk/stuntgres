@@ -173,7 +173,12 @@ Rules:
   INSERT producers fail with ordinary control errors, not SQL codec diagnostics.
 - `earthIdentityChecks` is shared by Earth Metadata, Controls and
   PrerequisiteRemoval; rerun all three after changing it. Its function inventory
-  includes `cube_distance` from the installed cube prerequisite.
+  includes `cube_distance` and the six installed earth coordinate/conversion routines.
+- Earth coordinate principal roundtrips reject nonfinite outputs before applying
+  their finite tolerance or circular longitude comparison.
+  `TestReferenceEarthCoordinateRenamedDiagnostics` checks complete current-name
+  body errors and execute stages through direct/fresh/held calls, pre-rename
+  stored views/defaults, native Restore and emitted-SQL PostgreSQL replay.
 
 Path measurement scenarios cover all eight `isclosed/isopen/pclose/popen(path)`,
 `length(path/lseg)` and `npoints(path/polygon)` signatures. Closing/reopening a
@@ -274,7 +279,7 @@ Actual simple/extended protocol coverage belongs in
 - Text search operators: `RUN='^TestReferenceFTSOps'`
 - Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
 - `cube` (scalar/codecs, coordinate extraction and spatial predicates/distances): `RUN='^TestReferenceCube'`
-- <a id="earth-domain-contract"></a>`earth`: `RUN='^TestReferenceEarth'`
+- <a id="earth-domain-contract"></a>`earth` domain, coordinates and conversions: `RUN='^TestReferenceEarth'`
 - <a id="citext-storage-and-value-round-trips"></a>`citext`: `RUN='^TestReferenceCitext'`
 - `query_int`: `RUN='^TestReferenceQueryInt'`
 - `aclitem`: `RUN='^TestReferenceACLItem'`

@@ -312,6 +312,15 @@ publication and lock-manager tickets stay in the engine.
   inquiry and coordinate kernels; strict evaluation finishes all children first.
   `plan.InstalledCubeExpr` preserves procedure authority through
   rebuild, retag, substitution, grouping and stored rendering.
+- **earthdistance**: `EarthRoutine` exposes the genuine installed domain to
+  `bindEarthCoordinate`; shared callable selection owns coercion and shadows.
+  `EarthCoordinate` evaluates a captured typed plan, then attaches SQL-body
+  diagnostic context only to failures reached inside that plan. On that error
+  path, `EarthCoordinateRuntime` resolves the checked current routine name;
+  immutable operation selection never follows mutable presentation. Argument
+  and coercion errors keep their own origin. Successful calls perform no
+  diagnostic-name lookup. `InstalledEarthExpr` retains callable authority
+  through reconstruction and catalog replacement.
 - **unaccent**: `unaccent.rules` (PostgreSQL REL_18_0) is embedded and compiled
   once into `StockUnaccent`, used by `extension.UnaccentProvider`.
 - **dmetaphone licence**: Single Metaphone retains its complete release

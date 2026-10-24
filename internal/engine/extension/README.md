@@ -77,10 +77,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   members, resolving I/O helper names through `ScriptFunctions`; its owner
   metadata serializes the output signature symbolically and resolves it to the
   destination's installed descriptor on import, never copying a source OID.
-  Earthdistance requires installed cube and stages `earth` with three domain
-  CHECK recipes through `Stage.EarthChecks`; its owner metadata records the roles
-  `earth` and `earth[]`, resolving the array through the domain's actual Array
-  identity, never by assuming the name `_earth`.
+  Earthdistance requires installed cube and atomically stages eight members:
+  `earth`, its actual companion, and the six coordinate/conversion routines.
+  `Stage.EarthChecks` attaches the three released domain recipes. Owner metadata
+  records type roles `earth`/`earth[]` and symbolic earth input signatures;
+  companion resolution uses the domain's actual Array identity, not `_earth`.
+  Routine labels, namespaces and owners can vary independently; domain and
+  companion retain matching namespace/owner. Legacy two-member records reject.
 - **Registry and update paths** (`extension_register.go`, `extension_paths.go`):
   `Register(registry, name, implementation)` checks one startup registration
   (name, control version, `ValidateActions`, duplicates, in that order) and
@@ -205,7 +208,7 @@ the retained TEMP descriptor; incidental prerequisite-member counts are not
 collision evidence.
 
 ```sh
-make check RUN='^Test(Extension|CitextProvider|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
+make check RUN='^Test(Extension|CitextProvider|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
 make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```
 

@@ -20,6 +20,10 @@ func CubeProviderOf(d *catalog.Procedure) *CubeProvider {
 	p, _ := d.Implementation.(*CubeProvider)
 	return p
 }
+func EarthdistanceProviderOf(d *catalog.Procedure) *EarthdistanceProvider {
+	p, _ := d.Implementation.(*EarthdistanceProvider)
+	return p
+}
 
 func CitextProviderOf(d *catalog.Procedure) *CitextProvider {
 	p, _ := d.Implementation.(*CitextProvider)

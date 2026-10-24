@@ -8,6 +8,12 @@ including checked complex arithmetic and circle radius scaling. Open PATH + PATH
 preserves vertex order and duplicates; a closed operand returns NULL. Operator
 metadata, prepared execution and stored expression replay retain the same signatures.
 
+The installed earthdistance provider now exposes earth(), ll_to_earth(),
+latitude(), longitude(), gc_to_sec() and sec_to_gc(), including strict NULL
+handling, released floating boundaries and stored expressions through native
+Reset/Dump/Restore and routine identity changes. SQL-body errors present the
+current routine name, including calls stored before rename.
+
 Table/type/domain/database OWNER, view/materialized-view OWNER and REASSIGN/DROP
 OWNED now share SQL and Go transactions with autocommit and retained protocol
 messages. Ownership and ACL/default/policy/membership cleanup see earlier private

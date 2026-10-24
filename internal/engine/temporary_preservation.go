@@ -89,6 +89,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := control.RemapReplacementIdentities(current, next, temporary, mapping, relations, sequences, routineRemap.Procedure); err != nil {
 		return err
 	}
+	if err := stored.ReownInstalledDomainChecks(candidate, next, mapping, false, routineRemap); err != nil {
+		return err
+	}
 	if err := routine.RebindSQLDefinitions(next, routineRemap); err != nil {
 		return err
 	}

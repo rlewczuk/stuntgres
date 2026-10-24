@@ -65,7 +65,7 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if IntarrayProviderOf(d) != nil && symbol == "bqarr_out" {
 				member.Signature = "query_int"
 			}
-			if CubeProviderOf(d) != nil {
+			if CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil {
 				var valid bool
 				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
 				if !valid {
@@ -213,7 +213,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	case record.Name == "isn" && record.Version == "1.3":
 		expectedMembers = 3
 	case record.Name == "earthdistance" && record.Version == "1.2":
-		expectedMembers = 2
+		expectedMembers = EarthMemberCount
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
 		expectedMembers = len(FuzzystrmatchMembers)
 	case record.Name == "fuzzystrmatch" && record.Version == "1.1":
@@ -261,7 +261,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		case "procedure":
 			// Mutable procedure labels are checked against the current installed
 			// slot by ImportOwners, not used as installation identity.
-			if record.Name == "earthdistance" || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "intarray" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
+			if record.Name == "earthdistance" && member.Slot < 2 || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "intarray" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
 				return invalid()
 			}
 			if signature, ok := ownerProcedureSignature(record.Name, record.Version, member.Slot); !ok || signature != member.Signature {
@@ -293,7 +293,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		}
 		record.Members = append(record.Members, member)
 	}
-	if record.Name == "earthdistance" && record.Members[0].Owner != record.Members[1].Owner {
+	if record.Name == "earthdistance" && !validEarthOwnerRoles(record) {
 		return invalid()
 	}
 	return record, true, nil
@@ -302,6 +302,20 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 // The codec admits mutable labels but never mutable executable declarations.
 func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 	switch name {
+	case "earthdistance":
+		if version != "1.2" || slot < 2 || slot >= EarthMemberCount {
+			return "", false
+		}
+		switch slot {
+		case 2:
+			return "", true
+		case 5:
+			return "701,701", true
+		case 6, 7:
+			return "earth", true
+		default:
+			return "701", true
+		}
 	case "pgcrypto":
 		if slot < len(functions.PgcryptoMembers) {
 			return functions.PgcryptoMembers[slot].Signature, true

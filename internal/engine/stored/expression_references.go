@@ -89,6 +89,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		if n.Procedure != nil {
 			r.Add(n.Ref.Address)
 		}
+	case plan.InstalledEarthExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledCubeExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledSoundexExpr:

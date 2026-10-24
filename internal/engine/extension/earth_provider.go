@@ -76,16 +76,21 @@ func (*EarthdistanceProvider) Stage(stage Stage, ext *catalog.Extension, owner a
 		return err
 	}
 	// PostgreSQL's script explicitly owns both the domain and companion array.
-	ext.Members = []ids.ObjectAddress{domain.Address(), {ClassID: ids.TypeClassID, ObjectID: arrayOID}}
+	ext.Members = make([]ids.ObjectAddress, EarthMemberCount)
+	ext.Members[0] = domain.Address()
+	ext.Members[1] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: arrayOID}
 	if err := stage.Create(domain); err != nil {
 		return err
 	}
-	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
+		return err
+	}
+	return StockEarthdistance.stageRoutines(stage, ext, owner, typ)
 }
 
 func (p *EarthdistanceProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid earthdistance manifest") }
-	if p != StockEarthdistance || ext.Name() != "earthdistance" || ext.Version != "1.2" || len(ext.Members) != 2 {
+	if p != StockEarthdistance || !currentManifest(v, ext) || ext.Name() != "earthdistance" || ext.Version != "1.2" || len(ext.Members) != EarthMemberCount {
 		return invalid()
 	}
 	cube, err := earthCube(v)
@@ -123,6 +128,15 @@ func (p *EarthdistanceProvider) ValidateExtension(v catalog.Read, ext *catalog.E
 			if previous.OID == check.OID {
 				return invalid()
 			}
+		}
+	}
+	for slot := 2; slot < EarthMemberCount; slot++ {
+		proc, ok := v.Procedure(ext.Members[slot])
+		if !ok || proc.Implementation != p {
+			return invalid()
+		}
+		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
 		}
 	}
 	return nil

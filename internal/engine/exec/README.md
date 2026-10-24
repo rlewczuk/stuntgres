@@ -94,6 +94,11 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   labels/ownership; original-source calls retain their revision fence and
   prepared reanalysis. `RoutineProgram` preserves this distinction through
   readmission and phase initialization without retaining granted rights.
+  Earth coordinate body failures use `EarthCoordinateDiagnosticName` in
+  `context_admission.go`: the same descriptor extraction and stored-declaration
+  revalidation select the current name from the statement's catalog. Hard calls
+  captured before rename and remapped Restore calls do not cache diagnostic
+  labels; argument/coercion failures never enter this error-only accessor.
   Grafted rules borrow the original manifest only after validating the live
   relation's exact rule/action-or-condition presentation. Ancestry is per
   occurrence, not the whole rewritten command; substituted fresh inputs return
