@@ -14,7 +14,7 @@ catalog authority.
 
 ## Imports and layering
 
-- A leaf library: it imports only [`expr`](../expr/README.md), `ids`, `sqltype`,
+- A leaf library: it imports only [`expr`](../expr/README.md), `fts`, `ids`, `sqltype`,
   `parser` and `sqlstate`, never the root engine or the catalog, storage, lock
   or visibility packages. It is catalog-free: catalog facts arrive through
   `Binder` or an evaluation runtime, never from a static OID table.
@@ -40,6 +40,14 @@ catalog authority.
   occurrence identity across rewrites, and keeps only its immutable value and
   invocation-private index. NULL and empty member lists exhaust that invocation
   without producing a row.
+
+`ts_parse` and `ts_token_type` share one fixed-OUT source provider. Their text
+and OID formals select ordinary routine authority; text-name resolution borrows
+the statement's captured text-search namespace path. Inputs evaluate once in
+written order before strict NULL handling. Document tokenization completes
+privately through the FTS leaf before a source cursor can publish a token.
+Cursor advancement constructs typed records against its current result
+descriptor, so rewritten plans retain no stale composites or invocation state.
 
 ## Registry
 

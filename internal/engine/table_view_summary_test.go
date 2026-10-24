@@ -173,6 +173,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		{3541, "pg_range", true},
 		{3576, "pg_transform", true},
 		{3602, "pg_ts_config", true},
+		{3601, "pg_ts_parser", true},
 		{2224, "pg_sequence", true},
 		{2608, "pg_depend", true},
 		{2609, "pg_description", true},

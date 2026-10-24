@@ -60,6 +60,10 @@ import it.
   already-parsed type syntax. The `Retarget*` methods implement the `analyze`
   retarget interfaces, and `DetachCursorInput` rebinds a cursor's resolvers to
   its execution authority.
+  `TextSearchInput.ResolveTextParser` uses that same captured, TEMP-free path
+  for parser names, with explicit namespace USAGE checked before lookup.
+  Parser names remain TEXT inputs; no regparser type or parser-owner ACL is
+  introduced. The stock parser identity belongs to the catalog bootstrap data.
 - **Dump spellings, stored-value walkers and remap** (`regclass_dump.go`,
   `reg*_persistence.go`): `DumpOperatorOutput`, `DumpTextSearchOutput`,
   `DumpAliasOutput`; `OperatorLiteral`, `RoutineLiteral`;

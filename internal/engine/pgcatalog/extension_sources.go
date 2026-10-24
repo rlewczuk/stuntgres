@@ -38,7 +38,9 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	sort.Slice(descriptors, func(i, j int) bool { return descriptors[i].Address().ObjectID < descriptors[j].Address().ObjectID })
-	rows := make([][]sqltype.Value, 0, len(descriptors))
+	capacity := len(descriptors)
+	if source.Address().ObjectID == ids.ProcedureClassID { capacity += 5 }
+	rows := make([][]sqltype.Value, 0, capacity)
 	for _, descriptor := range descriptors {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -107,6 +109,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			}
 			text(8, parallel)
 			text(9, string(d.RoutineKind))
+			boolean(12, d.Builtin != nil && d.Builtin.ReturnsSet)
 			row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 			if d.SQL != nil {
 				named := false
@@ -118,6 +121,19 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				if named {
 					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 				}
+			} else if d.Builtin != nil && d.Builtin.Providers&functions.FTSParserRoutineProvider != 0 {
+				names := [4]string{"parser_name", "tokid", "alias", "description"}
+				if strings.HasPrefix(string(d.Builtin.Identity.Signature), "26") {
+					names[0] = "parser_oid"
+				}
+				if d.Builtin.Identity.Name == "ts_parse" {
+					names[1], names[2], names[3] = "txt", "tokid", "token"
+				}
+				elements := make([]sqltype.Value, len(names))
+				for i, name := range names {
+					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), name)
+				}
+				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: 4}}, elements)
 			} else if ext, ok := view.Extension(d.Extension); ok && ext.Name() == "uuid-ossp" && d.Implementation != nil && slices.Contains(ext.Members, d.Address()) {
 				// Use the catalog's existing validation capability and the
 				// released manifest slot, without importing an upper owner.
@@ -153,6 +169,9 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			return nil, valueErr
 		}
 		rows = append(rows, row)
+	}
+	if source.Address().ObjectID == ids.ProcedureClassID {
+		return appendParserHandlerProcedures(in, rows)
 	}
 	return rows, nil
 }

@@ -54,6 +54,7 @@ var producers = [...]Registration{
 	{3541, capturePGRange},
 	{TransformOID, capturePGTransform},
 	{3600, captureExtensionCatalog},
+	{TSParserOID, capturePGTSParser},
 	{TSConfigOID, capturePGTSConfig},
 	{3764, captureExtensionCatalog},
 	{6243, capturePGParameterACL},

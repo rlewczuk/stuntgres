@@ -167,6 +167,10 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{3673, ids.PGCatalogNamespaceOID, "querytree", "3615"}, catalog.FunctionRoutine, 25, true, expr.Immutable, 's', false, 0, 0, functions.FTSQueryRoutineProvider},
 	{catalog.RoutineIdentity{3684, ids.PGCatalogNamespaceOID, "ts_rewrite", "3615,3615,3615"}, catalog.FunctionRoutine, 3615, true, expr.Immutable, 's', false, 0, 0, functions.FTSQueryRoutineProvider},
 	{catalog.RoutineIdentity{3685, ids.PGCatalogNamespaceOID, "ts_rewrite", "3615,25"}, catalog.FunctionRoutine, 3615, true, expr.Volatile, 'u', false, 0, 0, functions.FTSQueryRoutineProvider},
+	{catalog.RoutineIdentity{3713, ids.PGCatalogNamespaceOID, "ts_token_type", "26"}, catalog.FunctionRoutine, 2249, true, expr.Immutable, 's', true, 0, 0, functions.FTSParserRoutineProvider},
+	{catalog.RoutineIdentity{3714, ids.PGCatalogNamespaceOID, "ts_token_type", "25"}, catalog.FunctionRoutine, 2249, true, expr.Stable, 's', true, 0, 0, functions.FTSParserRoutineProvider},
+	{catalog.RoutineIdentity{3715, ids.PGCatalogNamespaceOID, "ts_parse", "26,25"}, catalog.FunctionRoutine, 2249, true, expr.Immutable, 's', true, 0, 0, functions.FTSParserRoutineProvider},
+	{catalog.RoutineIdentity{3716, ids.PGCatalogNamespaceOID, "ts_parse", "25,25"}, catalog.FunctionRoutine, 2249, true, expr.Stable, 's', true, 0, 0, functions.FTSParserRoutineProvider},
 	// REL_18_6 POINT predicates; no default equality or ordering authority.
 	{catalog.RoutineIdentity{131, ids.PGCatalogNamespaceOID, "point_above", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{132, ids.PGCatalogNamespaceOID, "point_left", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

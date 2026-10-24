@@ -173,6 +173,17 @@ func (h *bindingHost) CaptureElementInput(auth analyze.Authority, input *sqltype
 	return h.engine.captureElementInput(h.view(auth), h.op, input)
 }
 
+func (h *bindingHost) CaptureRegTSInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
+	if input.RegTS != nil {
+		return nil
+	}
+	resolver, err := captureRegTSInput(h.view(auth))
+	if err == nil {
+		input.RegTS = resolver
+	}
+	return err
+}
+
 // ResolveOperatorText resolves one uncaptured regoper or regoperator literal
 // under a fresh capture and returns the namespaces it qualified and the
 // providers it resolved. Capture errors come back as they are; resolution
@@ -235,8 +246,8 @@ func (h *bindingHost) StoredViewVolatile(auth analyze.Authority, root plan.Node)
 	return stored.ViewVolatile(auth.ReadCatalog(), root)
 }
 
-func (h *bindingHost) CaptureRetainedViewInput(auth analyze.Authority, relation *catalog.Relation, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
-	return stored.CaptureRetainedInput(auth.ReadCatalog(), stored.ViewOf(relation), element, diagnostic)
+func (h *bindingHost) CaptureRetainedViewInput(auth analyze.Authority, relation *catalog.Relation, element, parserInput func() error, diagnostic func(*sqltype.Descriptor) error) error {
+	return stored.CaptureRetainedInput(auth.ReadCatalog(), stored.ViewOf(relation), element, parserInput, diagnostic)
 }
 
 func (h *bindingHost) PlanOwner() (ids.SessionToken, uint64, bool) {

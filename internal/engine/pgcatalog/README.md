@@ -51,6 +51,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
   `Roles.BelongsTo(Owner.Principals)` and `Source` identity must agree before
   rows are produced.
+- `pg_ts_parser` projects the immutable stock parser identity and its five
+  internal handler references with installed OID/NAME/REGPROC descriptors.
+  These rows are builtin metadata, not mutable parser definitions or ACLs.
+  `pg_proc.proretset` comes from actual routine declaration metadata.
 - Absent and explicit-empty ACLs stay distinct: `ClassACL` returns NULL for an
   absent ACL and `{}` for an empty one.
 - Information-schema producers emit genuine source-owned domains, not bare

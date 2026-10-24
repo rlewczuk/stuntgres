@@ -38,7 +38,7 @@ func TestAnalysisHostReadsStoredViews(t *testing.T) {
 	for name, want := range map[string]int{"host_plain": 0, "host_nested_moods": 1} {
 		d := read.MustRelation(catalogRef(t, e, read, name).Address)
 		var diagnosed []*sqltype.Descriptor
-		err := host.CaptureRetainedViewInput(auth, d, func() error { return nil }, func(typ *sqltype.Descriptor) error {
+		err := host.CaptureRetainedViewInput(auth, d, func() error { return nil }, func() error { return nil }, func(typ *sqltype.Descriptor) error {
 			diagnosed = append(diagnosed, typ)
 			return nil
 		})

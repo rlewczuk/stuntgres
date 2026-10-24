@@ -3,15 +3,16 @@
 `fts` is a stateless leaf **below `internal/sqltype`**, despite its directory
 under `internal/engine`. It imports only the standard library and `sqlstate`.
 It owns immutable decoded vector lexemes/positions and query operator arenas,
-FTS quoting, grammar, canonical text and released byte/count checks. It does not
+FTS quoting, grammar, canonical text and released byte/count checks, and the
+stateless default document tokenizer. It does not
 own SQL descriptors, NULL, source positions, portal context, notices, catalogs,
 sessions, dictionaries, ranking or indexes.
 
 ## Parsing and rendering
 
-Parse functions check cancellation and consume all input. Payload fields remain
-private. `String` returns cached canonical text without decoding/allocation;
-`Equal` compares structure with cancellation, not SQL comparison semantics.
+Parse functions check cancellation and consume all input. Vector/query payload
+fields remain private. Their `String` returns cached canonical text without
+decoding/allocation; `Equal` compares structure, not SQL comparison semantics.
 Query association survives even when canonical text erases redundant AND/OR
 parentheses. Query parsing/rendering/comparison are iterative. Each parenthesis
 frame retains the released 32 pending-operator limit; there is no 32768-node or
@@ -22,6 +23,23 @@ parenthesized, preserving association for logical serialization. Unary frames
 let generated NOT chains exceed 32 nodes without exceeding the per-frame parser
 limit on replay. `String` stays canonical. Lossless text is computed only when
 needed by SQLLiteral, never for SELECT, with no extra cache.
+
+### Document tokenization
+
+`ParseDocument(ctx, text)` returns ordered `DocumentToken{ID, Text}` values.
+Tokens share exact immutable input substrings; whole URLs and hyphenated words
+intentionally overlap their subsequently emitted components. The ordered action
+tables and stack interpreter own tentative recognition, fallback and replay,
+including XML/script/style handling. UTF8 classification follows the C locale:
+all non-ASCII characters are alphabetic, not Unicode space/digit classes.
+
+Parser state, tentative frames, lookahead and output are invocation-private.
+Lookahead uses the same interpreter and shared cancellation budget; nesting is
+bounded by the host/path state graph, not input depth. Cancellation checks occur
+within long tokens and across backtracking/replay, with no partial result on
+error. Document tokens have no vector/query lexeme-size limit. Category SQL
+descriptors and parser-name resolution belong to callers, not this leaf.
+
 
 ## Limits
 
@@ -87,10 +105,11 @@ origin. Algebra's Concat size failure retains its own hard operation authority.
 
 ## Testing
 
-Package units cover canonicalization, grammar, limits and algebra; FTS typed
-values, operators and dump live in `sqltype`, `functions` and `dump` units. The
-cancellation units cancel deterministically inside sorting and duplicate
-reduction and check actual partial progress, never elapsed time. Public SQL
+Package units cover canonicalization, grammar, limits, algebra and document
+tokenization, including literal released regression rows and boundary/fallback
+cases. FTS typed values, operators and dump live in `sqltype`, `functions` and
+`dump` units. Cancellation units use deterministic interior boundaries in sorting,
+duplicate reduction, long document tokens, lookahead and replay, never elapsed time. Public SQL
 scenarios live in [reference/types](../../../reference/types/README.md#testing).
 
 ```sh

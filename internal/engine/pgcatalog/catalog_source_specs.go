@@ -169,6 +169,7 @@ var Specs = [...]Spec{
 		{"prokind", sqltype.Char, false, 0, 0, -1},
 		{"proargnames", 1009, true, 0, 0, -1},
 		{"prolang", sqltype.Oid, false, 0, 0, -1},
+		{"proretset", sqltype.Bool, false, 0, 0, -1},
 	}, false, CatalogHasIndexes(1255), false, false, "stuntgres: missing catalog source type"},
 	{3764, ids.PGCatalogNamespaceOID, "pg_ts_template", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
@@ -301,6 +302,16 @@ var Specs = [...]Spec{
 		{"trffromsql", sqltype.Regproc, false, 0, 0, -1},
 		{"trftosql", sqltype.Regproc, false, 0, 0, -1},
 	}, false, CatalogHasIndexes(TransformOID), false, false, "stuntgres: missing catalog source type"},
+	{TSParserOID, ids.PGCatalogNamespaceOID, "pg_ts_parser", []ColumnSpec{
+		{"oid", sqltype.Oid, false, 0, 0, -1},
+		{"prsname", sqltype.Name, false, 0, 0, -1},
+		{"prsnamespace", sqltype.Oid, false, 0, 0, -1},
+		{"prsstart", sqltype.Regproc, false, 0, 0, -1},
+		{"prstoken", sqltype.Regproc, false, 0, 0, -1},
+		{"prsend", sqltype.Regproc, false, 0, 0, -1},
+		{"prsheadline", sqltype.Regproc, false, 0, 0, -1},
+		{"prslextype", sqltype.Regproc, false, 0, 0, -1},
+	}, false, CatalogHasIndexes(TSParserOID), false, false, "stuntgres: missing catalog source type"},
 	{TSConfigOID, ids.PGCatalogNamespaceOID, "pg_ts_config", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"cfgname", sqltype.Name, false, 0, 0, -1},

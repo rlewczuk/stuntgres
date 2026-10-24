@@ -35,7 +35,7 @@ func NeedsTypeDiagnosticInput(typ *sqltype.Descriptor) bool {
 
 // Retained reads and writes have identical input demands, independent of the
 // tree walker used by their consumer. Naming never suppresses catalog input.
-func CaptureRetainedExpressionInput(node expr.Expr, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+func CaptureRetainedExpressionInput(node expr.Expr, element, parserInput func() error, diagnostic func(*sqltype.Descriptor) error) error {
 	// Stored columns and record constructors can demand a named nested provider
 	// without any input conversion. Retain the same naming authority as fresh
 	// comparison binding, including domain and array identity.
@@ -45,6 +45,10 @@ func CaptureRetainedExpressionInput(node expr.Expr, element func() error, diagno
 		}
 	}
 	switch node := node.(type) {
+	case functions.FTSParser:
+		if !node.OID {
+			return parserInput()
+		}
 	case functions.Enum:
 		return diagnostic(node.Plan.Enum())
 	case functions.JSONBRecord:

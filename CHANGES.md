@@ -1,3 +1,10 @@
+The default text-search parser is executable through both text-name and OID
+overloads of ts_parse and ts_token_type, with typed set results, all 23 token
+descriptors, preserved document spelling and ordered URL/hyphen overlaps.
+pg_ts_parser exposes the stock parser and internal handler identities; pg_proc
+also exposes truthful set-returning flags. Parser inputs and materialized rows
+use ordinary native Dump/Reset/Restore without serializing builtin state.
+
 Installed isn now provides independently identified isbn13 columns, literal and
 bound string/byte input, canonical long ISBN output and ISBN13 result metadata.
 ISBN10 expansion, corrected check digits, retained invalid markers and NULLs

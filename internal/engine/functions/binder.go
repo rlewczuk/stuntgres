@@ -75,6 +75,9 @@ type Binder interface {
 	// NoteCatalogSnapshot records analysis-only catalog demand, separately from
 	// NoteCatalogText's execution binding flag.
 	NoteCatalogSnapshot()
+	// CaptureFTSParserInput captures the text-search path without resolving a
+	// runtime parser name or capturing unrelated identifier families.
+	CaptureFTSParserInput() error
 	// InstalledRoutine resolves name on the function search path, propagating
 	// lookup errors, and returns the routine that extension installed there
 	// with the signature (comma-separated input type OIDs), or nil.

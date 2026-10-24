@@ -98,7 +98,7 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 // Stored sources are opaque to the outer expression binder, but their
 // planning-time conversions consume the same published input environment.
 func (b *Binder) captureRetainedViewInput(relation *catalog.Relation) error {
-	return b.Host.CaptureRetainedViewInput(b.Query.Auth, relation, b.captureElementInput, b.CaptureTypeDiagnosticInput)
+	return b.Host.CaptureRetainedViewInput(b.Query.Auth, relation, b.captureElementInput, b.CaptureFTSParserInput, b.CaptureTypeDiagnosticInput)
 }
 
 // Retained write expressions are not rebound with the consuming statement.
@@ -109,7 +109,7 @@ func (b *Binder) CaptureRetainedWriteInput(defaults []expr.Expr, generations map
 		if failure != nil {
 			return
 		}
-		failure = CaptureRetainedExpressionInput(node, b.captureElementInput, b.CaptureTypeDiagnosticInput)
+		failure = CaptureRetainedExpressionInput(node, b.captureElementInput, b.CaptureFTSParserInput, b.CaptureTypeDiagnosticInput)
 	}
 	for _, node := range defaults {
 		plan.WalkExpression(node, visit)

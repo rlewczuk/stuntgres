@@ -8,7 +8,7 @@ import (
 )
 
 // Each frozen consumer supplies its own coherent catalog and input owners.
-func CaptureRetainedInput(view catalog.Read, definition *View, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+func CaptureRetainedInput(view catalog.Read, definition *View, element, parserInput func() error, diagnostic func(*sqltype.Descriptor) error) error {
 	seen := make(map[*View]bool)
 	var capture func(*View) error
 	capture = func(definition *View) error {
@@ -19,7 +19,7 @@ func CaptureRetainedInput(view catalog.Read, definition *View, element func() er
 		var failure error
 		analyze.WalkQueryArgumentNode(definition.query.Root, func(node expr.Expr) {
 			if failure == nil {
-				failure = analyze.CaptureRetainedExpressionInput(node, element, diagnostic)
+				failure = analyze.CaptureRetainedExpressionInput(node, element, parserInput, diagnostic)
 			}
 		})
 		if failure != nil {

@@ -41,4 +41,5 @@ const (
 	GeometryConversionRoutineProvider
 	GeometryMeasureRoutineProvider
 	CastRoutineProvider
+	FTSParserRoutineProvider
 )

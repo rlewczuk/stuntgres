@@ -204,10 +204,17 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 		candidate.Regclass, candidate.Regtype, candidate.Regrole = nil, nil, nil
 		candidate.Operator, candidate.Regproc, candidate.ACLItem = nil, nil, nil
 		candidate.FTS = nil
+		candidate.RegTS = nil
 		candidate.TypeDiagnosticName = nil
 		captureEnumOperationSafety(op, &candidate)
 		err = stored.CaptureRetainedInput(auth.Catalog, stored.ViewOf(d),
 			func() error { return e.captureElementInput(auth, op, &candidate) },
+			func() error {
+				if candidate.RegTS != nil { return nil }
+				var err error
+				candidate.RegTS, err = captureRegTSInput(auth)
+				return err
+			},
 			func(typ *sqltype.Descriptor) error { return e.captureTypeDiagnosticInput(auth, op, &candidate, typ) })
 		if err == nil {
 			scope.input = candidate

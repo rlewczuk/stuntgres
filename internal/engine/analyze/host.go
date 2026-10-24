@@ -60,6 +60,7 @@ type Host interface {
 
 	// Captures.
 	CaptureElementInput(auth Authority, input *sqltype.InputEnvironment) error
+	CaptureRegTSInput(auth Authority, input *sqltype.InputEnvironment) error
 	ResolveOperatorText(ctx context.Context, auth Authority, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error)
 	ResolveRegtypeText(ctx context.Context, auth Authority, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error)
 	CaptureTypeDiagnosticInput(auth Authority, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error
@@ -82,7 +83,7 @@ type Host interface {
 	// ValidateViewReadGraph rejects an active-path recursion among the stored
 	// views leaves read, and views that are no longer current.
 	ValidateViewReadGraph(view catalog.Read, leaves []exec.Leaf) error
-	CaptureRetainedViewInput(auth Authority, relation *catalog.Relation, element func() error, diagnostic func(*sqltype.Descriptor) error) error
+	CaptureRetainedViewInput(auth Authority, relation *catalog.Relation, element, parserInput func() error, diagnostic func(*sqltype.Descriptor) error) error
 
 	// Session.
 	PlanOwner() (owner ids.SessionToken, discardGeneration uint64, ok bool)
