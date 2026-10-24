@@ -1,3 +1,8 @@
+information_schema.role_udt_grants now exposes seven domain-typed columns over
+actual composite type USAGE grant origins, including represented catalog row
+types. Named grantors, grant options and inherited enabled-role visibility
+refresh across direct and held prepared reads without leaking unrelated grants.
+
 information_schema.role_routine_grants now exposes ten domain-typed columns over
 real routine EXECUTE grant origins, preserving named grantors, grant options and
 enabled-role visibility across direct and prepared metadata reads.

@@ -283,6 +283,17 @@ represented routine kinds, lifecycle frontiers and structured diagnostics.
 
 - Routine grants: `RUN='^TestReferenceInfoRoleRoutineGrants'`
 
+### UDT grants
+
+`info_role_udt_grants_helpers_test.go` owns exact type ACL origin bags,
+domain/adapter metadata and direct/fresh/held reads. The family distinguishes
+actual reciprocal composite rows from arrays and domains, preserves raw absent
+versus empty ACLs, and covers enabled identities, captured grantability, live
+ACL/membership publication, lifecycle frontiers and complete diagnostics.
+
+- UDT grants: `RUN='^TestReferenceInfoRoleUdtGrants'`
+
+
 ### View definition metadata
 
 `info_views_helpers_test.go` owns paired scenarios, exact ten-column domain and
