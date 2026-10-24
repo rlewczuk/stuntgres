@@ -17,7 +17,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, idx ids.Object
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return table.ForeignKeyRows{}, ids.ErrCatalogReplaced
 	}
 	changes := s.owner.Catalog
@@ -72,7 +72,7 @@ func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode 
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	changes := s.owner.Catalog
@@ -173,7 +173,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *table.Fo
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	changes := s.owner.Catalog

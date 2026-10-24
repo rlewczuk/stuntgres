@@ -9,7 +9,7 @@ import (
 )
 
 func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *index.Snapshot) (index.RemintedIndexStorage, error) {
-	prepared := index.RemintedIndexStorage{Catalog: next, BaseCatalog: e.catalog.state, BaseRow: e.storage.RowFrontier(), BaseVersion: e.storage.VersionFrontier(), Frontier: e.visibility.CommitSeq()}
+	prepared := index.RemintedIndexStorage{Catalog: next, BaseCatalog: e.catalog.State, BaseRow: e.storage.RowFrontier(), BaseVersion: e.storage.VersionFrontier(), Frontier: e.visibility.CommitSeq()}
 	var err error
 	prepared.Roots, prepared.NextRow, prepared.NextVersion, err = e.prepareRemintedStorage(ctx, next, relations, snapshot, false)
 	if err == nil {
@@ -21,6 +21,6 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.S
 // prepareRemintedStorage remints the imported storage of next over the
 // published engine state. The caller holds Engine.mu.
 func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *index.Snapshot, preserveProvenance bool) (map[ids.ObjectAddress]*storage.IndexRoot, uint64, uint64, error) {
-	base := index.RemintBase{Catalog: e.catalog.state, Relations: e.storage.Relations, Roots: e.storage.IndexRoots, NextRow: e.storage.RowFrontier(), NextVersion: e.storage.VersionFrontier(), Frontier: e.visibility.CommitSeq(), PreserveProvenance: preserveProvenance}
-	return index.RemintStorage(ctx, e.catalog.read(next), base, relations, snapshot)
+	base := index.RemintBase{Catalog: e.catalog.State, Relations: e.storage.Relations, Roots: e.storage.IndexRoots, NextRow: e.storage.RowFrontier(), NextVersion: e.storage.VersionFrontier(), Frontier: e.visibility.CommitSeq(), PreserveProvenance: preserveProvenance}
+	return index.RemintStorage(ctx, e.catalog.Read(next), base, relations, snapshot)
 }

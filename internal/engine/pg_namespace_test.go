@@ -32,7 +32,7 @@ func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *exec.Source 
 	t.Helper()
 	d, ref := namespaceUnitSource(t, e, c)
 	e.mu.Lock()
-	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: e.roles.read(e.catalog.owner(), c, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
+	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: e.roles.read(&e.catalog.Owner, c, e.roles.published), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal(rows, err)
@@ -97,7 +97,7 @@ func TestPGNamespaceShape(t *testing.T) {
 func TestPGNamespaceCapture(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
-	oid, revision := e.catalog.nextOID, e.catalog.nextRevision
+	oid, revision := e.catalog.NextOID(), e.catalog.NextRevision()
 	descriptors, names := maps.Collect(c.State().Descriptors()), maps.Collect(c.State().Names())
 	old := namespaceUnitCapture(t, e, c)
 	if old.Count() != 4 {
@@ -118,7 +118,7 @@ func TestPGNamespaceCapture(t *testing.T) {
 			t.Fatal("builtin owner/ACL", id, owner, row[3], err)
 		}
 	}
-	if e.catalog.state != c.State() || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(c.State().Descriptors())) || !maps.Equal(names, maps.Collect(c.State().Names())) {
+	if e.catalog.State != c.State() || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || !maps.Equal(descriptors, maps.Collect(c.State().Descriptors())) || !maps.Equal(names, maps.Collect(c.State().Names())) {
 		t.Fatal("capture mutated authority/frontiers")
 	}
 	stage := e.BeginCatalogStage(c)
@@ -141,7 +141,7 @@ func TestPGNamespaceCapture(t *testing.T) {
 			t.Fatal("captured root changed", got, err)
 		}
 	}
-	if e.catalog.state != c.State() || !maps.Equal(descriptors, maps.Collect(c.State().Descriptors())) || !maps.Equal(names, maps.Collect(c.State().Names())) {
+	if e.catalog.State != c.State() || !maps.Equal(descriptors, maps.Collect(c.State().Descriptors())) || !maps.Equal(names, maps.Collect(c.State().Names())) {
 		t.Fatal("private capture published")
 	}
 }
@@ -154,7 +154,7 @@ func TestPGNamespaceACL(t *testing.T) {
 	owner := roles.LookupRef("postgres")
 	reader := roles.LookupRef("pg_read_all_data")
 	for _, acl := range []authorization.ACLValue{{}, {Explicit: true}} {
-		value, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, acl)
+		value, err := pgcatalog.ClassACL(&e.catalog.Owner, roles, array, acl)
 		if err != nil || value.IsNull() == acl.Explicit || acl.Explicit && value.ArrayLen() != 0 {
 			t.Fatal("NULL versus empty", value, err)
 		}
@@ -183,7 +183,7 @@ func TestPGNamespaceACL(t *testing.T) {
 				if public {
 					acl.Entries[0].Grantee.Role = authorization.PrincipalRef{}
 				}
-				value, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, acl)
+				value, err := pgcatalog.ClassACL(&e.catalog.Owner, roles, array, acl)
 				if err != nil || value.ArrayLen() != 1 {
 					t.Fatal(value, err)
 				}
@@ -203,7 +203,7 @@ func TestPGNamespaceACL(t *testing.T) {
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege},
 	}}
 	merged := authorization.SchemaACLOwner(acl, owner, reader)
-	value, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, merged)
+	value, err := pgcatalog.ClassACL(&e.catalog.Owner, roles, array, merged)
 	if err != nil || value.ArrayLen() != 1 {
 		t.Fatal("owner merge", value, err)
 	}
@@ -220,7 +220,7 @@ func TestPGNamespaceACL(t *testing.T) {
 			} else {
 				broken.Entries[0].Grantee.Role = bad
 			}
-			if _, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, broken); err == nil {
+			if _, err := pgcatalog.ClassACL(&e.catalog.Owner, roles, array, broken); err == nil {
 				t.Fatal("foreign/stale ACL principal admitted")
 			}
 		}
@@ -235,7 +235,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject := func(catalog catalog.Read, roles authorization.Read, r ids.ObjectRef, source *catalog.Relation) {
 		t.Helper()
 		e.mu.Lock()
-		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: roles, Ref: r, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: roles, Ref: r, Source: source, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 		e.mu.Unlock()
 		if err == nil || rows != nil {
 			t.Fatal("invalid capture authority admitted", rows, err)
@@ -262,7 +262,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		invalid := *d
 		invalid.Columns = make([]catalog.Column, width)
 		next.SetDescriptor(d.Address(), &invalid)
-		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
+		reject(e.catalog.Read(next), e.Roles(), ref, &invalid)
 	}
 	for i := range d.Columns {
 		next := catalog.CloneState(c.State())
@@ -270,7 +270,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.Columns[i].Usage.Type.ID())
 		next.SetDescriptor(d.Address(), &invalid)
-		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
+		reject(e.catalog.Read(next), e.Roles(), ref, &invalid)
 	}
 	ns := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
 	for _, owner := range []authorization.PrincipalRef{foreign.roles.domain.Principal(10), e.roles.domain.Principal(999999), e.roles.domain.Principal(1 << 32)} {
@@ -278,33 +278,33 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		invalid := *ns
 		invalid.Owner = owner
 		next.SetDescriptor(ns.Address(), &invalid)
-		reject(e.catalog.read(next), e.Roles(), ref, d)
+		reject(e.catalog.Read(next), e.Roles(), ref, d)
 	}
 	next := catalog.CloneState(c.State())
 	invalid := *ns
 	invalid.ObjectName = "stale_toast"
 	next.SetDescriptor(ns.Address(), &invalid)
-	reject(e.catalog.read(next), e.Roles(), ref, d)
+	reject(e.catalog.Read(next), e.Roles(), ref, d)
 	invalid = *ns
 	invalid.TemporaryToast = true
 	next.SetDescriptor(ns.Address(), &invalid)
-	reject(e.catalog.read(next), e.Roles(), ref, d)
+	reject(e.catalog.Read(next), e.Roles(), ref, d)
 	next = catalog.CloneState(c.State())
 	next.SetDescriptor(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ns)
-	reject(e.catalog.read(next), e.Roles(), ref, d)
+	reject(e.catalog.Read(next), e.Roles(), ref, d)
 	next = catalog.CloneState(c.State())
 	invalid = *ns
 	invalid.Temporary = foreign.catalog.Domain.Session(1)
 	next.SetDescriptor(ns.Address(), &invalid)
-	reject(e.catalog.read(next), e.Roles(), ref, d)
+	reject(e.catalog.Read(next), e.Roles(), ref, d)
 	next = catalog.CloneState(c.State())
 	next.SetDescriptor(catalog.CurrentDatabaseAddress, (*catalog.Database)(nil))
-	reject(e.catalog.read(next), e.Roles(), ref, d)
+	reject(e.catalog.Read(next), e.Roles(), ref, d)
 	database := *c.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.Owner = e.Roles().LookupRef("pg_read_all_data")
 	next = catalog.CloneState(c.State())
 	next.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
-	reject(e.catalog.read(next), e.Roles(), ref, d)
+	reject(e.catalog.Read(next), e.Roles(), ref, d)
 }
 
 type namespaceCancelContext struct {
@@ -324,16 +324,16 @@ func TestPGNamespaceCancellation(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
 	d, ref := namespaceUnitSource(t, e, c)
-	oid, revision := e.catalog.nextOID, e.catalog.nextRevision
+	oid, revision := e.catalog.NextOID(), e.catalog.NextRevision()
 	roles := e.Roles()
 	for _, at := range []int{1, 3, 6} {
 		ctx, cancel := context.WithCancel(context.Background())
 		controlled := &namespaceCancelContext{Context: ctx, cancel: cancel, at: at}
 		e.mu.Lock()
-		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 		e.mu.Unlock()
 		cancel()
-		if !errors.Is(err, context.Canceled) || rows != nil || e.catalog.state != c.State() || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
+		if !errors.Is(err, context.Canceled) || rows != nil || e.catalog.State != c.State() || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision {
 			t.Fatal("cancellation published partial capture", at, rows, err)
 		}
 	}

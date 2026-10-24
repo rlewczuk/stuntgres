@@ -17,7 +17,7 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	e := New()
 	run(t, e, `CREATE TABLE provider(a INT)`)
 	run(t, e, `CREATE TABLE consumer(b BOOL DEFAULT ('provider'::regclass IS NOT NULL), n INT DEFAULT CASE WHEN 'provider'::regclass IS NOT NULL THEN 1 ELSE 0 END, s SERIAL)`)
-	d := e.catalog.state.MustRelation(roleTableRef(t, e, "consumer").Address)
+	d := e.catalog.State.MustRelation(roleTableRef(t, e, "consumer").Address)
 	for _, attribute := range d.Attributes {
 		definition := d.ColumnMeta.Defaults[attribute]
 		if !table.DefaultReplayDeferrable(definition) {

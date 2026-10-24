@@ -14,7 +14,7 @@ import (
 func TestPgClassCatalogACLRecheck(t *testing.T) {
 	e := New()
 	d := pgClassUnitSource(t, e)
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	role := roleAttributeCreate(t, e, admin, "class_metadata_reader", true, parser.RoleOptions{})

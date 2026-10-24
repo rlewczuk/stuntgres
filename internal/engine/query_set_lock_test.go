@@ -33,23 +33,23 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		putFixtureRole(roles, role)
 	}
 	e.roles.published = roles
-	e.catalog.state = catalog.CloneState(e.catalog.state)
-	original := e.catalog.state.MustRelation(base.Address)
+	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+	original := e.catalog.State.MustRelation(base.Address)
 	right := base
 	right.Address.ObjectID = 1000000
 	copy := *original
 	copy.ObjectAddress, copy.ObjectName = right.Address, "t_right"
-	e.catalog.state.SetDescriptor(right.Address, &copy)
+	e.catalog.State.SetDescriptor(right.Address, &copy)
 	refs := make(map[string]ids.ObjectRef)
 	next := ids.OID(1000001)
 	add := func(name string, invoker bool, root *plan.ProjectNode, leaves []stored.ViewLeaf) ids.ObjectRef {
-		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
+		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *original
 		d.ObjectAddress, d.ObjectName, d.Owner, d.RelationKind = ref.Address, name, owner, catalog.ViewRelation
 		d.Columns, d.Attributes, d.Security.ColumnACL = query.Root.Schema(), []int32{1}, nil
 		d.View = stored.NewView(stored.ViewParts{Query: &plan.Query{Root: root}, Sources: leaves, Invoker: invoker})
-		e.catalog.state.SetDescriptor(ref.Address, &d)
+		e.catalog.State.SetDescriptor(ref.Address, &d)
 		refs[name] = ref
 		return ref
 	}
@@ -98,7 +98,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 		t.Helper()
 		auth := catalogAuthorization(e, e.CatalogRead())
 		auth.State.CurrentUser = reader
-		d := e.catalog.state.MustRelation(refs[name].Address)
+		d := e.catalog.State.MustRelation(refs[name].Address)
 		err := view.CheckRowMarks(auth.View, auth, d, inherited, reader)
 		if denied == "" {
 			if err != nil {
@@ -142,14 +142,14 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 
 func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e, _, _, base, _, refs := querySetLockAuthorityFixture(t)
-	e.catalog.state = catalog.CloneState(e.catalog.state)
+	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
 	next := ids.OID(1000100)
 	add := func(name string, definition *stored.View, kind catalog.RelationKind) ids.ObjectRef {
-		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
+		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
-		d := *e.catalog.state.MustRelation(base.Address)
+		d := *e.catalog.State.MustRelation(base.Address)
 		d.ObjectAddress, d.ObjectName, d.View, d.RelationKind = ref.Address, name, stored.ViewPayload(definition), kind
-		e.catalog.state.SetDescriptor(ref.Address, &d)
+		e.catalog.State.SetDescriptor(ref.Address, &d)
 		return ref
 	}
 	sequence := add("kind_sequence", nil, catalog.SequenceRelation)
@@ -186,7 +186,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		{localSet, plan.RowMark{}, "42809", `cannot lock rows in sequence "kind_sequence"`},
 		{localCatalogSet, plan.RowMark{}, "0A000", "row locking is not supported for virtual catalog relations"},
 	} {
-		d := e.catalog.state.MustRelation(tc.ref.Address)
+		d := e.catalog.State.MustRelation(tc.ref.Address)
 		scope := &StatementScope{owner: &session.TransactionOwner{}}
 		leaf := exec.Leaf{Ref: tc.ref, Relation: d, Mark: tc.mark, Query: &parser.Select{Locking: []parser.RowLockClause{{}}}}
 		e.mu.Lock()
@@ -215,11 +215,11 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		}
 	}
 	// Every stored arm is still admitted, including one whose identity expired.
-	d := *e.catalog.state.MustRelation(set.Address)
+	d := *e.catalog.State.MustRelation(set.Address)
 	sources := append([]stored.ViewLeaf(nil), stored.ViewOf(&d).Sources()...)
 	sources[1].Ref.Epoch++
 	d.View = stored.ViewOf(&d).With(func(p *stored.ViewParts) { p.Sources = sources })
-	e.catalog.state.SetDescriptor(set.Address, &d)
+	e.catalog.State.SetDescriptor(set.Address, &d)
 	scope := &StatementScope{owner: &session.TransactionOwner{}}
 	e.mu.Lock()
 	err := e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: set, Relation: &d, Mark: localMark}})
@@ -230,7 +230,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	// First-mode discovery still finds locally stored marks beneath a set when
 	// there is no inherited outer diagnostic, without granting marks to arms.
 	e.mu.Lock()
-	mode, err := view.FirstQueryRowMode(e.privateCatalogLocked(nil), nil, []exec.Leaf{{Ref: refs["local_set"], Relation: e.catalog.state.MustRelation(refs["local_set"].Address)}})
+	mode, err := view.FirstQueryRowMode(e.privateCatalogLocked(nil), nil, []exec.Leaf{{Ref: refs["local_set"], Relation: e.catalog.State.MustRelation(refs["local_set"].Address)}})
 	e.mu.Unlock()
 	if err != nil || mode != lock.ForUpdate {
 		t.Fatal("local first diagnostic lost", mode, err)
@@ -262,7 +262,7 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 		}
 		ref := refs[tc.name]
 		scope.lockedRef = ref
-		scope.querySources = []exec.Leaf{{Ref: ref, Relation: e.catalog.state.MustRelation(ref.Address), Mark: plan.RowMark{Mode: lock.ForUpdate}}}
+		scope.querySources = []exec.Leaf{{Ref: ref, Relation: e.catalog.State.MustRelation(ref.Address), Mark: plan.RowMark{Mode: lock.ForUpdate}}}
 		_, err = scope.acquireViewSources(false)
 		if err == nil {
 			for _, want := range []struct {

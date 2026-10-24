@@ -24,10 +24,10 @@ func (f materializedSourceFence) currentLocked(e *Engine, _ *session.Journal) er
 }
 
 func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool {
-	if f.ref.Domain() != e.catalog.Domain || f.ref.Epoch != e.catalog.state.Epoch() || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.Address() || f.relation.RelationKind != catalog.MaterializedViewRelation {
+	if f.ref.Domain() != e.catalog.Domain || f.ref.Epoch != e.catalog.State.Epoch() || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.Address() || f.relation.RelationKind != catalog.MaterializedViewRelation {
 		return false
 	}
-	current, _ := e.catalog.state.Relation(f.ref.Address)
+	current, _ := e.catalog.State.Relation(f.ref.Address)
 	store := e.storage.Relations[f.ref.Address]
 	return current == f.relation && store == f.storage || view.SameMaterializedLineage(f.relation, current, f.storage, store)
 }

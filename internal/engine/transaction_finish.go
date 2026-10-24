@@ -150,7 +150,7 @@ func (s *StatementScope) Finish(err error) error {
 				if err == nil {
 					err = publicationOperationLocked(e, s.op)
 				}
-				if err == nil && t.Ref.Epoch() != e.catalog.state.Epoch() {
+				if err == nil && t.Ref.Epoch() != e.catalog.State.Epoch() {
 					err = ids.ErrCatalogReplaced
 				}
 				if err == nil && s.catalog != nil {

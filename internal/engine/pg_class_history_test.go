@@ -14,7 +14,7 @@ func pgClassHistoryCatalog(e *Engine) (catalog.Read, *catalog.Relation) {
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.roles.domain.Principal(10)}
 	state.SetDescriptor(parent.Address(), parent)
 	state.BindName(catalog.DescriptorNameKey(parent), parent.Address())
-	return e.catalog.read(state), parent
+	return e.catalog.Read(state), parent
 }
 
 func TestPgClassSubclassPublication(t *testing.T) {
@@ -45,7 +45,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			err := stage.MarkSubclassHistoryLocked(e.catalog.revisionLocked, stage.Replace)
+			err := stage.MarkSubclassHistoryLocked(e.catalog.RevisionLocked, stage.Replace)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -83,7 +83,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err := stage.MarkSubclassHistoryLocked(e.catalog.revisionLocked, stage.Replace)
+	err := stage.MarkSubclassHistoryLocked(e.catalog.RevisionLocked, stage.Replace)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if !got.History.HasSubclasses || got == parent || parent.History.HasSubclasses || !history.History.HasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}
-	base := e.catalog.read(catalog.CloneState(view.State()))
+	base := e.catalog.Read(catalog.CloneState(view.State()))
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	cleared := *got
@@ -121,7 +121,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if err := catalog.NormalizeReplacementSubclassHistory(canceled, view); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	missing := e.catalog.read(catalog.CloneState(view.State()))
+	missing := e.catalog.Read(catalog.CloneState(view.State()))
 	missing.State().RemoveDescriptor(parent.Address())
 	if err := catalog.NormalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
 		t.Fatal("dangling edge accepted")

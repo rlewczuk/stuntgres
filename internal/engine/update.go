@@ -36,7 +36,7 @@ func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, 
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	return nil

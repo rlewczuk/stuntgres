@@ -22,29 +22,29 @@ func (e *Engine) InstallForeignDefinitions(wrappers []fdw.WrapperDefinition, val
 	e.foreign.Install(wrappers, validators, importer, exporter)
 	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	install := func(name catalog.ForeignFunctionName, p *catalog.ForeignProcedure, result ids.OID, signature catalog.ProcedureSignature) error {
-		namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema})
+		namespace := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema})
 		if namespace == (ids.ObjectAddress{}) {
-			oid, err := e.catalog.allocateOIDLocked()
+			oid, err := e.catalog.AllocateOIDLocked()
 			if err != nil {
 				return err
 			}
 			namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}
 			ns := &catalog.Namespace{ObjectAddress: namespace, ObjectName: name.Schema, ObjectRevision: 1, Owner: owner}
-			e.catalog.state.SetDescriptor(namespace, ns)
-			e.catalog.state.BindName(catalog.DescriptorNameKey(ns), namespace)
+			e.catalog.State.SetDescriptor(namespace, ns)
+			e.catalog.State.BindName(catalog.DescriptorNameKey(ns), namespace)
 			e.foreign.AddNamespace(namespace, name.Schema)
 		}
 		key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: name.Name, Signature: string(signature)}
-		if e.catalog.state.NameAddress(key) != (ids.ObjectAddress{}) {
+		if e.catalog.State.NameAddress(key) != (ids.ObjectAddress{}) {
 			return RegistrationError("foreign procedure signature already installed")
 		}
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := e.catalog.AllocateOIDLocked()
 		if err != nil {
 			return err
 		}
 		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: name.Name, Signature: signature, Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: result, Strict: true, Volatility: expr.Volatile, Foreign: p}
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(key, d.Address())
+		e.catalog.State.SetDescriptor(d.Address(), d)
+		e.catalog.State.BindName(key, d.Address())
 		return nil
 	}
 	for token := range e.foreign.ProcedureTokens() {

@@ -38,7 +38,7 @@ func (e *Engine) catalogFencesCurrentLocked(c *session.Journal, kinds ...session
 			var err error
 			switch fence := f.(type) {
 			case session.CommittedFence:
-				err = fence.Current(e.catalog.state, e.storage.Relations)
+				err = fence.Current(e.catalog.State, e.storage.Relations)
 			case catalogFence:
 				err = fence.currentLocked(e, c)
 			default:

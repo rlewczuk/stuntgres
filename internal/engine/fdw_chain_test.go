@@ -33,7 +33,7 @@ func fdwChainReadmission(t *testing.T) {
 	promoted := payloadOf(sess).cursors.entries["chain_hold"]
 	owner := sess.Transactions
 	ref := owner.Ref
-	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "chain_local"})
+	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "chain_local"})
 	entered := make(chan struct{})
 	held := false
 	remote := &fdwChainTransaction{}
@@ -92,9 +92,9 @@ func fdwChainReadmission(t *testing.T) {
 		e.mu.Lock()
 		published := len(e.storage.Relations[address].Versions) == 1
 		if published {
-			next := catalog.CloneState(e.catalog.state)
-			next.SetEpoch(e.catalog.state.Epoch() + 1)
-			e.catalog.state = next
+			next := catalog.CloneState(e.catalog.State)
+			next.SetEpoch(e.catalog.State.Epoch() + 1)
+			e.catalog.PublishLocked(next)
 		}
 		e.mu.Unlock()
 		if published {

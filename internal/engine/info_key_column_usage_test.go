@@ -23,8 +23,8 @@ type kcuUnitFixture struct {
 func newKCUUnitFixture(t *testing.T) kcuUnitFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
-	typ, _ := f.e.catalog.read(state).LookupType(sqltype.Int4)
+	state := catalog.CloneState(f.e.catalog.State)
+	typ, _ := f.e.catalog.Read(state).LookupType(sqltype.Int4)
 	relation := func(oid ids.OID, name string) *catalog.Relation {
 		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: f.schema, ObjectName: name, ObjectRevision: 1, Owner: f.owner, RelationKind: catalog.TableRelation, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true}}, Attributes: []int32{1, 3}, Columns: []catalog.Column{{Name: "a", Usage: typ.Usage()}, {Name: "b", Usage: typ.Usage()}}}
 	}
@@ -50,7 +50,7 @@ func newKCUUnitFixture(t *testing.T) kcuUnitFixture {
 }
 func (f kcuUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.read(state)
+	view := f.f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.KeyColumnUsageOID})
@@ -159,7 +159,7 @@ func TestInfoKeyColumnUsageProducer(t *testing.T) {
 			t.Fatal("relation kind population", kind, len(rows))
 		}
 	}
-	empty := catalog.CloneState(f.f.e.catalog.state)
+	empty := catalog.CloneState(f.f.e.catalog.State)
 	if rows := kcuUnitRows(t, f.input(t, empty, f.f.owner)); len(rows) != 0 {
 		t.Fatal("invented keys", rows)
 	}
@@ -221,7 +221,7 @@ func TestInfoKeyColumnUsageCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.KeyColumnUsageOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = New().catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
@@ -349,11 +349,11 @@ func TestInfoKeyColumnUsageCancellation(t *testing.T) {
 			t.Fatal("index cancellation did not follow first complete row", runtime.indexCalls)
 		}
 	}
-	empty := f.input(t, catalog.CloneState(f.f.e.catalog.state), f.f.owner)
+	empty := f.input(t, catalog.CloneState(f.f.e.catalog.State), f.f.owner)
 	if rows, err := produce(empty); err != nil || rows == nil || len(rows) != 0 {
 		t.Fatal("successful empty capture", rows, err)
 	}
-	in := f.input(t, catalog.CloneState(f.f.e.catalog.state), f.f.owner)
+	in := f.input(t, catalog.CloneState(f.f.e.catalog.State), f.f.owner)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	in.Context = ctx

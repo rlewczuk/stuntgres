@@ -69,7 +69,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 		t.Fatal("mapping ownership is not mapped identity", mappedOwner, publicOwner)
 	}
 	e.mu.Lock()
-	auth := catalogAuthorization(e, e.catalog.read(e.catalog.state))
+	auth := catalogAuthorization(e, e.catalog.Current())
 	e.mu.Unlock()
 	for _, d := range []*catalog.ForeignObject{wrapper, server} {
 		ref := fdw.ObjectRef(auth.View, d)
@@ -183,8 +183,8 @@ func TestFDWRegistry(t *testing.T) {
 	if err = e.InstallForeignDefinitions([]fdw.WrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)})
-	procedure := e.catalog.state.MustProcedure(address)
+	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)})
+	procedure := e.catalog.State.MustProcedure(address)
 	if procedure.Foreign.Wrapper != w || procedure.Result != 3115 || procedure.Signature != catalog.ForeignHandlerSignature {
 		t.Fatal("installed declaration lost executable identity", procedure)
 	}
@@ -201,28 +201,28 @@ func TestFDWProcedureIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)}
-	oldAddress := e.catalog.state.NameAddress(key)
+	oldAddress := e.catalog.State.NameAddress(key)
 	wrapper := &catalog.ForeignObject{ObjectName: "wrapper", Handler: oldAddress}
 	if token, err := fdw.HandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
 		t.Fatal(token, err)
 	}
-	replacement := catalog.CloneState(e.catalog.state)
+	replacement := catalog.CloneState(e.catalog.State)
 	copy := *replacement.MustProcedure(oldAddress)
 	replacement.RemoveDescriptor(oldAddress)
 	copy.ObjectAddress.ObjectID = 40010
 	replacement.SetDescriptor(copy.Address(), &copy)
 	replacement.BindName(key, copy.Address())
-	_, err := fdw.HandlerFor(e.catalog.read(replacement), wrapper)
+	_, err := fdw.HandlerFor(e.catalog.Read(replacement), wrapper)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `foreign-data wrapper "wrapper" has no registered handler`}
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("retired address retargeted by same SQL name or lost defensive diagnostic", err)
 	}
-	uncallable := catalog.CloneState(e.catalog.state)
+	uncallable := catalog.CloneState(e.catalog.State)
 	procedure := *uncallable.MustProcedure(oldAddress)
 	procedure.Foreign = nil
 	uncallable.SetDescriptor(oldAddress, &procedure)
-	_, err = fdw.HandlerFor(e.catalog.read(uncallable), wrapper)
+	_, err = fdw.HandlerFor(e.catalog.Read(uncallable), wrapper)
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("a stored procedure name masqueraded as an executable handler", err)
 	}
@@ -298,8 +298,8 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			if rights, err := retained.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
 				t.Fatal("publication mutated retained authority", rights, err)
 			}
-			stable, roles := e.catalog.state, e.roles.published
-			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.state != stable || e.roles.published != roles {
+			stable, roles := e.catalog.State, e.roles.published
+			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.State != stable || e.roles.published != roles {
 				t.Fatal("explicit no-op republished foreign procedure", err)
 			}
 		})

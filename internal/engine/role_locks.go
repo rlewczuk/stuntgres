@@ -18,7 +18,7 @@ import (
 func (s *StatementScope) acquireRoleResource(resource lock.Resource, mode lock.Mode) error {
 	e := s.engine()
 	e.mu.Lock()
-	if resource.Domain() != &e.cluster.roleDomain || resource.Epoch != 1 || s.txRef.Epoch() != e.catalog.state.Epoch() {
+	if resource.Domain() != &e.cluster.roleDomain || resource.Epoch != 1 || s.txRef.Epoch() != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
@@ -32,7 +32,7 @@ func (s *StatementScope) acquireRoleResource(resource lock.Resource, mode lock.M
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if s.txRef.Epoch() != e.catalog.state.Epoch() || s.owner.Ref != s.txRef {
+	if s.txRef.Epoch() != e.catalog.State.Epoch() || s.owner.Ref != s.txRef {
 		return ids.ErrCatalogReplaced
 	}
 	return s.op.Context().Err()

@@ -43,7 +43,7 @@ func TestEarthPointProvider(t *testing.T) {
 			t.Fatal("incumbent slot", i, symbol, err)
 		}
 	}
-	foreignOwner := New().catalog.owner().Principals.Principal(proc.Owner.ID())
+	foreignOwner := New().catalog.Owner.Principals.Principal(proc.Owner.ID())
 	for _, corrupt := range []func(*catalog.Procedure, *catalog.Operator){
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Signature = "701,701" },
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Result = 16 },
@@ -82,13 +82,13 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 	installer, done := roleOperation(t, e, "postgres")
 	defer done()
 	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := e.catalog.AllocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	revision, err := e.catalog.revisionLocked()
+	revision, err := e.catalog.RevisionLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 func TestEarthPointOwners(t *testing.T) {
 	e, ext, _ := earthUnitInstalled(t)
 	view := e.CatalogRead()
-	roles := e.roles.read(e.catalog.owner(), view, e.roles.published)
+	roles := e.roles.read(&e.catalog.Owner, view, e.roles.published)
 	metadata, err := extension.OwnerMetadata(view, roles, ext)
 	if err != nil {
 		t.Fatal(err)

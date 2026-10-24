@@ -51,14 +51,14 @@ func TestEarthCoordinateProvider(t *testing.T) {
 		}
 	}
 	// A staged same-signature conflict cannot publish even a valid prefix.
-	before := e.catalog.state
+	before := e.catalog.State
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
 	original := view.MustProcedure(ext.Members[5])
 	duplicate := *original
 	duplicate.ObjectAddress.ObjectID = 900000
 	var conflict catalog.Conflict
-	if err := stage.Create(&duplicate); !errors.As(err, &conflict) || e.catalog.state != before {
+	if err := stage.Create(&duplicate); !errors.As(err, &conflict) || e.catalog.State != before {
 		t.Fatal("staged conflict atomicity", err)
 	}
 	if earth.Array == 0 {
@@ -70,7 +70,7 @@ func TestEarthCoordinateOwners(t *testing.T) {
 	earthOwnerCodecUnits(t)
 	e, ext, _ := earthUnitInstalled(t)
 	view := e.CatalogRead()
-	roles := e.roles.read(e.catalog.owner(), view, e.roles.published)
+	roles := e.roles.read(&e.catalog.Owner, view, e.roles.published)
 	text, err := extension.OwnerMetadata(view, roles, ext)
 	if err != nil {
 		t.Fatal(err)

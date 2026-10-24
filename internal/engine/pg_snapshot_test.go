@@ -118,7 +118,7 @@ func TestSnapshotStatementRetention(t *testing.T) {
 			if saved == nil || saved.Visible(id) == isolation.Stable() || scope.snapshotFrontier != wantFrontier {
 				t.Fatal("execution public/tuple frontier mismatch", saved, scope.snapshotFrontier)
 			}
-			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), relation.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), relation.Address())
 			snapshotUnitRows(t, scope, ref, wantRows)
 			if err := scope.snapshotDataPhase(); err != nil || scope.currentSnapshot != saved || scope.snapshotFrontier != wantFrontier {
 				t.Fatal("command snapshot refreshed", err)

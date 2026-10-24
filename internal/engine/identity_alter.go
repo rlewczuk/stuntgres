@@ -73,7 +73,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if err != nil {
 		return err
 	}
-	revision, err := e.catalog.revisionLocked()
+	revision, err := e.catalog.RevisionLocked()
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if _, err := sequence.IdentityDefinition(descriptor, table, attribute); err != nil {
 		return err
 	}
-	stage.sequenceState().CaptureIdentityOriginal(address, e.catalog.state.Get(address))
+	stage.sequenceState().CaptureIdentityOriginal(address, e.catalog.State.Get(address))
 	stage.Base = fresh.Catalog
 	return nil
 }

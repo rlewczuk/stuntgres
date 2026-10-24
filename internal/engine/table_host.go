@@ -25,7 +25,7 @@ func (h ddlHost) SequenceStage() *sequence.Stage { return h.stage.sequenceState(
 // SequenceColumns reads the fixed INT8/BOOL builtin shape, not a sequence
 // definition or dependency. Transaction-private definitions use stage authority.
 func (h ddlHost) SequenceColumns() []catalog.Column {
-	return sequence.Columns(h.e.catalog.read(h.e.catalog.state))
+	return sequence.Columns(h.e.catalog.Current())
 }
 
 func (h ddlHost) NameBinding(key ids.NameKey) (ids.ObjectAddress, bool) {
@@ -88,4 +88,4 @@ func (h ddlHost) BindCheckExpression(a ddl.Authority, relation *catalog.Relation
 
 func (h ddlHost) OperationDefinition() catalog.DefinitionReader { return h.op.Definition }
 
-func (h ddlHost) LiveEpoch() ids.CatalogEpoch { return h.e.catalog.state.Epoch() }
+func (h ddlHost) LiveEpoch() ids.CatalogEpoch { return h.e.catalog.State.Epoch() }

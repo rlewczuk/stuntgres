@@ -25,8 +25,8 @@ func earthUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Typ
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, cubeUnitStage(t, e, op, "earthdistance", ""))
-	ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "earthdistance"}))
-	return e, ext, e.catalog.state.MustType(ext.Members[0])
+	ext := e.catalog.State.MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "earthdistance"}))
+	return e, ext, e.catalog.State.MustType(ext.Members[0])
 }
 
 func TestEarthProviderIdentity(t *testing.T) {
@@ -65,7 +65,7 @@ func TestEarthProviderIdentity(t *testing.T) {
 		mutate(&node)
 		invalid.DomainChecks[0].Expression = node
 		state.SetDescriptor(d.Address(), &invalid)
-		if err := extension.StockEarthdistance.ValidateExtension(e.catalog.read(&state), ext); err == nil {
+		if err := extension.StockEarthdistance.ValidateExtension(e.catalog.Read(&state), ext); err == nil {
 			t.Fatal("invalid manifest recipe admitted")
 		}
 	}
@@ -75,12 +75,12 @@ func TestEarthProviderConflicts(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	before := e.catalog.state
+	before := e.catalog.State
 	e.mu.Lock()
 	stage, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
 	e.mu.Unlock()
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || stage != nil || e.catalog.state != before {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || stage != nil || e.catalog.State != before {
 		t.Fatal("missing prerequisite published", err)
 	}
 	e, ext, _ := earthUnitInstalled(t)
@@ -182,7 +182,7 @@ func TestEarthProviderControls(t *testing.T) {
 	// This fixture subsequently executes TEMP DDL: initialize both the catalog
 	// namespace and physical-session assignment through the ordinary SQL path.
 	roleExecute(t, target, owner, "CREATE TEMP TABLE earth_retained_seed(v integer)")
-	namespace := target.catalog.state.MustNamespace(owner.Session.TemporaryNamespace)
+	namespace := target.catalog.State.MustNamespace(owner.Session.TemporaryNamespace)
 	installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
 	extensionUnitPublish(t, target, installer, cubeUnitStage(t, target, installer, "unaccent", namespace.Name()))
 	closeInstaller()
@@ -218,15 +218,15 @@ func TestEarthProviderControls(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if target.catalog.state.Get(namespace.Address()) != namespace || target.catalog.state.Get(collision.Address()) != collision {
+	if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(collision.Address()) != collision {
 		t.Fatal("replacement changed retained TEMP namespace authority")
 	}
-	ext := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "earthdistance"}))
-	imported := target.catalog.state.MustType(ext.Members[0])
+	ext := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "earthdistance"}))
+	imported := target.catalog.State.MustType(ext.Members[0])
 	if imported.SQLType == d.SQLType || imported.SQLType.ID() == d.SQLType.ID() {
 		t.Fatal("missing real identity collision")
 	}
-	if target.catalog.state.Get(collision.Address()) != collision {
+	if target.catalog.State.Get(collision.Address()) != collision {
 		t.Fatal("import replaced the live colliding TEMP identity")
 	}
 	if err := (stored.TypeProvider{}).Validate(target.CatalogRead(), imported); err != nil {

@@ -20,14 +20,14 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	state := catalog.CloneState(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.State)
 	server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 20200}, ObjectName: "Mixed Server", ObjectRevision: 1, Owner: f.owner, ACL: authorization.ACLValue{Explicit: true}}
 	state.SetDescriptor(server.Address(), server)
 	for i, role := range []authorization.PrincipalRef{f.reader, {}} {
 		mapping := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: ids.OID(20201 + i)}, ObjectName: catalog.ForeignMappingName(server.Address(), role), ObjectRevision: 1, Server: server.Address(), MappedRole: role, MappedName: "obsolete diagnostic name"}
 		state.SetDescriptor(mapping.Address(), mapping)
 	}
-	view := f.e.catalog.read(state)
+	view := f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoUserMappingsOID})
 	input := func(v catalog.Read, a AuthorizationView) pgcatalog.Input {
@@ -131,7 +131,7 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 	allowed := *server
 	allowed.ACL.Entries = []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.UsagePrivilege, 0)}
 	granted.SetDescriptor(server.Address(), &allowed)
-	grantedView := f.e.catalog.read(granted)
+	grantedView := f.e.catalog.Read(granted)
 	grantedAuth := auth
 	grantedAuth.Recapture(grantedView)
 	held := checkRows(input(grantedView, grantedAuth), want)
@@ -140,9 +140,9 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 		t.Fatal("retained row mutated")
 	}
 	// A server without mappings must not manufacture a PUBLIC/default row.
-	empty := catalog.CloneState(f.e.catalog.state)
+	empty := catalog.CloneState(f.e.catalog.State)
 	empty.SetDescriptor(server.Address(), server)
-	emptyView := f.e.catalog.read(empty)
+	emptyView := f.e.catalog.Read(empty)
 	emptyAuth := auth
 	emptyAuth.Recapture(emptyView)
 	checkRows(input(emptyView, emptyAuth), map[string]int{})
@@ -154,7 +154,7 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 		}
 	}
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = New().catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
@@ -190,7 +190,7 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 			}
 			bad.SetDescriptor(mapping.Address(), &mapping)
 		}
-		badView := f.e.catalog.read(bad)
+		badView := f.e.catalog.Read(bad)
 		badAuth := grantedAuth
 		badAuth.Recapture(badView)
 		if rows, err := produce(input(badView, badAuth)); rows != nil || err == nil {

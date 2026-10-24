@@ -12,7 +12,7 @@ import (
 
 func TestAlterGeneratedExpressionAuthorizationAfterWait(t *testing.T) {
 	e, admin, actor, ref := generatedAuthorizationFixture(t)
-	old, store := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+	old, store := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
 	blocker, err := e.StartStatement(admin)
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestAlterGeneratedExpressionAuthorizationAfterWait(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("admission worker remained parked")
 	}
-	if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store {
+	if e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store {
 		t.Fatal("denied waiter published generation")
 	}
 	lockEmpty(t, e)

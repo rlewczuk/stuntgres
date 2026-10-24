@@ -60,7 +60,7 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 	// Publish a genuine catalog domain; both interpreters must retain its identity
 	// and use their catalog-owned type spelling, not the raw RETURNING name.
 	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := e.catalog.AllocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

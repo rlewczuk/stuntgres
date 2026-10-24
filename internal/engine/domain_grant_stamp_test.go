@@ -31,7 +31,7 @@ func TestDomainIdentityGrantStamp(t *testing.T) {
 		t.Fatal(err)
 	}
 	allocated := 0
-	revision := func() (ids.DefinitionRevision, error) { allocated++; return e.catalog.revisionLocked() }
+	revision := func() (ids.DefinitionRevision, error) { allocated++; return e.catalog.RevisionLocked() }
 	plan, warnings, err := role.ObjectGrantPlan(context.Background(), auth.View, raw, req, revision)
 	if err != nil || len(warnings) != 0 || allocated != 1 {
 		t.Fatal("real changed ACL did not allocate ordinary revision", err, warnings, allocated)
@@ -41,7 +41,7 @@ func TestDomainIdentityGrantStamp(t *testing.T) {
 		t.Fatal("candidate/TX changes disagree or copied identity stamp survived ACL mutation")
 	}
 	// Repeating the exact grant must not allocate another stamp or mutate state.
-	auth.Recapture(e.catalog.read(plan.Candidate))
+	auth.Recapture(e.catalog.Read(plan.Candidate))
 	req, err = role.ObjectGrantRequest(host, auth, raw)
 	if err != nil {
 		t.Fatal(err)

@@ -13,7 +13,7 @@ func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner ids.Tx
 	if index == (ids.ObjectAddress{}) {
 		return nil
 	}
-	if owner.Domain() != domainOf(e) || owner.Epoch() != e.catalog.state.Epoch() {
+	if owner.Domain() != domainOf(e) || owner.Epoch() != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	e.indexWaits.AdmitLocked(index, owner, kind)

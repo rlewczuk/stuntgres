@@ -67,9 +67,9 @@ func (h *extensionHost) LookupName(key ids.NameKey) ids.ObjectAddress {
 }
 func (h *extensionHost) Create(d catalog.Descriptor) error  { return h.stage.Create(d) }
 func (h *extensionHost) Replace(d catalog.Descriptor) error { return h.stage.Replace(d) }
-func (h *extensionHost) AllocateOID() (ids.OID, error)      { return h.engine.catalog.allocateOIDLocked() }
+func (h *extensionHost) AllocateOID() (ids.OID, error)      { return h.engine.catalog.AllocateOIDLocked() }
 func (h *extensionHost) Revision() (ids.DefinitionRevision, error) {
-	return h.engine.catalog.revisionLocked()
+	return h.engine.catalog.RevisionLocked()
 }
 func (h *extensionHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name string) (bool, error) {
 	return h.engine.displaceAssociatedArrayLocked(h.stage, namespace, name)

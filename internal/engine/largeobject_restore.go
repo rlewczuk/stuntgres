@@ -33,7 +33,7 @@ func (e *Engine) restoreLargeObjectACL(op *session.Operation, raw *parser.Update
 	next := *old
 	next.ACL = authorization.ACLValue{Explicit: !absent}
 	if !absent {
-		output := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}
+		output := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: auth.Roles}
 		next.ACL.Entries, err = regobj.LargeObjectACL(op.Context(), auth.Catalog, text, e.captureACLItemInput(auth, op), output)
 		if err != nil {
 			e.mu.Unlock()
@@ -44,7 +44,7 @@ func (e *Engine) restoreLargeObjectACL(op *session.Operation, raw *parser.Update
 		e.mu.Unlock()
 		return err
 	}
-	next.ObjectRevision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.RevisionLocked()
 	if err != nil {
 		e.mu.Unlock()
 		return err

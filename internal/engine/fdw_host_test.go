@@ -37,7 +37,7 @@ func TestFDWStageTable(t *testing.T) {
 	sessionSQL(t, s, "CREATE SERVER host_server FOREIGN DATA WRAPPER host_fdw")
 	sessionSQL(t, s, "CREATE FOREIGN TABLE host_old(id integer) SERVER host_server")
 	op, auth := conversionUnitAuth(t, e)
-	before := e.catalog.state
+	before := e.catalog.State
 	stageTable := func(sql string) (*CatalogStage, []fdw.Validation, []ids.ObjectAddress, error) {
 		stage := e.BeginCatalogStage(auth.Catalog)
 		t.Cleanup(func() { e.DiscardCatalogStage(stage) })
@@ -71,7 +71,7 @@ func TestFDWStageTable(t *testing.T) {
 	if err != nil || len(jobs) != 0 || !slices.Equal(roots, []ids.ObjectAddress{old}) || stage.Get(old) != nil {
 		t.Fatal("drop staged", len(jobs), roots, err)
 	}
-	if e.catalog.state != before {
+	if e.catalog.State != before {
 		t.Fatal("staging published")
 	}
 }

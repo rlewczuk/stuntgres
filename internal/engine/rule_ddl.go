@@ -67,7 +67,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			return fmt.Errorf("stuntgres: authorization changed before publication")
 		}
 		auth = fresh
-		if scope.txRef.Epoch() != e.catalog.state.Epoch() {
+		if scope.txRef.Epoch() != e.catalog.State.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		currentAdmission := scope.queryLockAdmission

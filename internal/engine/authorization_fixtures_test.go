@@ -137,12 +137,12 @@ func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() {
 		return fmt.Errorf("stuntgres: foreign or stale ACL object")
 	}
 	addr := ref.Address
 	addr.SubID = 0
-	d, ok := e.catalog.state.Find(addr)
+	d, ok := e.catalog.State.Find(addr)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing ACL object")
 	}
@@ -154,13 +154,13 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	if err != nil {
 		return err
 	}
-	if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
+	if err := access.ValidateACL(e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), next); err != nil {
 		return err
 	}
 	if e.roles.published.Revision == ^uint64(0) {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	state := catalog.CloneState(e.catalog.state)
+	state := catalog.CloneState(e.catalog.State)
 	if parameter, ok := next.(*catalog.Parameter); ok {
 		catalog.InstallParameterGrant(state, parameter)
 	} else {
@@ -172,7 +172,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		return err
 	}
 	if n, ok := next.(*catalog.Relation); ok && n.RelationKind == catalog.SequenceRelation && ref.Address.SubID == 0 {
-		stamp, err := e.catalog.revisionLocked()
+		stamp, err := e.catalog.RevisionLocked()
 		if err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 			return err
 		}
 	}
-	e.catalog.state = state
+	e.catalog.PublishLocked(state)
 	installDatabaseProjectionLocked(databaseRoots)
 	e.roles.published = roles
 	return nil

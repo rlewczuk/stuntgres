@@ -38,7 +38,7 @@ func (s *StatementScope) vacuumAcquire(ref ids.ObjectRef, mode lock.Mode, skip b
 // access to its data. Keep ordinary SELECT/DML's stricter foreign-TEMP lookup
 // boundary unchanged; this utility path still checks the actual namespace ACL.
 func (e *Engine) resolveVacuumReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
-	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
+	if err := e.catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
 		return ids.ObjectRef{}, err
 	}
 	if len(name.Parts) == 1 {

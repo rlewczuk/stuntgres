@@ -54,7 +54,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(errors.New("candidate-only unit"))
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	original := old.ColumnMeta.Generations[2]
 	retained := auth.Catalog
 	unaffected := old.ColumnMeta.Generations[3]
@@ -90,7 +90,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	if err != nil || same != dropped || same.Revision() != dropped.Revision() {
 		t.Fatal("no-op changed descriptor", err)
 	}
-	if e.catalog.state.Get(ref.Address) != old {
+	if e.catalog.State.Get(ref.Address) != old {
 		t.Fatal("candidate published early")
 	}
 }

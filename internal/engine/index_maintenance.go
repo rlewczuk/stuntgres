@@ -16,7 +16,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	e.mu.Lock()
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
+	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	auth, err := e.statementAuthorizationLocked(scope.op, stmt)

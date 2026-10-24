@@ -122,7 +122,7 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 		return nil, err
 	}
 	e.mu.Lock()
-	valid := e.catalog.state.Epoch() == ref.Epoch &&
+	valid := e.catalog.State.Epoch() == ref.Epoch &&
 		e.privateCatalogLocked(s.owner.Catalog).Get(ref.Address) == descriptor &&
 		e.privateStorageLocked(s.owner.Catalog, ref.Address) == stored
 	e.mu.Unlock()

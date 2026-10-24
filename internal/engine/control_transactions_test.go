@@ -120,7 +120,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			before := target.CatalogRead()
 			ref := catalogRef(t, target, before, "t")
 			owner, stored, frontier := target.catalog.Domain, target.storage.Relations[ref.Address], target.visibility.CommitSeq()
-			beforeOID := target.catalog.nextOID
+			beforeOID := target.catalog.NextOID()
 			var reservedNext ids.OID
 			stage := target.BeginCatalogStage(before)
 			controlsRequire(t, a, "BEGIN")
@@ -152,18 +152,18 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				defer target.replacementMu.Unlock()
 				target.mu.Lock()
 				defer target.mu.Unlock()
-				oids := target.catalog.oidReservationLocked()
-				if _, err := target.catalog.allocateOIDFromLocked(&oids.next, 0); err != nil {
+				oids := target.catalog.OIDReservationLocked()
+				if _, err := target.catalog.AllocateOIDFromLocked(&oids.Next, 0); err != nil {
 					return err
 				}
-				reservedNext = oids.next
+				reservedNext = oids.Next
 				next, _, err := target.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 				if err != nil {
 					return err
 				}
-				nextRevision := target.catalog.nextRevision
+				nextRevision := target.catalog.NextRevision()
 				for _, descriptor := range next.Descriptors() {
-					if err := access.ValidateACL(target.roles.read(target.catalog.owner(), target.catalog.read(next), target.roles.published), descriptor); err != nil {
+					if err := access.ValidateACL(target.roles.read(&target.catalog.Owner, target.catalog.Read(next), target.roles.published), descriptor); err != nil {
 						return err
 					}
 					nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)
@@ -184,8 +184,8 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			if late {
 				expectedOID = reservedNext
 			}
-			if target.catalog.nextOID != expectedOID {
-				t.Fatal("canceled installation changed OID issuance boundary", target.catalog.nextOID, expectedOID)
+			if target.catalog.NextOID() != expectedOID {
+				t.Fatal("canceled installation changed OID issuance boundary", target.catalog.NextOID(), expectedOID)
 			}
 			if late {
 				if err != nil || target.CatalogRead().Epoch() != before.Epoch()+1 || target.visibility.CommitSeq() != frontier+1 {

@@ -107,10 +107,10 @@ func (h *bindingHost) ResolveReference(auth analyze.Authority, name parser.Objec
 	return h.engine.resolveReference(h.view(auth), name)
 }
 
-func (h *bindingHost) CatalogOwner() *catalog.Owner { return h.engine.catalog.owner() }
+func (h *bindingHost) CatalogOwner() *catalog.Owner { return &h.engine.catalog.Owner }
 
 func (h *bindingHost) CurrentCatalog() catalog.Read {
-	return h.engine.catalog.read(h.engine.catalog.state)
+	return h.engine.catalog.Current()
 }
 
 func (h *bindingHost) LookupNamespaces(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
@@ -308,7 +308,7 @@ func (h *bindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth
 }
 
 func (h *bindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {
-	return view.BindViewWrite(h.engine.catalog.owner(), h.view(auth).Catalog, b, stmt, consumed...)
+	return view.BindViewWrite(&h.engine.catalog.Owner, h.view(auth).Catalog, b, stmt, consumed...)
 }
 
 // newExpressionBinder is the root construction point: it binds through the

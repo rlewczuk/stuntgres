@@ -58,8 +58,8 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 				r := *next.MustRelation(addr)
 				r.ObjectRevision = 200
 				next.SetDescriptor(addr, &r)
-				e.catalog.nextRevision = frontier
-				if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
+				e.catalog.InstallRevisionFrontierLocked(frontier)
+				if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.Read(next)); err != nil {
 					t.Fatal(err)
 				}
 				before := e.CatalogRead()
@@ -93,7 +93,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			n := *next.MustNamespace(addr)
 			n.ObjectRevision = revision
 			next.SetDescriptor(addr, &n)
-			if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
+			if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.Read(next)); err != nil {
 				t.Fatal(err)
 			}
 			name := "terminal"
@@ -115,8 +115,8 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if e.catalog.nextRevision != maximum {
-				t.Fatal("Reset rewound exhausted frontier", e.catalog.nextRevision)
+			if e.catalog.NextRevision() != maximum {
+				t.Fatal("Reset rewound exhausted frontier", e.catalog.NextRevision())
 			}
 		})
 	}
@@ -129,11 +129,11 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
 		next.SetDescriptor(addr, &n)
-		frontier, before := e.catalog.nextRevision, e.CatalogRead()
+		frontier, before := e.catalog.NextRevision(), e.CatalogRead()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, err := e.ReplaceCatalog(ctx, source, source.catalog.read(next))
-		if !errors.Is(err, context.Canceled) || e.catalog.nextRevision != frontier || e.CatalogRead().State() != before.State() {
+		_, err := e.ReplaceCatalog(ctx, source, source.catalog.Read(next))
+		if !errors.Is(err, context.Canceled) || e.catalog.NextRevision() != frontier || e.CatalogRead().State() != before.State() {
 			t.Fatal("canceled import advanced allocator/catalog", err)
 		}
 	})
@@ -147,9 +147,9 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
 		next.SetDescriptor(addr, &n)
-		frontier, before := e.catalog.nextRevision, e.CatalogRead()
-		_, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next))
-		if err == nil || e.catalog.nextRevision != frontier || e.CatalogRead().State() != before.State() {
+		frontier, before := e.catalog.NextRevision(), e.CatalogRead()
+		_, err := e.ReplaceCatalog(context.Background(), source, source.catalog.Read(next))
+		if err == nil || e.catalog.NextRevision() != frontier || e.CatalogRead().State() != before.State() {
 			t.Fatal("failed principal remap advanced allocator/catalog", err)
 		}
 	})

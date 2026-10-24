@@ -33,17 +33,17 @@ func TestExclusionReplacement(t *testing.T) {
 			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.sequences.Constants[0].Ref
-			temp, generator, memory := target.catalog.state.Get(tempRef.Address), target.storage.Sequences[tempRef.Address], payloadOf(b).sequences.Memory(tempRef.Address)
+			temp, generator, memory := target.catalog.State.Get(tempRef.Address), target.storage.Sequences[tempRef.Address], payloadOf(b).sequences.Memory(tempRef.Address)
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must collide with a real retained TEMP address")
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.state.Get(tempRef.Address) != temp || target.storage.Sequences[tempRef.Address] != generator || payloadOf(b).sequences.Memory(tempRef.Address) != memory {
+			if target.catalog.State.Get(tempRef.Address) != temp || target.storage.Sequences[tempRef.Address] != generator || payloadOf(b).sequences.Memory(tempRef.Address) != memory {
 				t.Fatal("replacement changed retained TEMP identity")
 			}
-			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
+			parent := target.catalog.State.MustRelation(roleTableRef(t, target, "portable.t").Address)
 			idx, root := btreeRoot(t, target, "portable.ex")
 			current := parent.Constraints.Exclusion[0]
 			if current.Index != idx.Address() || !index.BackingConstraintPresent(parent, idx) || !current.Deferrable || !current.InitiallyDeferred || len(root.Entries) != 1 {

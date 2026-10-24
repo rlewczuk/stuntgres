@@ -18,7 +18,7 @@ import (
 func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	source, target := New(), New()
 	originals := make(map[string]*catalog.Procedure)
-	for _, descriptor := range source.catalog.state.Descriptors() {
+	for _, descriptor := range source.catalog.State.Descriptors() {
 		if p, ok := descriptor.(*catalog.Procedure); ok && (p.Name() == "bool_and" || p.Name() == "every" || p.Name() == "row_number") {
 			originals[p.Name()] = p
 		}
@@ -31,7 +31,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	boolean, _ := source.CatalogRead().LookupType(sqltype.Bool)
 	integer, _ := source.CatalogRead().LookupType(sqltype.Int8)
 	ref := func(p *catalog.Procedure) ids.ObjectRef {
-		return source.catalog.Domain.Ref(source.catalog.state.Epoch(), p.Address())
+		return source.catalog.Domain.Ref(source.catalog.State.Epoch(), p.Address())
 	}
 	aggregate := &plan.AggregateNode{Child: &plan.SingletonNode{}, Calls: []plan.AggregateCall{{
 		Provider: functions.NewBooleanAggregateProvider(boolean.Usage(), true),
@@ -39,15 +39,15 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 		RoutineAliases: []plan.AggregateRoutineAlias{{Ref: ref(originals["every"]), Procedure: originals["every"]}},
 	}}}
 	window := &plan.WindowNode{Child: aggregate, Calls: []plan.WindowCall{{Routine: ref(originals["row_number"]), Procedure: originals["row_number"], Expression: &plan.WindowExpr{Info: expr.Info{Usage: integer.Usage()}}}}}
-	candidate := catalog.CloneState(source.catalog.state)
+	candidate := catalog.CloneState(source.catalog.State)
 	for _, original := range originals {
 		current := *original
 		current.ObjectName = "current_" + original.Name()
 		current.ObjectRevision++
 		candidate.SetDescriptor(current.Address(), &current)
 	}
-	sourceRoles := source.roles.read(source.catalog.owner(), source.CatalogRead(), source.roles.published)
-	targetRoles := target.roles.read(target.catalog.owner(), target.CatalogRead(), target.roles.published)
+	sourceRoles := source.roles.read(&source.catalog.Owner, source.CatalogRead(), source.roles.published)
+	targetRoles := target.roles.read(&target.catalog.Owner, target.CatalogRead(), target.roles.published)
 	structural, err := stored.RemapViewQuery(target.CatalogRead(), aggregate, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := target.catalog.read(prepared)
+	view := target.catalog.Read(prepared)
 	mapper := &stored.ViewQueryRemapper{Catalog: view, Procedure: procedure, Ref: func(old ids.ObjectRef) ids.ObjectRef {
 		return target.catalog.Domain.Ref(view.Epoch(), old.Address)
 	}, Type: func(old *sqltype.Descriptor) *sqltype.Descriptor { return old }}
@@ -115,7 +115,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 	e := New()
 	var original *catalog.Procedure
-	for _, descriptor := range e.catalog.state.Descriptors() {
+	for _, descriptor := range e.catalog.State.Descriptors() {
 		if p, ok := descriptor.(*catalog.Procedure); ok && p.Name() == "row_number" {
 			original = p
 			break
@@ -144,8 +144,8 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 	historical.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: authorization.ExecutePrivilege}}}
 	current := *original
 	current.ObjectRevision++
-	e.catalog.state.SetDescriptor(current.Address(), &current)
-	roles := e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published)
+	e.catalog.State.SetDescriptor(current.Address(), &current)
+	roles := e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published)
 	if _, err := roles.Descriptor(owner); err == nil {
 		t.Fatal("historical-owner control unexpectedly live")
 	}
@@ -174,7 +174,7 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 // replacementProcedurePolicyFixture supplies the real host policy for private
 // address/type remap fixtures; it does not manufacture numeric principal links.
 func replacementProcedurePolicyFixture(source, target *Engine) catalog.ProcedureRemapper {
-	sourceRoles := source.roles.read(source.catalog.owner(), source.catalog.read(source.catalog.state), source.roles.published)
-	targetRoles := target.roles.read(target.catalog.owner(), target.catalog.read(target.catalog.state), target.roles.published)
+	sourceRoles := source.roles.read(&source.catalog.Owner, source.catalog.Current(), source.roles.published)
+	targetRoles := target.roles.read(&target.catalog.Owner, target.catalog.Current(), target.roles.published)
 	return catalog.NewProcedureRemapper(target.replacementPrincipalRemap(sourceRoles, targetRoles, nil))
 }

@@ -137,7 +137,7 @@ func TestNotificationQueueAccountingPublication(t *testing.T) {
 			next.Unread = true
 			next.Position = session.NotificationQueuePosition{}
 			n.State, n.Busy = &next, true
-			root, state, frontier := n.State, e.catalog.state, e.visibility.CommitSeq()
+			root, state, frontier := n.State, e.catalog.State, e.visibility.CommitSeq()
 			e.mu.Unlock()
 			ref := transactionBegin(t, sender)
 			sender.Transactions.NotificationEvents = notificationAccountingBatch()[:1]
@@ -151,7 +151,7 @@ func TestNotificationQueueAccountingPublication(t *testing.T) {
 			if !errors.As(err, &sqlerr) || sqlerr.Code != "54000" || sqlerr.Message != "too many notifications in the NOTIFY queue" {
 				t.Fatal("capacity diagnostic", err)
 			}
-			if e.cluster.notificationHead != head || n.State != root || e.catalog.state != state || e.visibility.CommitSeq() != frontier {
+			if e.cluster.notificationHead != head || n.State != root || e.catalog.State != state || e.visibility.CommitSeq() != frontier {
 				t.Fatal("capacity published partial effects")
 			}
 			// The same capacity decision becomes stale when a hold is released.

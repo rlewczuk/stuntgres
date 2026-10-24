@@ -55,7 +55,7 @@ func hashPartitionUnitDescriptor(t *testing.T) (catalog.Read, *catalog.Relation,
 func hashPartitionUnitEngine(t *testing.T) (*Engine, catalog.Read, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
-	snapshot := catalog.CloneState(e.catalog.state)
+	snapshot := catalog.CloneState(e.catalog.State)
 	var typ *sqltype.Descriptor
 	for _, candidate := range sqltype.Builtins() {
 		if candidate.ID() == sqltype.Int4 {
@@ -77,7 +77,7 @@ func hashPartitionUnitEngine(t *testing.T) (*Engine, catalog.Read, *catalog.Rela
 	root.Partition = &catalog.PartitionDefinition{Strategy: parser.PartitionHash, Keys: []catalog.PartitionKeyEntry{{Attribute: 1, Usage: typ.Usage(), Class: class, Hash: provider, Label: "k"}}, Children: []ids.ObjectAddress{leaf.Address()}}
 	snapshot.SetDescriptor(root.Address(), root)
 	snapshot.SetDescriptor(leaf.Address(), &leaf)
-	return e, e.catalog.read(snapshot), root, &leaf
+	return e, e.catalog.Read(snapshot), root, &leaf
 }
 
 func TestHashPartitionInvariants(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 func TestInheritanceGuards(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
-	catalogView := e.catalog.read(catalog.CloneState(base.State()))
+	catalogView := e.catalog.Read(catalog.CloneState(base.State()))
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}, ObjectName: "p", RelationKind: catalog.TableRelation, Index: map[string]int{"a": 0}, Attributes: []int32{3}}
 	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectName: "c", RelationKind: catalog.TableRelation, Index: map[string]int{"a": 0, "local": 1}, Attributes: []int32{5, 8}, Constraints: catalog.RelationConstraints{NotNull: []catalog.NotNullConstraint{{Name: "p_a_not_null", Attribute: 5}}}, Inheritance: &catalog.TableInheritance{
 		Parents: inheritanceUnitParents(parent.Address()),

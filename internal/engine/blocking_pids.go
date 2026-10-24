@@ -40,7 +40,7 @@ func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) (
 // unlike possible/ready alone, which also exist for nondeferrable readers.
 func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	var values []sqltype.Value
-	for _, writer := range e.visibility.SafeSnapshotBlockersLocked(e.catalog.Domain, e.catalog.state.Epoch(), e.catalog.Domain.Session(pid)) {
+	for _, writer := range e.visibility.SafeSnapshotBlockersLocked(e.catalog.Domain, e.catalog.State.Epoch(), e.catalog.Domain.Session(pid)) {
 		var err error
 		values, err = appendBlockingPid(values, typ, writer.Session, writer.Prepared, e.catalog.Domain)
 		if err != nil {

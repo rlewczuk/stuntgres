@@ -50,7 +50,7 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 					if len(newStore.Versions) != 1 || newRoot == oldRoot || newStore == oldStore {
 						t.Fatal("snapshot retained old physical authority")
 					}
-					parent := target.catalog.state.MustRelation(roleTableRef(t, target, "subject").Address)
+					parent := target.catalog.State.MustRelation(roleTableRef(t, target, "subject").Address)
 					if newRoot.Hash != nil {
 						count := 0
 						for _, bucket := range newRoot.Hash.Buckets {
@@ -177,7 +177,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 	if err != nil || again != mapped {
 		t.Fatal("destination-owned ACL copied/reimported", err)
 	}
-	if source.catalog.state.ACLItemImport() != nil || target.catalog.state.ACLItemImport() != nil {
+	if source.catalog.State.ACLItemImport() != nil || target.catalog.State.ACLItemImport() != nil {
 		t.Fatal("snapshot published import callback")
 	}
 }

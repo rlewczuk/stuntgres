@@ -22,9 +22,9 @@ func pgrowlocksVisibilityUnits(t *testing.T) {
 		_, owner := blockingUnitOwner(t, e)
 		_, observer := blockingUnitOwner(t, e)
 		pgLocksUnitAssign(t, e, owner)
-		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 		e.mu.Lock()
-		allocated, err := e.storage.AllocateRowVersionsLocked([][]sqltype.Value{nil, nil, nil}, e.catalog.state)
+		allocated, err := e.storage.AllocateRowVersionsLocked([][]sqltype.Value{nil, nil, nil}, e.catalog.State)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -124,10 +124,10 @@ func pgrowlocksDynamicSnapshotUnits(t *testing.T) {
 			if stable {
 				scope.owner.Isolation = session.RepeatableRead
 			}
-			targetRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), target.Address())
-			outerRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), outer.Address())
+			targetRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), target.Address())
+			outerRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), outer.Address())
 			e.mu.Lock()
-			versions, err := e.storage.AllocateRowVersionsLocked([][]sqltype.Value{nil}, e.catalog.state)
+			versions, err := e.storage.AllocateRowVersionsLocked([][]sqltype.Value{nil}, e.catalog.State)
 			if err == nil {
 				e.visibility.AdvanceCommitSeqLocked()
 				versions[0].Born = e.visibility.CommitSeq()

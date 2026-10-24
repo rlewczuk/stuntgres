@@ -23,7 +23,7 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT,b TEXT,c BIGINT)")
 			run(t, e, "INSERT INTO t VALUES(1,'gone',9)")
 			ref := roleTableRef(t, e, "t")
-			beforeDropRevision := e.catalog.state.Get(ref.Address).Revision()
+			beforeDropRevision := e.catalog.State.Get(ref.Address).Revision()
 			entered, release := make(chan struct{}), make(chan struct{})
 			var first, unblock sync.Once
 			t.Cleanup(func() { unblock.Do(func() { close(release) }) })
@@ -86,7 +86,7 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 				if !reflect.DeepEqual(got.notices, want) {
 					t.Fatal(got.notices, want)
 				}
-				descriptor := e.catalog.state.Get(ref.Address)
+				descriptor := e.catalog.State.Get(ref.Address)
 				storage := e.storage.Relations[ref.Address]
 				if descriptor.Revision() != beforeDropRevision+1 || len(storage.Versions) != 1 || len(storage.Versions[0].Values) != 2 {
 					t.Fatal(descriptor, storage)
@@ -94,7 +94,7 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 				if _, err := e.Execute(op, stmt, 0, nil); err != nil {
 					t.Fatal(err)
 				}
-				if !reflect.DeepEqual(op.DetachNotices(), want) || e.catalog.state.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != storage {
+				if !reflect.DeepEqual(op.DetachNotices(), want) || e.catalog.State.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != storage {
 					t.Fatal("repeated skip changed descriptor/storage or notices")
 				}
 			}
@@ -234,7 +234,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 						transactionEnd(t, early, earlyTx, false)
 					}
 				}()
-				lateDescriptor, earlyDescriptor := e.catalog.state.Get(lateRef.Address), e.catalog.state.Get(earlyRef.Address)
+				lateDescriptor, earlyDescriptor := e.catalog.State.Get(lateRef.Address), e.catalog.State.Get(earlyRef.Address)
 				lateStorage, earlyStorage := e.storage.Relations[lateRef.Address], e.storage.Relations[earlyRef.Address]
 				var before bytes.Buffer
 				if err := e.Dump(context.Background(), &before); err != nil {
@@ -251,7 +251,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("native ALTER did not reject shadow while early AX held")
 				}
-				if e.catalog.state.Get(lateRef.Address) != lateDescriptor || e.catalog.state.Get(earlyRef.Address) != earlyDescriptor || e.storage.Relations[lateRef.Address] != lateStorage || e.storage.Relations[earlyRef.Address] != earlyStorage {
+				if e.catalog.State.Get(lateRef.Address) != lateDescriptor || e.catalog.State.Get(earlyRef.Address) != earlyDescriptor || e.storage.Relations[lateRef.Address] != lateStorage || e.storage.Relations[earlyRef.Address] != earlyStorage {
 					t.Error("shadow ALTER changed descriptor or storage")
 				}
 				var after bytes.Buffer

@@ -115,14 +115,14 @@ func (s *StatementScope) retainSnapshotTargetRootsLocked(e *Engine) {
 // Root retention fixes the statement frontier, but is not itself a relation
 // read. Actual source acquisition enrolls its own refs through the wrapper above.
 func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRef, latest bool, base *visibility.Data) (*visibility.View, error) {
-	if s.txRef.Epoch() != e.catalog.state.Epoch() {
+	if s.txRef.Epoch() != e.catalog.State.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
 	for _, ref := range refs {
 		if ref.Domain() != e.catalog.Domain {
 			return nil, errors.New("stuntgres: foreign catalog reference")
 		}
-		if ref.Epoch != e.catalog.state.Epoch() {
+		if ref.Epoch != e.catalog.State.Epoch() {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
@@ -130,7 +130,7 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 		}
 	}
 	in := session.DataViewInput{
-		Published: e.catalog.state, Owner: e.catalog.owner(), Store: &e.storage, Journal: s.owner.Catalog,
+		Published: e.catalog.State, Owner: &e.catalog.Owner, Store: &e.storage, Journal: s.owner.Catalog,
 		SameLineage: view.SameMaterializedLineage, SameRowShape: index.SameRelationRowShape,
 	}
 	existing := s.view

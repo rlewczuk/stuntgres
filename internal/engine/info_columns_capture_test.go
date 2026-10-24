@@ -15,7 +15,7 @@ func columnsUnitPairedCapture(t *testing.T) {
 	t.Helper()
 	f := newColumnsUnitFixture(t)
 	e := f.dc.f.e
-	e.catalog.state = f.state
+	e.catalog.PublishLocked(f.state)
 	f.dc.f.op.Session.DatabaseName = "captured_database"
 	f.dc.f.actor(f.dc.f.member)
 	scope, err := e.StartStatement(f.dc.f.op)
@@ -48,7 +48,8 @@ func columnsUnitPairedCapture(t *testing.T) {
 		}
 	}
 	setFixtureEdges(roles, edges)
-	e.catalog.state, e.roles.published = next, roles
+	e.catalog.PublishLocked(next)
+	e.roles.published = roles
 	e.mu.Lock()
 	captured, err := e.openRelationSourceLocked(scope, old.Owner().Domain.Ref(old.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {

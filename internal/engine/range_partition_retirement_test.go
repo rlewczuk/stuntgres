@@ -205,7 +205,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	op.Done()
 	transactionEnd(t, s, ref, true)
 	for a := range removed {
-		if e.catalog.state.Get(a) != nil || e.storage.Relations[a] != nil || e.storage.IndexRoots[a] != nil || e.storage.Sequences[a] != nil {
+		if e.catalog.State.Get(a) != nil || e.storage.Relations[a] != nil || e.storage.IndexRoots[a] != nil || e.storage.Sequences[a] != nil {
 			t.Fatal("outer commit retained closure state", a)
 		}
 	}
@@ -244,15 +244,15 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 		t.Fatal(err)
 	}
 	for a := range stage.Removals() {
-		if e.catalog.state.Get(a) != nil || e.storage.Relations[a] != nil || e.storage.IndexRoots[a] != nil || e.storage.Sequences[a] != nil {
+		if e.catalog.State.Get(a) != nil || e.storage.Relations[a] != nil || e.storage.IndexRoots[a] != nil || e.storage.Sequences[a] != nil {
 			t.Fatal("physical retirement retained closure state", a)
 		}
 	}
-	if e.catalog.state.Get(provider.Address()) != nil || e.storage.Relations[provider.Address()] != nil {
+	if e.catalog.State.Get(provider.Address()) != nil || e.storage.Relations[provider.Address()] != nil {
 		t.Fatal("physical retirement retained provider")
 	}
 	for a, d := range peerDescriptors {
-		if e.catalog.state.Get(a) != d || e.storage.Relations[a] != peerStorage[a] || e.storage.IndexRoots[a] != peerIndexes[a] {
+		if e.catalog.State.Get(a) != d || e.storage.Relations[a] != peerStorage[a] || e.storage.IndexRoots[a] != peerIndexes[a] {
 			t.Fatal("physical retirement changed peer authority/storage/index", a)
 		}
 	}

@@ -22,7 +22,7 @@ import (
 // replacement. Imported identity collisions are remapped, never temp identities.
 func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, restoreOp *session.Operation, indexes *index.Snapshot, principal catalog.ProcedureRemapper, oids *catalogOIDReservation) error {
 	e.retainDatabaseLocked(next)
-	current := e.catalog.read(e.catalog.state)
+	current := e.catalog.Current()
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
 	}
@@ -53,11 +53,11 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			return err
 		}
 	}
-	mapping, err := control.TemporaryCollisionMapping(ctx, next, temporary, constraints, func(floor ids.OID) (ids.OID, error) { return e.catalog.allocateOIDFromLocked(&oids.next, floor) })
+	mapping, err := control.TemporaryCollisionMapping(ctx, next, temporary, constraints, func(floor ids.OID) (ids.OID, error) { return e.catalog.AllocateOIDFromLocked(&oids.Next, floor) })
 	if err != nil {
 		return err
 	}
-	if err := typedef.ImportScalarTypesLocked(next, mapping, e.catalog.allocateEnumMemberLocked); err != nil {
+	if err := typedef.ImportScalarTypesLocked(next, mapping, e.catalog.AllocateEnumMemberLocked); err != nil {
 		return err
 	}
 	defer func() { next.SetScalarImports(nil) }()
@@ -72,8 +72,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			return err
 		}
 	}
-	next.SetEpoch(e.catalog.state.Epoch() + 1)
-	candidate := e.catalog.read(next)
+	next.SetEpoch(e.catalog.State.Epoch() + 1)
+	candidate := e.catalog.Read(next)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == nil {
 			return nil
@@ -146,7 +146,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		if !ok || relation.View == nil && len(relation.Security.Policies) == 0 && len(stored.RulesOf(relation)) == 0 && !relation.HasTriggers() {
 			continue
 		}
-		view := e.catalog.read(next)
+		view := e.catalog.Read(next)
 		remap := func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch = next.Epoch(); return ref }
 		typ := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
 		// Replacement preflight certified these exact TEMP providers. They
@@ -203,7 +203,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	for address, descriptor := range next.Descriptors() {
 		previous[address] = descriptor
 	}
-	if err := control.RemapViewRuleOIDs(e.catalog.read(next), func() (ids.OID, error) { return e.catalog.allocateOIDFromLocked(&oids.next, 0) }); err != nil {
+	if err := control.RemapViewRuleOIDs(e.catalog.Read(next), func() (ids.OID, error) { return e.catalog.AllocateOIDFromLocked(&oids.Next, 0) }); err != nil {
 		return err
 	}
 	if err := table.RemapInheritanceConstraintOrigins(next, previous); err != nil {
@@ -212,27 +212,27 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := table.RemapRetiredConstraints(e.catalog.Domain, next, previous); err != nil {
 		return err
 	}
-	if err := table.RemapPhysicalNotNull(e.catalog.read(next), previous); err != nil {
+	if err := table.RemapPhysicalNotNull(e.catalog.Read(next), previous); err != nil {
 		return err
 	}
 	for _, descriptor := range next.Descriptors() {
 		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Security.Policies) != 0 {
-			if err := view.ValidatePolicies(e.catalog.read(next), relation); err != nil {
+			if err := view.ValidatePolicies(e.catalog.Read(next), relation); err != nil {
 				return err
 			}
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok {
-			if err := typedef.ValidateTypedAttachment(e.catalog.read(next), relation); err != nil {
+			if err := typedef.ValidateTypedAttachment(e.catalog.Read(next), relation); err != nil {
 				return err
 			}
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Inheritance != nil {
-			if err := table.ValidateInheritance(e.catalog.read(next), relation); err != nil {
+			if err := table.ValidateInheritance(e.catalog.Read(next), relation); err != nil {
 				return err
 			}
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok && relation.View != nil {
-			if err := view.ValidateViewDefinition(e.catalog.read(next), relation); err != nil {
+			if err := view.ValidateViewDefinition(e.catalog.Read(next), relation); err != nil {
 				return err
 			}
 		}
@@ -244,8 +244,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 // Retained TEMP relations cannot substitute persistent inheritance or OF
 // sources: control checks the inheritance parents, then the typed check runs.
 func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
-	if err := control.CheckTemporaryRelationSourcesLocked(e.catalog.state); err != nil {
+	if err := control.CheckTemporaryRelationSourcesLocked(e.catalog.State); err != nil {
 		return err
 	}
-	return typedef.CheckTemporaryTypedReplacementLocked(e.catalog.state)
+	return typedef.CheckTemporaryTypedReplacementLocked(e.catalog.State)
 }

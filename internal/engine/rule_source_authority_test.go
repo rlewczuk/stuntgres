@@ -47,12 +47,12 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					input := *src
 					input.ObjectAddress.ObjectID += 2
 					input.ObjectName, input.Rules = "input", nil
-					next := catalog.CloneState(e.catalog.state)
+					next := catalog.CloneState(e.catalog.State)
 					next.SetDescriptor(input.Address(), &input)
-					e.catalog.state = next
-					auth.Catalog = e.catalog.read(next)
+					e.catalog.PublishLocked(next)
+					auth.Catalog = e.catalog.Read(next)
 					auth.PairedCatalog = auth.Catalog
-					auth.Roles = e.roles.read(e.catalog.owner(), auth.Catalog, auth.RoleRecord)
+					auth.Roles = e.roles.read(&e.catalog.Owner, auth.Catalog, auth.RoleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
 					original := ruleUnitInsert(e, src, 1, 10).Binding()
 					original.QuerySources = []exec.Leaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}
@@ -84,7 +84,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: event, Actions: []stored.RuleAction{action}})})
 					program := view.RuleProgram{Count: -1, Returning: -1}
 					e.mu.Lock()
-					_, err = view.RuleRewriter{Owner: e.catalog.owner()}.ExpandLocked(auth, syntax, original, nil, &program)
+					_, err = view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, syntax, original, nil, &program)
 					e.mu.Unlock()
 					if err != nil {
 						t.Fatal(err)

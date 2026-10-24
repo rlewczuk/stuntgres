@@ -81,7 +81,7 @@ func TestRoutineBuiltinCapturedDeclarations(t *testing.T) {
 				index.Replace(p, &current)
 				state.SetProcedureNames(index.Index)
 			}
-			auth := catalogAuthorization(e, e.catalog.read(state))
+			auth := catalogAuthorization(e, e.catalog.Read(state))
 			context := exec.Context{EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: dependencies}}
 			for _, capture := range captures {
 				if err := exec.AdmitRoutineReference(&context, capture.Ref, capture.Procedure, "function"); err != nil {
@@ -143,7 +143,7 @@ func TestRoutineRuleRecipeOriginalAuthority(t *testing.T) {
 	})
 	owner.Rules = stored.RulesPayload([]stored.Rule{rule})
 	state.SetDescriptor(owner.Address(), &owner)
-	auth := catalogAuthorization(e, e.catalog.read(state))
+	auth := catalogAuthorization(e, e.catalog.Read(state))
 	recipe := &catalog.RuleRoutineRecipe{Owner: &owner, Rule: rule.OID, Action: 0, Presentation: presentation}
 	evaluation := exec.Context{EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	if err := exec.SelectExpressionRecipe(&evaluation, recipe); err != nil {
@@ -175,7 +175,7 @@ func TestRoutineRuleRecipeOriginalAuthority(t *testing.T) {
 		created.RecordDescriptor(committed, owner.Address(), &owner)
 		check := func(j *session.Journal, probe *catalog.RuleRoutineRecipe, want bool) {
 			t.Helper()
-			private := j.PrivateRead(e.catalog.owner(), committed)
+			private := j.PrivateRead(&e.catalog.Owner, committed)
 			authority := catalogAuthorization(e, private)
 			local := exec.Context{EvalAdmission: exec.EvalAdmission{RoutineAuthority: &authority}}
 			err := exec.SelectExpressionRecipe(&local, probe)
@@ -277,7 +277,7 @@ func TestRoutineRuleRecipeOriginalAuthority(t *testing.T) {
 			changedOwner.Rules = stored.RulesPayload([]stored.Rule{changedRule})
 			candidate := catalog.CloneState(state)
 			candidate.SetDescriptor(changedOwner.Address(), &changedOwner)
-			authority := catalogAuthorization(e, e.catalog.read(candidate))
+			authority := catalogAuthorization(e, e.catalog.Read(candidate))
 			probe := &catalog.RuleRoutineRecipe{Owner: &changedOwner, Rule: rule.OID, Action: 0, Presentation: payload}
 			local := exec.Context{EvalAdmission: exec.EvalAdmission{RoutineAuthority: &authority}}
 			if err := exec.SelectExpressionRecipe(&local, probe); err != nil {

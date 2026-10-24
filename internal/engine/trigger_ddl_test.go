@@ -74,11 +74,11 @@ func TestTriggerDDLRenameIdentity(t *testing.T) {
 	}
 	stmt.Target.Text = "a"
 	stmt.Name.Text = "0new"
-	before := e.catalog.state
+	before := e.catalog.State
 	if err := extensionUnitExecute(t, e, s.op, stmt); err == nil {
 		t.Fatal("collision accepted")
 	}
-	if e.catalog.state != before {
+	if e.catalog.State != before {
 		t.Fatal("collision published")
 	}
 }
@@ -141,7 +141,7 @@ func TestTriggerDDLPartitionIdentity(t *testing.T) {
 	occupant.Parent = ids.ObjectAddress{}
 	occupant.ParentRevision = 0
 	triggerUnitInstall(t, e, high, stored.TriggersOf(high)[0], triggerDDLPartsUnit(t, occupant))
-	before := e.catalog.state
+	before := e.catalog.State
 	p = stored.TriggersOf(root)[0].Parts()
 	p.Name = "taken"
 	copy = *root
@@ -155,7 +155,7 @@ func TestTriggerDDLPartitionIdentity(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), failed); err == nil {
 		t.Fatal("child collision accepted")
 	}
-	if e.catalog.state != before {
+	if e.catalog.State != before {
 		t.Fatal("collision changed roots")
 	}
 }
@@ -189,7 +189,7 @@ func TestTriggerDDLStageAtomicity(t *testing.T) {
 			case "source":
 				next := *ext
 				next.ObjectRevision++
-				e.catalog.state.SetDescriptor(ext.Address(), &next)
+				e.catalog.State.SetDescriptor(ext.Address(), &next)
 			case "cancel":
 				cancel()
 			case "authorization":
@@ -209,7 +209,7 @@ func TestTriggerDDLStageAtomicity(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, old := range []*catalog.Relation{root, low, high} {
-				if e.catalog.state.Get(old.Address()) != old {
+				if e.catalog.State.Get(old.Address()) != old {
 					t.Fatal("failed stage changed relation", old.Name())
 				}
 			}
@@ -318,7 +318,7 @@ func TestTriggerDDLExtensionRemap(t *testing.T) {
 	destination, s, _, target, targetFunction := triggerUnitFixture(t, "BEGIN RETURN NEW; END")
 	// Displace the genuine installed extension rather than fabricating a provider.
 	destination.mu.Lock()
-	_, err := destination.catalog.allocateOIDLocked()
+	_, err := destination.catalog.AllocateOIDLocked()
 	destination.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

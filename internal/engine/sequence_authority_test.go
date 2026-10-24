@@ -35,7 +35,7 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 	ref := roleTableRef(t, e, "s")
 	owner, _ := e.Roles().Lookup("seq_owner")
 	reader, _ := e.Roles().Lookup("seq_reader")
-	d := e.catalog.state.MustRelation(ref.Address)
+	d := e.catalog.State.MustRelation(ref.Address)
 	if d.Owner != owner.Ref {
 		t.Fatal("owner remap", d.Owner, owner.Ref)
 	}
@@ -55,10 +55,10 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 		t.Fatal("ACL dump must fail before output", err, rejected.String())
 	}
 	roleError(t, e, op, "DROP ROLE seq_reader", "2BP01", `role "seq_reader" cannot be dropped because some objects depend on it`, "privileges for sequence s")
-	before := e.catalog.state
+	before := e.catalog.State
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_reader")
 	roleError(t, e, op, "ALTER SEQUENCE s RESTART 100", "42501", "must be owner of sequence s", "")
-	if e.catalog.state != before {
+	if e.catalog.State != before {
 		t.Fatal("unauthorized ALTER published catalog")
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
@@ -73,7 +73,7 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 	}
 	newOwner, _ := e.Roles().Lookup("seq_owner")
 	newRef := roleTableRef(t, e, "s")
-	if newOwner.Ref == owner.Ref || e.catalog.state.MustRelation(newRef.Address).Owner != newOwner.Ref {
+	if newOwner.Ref == owner.Ref || e.catalog.State.MustRelation(newRef.Address).Owner != newOwner.Ref {
 		t.Fatal("restore reused stale principal identity")
 	}
 }
@@ -86,7 +86,7 @@ func TestSequenceNamespacePrivilegeCheckpoints(t *testing.T) {
 	roleExecute(t, e, op, "CREATE SCHEMA private")
 	roleExecute(t, e, op, "CREATE SEQUENCE private.s")
 	ref := roleTableRef(t, e, "private.s")
-	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), e.catalog.state.Get(ref.Address).Namespace())
+	namespace := e.catalog.Domain.Ref(e.catalog.State.Epoch(), e.catalog.State.Get(ref.Address).Namespace())
 	bootstrap := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)

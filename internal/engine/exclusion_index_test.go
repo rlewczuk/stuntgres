@@ -17,14 +17,14 @@ func TestExclusionIndexRoots(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, fmt.Sprintf("CREATE TABLE t(v INT, active BOOL, CONSTRAINT ex EXCLUDE USING %s ((v+0) WITH =) WHERE(active))", method))
 			sessionSQL(t, s, "INSERT INTO t VALUES(1,TRUE),(2,FALSE),(NULL,TRUE),(3,TRUE)")
-			parent := e.catalog.state.MustRelation(roleTableRef(t, e, "public.t").Address)
+			parent := e.catalog.State.MustRelation(roleTableRef(t, e, "public.t").Address)
 			constraint := parent.Constraints.Exclusion[0]
-			idx := e.catalog.state.MustRelation(constraint.Index)
+			idx := e.catalog.State.MustRelation(constraint.Index)
 			root := e.storage.IndexRoots[constraint.Index]
 			if root == nil || idx.SQLIndex.Unique || !idx.SQLIndex.IsExclusion() || !index.BackingConstraintPresent(parent, idx) {
 				t.Fatal("exclusion does not own a real nonunique enforcement root")
 			}
-			metadata, _, err := index.ProjectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), idx.Address()))
+			metadata, _, err := index.ProjectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.State.Epoch(), idx.Address()))
 			if err != nil || !metadata.IndIsExclusion || metadata.IndIsUnique || !metadata.IndImmediate || !metadata.IndIsReady || !metadata.IndIsValid || !metadata.IndIsLive || len(metadata.IndKey) != 1 || metadata.IndKey[0] != 0 {
 				t.Fatal("incorrect native exclusion index metadata", metadata, err)
 			}
@@ -72,34 +72,34 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(id INT UNIQUE,v TEXT,active BOOL,CONSTRAINT ex EXCLUDE USING btree(lower(v) WITH =) INCLUDE(active) WHERE(active) DEFERRABLE INITIALLY DEFERRED)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,'A',TRUE)")
 	ref := roleTableRef(t, e, "public.t")
-	original := e.catalog.state.MustRelation(ref.Address)
+	original := e.catalog.State.MustRelation(ref.Address)
 	old := original.Constraints.Exclusion[0]
 	oldRoot := e.storage.IndexRoots[old.Index]
-	metadata, _, err := index.ProjectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), old.Index))
+	metadata, _, err := index.ProjectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.State.Epoch(), old.Index))
 	if err != nil || !metadata.IndIsExclusion || metadata.IndIsUnique || metadata.IndImmediate || len(metadata.IndKey) != 2 || metadata.IndKey[0] != 0 || metadata.IndKey[1] != int16(original.Attributes[2]) {
 		t.Fatal("incorrect deferred definition/INCLUDE metadata", metadata, err)
 	}
 	sessionSQL(t, s, "ALTER TABLE t ALTER COLUMN v TYPE VARCHAR(20)")
-	parent := e.catalog.state.MustRelation(ref.Address)
+	parent := e.catalog.State.MustRelation(ref.Address)
 	current := parent.Constraints.Exclusion[0]
 	if current.OID == old.OID || current.Index == old.Index || original.Constraints.Exclusion[0].OID != old.OID {
 		t.Fatal("TYPE must remint the exclusion closure without mutating its old generation")
 	}
-	if e.catalog.state.Get(old.Index) != nil || e.storage.IndexRoots[old.Index] != nil || e.storage.IndexRoots[current.Index] == oldRoot {
+	if e.catalog.State.Get(old.Index) != nil || e.storage.IndexRoots[old.Index] != nil || e.storage.IndexRoots[current.Index] == oldRoot {
 		t.Fatal("TYPE retained the retired physical index")
 	}
-	idx := e.catalog.state.MustRelation(current.Index)
+	idx := e.catalog.State.MustRelation(current.Index)
 	if !index.BackingConstraintPresent(parent, idx) {
 		t.Fatal("TYPE broke reciprocal ownership")
 	}
 	root := e.storage.IndexRoots[current.Index]
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT ex TO renamed")
-	parent = e.catalog.state.MustRelation(ref.Address)
+	parent = e.catalog.State.MustRelation(ref.Address)
 	renamed := parent.Constraints.Exclusion[0]
 	if renamed.OID != current.OID || renamed.Index != current.Index || renamed.Name != "renamed" || e.storage.IndexRoots[current.Index] != root {
 		t.Fatal("rename changed constraint identity or the integrity root")
 	}
-	idx = e.catalog.state.MustRelation(current.Index)
+	idx = e.catalog.State.MustRelation(current.Index)
 	if idx.Name() != "renamed" || !index.BackingConstraintPresent(parent, idx) {
 		t.Fatal("rename broke index attachment")
 	}
@@ -110,8 +110,8 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	sessionSQL(t, s, "ALTER TABLE t DROP CONSTRAINT renamed")
-	parent = e.catalog.state.MustRelation(ref.Address)
-	if len(parent.Constraints.Exclusion) != 0 || len(parent.Constraints.Unique) != 1 || e.catalog.state.Get(current.Index) != nil || e.storage.IndexRoots[current.Index] != nil {
+	parent = e.catalog.State.MustRelation(ref.Address)
+	if len(parent.Constraints.Exclusion) != 0 || len(parent.Constraints.Unique) != 1 || e.catalog.State.Get(current.Index) != nil || e.storage.IndexRoots[current.Index] != nil {
 		t.Fatal("DROP did not retire exactly the exclusion attachment")
 	}
 	uniqueClaimsEmpty(t, e)
@@ -152,7 +152,7 @@ func TestExclusionAlterFirstIndexPublication(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(k INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 			ref := roleTableRef(t, e, "public.t")
-			original := e.catalog.state.MustRelation(ref.Address)
+			original := e.catalog.State.MustRelation(ref.Address)
 			store := e.storage.Relations[ref.Address]
 			row := store.Versions[0]
 			if len(e.storage.IndexRoots) != 0 {
@@ -169,12 +169,12 @@ func TestExclusionAlterFirstIndexPublication(t *testing.T) {
 			if err != nil || result.Count != 0 || result.Rows != nil {
 				t.Fatal("first-index publication failed", result, err)
 			}
-			parent := e.catalog.state.MustRelation(ref.Address)
+			parent := e.catalog.State.MustRelation(ref.Address)
 			if len(parent.Constraints.Exclusion) != 1 || !parent.History.HasIndexes || len(original.Constraints.Exclusion) != 0 || store.Versions[0].Row != row.Row || store.Versions[0].Version != row.Version {
 				t.Fatal("ALTER did not preserve its immutable predecessor and actual attachment")
 			}
 			constraint := parent.Constraints.Exclusion[0]
-			idx := e.catalog.state.MustRelation(constraint.Index)
+			idx := e.catalog.State.MustRelation(constraint.Index)
 			root := e.storage.IndexRoots[constraint.Index]
 			if !index.BackingConstraintPresent(parent, idx) || root == nil {
 				t.Fatal("missing actual first exclusion root")

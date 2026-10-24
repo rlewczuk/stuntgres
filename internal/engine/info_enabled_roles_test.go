@@ -163,7 +163,7 @@ func TestInfoEnabledRolesSemantics(t *testing.T) {
 	owned := *database
 	owned.Owner = f.reader
 	state.SetDescriptor(owned.Address(), &owned)
-	ownedInput := enabledRolesUnitInput(t, f, f.e.catalog.read(state), f.reader)
+	ownedInput := enabledRolesUnitInput(t, f, f.e.catalog.Read(state), f.reader)
 	enabledRolesUnitRows(t, ownedInput, "default_reader", "renamed_owner", "bridge", "wheel", "pg_database_owner")
 }
 
@@ -183,11 +183,11 @@ func TestInfoEnabledRolesCaptureOwnership(t *testing.T) {
 	}
 	foreign := New()
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = foreign.catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &foreign.catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = foreign.Roles() },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
-		func(in *pgcatalog.Input) { in.Ref = foreign.catalog.owner().Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
+		func(in *pgcatalog.Input) { in.Ref = foreign.catalog.Owner.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
@@ -227,7 +227,7 @@ func TestInfoEnabledRolesCaptureOwnership(t *testing.T) {
 			source.Columns[0].Usage.Type, _ = foreign.CatalogRead().LookupType(13248)
 		}
 		state.SetDescriptor(source.Address(), &source)
-		bad := enabledRolesUnitInput(t, f, f.e.catalog.read(state), f.reader)
+		bad := enabledRolesUnitInput(t, f, f.e.catalog.Read(state), f.reader)
 		if rows, err := produce(bad); rows != nil || err == nil {
 			t.Fatal("malformed metadata accepted", malformed, rows, err)
 		}

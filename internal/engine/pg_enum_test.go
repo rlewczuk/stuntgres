@@ -20,17 +20,17 @@ import (
 func TestPGEnumAllocatorBounds(t *testing.T) {
 	e := New()
 	for _, want := range []int64{1, 3} {
-		got, err := e.catalog.allocateEnumMemberLocked()
+		got, err := e.catalog.AllocateEnumMemberLocked()
 		if err != nil || got != want {
 			t.Fatal("initial allocation", got, want, err)
 		}
 	}
 	e.catalog.nextEnumMember = math.MaxUint32 - 2
-	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != math.MaxUint32 {
+	if got, err := e.catalog.AllocateEnumMemberLocked(); err != nil || got != math.MaxUint32 {
 		t.Fatal("last OID", got, err)
 	}
 	for range 2 {
-		got, err := e.catalog.allocateEnumMemberLocked()
+		got, err := e.catalog.AllocateEnumMemberLocked()
 		if got != 0 || err == nil || err.Error() != "stuntgres: enum member identity exhausted" || e.catalog.nextEnumMember != math.MaxUint32 {
 			t.Fatal("exhaustion wrapped/aliased", got, err, e.catalog.nextEnumMember)
 		}
@@ -41,13 +41,13 @@ func TestPGEnumAllocatorBounds(t *testing.T) {
 	stage := domainUnitStage(t, e, op, "CREATE TYPE abandoned AS ENUM ('a','b')")
 	e.DiscardCatalogStage(stage)
 	done()
-	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != 5 {
+	if got, err := e.catalog.AllocateEnumMemberLocked(); err != nil || got != 5 {
 		t.Fatal("discard recycled reservation", got, err)
 	}
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != 7 {
+	if got, err := e.catalog.AllocateEnumMemberLocked(); err != nil || got != 7 {
 		t.Fatal("Reset recycled reservation", got, err)
 	}
 	op, done = roleOperation(t, e, "postgres")
@@ -65,7 +65,7 @@ func TestPGEnumAllocatorBounds(t *testing.T) {
 		t.Fatal("Restore reused reservations", frontier, e.catalog.nextEnumMember)
 	}
 	last := e.catalog.nextEnumMember
-	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != last+2 {
+	if got, err := e.catalog.AllocateEnumMemberLocked(); err != nil || got != last+2 {
 		t.Fatal("post-Restore frontier", got, last, err)
 	}
 }
@@ -73,11 +73,11 @@ func TestPGEnumAllocatorBounds(t *testing.T) {
 func pgEnumUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3501}
-	d, ok := e.catalog.state.Relation(a)
+	d, ok := e.catalog.State.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_enum")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
+	return d, e.catalog.Domain.Ref(e.catalog.State.Epoch(), a)
 }
 
 func TestPGEnumShapeAndCapture(t *testing.T) {
@@ -97,8 +97,8 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 			t.Fatal("source column", i, c)
 		}
 	}
-	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045})
-	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044})
+	row := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045})
+	array := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044})
 	if row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Array != 10044 || row.Owner != d.Owner || array.Owner != d.Owner {
 		t.Fatal("row/array ownership", row, array)
 	}
@@ -147,7 +147,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	captured, err = e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published), ref, d)
+	captured, err = e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published), ref, d)
 	if err != nil || len(captured.Anonymous) != 2 {
 		t.Fatal("enum-only capture", captured, err)
 	}
@@ -200,16 +200,16 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGEnum); err == nil || rows != nil {
 		t.Fatal("invalid shape", rows, err)
 	}
-	invalidOwner := *e.catalog.state
+	invalidOwner := *e.catalog.State
 	invalidOwner.ResetDescriptors()
-	for address, descriptor := range e.catalog.state.Descriptors() {
+	for address, descriptor := range e.catalog.State.Descriptors() {
 		invalidOwner.SetDescriptor(address, descriptor)
 	}
 	invalidOwner.RemoveDescriptor(mood.Address())
 	wrongAddress := mood.Address()
 	wrongAddress.ObjectID++
 	invalidOwner.SetDescriptor(wrongAddress, mood)
-	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.catalog.read(&invalidOwner), Ref: ref, Source: d, Owner: (e.catalog.read(&invalidOwner)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGEnum); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.catalog.Read(&invalidOwner), Ref: ref, Source: d, Owner: (e.catalog.Read(&invalidOwner)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGEnum); err == nil || rows != nil {
 		t.Fatal("mismatched owner identity", rows, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
@@ -217,7 +217,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: canceled, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGEnum); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("canceled capture", rows, err)
 	}
-	during := &pgEnumCancelDuringCapture{Context: context.Background(), after: e.catalog.state.DescriptorCount() + 2}
+	during := &pgEnumCancelDuringCapture{Context: context.Background(), after: e.catalog.State.DescriptorCount() + 2}
 	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: during, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGEnum); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("traversal cancellation", rows, err)
 	}

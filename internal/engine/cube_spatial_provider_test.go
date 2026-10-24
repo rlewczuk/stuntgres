@@ -102,7 +102,7 @@ func TestCubeSpatialProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	metadata, err := extension.OwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestCubeSpatialProviderConflicts(t *testing.T) {
 		e := New()
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
-		before := e.catalog.state
+		before := e.catalog.State
 		stage := cubeUnitStage(t, e, op, "cube", "")
 		candidate := stage.State()
 		ext := candidate.MustExtension(candidate.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
@@ -153,7 +153,7 @@ func TestCubeSpatialProviderConflicts(t *testing.T) {
 			if err := stage.Create(duplicate); !errors.As(err, &conflict) {
 				t.Fatalf("staged spatial conflict %v", err)
 			}
-			if stage.Get(address) != candidate.Get(address) || e.catalog.state != before {
+			if stage.Get(address) != candidate.Get(address) || e.catalog.State != before {
 				t.Fatal("staged conflict changed authority")
 			}
 		}
@@ -170,13 +170,13 @@ func TestCubeSpatialProviderConflicts(t *testing.T) {
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Right = 23 },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Hash = true },
 	} {
-		next := catalog.CloneState(e.catalog.state)
+		next := catalog.CloneState(e.catalog.State)
 		p := *next.MustProcedure(procedures[3])
 		o := *next.MustOperator(operators[3])
 		corrupt(&p, &o)
 		next.SetDescriptor(p.Address(), &p)
 		next.SetDescriptor(o.Address(), &o)
-		if err := extension.StockCube.ValidateExtension(e.catalog.read(next), ext); err == nil {
+		if err := extension.StockCube.ValidateExtension(e.catalog.Read(next), ext); err == nil {
 			t.Fatal("corrupt spatial manifest admitted")
 		}
 		if err := extension.StockCube.ValidateExtension(e.CatalogRead(), ext); err != nil {
@@ -249,7 +249,7 @@ func TestCubeSpatialProviderControls(t *testing.T) {
 	}
 	next.SetEpoch(next.Epoch() + 1)
 	next.SetScalarImports(types)
-	view := e.catalog.read(next)
+	view := e.catalog.Read(next)
 	family := mapping[ext.Members[16]].ObjectID
 	class := mapping[ext.Members[17]].ObjectID
 	for strategy := int16(1); strategy <= 5; strategy++ {

@@ -19,8 +19,8 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 			sessionSQL(t, s, "CREATE SEQUENCE policy_dependency")
 			ownerRef := catalogRef(t, e, e.CatalogRead(), "policy_owner")
 			dependency := catalogRef(t, e, e.CatalogRead(), "policy_dependency")
-			base, frontier := e.catalog.state, e.visibility.CommitSeq()
-			owner := e.catalog.state.MustRelation(ownerRef.Address)
+			base, frontier := e.catalog.State, e.visibility.CommitSeq()
+			owner := e.catalog.State.MustRelation(ownerRef.Address)
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			var oid ids.OID
@@ -42,7 +42,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 				} else if private.Security.Policies[0].OID != oid {
 					t.Fatal("ALTER/rename allocated another policy identity", private.Security.Policies[0].OID, oid)
 				}
-				if e.catalog.state != base || e.visibility.CommitSeq() != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.Security.Policies) != 0 {
+				if e.catalog.State != base || e.visibility.CommitSeq() != frontier || e.catalog.State.Get(ownerRef.Address) != owner || len(owner.Security.Policies) != 0 {
 					t.Fatal("private policy escaped before owner publication")
 				}
 			}
@@ -72,7 +72,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 				if err := m.end(nil); err != nil {
 					t.Fatal(err)
 				}
-				published := e.catalog.state.MustRelation(ownerRef.Address)
+				published := e.catalog.State.MustRelation(ownerRef.Address)
 				if published != private || len(published.Security.Policies) != 1 || published.Security.Policies[0].OID != oid || published.Security.Policies[0].Name != "renamed" || e.visibility.CommitSeq() != frontier+1 || len(owner.Security.Policies) != 0 {
 					t.Fatal("true end did not retain actual policy identity")
 				}
@@ -83,12 +83,12 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				candidate := s.Transactions.Catalog.Descriptors[ownerRef.Address].(*catalog.Relation)
-				if len(candidate.Security.Policies) != 0 || s.Transactions.Catalog.Descriptors[dependency.Address] != nil || e.catalog.state != base || e.catalog.state.Get(dependency.Address) == nil {
+				if len(candidate.Security.Policies) != 0 || s.Transactions.Catalog.Descriptors[dependency.Address] != nil || e.catalog.State != base || e.catalog.State.Get(dependency.Address) == nil {
 					t.Fatal("private cascade omitted policy pruning or published early")
 				}
 			}
 			_, err = m.step(statement(t, "SELECT missing"))
-			if err == nil || m.end(err) != err || e.catalog.state != base || e.visibility.CommitSeq() != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.Security.Policies) != 0 || e.catalog.state.Get(dependency.Address) == nil {
+			if err == nil || m.end(err) != err || e.catalog.State != base || e.visibility.CommitSeq() != frontier || e.catalog.State.Get(ownerRef.Address) != owner || len(owner.Security.Policies) != 0 || e.catalog.State.Get(dependency.Address) == nil {
 				t.Fatal("late failure published policy/dependency roots", err)
 			}
 		})

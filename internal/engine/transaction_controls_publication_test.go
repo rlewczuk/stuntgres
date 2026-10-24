@@ -92,8 +92,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				}
 			}
 			retained := [2]*exec.FinalRows{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
-			retainedCatalog := e.catalog.state
-			retainedEpoch := e.catalog.state.Epoch()
+			retainedCatalog := e.catalog.State
+			retainedEpoch := e.catalog.State.Epoch()
 			retainedFrontier := e.visibility.CommitSeq()
 			spare := append([]storage.RowVersion(nil), roots[0][3:4]...)
 			frontier := e.visibility.CommitSeq()
@@ -152,9 +152,9 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				err = e.publishWrites(op, old, a.Transactions.Writes, a.Transactions.Deletes, nil)
 			case "epoch_before":
 				e.mu.Lock()
-				next := *e.catalog.state
+				next := *e.catalog.State
 				next.SetEpoch(next.Epoch() + 1)
-				e.catalog.state = &next
+				e.catalog.PublishLocked(&next)
 				e.mu.Unlock()
 				_, err = scope.Execute(query, 0, nil)
 			case "counter_before":

@@ -45,7 +45,7 @@ func (s *StatementScope) acquireRow(candidate visibility.DeleteCandidate) error 
 	if err = s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Epoch != e.catalog.state.Epoch() || candidate.Storage != e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address) {
+	if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Epoch != e.catalog.State.Epoch() || candidate.Storage != e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address) {
 		return ids.ErrCatalogReplaced
 	}
 	return nil
@@ -82,7 +82,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Address.SubID != 0 || candidate.Row == 0 || candidate.Version == 0 {
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
-	if candidate.Ref.Epoch != e.catalog.state.Epoch() || candidate.Ref.Epoch != s.txRef.Epoch() || candidate.Storage == nil || candidate.Storage != e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address) {
+	if candidate.Ref.Epoch != e.catalog.State.Epoch() || candidate.Ref.Epoch != s.txRef.Epoch() || candidate.Storage == nil || candidate.Storage != e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address) {
 		return false, ids.ErrCatalogReplaced
 	}
 	if s.view == nil {

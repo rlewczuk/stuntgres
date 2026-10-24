@@ -196,7 +196,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		}
 	}
 	e.mu.Lock()
-	next.ObjectRevision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.RevisionLocked()
 	if err == nil {
 		err = table.AssignDefinitionOIDs(ddlHost{e: e}, &next)
 	}

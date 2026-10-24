@@ -25,7 +25,7 @@ func newColumnsUnitFixture(t *testing.T) columnsUnitFixture {
 	t.Helper()
 	dc := newDCUnitFixture(t)
 	state := catalog.CloneState(dc.state)
-	view := dc.f.e.catalog.read(state)
+	view := dc.f.e.catalog.Read(state)
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	nested, _ := view.LookupType(22005)
@@ -38,7 +38,7 @@ func newColumnsUnitFixture(t *testing.T) columnsUnitFixture {
 }
 func (f columnsUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.dc.f.e.catalog.read(state)
+	view := f.dc.f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.dc.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnsOID})
@@ -191,7 +191,7 @@ func TestInfoColumnsCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoColumnsOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = New().catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = New().CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },

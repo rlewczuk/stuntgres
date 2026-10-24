@@ -282,9 +282,9 @@ func TestQuerySearchSignature(t *testing.T) {
 	}
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, named.Usage(), false)
-		expected := StatementDescription{catalogOwner: New().catalog.owner(), Results: []catalog.Column{{Name: "seq", Usage: d.Search.Result.Usage()}}}
+		expected := StatementDescription{catalogOwner: &New().catalog.Owner, Results: []catalog.Column{{Name: "seq", Usage: d.Search.Result.Usage()}}}
 		actual := expected
-		actual.catalogOwner = New().catalog.owner()
+		actual.catalogOwner = &New().catalog.Owner
 		if err := checkStatementSignature(expected, actual); err == nil {
 			t.Fatal("catalog leaf owner fence relaxed")
 		}

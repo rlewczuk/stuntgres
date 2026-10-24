@@ -39,7 +39,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	base := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ns, ObjectName: "base", ObjectRevision: 1, Owner: owner, RelationKind: catalog.TableRelation, Attributes: []int32{7, 11, 19}, Columns: []catalog.Column{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"id": 0, "a": 1, "hidden": 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 19}}
-	baseRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), base.Address())
+	baseRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), base.Address())
 	column := func(slot int) expr.Expr {
 		ref := baseRef
 		ref.Address.SubID = base.Attributes[slot]
@@ -49,11 +49,11 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Frame: 1, Syntax: syntax, Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(base.Columns), Ref: baseRef, Occurrence: 0}, Expressions: []expr.Expr{column(1), column(0)}}
 	view.View = stored.NewView(stored.ViewParts{Syntax: syntax, Query: &plan.Query{Root: project}, Sources: []stored.ViewLeaf{{Ref: baseRef, Attributes: []int32{7, 11, 19}, Reads: []int32{7, 11}}}})
-	viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
-	e.catalog.state.SetDescriptor(base.Address(), base)
-	e.catalog.state.SetDescriptor(view.Address(), view)
-	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.Name()}, base.Address())
-	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.Name()}, view.Address())
+	viewRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), view.Address())
+	e.catalog.State.SetDescriptor(base.Address(), base)
+	e.catalog.State.SetDescriptor(view.Address(), view)
+	e.catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.Name()}, base.Address())
+	e.catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.Name()}, view.Address())
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(integer, n)
 		if err != nil {
@@ -111,7 +111,7 @@ func TestViewWriteMapping(t *testing.T) {
 	scope, op := f.scope(t)
 	auth := f.authorization(t, op)
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-	if err := view.BindViewWrite(f.e.catalog.owner(), auth.Catalog, &b, &parser.Update{}); err != nil {
+	if err := view.BindViewWrite(&f.e.catalog.Owner, auth.Catalog, &b, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	if b.Relation != f.view || b.Ref != f.viewRef || b.Targets[0] != 1 || view.PhysicalBinding(b).Ref != f.baseRef {
@@ -169,7 +169,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	constant, _ := sqltype.Integer(f.integer, 42)
 	f.base.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{19: {Expression: plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: constant}}}
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Expressions: [][]expr.Expr{{nil}}}
-	if err := view.BindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
+	if err := view.BindViewWrite(&f.e.catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if len(b.Insert.Defaults) != 3 || b.Insert.Defaults[2] == nil || b.Targets[0] != 1 {
@@ -178,7 +178,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	// Conflict discovery consumes physical target authority, never the logical
 	// view address, even when DO NOTHING has no explicit inference keys.
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
-	f.e.catalog.state.SetDescriptor(indexAddress, &catalog.Relation{
+	f.e.catalog.State.SetDescriptor(indexAddress, &catalog.Relation{
 		ObjectAddress: indexAddress,
 		SQLIndex:      &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})

@@ -76,7 +76,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 			case "late_use":
 				domainUnitTable(t, e, op, "CREATE TABLE public.late(v public.d)")
 			case "stale_domain", "owner":
-				state := catalog.CloneState(e.catalog.state)
+				state := catalog.CloneState(e.catalog.State)
 				changed := *d
 				changed.ObjectRevision++
 				if kind == "owner" {
@@ -84,7 +84,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 					changed.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("domain_alter_owner")
 				}
 				state.SetDescriptor(d.Address(), &changed)
-				e.catalog.state = state
+				e.catalog.PublishLocked(state)
 			case "root", "length", "generation", "ends":
 				store := *e.storage.Relations[table.Address()]
 				switch kind {
@@ -99,18 +99,18 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				e.storage.InstallRelationLocked(table.Address(), &store)
 				e.mu.Unlock()
 			case "replacement":
-				state := catalog.CloneState(e.catalog.state)
+				state := catalog.CloneState(e.catalog.State)
 				state.SetEpoch(state.Epoch() + 1)
-				e.catalog.state = state
+				e.catalog.PublishLocked(state)
 			case "provider":
-				stage.domainBases = append(stage.domainBases, e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}))
-				state := catalog.CloneState(e.catalog.state)
+				stage.domainBases = append(stage.domainBases, e.catalog.State.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}))
+				state := catalog.CloneState(e.catalog.State)
 				provider := *state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
 				provider.ObjectRevision++
 				state.SetDescriptor(provider.Address(), &provider)
-				e.catalog.state = state
+				e.catalog.PublishLocked(state)
 			}
-			before := e.catalog.state
+			before := e.catalog.State
 			stores := maps.Clone(e.storage.Relations)
 			roots := maps.Clone(e.storage.IndexRoots)
 			_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
@@ -119,7 +119,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 					t.Fatal("validity not atomically installed", err)
 				}
 			} else {
-				if err == nil || e.catalog.state != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) || !d.DomainChecks[0].NotValid {
+				if err == nil || e.catalog.State != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) || !d.DomainChecks[0].NotValid {
 					t.Fatal("veto published partial roots", err)
 				}
 			}
@@ -138,7 +138,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				barrier.late = cancel
 			}
 			prepared.ctx = barrier
-			before, store := e.catalog.state, e.storage.Relations[table.Address()]
+			before, store := e.catalog.State, e.storage.Relations[table.Address()]
 			finished := make(chan error, 1)
 			joined := false
 			defer func() {
@@ -180,10 +180,10 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				t.Fatal("publication completion deadline")
 			}
 			if mode == "cancel_before" {
-				if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.storage.Relations[table.Address()] != store || !d.DomainChecks[0].NotValid {
+				if !errors.Is(err, context.Canceled) || e.catalog.State != before || e.storage.Relations[table.Address()] != store || !d.DomainChecks[0].NotValid {
 					t.Fatal("cancellation partially installed", err)
 				}
-			} else if err != nil || e.catalog.state == before || domainUnitType(t, e.CatalogRead(), "d").DomainChecks[0].NotValid || !d.DomainChecks[0].NotValid {
+			} else if err != nil || e.catalog.State == before || domainUnitType(t, e.CatalogRead(), "d").DomainChecks[0].NotValid || !d.DomainChecks[0].NotValid {
 				t.Fatal("successful install retracted", err)
 			}
 		})

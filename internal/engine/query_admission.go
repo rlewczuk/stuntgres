@@ -61,7 +61,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission analyze.LockAdm
 // currentQuerySourceLocked validates an admitted leaf against catalogView and
 // the storage journal changes sees (view.CurrentQuerySource).
 func currentQuerySourceLocked(e *Engine, catalogView catalog.Read, changes *session.Journal, source exec.Leaf) (*catalog.Relation, error) {
-	return view.CurrentQuerySource(catalogView, e.catalog.Domain, e.catalog.state.Epoch(), e.privateStorageLocked(changes, source.Ref.Address), source)
+	return view.CurrentQuerySource(catalogView, e.catalog.Domain, e.catalog.State.Epoch(), e.privateStorageLocked(changes, source.Ref.Address), source)
 }
 
 func (s *StatementScope) validateQuerySources(leaves []exec.Leaf) error {
@@ -165,7 +165,7 @@ func (s *StatementScope) commentEngine() *Engine {
 func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 	if scope.inquiry.commentCatalog.State() == nil {
 		scope.inquiry.commentCatalog = e.privateCatalogLocked(scope.owner.Catalog)
-		scope.inquiry.commentRoles = e.roles.read(e.catalog.owner(), scope.inquiry.commentCatalog, e.operationRolesLocked(scope.op))
+		scope.inquiry.commentRoles = e.roles.read(&e.catalog.Owner, scope.inquiry.commentCatalog, e.operationRolesLocked(scope.op))
 	}
 	scope.output.ACLItem = scope
 	scope.output.Regrole = scope
@@ -459,7 +459,7 @@ type inquirySnapshot struct {
 // captureHashIndexesLocked fills index.HashCapture from the published engine
 // state. The caller holds e.mu, the same owner as visibility-prefix capture.
 func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf, source *exec.Source, mark plan.RowMark) error {
-	in := index.HashCapture{Eligible: scope.implicit && scope.catalog == nil, Live: e.catalog.state, Relations: e.storage.Relations, Roots: e.storage.IndexRoots, Commit: e.visibility.CommitSeq()}
+	in := index.HashCapture{Eligible: scope.implicit && scope.catalog == nil, Live: e.catalog.State, Relations: e.storage.Relations, Roots: e.storage.IndexRoots, Commit: e.visibility.CommitSeq()}
 	return index.CaptureHashIndexesLocked(in, leaf, source, mark)
 }
 

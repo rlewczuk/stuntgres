@@ -62,7 +62,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		prepared.mainScratch, prepared.mainMutation = scope.ruleScratch(), scope.activeMutation
 		return Result{}, nil
 	}
-	if err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), auth, statement, &b); err != nil {
+	if err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, statement, &b); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

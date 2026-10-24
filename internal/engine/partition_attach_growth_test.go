@@ -105,12 +105,12 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			candidate := inheritanceUnitRelation(e, "attach_growth_candidate", 46102, "k")
 			candidate.RelationKind = catalog.TableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
-			parent = e.catalog.state.MustRelation(parent.Address())
-			old = e.catalog.state.MustRelation(old.Address())
-			candidate = e.catalog.state.MustRelation(candidate.Address())
+			parent = e.catalog.State.MustRelation(parent.Address())
+			old = e.catalog.State.MustRelation(old.Address())
+			candidate = e.catalog.State.MustRelation(candidate.Address())
 			reader, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), old.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), old.Address())
 			partitionAttachUnitGrant(t, holder, ref, lock.AccessExclusive)
 			parentRef := ref
 			parentRef.Address = parent.Address()
@@ -141,19 +141,19 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			current := e.catalog.state.MustRelation(parent.Address())
+			current := e.catalog.State.MustRelation(parent.Address())
 			if !partition.AppendCompatible(parent, current) {
 				t.Fatal("same-authority append rejected")
 			}
 			if replacement {
-				next := catalog.CloneState(e.catalog.state)
+				next := catalog.CloneState(e.catalog.State)
 				changed := *old
 				changed.ObjectName = "replacement_identity"
 				changed.ObjectRevision++
 				next.UnbindName(catalog.DescriptorNameKey(old))
 				next.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 				next.SetDescriptor(old.Address(), &changed)
-				e.catalog.state = next
+				e.catalog.PublishLocked(next)
 				// The exact descendant authority was admitted before the wait.
 				reader.PartitionRelations[old.Address()] = old
 			}
@@ -245,11 +245,11 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				target.Constraints.Check = []catalog.CheckConstraint{check}
 			}
 			partitionAttachUnitInstall(t, e, parent, target, leaf)
-			parent = e.catalog.state.MustRelation(parent.Address())
-			target = e.catalog.state.MustRelation(target.Address())
+			parent = e.catalog.State.MustRelation(parent.Address())
+			target = e.catalog.State.MustRelation(target.Address())
 			scope, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			leafRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), leaf.Address())
+			leafRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), leaf.Address())
 			targetRef := leafRef
 			targetRef.Address = target.Address()
 			partitionAttachUnitGrant(t, holder, leafRef, lock.AccessShare)

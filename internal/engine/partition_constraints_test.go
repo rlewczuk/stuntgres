@@ -33,18 +33,18 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	t.Helper()
 	root, idx, catalogSnapshot, types := indexClausesFixture(t)
 	e := New()
-	state := *e.catalog.state
+	state := *e.catalog.State
 	state.ResetMaps()
-	for a, d := range e.catalog.state.Descriptors() {
+	for a, d := range e.catalog.State.Descriptors() {
 		state.SetDescriptor(a, d)
 	}
-	for k, a := range e.catalog.state.Names() {
+	for k, a := range e.catalog.State.Names() {
 		state.BindName(k, a)
 	}
 	root.ObjectName = "unit_root"
 	root.RelationKind = catalog.PartitionedRelation
 	keyClass, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	comparison, err := routine.BindIndexOrdering(e.catalog.read(&state), root.Columns[0].Usage, keyClass)
+	comparison, err := routine.BindIndexOrdering(e.catalog.Read(&state), root.Columns[0].Usage, keyClass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 		}
 	}
 	state.SetDescriptor(leaf.Address(), &leaf)
-	view := e.catalog.read(&state)
+	view := e.catalog.Read(&state)
 	mapped, err := index.MapPartitionIndex(context.Background(), view, root, &leaf, idx.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	for _, d := range []*catalog.Relation{root, &leaf, idx, &child} {
 		state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	e.catalog.state = &state
+	e.catalog.PublishLocked(&state)
 	return partitionConstraintUnit{e: e, root: root, leaf: &leaf, parent: idx, child: &child, view: view}
 }
 
@@ -229,7 +229,7 @@ func TestPartitionConstraintsVirtualPublication(t *testing.T) {
 	if err != nil || roots[f.parent.Address()] != nil {
 		t.Fatal("virtual root required physical storage", roots, err)
 	}
-	if f.parent.SQLIndex.Valid || f.e.catalog.state != f.view.State() || f.child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
+	if f.parent.SQLIndex.Valid || f.e.catalog.State != f.view.State() || f.child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 		t.Fatal("publication mutated predecessors")
 	}
 }
@@ -249,7 +249,7 @@ func TestPartitionConstraintsAttachPublication(t *testing.T) {
 	if child.SQLIndex.PartitionParent != f.parent.Address() || !parent.SQLIndex.Valid {
 		t.Fatal("candidate attachment missing")
 	}
-	if f.child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || f.parent.SQLIndex.Valid || f.e.catalog.state != f.view.State() {
+	if f.child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || f.parent.SQLIndex.Valid || f.e.catalog.State != f.view.State() {
 		t.Fatal("private attachment published early")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -338,7 +338,7 @@ func TestPartitionConstraintsDumpLogicalOrder(t *testing.T) {
 
 func TestPartitionConstraintsDumpPriorityLifecycle(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	if f.e.catalog.state.HasDumpPriorities() || catalog.CloneState(f.e.catalog.state).HasDumpPriorities() {
+	if f.e.catalog.State.HasDumpPriorities() || catalog.CloneState(f.e.catalog.State).HasDumpPriorities() {
 		t.Fatal("ordinary catalog allocated replay provenance")
 	}
 	source := f.root.Address()
@@ -381,12 +381,12 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 	child := inheritanceLifecycleTable(source, 20001, "z_child", parent.Address())
 	manual := inheritanceLifecycleTable(source, 20002, "a_manual")
 	inheritanceLifecycleInstall(source, parent, child, manual)
-	e.catalog.nextOID = 30000
+	e.catalog.InstallOIDFrontierLocked(30000)
 	for range 2 {
-		next := catalog.CloneState(source.catalog.state)
+		next := catalog.CloneState(source.catalog.State)
 		relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
 		e.mu.Lock()
-		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalogOIDReservation{base: e.catalog.nextOID, next: e.catalog.nextOID})
+		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalogOIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -404,10 +404,10 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 		if err != nil || !reflect.DeepEqual(dump.DeclarationIDs(order), []ids.OID{mapped.ObjectID, child.Address().ObjectID, manual.Address().ObjectID}) {
 			t.Fatal("repeated replacement lost original declaration order", order, err)
 		}
-		if source.catalog.state.HasDumpPriorities() || source.catalog.state.Get(parent.Address()) != parent {
+		if source.catalog.State.HasDumpPriorities() || source.catalog.State.Get(parent.Address()) != parent {
 			t.Fatal("replacement mutated source provenance")
 		}
-		e.catalog.state = next
+		e.catalog.PublishLocked(next)
 		e.mu.Lock()
 		e.storage.ReplaceRelationsLocked(relations)
 		e.mu.Unlock()
@@ -451,7 +451,7 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 		t.Fatal("drop closure changed independent identity")
 	}
 	leaf := candidate.MustRelation(f.leaf.Address())
-	if !reflect.DeepEqual(leaf.Constraints.Unique, []catalog.UniqueConstraint{local}) || len(f.leaf.Constraints.Unique) != 2 || f.e.catalog.state != f.view.State() {
+	if !reflect.DeepEqual(leaf.Constraints.Unique, []catalog.UniqueConstraint{local}) || len(f.leaf.Constraints.Unique) != 2 || f.e.catalog.State != f.view.State() {
 		t.Fatal("drop closure published early or removed independent key")
 	}
 }
@@ -468,7 +468,7 @@ func TestPartitionConstraintsDefinitionRemapping(t *testing.T) {
 	}
 	oldRoot, oldChild := f.root.Constraints.Unique[0].OID, f.leaf.Constraints.Unique[0].OID
 	f.e.mu.Lock()
-	err := control.RemapDefinitionOIDs(f.e.catalog.read(&next), f.e.catalog.allocateOIDLocked)
+	err := control.RemapDefinitionOIDs(f.e.catalog.Read(&next), f.e.catalog.AllocateOIDLocked)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -504,12 +504,12 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	retained := inheritanceControlsTemporary(destination, f.parent.Address().ObjectID, "retained_backing_collision")
 	// The next descriptor replacement candidate is an imported child constraint,
 	// not a descriptor address. It must be reserved in the same identity space.
-	destination.catalog.nextOID = childKey.OID
-	old := destination.catalog.state
+	destination.catalog.InstallOIDFrontierLocked(childKey.OID)
+	old := destination.catalog.State
 	next := catalog.CloneState(f.view.State())
 	relations := map[ids.ObjectAddress]*storage.Relation{f.leaf.Address(): {}}
 	destination.mu.Lock()
-	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(f.e, destination), &catalogOIDReservation{base: destination.catalog.nextOID, next: destination.catalog.nextOID})
+	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(f.e, destination), &catalogOIDReservation{Base: destination.catalog.NextOID(), Next: destination.catalog.NextOID()})
 	destination.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -527,7 +527,7 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	if parent.SQLIndex.Constraint.OID != rootKey.OID || child.SQLIndex.Constraint.OID != childKey.OID || child.SQLIndex.PartitionParent != parent.Address() {
 		t.Fatal("reminted backing and constraint identities disagree")
 	}
-	if next.Get(retained.Address()) != retained || destination.catalog.state != old || f.view.Get(f.parent.Address()) != f.parent || !reflect.DeepEqual(f.root.Constraints.Unique[0], rootKey) {
+	if next.Get(retained.Address()) != retained || destination.catalog.State != old || f.view.Get(f.parent.Address()) != f.parent || !reflect.DeepEqual(f.root.Constraints.Unique[0], rootKey) {
 		t.Fatal("candidate allocation changed retained TEMP or immutable source")
 	}
 }
@@ -549,7 +549,7 @@ func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	if !clone.SQLIndex.Valid || clone.SQLIndex.PartitionParent != f.parent.Address() || f.parent.SQLIndex.Valid {
 		t.Fatal("future physical clone inherited virtual invalidity")
 	}
-	if f.e.catalog.state.Get(clone.Address()) != nil {
+	if f.e.catalog.State.Get(clone.Address()) != nil {
 		t.Fatal("clone published before catalog overlay")
 	}
 }
@@ -566,7 +566,7 @@ func TestPartitionConstraintsVirtualIndexHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.mu.Lock()
-	err := stage.MarkIndexHistoryLocked(f.e.catalog.revisionLocked, stage.Replace)
+	err := stage.MarkIndexHistoryLocked(f.e.catalog.RevisionLocked, stage.Replace)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -581,7 +581,7 @@ func TestPartitionConstraintsVirtualIndexHistory(t *testing.T) {
 	for a, d := range f.view.Descriptors() {
 		replacement.SetDescriptor(a, d)
 	}
-	if err := catalog.NormalizeReplacementIndexHistory(context.Background(), f.e.catalog.read(&replacement)); err != nil {
+	if err := catalog.NormalizeReplacementIndexHistory(context.Background(), f.e.catalog.Read(&replacement)); err != nil {
 		t.Fatal(err)
 	}
 	if !replacement.MustRelation(f.root.Address()).History.HasIndexes || !replacement.MustRelation(f.leaf.Address()).History.HasIndexes || f.root.History.HasIndexes || f.leaf.History.HasIndexes {
@@ -644,7 +644,7 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 				child = roleTableRef(t, e, "keyed_leaf_pkey")
 				parent = roleTableRef(t, e, "keyed_pkey")
 			}
-			oldChild := e.catalog.state.Get(child.Address)
+			oldChild := e.catalog.State.Get(child.Address)
 			oldRoot := e.storage.IndexRoots[child.Address]
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT kept")
@@ -675,16 +675,16 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 				t.Fatal("overlay copy changed immutable edge authority")
 			}
 			sessionSQL(t, s, "ROLLBACK TO kept")
-			if s.Transactions.Catalog != prior || e.catalog.state.Get(child.Address) != oldChild || e.storage.IndexRoots[child.Address] != oldRoot {
+			if s.Transactions.Catalog != prior || e.catalog.State.Get(child.Address) != oldChild || e.storage.IndexRoots[child.Address] != oldRoot {
 				t.Fatal("savepoint rebuilt or published prior utility roots")
 			}
 			sessionSQL(t, s, query)
 			transactionEnd(t, s, tx, true)
 			if operation == "attach" {
-				if e.catalog.state.MustRelation(child.Address).SQLIndex.PartitionParent != parent.Address || e.storage.IndexRoots[child.Address] != oldRoot {
+				if e.catalog.State.MustRelation(child.Address).SQLIndex.PartitionParent != parent.Address || e.storage.IndexRoots[child.Address] != oldRoot {
 					t.Fatal("commit missed edge or rebuilt unchanged physical key")
 				}
-			} else if e.catalog.state.Get(child.Address) != nil || e.catalog.state.Get(parent.Address) != nil || e.storage.IndexRoots[child.Address] != nil {
+			} else if e.catalog.State.Get(child.Address) != nil || e.catalog.State.Get(parent.Address) != nil || e.storage.IndexRoots[child.Address] != nil {
 				t.Fatal("commit missed recursive backing removal")
 			}
 			lockEmpty(t, e)
@@ -933,7 +933,7 @@ func TestPartitionConstraintsRecursiveBuildFailure(t *testing.T) {
 	if len(e.storage.IndexRoots) != 0 {
 		t.Fatal("failed recursive build retained cold physical installation roots")
 	}
-	for _, d := range e.catalog.state.Descriptors() {
+	for _, d := range e.catalog.State.Descriptors() {
 		if relation, ok := d.(*catalog.Relation); ok && (relation.Name() == "parent_idx" || relation.Name() == "a_k_idx" || relation.Name() == "b_k_idx") {
 			t.Fatal("failed recursive build leaked definition", relation.Name())
 		}
@@ -968,7 +968,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, _, _, err := e.prepareRemintedStorage(context.Background(), e.catalog.state, copiedStorage(), snapshot, true)
+	roots, _, _, err := e.prepareRemintedStorage(context.Background(), e.catalog.State, copiedStorage(), snapshot, true)
 	if err != nil {
 		t.Fatal("representable nested incomplete topology rejected", err)
 	}
@@ -978,9 +978,9 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 	indexMaintenanceUnchanged(t, e, before)
 	for _, flag := range []string{"physical_invalid", "virtual_not_ready", "virtual_not_live"} {
 		t.Run(flag, func(t *testing.T) {
-			next := *e.catalog.state
+			next := *e.catalog.State
 			next.ResetDescriptors()
-			for address, d := range e.catalog.state.Descriptors() {
+			for address, d := range e.catalog.State.Descriptors() {
 				next.SetDescriptor(address, d)
 			}
 			name := "mid_idx"
@@ -1053,7 +1053,7 @@ func TestPartitionConstraintsStructuralEquivalence(t *testing.T) {
 			}
 			next.SetDescriptor(parent.Address(), &parent)
 			next.SetDescriptor(child.Address(), &child)
-			view := e.catalog.read(&next)
+			view := e.catalog.Read(&next)
 			before := indexMaintenanceCapture(e)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
@@ -1109,9 +1109,9 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 	if !bytes.Equal(dump.Bytes(), redump.Bytes()) {
 		t.Fatal("owned provider replay not deterministic")
 	}
-	root := e.catalog.state.MustRelation(roleTableRef(t, e, "owned.root").Address)
-	mid := e.catalog.state.MustRelation(roleTableRef(t, e, "owned.mid").Address)
-	leaf := e.catalog.state.MustRelation(roleTableRef(t, e, "owned.leaf").Address)
+	root := e.catalog.State.MustRelation(roleTableRef(t, e, "owned.root").Address)
+	mid := e.catalog.State.MustRelation(roleTableRef(t, e, "owned.mid").Address)
+	leaf := e.catalog.State.MustRelation(roleTableRef(t, e, "owned.leaf").Address)
 	actor, exists := e.Roles().Lookup("actor")
 	if !exists || root.Owner != actor.Ref {
 		t.Fatal("replay lost declared actor ownership")
@@ -1120,7 +1120,7 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 		t.Fatal("owner/key ancestry not restored")
 	}
 	for _, table := range []*catalog.Relation{root, mid, leaf} {
-		index := e.catalog.state.MustRelation(table.Constraints.Unique[0].Index)
+		index := e.catalog.State.MustRelation(table.Constraints.Unique[0].Index)
 		if index.Owner != table.Owner {
 			t.Fatal("index owner detached from actual table owner")
 		}
@@ -1147,7 +1147,7 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 	roleExecute(t, e, op, "INSERT INTO owned.leaf(k,payload) VALUES('b',1)")
 	roleExecute(t, e, op, "DROP TABLE owned.leaf")
 	roleExecute(t, e, op, "CREATE TABLE owned.future PARTITION OF owned.mid DEFAULT")
-	future := e.catalog.state.MustRelation(roleTableRef(t, e, "owned.future").Address)
+	future := e.catalog.State.MustRelation(roleTableRef(t, e, "owned.future").Address)
 	if len(future.Constraints.Unique) != 1 || future.Constraints.Unique[0].Parent != mid.Constraints.Unique[0].OID {
 		t.Fatal("future clone lost reminted immediate provider")
 	}

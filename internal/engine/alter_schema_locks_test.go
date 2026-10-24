@@ -17,14 +17,14 @@ func TestAlterSchemaLockCancellationAndTimeout(t *testing.T) {
 				e := New()
 				alterSchemaEngineFixture(t, e)
 				a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-				source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+				source := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
 				original := make(map[ids.ObjectAddress]catalog.Descriptor)
 				for _, name := range []string{"t", "q1", "q2"} {
 					address := NameAddressForTempMove(t, e, source, name)
-					original[address] = e.catalog.state.Get(address)
+					original[address] = e.catalog.State.Get(address)
 				}
 				address := NameAddressForTempMove(t, e, source, target)
-				ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
+				ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
 				tx := transactionBegin(t, a)
 				if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 					t.Fatal(err)
@@ -51,7 +51,7 @@ func TestAlterSchemaLockCancellationAndTimeout(t *testing.T) {
 					lockAwait(t, done, context.Canceled)
 				}
 				for address, old := range original {
-					if e.catalog.state.Get(address) != old {
+					if e.catalog.State.Get(address) != old {
 						t.Fatal("partial closure move", address)
 					}
 				}

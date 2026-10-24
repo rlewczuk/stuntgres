@@ -47,7 +47,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 		return fail(err)
 	}
 	changes := scope.owner.Catalog.Clone()
-	grantCatalog := e.catalog.state
+	grantCatalog := e.catalog.State
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, grantCatalog.Get(ref.Address))
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -56,18 +56,18 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.state.Epoch() {
+	if ref.Epoch != e.catalog.State.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	// Check all originals before transferring any member. Earlier overlay originals
 	// remain intact across repeated renames and savepoint rollback.
 	for a := range stage.Descriptors() {
-		if e.catalog.state.Get(a) != grantCatalog.Get(a) {
+		if e.catalog.State.Get(a) != grantCatalog.Get(a) {
 			return Result{}, catalog.Conflict{}
 		}
 	}
 	for k := range stage.Touched() {
-		if e.catalog.state.NameAddress(k) != grantCatalog.NameAddress(k) {
+		if e.catalog.State.NameAddress(k) != grantCatalog.NameAddress(k) {
 			return Result{}, catalog.Conflict{}
 		}
 	}

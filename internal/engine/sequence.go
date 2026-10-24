@@ -51,7 +51,7 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref)
@@ -154,17 +154,17 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 		}
 		options.Persistence = persistence
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := e.catalog.AllocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		rev, err := e.catalog.revisionLocked()
+		rev, err := e.catalog.RevisionLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		d := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Namespace: ns.Address, Name: name, Revision: rev, Owner: auth.State.CurrentUser, Columns: sequence.Columns(e.catalog.read(e.catalog.state)), Options: options})
+		d := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Namespace: ns.Address, Name: name, Revision: rev, Owner: auth.State.CurrentUser, Columns: sequence.Columns(e.catalog.Current()), Options: options})
 		d.Security.ACL = e.creationACLChangesLocked(changes, auth.Catalog, d.Owner, d.Namespace(), authorization.DefaultSequences)
 		// OWNED BY may refresh auth after waiting for its table. Retain the
 		// authority that actually passed the earlier namespace CREATE check.
@@ -266,7 +266,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err != nil {
 			return Result{}, err
 		}
-		rev, err := e.catalog.revisionLocked()
+		rev, err := e.catalog.RevisionLocked()
 		if err != nil {
 			return Result{}, err
 		}
@@ -368,7 +368,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				m.DiscardTailLocked()
 			}
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.State.Get(ref.Address))
 		scope.catalog = changes
 		return Result{}, nil
 	case *parser.DropSequence:
@@ -447,10 +447,10 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+	if auth.Catalog.Epoch() != e.catalog.State.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	if err := changes.MergeCandidate(e.catalog.state, auth.Catalog.State(), &checkStage.Candidate); err != nil {
+	if err := changes.MergeCandidate(e.catalog.State, auth.Catalog.State(), &checkStage.Candidate); err != nil {
 		return Result{}, err
 	}
 	cascade := checkStage.dropCascadeNames

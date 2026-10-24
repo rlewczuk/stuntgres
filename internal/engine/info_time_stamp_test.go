@@ -90,10 +90,10 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if err := stored.ReownExpressions(source.catalog.read(next), next, nil, true, nil); err != nil {
+	if err := stored.ReownExpressions(source.catalog.Read(next), next, nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	view := source.catalog.read(next)
+	view := source.catalog.Read(next)
 	rebound := infoTimeStampCatalogType(t, view)
 	base, _ := view.LookupType(sqltype.Timestamptz)
 	if rebound.SQLType == d.SQLType || rebound.SQLType.DomainBase().Type != base || base == d.SQLType.DomainBase().Type || rebound.SQLType.DomainBase().Typmod != 2 || !rebound.SQLType.IsBuiltin() || rebound.SQLType.IsUserDefined() || rebound.ObjectRevision != 1 || rebound.SQLType.AssociatedArray() != d.Array || rebound.SQLType.NamespaceName() != "information_schema" {
@@ -113,7 +113,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if d.SQLType.SQLName() != "information_schema.time_stamp" || original.Get(d.Namespace()).Name() != "information_schema" {
 		t.Fatal("source generation mutated")
 	}
-	remapped, _, err := target.remapPreparedCatalog(catalog.CloneState(source.catalog.state), source.Roles(), target.Roles(), nil)
+	remapped, _, err := target.remapPreparedCatalog(catalog.CloneState(source.catalog.State), source.Roles(), target.Roles(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

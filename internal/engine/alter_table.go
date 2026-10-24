@@ -88,7 +88,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 			return fail(err)
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.State.Get(ref.Address))
 		e.mu.Unlock()
 		return Result{}, nil
 	}
@@ -137,7 +137,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	var frontier ids.CommitSeq
 	var snapshot visibility.Root
 	var snapshotExists bool
-	grantCatalog := e.catalog.state
+	grantCatalog := e.catalog.State
 	schema := auth.Catalog.Get(old.Namespace()).Name()
 	if !relationshipOnly && physicalRows {
 		original = e.storage.Relations[ref.Address]
@@ -157,7 +157,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	var stage *CatalogStage
 	if scope.inheritance.alter == nil || !scope.inheritance.alter.Descendant {
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.State.Get(ref.Address))
 	}
 	e.mu.Unlock()
 	defer func() {
@@ -381,7 +381,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	// generator. This statement overlay is discarded on failure, never installed
 	// in the owner before Finish. Keep the exact generator pointers through merge.
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.Epoch() {
+	if ref.Epoch != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -416,7 +416,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	// Complete TYPE provider rebinding before adding queued FK definitions.
 	// Their selected supporting keys now have the final private key shape.
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.Epoch() {
+	if ref.Epoch != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -619,13 +619,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	// Keep the pre-callback originals; Reset cannot restamp captured authority.
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.Epoch() {
+	if ref.Epoch != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	if hasAttachments || len(addedIndexes) != 0 {
 		for name := range stage.Touched() {
-			if e.catalog.state.NameAddress(name) != grantCatalog.NameAddress(name) {
+			if e.catalog.State.NameAddress(name) != grantCatalog.NameAddress(name) {
 				e.mu.Unlock()
 				return Result{}, catalog.Conflict{}
 			}

@@ -104,7 +104,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	ns := *replacement.MustNamespace(nsaddr)
 	ns.Owner = owner.Ref
 	replacement.SetDescriptor(nsaddr, &ns)
-	if _, err = e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
+	if _, err = e.ReplaceCatalog(context.Background(), e, e.catalog.Read(replacement)); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION schema_owner")

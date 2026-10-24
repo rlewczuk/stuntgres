@@ -15,7 +15,7 @@ func TestNotNullFailedRestorePreservesCatalogEligibility(t *testing.T) {
 	run(t, e, "CREATE TABLE sentinel(a INT CONSTRAINT nn NOT NULL)")
 	run(t, e, "INSERT INTO sentinel VALUES(91)")
 	ref := roleTableRef(t, e, "sentinel")
-	old := e.catalog.state.Get(ref.Address)
+	old := e.catalog.State.Get(ref.Address)
 	storage := e.storage.Relations[ref.Address]
 	epoch := e.CatalogRead().Epoch()
 	stage := e.BeginCatalogStage(e.CatalogRead())
@@ -34,7 +34,7 @@ func TestNotNullFailedRestorePreservesCatalogEligibility(t *testing.T) {
 		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
 			t.Fatal("bad restore succeeded")
 		}
-		if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
+		if e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
 			t.Fatal("failed restore changed target")
 		}
 		var after bytes.Buffer

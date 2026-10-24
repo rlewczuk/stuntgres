@@ -31,7 +31,7 @@ func defaultACLUnitCapture(t *testing.T, f defaultUnitFixture, c catalog.Read) *
 	t.Helper()
 	d, ref := defaultACLUnitSource(t, f.e, c)
 	f.e.mu.Lock()
-	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: f.e.roles.read(f.e.catalog.owner(), c, f.e.roles.published), Ref: ref, Source: d, Owner: f.e.catalog.owner(), Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
+	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: f.e.roles.read(&f.e.catalog.Owner, c, f.e.roles.published), Ref: ref, Source: d, Owner: &f.e.catalog.Owner, Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
 	f.e.mu.Unlock()
 	if err != nil || rows == nil {
 		t.Fatal("capture", rows, err)
@@ -42,43 +42,43 @@ func defaultACLUnitCapture(t *testing.T, f defaultUnitFixture, c catalog.Read) *
 func TestPGDefaultACLIdentity(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
-	start := f.e.catalog.nextOID
+	start := f.e.catalog.NextOID()
 	noop := defaultUnitStatement("tables", "all", []string{"default_owner"}, nil, []string{"default_owner"})
 	if err := f.apply(noop); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.nextOID != start || f.e.catalog.state.DefaultACLCount() != 0 {
+	if f.e.catalog.NextOID() != start || f.e.catalog.State.DefaultACLCount() != 0 {
 		t.Fatal("baseline no-op reserved identity")
 	}
 	grant := f.grant(t, "tables", "select", nil)
-	original := f.e.catalog.state.DefaultACL(key)
+	original := f.e.catalog.State.DefaultACL(key)
 	if original == nil || original.OID == 0 {
 		t.Fatal("missing real identity")
 	}
-	frontier := f.e.catalog.nextOID
+	frontier := f.e.catalog.NextOID()
 	if err := f.apply(grant); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.state.DefaultACL(key) != original || f.e.catalog.nextOID != frontier {
+	if f.e.catalog.State.DefaultACL(key) != original || f.e.catalog.NextOID() != frontier {
 		t.Fatal("no-op replaced or allocated")
 	}
 	f.grant(t, "tables", "update", nil)
-	if f.e.catalog.state.DefaultACL(key).OID != original.OID {
+	if f.e.catalog.State.DefaultACL(key).OID != original.OID {
 		t.Fatal("edit lost identity")
 	}
 	duplicates := defaultUnitStatement("sequences", "usage", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_schema"}, []string{"default_reader"})
 	if err := f.apply(duplicates); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.nextOID != frontier+1 || f.e.catalog.state.DefaultACLCount() != 2 {
+	if f.e.catalog.NextOID() != frontier+1 || f.e.catalog.State.DefaultACLCount() != 2 {
 		t.Fatal("duplicate operands allocated intermediate identity")
 	}
-	state, roles, frontier := f.e.catalog.state, f.e.roles.published, f.e.catalog.nextOID
+	state, roles, frontier := f.e.catalog.State, f.e.roles.published, f.e.catalog.NextOID()
 	late := defaultUnitStatement("types", "usage", []string{"default_owner", "missing"}, nil, []string{"default_reader"})
 	if err := f.apply(late); err == nil {
 		t.Fatal("missing creator accepted")
 	}
-	if f.e.catalog.state != state || f.e.roles.published != roles || f.e.catalog.nextOID != frontier {
+	if f.e.catalog.State != state || f.e.roles.published != roles || f.e.catalog.NextOID() != frontier {
 		t.Fatal("late failure published or reserved")
 	}
 	revoke := defaultUnitStatement("tables", "all", []string{"default_owner"}, nil, []string{"default_reader"})
@@ -86,34 +86,34 @@ func TestPGDefaultACLIdentity(t *testing.T) {
 	if err := f.apply(revoke); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.state.DefaultACL(key) != nil {
+	if f.e.catalog.State.DefaultACL(key) != nil {
 		t.Fatal("baseline not deleted")
 	}
 	if err := f.apply(grant); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.state.DefaultACL(key).OID == original.OID {
+	if f.e.catalog.State.DefaultACL(key).OID == original.OID {
 		t.Fatal("recreated identity reused")
 	}
 	// Rewind the allocator into an actual policy identity; the sole owner skips it.
-	used := f.e.catalog.state.DefaultACL(key).OID
-	f.e.catalog.nextOID = used
+	used := f.e.catalog.State.DefaultACL(key).OID
+	f.e.catalog.InstallOIDFrontierLocked(used)
 	f.e.mu.Lock()
-	allocated, err := f.e.catalog.allocateOIDLocked()
+	allocated, err := f.e.catalog.AllocateOIDLocked()
 	f.e.mu.Unlock()
 	if err != nil || allocated == used {
 		t.Fatal("default OID collision", allocated, err)
 	}
-	f.e.catalog.nextOID = 0
-	before := f.e.catalog.state
+	f.e.catalog.InstallOIDFrontierLocked(0)
+	before := f.e.catalog.State
 	fail := defaultUnitStatement("schemas", "usage", []string{"default_owner"}, nil, []string{"default_reader"})
-	if err := f.apply(fail); err == nil || f.e.catalog.state != before {
+	if err := f.apply(fail); err == nil || f.e.catalog.State != before {
 		t.Fatal("exhaustion published candidate", err)
 	}
 	// Same-catalog principal remap is not a default-bearing Restore facility.
 	copy := catalog.CloneState(before)
 	f.e.mu.Lock()
-	remapped, _, err := f.e.remapPreparedCatalog(copy, f.e.roles.read(f.e.catalog.owner(), f.e.catalog.read(before), f.e.roles.published), f.e.roles.read(f.e.catalog.owner(), f.e.catalog.read(before), f.e.roles.published), nil)
+	remapped, _, err := f.e.remapPreparedCatalog(copy, f.e.roles.read(&f.e.catalog.Owner, f.e.catalog.Read(before), f.e.roles.published), f.e.roles.read(&f.e.catalog.Owner, f.e.catalog.Read(before), f.e.roles.published), nil)
 	f.e.mu.Unlock()
 	if err != nil || remapped.DefaultACL(key).OID != used {
 		t.Fatal("principal remap lost identity", err)
@@ -137,7 +137,7 @@ func TestPGDefaultACLCaptureOwnership(t *testing.T) {
 	}
 	c := f.e.CatalogRead()
 	d, _ := defaultACLUnitSource(t, f.e, c)
-	state, roles, frontier := f.e.catalog.state, f.e.roles.published, f.e.catalog.nextOID
+	state, roles, frontier := f.e.catalog.State, f.e.roles.published, f.e.catalog.NextOID()
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	entries := slices.Clone(state.DefaultACL(key).ACL.Entries)
 	captured := defaultACLUnitCapture(t, f, c)
@@ -196,7 +196,7 @@ func TestPGDefaultACLCaptureOwnership(t *testing.T) {
 			previous = grantee
 		}
 	}
-	if !slices.Equal(entries, state.DefaultACL(key).ACL.Entries) || f.e.catalog.state != state || f.e.roles.published != roles || f.e.catalog.nextOID != frontier {
+	if !slices.Equal(entries, state.DefaultACL(key).ACL.Entries) || f.e.catalog.State != state || f.e.roles.published != roles || f.e.catalog.NextOID() != frontier {
 		t.Fatal("read mutated authority")
 	}
 	f.grant(t, "tables", "update", []string{"default_schema"})
@@ -239,7 +239,7 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 	reject := func(view catalog.Read, r authorization.Read, reference ids.ObjectRef, source *catalog.Relation) {
 		t.Helper()
 		f.e.mu.Lock()
-		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: r, Ref: reference, Source: source, Owner: f.e.catalog.owner(), Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: r, Ref: reference, Source: source, Owner: &f.e.catalog.Owner, Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
 		f.e.mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if err == nil || rows != nil || errors.As(err, &diagnostic) {
@@ -264,7 +264,7 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 		invalid := *d
 		invalid.Columns = make([]catalog.Column, width)
 		next.SetDescriptor(d.Address(), &invalid)
-		reject(f.e.catalog.read(next), roles, ref, &invalid)
+		reject(f.e.catalog.Read(next), roles, ref, &invalid)
 	}
 	for _, missing := range []bool{false, true} {
 		next := catalog.CloneState(c.State())
@@ -275,7 +275,7 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 			database.Owner = f.reader
 			next.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 		}
-		reject(f.e.catalog.read(next), roles, ref, d)
+		reject(f.e.catalog.Read(next), roles, ref, d)
 	}
 	for i := range d.Columns {
 		next := catalog.CloneState(c.State())
@@ -283,7 +283,7 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 		invalid.Columns = slices.Clone(d.Columns)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.Columns[i].Usage.Type.ID())
 		next.SetDescriptor(d.Address(), &invalid)
-		reject(f.e.catalog.read(next), roles, ref, &invalid)
+		reject(f.e.catalog.Read(next), roles, ref, &invalid)
 	}
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	record := c.State().DefaultACL(key)
@@ -325,20 +325,20 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 			broken.ACL.Explicit = false
 			next.SetDefaultACL(key, &broken)
 		}
-		reject(f.e.catalog.read(next), roles, ref, d)
+		reject(f.e.catalog.Read(next), roles, ref, d)
 		if c.State().DefaultACL(key) != record || c.State().DefaultACLCount() != 2 {
 			t.Fatal("corruption fixture mutated the captured authority")
 		}
 	}
-	state, roleRoot, frontier := f.e.catalog.state, f.e.roles.published, f.e.catalog.nextOID
+	state, roleRoot, frontier := f.e.catalog.State, f.e.roles.published, f.e.catalog.NextOID()
 	for _, at := range []int{1, 2, 3} {
 		ctx, cancel := context.WithCancel(context.Background())
 		controlled := &namespaceCancelContext{Context: ctx, cancel: cancel, at: at}
 		f.e.mu.Lock()
-		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: f.e.catalog.owner(), Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: &f.e.catalog.Owner, Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
 		f.e.mu.Unlock()
 		cancel()
-		if rows != nil || !errors.Is(err, context.Canceled) || f.e.catalog.state != state || f.e.roles.published != roleRoot || f.e.catalog.nextOID != frontier {
+		if rows != nil || !errors.Is(err, context.Canceled) || f.e.catalog.State != state || f.e.roles.published != roleRoot || f.e.catalog.NextOID() != frontier {
 			t.Fatal("canceled partial result or mutated authority", at, rows, err)
 		}
 	}

@@ -16,7 +16,7 @@ import (
 
 func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.State)
 	target := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20300}, Namespace: f.schema, Name: "runtime_target", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead())})
 	target.RelationKind = catalog.TableRelation
 	state.SetDescriptor(target.Address(), target)
@@ -31,7 +31,7 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 		Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: 1}},
 	})
 	state.SetDescriptor(consumer.Address(), &consumer)
-	view := f.e.catalog.read(state)
+	view := f.e.catalog.Read(state)
 	copied := consumer
 	missing := consumer
 	missing.ObjectAddress.ObjectID++
@@ -44,7 +44,7 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 	invalidState := catalog.CloneState(state)
 	invalidState.SetDescriptor(missing.Address(), &missing)
 	invalidState.SetDescriptor(typedNil.Address(), &typedNil)
-	invalidView := f.e.catalog.read(invalidState)
+	invalidView := f.e.catalog.Read(invalidState)
 
 	// Both snapshots have the same domain/epoch and valid reference targets.
 	// A consumer live only in the earlier snapshot must not borrow the newer
@@ -53,7 +53,7 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 	replacement := consumer
 	replacement.ObjectName = "runtime_replacement"
 	nextState.SetDescriptor(replacement.Address(), &replacement)
-	nextView := f.e.catalog.read(nextState)
+	nextView := f.e.catalog.Read(nextState)
 	if ref.Epoch != nextView.Epoch() || !stored.ViewReferenceValid(nextView, &consumer, ref) {
 		t.Fatal("borrowed-consumer fixture lacks a current-catalog-valid manifest")
 	}

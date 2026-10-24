@@ -37,7 +37,7 @@ func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget)
 	if err != nil {
 		return c, false, err
 	}
-	c = table.VacuumCapture{Rows: target.store.Versions, Ends: target.store.Ends, Generation: target.store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.state, Relation: d}
+	c = table.VacuumCapture{Rows: target.store.Versions, Ends: target.store.Ends, Generation: target.store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.State, Relation: d}
 	return c, true, nil
 }
 
@@ -86,8 +86,8 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected table.VacuumTarget, 
 	// Bind current storage/shape only now. Detached work still uses the same
 	// strict epoch, store, shape, root, index, rights and final-publication fences.
 	target := vacuumHeapTarget{selected.Ref, d, store}
-	first := table.VacuumCapture{Rows: store.Versions, Ends: store.Ends, Generation: store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.state, Relation: d}
-	first.CaptureIndexesLocked(e.catalog.owner(), e.storage.IndexRoots, true)
+	first := table.VacuumCapture{Rows: store.Versions, Ends: store.Ends, Generation: store.Generation, Frontier: e.visibility.CommitSeq(), Cutoff: cutoff, Retire: e.visibility.VacuumRetirementAllowedLocked(s.txRef), Catalog: e.catalog.State, Relation: d}
+	first.CaptureIndexesLocked(&e.catalog.Owner, e.storage.IndexRoots, true)
 	if s.op.Session.SessionToken.ID() > math.MaxInt32 {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: vacuum session identity exceeds integer range")
@@ -122,9 +122,9 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected table.VacuumTarget, 
 			}
 			return err
 		}
-		current.CaptureIndexesLocked(e.catalog.owner(), e.storage.IndexRoots, false)
+		current.CaptureIndexesLocked(&e.catalog.Owner, e.storage.IndexRoots, false)
 		if !capture.SameLocked(current, &e.storage, pass.Catalog != nil) {
-			current.CaptureIndexesLocked(e.catalog.owner(), e.storage.IndexRoots, true)
+			current.CaptureIndexesLocked(&e.catalog.Owner, e.storage.IndexRoots, true)
 			capture = current
 			e.mu.Unlock()
 			continue
@@ -139,12 +139,12 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected table.VacuumTarget, 
 			e.storage.InstallIndexRootLocked(address, root)
 		}
 		if pass.Catalog != nil {
-			e.catalog.state = pass.Catalog
+			e.catalog.PublishLocked(pass.Catalog)
 		}
 		target.store.Maintenance.RecordVacuum(pass.Candidate, completed)
 		e.mu.Unlock()
 		if o.Verbose {
-			message := table.VacuumReport(catalog.NewRead(e.catalog.owner(), capture.Catalog), capture.Relation, pass.Candidate)
+			message := table.VacuumReport(catalog.NewRead(&e.catalog.Owner, capture.Catalog), capture.Relation, pass.Candidate)
 			s.op.EmitNotice(session.LevelInfo, sqlstate.Error{Severity: "INFO", SeverityUnlocalized: "INFO", Code: "00000", Message: message})
 		}
 		return nil

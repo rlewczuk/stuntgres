@@ -43,7 +43,7 @@ func (e *Engine) prepareIndexCatalog(evaluation *exec.Context, current, next *ca
 // index publication. A nil auth is trusted replacement: catalog identity but
 // no SQL principal.
 func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []index.RowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]index.RootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
-	view := e.catalog.read(next)
+	view := e.catalog.Read(next)
 	disclosure := access.View{Catalog: view}
 	var env index.DisclosureEnv
 	if auth != nil {
@@ -64,7 +64,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 	}
 	e := s.engine()
 	e.mu.Lock()
-	if s.txRef.Epoch() != e.catalog.state.Epoch() {
+	if s.txRef.Epoch() != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}

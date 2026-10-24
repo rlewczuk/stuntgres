@@ -309,7 +309,7 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	owners := make(map[string]authorization.PrincipalRef, 2)
 	for _, name := range []string{"first", "second"} {
 		ref := roleTableRef(t, e, name)
-		d := e.catalog.state.MustRelation(ref.Address)
+		d := e.catalog.State.MustRelation(ref.Address)
 		if e.Roles().ValidatePrincipal(d.Owner) != nil {
 			t.Fatal("foreign owner after restore")
 		}
@@ -325,25 +325,25 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 			t.Fatal("isolated reset changed live role authority", query)
 		}
 		marker := roleTableRef(t, e, "reset_owner_marker")
-		if e.catalog.state.MustRelation(marker.Address).Owner != e.roles.domain.Principal(10) {
+		if e.catalog.State.MustRelation(marker.Address).Owner != e.roles.domain.Principal(10) {
 			t.Fatal("reset did not restore isolated authenticated owner", query)
 		}
 		for name, owner := range owners {
 			ref := roleTableRef(t, e, name)
-			d := e.catalog.state.MustRelation(ref.Address)
+			d := e.catalog.State.MustRelation(ref.Address)
 			if d.Owner != owner || d.Security.ACL.Explicit || len(d.Security.ColumnACL) != 0 {
 				t.Fatal("reset changed restored table authority", name, query)
 			}
 		}
 	}
-	before := e.catalog.state
+	before := e.catalog.State
 	for _, query := range []string{"SET AUTHORIZATION 'postgres'", "CREATE ROLE forbidden_restore_role", `ALTER ROLE "a'quote" NOLOGIN`, `DROP ROLE "b\slash"`} {
 		err := e.Restore(context.Background(), strings.NewReader(dump.String()+"SET SESSION AUTHORIZATION DEFAULT; CREATE TABLE unpublished(id INT); "+query+";"))
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 			t.Fatal("restore accepted forbidden owner mutation", query, err)
 		}
-		if e.catalog.state != before || e.roles.published != roles || admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer {
+		if e.catalog.State != before || e.roles.published != roles || admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer {
 			t.Fatal("rejected directive changed catalog or role authority")
 		}
 	}

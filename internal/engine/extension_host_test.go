@@ -25,7 +25,7 @@ func TestExtensionHostRefusesDiscardedStage(t *testing.T) {
 	if err == nil {
 		t.Fatal("discarded stage accepted a descriptor")
 	}
-	if host.LookupName(catalog.DescriptorNameKey(ext)) != (ids.ObjectAddress{}) || e.catalog.state != before.State() {
+	if host.LookupName(catalog.DescriptorNameKey(ext)) != (ids.ObjectAddress{}) || e.catalog.State != before.State() {
 		t.Fatal("refused descriptor reached the stage or the published catalog")
 	}
 }

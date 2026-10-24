@@ -196,7 +196,7 @@ func TestVacuumFreezeProvenance(t *testing.T) {
 	// Distinct domains deliberately disagree: CommitSeq10000, writer order700,
 	// canonical active90, committed insertion identities80 and95.
 	e.mu.Lock()
-	self := e.catalog.Domain.Tx(s.SessionToken, 999, e.catalog.state.Epoch(), s.Transactions, 999)
+	self := e.catalog.Domain.Tx(s.SessionToken, 999, e.catalog.State.Epoch(), s.Transactions, 999)
 	e.visibility.SetLastAssignedXIDLocked(99)
 	e.visibility.Entries[self] = visibility.Entry{XID: 700, FullXID: 90, AssignedXID: 90}
 	cutoff, err := e.visibility.VacuumCutoffLocked()

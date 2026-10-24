@@ -20,7 +20,7 @@ import (
 func catalogUnitOID(t *testing.T, e *Engine) ids.OID {
 	t.Helper()
 	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := e.catalog.AllocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -163,8 +163,8 @@ func (testProvider) Validate(catalog.Read, catalog.Descriptor) error { return ni
 
 func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 	e := New()
-	e.catalog.nextOID = ids.PGCatalogNamespaceOID
-	if n, err := e.catalog.allocateOIDLocked(); err != nil || n != ids.PGCatalogNamespaceOID+1 {
+	e.catalog.InstallOIDFrontierLocked(ids.PGCatalogNamespaceOID)
+	if n, err := e.catalog.AllocateOIDLocked(); err != nil || n != ids.PGCatalogNamespaceOID+1 {
 		t.Fatalf("reserved OID skip: %d %v", n, err)
 	}
 	for _, class := range []ids.OID{ids.NamespaceClassID, ids.RelationClassID} {
@@ -174,28 +174,28 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 			address := ids.ObjectAddress{ClassID: class, ObjectID: last}
 			// Exercise terminal occupancy through the allocator's actual catalog
 			// seam; exhaustion must not wrap, reuse or publish anything.
-			e.catalog.state = catalog.CloneState(e.catalog.state)
+			e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
 			if class == ids.NamespaceClassID {
-				e.catalog.state.SetDescriptor(address, &catalog.Namespace{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
+				e.catalog.State.SetDescriptor(address, &catalog.Namespace{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
 			} else {
-				e.catalog.state.SetDescriptor(address, &catalog.Relation{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}})
+				e.catalog.State.SetDescriptor(address, &catalog.Relation{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}})
 			}
-			before := e.catalog.state
-			e.catalog.nextOID = last
-			if _, err := e.catalog.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" || e.catalog.nextOID != 0 || e.catalog.state != before {
+			before := e.catalog.State
+			e.catalog.InstallOIDFrontierLocked(last)
+			if _, err := e.catalog.AllocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" || e.catalog.NextOID() != 0 || e.catalog.State != before {
 				t.Fatal("occupied terminal OID did not exhaust without publication", err)
 			}
-			if _, err := e.catalog.allocateOIDLocked(); err == nil || e.catalog.nextOID != 0 || e.catalog.state != before {
+			if _, err := e.catalog.AllocateOIDLocked(); err == nil || e.catalog.NextOID() != 0 || e.catalog.State != before {
 				t.Fatal("exhausted allocator reused identity", err)
 			}
 		})
 	}
-	e.catalog.nextOID = 0
-	if _, err := e.catalog.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" {
+	e.catalog.InstallOIDFrontierLocked(0)
+	if _, err := e.catalog.AllocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" {
 		t.Fatalf("OID exhaustion: %v", err)
 	}
-	e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
-	if _, err := e.catalog.revisionLocked(); err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
+	e.catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
+	if _, err := e.catalog.RevisionLocked(); err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
 		t.Fatalf("revision exhaustion: %v", err)
 	}
 	if err := e.RegisterCatalogProvider(nil); err == nil {
@@ -262,11 +262,11 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	}
 	setEpoch := func(epoch ids.CatalogEpoch) {
 		e.mu.Lock()
-		next := catalog.CloneState(e.catalog.state)
+		next := catalog.CloneState(e.catalog.State)
 		next.SetEpoch(epoch)
-		err := stored.ReownExpressions(e.catalog.read(next), next, nil, false, nil)
+		err := stored.ReownExpressions(e.catalog.Read(next), next, nil, false, nil)
 		if err == nil {
-			e.catalog.state = next
+			e.catalog.PublishLocked(next)
 		}
 		e.mu.Unlock()
 		if err != nil {

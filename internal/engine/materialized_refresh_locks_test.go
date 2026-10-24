@@ -46,7 +46,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			d := refreshUnitRelation(t, e)
 			stage, source := queryCreateStage(t, e, "refresh_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), source.Address())
+			sourceRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), source.Address())
 			d.View = stored.ViewOf(d).With(func(p *stored.ViewParts) {
 				p.Sources = []stored.ViewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
 			})
@@ -152,7 +152,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			}
 			execute(a, first)
 			afterA := e.storage.Relations[d.Address()]
-			descriptorA := e.catalog.state.MustRelation(d.Address())
+			descriptorA := e.catalog.State.MustRelation(d.Address())
 			firstCount := 1
 			if noData {
 				firstCount = 0
@@ -172,7 +172,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			if err := b.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			final := e.catalog.state.MustRelation(d.Address())
+			final := e.catalog.State.MustRelation(d.Address())
 			if e.visibility.CommitSeq() != before+2 || e.storage.Relations[d.Address()] == afterA || len(e.storage.Relations[d.Address()].Versions) != 1 || len(afterA.Versions) != firstCount || !final.Populated || final.Address() != d.Address() || final.View != d.View || final.RowType != d.RowType {
 				t.Fatal("serialized refresh failed complete immutable replacement")
 			}

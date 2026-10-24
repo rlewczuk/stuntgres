@@ -282,7 +282,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						state.BindName(catalog.DescriptorNameKey(d), dest)
 					}
 					state.SetEpoch(state.Epoch() + 1)
-					view := e.catalog.read(state)
+					view := e.catalog.Read(state)
 					remap := func(r ids.ObjectRef) ids.ObjectRef {
 						r.Epoch = state.Epoch()
 						if a, ok := mapping[r.Address]; ok {
@@ -368,8 +368,8 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)
-	transferred := e.catalog.state.MustProcedure(member.Address())
-	if transferred.Owner != source.Ref || transferred == member || e.catalog.state.Get(ext.Address()) != ext || e.catalog.state.Get(ext.Members[1]) != sibling {
+	transferred := e.catalog.State.MustProcedure(member.Address())
+	if transferred.Owner != source.Ref || transferred == member || e.catalog.State.Get(ext.Address()) != ext || e.catalog.State.Get(ext.Members[1]) != sibling {
 		t.Fatal("single-member ownership was not independent COW")
 	}
 	if err := extension.StockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {
@@ -402,7 +402,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if err := imported.importExtensionOwners(context.Background(), importOp, []extension.OwnerRecord{record}); err != nil {
 		t.Fatal("independent owner import", err)
 	}
-	installed := imported.catalog.state.MustExtension(imported.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
+	installed := imported.catalog.State.MustExtension(imported.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
 	if err := extension.StockIntagg.ValidateExtension(imported.CatalogRead(), installed); err != nil {
 		t.Fatal(err)
 	}
@@ -413,24 +413,24 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	foreign := New()
 	foreignOwner := foreign.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, owner := range []authorization.PrincipalRef{{}, foreignOwner} {
-		state := catalog.CloneState(e.catalog.state)
+		state := catalog.CloneState(e.catalog.State)
 		for _, a := range ext.Members {
 			bad := *state.MustProcedure(a)
 			bad.Owner = owner
 			state.SetDescriptor(a, &bad)
 		}
-		if err := extension.StockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
+		if err := extension.StockIntagg.ValidateExtension(e.catalog.Read(state), ext); err == nil {
 			t.Fatal("uniform zero/foreign owners accepted")
 		}
 	}
-	if err := extension.StockIntagg.ValidateExtension(catalog.NewRead(nil, e.catalog.state), ext); err == nil {
+	if err := extension.StockIntagg.ValidateExtension(catalog.NewRead(nil, e.catalog.State), ext); err == nil {
 		t.Fatal("missing owning engine accepted")
 	}
 	if result, err := e.Execute(op, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "intagg_owner_source"}}, Target: parser.RoleSpec{Name: "intagg_owner_target"}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
 		t.Fatal("member reassignment", result, err)
 	}
-	reassigned := e.catalog.state.MustProcedure(member.Address())
-	if reassigned.Owner != target.Ref || transferred.Owner != source.Ref || member.Owner != ext.Owner || e.catalog.state.Get(ext.Members[1]) != sibling || original.Get(member.Address()) != member {
+	reassigned := e.catalog.State.MustProcedure(member.Address())
+	if reassigned.Owner != target.Ref || transferred.Owner != source.Ref || member.Owner != ext.Owner || e.catalog.State.Get(ext.Members[1]) != sibling || original.Get(member.Address()) != member {
 		t.Fatal("ownership generations mutated")
 	}
 	if err := extension.StockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {

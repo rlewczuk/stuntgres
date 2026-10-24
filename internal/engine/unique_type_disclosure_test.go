@@ -49,7 +49,7 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 				if mode == "all" {
 					grant(2, authorization.SelectPrivilege)
 				}
-				before := e.catalog.state
+				before := e.catalog.State
 				parent := before.MustRelation(ref.Address)
 				constraint := parent.Constraints.Unique[0]
 				root := e.storage.IndexRoots[constraint.Index]
@@ -82,10 +82,10 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 					detail = "Key (a, b)=(0, protected) is duplicated."
 				}
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "u"`, Detail: detail, Schema: "public", Table: "t", Constraint: "u"})
-				if e.catalog.state != before || e.storage.Relations[ref.Address] != store || e.storage.IndexRoots[constraint.Index] != root {
+				if e.catalog.State != before || e.storage.Relations[ref.Address] != store || e.storage.IndexRoots[constraint.Index] != root {
 					t.Fatal("failed TYPE changed catalog/storage/root identity")
 				}
-				current := e.catalog.state.MustRelation(ref.Address)
+				current := e.catalog.State.MustRelation(ref.Address)
 				if current.Constraints.Unique[0].OID != constraint.OID || current.Constraints.Unique[0].Index != constraint.Index {
 					t.Fatal("failed TYPE reminted identities")
 				}

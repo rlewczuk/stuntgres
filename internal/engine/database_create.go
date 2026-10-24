@@ -85,7 +85,7 @@ func (e *Engine) createDatabaseTarget(ctx context.Context, scope *StatementScope
 	if err := publicationOperationLocked(e, scope.op); err != nil {
 		return Result{}, err
 	}
-	if scope.txRef != (ids.TxRef{}) && scope.txRef.Epoch() != e.catalog.state.Epoch() {
+	if scope.txRef != (ids.TxRef{}) && scope.txRef.Epoch() != e.catalog.State.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	result, err := e.publishDatabaseTargetLocked(ctx, name, target, owner)
@@ -118,7 +118,7 @@ func (e *Engine) publishDatabaseTargetLocked(ctx context.Context, name string, t
 	}
 	targets[name] = target
 	for _, runtime := range targets {
-		next := catalog.CloneState(runtime.catalog.state)
+		next := catalog.CloneState(runtime.catalog.State)
 		if runtime == target {
 			for a, d := range next.Descriptors() {
 				if a.ClassID == ids.DatabaseClassID {
@@ -126,7 +126,7 @@ func (e *Engine) publishDatabaseTargetLocked(ctx context.Context, name string, t
 					next.RemoveDescriptor(a)
 				}
 			}
-			for a, d := range e.catalog.state.Descriptors() {
+			for a, d := range e.catalog.State.Descriptors() {
 				if a.ClassID == ids.DatabaseClassID {
 					next.SetDescriptor(a, d)
 					next.BindName(catalog.DescriptorNameKey(d), a)

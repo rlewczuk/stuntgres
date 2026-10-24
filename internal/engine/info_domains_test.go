@@ -21,7 +21,7 @@ func newDomainsUnitFixture(t *testing.T) dcUnitFixture {
 	// The domains producer validates descriptor/name-index coherence. The
 	// constraint fixture only needs descriptor addresses, so publish the
 	// genuine type name bindings as well for this stronger consumer.
-	for _, descriptor := range f.f.e.catalog.read(f.state).Descriptors() {
+	for _, descriptor := range f.f.e.catalog.Read(f.state).Descriptors() {
 		if d, ok := descriptor.(*catalog.Type); ok && d.Namespace() == f.f.schema {
 			f.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 		}
@@ -208,7 +208,7 @@ func TestInfoDomainsCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoDomainsOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = New().catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = New().CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = New().roles.published.Root.Read(authorization.PrincipalRef{}) },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
@@ -334,7 +334,7 @@ func TestInfoDomainsCancellation(t *testing.T) {
 func infoDomainsPairedCapture(t *testing.T) {
 	t.Helper()
 	f := newDomainsUnitFixture(t)
-	f.f.e.catalog.state = f.state
+	f.f.e.catalog.PublishLocked(f.state)
 	f.f.op.Session.DatabaseName = "captured_database"
 	f.f.actor(f.f.owner)
 	scope, err := f.f.e.StartStatement(f.f.op)
@@ -357,7 +357,7 @@ func infoDomainsPairedCapture(t *testing.T) {
 	next := catalog.CloneState(f.state)
 	next.UnbindName(catalog.DescriptorNameKey(f.plain))
 	next.RemoveDescriptor(f.plain.Address())
-	f.f.e.catalog.state = next
+	f.f.e.catalog.PublishLocked(next)
 	f.f.e.mu.Lock()
 	captured, err := f.f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil {
@@ -396,7 +396,7 @@ func TestInfoDomainsSearchPathCapture(t *testing.T) {
 		{"json_sample", sqltype.JSON},
 		{"json_array", 199},
 	} {
-		base, ok := f.f.e.catalog.read(f.state).LookupType(item.base)
+		base, ok := f.f.e.catalog.Read(f.state).LookupType(item.base)
 		if !ok || !base.Concrete() {
 			t.Fatal("missing admitted base", item.base)
 		}

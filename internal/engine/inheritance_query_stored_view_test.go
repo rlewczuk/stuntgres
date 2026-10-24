@@ -97,7 +97,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				var oid ids.OID
 				if bindErr == nil {
-					oid, bindErr = e.catalog.allocateOIDLocked()
+					oid, bindErr = e.catalog.AllocateOIDLocked()
 				}
 				if bindErr != nil {
 					e.mu.Unlock()

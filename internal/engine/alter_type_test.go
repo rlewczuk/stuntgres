@@ -17,10 +17,10 @@ func TestAlterTypeMetadataAndAtomicity(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(7,'keep',9)")
 	run(t, e, "COMMENT ON COLUMN t.a IS 'survivor'")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t ALTER a TYPE BIGINT USING a+1")
-	next := e.catalog.state.MustRelation(ref.Address)
+	next := e.catalog.State.MustRelation(ref.Address)
 	if next == old || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || len(next.Constraints.NotNull) != len(old.Constraints.NotNull) {
 		t.Fatal(old, next)
 	}
@@ -42,13 +42,13 @@ func TestAlterTypeMetadataAndAtomicity(t *testing.T) {
 	run(t, e, "CREATE TABLE bad(c TEXT)")
 	run(t, e, "INSERT INTO bad VALUES('41'),('oops')")
 	bad := roleTableRef(t, e, "bad")
-	descriptor, storage := e.catalog.state.Get(bad.Address), e.storage.Relations[bad.Address]
+	descriptor, storage := e.catalog.State.Get(bad.Address), e.storage.Relations[bad.Address]
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE bad ALTER c TYPE INT USING c::int"), nil)
 	var got *sqlstate.Error
 	if !errors.As(err, &got) || got.Code != "22P02" || got.Message != `invalid input syntax for type integer: "oops"` {
 		t.Fatal(err)
 	}
-	if e.catalog.state.Get(bad.Address) != descriptor || e.storage.Relations[bad.Address] != storage {
+	if e.catalog.State.Get(bad.Address) != descriptor || e.storage.Relations[bad.Address] != storage {
 		t.Fatal("published failed conversion")
 	}
 	if rows := tuples(run(t, e, "SELECT * FROM bad")); !reflect.DeepEqual(rows, [][]driver.Value{{"41"}, {"oops"}}) {
@@ -67,12 +67,12 @@ func TestAlterTypeOrderedTransformsAtomicity(t *testing.T) {
 			run(t, e, "CREATE TABLE t("+tc.declaration+")")
 			run(t, e, "INSERT INTO t VALUES"+tc.seed)
 			ref := roleTableRef(t, e, "t")
-			old, store := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+			old, store := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
 			wantRows := tuples(run(t, e, "SELECT * FROM t"))
 			_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t "+tc.action), nil)
 			var got *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
-			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store {
+			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store {
 				t.Fatal(got, err, "failed ordered list published descriptor/storage")
 			}
 			if rows := tuples(run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(rows, wantRows) {
@@ -143,8 +143,8 @@ func TestAlterTypeCollationSchemaAuthorization(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE USER alter_reader")
 	run(t, e, "CREATE SCHEMA denied")
-	schema := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"})
-	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), schema), authorization.ACLValue{Explicit: true}); err != nil {
+	schema := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"})
+	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.State.Epoch(), schema), authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	s := sessionStart(t, e, nil)
@@ -154,7 +154,7 @@ func TestAlterTypeCollationSchemaAuthorization(t *testing.T) {
 	})
 	sessionSQL(t, s, "INSERT INTO t VALUES('keep')")
 	ref := roleTableRef(t, e, "t")
-	old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+	old, storage := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestAlterTypeCollationSchemaAuthorization(t *testing.T) {
 	var got *sqlstate.Error
 	op.Done()
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for schema denied", Position: "33"}
-	if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
+	if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
 		t.Fatal(got, err)
 	}
 	if rows := tuples(sessionSQL(t, s, "SELECT c FROM t")); !reflect.DeepEqual(rows, [][]driver.Value{{"keep"}}) {

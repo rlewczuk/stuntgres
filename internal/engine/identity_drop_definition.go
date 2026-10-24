@@ -50,8 +50,8 @@ func (p *dropProvider) CaptureIdentitySequence(relation *catalog.Relation, attri
 		return err
 	}
 	p.base = p.stage.Base
-	p.identityDrop = identityDropCapture{sequence: ref, original: e.catalog.state.Get(ref.Address)}
-	p.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{e.catalog.state, []ids.ObjectAddress{ref.Address}})
+	p.identityDrop = identityDropCapture{sequence: ref, original: e.catalog.State.Get(ref.Address)}
+	p.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{e.catalog.State, []ids.ObjectAddress{ref.Address}})
 	return nil
 }
 
@@ -89,8 +89,8 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, rel
 	provider.base = fresh.Catalog
 	provider.prepared.Discovery = fresh.Catalog
 	provider.identitySource = sequence
-	provider.prepared.RecordEffect(table.DropEffect{IdentityRoots: []ids.ObjectAddress{ref.Address}, IdentityState: e.catalog.state})
-	return identityDropCapture{sequence: ref, original: e.catalog.state.Get(ref.Address)}, nil
+	provider.prepared.RecordEffect(table.DropEffect{IdentityRoots: []ids.ObjectAddress{ref.Address}, IdentityState: e.catalog.State})
+	return identityDropCapture{sequence: ref, original: e.catalog.State.Get(ref.Address)}, nil
 }
 
 func applyIdentityDropTombstone(stage *CatalogStage, address ids.ObjectAddress) {
@@ -137,7 +137,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 	e := scope.engine()
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
 		e.mu.Lock()
-		unchanged := e.catalog.state.Get(prepared.sequence.Address) == prepared.original
+		unchanged := e.catalog.State.Get(prepared.sequence.Address) == prepared.original
 		e.mu.Unlock()
 		if !unchanged {
 			return nil, ids.ErrCatalogReplaced

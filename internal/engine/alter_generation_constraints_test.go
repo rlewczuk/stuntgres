@@ -88,9 +88,9 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 				execute(&parser.CreateIndex{Name: parser.Identifier{Text: "g_predicate"}, Table: alterGenerationName("g"), Method: "btree", Unique: true, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "k"}}}, Predicate: alterGenerationOperator("<", alterGenerationColumn("b"), alterGenerationLiteral(3))})
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "g")
-			old := e.catalog.state.MustRelation(ref.Address)
+			old := e.catalog.State.MustRelation(ref.Address)
 			store := e.storage.Relations[ref.Address]
-			catalog := e.catalog.state
+			catalog := e.catalog.State
 			roots := maps.Clone(e.storage.IndexRoots)
 			rowID, versionID, commit := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.CommitSeq()
 			generation, ends := store.Generation, store.Ends
@@ -133,7 +133,7 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != code {
 				t.Fatal("constraint rewrite accepted/incorrect failure", kind, err)
 			}
-			if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || e.storage.RowFrontier() != rowID || e.storage.VersionFrontier() != versionID || e.visibility.CommitSeq() != commit || scope.owner.Catalog != nil || !reflect.DeepEqual(scope.owner.Writes, writes) || !reflect.DeepEqual(scope.owner.Deletes, deletes) {
+			if e.catalog.State != catalog || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || e.storage.RowFrontier() != rowID || e.storage.VersionFrontier() != versionID || e.visibility.CommitSeq() != commit || scope.owner.Catalog != nil || !reflect.DeepEqual(scope.owner.Writes, writes) || !reflect.DeepEqual(scope.owner.Deletes, deletes) {
 				t.Fatal("constraint failure leaked private/installed roots/counters")
 			}
 			if len(e.storage.IndexRoots) != len(roots) {

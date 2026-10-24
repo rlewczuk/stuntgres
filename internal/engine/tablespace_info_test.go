@@ -143,7 +143,7 @@ func TestTablespaceInfoAuthority(t *testing.T) {
 	if !ok || witness.RelationKind != catalog.CatalogRelation || witness.VirtualView || pgcatalog.ClassKind(view, witness) != "r" {
 		t.Fatal("missing real pg_class logical storage witness")
 	}
-	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
+	state, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
 	value, present, err := host.TablespaceDatabase(uint32(catalog.DefaultTablespaceOID), oidType)
 	got, conversion := value.OID()
 	db, ok := view.Database(catalog.CurrentDatabaseAddress)
@@ -160,7 +160,7 @@ func TestTablespaceInfoAuthority(t *testing.T) {
 	if _, err := host.TablespaceLocation(^uint32(0), textType); err == nil {
 		t.Fatal("physical namespace fabricated")
 	}
-	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.catalog.state.Epoch() != view.Epoch() {
+	if e.catalog.State != state || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.catalog.State.Epoch() != view.Epoch() {
 		t.Fatal("inquiry changed catalog/allocator")
 	}
 	for _, bad := range []catalog.Read{{}, New().CatalogRead(), view.WithState(catalog.NewState(view.Epoch()))} {

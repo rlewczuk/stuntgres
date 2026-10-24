@@ -10,8 +10,8 @@ import (
 func (e *Engine) installBuiltinLanguages() error {
 	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
 	install := func(d catalog.Descriptor) {
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+		e.catalog.State.SetDescriptor(d.Address(), d)
+		e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	for _, seed := range []struct {
 		oid       ids.OID
@@ -21,13 +21,13 @@ func (e *Engine) installBuiltinLanguages() error {
 	}{{12, "internal", 2246, false}, {13, "c", 2247, false}, {14, "sql", 2248, true}} {
 		install(&catalog.Language{ObjectAddress: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: seed.oid}, ObjectRevision: 1, ObjectName: seed.name, Owner: owner, Trusted: seed.trusted, Validator: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: seed.validator}})
 	}
-	languageOID, err := e.catalog.allocateOIDLocked()
+	languageOID, err := e.catalog.AllocateOIDLocked()
 	if err != nil {
 		return err
 	}
 	language := &catalog.Language{ObjectAddress: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: languageOID}, ObjectRevision: 1, ObjectName: "plpgsql", Owner: owner, Procedural: true, Trusted: true}
 	for _, kind := range []catalog.PLHandler{catalog.PLCallHandler, catalog.PLInlineHandler, catalog.PLValidator} {
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := e.catalog.AllocateOIDLocked()
 		if err != nil {
 			return err
 		}

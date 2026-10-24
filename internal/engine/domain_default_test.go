@@ -181,10 +181,10 @@ func TestDomainDefaultRemapInternal(t *testing.T) {
 	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil)); err != nil {
 		t.Fatal(err)
 	}
-	if err := stored.ReownExpressions(source.catalog.read(next), next, nil, true, nil); err != nil {
+	if err := stored.ReownExpressions(source.catalog.Read(next), next, nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	remapped := source.catalog.read(next)
+	remapped := source.catalog.Read(next)
 	for _, name := range []string{"remap_base", "remap_child", "remap_cast"} {
 		d := domainUnitType(t, remapped, name)
 		if err := stored.ValidateDomainDefault(remapped, d); err != nil {

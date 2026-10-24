@@ -79,7 +79,7 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 	if err := owner.AdmitLocked(domainOf(e), op); err != nil {
 		return Result{}, err
 	}
-	typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
+	typ, _ := e.catalog.Current().LookupType(sqltype.Text)
 	if all {
 		if write {
 			if err := op.Ctx.Err(); err != nil {

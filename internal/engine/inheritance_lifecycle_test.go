@@ -29,10 +29,10 @@ func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...id
 func inheritanceLifecycleInstall(e *Engine, tables ...*catalog.Relation) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.catalog.state = catalog.CloneState(e.catalog.state)
+	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
 	for _, table := range tables {
-		e.catalog.state.SetDescriptor(table.Address(), table)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(table), table.Address())
+		e.catalog.State.SetDescriptor(table.Address(), table)
+		e.catalog.State.BindName(catalog.DescriptorNameKey(table), table.Address())
 		e.storage.InstallRelationLocked(table.Address(), &storage.Relation{})
 	}
 }
@@ -71,7 +71,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if stage.RemovalCount() != 1 || e.catalog.state != base.State() {
+	if stage.RemovalCount() != 1 || e.catalog.State != base.State() {
 		t.Fatal("RESTRICT changed catalog/closure")
 	}
 	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
@@ -87,7 +87,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal("unrelated parent/sibling removed", table.Name())
 		}
 	}
-	if e.catalog.state != base.State() || leaf.Inheritance.Parents[2].Relation != other.Address() {
+	if e.catalog.State != base.State() || leaf.Inheritance.Parents[2].Relation != other.Address() {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -113,7 +113,7 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	if _, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{p.Address()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.catalog.state != base.State() || stage.RemovalCount() != 2 {
+	if e.catalog.State != base.State() || stage.RemovalCount() != 2 {
 		t.Fatal("cancel published changes")
 	}
 }
@@ -183,11 +183,11 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 				parent.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{one}}},
 				child.Address():  {{Row: 2, Version: 2, Values: []sqltype.Value{two}}},
 			}
-			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, changes)
+			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.State.Epoch(), nil, 0), writes, nil, changes)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(writes[parent.Address()]) != 1 || len(writes[child.Address()]) != 1 || changes.Descriptors[parent.Address()] != parent || changes.Descriptors[child.Address()] != &child || e.catalog.state.Get(child.Address()) != nil {
+			if len(writes[parent.Address()]) != 1 || len(writes[child.Address()]) != 1 || changes.Descriptors[parent.Address()] != parent || changes.Descriptors[child.Address()] != &child || e.catalog.State.Get(child.Address()) != nil {
 				t.Fatal("commit preparation changed prior private/global roots")
 			}
 			if len(nextWrites[parent.Address()]) != 0 {

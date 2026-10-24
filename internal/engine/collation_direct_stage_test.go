@@ -69,7 +69,7 @@ func TestCollationDirectStageTemporaryAuthority(t *testing.T) {
 
 			ast := statement(t, query)
 			e.mu.Lock()
-			oid, revision := e.catalog.nextOID, e.catalog.nextRevision
+			oid, revision := e.catalog.NextOID(), e.catalog.NextRevision()
 			stage, err := e.stageSchemaLocked(creator, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 			e.mu.Unlock()
 			if stage != nil {
@@ -81,7 +81,7 @@ func TestCollationDirectStageTemporaryAuthority(t *testing.T) {
 					message = "permission denied for schema " + foreign.Name()
 				}
 				domainUnitDiagnostic(t, err, "42501", message)
-				if stage != nil || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
+				if stage != nil || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision {
 					t.Fatal("denied direct stage allocated catalog identity or returned a candidate")
 				}
 				return

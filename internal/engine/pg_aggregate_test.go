@@ -24,7 +24,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if row.OwningRelation != address || array.OwningRelation != address || row.Array != 10026 || array.SQLType.Element() != row.SQLType || row.Owner != source.Owner || array.Owner != source.Owner {
 		t.Fatal("aggregate row/array ownership")
 	}
-	nextOID, nextRevision := e.catalog.nextOID, e.catalog.nextRevision
+	nextOID, nextRevision := e.catalog.NextOID(), e.catalog.NextRevision()
 	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate)
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if captured.Anonymous[0][0].IsNull() || captured.Anonymous[1][1].IsNull() || second.Anonymous[0][1].IsNull() {
 		t.Fatal("aggregate row slots alias")
 	}
-	if e.catalog.state != view.State() || e.catalog.nextOID != nextOID || e.catalog.nextRevision != nextRevision {
+	if e.catalog.State != view.State() || e.catalog.NextOID() != nextOID || e.catalog.NextRevision() != nextRevision {
 		t.Fatal("catalog observation changed frontiers")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -88,7 +88,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		bad.Columns = append([]catalog.Column(nil), source.Columns...)
 		bad.Columns[i].Usage.Type, _ = foreign.LookupType(source.Columns[i].Usage.Type.ID())
 		state.SetDescriptor(address, &bad)
-		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.catalog.read(state), Ref: ref, Source: &bad, Owner: (e.catalog.read(state)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || err == nil {
+		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.catalog.Read(state), Ref: ref, Source: &bad, Owner: (e.catalog.Read(state)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || err == nil {
 			t.Fatal("foreign column generation admitted", i, err)
 		}
 	}

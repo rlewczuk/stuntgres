@@ -47,7 +47,7 @@ type serializablePublicationSnapshot struct {
 }
 
 func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot {
-	s := serializablePublicationSnapshot{catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), namespaceGeneration: e.catalog.state.NamespaceGeneration(), revision: e.catalog.nextRevision, frontier: e.visibility.CommitSeq(), order: e.visibility.SerializableOrder(), storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.storage.Sequences), generators: make(map[ids.ObjectAddress]storage.SequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
+	s := serializablePublicationSnapshot{catalog: e.catalog.State, descriptors: maps.Collect(e.catalog.State.Descriptors()), names: maps.Collect(e.catalog.State.Names()), namespaceGeneration: e.catalog.State.NamespaceGeneration(), revision: e.catalog.NextRevision(), frontier: e.visibility.CommitSeq(), order: e.visibility.SerializableOrder(), storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.storage.Sequences), generators: make(map[ids.ObjectAddress]storage.SequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
 	for address, store := range e.storage.Relations {
 		rows := append([]storage.RowVersion(nil), store.Versions[:cap(store.Versions)]...)
 		for i := range rows {
@@ -77,7 +77,7 @@ func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot 
 func serializableRequirePublicationUnchanged(t *testing.T, e *Engine, before serializablePublicationSnapshot) {
 	t.Helper()
 	after := serializableSnapshotPublication(e)
-	if e.catalog.state != before.catalog || !maps.Equal(e.storage.Sequences, before.sequences) {
+	if e.catalog.State != before.catalog || !maps.Equal(e.storage.Sequences, before.sequences) {
 		t.Fatal("failed publication replaced catalog/generator identities")
 	}
 	for address, store := range before.storage {

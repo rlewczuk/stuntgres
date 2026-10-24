@@ -102,7 +102,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	if len(sourceRows) != 1 || sourceRows[0].Row != 7 || sourceRows[0].Version != 11 || sourceRows[0].Born != 1 || !reflect.DeepEqual(sourceRows[0].Values, []sqltype.Value{v, d, c}) {
 		t.Fatal("import mutated source storage", sourceRows)
 	}
-	newRelation := target.catalog.state.MustRelation(newRef.Address)
+	newRelation := target.catalog.State.MustRelation(newRef.Address)
 	for i, want := range []string{"q", "q", "(q)"} {
 		value := rows[0].Values[i]
 		if value.Type() != newRelation.Columns[i].Usage.Type {

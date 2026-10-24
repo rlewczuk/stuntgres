@@ -21,10 +21,10 @@ import (
 
 // Caller holds Engine.mu and the session's statement admission.
 func (e *Engine) privateCatalogLocked(c *session.Journal) catalog.Read {
-	return c.PrivateRead(e.catalog.owner(), e.catalog.state)
+	return c.PrivateRead(&e.catalog.Owner, e.catalog.State)
 }
 func (e *Engine) catalogChangeLocked(c *session.Journal, a ids.ObjectAddress, d catalog.Descriptor) {
-	c.RecordDescriptor(e.catalog.state, a, d)
+	c.RecordDescriptor(e.catalog.State, a, d)
 }
 func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *storage.SequenceGenerator {
 	if s.catalog != nil {
@@ -49,12 +49,12 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 	e.mu.Lock()
 	// Bind the overlay only to its owning incarnation. Replacement types must
 	// never validate old descriptors before the publication epoch fence.
-	if e.catalog.state.Epoch() != epoch {
+	if e.catalog.State.Epoch() != epoch {
 		e.mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(c)
-	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.Dependencies, c.Originals); err != nil {
+	if err := catalogDependencyPreflight(e.catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -103,11 +103,11 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 			roles = c.Roles
 		}
 	}
-	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultReads) {
+	if !catalog.DefaultRecordsUnchanged(e.catalog.State, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.State, c.DefaultReads) {
 		return catalog.Conflict{}
 	}
 	view := e.privateCatalogLocked(c)
-	read := e.roles.read(e.catalog.owner(), view, roles)
+	read := e.roles.read(&e.catalog.Owner, view, roles)
 	if err := catalog.ValidateDefaultACLs(read, view); err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 	if err := e.catalogFencesCurrentLocked(c, fenceExtensionAuthority); err != nil {
 		return err
 	}
-	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.Dependencies, c.Originals); err != nil {
+	if err := catalogDependencyPreflight(e.catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
 		return err
 	}
 	if err := e.catalogFencesCurrentLocked(c, fenceTruncateGraph); err != nil {
@@ -133,12 +133,12 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 		return err
 	}
 	for a, original := range c.Originals {
-		if e.catalog.state.Get(a) != original {
+		if e.catalog.State.Get(a) != original {
 			return catalog.Conflict{}
 		}
 	}
 	for k, a := range c.Names {
-		if e.catalog.state.NameAddress(k) != a {
+		if e.catalog.State.NameAddress(k) != a {
 			return catalog.Conflict{}
 		}
 	}

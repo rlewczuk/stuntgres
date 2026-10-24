@@ -321,7 +321,7 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 	if err := s.owner.Validate(s.txRef); err != nil {
 		return err
 	}
-	if s.txRef.Epoch() != e.catalog.state.Epoch() {
+	if s.txRef.Epoch() != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if err := s.validateLockedRelation(e); err != nil {

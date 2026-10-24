@@ -12,8 +12,8 @@ import (
 // checkDatabaseConnectLocked is used only at physical session publication.
 // Identity switches and already admitted operations do not call it.
 func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated authorization.PrincipalRef) error {
-	view := e.catalog.read(e.catalog.state)
-	rights, err := access.DatabaseRights(ctx, view, e.roles.read(e.catalog.owner(), view, e.roles.published), authenticated)
+	view := e.catalog.Current()
+	rights, err := access.DatabaseRights(ctx, view, e.roles.read(&e.catalog.Owner, view, e.roles.published), authenticated)
 	if err != nil || rights&authorization.ConnectPrivilege != 0 {
 		return err
 	}

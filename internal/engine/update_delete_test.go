@@ -373,7 +373,7 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 				case "frontier_exhaustion":
 					target.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 				}
-				state, frontier, rowCounter, versionCounter := target.catalog.state, target.visibility.CommitSeq(), target.storage.RowFrontier(), target.storage.VersionFrontier()
+				state, frontier, rowCounter, versionCounter := target.catalog.State, target.visibility.CommitSeq(), target.storage.RowFrontier(), target.storage.VersionFrontier()
 				oldStorage := target.storage.Relations
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -388,7 +388,7 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 					if failure == "canceled" && !errors.Is(err, context.Canceled) {
 						t.Fatal(err)
 					}
-					if target.catalog.state != state || target.visibility.CommitSeq() != frontier || target.storage.RowFrontier() != rowCounter || target.storage.VersionFrontier() != versionCounter {
+					if target.catalog.State != state || target.visibility.CommitSeq() != frontier || target.storage.RowFrontier() != rowCounter || target.storage.VersionFrontier() != versionCounter {
 						t.Fatal("failed import consumed state/identities")
 					}
 					for address, store := range oldStorage {
@@ -467,7 +467,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			store := e.storage.Relations[ref.Address]
 			root := store.Versions
-			ends, frontier, epoch := store.Ends, e.visibility.CommitSeq(), e.catalog.state.Epoch()
+			ends, frontier, epoch := store.Ends, e.visibility.CommitSeq(), e.catalog.State.Epoch()
 			tx := transactionBegin(t, owner)
 			sessionSQL(t, owner, "UPDATE t SET v=11 WHERE id=1")
 			sessionSQL(t, owner, "DELETE FROM t WHERE id=2")
@@ -490,7 +490,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err == nil || e.catalog.state.Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != store || store.Ends != ends || &store.Versions[0] != &root[0] || owner.TransactionState() != session.TxActive || owner.Transactions.Ticket != ticket || owner.Transactions.Deletes[ref.Address] != deletes || &owner.Transactions.Writes[ref.Address][0] != &writes[0] {
+			if err == nil || e.catalog.State.Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != store || store.Ends != ends || &store.Versions[0] != &root[0] || owner.TransactionState() != session.TxActive || owner.Transactions.Ticket != ticket || owner.Transactions.Deletes[ref.Address] != deletes || &owner.Transactions.Writes[ref.Address][0] != &writes[0] {
 				t.Fatal("failed replacement changed mixed authority", err)
 			}
 			transactionRows(t, owner, "SELECT v FROM t", 11)

@@ -110,7 +110,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	if len(root.Buckets) != 0 {
 		t.Fatal(root)
 	}
-	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
+	parent := e.catalog.State.MustRelation(idx.SQLIndex.Parent)
 	bad := *idx.SQLIndex
 	bad.Keys = append([]catalog.IndexKey(nil), bad.Keys...)
 	bad.Keys[0].Class, _ = sqltype.LookupHashIndexClass("int8_ops")
@@ -246,7 +246,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 		run(t, e, q)
 	}
 	idx, old := hashRoot(t, e, "hn")
-	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
+	parent := e.catalog.State.MustRelation(idx.SQLIndex.Parent)
 	store := e.storage.Relations[parent.Address()]
 	value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "3", -1)
 	if err != nil {
@@ -268,7 +268,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 			if rebuild {
 				intents = map[ids.ObjectAddress]*catalog.Relation{idx.Address(): idx}
 			}
-			roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, index.CaptureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, nil, intents, []index.RowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+			roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.State, e.catalog.State, index.CaptureIndexStores(e.storage.Relations, e.catalog.State), e.storage.IndexRoots, nil, intents, []index.RowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if err != nil {
 				t.Fatal(rebuild, materialize, err)
 			}

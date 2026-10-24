@@ -21,11 +21,11 @@ func TestAlterDropColumnIdentityAndSnapshots(t *testing.T) {
 	run(t, e, "CREATE TABLE t(a INT NOT NULL,b TEXT,c BIGINT)")
 	run(t, e, "INSERT INTO t VALUES(1,'drop',9),(2,NULL,NULL)")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	original := e.storage.Relations[ref.Address]
 	held := run(t, e, "SELECT * FROM t ORDER BY a")
 	run(t, e, "ALTER TABLE t DROP COLUMN b RESTRICT")
-	next := e.catalog.state.MustRelation(ref.Address)
+	next := e.catalog.State.MustRelation(ref.Address)
 	if next == old || next.Address() != old.Address() || next.Revision() != old.Revision()+1 || !reflect.DeepEqual(next.Attributes, []int32{1, 3}) || next.Index["c"] != 1 || len(old.Columns) != 3 || len(original.Versions[0].Values) != 3 {
 		t.Fatal(old, next)
 	}
@@ -66,7 +66,7 @@ func TestAlterDropColumnIdentityAndSnapshots(t *testing.T) {
 func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, *catalog.Relation) {
 	t.Helper()
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	next := *old
 	next.ObjectRevision++
 	next.Columns = append([]catalog.Column(nil), old.Columns[0])
@@ -98,7 +98,7 @@ func TestAlterDropColumnStageRejectsConcurrentInsert(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(2,'two')")
 	change, err := e.PublishCatalog(prepared, PublicationToken{Epoch: ref.Epoch})
 	var conflict catalog.Conflict
-	if !errors.As(err, &conflict) || len(change.Definitions) != 0 || e.catalog.state.Get(ref.Address) != old {
+	if !errors.As(err, &conflict) || len(change.Definitions) != 0 || e.catalog.State.Get(ref.Address) != old {
 		t.Fatal(change, err)
 	}
 	if got := tuples(run(t, e, "SELECT * FROM t ORDER BY a")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1), "one"}, {int64(2), "two"}}) {
@@ -113,7 +113,7 @@ func TestAlterDropColumnFailuresAndSkip(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE t(a INT,b TEXT)")
 	roleExecute(t, e, op, "INSERT INTO t VALUES(1,'keep')")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.Get(ref.Address)
+	old := e.catalog.State.Get(ref.Address)
 	root := e.storage.Relations[ref.Address]
 	for _, tc := range []struct{ q, code, message string }{{"ALTER TABLE t DROP missing", "42703", `column "missing" of relation "t" does not exist`}, {"ALTER TABLE missing DROP b", "42P01", `relation "missing" does not exist`}, {"ALTER TABLE t DROP COLUMN ctid", "0A000", `cannot drop system column "ctid"`}, {"ALTER TABLE t DROP IF EXISTS xmin", "0A000", `cannot drop system column "xmin"`}} {
 		_, err := e.Execute(op, statement(t, tc.q), 0, nil)
@@ -122,7 +122,7 @@ func TestAlterDropColumnFailuresAndSkip(t *testing.T) {
 		if !errors.As(err, &got) || *got != want {
 			t.Fatal(tc.q, got, err)
 		}
-		if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != root {
+		if e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != root {
 			t.Fatal("failure changed state")
 		}
 	}
@@ -131,7 +131,7 @@ func TestAlterDropColumnFailuresAndSkip(t *testing.T) {
 	if got := op.DetachNotices(); !reflect.DeepEqual(got, want) {
 		t.Fatal(got)
 	}
-	if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != root {
+	if e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != root {
 		t.Fatal("skip changed state")
 	}
 	var before bytes.Buffer
@@ -173,7 +173,7 @@ func TestAlterDropColumnStageCancellationAndReplacement(t *testing.T) {
 		if len(changes.Definitions) != 0 || err == nil {
 			t.Fatal(changes, err)
 		}
-		if !replacement && (e.catalog.state.Get(ref.Address) != old || !errors.Is(err, context.Canceled)) {
+		if !replacement && (e.catalog.State.Get(ref.Address) != old || !errors.Is(err, context.Canceled)) {
 			t.Fatal(err)
 		}
 		if replacement && !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -200,9 +200,9 @@ func TestAlterDropColumnACLCleanupAndSurvivorAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	roleExecute(t, e, op, "ALTER TABLE t DROP b CASCADE")
-	next := e.catalog.state.MustRelation(ref.Address)
+	next := e.catalog.State.MustRelation(ref.Address)
 	if len(next.Security.ColumnACL) != 1 || !reflect.DeepEqual(next.Security.ColumnACL[3], old.Security.ColumnACL[3]) || len(old.Security.ColumnACL) != 2 {
 		t.Fatal(old.Security.ColumnACL, next.Security.ColumnACL)
 	}
@@ -247,7 +247,7 @@ func TestAlterDropColumnProviderCancellationAndReset(t *testing.T) {
 		run(t, e, "CREATE TABLE t(a INT,b TEXT)")
 		run(t, e, "INSERT INTO t VALUES(1,'keep')")
 		ref := roleTableRef(t, e, "t")
-		old := e.catalog.state.Get(ref.Address)
+		old := e.catalog.State.Get(ref.Address)
 		original := e.storage.Relations[ref.Address]
 		ctx, cancel := context.WithCancel(context.Background())
 		var triggered atomic.Bool
@@ -270,7 +270,7 @@ func TestAlterDropColumnProviderCancellationAndReset(t *testing.T) {
 				t.Fatal(err)
 			}
 		} else {
-			if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != original {
+			if !errors.Is(err, context.Canceled) || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != original {
 				t.Fatal(err)
 			}
 		}
@@ -282,7 +282,7 @@ func TestAlterDropColumnTransformCancellationAndRevisionExhaustion(t *testing.T)
 	run(t, e, "CREATE TABLE t(a INT,b TEXT)")
 	run(t, e, "INSERT INTO t VALUES(1,'keep'),(2,'keep'),(3,'keep')")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.Get(ref.Address)
+	old := e.catalog.State.Get(ref.Address)
 	original := e.storage.Relations[ref.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -295,7 +295,7 @@ func TestAlterDropColumnTransformCancellationAndRevisionExhaustion(t *testing.T)
 	counting := &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 12}
 	op.Ctx = counting
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t DROP b"), 0, nil)
-	if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != original {
+	if !errors.Is(err, context.Canceled) || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != original {
 		t.Fatal(err)
 	}
 	maximum := *old.(*catalog.Relation)
@@ -312,7 +312,7 @@ func TestAlterDropColumnTransformCancellationAndRevisionExhaustion(t *testing.T)
 		t.Fatal(err)
 	}
 	_, err = testExecute(e, context.Background(), statement(t, "ALTER TABLE t DROP b"), nil)
-	if err == nil || err.Error() != "stuntgres: definition revision exhausted" || e.catalog.state.Get(ref.Address) != &maximum || e.storage.Relations[ref.Address] != original {
+	if err == nil || err.Error() != "stuntgres: definition revision exhausted" || e.catalog.State.Get(ref.Address) != &maximum || e.storage.Relations[ref.Address] != original {
 		t.Fatal(err)
 	}
 }
@@ -325,13 +325,13 @@ func TestAlterDropColumnSchemaOwnerIsNotTableOwner(t *testing.T) {
 	roleExecute(t, e, op, "CREATE SCHEMA s AUTHORIZATION schema_owner")
 	roleExecute(t, e, op, "CREATE TABLE s.t(a INT,b TEXT)")
 	ref := roleTableRef(t, e, "s.t")
-	old := e.catalog.state.Get(ref.Address)
+	old := e.catalog.State.Get(ref.Address)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION schema_owner")
 	for _, q := range []string{"ALTER TABLE s.t DROP b", "ALTER TABLE s.t DROP IF EXISTS missing"} {
 		_, err := e.Execute(op, statement(t, q), 0, nil)
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "must be owner of table t"}
-		if !errors.As(err, &got) || *got != want || e.catalog.state.Get(ref.Address) != old {
+		if !errors.As(err, &got) || *got != want || e.catalog.State.Get(ref.Address) != old {
 			t.Fatal(got, err)
 		}
 	}
@@ -346,7 +346,7 @@ func TestAlterDropColumnStageProviderFailureIsAtomic(t *testing.T) {
 	// Exercise the real provider's validation, not a fabricated callback error.
 	stage.Get(ref.Address).(*catalog.Relation).Index["a"] = 9
 	_, err := e.ValidateCatalogStage(context.Background(), stage)
-	if err == nil || err.Error() != "stuntgres: invalid relation column identity" || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != original {
+	if err == nil || err.Error() != "stuntgres: invalid relation column identity" || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != original {
 		t.Fatal(err)
 	}
 	if got := tuples(run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1), "keep"}}) {

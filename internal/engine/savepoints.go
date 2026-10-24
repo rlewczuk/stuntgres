@@ -93,7 +93,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	if err == nil {
 		err = t.Validate(t.Ref)
 	}
-	if err == nil && t.Ref.Epoch() != e.catalog.state.Epoch() {
+	if err == nil && t.Ref.Epoch() != e.catalog.State.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
 	s.op.Session.Mu.Unlock()
@@ -151,7 +151,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		if err := t.Validate(t.Ref); err != nil {
 			return Result{}, err
 		}
-		if t.Ref.Epoch() != e.catalog.state.Epoch() {
+		if t.Ref.Epoch() != e.catalog.State.Epoch() {
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		if control.Kind != parser.CreateSavepoint && position < 0 {

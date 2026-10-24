@@ -38,9 +38,9 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					sessionSQL(t, s, "INSERT INTO t VALUES(7,9)")
 					sessionSQL(t, s, "CREATE SEQUENCE owned OWNED BY t.b")
 					ref := roleTableRef(t, e, "t")
-					oldDescriptor, oldStorage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+					oldDescriptor, oldStorage := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
 					sequence := roleTableRef(t, e, "owned")
-					oldSequence, oldGenerator := e.catalog.state.Get(sequence.Address), e.storage.Sequences[sequence.Address]
+					oldSequence, oldGenerator := e.catalog.State.Get(sequence.Address), e.storage.Sequences[sequence.Address]
 					var tx ids.TxRef
 					if explicit {
 						tx = transactionBegin(t, s)
@@ -108,11 +108,11 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					case <-time.After(3 * time.Second):
 						t.Fatal("owned-sequence ALTER retained replacement read lock over provider callback")
 					}
-					if calls != at || e.catalog.state.Get(ref.Address) == oldDescriptor || e.storage.Relations[ref.Address] == oldStorage {
+					if calls != at || e.catalog.State.Get(ref.Address) == oldDescriptor || e.storage.Relations[ref.Address] == oldStorage {
 						t.Fatal("stale owned sequence/list installed", calls)
 					}
 					lockEmpty(t, e)
-					if e.catalog.state.Get(sequence.Address) == oldSequence || e.storage.Sequences[sequence.Address] == oldGenerator {
+					if e.catalog.State.Get(sequence.Address) == oldSequence || e.storage.Sequences[sequence.Address] == oldGenerator {
 						t.Fatal("stale owned sequence resurrected")
 					}
 					if !e.replacementMu.TryLock() {

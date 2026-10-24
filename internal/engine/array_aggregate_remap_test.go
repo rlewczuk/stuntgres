@@ -43,7 +43,7 @@ func TestArrayAggregateViewRemap(t *testing.T) {
 			Child:       &plan.ValuesNode{},
 			Calls:       []plan.AggregateCall{{Provider: p, IncludeNulls: true}},
 		}
-		mapped, err := stored.RemapViewQuery(e.catalog.read(e.catalog.state), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := stored.RemapViewQuery(e.catalog.Current(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == p.ResultUsage().Type {
 				return array
 			}

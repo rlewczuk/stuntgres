@@ -185,15 +185,15 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			e := New().restoreStage()
 			op, done, stage, d := materializedUnitStage(t, e)
 			defer done()
-			e.catalog.state = e.stageRead(stage).State()
+			e.catalog.PublishLocked(e.stageRead(stage).State())
 			e.mu.Lock()
 			e.storage.InstallRelationLocked(d.Address(), &storage.Relation{})
 			e.mu.Unlock()
-			before, store := e.catalog.state, e.storage.Relations[d.Address()]
+			before, store := e.catalog.State, e.storage.Relations[d.Address()]
 			if err := e.importMaterializedSnapshots(context.Background(), op, []view.MaterializedSnapshot{{Schema: "public", Name: "unit_mv", Populated: true, Rows: rows}}); err == nil {
 				t.Fatal("accepted noncanonical/effectful snapshot")
 			}
-			if e.catalog.state != before || e.storage.Relations[d.Address()] != store || d.Populated {
+			if e.catalog.State != before || e.storage.Relations[d.Address()] != store || d.Populated {
 				t.Fatal("failed private import published a prefix")
 			}
 		})
@@ -201,7 +201,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	e := New().restoreStage()
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	e.catalog.state = e.stageRead(stage).State()
+	e.catalog.PublishLocked(e.stageRead(stage).State())
 	e.mu.Lock()
 	e.storage.InstallRelationLocked(d.Address(), &storage.Relation{})
 	e.mu.Unlock()
@@ -212,7 +212,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	if err := e.importMaterializedSnapshots(context.Background(), op, []view.MaterializedSnapshot{record}); err != nil {
 		t.Fatal(err)
 	}
-	current := e.catalog.state.MustRelation(d.Address())
+	current := e.catalog.State.MustRelation(d.Address())
 	stored := e.storage.Relations[d.Address()].Versions
 	if current == d || !current.Populated || d.Populated || len(stored) != 3 || !sqltype.SameDatum(stored[0].Values[0], stored[1].Values[0]) || !stored[2].Values[0].IsNull() {
 		t.Fatal("import lost immutable descriptor, duplicate or NULL")
@@ -224,7 +224,7 @@ func TestMaterializedViewPublication(t *testing.T) {
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	d.Populated = true
-	before := e.catalog.state
+	before := e.catalog.State
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, 7)
@@ -235,11 +235,11 @@ func TestMaterializedViewPublication(t *testing.T) {
 	if err := e.stageQueryTableRows(ctx, stage, d, rows, ids.TxRef{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if stage.initialTables != nil || e.catalog.state != before {
+	if stage.initialTables != nil || e.catalog.State != before {
 		t.Fatal("canceled stage published rows/catalog")
 	}
-	e.catalog.state = catalog.CloneState(e.catalog.state)
-	e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
+	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+	e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
 	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}

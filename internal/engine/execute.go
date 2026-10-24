@@ -433,7 +433,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), auth, stmt, &b); err != nil {
+	if err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, stmt, &b); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -655,7 +655,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		e.mu.Lock()
-		if e.catalog.state.Epoch() != scope.txRef.Epoch() {
+		if e.catalog.State.Epoch() != scope.txRef.Epoch() {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}

@@ -310,11 +310,11 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 	if _, err := (stored.Deparser{View: current}).SQL(context.Background(), node, stored.DeparseParent{}); err == nil {
 		t.Fatal("Var accepted with zero relation")
 	}
-	before := e.catalog.nextOID
+	before := e.catalog.NextOID()
 	if _, err := testDescribe(e, statement(t, "SELECT pg_get_expr($1,$2,$3)")); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.nextOID != before {
+	if e.catalog.NextOID() != before {
 		t.Fatal("Describe allocated definition identities")
 	}
 }
@@ -380,8 +380,8 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	for _, id := range []ids.OID{d.ColumnMeta.Defaults[1].OID, d.Constraints.NotNull[0].OID, d.Constraints.Check[0].OID} {
 		e.mu.Lock()
-		e.catalog.nextOID = id
-		next, err := e.catalog.allocateOIDLocked()
+		e.catalog.InstallOIDFrontierLocked(id)
+		next, err := e.catalog.AllocateOIDLocked()
 		e.mu.Unlock()
 		if err != nil || next == id || catalog.DefinitionOIDUsed(d, next) {
 			t.Fatal(id, next, err)
@@ -392,16 +392,16 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	copy.Constraints.Check = append([]catalog.CheckConstraint(nil), d.Constraints.Check...)
 	copy.Constraints.Check[0].OID = d.ColumnMeta.Defaults[1].OID
 	bad.SetDescriptor(d.Address(), &copy)
-	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(bad)); err == nil {
+	if err := catalog.ValidateDefinitionOIDs(e.catalog.Read(bad)); err == nil {
 		t.Fatal("duplicate identity accepted")
 	}
 	e.mu.Lock()
-	err := control.RemapDefinitionOIDs(e.catalog.read(bad), e.catalog.allocateOIDLocked)
+	err := control.RemapDefinitionOIDs(e.catalog.Read(bad), e.catalog.AllocateOIDLocked)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(bad)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(e.catalog.Read(bad)); err != nil {
 		t.Fatal(err)
 	}
 	if d.Constraints.Check[0].OID == d.ColumnMeta.Defaults[1].OID {

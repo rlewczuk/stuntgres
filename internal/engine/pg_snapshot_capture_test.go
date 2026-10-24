@@ -65,7 +65,7 @@ func TestSnapshotAuthoritativeCapture(t *testing.T) {
 			store.Versions = append(store.Versions, storage.RowVersion{Row: 2, Version: 2, Born: 11})
 			e.visibility.AdvanceCommitSeqLocked()
 			e.visibility.EndTransactionIdentityLocked(peer.Ref(), true)
-			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), relation.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), relation.Address())
 			var leaves []exec.Leaf
 			if !singleton {
 				leaves = []exec.Leaf{{Ref: ref, Relation: relation, Storage: store}}
@@ -102,7 +102,7 @@ func TestSnapshotRefreshCapture(t *testing.T) {
 	_, bumper := blockingUnitOwner(t, e)
 	pgLocksUnitAssign(t, e, holderRef)
 	pgLocksUnitAssign(t, e, bumper)
-	targetRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), target.Address())
+	targetRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), target.Address())
 	if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: targetRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestSnapshotRefreshCapture(t *testing.T) {
 	if scope.currentSnapshot == nil || scope.currentSnapshot.Visible(id) || scope.snapshotFrontier != 10 {
 		t.Fatal("utility pair refreshed across target wait")
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), relation.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), relation.Address())
 	snapshotUnitRows(t, scope, ref, []ids.RowID{1, 2})
 	data := scope.view.Data()
 	if len(data.Committed[ref.Address]) != 3 || !data.NeedsBirthFilterAt(ref.Address) || data.Ends[ref.Address] != store.Ends {
@@ -195,7 +195,7 @@ func TestSnapshotPartitionUtilityCapture(t *testing.T) {
 			if scope.currentSnapshot == nil || scope.currentSnapshot != scope.owner.CurrentSnapshot || scope.currentSnapshot.Visible(uint64(peer.AssignedFullXID())) || scope.snapshotFrontier != 10 {
 				t.Fatal("partition utility did not retain its first stable pair")
 			}
-			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), relation.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), relation.Address())
 			snapshotUnitRows(t, scope, ref, []ids.RowID{1})
 		})
 	}

@@ -29,7 +29,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 		}
 	}
 	checkTypeLinks(view, source)
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
 	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage)
 	if err != nil {
 		t.Fatal(err)

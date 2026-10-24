@@ -53,9 +53,9 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 					Invoker: shape == "invoker_over_definer",
 					Sources: []stored.ViewLeaf{{Ref: ruleUnitRef(e, inner), Reads: []int32{1}, Attributes: []int32{1, 2}}},
 				})
-				next := catalog.CloneState(e.catalog.state)
+				next := catalog.CloneState(e.catalog.State)
 				next.SetDescriptor(outer.Address(), &outer)
-				e.catalog.state = next
+				e.catalog.PublishLocked(next)
 				root = &outer
 			}
 			// A nested invoker retains the ORIGINAL source invoker even below
@@ -66,7 +66,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				reader, other = actor.Ref, owner.Ref
 			}
 			base.Security.ACL = grant(reader)
-			auth.Recapture(e.catalog.read(e.catalog.state))
+			auth.Recapture(e.catalog.Current())
 			auth.State.CurrentUser = owner.Ref
 			leaf := exec.Leaf{Ref: ruleUnitRef(e, root), Relation: root, Principal: actor.Ref}
 			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...exec.Leaf) ([]ids.ObjectRef, error) {
@@ -104,10 +104,10 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			// that snapshot, while an already paired snapshot remains unchanged.
 			revoked := *base
 			revoked.Security.ACL = grant(other)
-			next := catalog.CloneState(e.catalog.state)
+			next := catalog.CloneState(e.catalog.State)
 			next.SetDescriptor(base.Address(), &revoked)
 			current := auth
-			current.Recapture(e.catalog.read(next))
+			current.Recapture(e.catalog.Read(next))
 			refs, err := collect(current, owner.Ref, leaf)
 			defaultUnitDiagnostic(t, err, "42501", "permission denied for table src")
 			if len(refs) != 0 {

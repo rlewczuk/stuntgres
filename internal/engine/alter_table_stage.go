@@ -33,7 +33,7 @@ func (e *Engine) mergeStageJournalLocked(stage *CatalogStage, changes *session.J
 		if captured, identity := stage.sequence.IdentityOriginal(address); identity {
 			original = captured
 		}
-		return e.catalog.state.Get(address) == original
+		return e.catalog.State.Get(address) == original
 	}
 	for address, descriptor := range stage.Descriptors() {
 		if !selected(descriptor) {

@@ -313,7 +313,7 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 			e := New()
 			for i, target := range []sqltype.ID{sqltype.Int4, sqltype.Float8, sqltype.Text, sqltype.Bool, sqltype.JSON, sqltype.Interval} {
 				cast := &catalog.Cast{OID: ids.OID(90000 + i), ObjectRevision: 1, Source: sqltype.Xid, Target: target, Context: mode, Method: "i"}
-				e.catalog.state.SetDescriptor(cast.Address(), cast)
+				e.catalog.State.SetDescriptor(cast.Address(), cast)
 			}
 			auth := catalogAuthorization(e, e.CatalogRead())
 			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)

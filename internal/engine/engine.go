@@ -181,8 +181,8 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	}
 	types := sqltype.Builtins()
 	// The seed sets thousands of entries, so it is one bulk load.
-	e.catalog.state = catalog.NewState(1)
-	e.catalog.state.BeginBulkLoad(builtinCatalogCapacity(len(types)))
+	e.catalog.PublishLocked(catalog.NewState(1))
+	e.catalog.State.BeginBulkLoad(builtinCatalogCapacity(len(types)))
 	for _, ns := range []struct {
 		oid  ids.OID
 		name string
@@ -199,8 +199,8 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 			}}
 		}
 		d.Comment = catalog.NamespaceCommentBaseline(ns.oid)
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
+		e.catalog.State.SetDescriptor(d.Address(), d)
+		e.catalog.State.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
 	}
 	for _, typ := range types {
 		d := &catalog.Type{SQLType: typ, Comment: catalog.BuiltinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
@@ -210,15 +210,15 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		if typ.NamespaceName() == "information_schema" {
 			d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 		}
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+		e.catalog.State.SetDescriptor(d.Address(), d)
+		e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	for i := range catalog.BuiltinCollations {
 		d := new(catalog.Collation)
 		*d = catalog.BuiltinCollations[i]
 		d.Owner = e.roles.domain.Principal(10)
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+		e.catalog.State.SetDescriptor(d.Address(), d)
+		e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.installBuiltinProcedures()
 	if err := e.installBuiltinLanguages(); err != nil {
@@ -231,12 +231,12 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		d.Owner = e.roles.domain.Principal(10)
 		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		d.ObjectRevision = 1
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+		e.catalog.State.SetDescriptor(d.Address(), d)
+		e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.installBuiltinOperators()
-	catalog.InstallBuiltinFamilies(e.catalog.state, e.roles.domain.Principal(authorization.BootstrapPrincipalID))
-	catalog.InstallBuiltinClasses(e.catalog.state, e.roles.domain.Principal(authorization.BootstrapPrincipalID))
+	catalog.InstallBuiltinFamilies(e.catalog.State, e.roles.domain.Principal(authorization.BootstrapPrincipalID))
+	catalog.InstallBuiltinClasses(e.catalog.State, e.roles.domain.Principal(authorization.BootstrapPrincipalID))
 	e.seedProcedureNames()
 	e.initializeDatabase(database)
 	if err := e.installBuiltinDomainChecks(); err != nil {
@@ -255,7 +255,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 func (e *Engine) CatalogRead() catalog.Read {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.catalog.read(e.catalog.state)
+	return e.catalog.Current()
 }
 
 func sqlError(code, message string) error {
@@ -346,7 +346,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		defer e.mu.Unlock()
 		op.Session.Settings.Mu.Lock()
 		defer op.Session.Settings.Mu.Unlock()
-		typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
+		typ, _ := e.catalog.Current().LookupType(sqltype.Text)
 		if s.All {
 			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
 		}
@@ -359,7 +359,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		binding, err := e.describeSettingCall(op.Ctx, s, &scope.input, op)
-		typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
+		typ, _ := e.catalog.Current().LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
 		return StatementDescription{Parameters: binding.parameters, Results: columns}, err
@@ -391,17 +391,17 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := scope.validateQuerySources(b.QuerySources); err != nil {
 		return StatementDescription{}, err
 	}
-	if err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), auth, stmt, &b); err != nil {
+	if err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, stmt, &b); err != nil {
 		return StatementDescription{}, err
 	}
 	if relation := view.BindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
 		program := view.RuleProgram{Count: -1, Returning: -1}
-		if _, err := (view.RuleRewriter{Owner: e.catalog.owner()}).ExpandLocked(auth, stmt, b, nil, &program); err != nil {
+		if _, err := (view.RuleRewriter{Owner: &e.catalog.Owner}).ExpandLocked(auth, stmt, b, nil, &program); err != nil {
 			return StatementDescription{}, err
 		}
 		for i := range program.Commands {
 			command := &program.Commands[i]
-			if err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), command.Auth, command.Syntax, &command.Binding); err != nil {
+			if err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, command.Auth, command.Syntax, &command.Binding); err != nil {
 				return StatementDescription{}, err
 			}
 		}
@@ -492,7 +492,7 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 // Utility lookup checks a qualified namespace before the relation and reports
 // namespace denial without the position attached by DML analysis.
 func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
-	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
+	if err := e.catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
 		return ids.ObjectRef{}, err
 	}
 	return resolveRelationSnapshot(auth, name, utility)

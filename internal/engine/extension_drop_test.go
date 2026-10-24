@@ -515,7 +515,7 @@ func TestExtensionDropDiagnostics(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, consumer); err != nil {
 		t.Fatal(err)
 	}
-	before := e.catalog.state
+	before := e.catalog.State
 	stmt := extensionDropUnitStatement("fuzzystrmatch")
 	stmt.Mode = parser.DropRestrict
 	err := extensionUnitExecute(t, e, op, stmt)
@@ -523,7 +523,7 @@ func TestExtensionDropDiagnostics(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || diagnostic.Detail != "view ext_drop_generic depends on function levenshtein_less_equal(text,text,integer,integer,integer,integer)" {
 		t.Fatal("generic stored consumer must reject retirement without renderer panic", err)
 	}
-	if e.catalog.state != before {
+	if e.catalog.State != before {
 		t.Fatal("failed generic retirement mutated committed identities")
 	}
 	stmt.Mode = parser.DropCascade

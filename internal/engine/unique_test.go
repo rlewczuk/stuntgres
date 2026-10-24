@@ -16,7 +16,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE,v TEXT)")
 	ref := roleTableRef(t, e, "t")
-	parent := e.catalog.state.MustRelation(ref.Address)
+	parent := e.catalog.State.MustRelation(ref.Address)
 	if len(parent.Constraints.Unique) != 1 {
 		t.Fatal(parent.Constraints.Unique)
 	}
@@ -47,11 +47,11 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 		t.Fatal("retained root mutated")
 	}
 	run(t, e, "ALTER TABLE t ALTER k TYPE BIGINT")
-	next := e.catalog.state.MustRelation(ref.Address)
+	next := e.catalog.State.MustRelation(ref.Address)
 	if next.Address() != parent.Address() || next.Constraints.Unique[0].OID == c.OID || next.Constraints.Unique[0].Index == c.Index {
 		t.Fatal("TYPE identity contract")
 	}
-	if _, ok := e.catalog.state.Find(c.Index); ok {
+	if _, ok := e.catalog.State.Find(c.Index); ok {
 		t.Fatal("retained old backing object")
 	}
 	btreeWantKeys(t, e, "u", "1", "NULL", "NULL")
@@ -81,8 +81,8 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	idx, _ := btreeRoot(t, e, "u")
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), idx.Address())
-	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), idx.Address())
+	parent := e.catalog.State.MustRelation(idx.SQLIndex.Parent)
 	ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, idx.SQLIndex)
 	if err != nil {
 		t.Fatal(err)

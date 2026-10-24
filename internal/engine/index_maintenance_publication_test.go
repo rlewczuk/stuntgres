@@ -32,7 +32,7 @@ func TestIndexMaintenanceDescriptorUnchangedIntent(t *testing.T) {
 	}
 	a, old := btreeRoot(t, e, "a")
 	b, sibling := btreeRoot(t, e, "b")
-	parent := e.catalog.state.Get(a.SQLIndex.Parent)
+	parent := e.catalog.State.Get(a.SQLIndex.Parent)
 	store := e.storage.Relations[a.SQLIndex.Parent]
 	stage := indexMaintenanceStage(t, e, "t", "a")
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -46,7 +46,7 @@ func TestIndexMaintenanceDescriptorUnchangedIntent(t *testing.T) {
 	if err != nil || len(changes.Definitions) != 0 {
 		t.Fatal("descriptor-unchanged rebuild forged a definition change", changes, err)
 	}
-	if e.catalog.state.Get(a.Address()) != a || e.catalog.state.Get(a.SQLIndex.Parent) != parent || e.storage.Relations[a.SQLIndex.Parent] != store || e.storage.IndexRoots[a.Address()] == old || e.storage.IndexRoots[b.Address()] != sibling || !reflect.DeepEqual(e.storage.IndexRoots[a.Address()].Entries, old.Entries) {
+	if e.catalog.State.Get(a.Address()) != a || e.catalog.State.Get(a.SQLIndex.Parent) != parent || e.storage.Relations[a.SQLIndex.Parent] != store || e.storage.IndexRoots[a.Address()] == old || e.storage.IndexRoots[b.Address()] != sibling || !reflect.DeepEqual(e.storage.IndexRoots[a.Address()].Entries, old.Entries) {
 		t.Fatal("selected intent did not publish exactly one real root")
 	}
 }

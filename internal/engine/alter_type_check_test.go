@@ -22,7 +22,7 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 	run(t, e, "CREATE TABLE t(p INT,a INT,b INT,CONSTRAINT z CHECK(a>0),CONSTRAINT aa CHECK(b>0),CONSTRAINT both_values CHECK(a<b),CONSTRAINT explicit_cast CHECK(a::text<>'0') NO INHERIT)")
 	run(t, e, "INSERT INTO t VALUES(9,2,7)")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	oldChecks := append([]catalog.CheckConstraint(nil), old.Constraints.Check...)
 	op, cleanup, err := testOperation(e, context.Background())
 	if err != nil {
@@ -43,7 +43,7 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 		t.Fatal("lost explicit cast", queue[2].SQL)
 	}
 	run(t, e, "ALTER TABLE t DROP p,ALTER a TYPE BIGINT USING b,ALTER b TYPE BIGINT USING a*10")
-	next := e.catalog.state.MustRelation(ref.Address)
+	next := e.catalog.State.MustRelation(ref.Address)
 	if next == old || !reflect.DeepEqual(old.Constraints.Check, oldChecks) || old.Columns[1].Usage.Type.ID() != 23 || next.Columns[0].Usage.Type.ID() != 20 || next.Columns[1].Usage.Type.ID() != 20 || !reflect.DeepEqual(next.Attributes, old.Attributes[1:]) {
 		t.Fatal("mutated original/final layout", old, next)
 	}
@@ -86,14 +86,14 @@ func TestAlterTypeCheckAtomicity(t *testing.T) {
 			run(t, e, "CREATE TABLE t("+tc.declaration+")")
 			run(t, e, "INSERT INTO t VALUES"+tc.seed)
 			ref := roleTableRef(t, e, "t")
-			old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+			old, storage := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
 			rows := tuples(run(t, e, "SELECT * FROM t"))
 			_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t "+tc.action), nil)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, tc.want) {
 				t.Fatal(diagnostic, err, tc.want)
 			}
-			if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT * FROM t")), rows) {
+			if e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT * FROM t")), rows) {
 				t.Fatal("published failed CHECK/NN candidate")
 			}
 			if err := table.ValidateChecks(e.CatalogRead(), old.(*catalog.Relation), map[string]bool{}); err != nil {
@@ -141,7 +141,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 			e := New()
 			run(t, e, "CREATE TABLE t(c "+tc.declaration+" CONSTRAINT ck CHECK(c>'"+tc.bound+"' AND c<>NULL))")
 			ref := roleTableRef(t, e, "t")
-			original := e.catalog.state.MustRelation(ref.Address)
+			original := e.catalog.State.MustRelation(ref.Address)
 			op, cleanup, err := testOperation(e, context.Background())
 			if err != nil {
 				t.Fatal(err)

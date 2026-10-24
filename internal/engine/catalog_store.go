@@ -18,9 +18,13 @@ import (
 // allocated once per engine and kept across Reset and Restore; it is the
 // engine's single provenance domain, so session tokens, transaction
 // references and the lock manager use it as well as catalog references.
+//
+// State is the published snapshot. It changes only through PublishLocked,
+// and the OID and revision frontiers only through their Install…Locked
+// writers, so every publication point stays greppable.
 type catalogStore struct {
 	catalog.Owner
-	state          *catalog.State
+	State          *catalog.State
 	nextOID        ids.OID
 	nextRevision   ids.DefinitionRevision
 	nextEnumMember int64
@@ -31,21 +35,41 @@ type catalogStore struct {
 // those callers add no allocation per publication. Engine.mu is held.
 var _ ddl.Allocator = (*catalogStore)(nil)
 
-func (s *catalogStore) AllocateOID() (ids.OID, error)             { return s.allocateOIDLocked() }
-func (s *catalogStore) Revision() (ids.DefinitionRevision, error) { return s.revisionLocked() }
+func (s *catalogStore) AllocateOID() (ids.OID, error)             { return s.AllocateOIDLocked() }
+func (s *catalogStore) Revision() (ids.DefinitionRevision, error) { return s.RevisionLocked() }
 
-// owner returns the store's owner record.
-func (s *catalogStore) owner() *catalog.Owner { return &s.Owner }
-
-// read returns a view of state owned by this store.
-func (s *catalogStore) read(state *catalog.State) catalog.Read {
-	return catalog.NewRead(s.owner(), state)
+// Read returns a view of state owned by this store.
+func (s *catalogStore) Read(state *catalog.State) catalog.Read {
+	return catalog.NewRead(&s.Owner, state)
 }
 
-// registerProviderLocked adds a provider before the builtin catalog is
+// Current returns a view of the published state.
+func (s *catalogStore) Current() catalog.Read { return s.Read(s.State) }
+
+// PublishLocked installs next as the published state. Every publication goes
+// through it, so publication points stay greppable.
+func (s *catalogStore) PublishLocked(next *catalog.State) { s.State = next }
+
+// NextOID returns the OID allocation frontier. Zero means it is exhausted.
+func (s *catalogStore) NextOID() ids.OID { return s.nextOID }
+
+// InstallOIDFrontierLocked sets the OID frontier, for publication of a
+// replacement that reserved OIDs privately.
+func (s *catalogStore) InstallOIDFrontierLocked(next ids.OID) { s.nextOID = next }
+
+// NextRevision returns the definition revision frontier.
+func (s *catalogStore) NextRevision() ids.DefinitionRevision { return s.nextRevision }
+
+// InstallRevisionFrontierLocked sets the definition revision frontier, for
+// publication of a state whose descriptors carry revisions at or past it.
+func (s *catalogStore) InstallRevisionFrontierLocked(next ids.DefinitionRevision) {
+	s.nextRevision = next
+}
+
+// RegisterProviderLocked adds a provider before the builtin catalog is
 // installed. Registration closes once state exists.
-func (s *catalogStore) registerProviderLocked(id ids.OID, p catalog.Provider) error {
-	if s.state != nil {
+func (s *catalogStore) RegisterProviderLocked(id ids.OID, p catalog.Provider) error {
+	if s.State != nil {
 		return fmt.Errorf("stuntgres: catalog providers are already initialized")
 	}
 	if s.Providers == nil {
@@ -58,25 +82,25 @@ func (s *catalogStore) registerProviderLocked(id ids.OID, p catalog.Provider) er
 	return nil
 }
 
-// allocateOIDLocked returns the next unused object identifier, skipping
+// AllocateOIDLocked returns the next unused object identifier, skipping
 // reserved OIDs and those that current descriptors already use.
-func (s *catalogStore) allocateOIDLocked() (ids.OID, error) {
-	return s.allocateOIDFromLocked(&s.nextOID, 0)
+func (s *catalogStore) AllocateOIDLocked() (ids.OID, error) {
+	return s.AllocateOIDFromLocked(&s.nextOID, 0)
 }
 
 // catalogOIDReservation belongs to one unpublished replacement. Its frontier
-// becomes live only at the catalog installation boundary; base fences ordinary
+// becomes live only at the catalog installation boundary; Base fences ordinary
 // allocations made while candidate providers run outside the target lock.
-type catalogOIDReservation struct{ base, next ids.OID }
+type catalogOIDReservation struct{ Base, Next ids.OID }
 
-func (s *catalogStore) oidReservationLocked() catalogOIDReservation {
-	return catalogOIDReservation{base: s.nextOID, next: s.nextOID}
+func (s *catalogStore) OIDReservationLocked() catalogOIDReservation {
+	return catalogOIDReservation{Base: s.nextOID, Next: s.nextOID}
 }
 
-// allocateOIDFromLocked is the single allocator, for both normal issuance and
+// AllocateOIDFromLocked is the single allocator, for both normal issuance and
 // replacement reservations. Only the supplied cursor changes; all reservation,
 // descriptor, definition and exhaustion checks below are identical.
-func (s *catalogStore) allocateOIDFromLocked(cursor *ids.OID, floor ids.OID) (ids.OID, error) {
+func (s *catalogStore) AllocateOIDFromLocked(cursor *ids.OID, floor ids.OID) (ids.OID, error) {
 	if *cursor != 0 && *cursor < floor {
 		*cursor = floor
 	}
@@ -90,20 +114,20 @@ func (s *catalogStore) allocateOIDFromLocked(cursor *ids.OID, floor ids.OID) (id
 		if n == ids.NamespaceClassID || n == ids.RelationClassID || n == ids.PGCatalogNamespaceOID || n == ids.PublicNamespaceOID {
 			continue
 		}
-		if _, ok := s.state.Find(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}); ok {
+		if _, ok := s.State.Find(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}); ok {
 			continue
 		}
-		if _, ok := s.state.Find(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}); ok {
+		if _, ok := s.State.Find(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}); ok {
 			continue
 		}
-		if _, ok := s.state.Find(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}); ok {
+		if _, ok := s.State.Find(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}); ok {
 			continue
 		}
-		if _, ok := s.state.Find(ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: n}); ok {
+		if _, ok := s.State.Find(ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: n}); ok {
 			continue
 		}
 		usedRule := false
-		for _, descriptor := range s.state.Descriptors() {
+		for _, descriptor := range s.State.Descriptors() {
 			if catalog.DefinitionOIDUsed(descriptor, n) {
 				usedRule = true
 				break
@@ -113,7 +137,7 @@ func (s *catalogStore) allocateOIDFromLocked(cursor *ids.OID, floor ids.OID) (id
 			continue
 		}
 		usedDefault := false
-		for _, record := range s.state.DefaultACLs() {
+		for _, record := range s.State.DefaultACLs() {
 			if record != nil && record.OID == n {
 				usedDefault = true
 				break
@@ -127,15 +151,15 @@ func (s *catalogStore) allocateOIDFromLocked(cursor *ids.OID, floor ids.OID) (id
 	return 0, catalog.ErrObjectIdentityExhausted
 }
 
-// allocateOIDAtLeastLocked skips an unused numeric interval without replacing
+// AllocateOIDAtLeastLocked skips an unused numeric interval without replacing
 // the ordinary allocator's reservation/definition checks or recycling identities.
 // Only affected alias endpoint planning supplies a nonzero floor.
-func (s *catalogStore) allocateOIDAtLeastLocked(floor ids.OID) (ids.OID, error) {
-	return s.allocateOIDFromLocked(&s.nextOID, floor)
+func (s *catalogStore) AllocateOIDAtLeastLocked(floor ids.OID) (ids.OID, error) {
+	return s.AllocateOIDFromLocked(&s.nextOID, floor)
 }
 
-// revisionLocked reserves the next definition revision.
-func (s *catalogStore) revisionLocked() (ids.DefinitionRevision, error) {
+// RevisionLocked reserves the next definition revision.
+func (s *catalogStore) RevisionLocked() (ids.DefinitionRevision, error) {
 	if s.nextRevision == ids.DefinitionRevision(^uint64(0)) {
 		return 0, fmt.Errorf("stuntgres: catalog definition revision exhausted")
 	}
@@ -144,9 +168,9 @@ func (s *catalogStore) revisionLocked() (ids.DefinitionRevision, error) {
 	return r, nil
 }
 
-// allocateEnumMemberLocked reserves the next enum member identity. Aborted
+// AllocateEnumMemberLocked reserves the next enum member identity. Aborted
 // reservations are never recycled.
-func (s *catalogStore) allocateEnumMemberLocked() (int64, error) {
+func (s *catalogStore) AllocateEnumMemberLocked() (int64, error) {
 	if s.nextEnumMember > math.MaxUint32-2 {
 		return 0, fmt.Errorf("stuntgres: enum member identity exhausted")
 	}
@@ -158,18 +182,18 @@ func (s *catalogStore) allocateEnumMemberLocked() (int64, error) {
 	return s.nextEnumMember, nil
 }
 
-// validateObjectRefLocked checks that view and ref belong to this store and
+// ValidateObjectRefLocked checks that view and ref belong to this store and
 // its current epoch, and that ref names a live object. It preserves live epoch
 // and provenance checks without reacquiring synchronization when called from
 // catalog mutation preflight.
-func (s *catalogStore) validateObjectRefLocked(view catalog.Read, ref ids.ObjectRef) error {
-	if s.Domain == nil || view.Owner() != s.owner() || view.State() == nil {
+func (s *catalogStore) ValidateObjectRefLocked(view catalog.Read, ref ids.ObjectRef) error {
+	if s.Domain == nil || view.Owner() != &s.Owner || view.State() == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	if ref.Domain() == nil || ref.Domain() != s.Domain {
 		return fmt.Errorf("stuntgres: foreign catalog reference")
 	}
-	if view.State().Epoch() != s.state.Epoch() || ref.Epoch != s.state.Epoch() {
+	if view.State().Epoch() != s.State.Epoch() || ref.Epoch != s.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	d, ok := view.Find(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -188,13 +212,13 @@ func (s *catalogStore) validateObjectRefLocked(view catalog.Read, ref ids.Object
 	return nil
 }
 
-// validateCatalogViewLocked checks that view belongs to this store and its
+// ValidateCatalogViewLocked checks that view belongs to this store and its
 // current epoch.
-func (s *catalogStore) validateCatalogViewLocked(view catalog.Read) error {
-	if s.Domain == nil || view.Owner() != s.owner() || view.State() == nil {
+func (s *catalogStore) ValidateCatalogViewLocked(view catalog.Read) error {
+	if s.Domain == nil || view.Owner() != &s.Owner || view.State() == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	if view.Epoch() != s.state.Epoch() {
+	if view.Epoch() != s.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	return nil

@@ -21,10 +21,10 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 		for _, use := range fence.Uses {
 			stores[use.Relation.Address()] = e.stageStorageLocked(stage, use.Relation.Address())
 		}
-		if !fence.Current(e.catalog.read(current), stores) {
+		if !fence.Current(e.catalog.Read(current), stores) {
 			return catalog.Conflict{}
 		}
-		committed, err := typedef.DomainUsesAt(e.catalog.read(e.catalog.state), fence.Target, fence.Path)
+		committed, err := typedef.DomainUsesAt(e.catalog.Current(), fence.Target, fence.Path)
 		if committed == nil {
 			return err
 		}

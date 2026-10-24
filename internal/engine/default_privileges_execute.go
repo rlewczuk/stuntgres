@@ -27,7 +27,7 @@ func (e *Engine) executeDefaultPrivileges(scope *StatementScope, statement *pars
 		// Capture honest committed predecessors in the planning window, not
 		// after releasing Engine.mu and accidentally adopting a peer's update.
 		for key := range updates {
-			claims = append(claims, defaultPrivilegeClaim{key: key, original: e.catalog.state.DefaultACL(key)})
+			claims = append(claims, defaultPrivilegeClaim{key: key, original: e.catalog.State.DefaultACL(key)})
 		}
 	}
 	e.mu.Unlock()
@@ -50,7 +50,7 @@ func (e *Engine) executeDefaultPrivileges(scope *StatementScope, statement *pars
 		return Result{}, catalog.Conflict{}
 	}
 	for _, claim := range claims {
-		if e.catalog.state.DefaultACL(claim.key) != claim.original {
+		if e.catalog.State.DefaultACL(claim.key) != claim.original {
 			return Result{}, catalog.Conflict{}
 		}
 	}
@@ -72,7 +72,7 @@ func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth Author
 		if old := auth.Catalog.State().DefaultACL(key); old != nil {
 			record.OID = old.OID
 		} else {
-			oid, err := e.catalog.allocateOIDLocked()
+			oid, err := e.catalog.AllocateOIDLocked()
 			if err != nil {
 				return Result{}, err
 			}
@@ -81,8 +81,8 @@ func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth Author
 	}
 	candidate := *auth.Catalog.State()
 	candidate.OverlayDefaultACLs(auth.Catalog.State(), updates)
-	candidateCatalog := e.catalog.read(&candidate)
-	candidateRoles := e.roles.read(e.catalog.owner(), candidateCatalog, auth.RoleRecord)
+	candidateCatalog := e.catalog.Read(&candidate)
+	candidateRoles := e.roles.read(&e.catalog.Owner, candidateCatalog, auth.RoleRecord)
 	if err := catalog.ValidateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err
 	}

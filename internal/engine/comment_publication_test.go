@@ -31,12 +31,12 @@ func TestCommentPublicationFailures(t *testing.T) {
 	if e.CatalogRead().State() != before.State() {
 		t.Fatal("invalid provider mutation")
 	}
-	original := e.catalog.nextRevision
-	e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
+	original := e.catalog.NextRevision()
+	e.catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
 	if _, err := e.Execute(op, statement(t, "COMMENT ON TABLE t IS 'bad'"), 0, nil); err == nil {
 		t.Fatal("revision exhaustion accepted")
 	}
-	e.catalog.nextRevision = original
+	e.catalog.InstallRevisionFrontierLocked(original)
 	commentWant(t, e, e.CatalogRead(), ref, "old")
 	roleExecute(t, e, op, "CREATE ROLE free")
 	roles := e.roles.published

@@ -75,7 +75,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	idx.SQLIndex = &definition
 	next := catalog.CloneState(capture.State())
 	next.SetDescriptor(idx.Address(), &idx)
-	candidate := f.e.catalog.read(next)
+	candidate := f.e.catalog.Read(next)
 	if err := index.ValidateIndexDefinition(candidate, &idx); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.mu.Lock()
-	f.e.catalog.state = next
+	f.e.catalog.PublishLocked(next)
 	f.e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): root})
 	f.e.mu.Unlock()
 	current, _, err := index.ProjectIndexMetadata(ctx, f.e.CatalogRead(), ref)
@@ -124,7 +124,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	idx.SQLIndex = &definition
 	next := catalog.CloneState(capture.State())
 	next.SetDescriptor(idx.Address(), &idx)
-	candidate := f.e.catalog.read(next)
+	candidate := f.e.catalog.Read(next)
 	if err := index.ValidateIndexDefinition(candidate, &idx); err != nil {
 		t.Fatal(err)
 	}

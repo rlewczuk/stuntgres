@@ -55,7 +55,7 @@ func (e *Engine) endTemporaryCollations(source *session.Session) (err error) {
 	var maintenance *session.Session
 	for {
 		e.mu.Lock()
-		base := e.catalog.read(e.catalog.state)
+		base := e.catalog.Current()
 		var namespaces []*catalog.Namespace
 		for _, d := range base.Descriptors() {
 			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == source.SessionToken {

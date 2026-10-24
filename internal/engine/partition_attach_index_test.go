@@ -27,10 +27,10 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			localDefinition := *local.SQLIndex
 			localDefinition.Unique = false
 			local.SQLIndex = &localDefinition
-			current := catalog.CloneState(f.e.catalog.state)
+			current := catalog.CloneState(f.e.catalog.State)
 			current.SetDescriptor(local.Address(), &local)
-			f.e.catalog.state = current
-			mapped, err := index.MapPartitionIndex(context.Background(), f.e.catalog.read(current), f.root, f.leaf, f.parent.SQLIndex)
+			f.e.catalog.PublishLocked(current)
+			mapped, err := index.MapPartitionIndex(context.Background(), f.e.catalog.Read(current), f.root, f.leaf, f.parent.SQLIndex)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -79,10 +79,10 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			f.e.mu.Unlock()
 			beforeStore := uniquePublicationStore(store)
 			beforeEntries := slices.Clone(oldRoot.Entries)
-			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.storage.IndexRoots)
+			beforeCatalog, beforeRoots := f.e.catalog.State, maps.Clone(f.e.storage.IndexRoots)
 			captured := index.CaptureIndexStores(f.e.storage.Relations, next)
 			roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, next, captured, f.e.storage.IndexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
-			if f.e.catalog.state != beforeCatalog || !maps.Equal(f.e.storage.IndexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.Entries, beforeEntries) {
+			if f.e.catalog.State != beforeCatalog || !maps.Equal(f.e.storage.IndexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.Entries, beforeEntries) {
 				t.Fatal("private index build mutated original catalog/store/backing")
 			}
 			if duplicate {
@@ -90,7 +90,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Message != `could not create unique index "attach_built_unique"` || diagnostic.Constraint != backing.Name() {
 					t.Fatal("duplicate build returned partial roots or wrong failure", roots, err)
 				}
-				if f.e.catalog.state.Get(backing.Address()) != nil {
+				if f.e.catalog.State.Get(backing.Address()) != nil {
 					t.Fatal("failed backing escaped into live catalog")
 				}
 				return

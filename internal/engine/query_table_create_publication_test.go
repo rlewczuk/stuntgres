@@ -21,7 +21,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 	}
 	e.mu.Lock()
 	d, err := table.NewRelation(ddlHost{e: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
-	stage := e.BeginCatalogStage(e.catalog.read(e.catalog.state))
+	stage := e.BeginCatalogStage(e.catalog.Current())
 	if err == nil {
 		err = stage.Create(d)
 	}
@@ -357,7 +357,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	if outcome = scope.gate(&parser.Insert{}); outcome != nil {
 		t.Fatal(outcome)
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ordinary.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ordinary.Address())
 	if outcome = scope.stage.Apply(ref, [][]sqltype.Value{{value}}); outcome != nil {
 		t.Fatal(outcome)
 	}

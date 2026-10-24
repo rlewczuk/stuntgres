@@ -118,7 +118,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 			for _, cascade := range []bool{false, true} {
 				t.Run(fmt.Sprintf("modifier=%v/inferred=%v/cascade=%v", modifier, inferred, cascade), func(t *testing.T) {
 					e, session, event, parent := ruleNamedDependencyFixture(t, modifier, inferred)
-					before := e.catalog.state
+					before := e.catalog.State
 					op := alterConstraintOperation(t, session)
 					auth, err := operationAuthorization(op)
 					if err != nil {
@@ -163,7 +163,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 							t.Fatal("constraint retirement lost backing lifecycle")
 						}
 					}
-					if e.catalog.state != before || len(stored.RulesOf(event)) != 2 || len(parent.Constraints.Unique) != 1 {
+					if e.catalog.State != before || len(stored.RulesOf(event)) != 2 || len(parent.Constraints.Unique) != 1 {
 						t.Fatal("private retirement mutated published catalog")
 					}
 				})
@@ -237,9 +237,9 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			e, _, event, parent := ruleNamedDependencyFixture(t, modifier, false)
 			oldRule, oldConflict := ruleNamedDependencyAction(t, event, modifier)
 			oldConstraint := oldConflict.Constraint
-			unchanged := catalog.CloneState(e.catalog.state)
+			unchanged := catalog.CloneState(e.catalog.State)
 			e.mu.Lock()
-			err := control.RemapDefinitionOIDs(e.catalog.read(unchanged), e.catalog.allocateOIDLocked)
+			err := control.RemapDefinitionOIDs(e.catalog.Read(unchanged), e.catalog.AllocateOIDLocked)
 			e.mu.Unlock()
 			if err != nil || unchanged.Get(event.Address()) != event || unchanged.Get(parent.Address()) != parent {
 				t.Fatal("no-collision import copied unchanged rule/provider owners", err)
@@ -252,7 +252,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}); allocations != 0 {
 				t.Fatal("no-change constraint visitor allocated", allocations)
 			}
-			next := catalog.CloneState(e.catalog.state)
+			next := catalog.CloneState(e.catalog.State)
 			// Model an imported attached definition colliding with a descriptor
 			// identity. The real analyzed rule/provider graphs remain intact;
 			// the canonical import remint pass must propagate its chosen OID.
@@ -261,12 +261,12 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			collision.ObjectName = "collision"
 			next.SetDescriptor(collision.Address(), &collision)
 			e.mu.Lock()
-			err = control.RemapDefinitionOIDs(e.catalog.read(next), e.catalog.allocateOIDLocked)
+			err = control.RemapDefinitionOIDs(e.catalog.Read(next), e.catalog.AllocateOIDLocked)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
-			catalogView := e.catalog.read(next)
+			catalogView := e.catalog.Read(next)
 			mappedParent := next.MustRelation(parent.Address())
 			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: mappedParent.Constraints.Unique[0].OID}
 			if provider == oldConstraint {

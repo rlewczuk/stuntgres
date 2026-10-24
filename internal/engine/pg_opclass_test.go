@@ -19,11 +19,11 @@ import (
 func pgOpclassUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2616}
-	d, ok := e.catalog.state.Relation(a)
+	d, ok := e.catalog.State.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_opclass")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
+	return d, e.catalog.Domain.Ref(e.catalog.State.Epoch(), a)
 }
 
 func pgOpclassUnitBag(t *testing.T, rows *exec.Source, d *catalog.Relation) map[uint32][]any {
@@ -89,12 +89,12 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if err := (relationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, d)
+	descriptors, names := maps.Collect(e.catalog.State.Descriptors()), maps.Collect(e.catalog.State.Names())
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
+	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.State.Names())) {
 		t.Fatal("capture changed catalog/ref")
 	}
 	bag := pgOpclassUnitBag(t, rows, d)
@@ -186,8 +186,8 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		}
 		parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, ObjectNamespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, ObjectName: "identity_parent", RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
 		idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, ObjectNamespace: parent.Namespace(), ObjectName: "identity_index", RelationKind: catalog.IndexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: tc.method, MethodOID: tc.method.OID(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
-		e.catalog.state.SetDescriptor(parent.Address(), parent)
-		e.catalog.state.SetDescriptor(idx.Address(), idx)
+		e.catalog.State.SetDescriptor(parent.Address(), parent)
+		e.catalog.State.SetDescriptor(idx.Address(), idx)
 		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {
 			t.Fatal(err)

@@ -21,7 +21,7 @@ import (
 func (e *Engine) Roles() authorization.Read {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
+	return e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published)
 }
 
 // ProtocolAuthorizationStatus reads the restored identity and its owner-private
@@ -263,11 +263,11 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 	if err := e.refreshOperationRolesLocked(op); err != nil {
 		return AuthorizationView{}, err
 	}
-	view := e.catalog.read(e.catalog.state)
+	view := e.catalog.Current()
 	if s.Transactions != nil {
 		view = e.privateCatalogLocked(s.Transactions.Catalog)
 	}
-	r := e.roles.read(e.catalog.owner(), view, e.operationRolesLocked(op))
+	r := e.roles.read(&e.catalog.Owner, view, e.operationRolesLocked(op))
 	bootstrap, err := r.Descriptor(a.State.Authenticated)
 	if err != nil {
 		return AuthorizationView{}, err
@@ -286,7 +286,7 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 		}
 		identity.CurrentUser = operationReplayOrZero(op).materializedOwner
 	}
-	authorization := e.operationAuthority(op, access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(e.catalog.owner().DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
+	authorization := e.operationAuthority(op, access.View{Owner: &e.catalog.Owner, PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.State.Get(e.catalog.Owner.DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
 	if operationReplayOrZero(op).tableDestination {
 		if !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore definition lookup authority")

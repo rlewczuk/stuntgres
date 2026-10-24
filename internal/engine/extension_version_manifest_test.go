@@ -26,7 +26,7 @@ func extensionVersionUnitInstalled(t *testing.T, version string) (*Engine, *sess
 	if err := extensionUnitExecute(t, e, op, extensionVersionUnitCreate(version)); err != nil {
 		t.Fatal(err)
 	}
-	ext := e.CatalogRead().MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
+	ext := e.CatalogRead().MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 	return e, op, ext
 }
 func extensionVersionUnitRevoke(t *testing.T, e *Engine, op *session.Operation) {
@@ -127,7 +127,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 		proc := *staged.MustProcedure(candidate.Members[0])
 		mutate(&proc)
 		state.SetDescriptor(proc.Address(), &proc)
-		if err := extension.StockFuzzystrmatch.ValidateExtension(e.catalog.read(state), candidate); err == nil {
+		if err := extension.StockFuzzystrmatch.ValidateExtension(e.catalog.Read(state), candidate); err == nil {
 			t.Fatal("foreign member manifest admitted")
 		}
 	}
@@ -158,7 +158,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 				state.BindName(catalog.DescriptorNameKey(d), destination)
 			}
 			remapped := state.MustExtension(mapping[ext.Address()])
-			view := source.catalog.read(state)
+			view := source.catalog.Read(state)
 			if remapped.Version != version || remapped.Owner != ext.Owner || remapped.TargetNamespace != ext.TargetNamespace || extension.StockFuzzystrmatch.ValidateExtension(view, remapped) != nil {
 				t.Fatal("version remap changed logical manifest")
 			}

@@ -57,7 +57,7 @@ func (s *StatementScope) acquireCatalogResource(resource lock.Resource, mode loc
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if resource.Domain() != e.catalog.Domain || resource.Epoch != s.txRef.Epoch() || resource.Epoch != e.catalog.state.Epoch() {
+	if resource.Domain() != e.catalog.Domain || resource.Epoch != s.txRef.Epoch() || resource.Epoch != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	return nil

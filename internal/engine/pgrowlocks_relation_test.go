@@ -37,7 +37,7 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 		reader, ticket := blockingUnitOwner(t, e)
 		scope := pgrowlocksUnitScope(t, e, reader)
 		scope.routineDependencies = []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}
-		resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())}
+		resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())}
 		for _, prior := range []bool{false, true} {
 			if prior {
 				request, err := e.locks.StartAcquire(context.Background(), ticket, resource, lock.AccessShare, lock.Policy{})
@@ -58,7 +58,7 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 		e, _, d := typedUnitCatalog(t, false)
 		_, holder := blockingUnitOwner(t, e)
 		_, waiter := blockingUnitOwner(t, e)
-		resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())}
+		resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())}
 		request, err := e.locks.StartAcquire(context.Background(), holder, resource, lock.AccessExclusive, lock.Policy{})
 		if err != nil || request != nil {
 			t.Fatal(request, err)
@@ -89,7 +89,7 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 		e, _, d := typedUnitCatalog(t, false)
 		reader, _ := blockingUnitOwner(t, e)
 		scope := pgrowlocksUnitScope(t, e, reader)
-		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 		name := parser.ObjectName{Parts: []parser.Identifier{{Text: "typed"}}}
 		stored := e.storage.Relations[d.Address()]
 		e.mu.Lock()

@@ -36,11 +36,11 @@ func (e *Engine) installBuiltinProcedures() {
 	for _, procedures := range [...][]catalog.Procedure{typedef.BuiltinConversionProcedures(owner), routine.BuiltinProcedures(owner), routine.NativeAccessMethodProcedures(owner)} {
 		for i := range procedures {
 			d := &procedures[i]
-			e.catalog.state.SetDescriptor(d.Address(), d)
-			e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+			e.catalog.State.SetDescriptor(d.Address(), d)
+			e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
 		}
 	}
-	catalog.InstallBuiltinAccessMethods(e.catalog.state)
+	catalog.InstallBuiltinAccessMethods(e.catalog.State)
 }
 
 // installBuiltinDomainChecks binds the builtin domain CHECK and DEFAULT seeds
@@ -53,13 +53,13 @@ func (e *Engine) installBuiltinDomainChecks() error {
 		return err
 	}
 	for _, seed := range checks {
-		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.ID})
+		d := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.ID})
 		if err := e.bindDomainConstraintDefinitions(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Constraints, sqltype.InputEnvironment{}); err != nil {
 			return err
 		}
 	}
 	for _, seed := range typedef.BuiltinDomainDefaultSeeds() {
-		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.ID})
+		d := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.ID})
 		if err := e.bindDomainDefault(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Expression, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
 			return err
 		}
@@ -70,22 +70,22 @@ func (e *Engine) installBuiltinDomainChecks() error {
 // bootstrapAuthorization is the published-catalog authority of user under
 // which builtin seeds are bound.
 func (e *Engine) bootstrapAuthorization(user authorization.PrincipalRef) AuthorizationView {
-	view := e.catalog.read(e.catalog.state)
+	view := e.catalog.Current()
 	return e.authorityView(access.View{
-		Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
-		Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: user},
+		Owner: &e.catalog.Owner, PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
+		Roles: e.roles.read(&e.catalog.Owner, view, e.roles.published), State: authorization.RoleState{CurrentUser: user},
 	})
 }
 
 // installBuiltinOperators installs the seeded operator descriptors and the
 // shared operator-name index.
 func (e *Engine) installBuiltinOperators() {
-	e.catalog.state.SetOperatorNames(routine.SeededOperatorNames())
+	e.catalog.State.SetOperatorNames(routine.SeededOperatorNames())
 	operators := routine.BuiltinOperatorDescriptors(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
 	for i := range operators {
 		d := &operators[i]
-		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+		e.catalog.State.SetDescriptor(d.Address(), d)
+		e.catalog.State.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 }
 
@@ -101,9 +101,9 @@ var builtinProcedureNames struct {
 // engine's seed when it is the first in the process.
 func (e *Engine) seedProcedureNames() {
 	builtinProcedureNames.once.Do(func() {
-		builtinProcedureNames.index = catalog.RebuildProcedureNames(e.catalog.state.Descriptors())
+		builtinProcedureNames.index = catalog.RebuildProcedureNames(e.catalog.State.Descriptors())
 	})
-	e.catalog.state.SetProcedureNames(builtinProcedureNames.index)
+	e.catalog.State.SetProcedureNames(builtinProcedureNames.index)
 }
 
 // seedNames holds the name bindings of the built-in seed other than the
@@ -121,8 +121,8 @@ var builtinSeedNames = &seedNames{}
 // plus this engine's database binding; an engine whose seed bound a different
 // number of names builds its own map instead.
 func (e *Engine) finishSeed() {
-	state := e.catalog.state
-	address := e.catalog.owner().DatabaseAddress()
+	state := e.catalog.State
+	address := e.catalog.Owner.DatabaseAddress()
 	database := catalog.DescriptorNameKey(state.Get(address))
 	shared := builtinSeedNames
 	shared.once.Do(func() {
@@ -153,13 +153,13 @@ var builtinCatalogValidation struct {
 // database descriptor, which depends on engine options, on every engine.
 func (e *Engine) validateSeed() error {
 	builtinCatalogValidation.once.Do(func() {
-		builtinCatalogValidation.err = e.validateCatalogDescriptors(e.catalog.state.Descriptors())
+		builtinCatalogValidation.err = e.validateCatalogDescriptors(e.catalog.State.Descriptors())
 	})
 	if builtinCatalogValidation.err != nil {
 		return builtinCatalogValidation.err
 	}
-	address := e.catalog.owner().DatabaseAddress()
-	database := e.catalog.state.Get(address)
+	address := e.catalog.Owner.DatabaseAddress()
+	database := e.catalog.State.Get(address)
 	return e.validateCatalogDescriptors(func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		yield(address, database)
 	})
@@ -168,7 +168,7 @@ func (e *Engine) validateSeed() error {
 // validateCatalogDescriptors checks each built-in descriptor with the
 // provider registered for its class.
 func (e *Engine) validateCatalogDescriptors(descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) error {
-	view := e.catalog.read(e.catalog.state)
+	view := e.catalog.Current()
 	for _, d := range descriptors {
 		p := e.catalog.Provider(d.Address().ClassID)
 		if p == nil {

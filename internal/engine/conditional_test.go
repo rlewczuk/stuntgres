@@ -590,7 +590,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					op.Session.RequestEnd(session.CleanClose)
 				case "descriptor", "shape":
 					address := scope.lockedRef.Address
-					original := e.catalog.state.Get(address)
+					original := e.catalog.State.Get(address)
 					replacement := *scope.lockedDescriptor.(*catalog.Relation)
 					replacement.ObjectRevision++
 					if mode == "shape" {
@@ -599,12 +599,12 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					} else {
 						replacement.Comment = "compatible metadata revision"
 					}
-					e.catalog.state.SetDescriptor(address, &replacement)
-					restore = func() { e.catalog.state.SetDescriptor(address, original) }
+					e.catalog.State.SetDescriptor(address, &replacement)
+					restore = func() { e.catalog.State.SetDescriptor(address, original) }
 				case "epoch":
-					original := e.catalog.state.Epoch()
-					e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
-					restore = func() { e.catalog.state.SetEpoch(original) }
+					original := e.catalog.State.Epoch()
+					e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
+					restore = func() { e.catalog.State.SetEpoch(original) }
 				}
 			}
 			result, executeErr := scope.Execute(statement(t, "INSERT INTO t VALUES(CASE WHEN TRUE THEN 1+2 ELSE CAST(CAST($1 AS TEXT) AS INTEGER) END)"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {

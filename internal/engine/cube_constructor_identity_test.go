@@ -50,8 +50,8 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 		t.Fatal(err)
 	}
 	after := target.CatalogRead()
-	importedExt := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
-	imported := target.catalog.state.MustType(importedExt.Members[0])
+	importedExt := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
+	imported := target.catalog.State.MustType(importedExt.Members[0])
 	if imported.SQLType == base.SQLType || imported.SQLType.ID() == base.SQLType.ID() {
 		t.Fatal("remint setup did not perturb cube identity")
 	}

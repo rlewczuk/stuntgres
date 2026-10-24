@@ -78,7 +78,7 @@ func TestViewCheckDeclaration(t *testing.T) {
 func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScope, op *session.Operation) analyze.Binding {
 	t.Helper()
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-	if err := view.BindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Update{}); err != nil {
+	if err := view.BindViewWrite(&f.e.catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	return view.PhysicalBinding(b)
@@ -106,9 +106,9 @@ func TestViewCheckStack(t *testing.T) {
 			expressions[i] = plan.ColumnExpr{Info: expr.Info{Usage: column.Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: i}
 		}
 		view.View = stored.NewView(stored.ViewParts{Syntax: syntax, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, Sources: []stored.ViewLeaf{{Ref: ref, Attributes: source.Attributes}}})
-		f.e.catalog.state.SetDescriptor(view.Address(), &view)
+		f.e.catalog.State.SetDescriptor(view.Address(), &view)
 		layers = append(layers, &view)
-		refs = append(refs, f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), view.Address()))
+		refs = append(refs, f.e.catalog.Domain.Ref(f.e.catalog.State.Epoch(), view.Address()))
 	}
 	scope, op := f.scope(t)
 	sets := [27]int{0, 1, 1, 2, 3, 3, 3, 3, 3, 4, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}
@@ -119,7 +119,7 @@ func TestViewCheckStack(t *testing.T) {
 					layers[i].View = stored.ViewOf(layers[i]).With(func(p *stored.ViewParts) { p.CheckOption = stored.CheckMode(mode) })
 				}
 				b := analyze.Binding{Relation: layers[2], Ref: refs[2]}
-				if err := view.BindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
+				if err := view.BindViewWrite(&f.e.catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
 					t.Fatal(err)
 				}
 				var want, got []string

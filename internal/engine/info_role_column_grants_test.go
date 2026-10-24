@@ -21,7 +21,7 @@ type roleColumnGrantsFixture struct {
 func newRoleColumnGrantsFixture(t *testing.T) roleColumnGrantsFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.State)
 	typ, _ := f.e.CatalogRead().LookupType(sqltype.Int4)
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20520}, ObjectNamespace: f.schema, ObjectName: "rcg_unit", ObjectRevision: 1, Owner: f.owner, RelationKind: catalog.TableRelation, Attributes: []int32{1, 3}, Columns: []catalog.Column{{Name: "a", Usage: typ.Usage()}, {Name: "b", Usage: typ.Usage()}}, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true}}}
 	state.SetDescriptor(relation.Address(), relation)
@@ -29,7 +29,7 @@ func newRoleColumnGrantsFixture(t *testing.T) roleColumnGrantsFixture {
 }
 func (f roleColumnGrantsFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.read(state)
+	view := f.f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoRoleColumnGrantsOID})

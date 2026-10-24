@@ -25,7 +25,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if mask == nil {
 				t.Fatal("admitted partial index did not retain a membership mask")
 			}
-			oldCatalog := f.e.catalog.state
+			oldCatalog := f.e.catalog.State
 			oldRoot := f.e.storage.IndexRoots[f.index.Address()]
 			oldRows := append([]storage.RowVersion(nil), f.store.Versions...)
 			oldPredicate := f.index.SQLIndex.Predicate
@@ -79,7 +79,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			// Only the partial predicate consumes the changed generation:
 			// the admitted index has a simple INTEGER key and no stored
 			// defaults, generated columns, CHECKs or view expressions.
-			if !stored.ExpressionDescriptorsChanged(f.e.catalog.read(next), &idx, typ) {
+			if !stored.ExpressionDescriptorsChanged(f.e.catalog.Read(next), &idx, typ) {
 				t.Error("predicate-only type generation was not detected")
 			}
 			stores := map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): f.store}
@@ -93,7 +93,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			// A nonempty relation mapping and newer epoch must not change
 			// references in the typesOnly pass.
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{f.parent.Address(): {ClassID: ids.RelationClassID, ObjectID: 30000}}
-			if err := stored.ReownExpressions(f.e.catalog.read(next), next, mapping, true, nil); err != nil {
+			if err := stored.ReownExpressions(f.e.catalog.Read(next), next, mapping, true, nil); err != nil {
 				t.Fatal(err)
 			}
 			reowned := next.MustRelation(idx.Address())
@@ -132,7 +132,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 			partialWantMembership(t, oldRoot, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
-			if f.e.catalog.state != oldCatalog || oldCatalog.Get(f.parent.Address()) != f.parent || oldCatalog.Get(f.index.Address()) != f.index || f.e.storage.IndexRoots[f.index.Address()] != oldRoot || f.index.SQLIndex.Predicate != oldPredicate || predicate.Definition != beforeDefinition || predicate.Execution != beforeExecution || !reflect.DeepEqual(predicate.Dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.Versions, oldRows) {
+			if f.e.catalog.State != oldCatalog || oldCatalog.Get(f.parent.Address()) != f.parent || oldCatalog.Get(f.index.Address()) != f.index || f.e.storage.IndexRoots[f.index.Address()] != oldRoot || f.index.SQLIndex.Predicate != oldPredicate || predicate.Definition != beforeDefinition || predicate.Execution != beforeExecution || !reflect.DeepEqual(predicate.Dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.Versions, oldRows) {
 				t.Fatal("type-only reownership mutated a retained catalog, predicate, row or root")
 			}
 			for i, row := range view.Load().Committed[f.parent.Address()] {
@@ -149,15 +149,15 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 
 func TestPartialIndexPredicateTypeGenerationUnchanged(t *testing.T) {
 	f := newPartialIndexFixture(t)
-	next := catalog.CloneState(f.e.catalog.state)
+	next := catalog.CloneState(f.e.catalog.State)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor { return old }
-	if stored.ExpressionDescriptorsChanged(f.e.catalog.read(next), f.index, typ) {
+	if stored.ExpressionDescriptorsChanged(f.e.catalog.Read(next), f.index, typ) {
 		t.Fatal("unchanged partial predicate reported a generation change")
 	}
-	if err := stored.ReownExpressions(f.e.catalog.read(next), next, nil, true, nil); err != nil {
+	if err := stored.ReownExpressions(f.e.catalog.Read(next), next, nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	for address, descriptor := range f.e.catalog.state.Descriptors() {
+	for address, descriptor := range f.e.catalog.State.Descriptors() {
 		if next.Get(address) != descriptor {
 			t.Fatal("unchanged descriptor was not reused", address)
 		}

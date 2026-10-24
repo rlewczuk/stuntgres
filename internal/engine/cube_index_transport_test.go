@@ -17,7 +17,7 @@ import (
 func cubeIndexTransportAuthority(t *testing.T) {
 	e, ext, base := cubeUnitInstalled(t)
 	ctx := context.Background()
-	state := catalog.CloneState(e.catalog.state)
+	state := catalog.CloneState(e.catalog.State)
 	view := e.CatalogRead().WithState(state)
 	class, ok := view.DefaultIndexClass(403, base.SQLType)
 	if !ok {
@@ -52,7 +52,7 @@ func cubeIndexTransportAuthority(t *testing.T) {
 	if got := roots[idx.Address()].Entries; len(got) != 2 || got[0].Keys[0] != one || got[1].Keys[0] != two {
 		t.Fatal("generation transport changed ordered keys", got)
 	}
-	roots, nextRow, nextVersion, err := index.RemintStorage(ctx, view, index.RemintBase{Catalog: e.catalog.state, Relations: map[ids.ObjectAddress]*storage.Relation{}, NextRow: 100, NextVersion: 200, Frontier: 10}, stores, snapshot)
+	roots, nextRow, nextVersion, err := index.RemintStorage(ctx, view, index.RemintBase{Catalog: e.catalog.State, Relations: map[ids.ObjectAddress]*storage.Relation{}, NextRow: 100, NextVersion: 200, Frontier: 10}, stores, snapshot)
 	if err != nil {
 		t.Fatal("owned import remint/unique validation", err)
 	}

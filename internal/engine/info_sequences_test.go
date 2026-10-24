@@ -24,7 +24,7 @@ type infoSequencesFixture struct {
 func newInfoSequencesFixture(t *testing.T) infoSequencesFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.State)
 	relation := sequence.NewRelation(sequence.RelationSpec{
 		Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20500}, Namespace: f.schema,
 		Name: "sequence_unit", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead()),
@@ -37,7 +37,7 @@ func newInfoSequencesFixture(t *testing.T) infoSequencesFixture {
 
 func (f infoSequencesFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.read(state)
+	view := f.f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSequencesOID})
@@ -148,7 +148,7 @@ func TestInfoSequencesDescriptor(t *testing.T) {
 	if rows := infoSequencesRows(t, reader); len(rows) != 0 {
 		t.Fatal("invented reader privilege", rows)
 	}
-	if rows := infoSequencesRows(t, f.input(t, f.f.e.catalog.state, f.f.owner)); len(rows) != 0 {
+	if rows := infoSequencesRows(t, f.input(t, f.f.e.catalog.State, f.f.owner)); len(rows) != 0 {
 		t.Fatal("invented sequence", rows)
 	}
 }
@@ -158,7 +158,7 @@ func TestInfoSequencesAuthority(t *testing.T) {
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoSequencesOID)
 	in := f.input(t, f.state, f.f.owner)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = New().catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
@@ -271,7 +271,7 @@ func TestInfoSequencesCancellation(t *testing.T) {
 
 func TestInfoSequencesCapture(t *testing.T) {
 	f := newInfoSequencesFixture(t)
-	f.f.e.catalog.state = f.state
+	f.f.e.catalog.PublishLocked(f.state)
 	f.f.op.Session.DatabaseName = "physical_capture_database"
 	f.f.actor(f.f.member)
 	scope, err := f.f.e.StartStatement(f.f.op)
@@ -308,7 +308,8 @@ func TestInfoSequencesCapture(t *testing.T) {
 		}
 	}
 	setFixtureEdges(roles, edges)
-	f.f.e.catalog.state, f.f.e.roles.published = next, roles
+	f.f.e.catalog.PublishLocked(next)
+	f.f.e.roles.published = roles
 	f.f.e.mu.Lock()
 	captured, err := f.f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {

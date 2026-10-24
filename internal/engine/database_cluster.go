@@ -38,11 +38,11 @@ type databaseCluster struct {
 func (e *Engine) databaseOIDLocked(target *Engine) (ids.OID, error) {
 	oid := e.cluster.nextOID
 	advance := func(runtime *Engine) bool {
-		if runtime.catalog.nextOID == 0 {
+		if runtime.catalog.NextOID() == 0 {
 			return false
 		}
-		if runtime.catalog.nextOID > oid {
-			oid = runtime.catalog.nextOID
+		if runtime.catalog.NextOID() > oid {
+			oid = runtime.catalog.NextOID()
 		}
 		return true
 	}
@@ -55,12 +55,12 @@ func (e *Engine) databaseOIDLocked(target *Engine) (ids.OID, error) {
 		}
 	}
 	used := func(runtime *Engine) bool {
-		for address, descriptor := range runtime.catalog.state.Descriptors() {
+		for address, descriptor := range runtime.catalog.State.Descriptors() {
 			if (address.ClassID != ids.LargeObjectClassID && address.ObjectID == oid) || catalog.DefinitionOIDUsed(descriptor, oid) {
 				return true
 			}
 		}
-		for _, record := range runtime.catalog.state.DefaultACLs() {
+		for _, record := range runtime.catalog.State.DefaultACLs() {
 			if record != nil && record.OID == oid {
 				return true
 			}
@@ -105,7 +105,7 @@ func (e *Engine) databaseProjectionLocked(next *catalog.State) map[*Engine]*cata
 	}
 	var changed []catalog.Descriptor
 	for address, descriptor := range next.Descriptors() {
-		if address.ClassID == ids.DatabaseClassID && e.catalog.state.Get(address) != descriptor {
+		if address.ClassID == ids.DatabaseClassID && e.catalog.State.Get(address) != descriptor {
 			changed = append(changed, descriptor)
 		}
 	}
@@ -116,7 +116,7 @@ func (e *Engine) databaseProjectionLocked(next *catalog.State) map[*Engine]*cata
 	for _, target := range e.cluster.targets {
 		root := next
 		if target != e {
-			root = catalog.CloneState(target.catalog.state)
+			root = catalog.CloneState(target.catalog.State)
 		}
 		for _, descriptor := range changed {
 			if old := root.Get(descriptor.Address()); old != nil {
@@ -132,20 +132,20 @@ func (e *Engine) databaseProjectionLocked(next *catalog.State) map[*Engine]*cata
 
 func installDatabaseProjectionLocked(roots map[*Engine]*catalog.State) {
 	for target, root := range roots {
-		target.catalog.state = root
+		target.catalog.PublishLocked(root)
 	}
 }
 
 func (e *Engine) publishDatabaseFrozenXIDLocked() {
-	old := e.catalog.state.MustDatabase(e.catalog.DatabaseAddress())
+	old := e.catalog.State.MustDatabase(e.catalog.DatabaseAddress())
 	if old.FrozenXID == e.databaseFrozenXID {
 		return
 	}
 	database := *old
 	database.FrozenXID = e.databaseFrozenXID
-	next := catalog.CloneState(e.catalog.state)
+	next := catalog.CloneState(e.catalog.State)
 	next.SetDescriptor(database.Address(), &database)
 	roots := e.databaseProjectionLocked(next)
-	e.catalog.state = next
+	e.catalog.PublishLocked(next)
 	installDatabaseProjectionLocked(roots)
 }

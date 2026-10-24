@@ -65,7 +65,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	rows := exec.NewFinalRows([]catalog.Column{{Name: "a", Usage: d.Usage()}, {Name: "aa", Usage: array.Usage()}}, 1)
 	rows.Values = []sqltype.Value{value, arrayValue}
 	defer rows.Close()
-	output := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: oldRoles}
+	output := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: oldRoles}
 	for _, v := range rows.Values {
 		if err := regobj.CaptureACLItemOutputValue(rows, output, v); err != nil {
 			t.Fatal(err)
@@ -78,7 +78,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	putFixtureRole(next, a)
 	e.roles.published = next
 	e.mu.Unlock()
-	fresh := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
+	fresh := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
 	text, err := d.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: fresh})
 	if err != nil || text != "acl_unit_renamed=rw*/acl_unit_b" {
 		t.Fatal("new spelling", text, err)
@@ -86,7 +86,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	if original, ok := oldRoles.Lookup("acl_unit_a"); !ok || original.Ref != a.Ref {
 		t.Fatal("rename mutated old role root")
 	}
-	expected := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
+	expected := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), catalogOwner: &e.catalog.Owner, catalogEpoch: e.CatalogRead().Epoch()}
 	reused := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	captured, err := reused.InputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(value, captured) {
@@ -134,7 +134,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		putFixtureRole(next, role)
 		bootstrapEngine.roles.published = next
 		bootstrapEngine.mu.Unlock()
-		output := regobj.ACLItemOutput{Owner: bootstrapEngine.catalog.owner(), Roles: bootstrapEngine.Roles()}
+		output := regobj.ACLItemOutput{Owner: &bootstrapEngine.catalog.Owner, Roles: bootstrapEngine.Roles()}
 		text, err := typeACL.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: output})
 		if err != nil || text != "=r/acl_unit_bootstrap" {
 			t.Fatal("default grantor followed a name rather than identity10", text, err)

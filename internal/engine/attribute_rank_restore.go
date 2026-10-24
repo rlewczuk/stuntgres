@@ -29,7 +29,7 @@ func (e *Engine) restoreAttributeRank(op *session.Operation, raw *parser.Update)
 		return sqlError("42501", "permission denied for table pg_attribute")
 	}
 	e.mu.Lock()
-	if e.importTargets == nil || auth.Owner != e.catalog.owner() || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+	if e.importTargets == nil || auth.Owner != &e.catalog.Owner || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.State || auth.Catalog.Epoch() != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore attribute rank authority")
 	}

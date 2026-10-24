@@ -34,9 +34,9 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			candidate := inheritanceUnitRelation(e, "routing_growth_candidate", 46202, "k")
 			candidate.RelationKind = catalog.TableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
-			parent = e.catalog.state.MustRelation(parent.Address())
-			old = e.catalog.state.MustRelation(old.Address())
-			candidate = e.catalog.state.MustRelation(candidate.Address())
+			parent = e.catalog.State.MustRelation(parent.Address())
+			old = e.catalog.State.MustRelation(old.Address())
+			candidate = e.catalog.State.MustRelation(candidate.Address())
 			value := func(n int64) sqltype.Value {
 				v, err := sqltype.Integer(parent.Columns[0].Usage.Type, n)
 				if err != nil {
@@ -57,7 +57,7 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 				t.Fatal(err)
 			}
 			reader.statement = syntax
-			oldRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), old.Address())
+			oldRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), old.Address())
 			parentRef := e.catalog.Domain.Ref(oldRef.Epoch, parent.Address())
 			candidateRef := e.catalog.Domain.Ref(oldRef.Epoch, candidate.Address())
 			partitionAttachUnitGrant(t, holder, oldRef, lock.AccessExclusive)
@@ -99,7 +99,7 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			current := e.catalog.state.MustRelation(parent.Address())
+			current := e.catalog.State.MustRelation(parent.Address())
 			if !partition.AppendCompatible(parent, current) || !slices.Equal(current.Partition.Children, []ids.ObjectAddress{old.Address(), candidate.Address()}) {
 				t.Fatal("fixture did not publish append-compatible topology growth")
 			}

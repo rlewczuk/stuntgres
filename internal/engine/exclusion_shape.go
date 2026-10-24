@@ -21,7 +21,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if view.Epoch() != e.catalog.state.Epoch() {
+	if view.Epoch() != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)

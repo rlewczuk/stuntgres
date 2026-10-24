@@ -31,7 +31,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
-	in := pgcatalog.Input{Context: scope.op.Context(), Owner: e.catalog.owner(), Ref: ref, Source: source}
+	in := pgcatalog.Input{Context: scope.op.Context(), Owner: &e.catalog.Owner, Ref: ref, Source: source}
 	runtime := engineCatalogRuntime{engine: e}
 	unlockBefore := false
 	switch oid {
@@ -80,7 +80,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case 2396:
 		in.Roles = scope.inquiry.commentRoles
 	case 2224:
-		runtime.sequenceBase = e.catalog.state
+		runtime.sequenceBase = e.catalog.State
 		if scope.owner.SequenceCatalog != nil {
 			runtime.sequenceBase = scope.owner.SequenceCatalog
 		}
@@ -102,7 +102,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		if oid == ids.ParameterClassID {
 			in.Roles = scope.inquiry.commentRoles
 		} else {
-			in.Roles = e.roles.read(e.catalog.owner(), in.Catalog, scope.inquiry.deparseAuth.RoleRecord)
+			in.Roles = e.roles.read(&e.catalog.Owner, in.Catalog, scope.inquiry.deparseAuth.RoleRecord)
 		}
 		if oid == 12002 {
 			auth, err := e.authorizationLocked(scope.op)

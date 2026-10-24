@@ -35,8 +35,8 @@ func pgcryptoUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"})
-	return e, e.catalog.state.MustExtension(address)
+	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"})
+	return e, e.catalog.State.MustExtension(address)
 }
 
 func TestPgcryptoProviderIdentity(t *testing.T) {

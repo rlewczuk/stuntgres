@@ -16,7 +16,7 @@ func TestDriverBatchDependencyCascadesProjectOwnRows(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
-			before, frontier := e.catalog.state, e.visibility.CommitSeq()
+			before, frontier := e.catalog.State, e.visibility.CommitSeq()
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			for _, q := range []string{"CREATE DOMAIN d AS INT", "CREATE TABLE t(v d,x INT)", "INSERT INTO t VALUES(1,4)"} {
@@ -53,7 +53,7 @@ func TestDriverBatchDependencyCascadesProjectOwnRows(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal(end)
 				}
-				if e.catalog.state != before || e.visibility.CommitSeq() != frontier {
+				if e.catalog.State != before || e.visibility.CommitSeq() != frontier {
 					t.Fatal("dependency utility prefix escaped rollback")
 				}
 			}
@@ -88,7 +88,7 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 			sessionSQL(t, s, "CREATE SEQUENCE s START 5 CACHE 1")
 			seq := catalogRef(t, e, e.CatalogRead(), "s")
 			generator := e.storage.Sequences[seq.Address]
-			before, frontier := e.catalog.state, e.visibility.CommitSeq()
+			before, frontier := e.catalog.State, e.visibility.CommitSeq()
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			for _, q := range []string{"CREATE TABLE t(v INT DEFAULT nextval('s'),x INT)", "INSERT INTO t(x) VALUES(1)", "DROP SEQUENCE s CASCADE", "INSERT INTO t(x) VALUES(2)"} {
@@ -104,7 +104,7 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 			if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(5), int64(1)}, {nil, int64(2)}}) {
 				t.Fatal("private dependent default consumer", got)
 			}
-			if generator.Last != 5 || e.storage.Sequences[seq.Address] != generator || e.catalog.state != before || e.visibility.CommitSeq() != frontier {
+			if generator.Last != 5 || e.storage.Sequences[seq.Address] != generator || e.catalog.State != before || e.visibility.CommitSeq() != frontier {
 				t.Fatal("draw or pending sequence disposition")
 			}
 			if commit {
@@ -122,7 +122,7 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal(end)
 				}
-				if e.catalog.state != before || e.visibility.CommitSeq() != frontier || e.storage.Sequences[seq.Address] != generator {
+				if e.catalog.State != before || e.visibility.CommitSeq() != frontier || e.storage.Sequences[seq.Address] != generator {
 					t.Fatal("sequence/default graph rollback")
 				}
 				transactionRows(t, s, "SELECT nextval('s')", 6)

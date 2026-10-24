@@ -87,7 +87,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		stage.sequenceState().ResetGenerators(len(s.truncateOrZero().Sequences))
 	}
 	for _, sequence := range s.truncateOrZero().Sequences {
-		rev, err := e.catalog.revisionLocked()
+		rev, err := e.catalog.RevisionLocked()
 		if err != nil {
 			return nil, err
 		}

@@ -38,16 +38,16 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
 	}
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	copyDescriptor := *old
 	copyDescriptor.Security.ColumnACL = map[int32]authorization.ACLValue{old.Attributes[0]: acl, old.Attributes[1]: {Explicit: true}}
 	copyDescriptor.Comment = "retained view"
 	copyDescriptor.ColumnMeta.Comments = map[int32]string{old.Attributes[0]: "retained column"}
 	copyDescriptor.ObjectRevision++
 	alterSchemaPublishDescriptor(t, e, &copyDescriptor)
-	old = e.catalog.state.MustRelation(ref.Address)
+	old = e.catalog.State.MustRelation(ref.Address)
 	roleExecute(t, e, op, "CREATE OR REPLACE VIEW v WITH(security_barrier=true,security_invoker=true) AS SELECT id+10 AS id,txt,TRUE AS extra FROM u")
-	next := e.catalog.state.MustRelation(ref.Address)
+	next := e.catalog.State.MustRelation(ref.Address)
 	if next == old || next.View == old.View || next.Address() != old.Address() || next.Owner != old.Owner || stored.ViewOf(next).RuleOID() != stored.ViewOf(old).RuleOID() || !reflect.DeepEqual(next.Attributes[:2], old.Attributes) || !reflect.DeepEqual(next.Security.ACL, old.Security.ACL) || !reflect.DeepEqual(next.Security.ColumnACL, old.Security.ColumnACL) || next.Comment != old.Comment || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) {
 		t.Fatal("replacement lost immutable identity/ACL/comment", old, next)
 	}
@@ -61,23 +61,23 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	_, err := testExecute(e, context.Background(), statement(t, "DROP TABLE u"), nil)
 	viewReplaceError(t, err, sqlstate.Error{Code: "2BP01", Message: "cannot drop table u because other objects depend on it", Detail: "view v depends on table u\nview w depends on view v", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
 	roleExecute(t, e, op, "ALTER VIEW v SET(security_invoker=false)")
-	flags := stored.ViewOf(e.catalog.state.MustRelation(ref.Address))
+	flags := stored.ViewOf(e.catalog.State.MustRelation(ref.Address))
 	if !flags.Barrier() || flags.Invoker() {
 		t.Fatal(flags)
 	}
 	roleExecute(t, e, op, "ALTER VIEW v RESET(security_barrier,unknown_option,unknown_option,check_option)")
-	flags = stored.ViewOf(e.catalog.state.MustRelation(ref.Address))
+	flags = stored.ViewOf(e.catalog.State.MustRelation(ref.Address))
 	if flags.Barrier() || flags.Invoker() {
 		t.Fatal(flags)
 	}
 	roleExecute(t, e, op, "ALTER VIEW v SET(security_barrier=true,security_invoker=true)")
 	roleExecute(t, e, op, "CREATE OR REPLACE VIEW v AS SELECT id+10 AS id,txt,TRUE AS extra FROM u")
-	flags = stored.ViewOf(e.catalog.state.MustRelation(ref.Address))
+	flags = stored.ViewOf(e.catalog.State.MustRelation(ref.Address))
 	if flags.Barrier() || flags.Invoker() {
 		t.Fatal("replace did not clear options", flags)
 	}
 	roleExecute(t, e, op, "ALTER VIEW v OWNER TO successor")
-	transferred := e.catalog.state.MustRelation(ref.Address)
+	transferred := e.catalog.State.MustRelation(ref.Address)
 	wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: successor.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	if transferred.Owner != successor.Ref || !reflect.DeepEqual(transferred.Security.ACL, wantACL) || !reflect.DeepEqual(transferred.Security.ColumnACL[old.Attributes[0]], wantACL) || !reflect.DeepEqual(transferred.Security.ColumnACL[old.Attributes[1]], authorization.ACLValue{Explicit: true}) {
 		t.Fatal("owner ACL rewrite", transferred)
@@ -112,13 +112,13 @@ func TestViewReplaceOwnerMembership(t *testing.T) {
 			}
 			// Namespace rights isolate view ownership, not inherited schema ACLs.
 			nsAddress := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"})[0]
-			ns := e.catalog.Domain.Ref(e.catalog.state.Epoch(), nsAddress)
+			ns := e.catalog.Domain.Ref(e.catalog.State.Epoch(), nsAddress)
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION member")
 			for _, q := range []string{"CREATE OR REPLACE VIEW s.v AS SELECT id FROM s.t", "ALTER VIEW s.v SET(security_barrier=true)", "DROP VIEW s.v"} {
-				before := e.catalog.state
+				before := e.catalog.State
 				result, err := e.Execute(op, statement(t, q), 0, nil)
 				if tc.allowed {
 					if err != nil || result.Count != 0 || result.Rows != nil {
@@ -126,7 +126,7 @@ func TestViewReplaceOwnerMembership(t *testing.T) {
 					}
 				} else {
 					viewReplaceError(t, err, sqlstate.Error{Code: "42501", Message: "must be owner of view v"})
-					if e.catalog.state != before {
+					if e.catalog.State != before {
 						t.Fatal("denied operation published")
 					}
 				}

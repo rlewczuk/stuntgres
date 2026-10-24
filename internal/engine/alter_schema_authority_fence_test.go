@@ -15,7 +15,7 @@ func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
 	sessionSQL(t, owner, "CREATE SEQUENCE protected.q OWNED BY protected.t.a")
 	ref := roleTableRef(t, e, "protected.t")
 	q := NameAddressForTempMove(t, e, ns.Address, "q")
-	old, sequence, storage := e.catalog.state.Get(ref.Address), e.catalog.state.Get(q), e.storage.Relations[ref.Address]
+	old, sequence, storage := e.catalog.State.Get(ref.Address), e.catalog.State.Get(q), e.storage.Relations[ref.Address]
 	stmt := statement(t, "ALTER TABLE protected.t SET SCHEMA s2")
 	acl.Entries[0].Privileges = authorization.CreatePrivilege
 	var once sync.Once
@@ -27,7 +27,7 @@ func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
 			if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 				t.Fatal(err)
 			}
-			frontier = e.catalog.nextRevision
+			frontier = e.catalog.NextRevision()
 		})
 	}}
 	op, err := owner.Acquire(context.Background())
@@ -41,7 +41,7 @@ func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
 	if err != (catalog.Conflict{}) {
 		t.Fatalf("source namespace authorization fence: %T %v", err, err)
 	}
-	if e.catalog.state.Get(ref.Address) != old || e.catalog.state.Get(q) != sequence || e.storage.Relations[ref.Address] != storage || e.catalog.nextRevision != frontier {
+	if e.catalog.State.Get(ref.Address) != old || e.catalog.State.Get(q) != sequence || e.storage.Relations[ref.Address] != storage || e.catalog.NextRevision() != frontier {
 		t.Fatal("source revocation allowed partial publication")
 	}
 	op, err = owner.Acquire(context.Background())
@@ -65,11 +65,11 @@ func TestAlterSchemaUnrelatedNamespacePublication(t *testing.T) {
 	}}
 	run(t, e, "ALTER TABLE s1.t SET SCHEMA s2")
 	e.catalog.Providers[ids.RelationClassID] = provider
-	destination := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
+	destination := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 	for _, name := range []string{"t", "q1", "q2"} {
 		NameAddressForTempMove(t, e, destination, name)
 	}
-	if _, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "unrelated"}); !ok {
+	if _, ok := e.catalog.State.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "unrelated"}); !ok {
 		t.Fatal("unrelated publication lost")
 	}
 	lockEmpty(t, e)
@@ -78,11 +78,11 @@ func TestAlterSchemaUnrelatedNamespacePublication(t *testing.T) {
 func TestAlterSchemaSourceRenamePublicationFence(t *testing.T) {
 	e := New()
 	alterSchemaEngineFixture(t, e)
-	source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+	source := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
 	original := make(map[ids.ObjectAddress]catalog.Descriptor)
 	for _, name := range []string{"t", "q1", "q2"} {
 		a := NameAddressForTempMove(t, e, source, name)
-		original[a] = e.catalog.state.Get(a)
+		original[a] = e.catalog.State.Get(a)
 	}
 	provider := e.catalog.Providers[ids.RelationClassID]
 	var once sync.Once
@@ -90,7 +90,7 @@ func TestAlterSchemaSourceRenamePublicationFence(t *testing.T) {
 	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() {
 		once.Do(func() {
 			run(t, e, "ALTER SCHEMA s1 RENAME TO renamed_source")
-			frontier = e.catalog.nextRevision
+			frontier = e.catalog.NextRevision()
 		})
 	}}
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE s1.t SET SCHEMA s2"), nil)
@@ -99,11 +99,11 @@ func TestAlterSchemaSourceRenamePublicationFence(t *testing.T) {
 		t.Fatal("source rename fence", err)
 	}
 	for a, d := range original {
-		if e.catalog.state.Get(a) != d {
+		if e.catalog.State.Get(a) != d {
 			t.Fatal("source rename allowed partial move", a)
 		}
 	}
-	if e.catalog.nextRevision != frontier || e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "renamed_source"}) != source {
+	if e.catalog.NextRevision() != frontier || e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "renamed_source"}) != source {
 		t.Fatal("source callback mutation lost")
 	}
 	run(t, e, "ALTER TABLE renamed_source.t SET SCHEMA s2")

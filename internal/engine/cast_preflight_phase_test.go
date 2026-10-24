@@ -98,18 +98,18 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 				case "descriptor":
 					leaf := scope.querySources[0]
 					address := leaf.Ref.Address
-					original := e.catalog.state.Get(address)
+					original := e.catalog.State.Get(address)
 					replacement := *leaf.Relation
 					// Compatible descriptor copies are admissible; invalidate the
 					// captured physical attribute identity instead.
 					replacement.Attributes = append([]int32(nil), replacement.Attributes...)
 					replacement.Attributes[0]++
-					e.catalog.state.SetDescriptor(address, &replacement)
-					restore = func() { e.catalog.state.SetDescriptor(address, original) }
+					e.catalog.State.SetDescriptor(address, &replacement)
+					restore = func() { e.catalog.State.SetDescriptor(address, original) }
 				case "epoch":
-					original := e.catalog.state.Epoch()
-					e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
-					restore = func() { e.catalog.state.SetEpoch(original) }
+					original := e.catalog.State.Epoch()
+					e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
+					restore = func() { e.catalog.State.SetEpoch(original) }
 				}
 			}
 			result, executeErr := scope.Execute(statement(t, "SELECT int4($1::text) FROM t"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {

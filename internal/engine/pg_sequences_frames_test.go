@@ -20,7 +20,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 			}
 			t.Run(boundary+"/"+invalid, func(t *testing.T) {
 				e := New()
-				d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
+				d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 				provider := &exec.PGSequencesSource{}
 				leaf := &exec.Source{PGSequences: provider}
 				child := &plan.SourceNode{QuerySchema: d.Columns, Occurrence: 0}
@@ -75,7 +75,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 // offsets; a frame guard must not become a blanket pushdown prohibition.
 func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 	e := New()
-	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
+	d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	for _, boundary := range []string{"derived", "stored_project", "stored_input"} {
 		t.Run(boundary, func(t *testing.T) {
 			provider := &exec.PGSequencesSource{}

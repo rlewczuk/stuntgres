@@ -128,7 +128,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		e.mu.Lock()
 		current := e.stageCatalogBaseLocked(stage)
 		if current.Epoch() == ref.Epoch {
-			if collision := table.SetSchemaConflict(e.catalog.read(current), group, destination.Address, s.Schema.Text); collision != nil {
+			if collision := table.SetSchemaConflict(e.catalog.Read(current), group, destination.Address, s.Schema.Text); collision != nil {
 				err = collision
 			}
 		}

@@ -33,7 +33,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				sessionSQL(t, owner, q)
 			}
 			var provider, survivor, idx *catalog.Relation
-			for _, descriptor := range e.catalog.state.Descriptors() {
+			for _, descriptor := range e.catalog.State.Descriptors() {
 				if d, ok := descriptor.(*catalog.Relation); ok {
 					switch d.Name() {
 					case "composition_owner":
@@ -48,7 +48,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if provider == nil || survivor == nil || idx == nil {
 				t.Fatal("missing genuine composition fixture")
 			}
-			originalCatalog := e.catalog.state
+			originalCatalog := e.catalog.State
 			originalIndex := idx
 			if mode != "Ordinary" {
 				maximum := *idx
@@ -57,9 +57,9 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 					maximum.ObjectRevision--
 				}
 				idx = &maximum
-				e.catalog.state = catalog.CloneState(e.catalog.state)
-				e.catalog.state.SetDescriptor(idx.Address(), idx)
-				t.Cleanup(func() { e.catalog.state = originalCatalog })
+				e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+				e.catalog.State.SetDescriptor(idx.Address(), idx)
+				t.Cleanup(func() { e.catalog.PublishLocked(originalCatalog) })
 			}
 			before := e.storage.Relations[survivor.Address()]
 			oldRows := before.Versions

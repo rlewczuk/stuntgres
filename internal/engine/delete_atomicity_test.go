@@ -314,8 +314,8 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 				frontier = e.visibility.CommitSeq()
 			case "stale_epoch":
-				e.catalog.state = catalog.CloneState(e.catalog.state)
-				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
+				e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+				e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
 			}
 			op := transactionOperation(t, a)
 			_, err := e.Commit(op, ref)

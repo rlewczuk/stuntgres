@@ -19,7 +19,7 @@ func (e *Engine) preparedPublicationPreflightLocked(op *session.Operation, p *se
 
 // Engine.mu and the finishing Session.mu are held at final installation.
 func (e *Engine) preparedActorLocked(op *session.Operation, entry *session.PreparedTransaction) error {
-	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
+	roles := e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published)
 	return entry.CheckActor(roles, op.Session.Authorization.State.CurrentUser)
 }
 

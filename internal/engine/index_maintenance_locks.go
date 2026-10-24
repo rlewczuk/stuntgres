@@ -19,7 +19,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	g := &index.MaintenanceGrant{Descriptors: make(map[ids.ObjectAddress]*catalog.Relation)}
 	e.mu.Lock()
 	fail := func(err error) error { e.mu.Unlock(); return err }
-	if s.txRef.Epoch() != e.catalog.state.Epoch() {
+	if s.txRef.Epoch() != e.catalog.State.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
@@ -69,7 +69,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		if err != nil {
 			return err
 		}
-		if s.txRef.Epoch() != e.catalog.state.Epoch() {
+		if s.txRef.Epoch() != e.catalog.State.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		if err := g.Check(auth.View, auth, stmt, false); err != nil {

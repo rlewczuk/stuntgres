@@ -120,7 +120,7 @@ func TestRangePartitionPublicationResetDuringBoundDemand(t *testing.T) {
 	}
 	e.mu.Lock()
 	storage := len(e.storage.Relations)
-	for _, descriptor := range e.catalog.state.Descriptors() {
+	for _, descriptor := range e.catalog.State.Descriptors() {
 		if relation, ok := descriptor.(*catalog.Relation); ok && (relation.Name() == "root" || relation.Name() == "leaf") {
 			t.Error("stale hierarchy definition published after reset")
 		}

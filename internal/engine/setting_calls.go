@@ -55,8 +55,8 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
 	e.mu.Lock()
 	binding, err := e.describeSettingCall(op.Ctx, s, &input, op)
-	typ, typeOK := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
-	read := e.catalog.read(e.catalog.state)
+	typ, typeOK := e.catalog.Current().LookupType(sqltype.Text)
+	read := e.catalog.Current()
 	auth, authErr := e.authorizationLocked(op)
 	e.mu.Unlock()
 	if err != nil {

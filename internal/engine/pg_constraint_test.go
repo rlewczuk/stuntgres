@@ -18,11 +18,11 @@ import (
 func pgConstraintUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
-	source, ok := e.catalog.state.Relation(address)
+	source, ok := e.catalog.State.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_constraint")
 	}
-	return source, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
+	return source, e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
 }
 func pgConstraintUnitCapture(t *testing.T, e *Engine, view catalog.Read) map[string][]sqltype.Value {
 	t.Helper()

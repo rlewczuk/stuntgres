@@ -141,10 +141,10 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}
-	if err := stored.ReownExpressions(source.catalog.read(next), next, nil, true, nil); err != nil {
+	if err := stored.ReownExpressions(source.catalog.Read(next), next, nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	view := source.catalog.read(next)
+	view := source.catalog.Read(next)
 	mapped := infoYesOrNoUnitCatalog(t, source, view)
 	if mapped == original || mapped.SQLType == original.SQLType || mapped.SQLType.DomainBase().Type != base.SQLType || mapped.SQLType.DomainBase().Type == original.SQLType.DomainBase().Type {
 		t.Fatal("changed base did not rebuild logical domain authority")

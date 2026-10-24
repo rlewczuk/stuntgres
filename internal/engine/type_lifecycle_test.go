@@ -140,7 +140,7 @@ func TestTypeLifecycleGenerationClosure(t *testing.T) {
 			}
 			invalid := catalog.CloneState(current.State())
 			invalid.SetDescriptor(forged.Address(), &forged)
-			if err := e.catalog.owner().Provider(ids.TypeClassID).Validate(e.catalog.read(invalid), &forged); err == nil {
+			if err := e.catalog.Owner.Provider(ids.TypeClassID).Validate(e.catalog.Read(invalid), &forged); err == nil {
 				t.Fatal("stale same-OID element generation passed provider validation")
 			}
 			newChild := current.MustType(child.Address())

@@ -379,8 +379,8 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			spare := roots[0][len(roots[0]):cap(roots[0])]
 			suffix := append([]storage.RowVersion(nil), spare...)
 			frontier := e.visibility.CommitSeq()
-			retainedFrontier, retainedEpoch := frontier, e.catalog.state.Epoch()
-			retainedCatalog := e.catalog.state
+			retainedFrontier, retainedEpoch := frontier, e.catalog.State.Epoch()
+			retainedCatalog := e.catalog.State
 			ref := transactionBegin(t, a)
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
@@ -450,9 +450,9 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				// Isolate epoch rejection from replacement's own storage/frontier
 				// effects; the mixed roots remain installed as the no-write witness.
 				e.mu.Lock()
-				next := *e.catalog.state
+				next := *e.catalog.State
 				next.SetEpoch(next.Epoch() + 1)
-				e.catalog.state = &next
+				e.catalog.PublishLocked(&next)
 				e.mu.Unlock()
 				outcome, err = e.Commit(op, ref)
 			case "counter_before":

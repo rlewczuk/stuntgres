@@ -39,7 +39,7 @@ func (h *statementHost) ReadmitRevalidation(prior, current *index.UniqueWriteBin
 		auth = s.routineAuth // Rule relation ownership is not routine authority.
 	}
 	if captureErr == nil {
-		auth.Recapture(e.catalog.read(current.Catalog))
+		auth.Recapture(e.catalog.Read(current.Catalog))
 	}
 	e.mu.Unlock()
 	if captureErr != nil {
@@ -118,7 +118,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 	if ref.Domain() != e.catalog.Domain {
 		return false, errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	if ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return false, ids.ErrCatalogReplaced
 	}
 	if err := s.validateLockedRelation(e); err != nil {
@@ -237,7 +237,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	if ref.Domain() != e.catalog.Domain {
 		return false, errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.Ref.Epoch() {
+	if ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.owner.Ref.Epoch() {
 		return false, ids.ErrCatalogReplaced
 	}
 	if _, update := s.statement.(*parser.Update); update && s.PartitionInsert != nil {
@@ -336,7 +336,7 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	if ref.Domain() != e.catalog.Domain {
 		return false, false, errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.Ref.Epoch() {
+	if ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.owner.Ref.Epoch() {
 		return false, false, ids.ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.Catalog)

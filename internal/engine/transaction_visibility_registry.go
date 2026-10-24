@@ -24,7 +24,7 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*lock.Ticket, error) {
 		return nil, err
 	}
 	e.mu.Lock()
-	if ref.Epoch() != e.catalog.state.Epoch() {
+	if ref.Epoch() != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		e.endLockOwner(ticket)
 		return nil, ids.ErrCatalogReplaced
@@ -37,7 +37,7 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*lock.Ticket, error) {
 // visibilityWriteLocked fences ref against this engine's current catalog
 // epoch before the registry orders it as a writer.
 func (e *Engine) visibilityWriteLocked(ref ids.TxRef) error {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.Epoch() {
+	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	return e.visibility.WriteLocked(ref)
@@ -46,7 +46,7 @@ func (e *Engine) visibilityWriteLocked(ref ids.TxRef) error {
 // visibilitySnapshotLocked fences ref against this engine's current catalog
 // epoch before the registry advertises its snapshot.
 func (e *Engine) visibilitySnapshotLocked(ref ids.TxRef, safeBuilder bool) (uint64, error) {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.Epoch() {
+	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.State.Epoch() {
 		return 0, ids.ErrCatalogReplaced
 	}
 	return e.visibility.SnapshotLocked(ref, safeBuilder)
@@ -64,7 +64,7 @@ func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
 func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, idx ids.ObjectAddress) error {
 	e := s.engine()
 	e.mu.Lock()
-	if s.txRef.Epoch() != e.catalog.state.Epoch() {
+	if s.txRef.Epoch() != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
@@ -97,7 +97,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, idx ids.ObjectAddr
 
 // assignTransactionXIDLocked fences ref against the current catalog epoch.
 func (e *Engine) assignTransactionXIDLocked(ref ids.TxRef) error {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.Epoch() {
+	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	return e.visibility.AssignTransactionXIDLocked(ref)
@@ -105,7 +105,7 @@ func (e *Engine) assignTransactionXIDLocked(ref ids.TxRef) error {
 
 // transactionAgeLocked fences ref against the current catalog epoch.
 func (e *Engine) transactionAgeLocked(ref ids.TxRef, xid uint32) (int32, error) {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.Epoch() {
+	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.State.Epoch() {
 		return 0, ids.ErrCatalogReplaced
 	}
 	return e.visibility.TransactionAgeLocked(ref, xid)

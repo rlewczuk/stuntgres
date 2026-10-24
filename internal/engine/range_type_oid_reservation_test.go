@@ -23,7 +23,7 @@ func TestRangeTypeReplacementOIDFailureRecovery(t *testing.T) {
 	next.SetDescriptor(ordinary.Address(), ordinary)
 	target := New()
 	target.mu.Lock()
-	_, err := target.catalog.allocateOIDAtLeastLocked(29999)
+	_, err := target.catalog.AllocateOIDAtLeastLocked(29999)
 	target.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -36,9 +36,9 @@ func TestRangeTypeReplacementOIDFailureRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := target.catalog.state
+	before := target.catalog.State
 	target.mu.Lock()
-	base := target.catalog.nextOID
+	base := target.catalog.NextOID()
 	target.mu.Unlock()
 	for _, input := range []string{"[30000,30002]", "[30000,4294967295]"} {
 		value := rangeTypeUnitInput(t, r, input)
@@ -47,21 +47,21 @@ func TestRangeTypeReplacementOIDFailureRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 		target.mu.Lock()
-		reservation := target.catalog.oidReservationLocked()
+		reservation := target.catalog.OIDReservationLocked()
 		mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, func(floor ids.OID) (ids.OID, error) {
-			return target.catalog.allocateOIDFromLocked(&reservation.next, floor)
+			return target.catalog.AllocateOIDFromLocked(&reservation.Next, floor)
 		})
-		live := target.catalog.nextOID
+		live := target.catalog.NextOID()
 		target.mu.Unlock()
-		if live != base || target.catalog.state != before {
+		if live != base || target.catalog.State != before {
 			t.Fatal("unpublished planning issued identities or changed target", live, base)
 		}
 		if input == "[30000,30002]" {
 			var diagnostic interface{ SQLState() string }
-			if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22000" || mapping != nil || reservation.next != 0 {
+			if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22000" || mapping != nil || reservation.Next != 0 {
 				t.Fatal("negative proof did not exercise private exhaustion", mapping, reservation, err)
 			}
-		} else if err != nil || mapping[lower.Address()].ObjectID != base || mapping[ordinary.Address()].ObjectID != base+1 || reservation.next != base+2 {
+		} else if err != nil || mapping[lower.Address()].ObjectID != base || mapping[ordinary.Address()].ObjectID != base+1 || reservation.Next != base+2 {
 			t.Fatal("same target could not plan a corrected replacement after failure", mapping, reservation, err)
 		}
 	}
@@ -69,7 +69,7 @@ func TestRangeTypeReplacementOIDFailureRecovery(t *testing.T) {
 		t.Fatal("failed reservation changed retained data", data)
 	}
 	target.mu.Lock()
-	fresh, err := target.catalog.allocateOIDLocked()
+	fresh, err := target.catalog.AllocateOIDLocked()
 	target.mu.Unlock()
 	if err != nil || fresh != base {
 		t.Fatal("discarded private reservation poisoned ordinary DDL capacity", fresh, base, err)
@@ -84,12 +84,12 @@ func TestRangeTypeReplacementOIDPublicationFence(t *testing.T) {
 			defer target.replacementMu.Unlock()
 			target.mu.Lock()
 			defer target.mu.Unlock()
-			before := target.catalog.state
-			reservation := target.catalog.oidReservationLocked()
-			if _, err := target.catalog.allocateOIDFromLocked(&reservation.next, 0); err != nil {
+			before := target.catalog.State
+			reservation := target.catalog.OIDReservationLocked()
+			if _, err := target.catalog.AllocateOIDFromLocked(&reservation.Next, 0); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.nextOID != reservation.base {
+			if target.catalog.NextOID() != reservation.Base {
 				t.Fatal("private reservation became live before installation")
 			}
 			candidate := catalog.CloneState(before)
@@ -101,19 +101,19 @@ func TestRangeTypeReplacementOIDPublicationFence(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			expected := reservation.base
+			expected := reservation.Base
 			switch mode {
 			case "cancel":
 				cancel()
 			case "ordinary_allocation":
-				if _, err := target.catalog.allocateOIDLocked(); err != nil {
+				if _, err := target.catalog.AllocateOIDLocked(); err != nil {
 					t.Fatal(err)
 				}
-				expected = target.catalog.nextOID
+				expected = target.catalog.NextOID()
 			}
-			err = target.installForeignCatalogLocked(ctx, candidate, relations, sequences, target.catalog.nextRevision, prepared, reservation)
+			err = target.installForeignCatalogLocked(ctx, candidate, relations, sequences, target.catalog.NextRevision(), prepared, reservation)
 			if mode == "commit" {
-				if err != nil || target.catalog.state == before || target.catalog.state.Epoch() != before.Epoch()+1 || target.catalog.nextOID != reservation.next {
+				if err != nil || target.catalog.State == before || target.catalog.State.Epoch() != before.Epoch()+1 || target.catalog.NextOID() != reservation.Next {
 					t.Fatal("catalog and reserved frontier did not publish together", err)
 				}
 			} else {
@@ -121,8 +121,8 @@ func TestRangeTypeReplacementOIDPublicationFence(t *testing.T) {
 				if mode == "ordinary_allocation" {
 					want = ids.ErrCatalogReplaced
 				}
-				if !errors.Is(err, want) || target.catalog.state != before || target.catalog.nextOID != expected {
-					t.Fatal("failed candidate published or erased concurrent ordinary issuance", mode, err, target.catalog.nextOID, expected)
+				if !errors.Is(err, want) || target.catalog.State != before || target.catalog.NextOID() != expected {
+					t.Fatal("failed candidate published or erased concurrent ordinary issuance", mode, err, target.catalog.NextOID(), expected)
 				}
 			}
 		})

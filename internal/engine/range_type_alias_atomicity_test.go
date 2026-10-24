@@ -19,10 +19,10 @@ func TestRangeTypeAliasNumericAnchorAtomicity(t *testing.T) {
 	view, r, _ := rangeTypeUnitFamily(t, sqltype.Regclass, false)
 	next := catalog.CloneState(view.State())
 	target := New()
-	original := target.catalog.state
+	original := target.catalog.State
 	target.mu.Lock()
 	allocate := func() ids.OID {
-		id, err := target.catalog.allocateOIDLocked()
+		id, err := target.catalog.AllocateOIDLocked()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -57,7 +57,7 @@ func TestRangeTypeAliasNumericAnchorAtomicity(t *testing.T) {
 			t.Fatal(err)
 		}
 		target.mu.Lock()
-		mapping, err := control.TemporaryCollisionMapping(context.Background(), next, retained, constraints, target.catalog.allocateOIDAtLeastLocked)
+		mapping, err := control.TemporaryCollisionMapping(context.Background(), next, retained, constraints, target.catalog.AllocateOIDAtLeastLocked)
 		target.mu.Unlock()
 		if upper == numeric {
 			var diagnostic interface{ SQLState() string }
@@ -95,7 +95,7 @@ func TestRangeTypeAliasNumericAnchorAtomicity(t *testing.T) {
 			t.Fatal("comparison repair lost cancellation", err)
 		}
 	}
-	if target.catalog.state != original {
+	if target.catalog.State != original {
 		t.Fatal("failed detached mapping/validation published a catalog root")
 	}
 	if next.Get(relation.Address()) != relation || retained[temp.Address()] != &temp {

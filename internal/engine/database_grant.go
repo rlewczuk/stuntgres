@@ -27,7 +27,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	for i := range s.Relations {
 		statement := *s
 		statement.Relations = s.Relations[i : i+1]
-		next, warnings, err := role.PlanDatabaseGrant(op.Context(), v.View, &statement, e.catalog.revisionLocked)
+		next, warnings, err := role.PlanDatabaseGrant(op.Context(), v.View, &statement, e.catalog.RevisionLocked)
 		for _, warning := range warnings {
 			op.EmitNotice(session.LevelWarning, warning)
 		}
@@ -46,6 +46,6 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		return Result{}, nil
 	}
 	scope.catalog = changes
-	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: v.Owner.DatabaseAddress()}, e.catalog.state.Get(v.Owner.DatabaseAddress()))
+	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: v.Owner.DatabaseAddress()}, e.catalog.State.Get(v.Owner.DatabaseAddress()))
 	return Result{}, nil
 }

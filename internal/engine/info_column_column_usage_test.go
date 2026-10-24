@@ -25,8 +25,8 @@ type colcuUnitFixture struct {
 func newColcuUnitFixture(t *testing.T) colcuUnitFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
-	view := f.e.catalog.read(state)
+	state := catalog.CloneState(f.e.catalog.State)
+	view := f.e.catalog.Read(state)
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	oid, _ := view.LookupType(sqltype.Oid)
@@ -72,7 +72,7 @@ func newColcuUnitFixture(t *testing.T) colcuUnitFixture {
 }
 func (f colcuUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.read(state)
+	view := f.f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnColumnUsageOID})
@@ -186,7 +186,7 @@ func TestInfoColumnColumnUsageProducer(t *testing.T) {
 	if rows := colcuUnitRows(t, f.input(t, state, f.f.owner)); len(rows) != 0 {
 		t.Fatal("self/foreign references", rows)
 	}
-	empty := f.input(t, catalog.CloneState(f.f.e.catalog.state), f.f.owner)
+	empty := f.input(t, catalog.CloneState(f.f.e.catalog.State), f.f.owner)
 	if rows := colcuUnitRows(t, empty); rows == nil || len(rows) != 0 {
 		t.Fatal("empty capture", rows)
 	}
@@ -241,7 +241,7 @@ func TestInfoColumnColumnUsageCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoColumnColumnUsageOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = New().catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Address.ObjectID++ },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },

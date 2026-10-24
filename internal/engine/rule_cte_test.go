@@ -53,7 +53,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		defer func() { src.Rules = nil }()
 		parent := analyze.Binding{CTEs: []*plan.CTEDefinition{definition}}
 		e.mu.Lock()
-		err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), auth, &parser.Select{}, &parent)
+		err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, &parser.Select{}, &parent)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -242,7 +242,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.mu.Lock()
-		err = view.NormalizeRuleCTEsLocked(e.catalog.owner(), auth, action.Syntax(), &result)
+		err = view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, action.Syntax(), &result)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

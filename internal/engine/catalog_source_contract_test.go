@@ -190,8 +190,8 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		unknown.ObjectAddress.ObjectID = 299999
 		unknown.VirtualView = virtual
 		e.mu.Lock()
-		e.catalog.state.SetDescriptor(unknown.Address(), &unknown)
-		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), unknown.Address())
+		e.catalog.State.SetDescriptor(unknown.Address(), &unknown)
+		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), unknown.Address())
 		source, err := e.openRelationSourceLocked(scope, ref, unknown.Owner, plan.RowMark{}, nil, nil)
 		want := "stuntgres: unknown catalog source"
 		if virtual {
@@ -211,7 +211,7 @@ func TestCatalogSourceEmptyMaterializedRows(t *testing.T) {
 	if !ok {
 		t.Fatal("missing materialized catalog producer")
 	}
-	in := pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: e.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(read.Epoch(), d.Address()), Source: d, Runtime: engineCatalogRuntime{engine: e}}
+	in := pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: e.Roles(), Owner: &e.catalog.Owner, Ref: e.catalog.Domain.Ref(read.Epoch(), d.Address()), Source: d, Runtime: engineCatalogRuntime{engine: e}}
 	source, err := captureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
@@ -226,13 +226,13 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 	e, foreign := New(), New()
 	view := e.CatalogRead()
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TypeOID})
-	in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{}}
+	in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: &e.catalog.Owner, Ref: e.catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{}}
 	rows, err := capturePGType(in)
 	if err != nil || len(rows) == 0 {
 		t.Fatal(err)
 	}
 	bad := in
-	bad.Owner = foreign.catalog.owner()
+	bad.Owner = &foreign.catalog.Owner
 	if got, err := capturePGType(bad); got != nil || err == nil || err.Error() != "stuntgres: foreign type source authority" {
 		t.Fatal("numeric identities substituted for owner", err)
 	}
@@ -250,7 +250,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.DataTypePrivilegesOID})
-	mixed := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: foreign.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), d.Address()), Source: d, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	mixed := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: foreign.Roles(), Owner: &e.catalog.Owner, Ref: e.catalog.Domain.Ref(view.Epoch(), d.Address()), Source: d, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
 	if got, err := captureDataTypePrivileges(mixed); got != nil || err == nil {
 		done()
 		t.Fatal("mixed input/runtime roles admitted", err)
@@ -291,12 +291,12 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 	t.Run("view_table_usage_database_frontier", infoViewTableUsageCapture)
 	t.Run("user_mappings_database_frontier", func(t *testing.T) {
 		f := newDefaultUnitFixture(t)
-		state := catalog.CloneState(f.e.catalog.state)
+		state := catalog.CloneState(f.e.catalog.State)
 		server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 20300}, ObjectName: "capture_server", ObjectRevision: 1, Owner: f.owner}
 		mapping := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 20301}, ObjectName: catalog.ForeignMappingName(server.Address(), f.reader), ObjectRevision: 1, Server: server.Address(), MappedRole: f.reader}
 		state.SetDescriptor(server.Address(), server)
 		state.SetDescriptor(mapping.Address(), mapping)
-		f.e.catalog.state = state
+		f.e.catalog.PublishLocked(state)
 		f.op.Session.DatabaseName = "physical_capture_database"
 		scope, err := f.e.StartStatement(f.op)
 		if err != nil {
@@ -351,7 +351,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		for _, oid := range []ids.OID{pgcatalog.CursorsOID, pgcatalog.SettingsOID} {
 			d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 			e.mu.Lock()
-			source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address()), d.Owner, plan.RowMark{}, nil, nil)
+			source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address()), d.Owner, plan.RowMark{}, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -427,7 +427,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		}
 		view := e.CatalogRead()
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12001})
-		in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: retained, Owner: e.catalog.owner(), Source: d, Runtime: engineCatalogRuntime{engine: e}}
+		in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: retained, Owner: &e.catalog.Owner, Source: d, Runtime: engineCatalogRuntime{engine: e}}
 		e.mu.Lock()
 		expectedXID := e.visibility.AssignedXIDLocked(e.prepared.Lookup("producer_runtime_gid").Ref)
 		rows, err := capturePreparedSource(in)
@@ -543,7 +543,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Re
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
-	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: e.catalog.owner(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
+	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: &e.catalog.Owner, Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
 	return captureCatalogSourceRows(in, produce)
 }
 

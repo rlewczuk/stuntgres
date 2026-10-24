@@ -53,15 +53,15 @@ func primaryKeyUnitFixture(t *testing.T) (*Engine, *session.Operation, *catalog.
 		}
 	}
 	parent := primaryKeyUnitRelation(t, e, "t")
-	index := e.catalog.state.MustRelation(parent.Constraints.Unique[0].Index)
+	index := e.catalog.State.MustRelation(parent.Constraints.Unique[0].Index)
 	return e, owner, parent, index
 }
 
 func primaryKeyUnitRelation(t *testing.T, e *Engine, name string) *catalog.Relation {
 	t.Helper()
-	address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
+	address, ok := e.catalog.State.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
 	if !ok {
 		t.Fatal("missing relation", name)
 	}
-	return e.catalog.state.MustRelation(address)
+	return e.catalog.State.MustRelation(address)
 }

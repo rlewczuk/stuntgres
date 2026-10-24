@@ -21,20 +21,20 @@ func rangeTypeUnitRemappedConstructor(t *testing.T) (*Engine,*catalog.Procedure,
  target:=New()
  roles:=authorization.Seed(source.Owner().Principals)
  sourceRoles:=roles.Read(source.Owner().Principals.Principal(authorization.BootstrapPrincipalID))
- targetRoles:=target.roles.read(target.catalog.owner(),target.CatalogRead(),target.roles.published)
+ targetRoles:=target.roles.read(&target.catalog.Owner,target.CatalogRead(),target.roles.published)
  next,principal,err:=func()(*catalog.State,catalog.ProcedureRemapper,error){target.mu.Lock();defer target.mu.Unlock();return target.remapPreparedCatalog(next,sourceRoles,targetRoles,nil)}()
  if err!=nil {t.Fatal(err)}
  if _,err:=typedef.ReownDomainTypes(next,nil,true,routine.RangeTypeRebinder(next,nil));err!=nil {t.Fatal(err)}
- view:=target.catalog.read(next)
+ view:=target.catalog.Read(next)
  remap:=stored.NewRoutineRemap(view,nil,nil,principal,false)
  if err:=routine.RebindSQLDefinitions(next,remap);err!=nil {t.Fatal("constructor declaration stabilization reapplied source principal policy",err)}
  current:=next.MustProcedure(original.Address())
  again,err:=remap.Procedure(original)
  if err!=nil||again!=current {t.Fatal("original and catalog consumers lost the operation memo",err)}
- if current.Owner!=target.catalog.owner().Principals.Principal(authorization.BootstrapPrincipalID)||original.Owner==current.Owner {t.Fatal("constructor owner was not reprovenanced exactly once")}
+ if current.Owner!=target.catalog.Owner.Principals.Principal(authorization.BootstrapPrincipalID)||original.Owner==current.Owner {t.Fatal("constructor owner was not reprovenanced exactly once")}
  if current.RangeConstructor.Type==originalType||original.RangeConstructor.Type!=originalType {t.Fatal("constructor type generation was transplanted or source mutated")}
  if err:=catalog.ValidateRangeConstructor(view,current);err!=nil {t.Fatal(err)}
- target.catalog.state=next
+ target.catalog.PublishLocked(next)
  return target,original,current
 }
 

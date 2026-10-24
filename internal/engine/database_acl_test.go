@@ -41,7 +41,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		next := *db
 		next.ACL = tc.acl
 		candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
-		catalog := e.catalog.read(candidate)
+		catalog := e.catalog.Read(candidate)
 		roles := cloneRoleFixture(e.roles.published)
 		bootstrap := fixtureRole(roles, owner)
 		bootstrap.Superuser = false
@@ -50,7 +50,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 			ref  authorization.PrincipalRef
 			want authorization.Privileges
 		}{{owner, tc.ownerRights}, {reader, tc.readerRights}} {
-			rights, err := access.DatabaseRights(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, roles), item.ref)
+			rights, err := access.DatabaseRights(context.Background(), catalog, e.roles.read(&e.catalog.Owner, catalog, roles), item.ref)
 			if err != nil || rights != item.want {
 				t.Fatal("NULL/empty/legacy policy", item.ref, rights, item.want, err)
 			}
@@ -65,16 +65,16 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rights, err := access.DatabaseRights(ctx, base, e.roles.read(e.catalog.owner(), base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
+	if rights, err := access.DatabaseRights(ctx, base, e.roles.read(&e.catalog.Owner, base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatal("superuser must not bypass cancellation", rights, err)
 	}
 }
 
 func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
-	db := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
+	db := e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
-	roles := e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published)
+	roles := e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published)
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	next := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
 	next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
-	fresh := catalogAuthorization(e, e.catalog.read(candidate))
+	fresh := catalogAuthorization(e, e.catalog.Read(candidate))
 	fresh.State.CurrentUser = reader
 	if rights, err := fresh.View.OwnTemporaryPrivileges(fresh); err != nil || rights != authorization.UsagePrivilege {
 		t.Fatal("revoked own namespace keeps USAGE only", rights, err)
@@ -154,14 +154,14 @@ func TestDatabaseTemporaryDeniedAllocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.State.CurrentUser = reader
-	base, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
+	base, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
 	changes := s.Transactions.Catalog.Clone()
 	ref, err := e.relationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "database_denied"}}}, "temporary", changes)
 	e.mu.Unlock()
 	if err == nil || ref != (ids.ObjectRef{}) {
 		t.Fatal("lazy TEMP denial allocated namespace", ref, err)
 	}
-	if e.catalog.state != base || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || len(changes.Descriptors) != 0 || len(changes.Names) != 0 || s.TemporaryNamespace != (ids.ObjectAddress{}) {
+	if e.catalog.State != base || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || len(changes.Descriptors) != 0 || len(changes.Names) != 0 || s.TemporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("TEMP denial consumed catalog identity or staged objects")
 	}
 }

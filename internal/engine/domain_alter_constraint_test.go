@@ -176,7 +176,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), true)
 	}
 	if err == nil {
-		next.ObjectRevision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.RevisionLocked()
 	}
 	if err == nil {
 		err = stage.Replace(&next)

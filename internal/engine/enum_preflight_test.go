@@ -16,7 +16,7 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('old')"))
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.state.Epoch(), mood.Address())}
+	resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.State.Epoch(), mood.Address())}
 	holder := sessionStart(t, e, nil)
 	ref := transactionBegin(t, holder)
 	defer transactionEnd(t, holder, ref, false)
@@ -31,7 +31,7 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		catalog, member := e.catalog.state, e.catalog.nextEnumMember
+		catalog, member := e.catalog.State, e.catalog.nextEnumMember
 		ast := &parser.AlterEnum{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "mood"}}}, Label: parser.EnumLabel{Text: strings.Repeat("x", 64)}, Old: parser.EnumLabel{Text: "old"}, Rename: rename}
 		_, failure := e.executeEnumDDL(scope, ast, 0)
 		d, ok := failure.(*sqlstate.Error)
@@ -39,7 +39,7 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 		entry := lockState.Resources[resource]
 		_, owned := entry.Holders[scope.owner.Ticket]
 		queued := len(entry.Pending)
-		unchanged := e.catalog.state == catalog && e.catalog.nextEnumMember == member && scope.catalog == nil && scope.owner.Catalog == nil
+		unchanged := e.catalog.State == catalog && e.catalog.nextEnumMember == member && scope.catalog == nil && scope.owner.Catalog == nil
 		finish := scope.Finish(failure)
 		if !ok || d.Code != "42602" || d.Detail != "Labels must be 63 bytes or less." || owned || queued != 0 || !unchanged || finish != failure {
 			t.Fatal("invalid immutable label entered queue/reserved member/staged catalog", failure, owned, queued, unchanged, finish)

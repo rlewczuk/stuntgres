@@ -55,7 +55,7 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 }
 
 func (e *Engine) stageObjectGrantLocked(scope *StatementScope, auth AuthorizationView, statement *parser.ObjectGrant, request role.GrantRequest, publishedRoles *access.RoleRecord) (Result, error) {
-	plan, warnings, err := role.ObjectGrantPlan(scope.op.Context(), auth.View, statement, request, e.catalog.revisionLocked)
+	plan, warnings, err := role.ObjectGrantPlan(scope.op.Context(), auth.View, statement, request, e.catalog.RevisionLocked)
 	for _, warning := range warnings {
 		scope.op.EmitNotice(session.LevelWarning, warning)
 	}

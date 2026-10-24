@@ -101,7 +101,7 @@ func (e *Engine) beginLocked(op *session.Operation, t *session.TransactionOwner,
 		return err
 	}
 	t.Next++
-	t.Ref = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.state.Epoch(), t, diagnostic)
+	t.Ref = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.State.Epoch(), t, diagnostic)
 	payloadOf(sess).notifications.Busy = true
 	t.BeginLocked(settings, state, start)
 	e.enrollSerializableLocked(t.Ref, t.Isolation)
@@ -359,7 +359,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return err
 	}
 	e.mu.Lock()
-	stale := t.Ref.Epoch() != e.catalog.state.Epoch()
+	stale := t.Ref.Epoch() != e.catalog.State.Epoch()
 	e.mu.Unlock()
 	if stale {
 		return ids.ErrCatalogReplaced

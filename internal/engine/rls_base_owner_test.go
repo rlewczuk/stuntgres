@@ -40,7 +40,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 		t.Helper()
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
-		current := e.catalog.state.MustRelation(d.Address())
+		current := e.catalog.State.MustRelation(d.Address())
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

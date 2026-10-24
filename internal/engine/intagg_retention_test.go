@@ -31,15 +31,15 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, nam
 		if err != nil {
 			return nil, nil, err
 		}
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := e.catalog.AllocateOIDLocked()
 		if err != nil {
 			return nil, nil, err
 		}
-		rule, err := e.catalog.allocateOIDLocked()
+		rule, err := e.catalog.AllocateOIDLocked()
 		if err != nil {
 			return nil, nil, err
 		}
-		revision, err := e.catalog.revisionLocked()
+		revision, err := e.catalog.RevisionLocked()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -130,10 +130,10 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			impostor := *proc
 			state := catalog.CloneState(view.State())
 			state.SetDescriptor(ref.Address, &impostor)
-			if stored.ViewReferenceValid(e.catalog.read(state), consumer, ref) {
+			if stored.ViewReferenceValid(e.catalog.Read(state), consumer, ref) {
 				t.Fatal("same-address procedure clone gained captured authority")
 			}
-			if _, err := stored.ViewOf(consumer).IntaggRecipeProcedure(e.catalog.read(state), path, proc.Name()); err == nil {
+			if _, err := stored.ViewOf(consumer).IntaggRecipeProcedure(e.catalog.Read(state), path, proc.Name()); err == nil {
 				t.Fatal("recipe accepted substituted procedure descriptor")
 			}
 			unretained := *consumer

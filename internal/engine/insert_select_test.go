@@ -139,7 +139,7 @@ func insertSelectEvaluationFixture(t *testing.T, sql string) (analyze.Binding, *
 	e, q, source := queryCoreFixture(t, sql)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	e.mu.Lock()
-	relation := e.catalog.state.MustRelation(ref.Address)
+	relation := e.catalog.State.MustRelation(ref.Address)
 	e.mu.Unlock()
 	return analyze.Binding{Query: q, Relation: relation, Ref: ref, Targets: []int{0}}, source
 }

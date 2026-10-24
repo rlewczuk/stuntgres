@@ -31,14 +31,14 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.state.MustRelation(d.Address())
+			d = e.catalog.State.MustRelation(d.Address())
 			stage, source := queryCreateStage(t, e, "concurrent_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), source.Address())
+			sourceRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), source.Address())
 			d.View = stored.ViewOf(d).With(func(p *stored.ViewParts) {
 				p.Sources = []stored.ViewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
 			})
-			targetRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+			targetRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			heldRef := sourceRef
@@ -134,7 +134,7 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.Address())
+	d = e.catalog.State.MustRelation(d.Address())
 	old := e.storage.Relations[d.Address()]
 	frontier := e.visibility.CommitSeq()
 	stage := e.BeginCatalogStage(e.CatalogRead())

@@ -347,7 +347,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		state.BindName(catalog.DescriptorNameKey(d), dest)
 	}
 	state.SetEpoch(state.Epoch() + 1)
-	view := e.catalog.read(state)
+	view := e.catalog.Read(state)
 	remap := func(ref ids.ObjectRef) ids.ObjectRef {
 		ref.Epoch = state.Epoch()
 		if dest, ok := mapping[ref.Address]; ok {

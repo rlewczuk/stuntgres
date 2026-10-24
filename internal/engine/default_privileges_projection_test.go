@@ -51,7 +51,7 @@ func defaultUnitSortRows(rows [][]string) {
 
 func TestDefaultPrivilegesProjection(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.State)
 	ownerSelect := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.SelectPrivilege}
 	publicInsert := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.InsertPrivilege}
 	memberUpdate := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.member}, Privileges: authorization.UpdatePrivilege}
@@ -80,7 +80,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		}
 		state.SetDescriptor(d.Address(), d)
 	}
-	view := f.e.catalog.read(state)
+	view := f.e.catalog.Read(state)
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
 	f.e.mu.Unlock()
@@ -160,7 +160,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	putFixtureRole(actor, renamed)
 
 	auth.RoleRecord = actor
-	auth.Recapture(f.e.catalog.read(changed))
+	auth.Recapture(f.e.catalog.Read(changed))
 	auth.State.CurrentUser = f.reader
 	_, fresh := defaultUnitProjection(t, auth.Catalog, auth)
 	freshWant := [][]string{{"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"}, {"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"}}

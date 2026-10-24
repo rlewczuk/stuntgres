@@ -137,7 +137,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		if err := publicationOperationLocked(e, s.op); err != nil {
 			return err
 		}
-		if t.Ref != s.txRef || t.Ref.Epoch() != e.catalog.state.Epoch() {
+		if t.Ref != s.txRef || t.Ref.Epoch() != e.catalog.State.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		return nil
@@ -230,7 +230,7 @@ func (e *Engine) retainTransactionSnapshotLocked(t *session.TransactionOwner) er
 		return err
 	}
 	t.CurrentSnapshot, t.Frontier = snapshot, e.visibility.CommitSeq()
-	t.Roots, t.SequenceCatalog = session.CommittedRoots(e.catalog.state, &e.storage), e.catalog.state
+	t.Roots, t.SequenceCatalog = session.CommittedRoots(e.catalog.State, &e.storage), e.catalog.State
 	return nil
 }
 

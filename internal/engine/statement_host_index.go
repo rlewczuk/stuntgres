@@ -28,7 +28,7 @@ func (h *statementHost) UniqueParent(ref ids.ObjectRef) (*catalog.Relation, cata
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return nil, catalog.Read{}, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
@@ -115,7 +115,7 @@ func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWri
 	e := s.engine()
 	parent := b.Parent
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.Epoch() {
+	if ref.Epoch != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return index.UniqueProbe{}, ids.ErrCatalogReplaced
 	}
@@ -173,7 +173,7 @@ func (h *statementHost) CaptureExclusionScan(ref ids.ObjectRef, b *index.UniqueW
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(s.owner.Catalog)
-	if ref.Epoch != e.catalog.state.Epoch() || view.State() != b.Catalog {
+	if ref.Epoch != e.catalog.State.Epoch() || view.State() != b.Catalog {
 		return index.ExclusionScan{}, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
@@ -213,7 +213,7 @@ func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.state.Epoch() || e.privateCatalogLocked(s.owner.Catalog).State() != state {
+	if ref.Epoch != e.catalog.State.Epoch() || e.privateCatalogLocked(s.owner.Catalog).State() != state {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)

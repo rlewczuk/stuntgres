@@ -20,7 +20,7 @@ func (e *Engine) updateDatabaseMaintenanceLocked() {
 	if err != nil {
 		return
 	}
-	next, ok := table.DatabaseFrozenXIDLocked(e.catalog.state, e.storage.Relations, cutoff)
+	next, ok := table.DatabaseFrozenXIDLocked(e.catalog.State, e.storage.Relations, cutoff)
 	if !ok {
 		return
 	}
@@ -33,7 +33,7 @@ func (e *Engine) vacuumDatabasePreflightLocked(s *StatementScope) error {
 	if err := publicationOperationLocked(e, s.op); err != nil {
 		return err
 	}
-	if s.txRef.Epoch() != e.catalog.state.Epoch() || s.ticket == nil || s.ticket.OwnershipEnded() {
+	if s.txRef.Epoch() != e.catalog.State.Epoch() || s.ticket == nil || s.ticket.OwnershipEnded() {
 		return ids.ErrCatalogReplaced
 	}
 	return s.op.Context().Err()

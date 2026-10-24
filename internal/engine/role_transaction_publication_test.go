@@ -99,8 +99,8 @@ func TestRoleTransactionalPublication(t *testing.T) {
 					e.mu.Lock()
 					defer e.mu.Unlock()
 					published, exists := e.roles.published.Root.Read(authorization.PrincipalRef{}).Find(d.Ref)
-					ns, present := e.catalog.read(e.catalog.state).LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "unit_private_schema"})
-					if !exists || !published.Login || !present || e.catalog.state.Get(ns).(*catalog.Namespace).Owner != d.Ref {
+					ns, present := e.catalog.Current().LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "unit_private_schema"})
+					if !exists || !published.Login || !present || e.catalog.State.Get(ns).(*catalog.Namespace).Owner != d.Ref {
 						t.Fatal("roles and catalog did not publish together")
 					}
 				}()
@@ -142,7 +142,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 					// by TestDriverBatchProducerRoleAuthorityLifetime/Savepoint.
 					authorityOnly.AddFence(catalogRoleReadFence{roles: base})
 				}
-				if err := e.captureCatalogStageLocked(stage, authorityOnly, e.catalog.state, auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)); err != nil {
+				if err := e.captureCatalogStageLocked(stage, authorityOnly, e.catalog.State, auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)); err != nil {
 					t.Fatal(err)
 				}
 				if authorityOnly.RolesBase != nil || authorityOnly.Roles != nil {
@@ -169,7 +169,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 					t.Fatal("subsequent delta replaced the first actual base or changed its saved root")
 				}
 				peerSecond = put(peerOp, e.roles.published, "base_peer_second")
-				peerRoot, catalogRoot, frontier = e.roles.published, e.catalog.state, e.visibility.CommitSeq()
+				peerRoot, catalogRoot, frontier = e.roles.published, e.catalog.State, e.visibility.CommitSeq()
 			}()
 			op.Done()
 			peerOp.Done()
@@ -178,7 +178,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 			commit.Done()
 			if producerRead {
 				var conflict catalog.Conflict
-				if !errors.As(err, &conflict) || outcome.Committed || e.roles.published != peerRoot || e.catalog.state != catalogRoot || e.visibility.CommitSeq() != frontier {
+				if !errors.As(err, &conflict) || outcome.Committed || e.roles.published != peerRoot || e.catalog.State != catalogRoot || e.visibility.CommitSeq() != frontier {
 					t.Fatal("pending producer authority did not veto publication atomically", outcome, err)
 				}
 			} else if err != nil || !outcome.Committed {
@@ -203,7 +203,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 		ref := transactionBegin(t, s)
 		op := transactionOperation(t, s)
 		e.mu.Lock()
-		base, catalogBase, frontier := e.roles.published, e.catalog.state, e.visibility.CommitSeq()
+		base, catalogBase, frontier := e.roles.published, e.catalog.State, e.visibility.CommitSeq()
 		var allocator uint64
 		func() {
 			defer e.mu.Unlock()
@@ -222,7 +222,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.mu.Lock()
-		unchanged := e.roles.published == base && e.catalog.state == catalogBase && e.visibility.CommitSeq() == frontier && e.roles.nextPrincipal == allocator
+		unchanged := e.roles.published == base && e.catalog.State == catalogBase && e.visibility.CommitSeq() == frontier && e.roles.nextPrincipal == allocator
 		e.mu.Unlock()
 		if !unchanged {
 			t.Fatal("canceled publication changed roots/frontier/allocation")
@@ -295,13 +295,13 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 	}
 	e.mu.Lock()
 	dependency := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 44000}, ObjectRevision: 2, ObjectName: "late_role_dependency", Owner: a.Ref}
-	peerRoot := catalog.CloneState(target.catalog.state)
+	peerRoot := catalog.CloneState(target.catalog.State)
 	peerRoot.SetDescriptor(dependency.Address(), dependency)
 	peerRoot.BindName(catalog.DescriptorNameKey(dependency), dependency.Address())
-	target.catalog.state = peerRoot
-	localRoot, frontier := e.catalog.state, e.visibility.CommitSeq()
+	target.catalog.PublishLocked(peerRoot)
+	localRoot, frontier := e.catalog.State, e.visibility.CommitSeq()
 	err := e.roleRetirementPreflightLocked(mark.Catalog, e.privateCatalogLocked(mark.Catalog).State())
-	unchanged := e.catalog.state == localRoot && target.catalog.state == peerRoot && e.roles.published == published && e.visibility.CommitSeq() == frontier
+	unchanged := e.catalog.State == localRoot && target.catalog.State == peerRoot && e.roles.published == published && e.visibility.CommitSeq() == frontier
 	e.mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) || !unchanged {
 		t.Fatal("late other-database retirement preflight changed a committed root", err)

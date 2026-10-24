@@ -17,8 +17,8 @@ import (
 func TestPGCursorsSource(t *testing.T) {
 	s := cursorUnitSetup(t)
 	e := engineOf(s)
-	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+	d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 	empty, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: payloadOf(s).cursors}}, capturePGCursors)
 	if err != nil || len(empty.Anonymous) != 0 || empty.Ref != ref {
 		t.Fatal(empty, err)
@@ -53,8 +53,8 @@ func TestPGCursorsSource(t *testing.T) {
 	// A new catalog's consumer must receive its own timestamp descriptor,
 	// while the registry and earlier detached facts retain their original one.
 	current := New()
-	currentDescriptor := current.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
-	currentRef := current.catalog.Domain.Ref(current.catalog.state.Epoch(), currentDescriptor.Address())
+	currentDescriptor := current.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
+	currentRef := current.catalog.Domain.Ref(current.catalog.State.Epoch(), currentDescriptor.Address())
 	stored, epoch := cursor.created, cursor.epoch
 	reowned, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: currentRef, Source: currentDescriptor, Runtime: engineCatalogRuntime{cursors: payloadOf(s).cursors}}, capturePGCursors)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestPGCursorsSource(t *testing.T) {
 func TestPGCursorsCatalog(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
+	d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
 	if err := (relationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}

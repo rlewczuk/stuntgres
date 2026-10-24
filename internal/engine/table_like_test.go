@@ -120,7 +120,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if e.catalog.state != before.State() || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.ColumnMeta.Defaults[3].OID == source.ColumnMeta.Defaults[2].OID || destination.ColumnMeta.Generations[5].OID == source.ColumnMeta.Generations[4].OID || destination.Constraints.Check[0].OID == source.Constraints.Check[0].OID {
+	if e.catalog.State != before.State() || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.ColumnMeta.Defaults[3].OID == source.ColumnMeta.Defaults[2].OID || destination.ColumnMeta.Generations[5].OID == source.ColumnMeta.Generations[4].OID || destination.Constraints.Check[0].OID == source.Constraints.Check[0].OID {
 		t.Fatal("copied provider identities or published early")
 	}
 	if !destination.Constraints.Check[0].NoInherit || destination.Constraints.Check[0].Name != "positive" || destination.ColumnMeta.Comments[3] != "exact" || len(source.Columns) != 3 || len(destination.Columns) != 5 {
@@ -169,7 +169,7 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 			t.Fatal("invalid candidate accepted")
 		}
 		e.DiscardCatalogStage(stage)
-		if e.catalog.state != before.State() || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators {
+		if e.catalog.State != before.State() || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators {
 			t.Fatal("failed candidate leaked publication")
 		}
 	}
@@ -184,7 +184,7 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.DiscardCatalogStage(stage)
-	if e.catalog.state != before.State() || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators {
+	if e.catalog.State != before.State() || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators {
 		t.Fatal("canceled candidate leaked publication")
 	}
 }
@@ -206,7 +206,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	source := e.CatalogRead().MustRelation(roleTableRef(t, e, "src").Address)
 	next := *source
 	e.mu.Lock()
-	next.ObjectRevision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.RevisionLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -221,7 +221,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("stale source silently retargeted", err)
 	}
-	if e.catalog.state != incumbent.State() {
+	if e.catalog.State != incumbent.State() {
 		t.Fatal("stale candidate partially published")
 	}
 }

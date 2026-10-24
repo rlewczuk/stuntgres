@@ -22,7 +22,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	var resources [2]lock.Resource
 	for i, name := range []string{"cycle_left", "cycle_right"} {
 		d := domainUnitType(t, e.CatalogRead(), name)
-		resources[i] = lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())}
+		resources[i] = lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())}
 	}
 	sessions := [2]*session.Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
 	var refs [2]ids.TxRef

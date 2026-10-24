@@ -20,17 +20,17 @@ func earthOwnerCodecUnits(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := e.catalog.AllocateOIDLocked()
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	arrayOID, err := e.catalog.allocateOIDLocked()
+	arrayOID, err := e.catalog.AllocateOIDLocked()
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	revision, err := e.catalog.revisionLocked()
+	revision, err := e.catalog.RevisionLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +62,7 @@ func earthOwnerCodecUnits(t *testing.T) {
 	if array.Name() == "_earth" || ids.OID(domain.Array) != array.Address().ObjectID {
 		t.Fatal("missing actual companion collision")
 	}
-	roles := e.roles.read(e.catalog.owner(), view, e.roles.published)
+	roles := e.roles.read(&e.catalog.Owner, view, e.roles.published)
 	metadata, err := extension.OwnerMetadata(view, roles, ext)
 	if err != nil {
 		t.Fatal(err)

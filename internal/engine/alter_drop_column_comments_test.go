@@ -18,9 +18,9 @@ func TestAlterDropColumnCommentsStableAttributes(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(1,'one',9),(2,'two',20)")
 	ref := roleTableRef(t, e, "t")
 	oldView := e.CatalogRead()
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	run(t, e, "ALTER TABLE t DROP b")
-	next := e.catalog.state.MustRelation(ref.Address)
+	next := e.catalog.State.MustRelation(ref.Address)
 	if next.Comment != "table keep" || !reflect.DeepEqual(next.Attributes, []int32{1, 3}) || !reflect.DeepEqual(next.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) || !reflect.DeepEqual(old.ColumnMeta.Comments, map[int32]string{2: "removed comment", 3: "survivor comment"}) {
 		t.Fatal(old, next)
 	}
@@ -54,21 +54,21 @@ func TestAlterDropColumnCommentsStableAttributes(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil || err.Error() != "stuntgres: invalid relation column comment" {
 		t.Fatal(err)
 	}
-	if e.catalog.state.Get(ref.Address) != next {
+	if e.catalog.State.Get(ref.Address) != next {
 		t.Fatal("invalid stage changed metadata")
 	}
 	root := e.storage.Relations[ref.Address]
 	run(t, e, "ALTER TABLE t DROP IF EXISTS missing")
-	if e.catalog.state.Get(ref.Address) != next || e.storage.Relations[ref.Address] != root || !reflect.DeepEqual(next.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) {
+	if e.catalog.State.Get(ref.Address) != next || e.storage.Relations[ref.Address] != root || !reflect.DeepEqual(next.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) {
 		t.Fatal("missing skip changed comments, descriptor or rows")
 	}
 	run(t, e, "ALTER TABLE t DROP a")
-	last := e.catalog.state.MustRelation(ref.Address)
+	last := e.catalog.State.MustRelation(ref.Address)
 	if last.Comment != "table keep" || !reflect.DeepEqual(last.Attributes, []int32{3}) || !reflect.DeepEqual(last.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) {
 		t.Fatal("last survivor comment lost", last)
 	}
 	run(t, e, "ALTER TABLE t DROP c")
-	empty := e.catalog.state.MustRelation(ref.Address)
+	empty := e.catalog.State.MustRelation(ref.Address)
 	if empty.Comment != "table keep" || len(empty.ColumnMeta.Comments) != 0 || len(empty.Columns) != 0 || len(empty.Attributes) != 0 {
 		t.Fatal("final column comment retained or table comment lost", empty)
 	}
@@ -80,7 +80,7 @@ func TestAlterDropColumnCommentsStableAttributes(t *testing.T) {
 	}
 	run(t, e, "DROP TABLE t")
 	run(t, e, "CREATE TABLE t(a INT,b TEXT,c BIGINT)")
-	replacement := e.catalog.state.MustRelation(roleTableRef(t, e, "t").Address)
+	replacement := e.catalog.State.MustRelation(roleTableRef(t, e, "t").Address)
 	if replacement.Comment != "" || len(replacement.ColumnMeta.Comments) != 0 {
 		t.Fatal("name recreation inherited comments", replacement)
 	}
@@ -102,11 +102,11 @@ func TestAlterDropColumnRevisionFrontier(t *testing.T) {
 				}
 				transition := func(q string) {
 					t.Helper()
-					old := e.catalog.state.MustRelation(ref.Address)
+					old := e.catalog.State.MustRelation(ref.Address)
 					revision, columns, table, column := old.Revision(), len(old.Columns), old.Comment, old.ColumnMeta.Comments[3]
-					frontier := e.catalog.nextRevision
+					frontier := e.catalog.NextRevision()
 					run(t, e, q)
-					next := e.catalog.state.MustRelation(ref.Address)
+					next := e.catalog.State.MustRelation(ref.Address)
 					if roleTableRef(t, e, "t") != ref || next == old || next.Revision() <= revision {
 						t.Errorf("%s did not publish a fresh same-identity revision: old=%d new=%d", q, revision, next.Revision())
 					}
@@ -114,8 +114,8 @@ func TestAlterDropColumnRevisionFrontier(t *testing.T) {
 					if next.Revision() >= want {
 						want = next.Revision() + 1
 					}
-					if e.catalog.nextRevision != want {
-						t.Errorf("%s allocator=%d want=%d installed=%d", q, e.catalog.nextRevision, want, next.Revision())
+					if e.catalog.NextRevision() != want {
+						t.Errorf("%s allocator=%d want=%d installed=%d", q, e.catalog.NextRevision(), want, next.Revision())
 					}
 					if old.Revision() != revision || len(old.Columns) != columns || old.Comment != table || old.ColumnMeta.Comments[3] != column {
 						t.Error("retained descriptor mutated")
@@ -136,12 +136,12 @@ func TestAlterDropColumnRevisionFrontierFailures(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(a INT,b INT)")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.Get(ref.Address)
+	old := e.catalog.State.Get(ref.Address)
 	root := e.storage.Relations[ref.Address]
-	frontier := e.catalog.nextRevision
+	frontier := e.catalog.NextRevision()
 	unchanged := func() {
 		t.Helper()
-		if e.catalog.nextRevision != frontier || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != root {
+		if e.catalog.NextRevision() != frontier || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != root {
 			t.Fatal("failed/canceled/skip changed frontier or publication")
 		}
 	}
@@ -187,7 +187,7 @@ func TestAlterDropColumnRevisionFrontierTerminal(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(a INT,b INT)")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	terminal := *old
 	terminal.ObjectRevision = ids.DefinitionRevision(^uint64(0)) - 1
 	stage := e.BeginCatalogStage(e.CatalogRead())
@@ -202,18 +202,18 @@ func TestAlterDropColumnRevisionFrontierTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 	run(t, e, "ALTER TABLE t DROP b")
-	maximum := e.catalog.state.MustRelation(ref.Address)
+	maximum := e.catalog.State.MustRelation(ref.Address)
 	root := e.storage.Relations[ref.Address]
 	limit := ids.DefinitionRevision(^uint64(0))
-	if maximum.Revision() != limit || e.catalog.nextRevision != limit {
-		t.Errorf("terminal publication revision=%d allocator=%d want=%d", maximum.Revision(), e.catalog.nextRevision, limit)
+	if maximum.Revision() != limit || e.catalog.NextRevision() != limit {
+		t.Errorf("terminal publication revision=%d allocator=%d want=%d", maximum.Revision(), e.catalog.NextRevision(), limit)
 	}
 	for _, tc := range []struct{ q, message string }{{"COMMENT ON TABLE t IS 'unavailable'", "stuntgres: catalog definition revision exhausted"}, {"COMMENT ON COLUMN t.a IS 'unavailable'", "stuntgres: catalog definition revision exhausted"}, {"ALTER TABLE t DROP a", "stuntgres: definition revision exhausted"}} {
 		_, err := testExecute(e, context.Background(), statement(t, tc.q), nil)
 		if err == nil || err.Error() != tc.message {
 			t.Errorf("%s: got %v want %s", tc.q, err, tc.message)
 		}
-		if e.catalog.state.Get(ref.Address) != maximum || e.storage.Relations[ref.Address] != root || e.catalog.nextRevision != limit {
+		if e.catalog.State.Get(ref.Address) != maximum || e.storage.Relations[ref.Address] != root || e.catalog.NextRevision() != limit {
 			t.Errorf("%s changed terminal state", tc.q)
 		}
 	}

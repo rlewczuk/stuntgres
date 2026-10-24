@@ -126,8 +126,8 @@ func (h ddlHost) RecordDependencyPath(a ddl.Authority) error {
 	return err
 }
 
-func (h ddlHost) AllocateOID() (ids.OID, error)             { return h.e.catalog.allocateOIDLocked() }
-func (h ddlHost) Revision() (ids.DefinitionRevision, error) { return h.e.catalog.revisionLocked() }
+func (h ddlHost) AllocateOID() (ids.OID, error)             { return h.e.catalog.AllocateOIDLocked() }
+func (h ddlHost) Revision() (ids.DefinitionRevision, error) { return h.e.catalog.RevisionLocked() }
 
 func (h ddlHost) Context() context.Context { return h.op.Context() }
 

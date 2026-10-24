@@ -50,7 +50,7 @@ func TestPartitionRoutingPublication(t *testing.T) {
 				}
 				if phase == "stale_destination_binding" {
 					e.mu.Lock()
-					e.catalog.state = catalog.CloneState(e.catalog.state)
+					e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
 					e.mu.Unlock()
 				} else {
 					cancel()
@@ -68,7 +68,7 @@ func TestPartitionRoutingPublication(t *testing.T) {
 				if err != nil || out.Count != 1 {
 					t.Fatal(out, err)
 				}
-				if phase == "stale_destination_binding" && (!checkpoint.entered.Load() || scope.UniqueBinding.Catalog != e.catalog.state) {
+				if phase == "stale_destination_binding" && (!checkpoint.entered.Load() || scope.UniqueBinding.Catalog != e.catalog.State) {
 					t.Fatal("stale destination binding was not revalidated")
 				}
 				if phase == "same_leaf" {

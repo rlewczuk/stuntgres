@@ -51,8 +51,8 @@ func extensionUnitInstalled(t *testing.T) (*Engine, *session.Operation, *catalog
 	t.Cleanup(done)
 	stage := extensionUnitStage(t, e, op)
 	extensionUnitPublish(t, e, op, stage)
-	a := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
-	return e, op, e.catalog.state.MustExtension(a)
+	a := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
+	return e, op, e.catalog.State.MustExtension(a)
 }
 func TestExtensionProviderIdentity(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
@@ -237,7 +237,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				}
 			}
 			extensionUnitPublish(t, e, op, loose)
-			before := e.catalog.state
+			before := e.catalog.State
 			e.mu.Lock()
 			_, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
 			e.mu.Unlock()
@@ -262,7 +262,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 					t.Fatal("helper diagnostics", diagnostic)
 				}
 			}
-			if e.catalog.state != before || e.catalog.state.Get(conflict.Address()) != conflict || e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
+			if e.catalog.State != before || e.catalog.State.Get(conflict.Address()) != conflict || e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
 				t.Fatal("partial failed installation")
 			}
 		})
@@ -284,7 +284,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
-			if e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
+			if e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
 				t.Fatal("private installation leaked")
 			}
 			if reason == "competing" {
@@ -300,24 +300,24 @@ func TestExtensionProviderPublication(t *testing.T) {
 			e.mu.Lock()
 			switch reason {
 			case "epoch":
-				e.catalog.state = catalog.CloneState(e.catalog.state)
-				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
+				e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+				e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
 			case "roles":
 				e.roles.published = e.roles.published.Advance()
 			case "database":
-				next := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
+				next := *e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
 				next.ObjectRevision++
-				e.catalog.state = catalog.CloneState(e.catalog.state)
-				e.catalog.state.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
+				e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+				e.catalog.State.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 			case "namespace":
 				a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-				next := *e.catalog.state.MustNamespace(a)
+				next := *e.catalog.State.MustNamespace(a)
 				next.ObjectRevision++
-				e.catalog.state = catalog.CloneState(e.catalog.state)
-				e.catalog.state.SetDescriptor(a, &next)
+				e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+				e.catalog.State.SetDescriptor(a, &next)
 			}
 			e.mu.Unlock()
-			committed := e.catalog.state
+			committed := e.catalog.State
 			failure := scope.Finish(nil)
 			if failure == nil {
 				t.Fatal("stale installation published")
@@ -325,7 +325,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 			if reason == "competing" {
 				extensionUnitError(t, failure, "23505")
 			}
-			if e.catalog.state != committed {
+			if e.catalog.State != committed {
 				t.Fatal("failed installation changed the committed catalog")
 			}
 		})
@@ -433,7 +433,7 @@ func TestExtensionProviderRelabelIdentity(t *testing.T) {
 			state.UnbindName(catalog.DescriptorNameKey(original))
 			state.SetDescriptor(renamed.Address(), &renamed)
 			state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
-			current := e.catalog.read(state)
+			current := e.catalog.Read(state)
 			if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != want {
 				t.Fatal(symbol, err)
 			}

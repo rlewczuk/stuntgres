@@ -183,14 +183,14 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		}
 		missing := catalog.CloneState(view.State())
 		missing.RemoveDescriptor(address)
-		if err := partition.ValidateDescriptor(e.catalog.read(missing), relation); err == nil {
+		if err := partition.ValidateDescriptor(e.catalog.Read(missing), relation); err == nil {
 			t.Fatal("admitted key whose immutable comparator outlived its provider")
 		}
 		mismatch := catalog.CloneState(view.State())
 		changed := *provider
 		changed.Semantics = other.Semantics
 		mismatch.SetDescriptor(address, &changed)
-		if err := partition.ValidateDescriptor(e.catalog.read(mismatch), relation); err == nil {
+		if err := partition.ValidateDescriptor(e.catalog.Read(mismatch), relation); err == nil {
 			t.Fatal("admitted key with a different live provider capability")
 		}
 		candidate := *relation
@@ -272,7 +272,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	cyclicMiddle.Partition = &middleDefinition
 	cyclic.SetDescriptor(root.Address(), &cyclicRoot)
 	cyclic.SetDescriptor(middle.Address(), &cyclicMiddle)
-	if err := partition.ValidateDescriptor(e.catalog.read(cyclic), &cyclicRoot); err == nil {
+	if err := partition.ValidateDescriptor(e.catalog.Read(cyclic), &cyclicRoot); err == nil {
 		t.Fatal("reciprocal hierarchy cycle admitted")
 	}
 	overlapping := catalog.CloneState(e.CatalogRead().State())
@@ -283,7 +283,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	overlappingRest.Membership = &catalog.PartitionMembership{Parent: root.Address(), Lower: slices.Clone(middle.Membership.Lower), Upper: slices.Clone(middle.Membership.Upper)}
 	overlapping.SetDescriptor(root.Address(), &overlappingRoot)
 	overlapping.SetDescriptor(rest.Address(), &overlappingRest)
-	if err := partition.ValidateDescriptor(e.catalog.read(overlapping), &overlappingRoot); err == nil {
+	if err := partition.ValidateDescriptor(e.catalog.Read(overlapping), &overlappingRoot); err == nil {
 		t.Fatal("overlapping catalog child bounds admitted")
 	}
 	if len(root.Partition.Children) != 2 || root.Partition.DefaultChild != rest.Address() || middle.Membership.Lower[1].Kind != -1 {

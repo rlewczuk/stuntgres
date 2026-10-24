@@ -21,7 +21,7 @@ import (
 func queryCreateDomain(t *testing.T, e *Engine) *catalog.Type {
 	t.Helper()
 	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := e.catalog.AllocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

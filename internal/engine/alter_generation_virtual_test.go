@@ -30,7 +30,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "g")
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	capture := func() *exec.Source {
 		t.Helper()
 		scope, err := e.StartStatement(admin)

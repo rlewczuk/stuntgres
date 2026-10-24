@@ -15,7 +15,7 @@ import (
 
 func tablesUnitInput(t *testing.T, f defaultUnitFixture, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.e.catalog.read(state)
+	view := f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoTablesOID})
@@ -24,7 +24,7 @@ func tablesUnitInput(t *testing.T, f defaultUnitFixture, state *catalog.State, a
 
 func TestInfoTablesProducer(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.State)
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22400}, ObjectNamespace: f.schema, ObjectName: "tables_unit", ObjectRevision: 1, RelationKind: catalog.TableRelation, Owner: f.owner}
 	state.SetDescriptor(table.Address(), table)
 	in := tablesUnitInput(t, f, state, f.owner)
@@ -102,11 +102,11 @@ func TestInfoTablesProducer(t *testing.T) {
 
 func TestInfoTablesCapture(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	old := tablesUnitInput(t, f, f.e.catalog.state, f.owner)
+	old := tablesUnitInput(t, f, f.e.catalog.State, f.owner)
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoTablesOID)
 	foreign := New()
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = foreign.catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &foreign.catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = foreign.Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
@@ -122,7 +122,7 @@ func TestInfoTablesCapture(t *testing.T) {
 	// These corruptions protect ownership and layout, which public SQL cannot mint.
 	for _, kind := range []string{"width", "domain-generation", "base-generation", "origin"} {
 		t.Run(kind, func(t *testing.T) {
-			state := catalog.CloneState(f.e.catalog.state)
+			state := catalog.CloneState(f.e.catalog.State)
 			source := *old.Source
 			source.Columns = append([]catalog.Column(nil), source.Columns...)
 			switch kind {

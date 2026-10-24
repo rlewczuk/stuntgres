@@ -75,16 +75,16 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				if catalog {
 					changes = session.NewJournal()
 				}
-				original, frontier, root := e.catalog.state, e.visibility.CommitSeq(), payloadOf(receiver).notifications.State
+				original, frontier, root := e.catalog.State, e.visibility.CommitSeq(), payloadOf(receiver).notifications.State
 				head := e.cluster.notificationHead
 				switch failure {
 				case "cancel":
 					cancel()
 				case "epoch":
-					next := *e.catalog.state
+					next := *e.catalog.State
 					next.SetEpoch(next.Epoch() + 1)
-					e.catalog.state = &next
-					original = e.catalog.state
+					e.catalog.PublishLocked(&next)
+					original = e.catalog.State
 				case "xid":
 					e.visibility.SetLastAssignedXIDLocked(^uint64(0))
 				}
@@ -93,7 +93,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					if err == nil {
 						t.Fatal("failed preflight published")
 					}
-					if payloadOf(receiver).notifications.State != root || e.catalog.state != original || e.visibility.CommitSeq() != frontier || e.cluster.notificationHead != head {
+					if payloadOf(receiver).notifications.State != root || e.catalog.State != original || e.visibility.CommitSeq() != frontier || e.cluster.notificationHead != head {
 						t.Fatal("partial catalog/notification installation")
 					}
 					return

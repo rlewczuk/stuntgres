@@ -44,15 +44,15 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 	if err = scope.captureIdentityLocked(auth); err != nil {
 		return nil, nil, auth, err
 	}
-	index, ok := e.catalog.state.Relation(address)
+	index, ok := e.catalog.State.Relation(address)
 	if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != scope.lockedRef.Address {
 		return nil, nil, auth, ids.ErrCatalogReplaced
 	}
-	parent, ok := e.catalog.state.Relation(index.SQLIndex.Parent)
+	parent, ok := e.catalog.State.Relation(index.SQLIndex.Parent)
 	if !ok {
 		return nil, nil, auth, ids.ErrCatalogReplaced
 	}
-	if err = auth.CheckCreate(e.catalog.Domain.Ref(e.catalog.state.Epoch(), parent.Namespace())); err != nil {
+	if err = auth.CheckCreate(e.catalog.Domain.Ref(e.catalog.State.Epoch(), parent.Namespace())); err != nil {
 		return nil, nil, auth, err
 	}
 	return index, parent, auth, nil
@@ -95,7 +95,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		next, definition := *idx, *idx.SQLIndex
 		definition.Ready = true
 		next.SQLIndex = &definition
-		next.ObjectRevision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.RevisionLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
@@ -162,7 +162,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 		next, definition := *index, *index.SQLIndex
 		definition.Valid = true
 		next.SQLIndex = &definition
-		next.ObjectRevision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.RevisionLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return err

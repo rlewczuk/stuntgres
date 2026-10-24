@@ -20,7 +20,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE INDEX refresh_source_idx ON refresh_source(v)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
 					sessionSQL(t, s, q)
 				}
-				base, frontier := e.catalog.state, e.visibility.CommitSeq()
+				base, frontier := e.catalog.State, e.visibility.CommitSeq()
 				source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
 				index := catalogRef(t, e, e.CatalogRead(), "refresh_source_idx")
 				indexRoot := e.storage.IndexRoots[index.Address]
@@ -38,7 +38,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				e.mu.Unlock()
 				target := catalogRef(t, e, view, name)
 				original := e.storage.Relations[target.Address]
-				originalDescriptor := e.catalog.state.Get(target.Address)
+				originalDescriptor := e.catalog.State.Get(target.Address)
 				var root []storage.RowVersion
 				var ends *storage.DeletionRoot
 				var generation uint64
@@ -75,7 +75,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 							t.Fatal("replacement row born before true end", row)
 						}
 					}
-					if e.catalog.state != base || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original || e.catalog.state.Get(target.Address) != originalDescriptor || e.storage.IndexRoots[index.Address] != indexRoot {
+					if e.catalog.State != base || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original || e.catalog.State.Get(target.Address) != originalDescriptor || e.storage.IndexRoots[index.Address] != indexRoot {
 						t.Fatal("replacement/source index escaped before message end")
 					}
 					previous = shape.Replacement
@@ -98,7 +98,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if err == nil || m.end(err) != err {
 						t.Fatal("late failure disposition", err)
 					}
-					if e.catalog.state != base || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original || e.storage.IndexRoots[index.Address] != indexRoot || len(e.storage.Relations[source.Address].Versions) != 1 {
+					if e.catalog.State != base || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original || e.storage.IndexRoots[index.Address] != indexRoot || len(e.storage.Relations[source.Address].Versions) != 1 {
 						t.Fatal("late failure published replacement/source/index")
 					}
 					for _, row := range latest.Versions {
@@ -146,9 +146,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "epoch":
-				next := catalog.CloneState(e.catalog.state)
+				next := catalog.CloneState(e.catalog.State)
 				next.SetEpoch(next.Epoch() + 1)
-				e.catalog.state = next
+				e.catalog.PublishLocked(next)
 			case "ref":
 				stale := s.Transactions.Ref
 				stale = withTxID(stale, stale.ID()+1)
@@ -166,11 +166,11 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				e.storage.InstallRelationLocked(target.Address, &copy)
 				e.mu.Unlock()
 			case "descriptor":
-				next := catalog.CloneState(e.catalog.state)
+				next := catalog.CloneState(e.catalog.State)
 				copy := *next.MustRelation(target.Address)
 				copy.ObjectRevision++
 				next.SetDescriptor(target.Address, &copy)
-				e.catalog.state = next
+				e.catalog.PublishLocked(next)
 			case "roles":
 				copy := *e.roles.published
 				copy.Revision++
@@ -178,9 +178,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "source_index_generation":
 				e.storage.Relations[source.Address].Generation++
 			}
-			state, store, frontier := e.catalog.state, e.storage.Relations[target.Address], e.visibility.CommitSeq()
+			state, store, frontier := e.catalog.State, e.storage.Relations[target.Address], e.visibility.CommitSeq()
 			err = m.end(err)
-			if err == nil || e.catalog.state != state || e.storage.Relations[target.Address] != store || e.visibility.CommitSeq() != frontier || e.storage.IndexRoots[index.Address] != indexRoot || e.storage.IndexRoots[pending.Address] != nil || len(e.storage.Relations[source.Address].Versions) != 1 {
+			if err == nil || e.catalog.State != state || e.storage.Relations[target.Address] != store || e.visibility.CommitSeq() != frontier || e.storage.IndexRoots[index.Address] != indexRoot || e.storage.IndexRoots[pending.Address] != nil || len(e.storage.Relations[source.Address].Versions) != 1 {
 				t.Fatal("rejected replacement published rows/catalog/index", err)
 			}
 			if fence == "cancel" && !errors.Is(err, context.Canceled) || fence == "epoch" && !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -259,7 +259,7 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
 					sessionSQL(t, s, q)
 				}
-				base, roles, frontier := e.catalog.state, e.roles.published, e.visibility.CommitSeq()
+				base, roles, frontier := e.catalog.State, e.roles.published, e.visibility.CommitSeq()
 				target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
 				original := e.storage.Relations[target.Address]
 				m := batchUnitStart(t, s, context.Background())
@@ -296,7 +296,7 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 				}
 				err := m.end(nil)
 				if !own && tc.producer {
-					if err == nil || e.catalog.state != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original {
+					if err == nil || e.catalog.State != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original {
 						t.Fatal("stale producer role read published or overwrote peer", err)
 					}
 					if _, ok := e.Roles().Lookup("producer_peer"); !ok {
@@ -311,7 +311,7 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 				if _, ok := e.Roles().Lookup(role); !ok {
 					t.Fatal("successful publication lost role", role)
 				}
-				if e.catalog.state == base || e.visibility.CommitSeq() != frontier+1 {
+				if e.catalog.State == base || e.visibility.CommitSeq() != frontier+1 {
 					t.Fatal("producer catalog did not publish once")
 				}
 				name := "produced"

@@ -14,7 +14,7 @@ import (
 // immutable overlay. New stores use committed absence as their honest fence.
 func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage, changes *session.Journal) error {
 	e.mu.Lock()
-	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
+	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
@@ -63,7 +63,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	e.mu.Lock()
 	scope.op.Session.Mu.Lock()
 	err = publicationOperationLocked(e, scope.op)
-	if err == nil && scope.txRef.Epoch() != e.catalog.state.Epoch() {
+	if err == nil && scope.txRef.Epoch() != e.catalog.State.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.Session || scope.op.Session.Authorization.Revision != stage.authRevision || e.operationRolesLocked(scope.op).Revision != stage.roleRevision) {
@@ -85,7 +85,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 }
 
 func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session.Journal) {
-	changes.RecordCandidateDefaults(e.catalog.state, &stage.Candidate)
+	changes.RecordCandidateDefaults(e.catalog.State, &stage.Candidate)
 	if stage.roleCandidate != nil {
 		// captureCatalogStageLocked validated this immutable candidate. A later
 		// descriptor-only stage must retain, not clear, the pending role root.

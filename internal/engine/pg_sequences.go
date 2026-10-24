@@ -13,7 +13,7 @@ import (
 )
 
 func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
-	base := e.catalog.state
+	base := e.catalog.State
 	if scope.owner.SequenceCatalog != nil {
 		base = scope.owner.SequenceCatalog
 	}
@@ -63,7 +63,7 @@ func (h *statementHost) CompletePGSequence(ctx context.Context, ref ids.ObjectRe
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	auth, err := e.authorizationLocked(s.op)

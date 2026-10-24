@@ -18,10 +18,10 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.Address())
+	d = e.catalog.State.MustRelation(d.Address())
 	original := e.storage.Relations[d.Address()]
 	scope := refreshUnitScope(t, e, context.Background())
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 	scope.querySources = []exec.Leaf{{Ref: ref, Relation: d, Storage: original}, {Ref: ref, Relation: d, Storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 	current := e.storage.Relations[d.Address()]
@@ -73,7 +73,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	incompatible := *next
 	incompatible.ObjectName = "renamed"
 	e.mu.Lock()
-	e.catalog.state.SetDescriptor(next.Address(), &incompatible)
+	e.catalog.State.SetDescriptor(next.Address(), &incompatible)
 	err = scope.validateLockedRelation(e)
 	e.mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -87,7 +87,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.state.MustRelation(d.Address())
+			d = e.catalog.State.MustRelation(d.Address())
 			stage, unrelated := queryCreateStage(t, e, "unrelated_snapshot", 1)
 			queryCreatePublish(t, e, stage)
 			original := e.storage.Relations[d.Address()]
@@ -102,7 +102,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			if root.Storage != original || root.Ends != original.Ends || scope.owner.Roots[unrelated.Address()].Storage != e.storage.Relations[unrelated.Address()] {
 				t.Fatal("snapshot did not capture database roots")
 			}
-			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 			if !beforeCapture {
 				if _, err := scope.AcquireDataView(ref); err != nil {
 					t.Fatal(err)
@@ -130,14 +130,14 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.state.MustRelation(d.Address())
+			d = e.catalog.State.MustRelation(d.Address())
 			scope := refreshUnitScope(t, e, context.Background())
 			scope.owner.Isolation = session.RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			originalEpoch := e.catalog.state.Epoch()
-			defer func() { e.catalog.state.SetEpoch(originalEpoch) }()
+			originalEpoch := e.catalog.State.Epoch()
+			defer func() { e.catalog.State.SetEpoch(originalEpoch) }()
 			ref := e.catalog.Domain.Ref(originalEpoch, d.Address())
 			d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 			switch phase {
@@ -146,7 +146,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			case "plain_no_data":
 				d = concurrentUnitReplace(t, e, d, nil, false, false)
 			case "control_epoch":
-				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
+				e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
 			case "ordinary_incarnation":
 				copy := *e.storage.Relations[d.Address()]
 				copy.MaterializedLineage = nil
@@ -174,7 +174,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 				case "ordinary_table":
 					copy.RelationKind = catalog.TableRelation
 				}
-				e.catalog.state.SetDescriptor(d.Address(), &copy)
+				e.catalog.State.SetDescriptor(d.Address(), &copy)
 			}
 			view, err := scope.AcquireDataView(ref)
 			if view != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -188,7 +188,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.Address())
+	d = e.catalog.State.MustRelation(d.Address())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	scope := refreshUnitScope(t, e, ctx)

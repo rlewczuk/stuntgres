@@ -100,7 +100,7 @@ func (e *Engine) Comment(r catalog.Read, ref ids.ObjectRef) (string, bool, error
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.catalog.validateObjectRefLocked(r, ref); err != nil {
+	if err := e.catalog.ValidateObjectRefLocked(r, ref); err != nil {
 		return "", false, err
 	}
 	a := ref.Address

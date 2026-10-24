@@ -100,7 +100,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			owner.Columns = append([]catalog.Column(nil), d.Columns...)
 			owner.Columns[0].Name = "key"
 			next.SetDescriptor(d.Address(), &owner)
-			text, err := stored.PolicySQL(context.Background(), e.catalog.read(next), expression)
+			text, err := stored.PolicySQL(context.Background(), e.catalog.Read(next), expression)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -142,7 +142,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	next := *d
 	next.ObjectRevision++
 	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := e.catalog.AllocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -180,7 +180,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	next := *d
 	next.ObjectRevision++
 	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := e.catalog.AllocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -253,7 +253,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			oid, err := e.catalog.allocateOIDLocked()
+			oid, err := e.catalog.AllocateOIDLocked()
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

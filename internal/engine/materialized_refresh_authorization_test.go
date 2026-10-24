@@ -35,8 +35,8 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	d := refreshUnitRelation(t, e)
 	owner, caller := refreshUnitPrincipals(e)
 	d.Owner = owner
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
-	auth := e.authorityView(access.View{Owner: e.catalog.owner(), PairedCatalog: e.CatalogRead(), RoleRecord: e.roles.published, Catalog: e.CatalogRead(), Roles: e.Roles(), State: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}})
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+	auth := e.authorityView(access.View{Owner: &e.catalog.Owner, PairedCatalog: e.CatalogRead(), RoleRecord: e.roles.published, Catalog: e.CatalogRead(), Roles: e.Roles(), State: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}})
 	for _, privilege := range []authorization.Privileges{authorization.SelectPrivilege, authorization.MaintainPrivilege} {
 		d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
 		err := view.MaterializedRefreshAccess(auth.View, auth, ref)
@@ -155,7 +155,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			p.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: d.Columns, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{converted}}}
 		})
 		e.mu.Lock()
-		rows, err := e.materializedRefreshRowsLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address()), d)
+		rows, err := e.materializedRefreshRowsLocked(scope, e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address()), d)
 		if fail {
 			if !errors.Is(err, sentinel) || rows != nil {
 				t.Fatal(rows, err)

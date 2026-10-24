@@ -14,7 +14,7 @@ import (
 func admitRestoreInsert(r *restoreRun, _ *session.Operation, s *parser.Insert) error {
 	r.stage.mu.Lock()
 	defer r.stage.mu.Unlock()
-	view := r.stage.catalog.read(r.stage.catalog.state)
+	view := r.stage.catalog.Current()
 	eligible := func(raw parser.FunctionExpr) bool { return catalog.RestoreRangeConstructorEligible(view, raw) }
 	if err := control.CheckInsert(s, eligible); err != nil {
 		return err

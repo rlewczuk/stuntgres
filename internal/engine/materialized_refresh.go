@@ -67,7 +67,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	if err == nil {
 		current, _ = auth.Catalog.Relation(ref.Address)
 	}
-	if err == nil && (s.txRef.Epoch() != e.catalog.state.Epoch() || !view.MaterializedRefreshCompatible(observed, current)) {
+	if err == nil && (s.txRef.Epoch() != e.catalog.State.Epoch() || !view.MaterializedRefreshCompatible(observed, current)) {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
@@ -237,7 +237,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil || s.materializedOrZero().Replacement != nil || d == nil || d.RelationKind != catalog.MaterializedViewRelation || d.View == nil || s.Base.Get(d.Address()) != d || e.stageCatalogBaseLocked(s).Get(d.Address()) != d || previous == nil || e.stageStorageLocked(s, d.Address()) != previous || !populated && len(rows) != 0 {
 		return fmt.Errorf("stuntgres: invalid materialized replacement stage")
 	}
-	if s.Base.Epoch() != e.catalog.state.Epoch() {
+	if s.Base.Epoch() != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if d.Revision() == ids.DefinitionRevision(^uint64(0)) || previous.Generation == ^uint64(0) {

@@ -55,7 +55,7 @@ func databaseCreateUnitUnchanged(t *testing.T, e *Engine) func() {
 	targets := maps.Clone(e.cluster.targets)
 	roots := make(map[*Engine]*catalog.State, len(targets))
 	for _, target := range targets {
-		roots[target] = target.catalog.state
+		roots[target] = target.catalog.State
 	}
 	return func() {
 		t.Helper()
@@ -63,7 +63,7 @@ func databaseCreateUnitUnchanged(t *testing.T, e *Engine) func() {
 			t.Fatal("failed publication changed registered targets or identity frontier")
 		}
 		for target, root := range roots {
-			if target.catalog.state != root {
+			if target.catalog.State != root {
 				t.Fatal("failed publication changed a visible catalog root")
 			}
 		}
@@ -75,7 +75,7 @@ func databaseCreateUnitRows(t *testing.T, e *Engine) map[string]ids.OID {
 	view := e.CatalogRead()
 	descriptor, ref := pgDatabaseUnitSource(t, e, view)
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, descriptor)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, descriptor)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 		// A private DDL stage may have reserved OIDs without publishing its
 		// descriptors. Database publication must not consume those identities.
 		host.mu.Lock()
-		pending, err := host.catalog.allocateOIDLocked()
+		pending, err := host.catalog.AllocateOIDLocked()
 		host.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -153,8 +153,8 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 			// Future local allocations must skip projected registrations even
 			// when the local frontier reaches another target's database OID.
 			runtime.mu.Lock()
-			runtime.catalog.nextOID = selected.catalog.DatabaseAddress().ObjectID
-			allocated, err := runtime.catalog.allocateOIDLocked()
+			runtime.catalog.InstallOIDFrontierLocked(selected.catalog.DatabaseAddress().ObjectID)
+			allocated, err := runtime.catalog.AllocateOIDLocked()
 			runtime.mu.Unlock()
 			if err != nil || allocated == selected.catalog.DatabaseAddress().ObjectID {
 				t.Fatal("local allocator reused a database identity", allocated, err)
@@ -233,19 +233,19 @@ func TestDatabaseCreateTemplateCopy(t *testing.T) {
 	}
 	var leftMemory, rightMemory sequence.SessionMemory
 	left.mu.Lock()
-	value, err := sequence.CallLocked(functions.SequenceRequest{Name: "nextval"}, left.catalog.state.MustRelation(sequenceAddress), left.storage.Sequences[sequenceAddress], &leftMemory)
+	value, err := sequence.CallLocked(functions.SequenceRequest{Name: "nextval"}, left.catalog.State.MustRelation(sequenceAddress), left.storage.Sequences[sequenceAddress], &leftMemory)
 	left.mu.Unlock()
 	if err != nil || value != 41 {
 		t.Fatal("left nextval", value, err)
 	}
 	left.mu.Lock()
-	value, err = sequence.CallLocked(functions.SequenceRequest{Name: "nextval"}, left.catalog.state.MustRelation(sequenceAddress), left.storage.Sequences[sequenceAddress], &leftMemory)
+	value, err = sequence.CallLocked(functions.SequenceRequest{Name: "nextval"}, left.catalog.State.MustRelation(sequenceAddress), left.storage.Sequences[sequenceAddress], &leftMemory)
 	left.mu.Unlock()
 	if err != nil || value != 42 {
 		t.Fatal("left second nextval", value, err)
 	}
 	right.mu.Lock()
-	value, err = sequence.CallLocked(functions.SequenceRequest{Name: "nextval"}, right.catalog.state.MustRelation(sequenceAddress), right.storage.Sequences[sequenceAddress], &rightMemory)
+	value, err = sequence.CallLocked(functions.SequenceRequest{Name: "nextval"}, right.catalog.State.MustRelation(sequenceAddress), right.storage.Sequences[sequenceAddress], &rightMemory)
 	right.mu.Unlock()
 	if err != nil || value != 41 || seed.storage.Sequences[sequenceAddress].Called {
 		t.Fatal("sequence mutation leaked across copies or into seed", value, err)
@@ -330,7 +330,7 @@ func TestDatabaseCreateCancellation(t *testing.T) {
 	databaseCreateUnitInstall(t, e, seed, "existing")
 	target := databaseCreateUnitTarget(t, e, seed, "canceled")
 	unchanged := databaseCreateUnitUnchanged(t, e)
-	root, address := target.catalog.state, target.catalog.DatabaseAddress()
+	root, address := target.catalog.State, target.catalog.DatabaseAddress()
 	base, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	ctx := &databaseCreateCancelContext{Context: base, cancel: cancel}
@@ -338,7 +338,7 @@ func TestDatabaseCreateCancellation(t *testing.T) {
 		t.Fatal("final cancellation was not honored", err)
 	}
 	unchanged()
-	if target.cluster != nil || target.catalog.state != root || target.catalog.DatabaseAddress() != address {
+	if target.cluster != nil || target.catalog.State != root || target.catalog.DatabaseAddress() != address {
 		t.Fatal("cancellation partially installed the private target")
 	}
 	if selected, err := e.SelectDatabase(context.Background(), "canceled"); selected != nil || err == nil {

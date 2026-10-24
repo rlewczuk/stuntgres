@@ -175,7 +175,7 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: plan.Input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	b := analyze.Binding{Relation: job.Child}
-	analyze.BindInsertDefaults(e.catalog.owner(), &b, auth.Catalog, parser.OverrideNone)
+	analyze.BindInsertDefaults(&e.catalog.Owner, &b, auth.Catalog, parser.OverrideNone)
 	plan.Defaults = make([]expr.Expr, len(plan.Targets))
 	plan.DefaultOrigins = make([]analyze.DefaultOrigin, len(plan.Targets))
 	for i, slot := range plan.Targets {

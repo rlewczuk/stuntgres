@@ -74,7 +74,7 @@ func (e *Engine) bindDomainConstraintDefinitions(ctx context.Context, op *sessio
 		if _, err := (stored.ScalarRenderer{DomainValue: &base, Dependencies: &refs}).SQL(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := e.catalog.AllocateOIDLocked()
 		if err != nil {
 			return err
 		}

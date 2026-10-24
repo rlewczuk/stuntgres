@@ -17,11 +17,11 @@ import (
 func pgInheritsUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2611}
-	source, ok := e.catalog.state.Relation(address)
+	source, ok := e.catalog.State.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_inherits")
 	}
-	return source, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
+	return source, e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
 }
 
 func TestPGInheritsShapeAndOwnership(t *testing.T) {
@@ -72,7 +72,7 @@ func TestPGInheritsShapeAndOwnership(t *testing.T) {
 // Public reference tests independently exercise the real DDL owners.
 func pgInheritsUnitGraph(t *testing.T, e *Engine) catalog.Read {
 	t.Helper()
-	state := *e.catalog.state
+	state := *e.catalog.State
 	address := func(id ids.OID) ids.ObjectAddress {
 		return ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 	}
@@ -89,7 +89,7 @@ func pgInheritsUnitGraph(t *testing.T, e *Engine) catalog.Read {
 	} {
 		state.SetDescriptor(relation.Address(), relation)
 	}
-	return e.catalog.read(&state)
+	return e.catalog.Read(&state)
 }
 
 func pgInheritsUnitEdges(t *testing.T, captured *exec.Source, view catalog.Read) map[[3]int64]int {
@@ -144,7 +144,7 @@ func TestPGInheritsDescriptorEdges(t *testing.T) {
 	child := *next.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 41003})
 	child.Inheritance = nil
 	next.SetDescriptor(child.Address(), &child)
-	e.catalog.state = &next
+	e.catalog.PublishLocked(&next)
 	current, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
 	if err != nil {
 		t.Fatal(err)

@@ -268,7 +268,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			columns := append([]catalog.Column(nil), idx.Columns...)
 			parentColumns := append([]catalog.Column(nil), parent.Columns...)
 			e := New()
-			stage := e.BeginCatalogStage(e.catalog.read(catalogSnapshot))
+			stage := e.BeginCatalogStage(e.catalog.Read(catalogSnapshot))
 			if err := stage.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
@@ -299,7 +299,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			}
 			other := parent.Address()
 			other.ObjectID += 2
-			unrelated := e.BeginCatalogStage(e.catalog.read(catalogSnapshot))
+			unrelated := e.BeginCatalogStage(e.catalog.Read(catalogSnapshot))
 			if err := unrelated.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
@@ -313,7 +313,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 func TestIndexClausesUntouchedStage(t *testing.T) {
 	parent, idx, catalog, _ := indexClausesFixture(t)
 	e := New()
-	stage := e.BeginCatalogStage(e.catalog.read(catalog))
+	stage := e.BeginCatalogStage(e.catalog.Read(catalog))
 	transforms := []index.ColumnTransformation{{Attribute: parent.Attributes[0]}}
 	var err error
 	allocations := testing.AllocsPerRun(100, func() {
@@ -336,7 +336,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	destination := &storage.Relation{Versions: append([]storage.RowVersion(nil), source.Versions...)}
 	e := New()
 	e.storage.SetFrontierLocked(100, 200)
-	e.catalog.state = catalog
+	e.catalog.PublishLocked(catalog)
 	e.mu.Lock()
 	e.storage.InstallRelationLocked(parent.Address(), source)
 	e.mu.Unlock()
@@ -344,7 +344,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): original})
 	e.mu.Unlock()
 	e.visibility.SetCommitSeqLocked(1)
-	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*storage.Relation{parent.Address(): source}, map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): original}, 1)
+	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.Read(catalog), map[ids.ObjectAddress]*storage.Relation{parent.Address(): source}, map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): original}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

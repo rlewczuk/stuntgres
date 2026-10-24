@@ -375,9 +375,9 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	e.mu.Lock()
 	next, _, err := e.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 	if err == nil {
-		nextRevision := e.catalog.nextRevision
+		nextRevision := e.catalog.NextRevision()
 		for _, descriptor := range next.Descriptors() {
-			if err = access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), descriptor); err != nil {
+			if err = access.ValidateACL(e.roles.read(&e.catalog.Owner, e.catalog.Read(next), e.roles.published), descriptor); err != nil {
 				break
 			}
 			nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)
@@ -386,11 +386,11 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 			var prepared index.RemintedIndexStorage
 			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
 			if err == nil {
-				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared, e.catalog.oidReservationLocked())
+				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared, e.catalog.OIDReservationLocked())
 			}
 		}
 	}
-	epoch := e.catalog.state.Epoch()
+	epoch := e.catalog.State.Epoch()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

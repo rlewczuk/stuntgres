@@ -58,7 +58,7 @@ func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementSco
 	if err := scope.gate(&parser.Insert{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
+	ref := f.e.catalog.Domain.Ref(f.e.catalog.State.Epoch(), f.parent.Address())
 	action := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if err := action.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {
@@ -194,7 +194,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	def.Keys = []catalog.IndexKey{{Attribute: 20, Class: class}}
 	def.Predicate = nil
 	second.SQLIndex = &def
-	f.e.catalog.state.SetDescriptor(second.Address(), &second)
+	f.e.catalog.State.SetDescriptor(second.Address(), &second)
 	root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &def, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -255,7 +255,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		idx.Columns = []catalog.Column{f.parent.Columns[1], f.parent.Columns[0]}
 		idx.Attributes = []int32{1, 2}
 		idx.ColumnMeta.HighWater = 2
-		f.e.catalog.state.SetDescriptor(idx.Address(), &idx)
+		f.e.catalog.State.SetDescriptor(idx.Address(), &idx)
 		root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 		if err != nil {
 			t.Fatal(err)

@@ -81,7 +81,7 @@ func TestInfoCharacterSetsProducer(t *testing.T) {
 	collation := *view.Get(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 950}).(*catalog.Collation)
 	collation.ObjectName = "captured_collation_long_name"
 	changed.SetDescriptor(collation.Address(), &collation)
-	changedView := f.e.catalog.read(changed)
+	changedView := f.e.catalog.Read(changed)
 	characterSetsUnitRows(t, characterSetsUnitInput(t, f, changedView, "MiXeD db"), catalog.CollationText(ns.Name()), catalog.CollationText(collation.Name()))
 	if infoUserMappingsUnitText(t, original[0][6]) != "pg_catalog" || infoUserMappingsUnitText(t, original[0][7]) != "C" {
 		t.Fatal("retained identifiers changed", original)
@@ -95,7 +95,7 @@ func TestInfoCharacterSetsProducer(t *testing.T) {
 	}
 	foreign := New()
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = foreign.catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &foreign.catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = foreign.Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
@@ -134,7 +134,7 @@ func TestInfoCharacterSetsProducer(t *testing.T) {
 			}
 			bad.SetDescriptor(copy.Address(), &copy)
 		}
-		if rows, err := produce(characterSetsUnitInput(t, f, f.e.catalog.read(bad), "MiXeD db")); rows != nil || err == nil {
+		if rows, err := produce(characterSetsUnitInput(t, f, f.e.catalog.Read(bad), "MiXeD db")); rows != nil || err == nil {
 			t.Fatal("malformed metadata accepted", malformed, rows, err)
 		}
 	}
@@ -151,7 +151,7 @@ func TestInfoCharacterSetsCollationChoice(t *testing.T) {
 	}
 	// A missing match still returns the database identity, unlike the manual's
 	// catalog-NULL sentence. Only released SQL's schema/name become NULL.
-	characterSetsUnitRows(t, characterSetsUnitInput(t, f, f.e.catalog.read(without), "unit_database"), nil, nil)
+	characterSetsUnitRows(t, characterSetsUnitInput(t, f, f.e.catalog.Read(without), "unit_database"), nil, nil)
 	locale := catalog.CollationText("C")
 	posix := catalog.CollationText("POSIX")
 	// These synthetic edges exist only in unpublished immutable clones. They
@@ -170,7 +170,7 @@ func TestInfoCharacterSetsCollationChoice(t *testing.T) {
 		descriptor.OID = ids.OID(22000 + i)
 		without.SetDescriptor(descriptor.Address(), &descriptor)
 	}
-	characterSetsUnitRows(t, characterSetsUnitInput(t, f, f.e.catalog.read(without), "unit_database"), nil, nil)
+	characterSetsUnitRows(t, characterSetsUnitInput(t, f, f.e.catalog.Read(without), "unit_database"), nil, nil)
 	for _, names := range [][]string{{"cs_rank_bb", "cs_rank_aa"}, {"cs_rank_aa", "cs_rank_bb"}, {"cs_ééééé", "cs_aaaaaaa"}, {"cs_aaaaaaa", "cs_ééééé"}, {"C", "cs_longer_name"}} {
 		state := catalog.CloneState(without)
 		for i, name := range names {
@@ -184,7 +184,7 @@ func TestInfoCharacterSetsCollationChoice(t *testing.T) {
 		} else if names[0] == "C" {
 			winner = "cs_longer_name"
 		}
-		characterSetsUnitRows(t, characterSetsUnitInput(t, f, f.e.catalog.read(state), "unit_database"), catalog.CollationText("pg_catalog"), catalog.CollationText(winner))
+		characterSetsUnitRows(t, characterSetsUnitInput(t, f, f.e.catalog.Read(state), "unit_database"), catalog.CollationText("pg_catalog"), catalog.CollationText(winner))
 	}
 	// Released SQL has no namespace tie-breaker for identical candidate names.
 	tied := catalog.CloneState(without)
@@ -195,7 +195,7 @@ func TestInfoCharacterSetsCollationChoice(t *testing.T) {
 		tied.SetDescriptor(d.Address(), d)
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoCharacterSetsOID)
-	rows, err := produce(characterSetsUnitInput(t, f, f.e.catalog.read(tied), "unit_database"))
+	rows, err := produce(characterSetsUnitInput(t, f, f.e.catalog.Read(tied), "unit_database"))
 	if err != nil || len(rows) != 1 || len(rows[0]) != 8 {
 		t.Fatal("tied selection", rows, err)
 	}

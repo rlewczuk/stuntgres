@@ -20,7 +20,7 @@ func (e *Engine) initializeCatalogSources() error {
 			d.Security.ACL = authorization.ACLValue{}
 		}
 		for i, column := range spec.Columns {
-			typ, ok := e.catalog.read(e.catalog.state).LookupType(column.Type)
+			typ, ok := e.catalog.Current().LookupType(column.Type)
 			if !ok {
 				if spec.Namespace == ids.PGCatalogNamespaceOID && (spec.OID == ids.ForeignWrapperClassID || spec.OID == ids.ForeignServerClassID || spec.OID == ids.ForeignMappingClassID || spec.OID == ids.ForeignTableClassID || spec.OID == pgcatalog.UserMappingsOID) {
 					return fmt.Errorf(spec.MissingType, column.Type)
@@ -49,15 +49,15 @@ func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddres
 
 func (e *Engine) registerCatalogSource(d *catalog.Relation) {
 	pgcatalog.InitializeAttributes(d)
-	if address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.Namespace(), Name: d.Name()}); ok {
-		row := e.catalog.state.MustType(address)
+	if address, ok := e.catalog.State.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.Namespace(), Name: d.Name()}); ok {
+		row := e.catalog.State.MustType(address)
 		row.OwningRelation, row.Owner = d.Address(), d.Owner
 		d.RowType = row.SQLType.ID()
 		if row.Array != 0 {
-			array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
+			array := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
 			array.OwningRelation, array.Owner = d.Address(), d.Owner
 		}
 	}
-	e.catalog.state.SetDescriptor(d.Address(), d)
-	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
+	e.catalog.State.SetDescriptor(d.Address(), d)
+	e.catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 }

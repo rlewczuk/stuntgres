@@ -70,7 +70,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		result, err := cursorUnitExecute(t, s, context.Background(), "COMMIT")
 		serializableUnitDiagnostic(t, err, "Canceled on identification as a pivot, during commit attempt.")
 		after := serializableSnapshotPublication(e)
-		if result.Rows != nil || calls != 1 || !c.promoted || c.count != 1 || c.source != nil || c.authority != nil || e.catalog.state != before.catalog || e.visibility.CommitSeq() != before.frontier || !reflect.DeepEqual(before.storage, after.storage) || !reflect.DeepEqual(before.indexes, after.indexes) {
+		if result.Rows != nil || calls != 1 || !c.promoted || c.count != 1 || c.source != nil || c.authority != nil || e.catalog.State != before.catalog || e.visibility.CommitSeq() != before.frontier || !reflect.DeepEqual(before.storage, after.storage) || !reflect.DeepEqual(before.indexes, after.indexes) {
 			t.Fatal("final SSI failure retracts export or publishes private storage", result, calls)
 		}
 		cursorUnitBatch(t, s, "FETCH ALL FROM h", [][]driver.Value{{int64(10)}})

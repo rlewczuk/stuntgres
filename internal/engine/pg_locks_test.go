@@ -23,7 +23,7 @@ import (
 
 func pgLocksUnitCapture(t *testing.T, e *Engine) []lock.Record {
 	t.Helper()
-	records, err := e.locks.PGLocks(e.catalog.Domain, e.catalog.state.Epoch())
+	records, err := e.locks.PGLocks(e.catalog.Domain, e.catalog.State.Epoch())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *lock.Ticket) uint32 {
 func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.LocksOID})
+	d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.LocksOID})
 	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.RowType != 12075 {
 		t.Fatal("view identity", d)
 	}
@@ -310,7 +310,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	scope.attachTransactionLocked()
 	scope.owner.Mu.Unlock()
 	scope.worked = true
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 	store := e.storage.Relations[d.Address()]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
 	before := e.visibility.LastAssignedXID()

@@ -62,7 +62,7 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
 	program := view.RuleProgram{Count: -1, Returning: -1}
-	count, err := view.RuleRewriter{Owner: e.catalog.owner()}.ExpandLocked(auth, stmt, b, nil, &program)
+	count, err := view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, stmt, b, nil, &program)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -74,7 +74,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	}
 	for i := range program.Commands {
 		command := &program.Commands[i]
-		if err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), command.Auth, command.Syntax, &command.Binding); err != nil {
+		if err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, command.Auth, command.Syntax, &command.Binding); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

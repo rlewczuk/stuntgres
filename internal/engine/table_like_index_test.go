@@ -115,7 +115,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 		copy.SQLIndex = &definition
 		candidate.SetDescriptor(ref.Address, &copy)
 	}
-	auth.Catalog = e.catalog.read(candidate)
+	auth.Catalog = e.catalog.Read(candidate)
 	auth.Recapture(auth.Catalog)
 	stage := e.BeginCatalogStage(auth.Catalog)
 	syntax := statement(t, "CREATE TABLE clone(LIKE src INCLUDING INDEXES)").(*parser.CreateTable)

@@ -47,7 +47,7 @@ func familyPreflightCatalog(t *testing.T) (*Engine, *catalog.OperatorFamily, *ca
 // the preflight's one permitted private effect, not a deletion/publication.
 func familyPreflightUnchanged(t *testing.T, e *Engine, stage *CatalogStage, family *catalog.OperatorFamily, operator *catalog.OperatorFamilyOperator, support *catalog.OperatorFamilySupport) func() {
 	t.Helper()
-	published := e.catalog.state
+	published := e.catalog.State
 	base := e.CatalogRead()
 	descriptors := maps.Collect(base.Descriptors())
 	revisions := make(map[ids.ObjectAddress]ids.DefinitionRevision, len(descriptors))
@@ -75,7 +75,7 @@ func familyPreflightUnchanged(t *testing.T, e *Engine, stage *CatalogStage, fami
 	lifecycle, invalid := stage.lifecycle, stage.invalid
 	return func() {
 		t.Helper()
-		if e.catalog.state != published || !maps.Equal(descriptors, maps.Collect(e.CatalogRead().Descriptors())) {
+		if e.catalog.State != published || !maps.Equal(descriptors, maps.Collect(e.CatalogRead().Descriptors())) {
 			t.Fatal("preflight changed the published catalog")
 		}
 		for address, descriptor := range e.CatalogRead().Descriptors() {
@@ -126,7 +126,7 @@ func familyPreflightUnchanged(t *testing.T, e *Engine, stage *CatalogStage, fami
 		if err := probe.Create(&duplicate); err != nil {
 			t.Fatal("secondary-index probe primary slot was not free", err)
 		}
-		if err := (catalog.OperatorFamilyProvider{Class: ids.AccessMethodOperatorClassID}).Validate(e.catalog.read(probe.State()), &duplicate); err == nil {
+		if err := (catalog.OperatorFamilyProvider{Class: ids.AccessMethodOperatorClassID}).Validate(e.catalog.Read(probe.State()), &duplicate); err == nil {
 			t.Fatal("preflight lost the operator secondary identity")
 		}
 	}

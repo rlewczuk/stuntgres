@@ -24,7 +24,7 @@ func TestPGTSConfigCapture(t *testing.T) {
 	if rows, err := produce(input); err != nil || rows == nil || len(rows) != 0 {
 		t.Fatal("truthful empty configuration inventory", rows, err)
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
 	input.Ref = ref
 	captured, err := captureCatalogSourceRows(input, produce)
 	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 0 {

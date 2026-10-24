@@ -23,7 +23,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	procedure := *candidate.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	procedure.Result = 25
 	candidate.SetDescriptor(procedure.Address(), &procedure)
-	auth.Recapture(e.catalog.read(candidate))
+	auth.Recapture(e.catalog.Read(candidate))
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err := typedef.StageCreateConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, create)

@@ -71,20 +71,20 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				case "schema":
 					sessionSQL(t, b, "CREATE SCHEMA retirement_peer AUTHORIZATION retired")
 					address = schemaRef(t, e, "retirement_peer").Address
-					descriptor = e.catalog.state.Get(address)
+					descriptor = e.catalog.State.Get(address)
 					if descriptor.(*catalog.Namespace).Owner != role.Ref {
 						t.Fatal("peer schema lost its canonical owner")
 					}
 				case "policy":
 					sessionSQL(t, b, "CREATE POLICY retirement_peer ON retirement_policy TO retired USING(i>0)")
 					address = catalogRef(t, e, e.CatalogRead(), "retirement_policy").Address
-					descriptor = e.catalog.state.Get(address)
+					descriptor = e.catalog.State.Get(address)
 					policies := descriptor.(*catalog.Relation).Security.Policies
 					if len(policies) != 1 || policies[0].OID == 0 || len(policies[0].Roles) != 1 || policies[0].Roles[0].Ref != role.Ref {
 						t.Fatal("peer policy lost its actual identity or selector", policies)
 					}
 				}
-				base, roles, frontier := e.catalog.state, e.roles.published, e.visibility.CommitSeq()
+				base, roles, frontier := e.catalog.State, e.roles.published, e.visibility.CommitSeq()
 				var err error
 				if carrier == "ordinary" || carrier == "clone" {
 					err = m.end(nil)
@@ -117,7 +117,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("invalid retirement candidate published", err)
 				}
-				if e.catalog.state != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.catalog.state.Get(address) != descriptor {
+				if e.catalog.State != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.catalog.State.Get(address) != descriptor {
 					t.Fatal("rejected retirement changed committed peer roots or publication frontier")
 				}
 				if current, ok := e.Roles().Lookup("retired"); !ok || current.Ref != role.Ref {
@@ -171,7 +171,7 @@ func TestDriverBatchRoleRetirementCandidateRestoration(t *testing.T) {
 		t.Fatal("candidate restoration deleted its still-dependent principal")
 	}
 	address := schemaRef(t, e, "restoration_peer").Address
-	if e.catalog.state.MustNamespace(address).Owner != role.Ref {
+	if e.catalog.State.MustNamespace(address).Owner != role.Ref {
 		t.Fatal("candidate restoration changed the unrelated peer root")
 	}
 }

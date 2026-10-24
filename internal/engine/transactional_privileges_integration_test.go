@@ -133,11 +133,11 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 						t.Fatal("mixed conflicting principal update was accepted", err)
 					}
 					if defaults {
-						if e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: creator, Class: authorization.DefaultTables}) != nil {
+						if e.catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: creator, Class: authorization.DefaultTables}) != nil {
 							t.Fatal("conflicting mixed policy leaked")
 						}
 					} else {
-						relation := e.catalog.state.MustRelation(address)
+						relation := e.catalog.State.MustRelation(address)
 						if authorization.ACLRights(relation.Security.ColumnACL[3], relation.Owner, []authorization.PrincipalRef{grantee}, authorization.SelectPrivilege, false) != 0 {
 							t.Fatal("conflicting mixed grant leaked")
 						}
@@ -187,12 +187,12 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 					t.Fatal("mixed publication lost the peer principal")
 				}
 				if defaults {
-					record := e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: creator, Class: authorization.DefaultTables})
+					record := e.catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: creator, Class: authorization.DefaultTables})
 					if record == nil || authorization.ACLRights(record.ACL, creator, []authorization.PrincipalRef{grantee}, authorization.SelectPrivilege, false) == 0 {
 						t.Fatal("mixed default policy lost")
 					}
 				} else {
-					relation := e.catalog.state.MustRelation(address)
+					relation := e.catalog.State.MustRelation(address)
 					if authorization.ACLRights(relation.Security.ColumnACL[3], relation.Owner, []authorization.PrincipalRef{grantee}, authorization.SelectPrivilege, false) == 0 {
 						t.Fatal("mixed object grant lost")
 					}
@@ -228,10 +228,10 @@ func TestTransactionalPrivilegesAllocatorRefresh(t *testing.T) {
 	for _, frontier := range []uint64{f.e.roles.published.Revision + 10, ^uint64(0)} {
 		f.e.mu.Lock()
 		f.e.roles.nextRevision = frontier
-		state, roles := f.e.catalog.state, f.e.roles.published
+		state, roles := f.e.catalog.State, f.e.roles.published
 		_, validationErr := f.e.journalRolePublicationLocked(journal, false)
 		publication, materializeErr := f.e.journalRolePublicationLocked(journal, true)
-		unpublished := f.e.catalog.state == state && f.e.roles.published == roles && f.e.roles.nextRevision == frontier
+		unpublished := f.e.catalog.State == state && f.e.roles.published == roles && f.e.roles.nextRevision == frontier
 		f.e.mu.Unlock()
 		if !unpublished {
 			t.Fatal("validation/materialization installed roots or reserved a revision")

@@ -47,7 +47,7 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 				old, root = btreeRoot(t, e, "ix")
 			}
 			definition := old.SQLIndex
-			parent := e.catalog.state.Get(definition.Parent)
+			parent := e.catalog.State.Get(definition.Parent)
 			store := e.storage.Relations[definition.Parent]
 			sibling, siblingRoot := btreeRoot(t, e, "sibling")
 			entries := transactionalIndexSnapshot(root)
@@ -81,7 +81,7 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 						t.Fatal("metadata operation retained pending producer role authority")
 					}
 				}
-				if !reflect.DeepEqual(root.Entries, entries) || len(old.StorageOptions.Base) != 0 || e.catalog.state.Get(old.Address()) != old {
+				if !reflect.DeepEqual(root.Entries, entries) || len(old.StorageOptions.Base) != 0 || e.catalog.State.Get(old.Address()) != old {
 					t.Fatal("metadata operation mutated committed capture")
 				}
 				if q == "ALTER INDEX fresh SET(fillfactor=80.0,deduplicate_items=off)" {
@@ -100,7 +100,7 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 				sessionSQL(t, s, "BEGIN")
 				sessionSQL(t, s, "DROP INDEX fresh")
 				sessionSQL(t, s, "ROLLBACK")
-				if e.catalog.state.Get(old.Address()) != next || e.storage.IndexRoots[old.Address()] != root {
+				if e.catalog.State.Get(old.Address()) != next || e.storage.IndexRoots[old.Address()] != root {
 					t.Fatal("invalid drop rollback lost exact index")
 				}
 			}
@@ -190,7 +190,7 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if scope.catalog == nil || scope.catalog.Descriptors[old.Address()] == nil || s.Transactions.Catalog != nil || e.catalog.state.Get(old.Address()) != old || e.storage.IndexRoots[old.Address()] != root {
+			if scope.catalog == nil || scope.catalog.Descriptors[old.Address()] == nil || s.Transactions.Catalog != nil || e.catalog.State.Get(old.Address()) != old || e.storage.IndexRoots[old.Address()] != root {
 				t.Fatal("Execute did not retain private, unmerged complete candidate")
 			}
 			var primary error
@@ -414,7 +414,7 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 			}
 			sessionSQL(t, actor, "SET ROLE actor")
 			// ALTER RENAME needs schema CREATE in addition to exact index owner.
-			ns := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+			ns := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 			user, _ := e.Roles().Lookup("actor")
 			root, _ := e.Roles().Lookup("postgres")
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: root.Ref, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {

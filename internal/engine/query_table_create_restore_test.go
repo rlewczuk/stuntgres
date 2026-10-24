@@ -30,13 +30,13 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		if mode == "isolated" {
 			e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
 		}
-		before := e.catalog.state
+		before := e.catalog.State
 		for _, raw := range []parser.TypeName{{Name: "char", Quoted: true}, {Name: "regclass"}, {Name: "regclass", ArrayBounds: []int32{0}}, {Name: "xid"}, {Name: "xid", Schema: &parser.Identifier{Text: "pg_catalog"}}, {Name: "cid"}, {Name: "xid8"}} {
 			e.mu.Lock()
 			usage, err := e.resolveTableColumnType(raw, op)
 			e.mu.Unlock()
 			if mode == "forged" {
-				if err == nil || usage.Type != nil || e.catalog.state != before {
+				if err == nil || usage.Type != nil || e.catalog.State != before {
 					t.Fatal("forged marker admitted a type or changed catalog state", raw, usage, err)
 				}
 				continue
@@ -81,7 +81,7 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 					t.Fatal("forged marker admitted ordinary type resolution")
 				}
 			}
-			if e.catalog.state != before {
+			if e.catalog.State != before {
 				t.Fatal("forged marker changed catalog state")
 			}
 			continue
@@ -117,7 +117,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 		t.Fatal(err)
 	}
 	target := New()
-	target.catalog.nextOID = anchor.Address().ObjectID + 100
+	target.catalog.InstallOIDFrontierLocked(anchor.Address().ObjectID + 100)
 	targetAnchorStage, targetAnchor := queryCreateStage(t, target, "anchor", 0)
 	queryCreatePublish(t, target, targetAnchorStage)
 	targetArray, ok := target.CatalogRead().LookupArray(testUsage(target, sqltype.Regclass).Type)

@@ -18,18 +18,18 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	state := e.catalog.state
+	state := e.catalog.State
 	if err := control.CheckPortable(state); err != nil {
 		return nil, err
 	}
-	catalogView := e.catalog.read(state)
+	catalogView := e.catalog.Read(state)
 	originalCatalog := catalogView
-	originalRoles := e.roles.read(e.catalog.owner(), originalCatalog, e.roles.published)
+	originalRoles := e.roles.read(&e.catalog.Owner, originalCatalog, e.roles.published)
 	recipePlan, err := table.CapturedGenerationReplayPlan(originalCatalog)
 	if err != nil {
 		return nil, err
 	}
-	aclOutput := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: originalRoles, Lossless: true}
+	aclOutput := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: originalRoles, Lossless: true}
 	ctx = regobj.ACLItemOutputContext(ctx, aclOutput)
 	if err := control.PreflightACLItems(ctx, originalCatalog, e.storage.Relations, e.visibility.CommitSeq(), aclOutput); err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
 	catalogView, constraintReplay := partition.ConstraintDumpCatalog(control.Resolver{}, catalogView)
-	domainRoles := e.roles.read(e.catalog.owner(), catalogView, e.roles.published)
+	domainRoles := e.roles.read(&e.catalog.Owner, catalogView, e.roles.published)
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		return nil, err
 	}

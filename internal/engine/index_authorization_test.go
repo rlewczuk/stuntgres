@@ -30,7 +30,7 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 		roleError(t, e, op, "CREATE INDEX forbidden ON t(n)", "42501", "must be owner of table t", "")
 	})
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	ns := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	ns := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}

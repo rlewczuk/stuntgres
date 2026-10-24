@@ -40,8 +40,8 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"})
-	return e, e.catalog.state.MustExtension(address)
+	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"})
+	return e, e.catalog.State.MustExtension(address)
 }
 
 func TestUUIDOsspProviderIdentity(t *testing.T) {
@@ -81,7 +81,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	state.UnbindName(catalog.DescriptorNameKey(proc))
 	state.SetDescriptor(address, &renamed)
 	state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
-	current := e.catalog.read(state)
+	current := e.catalog.Read(state)
 	if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != "uuid_generate_v4" {
 		t.Fatal("relabel lost UUID symbol", symbol, err)
 	}
@@ -119,7 +119,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		state.UnbindName(catalog.DescriptorNameKey(proc))
 		state.SetDescriptor(address, &bad)
 		state.BindName(catalog.DescriptorNameKey(&bad), bad.Address())
-		current := e.catalog.read(state)
+		current := e.catalog.Read(state)
 		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(current, &bad)
 		manifest := extension.StockUUIDOssp.ValidateExtension(current, ext)
 		if failure == nil || manifest == nil {
@@ -174,7 +174,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 
 func TestUUIDOsspProviderCollision(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
-	before := e.catalog.state
+	before := e.catalog.State
 	member := ext.Members[0]
 	procedure := before.Get(member)
 	descriptors, names := before.DescriptorCount(), before.NameCount()
@@ -186,7 +186,7 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	e.mu.Unlock()
 	// CatalogStage is a sparse private overlay, not a copy of its base.
 	// Atomicity concerns the published root and its existing identities.
-	if err == nil || e.catalog.state != before || e.catalog.state.DescriptorCount() != descriptors || e.catalog.state.NameCount() != names || e.catalog.state.Get(member) != procedure || e.catalog.state.Get(ext.Address()) != ext || e.catalog.state.NameAddress(key) != member {
+	if err == nil || e.catalog.State != before || e.catalog.State.DescriptorCount() != descriptors || e.catalog.State.NameCount() != names || e.catalog.State.Get(member) != procedure || e.catalog.State.Get(ext.Address()) != ext || e.catalog.State.NameAddress(key) != member {
 		t.Fatal("procedure collision was not rejected atomically", err)
 	}
 	if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42723" {

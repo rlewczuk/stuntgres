@@ -103,7 +103,7 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 		t.Fatal("copied PK is not an explicit UNIQUE dedup candidate", clone.Constraints.Unique)
 	}
 	c := clone.Constraints.Unique[0]
-	copied := e.catalog.state.MustRelation(c.Index)
+	copied := e.catalog.State.MustRelation(c.Index)
 	if c.OID == parent.Constraints.Unique[0].OID || c.Index == source.Address() || copied.Comment != "native descriptor comment" || copied.SQLIndex.Keys[1].Class != class || !copied.SQLIndex.Keys[1].ExplicitClass || copied.SQLIndex.Keys[0].Attribute != 2 || copied.SQLIndex.Keys[1].Attribute != 3 || copied.SQLIndex.Parent != clone.Address() || !copied.SQLIndex.Constraint.Primary {
 		t.Fatal("LIKE lost real provider/comment/attachment", copied)
 	}
@@ -119,16 +119,16 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 func TestPrimaryKeyCreateGroupFailureFence(t *testing.T) {
 	e, owner, parent, index := primaryKeyUnitFixture(t)
 	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
-		before, store, root := e.catalog.state, e.storage.Relations[parent.Address()], e.storage.IndexRoots[index.Address()]
+		before, store, root := e.catalog.State, e.storage.Relations[parent.Address()], e.storage.IndexRoots[index.Address()]
 		result, err := e.Execute(owner, primaryKeyUnitCreate("other", "pk"), 0, nil)
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P07", Message: `relation "pk" already exists`})
-		if result.Count != 0 || result.Rows != nil || e.catalog.state != before || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root {
+		if result.Count != 0 || result.Rows != nil || e.catalog.State != before || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root {
 			t.Fatal("backing-name conflict partly published CREATE group", result)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		result, err = testExecute(e, ctx, primaryKeyUnitCreate("canceled", "canceled_pkey"), nil)
-		if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || e.catalog.state != before || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root {
+		if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || e.catalog.State != before || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root {
 			t.Fatal("canceled CREATE partly published group", result, err)
 		}
 		lockEmpty(t, e)

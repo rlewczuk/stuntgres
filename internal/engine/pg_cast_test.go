@@ -17,11 +17,11 @@ import (
 func pgCastUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2605}
-	d, ok := e.catalog.state.Relation(a)
+	d, ok := e.catalog.State.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_cast")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
+	return d, e.catalog.Domain.Ref(e.catalog.State.Epoch(), a)
 }
 
 func TestPGCastShapeAndOwnership(t *testing.T) {
@@ -57,8 +57,8 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
-	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), ids.ObjectRef{}, class)
+	class := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,16 +121,16 @@ func pgCastUnitBag(t *testing.T, rows *exec.Source, d *catalog.Relation) map[uin
 func TestPGCastProjection(t *testing.T) {
 	e := New()
 	d, ref := pgCastUnitSource(t, e)
-	before := maps.Collect(e.catalog.state.Descriptors())
-	names := maps.Collect(e.catalog.state.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), ref, d)
+	before := maps.Collect(e.catalog.State.Descriptors())
+	names := maps.Collect(e.catalog.State.Names())
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if rows.Ref != ref {
 		t.Fatal("captured reference lost", rows.Ref, ref)
 	}
-	if !maps.Equal(maps.Collect(e.catalog.state.Descriptors()), before) || !maps.Equal(maps.Collect(e.catalog.state.Names()), names) {
+	if !maps.Equal(maps.Collect(e.catalog.State.Descriptors()), before) || !maps.Equal(maps.Collect(e.catalog.State.Names()), names) {
 		t.Fatal("capture mutated catalog state")
 	}
 	bag := pgCastUnitBag(t, rows, d)
@@ -150,14 +150,14 @@ func TestPGCastProjection(t *testing.T) {
 		t.Fatal("projection contains unexpected cast identities")
 	}
 	// Dedicated capture needs type owners only, not generic relation inventory.
-	state := *e.catalog.state
+	state := *e.catalog.State
 	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
 			state.RemoveDescriptor(a)
 		}
 	}
-	view := e.catalog.read(&state)
-	projected, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, d)
+	view := e.catalog.Read(&state)
+	projected, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, d)
 	if err != nil || !reflect.DeepEqual(pgCastUnitBag(t, projected, d), bag) {
 		t.Fatal("unrelated relation enumeration", err)
 	}

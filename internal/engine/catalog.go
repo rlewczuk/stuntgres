@@ -136,7 +136,7 @@ type PreparedCatalogPublication struct {
 
 func (e *Engine) BeginCatalogStage(base catalog.Read) *CatalogStage {
 	s := &CatalogStage{owner: e, Candidate: catalog.NewCandidate(base)}
-	if base.Owner() != e.catalog.owner() || base.State() == nil {
+	if base.Owner() != &e.catalog.Owner || base.State() == nil {
 		s.invalid = fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	return s
@@ -187,7 +187,7 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ids.ObjectRef, d *
 	}
 	e := s.owner
 	e.mu.Lock()
-	if err := e.catalog.validateObjectRefLocked(s.Base, ref); err != nil {
+	if err := e.catalog.ValidateObjectRefLocked(s.Base, ref); err != nil {
 		e.mu.Unlock()
 		return err
 	}
@@ -264,7 +264,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	if ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: whole object required")
 	}
-	if err := provider.owner.catalog.validateObjectRefLocked(provider.base, ref); err != nil {
+	if err := provider.owner.catalog.ValidateObjectRefLocked(provider.base, ref); err != nil {
 		return err
 	}
 	if err := table.CheckRemovalLocked(provider.base, provider.path, ref, namespace); err != nil {
@@ -313,7 +313,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	return nil
 }
 func (e *Engine) stageRead(s *CatalogStage) catalog.Read {
-	return e.catalog.read(s.Candidate.State())
+	return e.catalog.Read(s.Candidate.State())
 }
 func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*PreparedCatalogPublication, error) {
 	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil {
@@ -363,11 +363,11 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		e.mu.Unlock()
 		return nil, err
 	}
-	if err := s.MarkIndexHistoryLocked(e.catalog.revisionLocked, s.Replace); err != nil {
+	if err := s.MarkIndexHistoryLocked(e.catalog.RevisionLocked, s.Replace); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
-	if err := s.MarkSubclassHistoryLocked(e.catalog.revisionLocked, s.Replace); err != nil {
+	if err := s.MarkSubclassHistoryLocked(e.catalog.RevisionLocked, s.Replace); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -468,7 +468,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			e.mu.Unlock()
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 		}
-		current := e.catalog.state
+		current := e.catalog.State
 		if err := s.DefaultPreflight(current); err != nil {
 			e.mu.Unlock()
 			return ChangeSet{}, err
@@ -486,15 +486,15 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		if fence := s.domainAlter.ValidationFence(); fence != nil && !fence.Current(e.catalog.read(current), currentStorage) {
+		if fence := s.domainAlter.ValidationFence(); fence != nil && !fence.Current(e.catalog.Read(current), currentStorage) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		if !table.TypedObservationValid(s.typed, e.catalog.read(current)) {
+		if !table.TypedObservationValid(s.typed, e.catalog.Read(current)) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		if !s.AccessMethodsCurrent(e.catalog.read(current)) {
+		if !s.AccessMethodsCurrent(e.catalog.Read(current)) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -508,7 +508,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				return ChangeSet{}, catalog.Conflict{}
 			}
 		}
-		if err := s.validateLikeSources(e.catalog.read(current)); err != nil {
+		if err := s.validateLikeSources(e.catalog.Read(current)); err != nil {
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
@@ -593,52 +593,52 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		}
 		for _, descriptor := range next.Descriptors() {
 			if relation, ok := descriptor.(*catalog.Relation); ok && relation.Inheritance != nil {
-				if err := table.ValidateInheritance(e.catalog.read(next), relation); err != nil {
+				if err := table.ValidateInheritance(e.catalog.Read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if domainChanged || s.Get(descriptor.Address()) != nil {
 				if relation, ok := descriptor.(*catalog.Relation); ok {
-					if err := typedef.ValidateTypedAttachment(e.catalog.read(next), relation); err != nil {
+					if err := typedef.ValidateTypedAttachment(e.catalog.Read(next), relation); err != nil {
 						return ChangeSet{}, err
 					}
 				}
-				if err := stored.ValidateTypeProviders(e.catalog.read(next), descriptor); err != nil {
+				if err := stored.ValidateTypeProviders(e.catalog.Read(next), descriptor); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Security.Policies) != 0 {
-				if err := view.ValidatePolicies(e.catalog.read(next), relation); err != nil {
+				if err := view.ValidatePolicies(e.catalog.Read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(stored.RulesOf(relation)) != 0 {
-				if err := stored.ValidateRules(e.catalog.read(next), relation); err != nil {
+				if err := stored.ValidateRules(e.catalog.Read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && relation.HasTriggers() {
-				if err := stored.ValidateTriggers(e.catalog.read(next), relation); err != nil {
+				if err := stored.ValidateTriggers(e.catalog.Read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if viewRelation, ok := descriptor.(*catalog.Relation); ok && viewRelation.View != nil {
-				if err := view.ValidateViewDefinition(e.catalog.read(next), viewRelation); err != nil {
+				if err := view.ValidateViewDefinition(e.catalog.Read(next), viewRelation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Constraints.Check) != 0 {
-				if err := table.ValidateCheckProviders(e.catalog.read(next), relation); err != nil {
+				if err := table.ValidateCheckProviders(e.catalog.Read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.ColumnMeta.Defaults) != 0 {
-				if err := table.ValidateDefaultProviders(e.catalog.read(next), relation); err != nil {
+				if err := table.ValidateDefaultProviders(e.catalog.Read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.ColumnMeta.Generations) != 0 {
-				if err := table.ValidateGenerationProviders(e.catalog.read(next), relation); err != nil {
+				if err := table.ValidateGenerationProviders(e.catalog.Read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
@@ -647,7 +647,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if op != nil {
 			op.Session.Mu.Lock()
 		}
-		if e.catalog.state != current {
+		if e.catalog.State != current {
 			if op != nil {
 				op.Session.Mu.Unlock()
 			}
@@ -678,7 +678,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			}
 		}
 		if r := s.materializedOrZero().Replacement; r != nil {
-			if err := s.materializedReplacementCurrent(e.catalog.state, e.storage.Relations[r.Original.Address()]); err != nil {
+			if err := s.materializedReplacementCurrent(e.catalog.State, e.storage.Relations[r.Original.Address()]); err != nil {
 				if op != nil {
 					op.Session.Mu.Unlock()
 				}
@@ -690,14 +690,14 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if err == nil && !e.storage.IndexRootsCurrent(s.domainAlter.AlteredIndexRoots()) {
 			err = catalog.Conflict{}
 		}
-		if fence := s.domainAlter.ValidationFence(); err == nil && fence != nil && !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
+		if fence := s.domainAlter.ValidationFence(); err == nil && fence != nil && !fence.Current(e.catalog.Current(), e.storage.Relations) {
 			err = catalog.Conflict{}
 		}
-		if err == nil && s.databasePredecessor != nil && !catalog.DatabaseAuthorityCompatible(e.catalog.state.Get(e.catalog.DatabaseAddress()), s.databasePredecessor) {
+		if err == nil && s.databasePredecessor != nil && !catalog.DatabaseAuthorityCompatible(e.catalog.State.Get(e.catalog.DatabaseAddress()), s.databasePredecessor) {
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
-			err = catalogDependencyPreflight(e.catalog.state, next, s.sequence.IdentityDependencyList(), s.sequence.IdentityOriginalMap())
+			err = catalogDependencyPreflight(e.catalog.State, next, s.sequence.IdentityDependencyList(), s.sequence.IdentityOriginalMap())
 		}
 		if err == nil {
 			err = s.validateRoleCandidate(e.roles.published)
@@ -706,11 +706,11 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			err = publicationOperationLocked(e, op)
 		}
 		if err == nil {
-			err = catalog.ValidateDefaultACLs(s.roleRead(e.roles.published, e.catalog.read(next)), e.catalog.read(next))
+			err = catalog.ValidateDefaultACLs(s.roleRead(e.roles.published, e.catalog.Read(next)), e.catalog.Read(next))
 		}
 		if err == nil {
 			for _, d := range s.Descriptors() {
-				if err = access.ValidateACL(s.roleRead(e.roles.published, e.catalog.read(next)), d); err != nil {
+				if err = access.ValidateACL(s.roleRead(e.roles.published, e.catalog.Read(next)), d); err != nil {
 					break
 				}
 			}
@@ -733,8 +733,8 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			if op == nil || s.authSession != op.Session {
 				s.authSession.Mu.Lock()
 			}
-			auth := e.authorityView(access.View{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(e.catalog.state), RoleRecord: e.roles.published, Catalog: e.catalog.read(e.catalog.state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), State: s.authSession.Authorization.State})
-			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedOrZero().Replacement.Original.Address()), Privileges: authorization.MaintainPrivilege})
+			auth := e.authorityView(access.View{Owner: &e.catalog.Owner, PairedCatalog: e.catalog.Current(), RoleRecord: e.roles.published, Catalog: e.catalog.Current(), Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), State: s.authSession.Authorization.State})
+			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(e.catalog.State.Epoch(), s.materializedOrZero().Replacement.Original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.Session {
 				s.authSession.Mu.Unlock()
 			}
@@ -771,7 +771,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if err == nil {
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
-			nextRevision := catalog.RevisionFrontier(e.catalog.nextRevision, s.Descriptors())
+			nextRevision := catalog.RevisionFrontier(e.catalog.NextRevision(), s.Descriptors())
 			if len(s.initialTables) != 0 || s.materializedOrZero().Replacement != nil {
 				frontier, fullXID := e.visibility.CommitSeq()+1, e.visibility.FullXIDLocked(commitRef)
 				for _, initial := range s.initialTables {
@@ -807,7 +807,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			if s.initialTx != (ids.TxRef{}) {
 				e.visibility.SerializableCommittedLocked(s.initialTx, e.visibility.CommitSeq())
 			}
-			e.catalog.state = next
+			e.catalog.PublishLocked(next)
 			installDatabaseProjectionLocked(databaseRoots)
 			e.storage.ReplaceRelationsLocked(relations)
 			index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
@@ -818,7 +818,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			for a, generator := range s.sequence.StagedGenerators() {
 				e.storage.InstallSequenceLocked(a, generator)
 			}
-			e.catalog.nextRevision = nextRevision
+			e.catalog.InstallRevisionFrontierLocked(nextRevision)
 			if s.roleCandidate != nil {
 				s.roleCandidate.Revision = roleRevision
 				e.roles.published = s.roleCandidate
@@ -882,7 +882,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			e.locks.Fence(e.catalog.Domain, installed)
 		}
 	}()
-	if replacement.State() == nil || replacement.Owner() == nil || source == nil || replacement.Owner() != source.catalog.owner() {
+	if replacement.State() == nil || replacement.Owner() == nil || source == nil || replacement.Owner() != &source.catalog.Owner {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid replacement catalog")
 	}
 	if err := ctx.Err(); err != nil {
@@ -928,7 +928,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	var indexes *index.Snapshot
 	copyRows := func(owner *Engine) error {
 		source, frontier := owner.storage.Relations, owner.visibility.CommitSeq()
-		heap, err := visibility.ResolveHeapAccess(owner.catalog.read(owner.catalog.state), 2)
+		heap, err := visibility.ResolveHeapAccess(owner.catalog.Current(), 2)
 		if err != nil {
 			return err
 		}
@@ -950,12 +950,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.storage.IndexRoots, frontier)
 		return err
 	}
-	if replacement.Owner() == e.catalog.owner() {
+	if replacement.Owner() == &e.catalog.Owner {
 		e.replacementMu.Lock()
 		defer e.replacementMu.Unlock()
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		oids := e.catalog.oidReservationLocked()
+		oids := e.catalog.OIDReservationLocked()
 		if e.prepared.Len() != 0 {
 			return ChangeSet{}, fmt.Errorf("stuntgres: cannot replace catalog while prepared transactions exist")
 		}
@@ -965,7 +965,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 			return ChangeSet{}, err
 		}
-		if replacement.Epoch() != e.catalog.state.Epoch() {
+		if replacement.Epoch() != e.catalog.State.Epoch() {
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
 		next = catalog.CloneState(replacement.State())
@@ -984,11 +984,11 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err != nil {
 			return ChangeSet{}, err
 		}
-		if err := e.storage.ReplacementCapacityLocked(relations, e.catalog.state.Epoch(), e.visibility.CommitSeq()); err != nil {
+		if err := e.storage.ReplacementCapacityLocked(relations, e.catalog.State.Epoch(), e.visibility.CommitSeq()); err != nil {
 			return ChangeSet{}, err
 		}
 		if hasHierarchy {
-			candidate := e.catalog.read(next)
+			candidate := e.catalog.Read(next)
 			for _, descriptor := range next.Descriptors() {
 				if relation, ok := descriptor.(*catalog.Relation); ok && catalog.HierarchyRelation(relation) {
 					if err := partition.ValidateDescriptor(candidate, relation); err != nil {
@@ -1004,15 +1004,15 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
-		if e.catalog.nextOID != oids.base {
+		if e.catalog.NextOID() != oids.Base {
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
-		e.installReplacementLocked(next, relations, sequences, roots, nextRow, nextVersion, nextRevision, oids.next)
+		e.installReplacementLocked(next, relations, sequences, roots, nextRow, nextVersion, nextRevision, oids.Next)
 		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
 	}
 	source.mu.Lock()
-	if replacement.Epoch() != source.catalog.state.Epoch() {
+	if replacement.Epoch() != source.catalog.State.Epoch() {
 		source.mu.Unlock()
 		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
@@ -1020,7 +1020,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err == nil {
 		sequences, err = sequence.CopyGenerators(replacement, source.storage.Sequences)
 	}
-	sourceRoles := source.roles.read(source.catalog.owner(), replacement, source.roles.published)
+	sourceRoles := source.roles.read(&source.catalog.Owner, replacement, source.roles.published)
 	sourceForeign := source.foreign
 	source.mu.Unlock()
 	if err != nil {
@@ -1030,7 +1030,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	defer e.replacementMu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	oids := e.catalog.oidReservationLocked()
+	oids := e.catalog.OIDReservationLocked()
 	if e.prepared.Len() != 0 {
 		return ChangeSet{}, fmt.Errorf("stuntgres: cannot replace catalog while prepared transactions exist")
 	}
@@ -1040,7 +1040,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := e.storage.ReplacementCapacityLocked(relations, e.catalog.state.Epoch(), e.visibility.CommitSeq()); err != nil {
+	if err := e.storage.ReplacementCapacityLocked(relations, e.catalog.State.Epoch(), e.visibility.CommitSeq()); err != nil {
 		return ChangeSet{}, err
 	}
 	replacement.State().SetACLItemImport(e.aclItemImporter(source, sourceRoles, targetRoles, source.importTargets))
@@ -1075,28 +1075,28 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
 func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalogOIDReservation) error {
-	if prepared.Catalog != next || prepared.BaseCatalog != e.catalog.state || prepared.BaseRow != e.storage.RowFrontier() || prepared.BaseVersion != e.storage.VersionFrontier() || prepared.Frontier != e.visibility.CommitSeq() || e.catalog.nextOID != oids.base {
+	if prepared.Catalog != next || prepared.BaseCatalog != e.catalog.State || prepared.BaseRow != e.storage.RowFrontier() || prepared.BaseVersion != e.storage.VersionFrontier() || prepared.Frontier != e.visibility.CommitSeq() || e.catalog.NextOID() != oids.Base {
 		return ids.ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.installReplacementLocked(next, relations, sequences, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision, oids.next)
+	e.installReplacementLocked(next, relations, sequences, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision, oids.Next)
 	return nil
 }
 
 // replacementACLsLocked validates the default ACLs and every descriptor ACL of
 // a replacement catalog and returns the revision frontier it needs.
 func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevision, error) {
-	if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), e.catalog.read(next)); err != nil {
+	if err := catalog.ValidateDefaultACLs(e.roles.read(&e.catalog.Owner, e.catalog.Read(next), e.roles.published), e.catalog.Read(next)); err != nil {
 		return 0, err
 	}
 	for _, d := range next.Descriptors() {
-		if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
+		if err := access.ValidateACL(e.roles.read(&e.catalog.Owner, e.catalog.Read(next), e.roles.published), d); err != nil {
 			return 0, err
 		}
 	}
-	return catalog.RevisionFrontier(e.catalog.nextRevision, next.Descriptors()), nil
+	return catalog.RevisionFrontier(e.catalog.NextRevision(), next.Descriptors()), nil
 }
 
 // installReplacementLocked installs a validated replacement generation: its
@@ -1107,9 +1107,9 @@ func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids
 	e.storage.SetFrontierLocked(nextRow, nextVersion)
 	e.storage.ReplaceIndexRootsLocked(roots)
 	e.visibility.AdvanceCommitSeqLocked()
-	next.SetEpoch(e.catalog.state.Epoch() + 1)
-	e.catalog.state = next
-	e.catalog.nextOID = nextOID
+	next.SetEpoch(e.catalog.State.Epoch() + 1)
+	e.catalog.PublishLocked(next)
+	e.catalog.InstallOIDFrontierLocked(nextOID)
 	e.storage.ReplaceRelationsLocked(relations)
 	e.databaseFrozenXID = 0
 	e.vacuumProgress = nil
@@ -1120,7 +1120,7 @@ func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids
 	e.exclusions.ResetLocked()
 	e.storage.ReplaceSequencesLocked(sequences)
 	e.clearPersistentSequenceMemoryLocked()
-	e.catalog.nextRevision = nextRevision
+	e.catalog.InstallRevisionFrontierLocked(nextRevision)
 	e.fenceSerializableLocked()
 	e.visibility.RetireCommitTimestampsLocked()
 }
@@ -1138,5 +1138,5 @@ func (e *Engine) RegisterCatalogProvider(p catalog.Provider) error {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.catalog.registerProviderLocked(id, p)
+	return e.catalog.RegisterProviderLocked(id, p)
 }

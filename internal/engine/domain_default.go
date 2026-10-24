@@ -46,7 +46,7 @@ func (e *Engine) bindDomainDefaultUsage(ctx context.Context, op *session.Operati
 		}
 		d.DomainDefaultOwn = true
 		definition := catalog.ColumnDefault{Expression: node}
-		if _, err = (stored.ScalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(ctx, auth.Catalog, node); err != nil {
+		if _, err = (stored.ScalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
 		var path []ids.ObjectAddress

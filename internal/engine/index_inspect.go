@@ -16,7 +16,7 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 		return false, false, false, false, false, err
 	}
 	e.mu.Lock()
-	catalogView := e.catalog.read(e.catalog.state)
+	catalogView := e.catalog.Current()
 	namespace, ok := catalogView.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema})
 	if !ok {
 		e.mu.Unlock()
@@ -34,7 +34,7 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 	}
 	ready, valid, live := idx.SQLIndex.PublicationState()
 	wait, admitted := e.indexWaits.LookupLocked(address)
-	admitted = admitted && wait.Owner.Domain() == e.catalog.Domain && wait.Owner.Epoch() == e.catalog.state.Epoch() && live && !valid
+	admitted = admitted && wait.Owner.Domain() == e.catalog.Domain && wait.Owner.Epoch() == e.catalog.State.Epoch() && live && !valid
 	older := admitted && ready && wait.Kind == index.WaitOlderSnapshots
 	writers := admitted && wait.Kind == index.WaitWriters
 	e.mu.Unlock()

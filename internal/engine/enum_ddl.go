@@ -93,7 +93,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		if ref != locked {
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.State.Get(ref.Address))
 		edit, err := typedef.StageAlterEnumLabelLocked(host, old, alter)
 		if err != nil {
 			return Result{}, err

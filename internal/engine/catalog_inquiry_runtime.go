@@ -36,7 +36,7 @@ func (h *statementHost) catalogInquiryCatalog() (catalog.Read, error) {
 		return catalog.Read{}, fmt.Errorf("stuntgres: missing catalog inquiry snapshot")
 	}
 	engine := scope.engine()
-	if view.Owner() != engine.catalog.owner() || !scope.inquiry.commentRoles.BelongsTo(&engine.roles.domain) {
+	if view.Owner() != &engine.catalog.Owner || !scope.inquiry.commentRoles.BelongsTo(&engine.roles.domain) {
 		return catalog.Read{}, fmt.Errorf("stuntgres: foreign catalog inquiry snapshot")
 	}
 	return view, nil

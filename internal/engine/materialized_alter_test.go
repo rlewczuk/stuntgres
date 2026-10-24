@@ -28,7 +28,7 @@ func materializedAlterIndex(t *testing.T, e *Engine, op *session.Operation, d *c
 	t.Helper()
 	// Setup uses the real index binder and publisher; assertions below inspect roots.
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX unit_mv_i ON "+d.Name()+"(i)")
-	return e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: "unit_mv_i"}))
+	return e.catalog.State.MustRelation(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: "unit_mv_i"}))
 }
 func TestMaterializedAlterIdentity(t *testing.T) {
 	e := New()
@@ -40,11 +40,11 @@ func TestMaterializedAlterIdentity(t *testing.T) {
 	if err := materializedAlterUnit(t, e, op, d, "rename", "saved"); err != nil {
 		t.Fatal(err)
 	}
-	next := e.catalog.state.MustRelation(d.Address())
+	next := e.catalog.State.MustRelation(d.Address())
 	if next == d || next.Name() != "saved" || d.Name() != "unit_mv" || next.RowType != rowType || stored.ViewOf(next).RuleOID() != rule || next.View != d.View || e.storage.Relations[d.Address()] != store || !reflect.DeepEqual(next.Attributes, d.Attributes) {
 		t.Fatal("metadata publication reminted or mutated captured identity")
 	}
-	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(rowType)})
+	row := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(rowType)})
 	if row.Name() != "saved" || row.OwningRelation != d.Address() {
 		t.Fatal("row type rename not synchronized")
 	}
@@ -58,8 +58,8 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 	root := e.storage.IndexRoots[index.Address()]
 	store := e.storage.Relations[d.Address()]
 	actor := roleAttributeCreate(t, e, op, "mv_next", true, parser.RoleOptions{})
-	oldRow := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
-	oldArray := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oldRow.Array)})
+	oldRow := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
+	oldArray := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oldRow.Array)})
 	rowACL, arrayACL := oldRow.ACL, oldArray.ACL
 	rowACL.Entries = slices.Clone(rowACL.Entries)
 	arrayACL.Entries = slices.Clone(arrayACL.Entries)
@@ -67,10 +67,10 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, stmt); err != nil {
 		t.Fatal(err)
 	}
-	next := e.catalog.state.MustRelation(d.Address())
-	attached := e.catalog.state.MustRelation(index.Address())
-	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
-	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
+	next := e.catalog.State.MustRelation(d.Address())
+	attached := e.catalog.State.MustRelation(index.Address())
+	row := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
+	array := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
 	if next.Owner != actor.Ref || attached.Owner != actor.Ref || row.Owner != actor.Ref || array.Owner != actor.Ref || d.Owner == actor.Ref || index.Owner == actor.Ref || attached.SQLIndex != index.SQLIndex || e.storage.IndexRoots[index.Address()] != root || e.storage.Relations[d.Address()] != store {
 		t.Fatal("owner group not coherent or roots rebuilt")
 	}
@@ -101,14 +101,14 @@ func TestMaterializedAlterExtensionAuthority(t *testing.T) {
 	if err := materializedAlterUnit(t, e, op, d, "depends", "unaccent"); err != nil {
 		t.Fatal(err)
 	}
-	next := e.catalog.state.MustRelation(d.Address())
+	next := e.catalog.State.MustRelation(d.Address())
 	if len(d.AutoExtensions) != 0 || !reflect.DeepEqual(next.AutoExtensions, []ids.ObjectAddress{ext.Address()}) {
 		t.Fatal("authority not immutable whole genuine provider")
 	}
 	if err := materializedAlterUnit(t, e, op, next, "depends", "unaccent"); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state.Get(d.Address()) != next {
+	if e.catalog.State.Get(d.Address()) != next {
 		t.Fatal("duplicate edge replaced descriptor")
 	}
 	for _, addresses := range [][]ids.ObjectAddress{{{ClassID: ids.ProcedureClassID, ObjectID: ext.Members[0].ObjectID}}, {ext.Address(), ext.Address()}, {{ClassID: ids.ExtensionClassID, ObjectID: ext.Address().ObjectID, SubID: 1}}, {{ClassID: ids.ExtensionClassID, ObjectID: 999999}}} {
@@ -135,14 +135,14 @@ func TestMaterializedAlterExtensionAuthority(t *testing.T) {
 	if err := materializedAlterUnit(t, e, op, next, "no_depends", "unaccent"); err != nil {
 		t.Fatal(err)
 	}
-	detached := e.catalog.state.MustRelation(d.Address())
+	detached := e.catalog.State.MustRelation(d.Address())
 	if len(detached.AutoExtensions) != 0 || len(next.AutoExtensions) != 1 {
 		t.Fatal("detach mutated old authority")
 	}
 	if err := materializedAlterUnit(t, e, op, detached, "no_depends", "unaccent"); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state.Get(d.Address()) != detached {
+	if e.catalog.State.Get(d.Address()) != detached {
 		t.Fatal("absent edge replaced descriptor")
 	}
 }
@@ -169,7 +169,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 				t.Fatal("genuine provider retirement", err)
 			}
 			queryCreatePublish(t, e, stage)
-			if e.catalog.state.Get(d.Address()) != nil || e.storage.Relations[d.Address()] != nil || e.catalog.state.Get(index.Address()) != nil || e.storage.IndexRoots[index.Address()] != nil || len(old.Versions) != 3 || root == nil {
+			if e.catalog.State.Get(d.Address()) != nil || e.storage.Relations[d.Address()] != nil || e.catalog.State.Get(index.Address()) != nil || e.storage.IndexRoots[index.Address()] != nil || len(old.Versions) != 3 || root == nil {
 				t.Fatal("retirement failed whole group or mutated captured storage")
 			}
 		})
@@ -195,7 +195,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		}
 		changes := session.NewJournal()
 		e.mu.Lock()
-		err = e.captureCatalogStageLocked(stage, changes, e.catalog.state, nil)
+		err = e.captureCatalogStageLocked(stage, changes, e.catalog.State, nil)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -203,8 +203,8 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		if err := materializedAlterUnit(t, e, op, d, "depends", "unaccent"); err != nil {
 			t.Fatal(err)
 		}
-		current := e.catalog.state.Get(d.Address())
-		state := e.catalog.state
+		current := e.catalog.State.Get(d.Address())
+		state := e.catalog.State
 		e.mu.Lock()
 		err = e.catalogPreflightLocked(changes)
 		e.mu.Unlock()
@@ -214,7 +214,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 			t.Fatal("late x edge allowed stale retirement")
 		}
-		if e.catalog.state != state || e.catalog.state.Get(d.Address()) != current || e.catalog.state.Get(ext.Address()) != ext || e.storage.Relations[d.Address()] != store {
+		if e.catalog.State != state || e.catalog.State.Get(d.Address()) != current || e.catalog.State.Get(ext.Address()) != ext || e.storage.Relations[d.Address()] != store {
 			t.Fatal("late attachment fence leaked retirement")
 		}
 	})
@@ -227,7 +227,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 			t.Fatal(err)
 		}
 		closeOwner()
-		if e.catalog.state.Get(ext.Address()) != nil || e.catalog.state.Get(d.Address()) != nil || e.catalog.state.Get(index.Address()) != nil || e.storage.Relations[d.Address()] != nil || e.storage.IndexRoots[index.Address()] != nil || len(store.Versions) != 3 {
+		if e.catalog.State.Get(ext.Address()) != nil || e.catalog.State.Get(d.Address()) != nil || e.catalog.State.Get(index.Address()) != nil || e.storage.Relations[d.Address()] != nil || e.storage.IndexRoots[index.Address()] != nil || len(store.Versions) != 3 {
 			t.Fatal("real temporary provider end did not retire auto-extension group")
 		}
 	})
@@ -235,16 +235,16 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	e, op, ext := extensionUnitInstalled(t)
 	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW union_mv AS SELECT unaccent('Hôtel'::text) AS s")
-	d := e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.TargetNamespace, Name: "union_mv"}))
+	d := e.catalog.State.MustRelation(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.TargetNamespace, Name: "union_mv"}))
 	if err := materializedAlterUnit(t, e, op, d, "depends", "unaccent"); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "CREATE VIEW union_child AS SELECT s FROM union_mv")
-	child := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: "union_child"})
-	member := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: "unaccent", Signature: string(catalog.UnaccentTextSignature)})
+	child := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: "union_child"})
+	member := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: "unaccent", Signature: string(catalog.UnaccentTextSignature)})
 	survivor := refreshUnitRelation(t, e)
 	store := e.storage.Relations[survivor.Address()]
-	before := e.catalog.state
+	before := e.catalog.State
 	providerRoots := append([]ids.ObjectAddress{ext.Address()}, ext.Members[:]...)
 	for _, roots := range [][]ids.ObjectAddress{{member, ext.Address()}, {ext.Address(), member}} {
 		stage := e.BeginCatalogStage(e.CatalogRead())
@@ -279,7 +279,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 			t.Fatal("ordinary dependent lost RESTRICT authority")
 		}
 		e.DiscardCatalogStage(stage)
-		if e.catalog.state != before || e.storage.Relations[survivor.Address()] != store {
+		if e.catalog.State != before || e.storage.Relations[survivor.Address()] != store {
 			t.Fatal("RESTRICT changed live state")
 		}
 	}
@@ -294,7 +294,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	if e.catalog.state.Get(d.Address()) != nil || e.catalog.state.Get(child) != nil || e.catalog.state.Get(ext.Address()) != nil || e.storage.Relations[survivor.Address()] != store || e.catalog.state.Get(survivor.Address()) != survivor {
+	if e.catalog.State.Get(d.Address()) != nil || e.catalog.State.Get(child) != nil || e.catalog.State.Get(ext.Address()) != nil || e.storage.Relations[survivor.Address()] != store || e.catalog.State.Get(survivor.Address()) != survivor {
 		t.Fatal("union CASCADE failed or removed unrelated materialization")
 	}
 }
@@ -326,7 +326,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "provider":
 				copy := *ext
 				copy.ObjectRevision++
-				e.catalog.state.SetDescriptor(ext.Address(), &copy)
+				e.catalog.State.SetDescriptor(ext.Address(), &copy)
 			case "cancel":
 				cancel()
 			case "role":
@@ -341,7 +341,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			if reason == "cancel" && !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if e.catalog.state.Get(d.Address()) != d || e.storage.Relations[d.Address()] != store || len(d.AutoExtensions) != 0 {
+			if e.catalog.State.Get(d.Address()) != d || e.storage.Relations[d.Address()] != store || len(d.AutoExtensions) != 0 {
 				t.Fatal("failed publication leaked")
 			}
 		})
@@ -353,7 +353,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	index := materializedAlterIndex(t, e, op, d)
-	d = e.catalog.state.MustRelation(d.Address())
+	d = e.catalog.State.MustRelation(d.Address())
 	for _, count := range []int{4, 0, 2} {
 		old := e.storage.Relations[d.Address()]
 		root := e.storage.IndexRoots[index.Address()]
@@ -364,7 +364,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 		}
 		candidate := stage.materializedOrZero().Replacement.Storage
 		queryCreatePublish(t, e, stage)
-		d = e.catalog.state.MustRelation(d.Address())
+		d = e.catalog.State.MustRelation(d.Address())
 		next := e.storage.IndexRoots[index.Address()]
 		if next == root || e.storage.Relations[d.Address()] != candidate || len(next.Entries) != count || !reflect.DeepEqual(oldEntries, root.Entries) {
 			t.Fatal("roots and storage not atomically rebuilt", count)
@@ -372,7 +372,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 	}
 	old := e.storage.Relations[d.Address()]
 	root := e.storage.IndexRoots[index.Address()]
-	state := e.catalog.state
+	state := e.catalog.State
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	rows := refreshUnitRows(t, d, 2)
@@ -385,7 +385,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	extensionUnitError(t, err, "23505")
-	if e.catalog.state != state || e.storage.Relations[d.Address()] != old || e.storage.IndexRoots[index.Address()] != root {
+	if e.catalog.State != state || e.storage.Relations[d.Address()] != old || e.storage.IndexRoots[index.Address()] != root {
 		t.Fatal("duplicate refresh partially published")
 	}
 }
@@ -397,7 +397,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if err := materializedAlterUnit(t, e, op, d, "depends", "unaccent"); err != nil {
 		t.Fatal(err)
 	}
-	d = e.catalog.state.MustRelation(d.Address())
+	d = e.catalog.State.MustRelation(d.Address())
 	if extension.RemapDescriptor(d, nil) != d {
 		t.Fatal("unnecessary remap allocation")
 	}
@@ -406,8 +406,8 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	defer done()
 	roleExecute(t, target, targetOp, "CREATE TEMP TABLE remap_retained(i INT)")
 	roleExecute(t, target, targetOp, "INSERT INTO remap_retained VALUES(99)")
-	temporary := target.catalog.state.Get(targetOp.Session.TemporaryNamespace)
-	retained := target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: temporary.Address(), Name: "remap_retained"})
+	temporary := target.catalog.State.Get(targetOp.Session.TemporaryNamespace)
+	retained := target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: temporary.Address(), Name: "remap_retained"})
 	retainedStore := target.storage.Relations[retained]
 	if temporary.Address().ObjectID != ext.Address().ObjectID {
 		t.Fatal("fixture did not create a genuine cross-class retained TEMP collision")
@@ -415,14 +415,14 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	importedExt := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
-	imported := target.catalog.state.MustRelation(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}))
-	importedIndex := target.catalog.state.MustRelation(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: index.Name()}))
+	importedExt := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
+	imported := target.catalog.State.MustRelation(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}))
+	importedIndex := target.catalog.State.MustRelation(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: index.Name()}))
 	root := target.storage.IndexRoots[importedIndex.Address()]
 	if importedExt.Address() == ext.Address() || !reflect.DeepEqual(imported.AutoExtensions, []ids.ObjectAddress{importedExt.Address()}) || importedIndex.SQLIndex.Parent != imported.Address() || root == nil || len(root.Entries) != 3 || len(target.storage.Relations[imported.Address()].Versions) != 3 {
 		t.Fatal("genuine displaced import lost provider/x/index/rows")
 	}
-	if target.catalog.state.Get(temporary.Address()) != temporary || target.storage.Relations[retained] != retainedStore || e.catalog.state.Get(d.Address()) != d || e.storage.Relations[d.Address()] != sourceStore || d.AutoExtensions[0] != ext.Address() {
+	if target.catalog.State.Get(temporary.Address()) != temporary || target.storage.Relations[retained] != retainedStore || e.catalog.State.Get(d.Address()) != d || e.storage.Relations[d.Address()] != sourceStore || d.AutoExtensions[0] != ext.Address() {
 		t.Fatal("import mutated retained TEMP or source authority")
 	}
 	remapped := extension.RemapDescriptor(d, map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): importedExt.Address()}).(*catalog.Relation)
@@ -441,7 +441,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, target, stage)
-	if target.catalog.state.Get(imported.Address()) != nil || target.catalog.state.Get(importedIndex.Address()) != nil || target.storage.IndexRoots[importedIndex.Address()] != nil || target.storage.Relations[retained] != retainedStore || target.catalog.state.Get(temporary.Address()) != temporary || e.catalog.state.Get(d.Address()) != d {
+	if target.catalog.State.Get(imported.Address()) != nil || target.catalog.State.Get(importedIndex.Address()) != nil || target.storage.IndexRoots[importedIndex.Address()] != nil || target.storage.Relations[retained] != retainedStore || target.catalog.State.Get(temporary.Address()) != temporary || e.catalog.State.Get(d.Address()) != d {
 		t.Fatal("remapped x retirement did not preserve unrelated captured authority")
 	}
 	predecessor, err := control.Resolver{}.Predecessor(e.CatalogRead(), ext.Address(), d.Address())
@@ -464,7 +464,7 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	d = e.catalog.state.MustRelation(d.Address())
+	d = e.catalog.State.MustRelation(d.Address())
 	owner, ownerDone := roleOperation(t, e, "mv_queued_owner")
 	defer ownerDone()
 	owner.Done()
@@ -504,7 +504,7 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		queryCreatePublish(t, e, stage)
-		original := e.catalog.state.Get(d.Address())
+		original := e.catalog.State.Get(d.Address())
 		store := e.storage.Relations[d.Address()]
 		transactionEnd(t, holder, tx, false)
 		ended = true
@@ -515,7 +515,7 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("queued ALTER did not terminate after grant")
 		}
-		if e.catalog.state.Get(d.Address()) != original || e.storage.Relations[d.Address()] != store {
+		if e.catalog.State.Get(d.Address()) != original || e.storage.Relations[d.Address()] != store {
 			t.Fatal("queued actor used stale owner authority")
 		}
 		lockEmpty(t, e)

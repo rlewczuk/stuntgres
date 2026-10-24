@@ -39,7 +39,7 @@ func (s *StatementScope) acquireViewSources(retainProviders bool) (providers []e
 		e.mu.Unlock()
 		return nil, nil
 	}
-	closure, err := view.SourceWalk{Catalog: catalogView, Domain: e.catalog.Domain, Epoch: e.catalog.state.Epoch(), Locked: s.lockedRef, Leaves: s.querySources, Refresh: s.materializedOrZero().Refresh}.Closure()
+	closure, err := view.SourceWalk{Catalog: catalogView, Domain: e.catalog.Domain, Epoch: e.catalog.State.Epoch(), Locked: s.lockedRef, Leaves: s.querySources, Refresh: s.materializedOrZero().Refresh}.Closure()
 	if s.materializedOrZero().Refresh {
 		s.materialized().Sources = append(s.materializedOrZero().Sources, closure.Sources...)
 	}
@@ -143,7 +143,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		}
 		e.mu.Lock()
 		current, exists := e.privateCatalogLocked(s.owner.Catalog).Find(ref.Address)
-		valid := ref.Domain() == e.catalog.Domain && ref.Epoch == e.catalog.state.Epoch() && exists
+		valid := ref.Domain() == e.catalog.Domain && ref.Epoch == e.catalog.State.Epoch() && exists
 		if valid && d != nil && preparedDefinitionStamp(current, s.op.Session) != preparedDefinitionStamp(d, s.op.Session) {
 			s.prepared.changedDuringAdmission = true
 		}

@@ -24,8 +24,8 @@ type dcUnitFixture struct {
 func newDCUnitFixture(t *testing.T) dcUnitFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
-	view := f.e.catalog.read(state)
+	state := catalog.CloneState(f.e.catalog.State)
+	view := f.e.catalog.Read(state)
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}
@@ -57,7 +57,7 @@ func newDCUnitFixture(t *testing.T) dcUnitFixture {
 
 func (f dcUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.read(state)
+	view := f.f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoDomainConstraintsOID})
@@ -202,7 +202,7 @@ func TestInfoDomainConstraintsCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoDomainConstraintsOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = New().catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = New().CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = New().roles.published.Root.Read(authorization.PrincipalRef{}) },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
@@ -317,7 +317,7 @@ func TestInfoDomainConstraintsCancellation(t *testing.T) {
 func infoDomainConstraintsPairedCapture(t *testing.T) {
 	t.Helper()
 	f := newDCUnitFixture(t)
-	f.f.e.catalog.state = f.state
+	f.f.e.catalog.PublishLocked(f.state)
 	f.f.op.Session.DatabaseName = "captured_database"
 	f.f.actor(f.f.owner)
 	scope, err := f.f.e.StartStatement(f.f.op)
@@ -341,7 +341,7 @@ func infoDomainConstraintsPairedCapture(t *testing.T) {
 	a := *f.a
 	a.DomainChecks = nil
 	next.SetDescriptor(a.Address(), &a)
-	f.f.e.catalog.state = next
+	f.f.e.catalog.PublishLocked(next)
 	f.f.e.mu.Lock()
 	captured, err := f.f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil {

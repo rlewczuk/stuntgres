@@ -134,7 +134,7 @@ func TestTruncateGraph(t *testing.T) {
 			if kind == "inheritance" {
 				sessionSQL(t, s, "CREATE TABLE c(extra INT) INHERITS(p)")
 				c := roleTableRef(t, e, "c")
-				inheritance = e.catalog.state.MustRelation(c.Address).Inheritance
+				inheritance = e.catalog.State.MustRelation(c.Address).Inheritance
 				truncateUnitReplace(t, e, c, func(d *catalog.Relation) { d.Inheritance = nil })
 			} else {
 				sessionSQL(t, s, "CREATE TABLE c(id INT)")
@@ -294,7 +294,7 @@ func TestTruncateAdmission(t *testing.T) {
 			sessionSQL(t, holder, "CREATE TABLE c(extra INT) INHERITS(p)")
 			sessionSQL(t, holder, "INSERT INTO c(id,extra) VALUES(1,9)")
 			child := roleTableRef(t, e, "c")
-			inheritance := e.catalog.state.MustRelation(child.Address).Inheritance
+			inheritance := e.catalog.State.MustRelation(child.Address).Inheritance
 			truncateUnitReplace(t, e, child, func(d *catalog.Relation) { d.Inheritance = nil })
 			waiter := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)

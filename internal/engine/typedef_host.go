@@ -34,7 +34,7 @@ func (h ddlHost) TrustedRestoreDestination(a ddl.Authority, what string) (bool, 
 }
 
 func (h ddlHost) AllocateEnumMember() (int64, error) {
-	return h.e.catalog.allocateEnumMemberLocked()
+	return h.e.catalog.AllocateEnumMemberLocked()
 }
 
 func (h ddlHost) ReplaceUnsynchronized(d catalog.Descriptor) error {

@@ -30,7 +30,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
+	return e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
 }
 func serializableUnitScope(node *visibility.SerializableTx) *StatementScope {
 	return &StatementScope{owner: session.TxOwnerOf(node.Ref), txRef: node.Ref}
@@ -154,12 +154,12 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	node := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	catalog := catalog.CloneState(e.catalog.state)
+	catalog := catalog.CloneState(e.catalog.State)
 	original := catalog.MustRelation(ref.Address)
 	copy := *original
 	copy.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	catalog.SetDescriptor(ref.Address, &copy)
-	e.catalog.state = catalog
+	e.catalog.PublishLocked(catalog)
 	if err := e.serializableReadLocked(serializableUnitScope(node), ref); err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	}
 	e.mu.Lock()
 	node := e.visibility.Serializable.Nodes[session.Transactions.Ref]
-	namespace := e.catalog.state.MustNamespace(session.TemporaryNamespace)
+	namespace := e.catalog.State.MustNamespace(session.TemporaryNamespace)
 	if namespace.Temporary != session.SessionToken {
 		t.Fatal("fixture did not create actual session-owned temporary namespace")
 	}
@@ -273,7 +273,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 		t.Fatal("temporary stored relation registered evidence")
 	}
 	var persistentGenerator, temporaryGenerator *storage.SequenceGenerator
-	for address, descriptor := range e.catalog.state.Descriptors() {
+	for address, descriptor := range e.catalog.State.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok && d.RelationKind == catalog.SequenceRelation {
 			if d.Name() == "persistent_s" {
 				persistentGenerator = e.storage.Sequences[address]

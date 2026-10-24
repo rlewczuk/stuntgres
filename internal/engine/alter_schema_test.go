@@ -25,15 +25,15 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	alterSchemaEngineFixture(t, e)
 	s := sessionStart(t, e, nil)
 	peer := sessionStart(t, e, nil)
-	source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
-	dest := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
+	source := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+	dest := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 	tableAddress := NameAddressForTempMove(t, e, source, "t")
-	table := e.catalog.state.MustRelation(tableAddress)
+	table := e.catalog.State.MustRelation(tableAddress)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
 	for _, subID := range []int32{0, table.Attributes[0]} {
 		address := tableAddress
 		address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), address), acl); err != nil {
+		if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.State.Epoch(), address), acl); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -42,7 +42,7 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	for _, name := range []string{"t", "q1", "q2"} {
 		a := NameAddressForTempMove(t, e, source, name)
 		addresses = append(addresses, a)
-		before = append(before, e.catalog.state.MustRelation(a))
+		before = append(before, e.catalog.State.MustRelation(a))
 	}
 	storage := e.storage.Relations[addresses[0]]
 	sequenceScalar(t, s, "SELECT nextval('s1.q1')", 10)
@@ -55,12 +55,12 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	peerValue := *peerMemory
 	generatorValue = *generator
 	free := NameAddressForTempMove(t, e, source, "free")
-	freeDescriptor := e.catalog.state.Get(free)
+	freeDescriptor := e.catalog.State.Get(free)
 	if err := sequenceTempMoveCommand(t, e, s, "ALTER TABLE s1.t SET SCHEMA s2", true); err != nil {
 		t.Fatal(err)
 	}
 	for i, a := range addresses {
-		after := e.catalog.state.MustRelation(a)
+		after := e.catalog.State.MustRelation(a)
 		if after.Namespace() != dest || after.Revision() <= before[i].Revision() {
 			t.Fatal("namespace/revision", before[i], after)
 		}
@@ -76,7 +76,7 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 			t.Fatal("move changed nonnamespace definition", before[i], after)
 		}
 	}
-	if e.storage.Relations[addresses[0]] != storage || e.storage.Sequences[addresses[1]] != generator || *generator != generatorValue || payloadOf(s).sequences.Memory(addresses[1]) != memory || *memory != memoryValue || e.catalog.state.Get(free) != freeDescriptor {
+	if e.storage.Relations[addresses[0]] != storage || e.storage.Sequences[addresses[1]] != generator || *generator != generatorValue || payloadOf(s).sequences.Memory(addresses[1]) != memory || *memory != memoryValue || e.catalog.State.Get(free) != freeDescriptor {
 		t.Fatal("move replaced data/generator/cache/independent sequence")
 	}
 	if payloadOf(peer).sequences.Memory(addresses[1]) != peerMemory || *peerMemory != peerValue {
@@ -84,11 +84,11 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	}
 	sequenceScalar(t, peer, "SELECT nextval('s2.q1')", 18)
 	sequenceScalar(t, s, "SELECT nextval('s2.q1')", 11)
-	frontier := e.catalog.nextRevision
+	frontier := e.catalog.NextRevision()
 	if err := sequenceTempMoveCommand(t, e, s, "ALTER TABLE s2.t SET SCHEMA s2", false); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.nextRevision != frontier {
+	if e.catalog.NextRevision() != frontier {
 		t.Fatal("same-schema no-op consumed revision")
 	}
 }
@@ -98,14 +98,14 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
-			source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
-			dest := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
+			source := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+			dest := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 			original := make(map[ids.ObjectAddress]catalog.Descriptor)
 			for _, name := range []string{"t", "q1", "q2", "free"} {
 				a := NameAddressForTempMove(t, e, source, name)
-				original[a] = e.catalog.state.Get(a)
+				original[a] = e.catalog.State.Get(a)
 			}
-			frontier := e.catalog.nextRevision
+			frontier := e.catalog.NextRevision()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var once sync.Once
@@ -165,12 +165,12 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 			}
 			if kind != "reset" {
 				for a, d := range original {
-					if e.catalog.state.Get(a) != d {
+					if e.catalog.State.Get(a) != d {
 						t.Fatal("partial publication", a)
 					}
 				}
 			}
-			if kind == "cancel" && e.catalog.nextRevision != frontier {
+			if kind == "cancel" && e.catalog.NextRevision() != frontier {
 				t.Fatal("canceled move consumed frontier")
 			}
 		})

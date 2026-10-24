@@ -33,7 +33,7 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 	if err != nil || a != &e.roles.aclAuthority || g != 0 || r != 0 || p != 2 || o != 2 {
 		t.Fatal("zero identity datum", err)
 	}
-	output := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
+	output := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
 	text, err := d.OutputWithEnvironment(c.Context, value, sqltype.OutputEnvironment{ACLItem: output})
 	if err != nil || text != "=r*/0" {
 		t.Fatal(text, err)
@@ -46,7 +46,7 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 	if err != nil || text != "=r*/0" {
 		t.Fatal("retained all-zero output", text, err)
 	}
-	if err := regobj.PreflightACLItemValue(c.Context, regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}, value); err == nil {
+	if err := regobj.PreflightACLItemValue(c.Context, regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles(), Lossless: true}, value); err == nil {
 		t.Fatal("zero grantor dump accepted")
 	}
 	target := New()
@@ -134,7 +134,7 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}
+	output := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles(), Lossless: true}
 	if err := regobj.PreflightACLItemValue(context.Background(), output, carrier); err != nil {
 		t.Fatal("representable composite rejected", err)
 	}

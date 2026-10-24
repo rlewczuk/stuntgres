@@ -58,14 +58,14 @@ func (s *StatementScope) latestRowSourceLocked(e *Engine, address ids.ObjectAddr
 // latestEpochsCurrentLocked reports whether both the request's and the
 // transaction's catalog epochs are current, as UPDATE and MERGE need.
 func (s *StatementScope) latestEpochsCurrentLocked(e *Engine, r dml.RowRequest) bool {
-	return r.Ref.Epoch == e.catalog.state.Epoch() && s.txRef.Epoch() == e.catalog.state.Epoch()
+	return r.Ref.Epoch == e.catalog.State.Epoch() && s.txRef.Epoch() == e.catalog.State.Epoch()
 }
 
 // Committed hits retain their provider's exact physical hint. Private overlays
 // are keyed by RowID, with this command's replacement ahead of prior writes.
 func (s *StatementScope) latestConflictUpdateRowLocked(e *Engine, r dml.RowRequest) (dml.LatestRow, error) {
 	ref := r.Ref
-	if ref.Epoch != e.catalog.state.Epoch() {
+	if ref.Epoch != e.catalog.State.Epoch() {
 		return dml.LatestRow{}, ids.ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.Catalog)

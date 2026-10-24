@@ -113,7 +113,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			}
 		}
 		e.mu.Lock()
-		view := e.catalog.read(e.stageCatalogBaseLocked(stage))
+		view := e.catalog.Read(e.stageCatalogBaseLocked(stage))
 		currentUses, graphErr := typedef.DomainUsesAt(view, ref.Address, diagnosticPath)
 		if graphErr == nil && !typedef.DomainGraphEqual(fence, currentUses) {
 			graphErr = catalog.Conflict{}

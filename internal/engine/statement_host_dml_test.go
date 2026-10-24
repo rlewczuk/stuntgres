@@ -226,7 +226,7 @@ func TestStatementHostStatementSlots(t *testing.T) {
 	if h.Operation() == nil || h.Operation() != scope.op {
 		t.Fatal("operation of another statement", h.Operation())
 	}
-	state := e.catalog.state
+	state := e.catalog.State
 	if read := h.CatalogRead(state); read.State() != state {
 		t.Fatal("catalog read of another state")
 	}

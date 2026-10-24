@@ -185,7 +185,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					restore = func() { e.storage.InstallRelationLocked(address, original) }
 				case "attribute", "type", "width", "comment", "acl":
 					address := scope.lockedRef.Address
-					original := e.catalog.state.Get(address)
+					original := e.catalog.State.Get(address)
 					replacement := *scope.lockedDescriptor.(*catalog.Relation)
 					replacement.ObjectRevision++
 					switch mode {
@@ -203,12 +203,12 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					case "acl":
 						replacement.Security.ACL = authorization.ACLValue{Explicit: true}
 					}
-					e.catalog.state.SetDescriptor(address, &replacement)
-					restore = func() { e.catalog.state.SetDescriptor(address, original) }
+					e.catalog.State.SetDescriptor(address, &replacement)
+					restore = func() { e.catalog.State.SetDescriptor(address, original) }
 				case "epoch":
-					original := e.catalog.state.Epoch()
-					e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
-					restore = func() { e.catalog.state.SetEpoch(original) }
+					original := e.catalog.State.Epoch()
+					e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
+					restore = func() { e.catalog.State.SetEpoch(original) }
 				case "deadline":
 					ctx.Context = deadline
 				case "teardown":

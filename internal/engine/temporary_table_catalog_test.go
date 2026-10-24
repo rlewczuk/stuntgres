@@ -91,11 +91,11 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		e, op, c, table := temporaryCatalogCandidate(t, action)
 		writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 		mark := c.Clone()
-		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, c)
+		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.State.Epoch(), nil, 0), writes, nil, c)
 		if err != nil {
 			t.Fatal(action, err)
 		}
-		if e.catalog.state.Get(table.Address()) != nil || e.storage.Relations[table.Address()] != nil || len(writes[table.Address()]) != 1 || c.Descriptors[table.Address()] != table || mark.Descriptors[table.Address()] != table {
+		if e.catalog.State.Get(table.Address()) != nil || e.storage.Relations[table.Address()] != nil || len(writes[table.Address()]) != 1 || c.Descriptors[table.Address()] != table || mark.Descriptors[table.Address()] != table {
 			t.Fatal("commit preparation mutated reachable predecessor")
 		}
 		switch action {
@@ -121,7 +121,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	old := e.catalog.Domain.Ref(view.Epoch(), table.Address())
 	advanced := catalog.CloneState(view.State())
 	advanced.SetEpoch(advanced.Epoch() + 1)
-	retained := e.catalog.read(advanced)
+	retained := e.catalog.Read(advanced)
 	if !stored.ReferenceEpochValid(retained, table, old) {
 		t.Fatal("exact retained owner rejected")
 	}
@@ -170,11 +170,11 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 	ctx, cancel := context.WithCancel(op.Context())
 	cancel()
 	op.Ctx = ctx
-	original := e.catalog.state
+	original := e.catalog.State
 	writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 	err = e.publishRows(op, scope.txRef, writes, nil, c, nil, nil)
 	scope.Finish(err)
-	if !errors.Is(err, context.Canceled) || e.catalog.state != original || e.storage.Relations[table.Address()] != nil || c.Descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
+	if !errors.Is(err, context.Canceled) || e.catalog.State != original || e.storage.Relations[table.Address()] != nil || c.Descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
 		t.Fatal("canceled final commit changed catalog/action/write roots", err)
 	}
 }
@@ -212,7 +212,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.Persistence = "temporary"
-	columns := sequence.Columns(e.catalog.read(e.catalog.state))
+	columns := sequence.Columns(e.catalog.Current())
 	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, ObjectNamespace: table.Namespace(), ObjectName: "retained_sequence", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, sequence.Address(), sequence)
@@ -227,7 +227,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, Value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.Address().ObjectID), 10))}
 	next := catalog.CloneState(view.State())
 	next.SetEpoch(next.Epoch() + 1)
-	retained := e.catalog.read(next)
+	retained := e.catalog.Read(next)
 	var manifest []ids.ObjectRef
 	renderer := stored.ScalarRenderer{Owner: table, Dependencies: &manifest, CapturedManifest: []ids.ObjectRef{typeRef, ref}}
 	if text, err := renderer.SQL(context.Background(), retained, literal); err != nil || text == "" {
@@ -257,7 +257,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	retired := catalog.CloneState(next)
 	retired.RemoveDescriptor(sequence.Address())
 	retired.UnbindName(catalog.DescriptorNameKey(sequence))
-	if _, err := renderer.SQL(context.Background(), e.catalog.read(retired), literal); err == nil {
+	if _, err := renderer.SQL(context.Background(), e.catalog.Read(retired), literal); err == nil {
 		t.Fatal("retired regclass target resurrected")
 	}
 }

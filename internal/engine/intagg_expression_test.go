@@ -52,7 +52,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	array, _ := e.CatalogRead().LookupArray(integer)
 	provider := call.Provider.(*functions.ArrayAggregateProvider)
-	if call.Procedure != e.catalog.state.Get(ext.Members[0]) || call.Ref.Address != ext.Members[0] || !call.IncludeNulls || call.Operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
+	if call.Procedure != e.catalog.State.Get(ext.Members[0]) || call.Ref.Address != ext.Members[0] || !call.IncludeNulls || call.Operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
 		t.Fatal("fixed scalar wrapper authority", call)
 	}
 	if !b.SameAggregateCall(call, call) {
@@ -119,7 +119,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 func TestIntaggEnumerationIdentity(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	n := intaggUnitEnum(t, e, "{2,2,NULL}")
-	if n.Procedure != e.catalog.state.Get(ext.Members[1]) || n.Ref.Address != ext.Members[1] || n.Usage.Type.ID() != sqltype.Int4 {
+	if n.Procedure != e.catalog.State.Get(ext.Members[1]) || n.Ref.Address != ext.Members[1] || n.Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("fixed enum identity", n)
 	}
 	builtin := n
@@ -238,7 +238,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
 	next.SetEpoch(next.Epoch() + 1)
-	view := e.catalog.read(next)
+	view := e.catalog.Read(next)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		old.Epoch = next.Epoch()
 		if address, ok := mapping[old.Address]; ok {

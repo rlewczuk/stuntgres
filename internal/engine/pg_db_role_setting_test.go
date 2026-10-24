@@ -32,7 +32,7 @@ func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) {
 	t.Helper()
 	d, ref := pgDBRoleSettingUnitSource(t, e, catalog)
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.read(&e.catalog.Owner, catalog, e.roles.published), ref, d)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref || rows.Count() != 0 || rows.Anonymous == nil || len(rows.Anonymous) != 0 {
 		t.Fatal("empty owned capture", rows, err)
@@ -87,7 +87,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		t.Fatal("table discovery")
 	}
 	class := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	facts, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: class, Runtime: engineCatalogRuntime{engine: e}}, d)
+	facts, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.catalog.Owner, Source: class, Runtime: engineCatalogRuntime{engine: e}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,10 +108,10 @@ func TestPGDBRoleSettingCapture(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d, ref := pgDBRoleSettingUnitSource(t, e, catalog)
-	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
+	state, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
 	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	unchanged := func() {
-		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) {
+		if e.catalog.State != state || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}
@@ -122,7 +122,7 @@ func TestPGDBRoleSettingCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(ctx, catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ref, d)
+	rows, err := e.captureCatalogSourceLocked(ctx, catalog, e.roles.read(&e.catalog.Owner, catalog, e.roles.published), ref, d)
 	e.mu.Unlock()
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", rows, err)

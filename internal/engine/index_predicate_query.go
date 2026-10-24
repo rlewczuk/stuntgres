@@ -17,7 +17,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf exec.Leaf,
 		return nil
 	}
 	data := view.Data()
-	if data == nil || data.Catalog.State() != e.catalog.state || data.Catalog.Owner() != e.catalog.owner() || leaf.Ref.Domain() != e.catalog.Domain || leaf.Ref.Epoch != e.catalog.state.Epoch() {
+	if data == nil || data.Catalog.State() != e.catalog.State || data.Catalog.Owner() != &e.catalog.Owner || leaf.Ref.Domain() != e.catalog.Domain || leaf.Ref.Epoch != e.catalog.State.Epoch() {
 		return nil
 	}
 	parent := leaf.Ref.Address
@@ -32,11 +32,11 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf exec.Leaf,
 	if len(prefix) != 0 && &prefix[0] != &store.Versions[0] {
 		return nil
 	}
-	current, ok := e.catalog.state.Relation(parent)
+	current, ok := e.catalog.State.Relation(parent)
 	if !ok || !index.SameRelationRowShape(current, leaf.Relation) {
 		return nil
 	}
-	if e.catalog.state.Get(candidate.Address()) != candidate || candidate.SQLIndex.Parent != parent {
+	if e.catalog.State.Get(candidate.Address()) != candidate || candidate.SQLIndex.Parent != parent {
 		return nil
 	}
 	root := e.storage.IndexRoots[candidate.Address()]

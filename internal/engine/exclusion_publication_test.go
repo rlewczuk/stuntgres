@@ -21,7 +21,7 @@ func TestExclusionPublication(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"((n+1) WITH =))")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
-			parent := e.catalog.state.MustRelation(roleTableRef(t, e, "public.t").Address)
+			parent := e.catalog.State.MustRelation(roleTableRef(t, e, "public.t").Address)
 			store := e.storage.Relations[parent.Address()]
 			value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "1", -1)
 			if err != nil {
@@ -34,11 +34,11 @@ func TestExclusionPublication(t *testing.T) {
 				writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
 				publication := index.RowPublication{Address: parent.Address(), Relation: parent, OriginalRelation: parent, Original: store, Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, SingleSlot: -1}
 				if materialize {
-					if err := index.PrepareRowPublication(&publication, e.catalog.Domain, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
+					if err := index.PrepareRowPublication(&publication, e.catalog.Domain, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.State.Epoch(), nil, 0), true); err != nil {
 						t.Fatal(err)
 					}
 				}
-				roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, index.CaptureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+				roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.State, e.catalog.State, index.CaptureIndexStores(e.storage.Relations, e.catalog.State), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 				var diagnostic *sqlstate.Error
 				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" || diagnostic.Constraint != "ex" {
 					t.Fatal("publication omitted the actual exclusion integrity veto", materialize, roots, err)
@@ -71,10 +71,10 @@ func TestExclusionPublication(t *testing.T) {
 				row, version := e.storage.RowFrontier(), e.storage.VersionFrontier()
 				writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{overflow}}}
 				publication := index.RowPublication{Address: parent.Address(), Relation: parent, OriginalRelation: parent, Original: store, Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, SingleSlot: -1}
-				if err := index.PrepareRowPublication(&publication, e.catalog.Domain, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
+				if err := index.PrepareRowPublication(&publication, e.catalog.Domain, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.State.Epoch(), nil, 0), true); err != nil {
 					t.Fatal(err)
 				}
-				roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, index.CaptureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+				roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.State, e.catalog.State, index.CaptureIndexStores(e.storage.Relations, e.catalog.State), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 				if !called || roots != nil {
 					t.Fatal("derived failure did not veto outside-lock root preparation", called, roots, err)
 				}
@@ -100,7 +100,7 @@ func TestExclusionPublication(t *testing.T) {
 			sessionSQL(t, s, "CREATE SCHEMA exclusion_publication")
 			sessionSQL(t, s, "CREATE TABLE exclusion_publication.t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"(n WITH =))")
 			sessionSQL(t, s, "INSERT INTO exclusion_publication.t VALUES(1),(2)")
-			parent := e.catalog.state.MustRelation(roleTableRef(t, e, "exclusion_publication.t").Address)
+			parent := e.catalog.State.MustRelation(roleTableRef(t, e, "exclusion_publication.t").Address)
 			store := e.storage.Relations[parent.Address()]
 			value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "1", -1)
 			if err != nil {
@@ -114,11 +114,11 @@ func TestExclusionPublication(t *testing.T) {
 					writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
 					publication := index.RowPublication{Address: parent.Address(), Relation: parent, OriginalRelation: parent, Original: store, Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, SingleSlot: -1}
 					if materialize {
-						if err := index.PrepareRowPublication(&publication, e.catalog.Domain, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
+						if err := index.PrepareRowPublication(&publication, e.catalog.Domain, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.State.Epoch(), nil, 0), true); err != nil {
 							t.Fatal(err)
 						}
 					}
-					roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, index.CaptureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+					roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.State, e.catalog.State, index.CaptureIndexStores(e.storage.Relations, e.catalog.State), e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []index.RowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 					if roots != nil {
 						t.Fatal("integrity veto returned publication roots", roots)
 					}

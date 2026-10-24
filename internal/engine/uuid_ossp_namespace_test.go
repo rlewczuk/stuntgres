@@ -138,7 +138,7 @@ func TestUUIDOsspNamespaceCollision(t *testing.T) {
 		proc := source.CatalogRead().MustProcedure(address)
 		t.Run(proc.Name(), func(t *testing.T) {
 			e := New()
-			before := e.catalog.state
+			before := e.catalog.State
 			before.SetDescriptor(address, proc)
 			key := catalog.DescriptorNameKey(proc)
 			before.BindName(key, address)
@@ -149,7 +149,7 @@ func TestUUIDOsspNamespaceCollision(t *testing.T) {
 			err := extension.StockUUIDOssp.Stage(&extensionHost{engine: e, stage: stage}, &parent, ext.Owner)
 			e.mu.Unlock()
 			state, ok := err.(interface{ SQLState() string })
-			if !ok || state.SQLState() != "42723" || e.catalog.state != before || before.DescriptorCount() != descriptors || before.NameCount() != names || before.Get(address) != proc || before.NameAddress(key) != address {
+			if !ok || state.SQLState() != "42723" || e.catalog.State != before || before.DescriptorCount() != descriptors || before.NameCount() != names || before.Get(address) != proc || before.NameAddress(key) != address {
 				t.Fatal("selected collision published partial installation", err)
 			}
 		})

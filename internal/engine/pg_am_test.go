@@ -17,11 +17,11 @@ import (
 func pgAMUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2601}
-	d, ok := e.catalog.state.Relation(a)
+	d, ok := e.catalog.State.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_am")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
+	return d, e.catalog.Domain.Ref(e.catalog.State.Epoch(), a)
 }
 
 func pgAMUnitFacts(t *testing.T, source *exec.Source, d *catalog.Relation) [][]any {
@@ -100,12 +100,12 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		}
 	}
 	checkDescriptor(view, d)
-	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, d)
+	descriptors, names := maps.Collect(e.catalog.State.Descriptors()), maps.Collect(e.catalog.State.Names())
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
+	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.State.Names())) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	facts := pgAMUnitFacts(t, rows, d)

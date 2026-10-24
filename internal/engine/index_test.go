@@ -16,7 +16,7 @@ import (
 func btreeRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	ref := roleTableRef(t, e, name)
-	idx := e.catalog.state.MustRelation(ref.Address)
+	idx := e.catalog.State.MustRelation(ref.Address)
 	root := e.storage.IndexRoots[ref.Address]
 	if idx.RelationKind != catalog.IndexRelation || idx.SQLIndex == nil || root == nil || e.storage.Relations[ref.Address] != nil {
 		t.Fatal("not a substantive index", idx, root)
@@ -132,7 +132,7 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 	run(t, e, "CREATE SCHEMA moved")
 	run(t, e, "ALTER TABLE renamed SET SCHEMA moved")
 	index, _ := btreeRoot(t, e, "moved.ni")
-	if e.catalog.state.Get(index.Namespace()).Name() != "moved" {
+	if e.catalog.State.Get(index.Namespace()).Name() != "moved" {
 		t.Fatal(index)
 	}
 	run(t, e, "ALTER TABLE moved.renamed DROP s")

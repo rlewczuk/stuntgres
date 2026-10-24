@@ -133,7 +133,7 @@ func TestCubeCoordinateProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	metadata, err := extension.OwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,12 +172,12 @@ func TestCubeCoordinateProviderConflicts(t *testing.T) {
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Restriction = 101 },
 		func(_ *catalog.Procedure, o *catalog.Operator) { o.Join = 105 },
 	} {
-		next := catalog.CloneState(e.catalog.state)
+		next := catalog.CloneState(e.catalog.State)
 		p, o := *next.MustProcedure(procedures[2]), *next.MustOperator(operators[0])
 		corrupt(&p, &o)
 		next.SetDescriptor(p.Address(), &p)
 		next.SetDescriptor(o.Address(), &o)
-		if err := extension.StockCube.ValidateExtension(e.catalog.read(next), ext); err == nil {
+		if err := extension.StockCube.ValidateExtension(e.catalog.Read(next), ext); err == nil {
 			t.Fatal("corrupt manifest admitted")
 		}
 	}
@@ -194,12 +194,12 @@ func TestCubeCoordinateProviderConflicts(t *testing.T) {
 	staging := New()
 	op, done := roleOperation(t, staging, "postgres")
 	defer done()
-	before := staging.catalog.state
+	before := staging.catalog.State
 	stage := cubeUnitStage(t, staging, op, "cube", "")
 	candidate := stage.State()
 	stagedExt := candidate.MustExtension(candidate.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
 	stagedBase := candidate.MustType(stagedExt.Members[0])
-	ps, os := cubeCoordinateUnitMembers(t, staging.catalog.read(candidate), stagedExt, stagedBase)
+	ps, os := cubeCoordinateUnitMembers(t, staging.catalog.Read(candidate), stagedExt, stagedBase)
 	for _, address := range append(ps, os...) {
 		var duplicate catalog.Descriptor
 		switch original := candidate.Get(address).(type) {
@@ -216,7 +216,7 @@ func TestCubeCoordinateProviderConflicts(t *testing.T) {
 		if err := stage.Create(duplicate); !errors.As(err, &conflict) {
 			t.Fatal("staged conflict", err)
 		}
-		if stage.Get(address) != candidate.Get(address) || staging.catalog.state != before {
+		if stage.Get(address) != candidate.Get(address) || staging.catalog.State != before {
 			t.Fatal("conflict published mutation")
 		}
 	}

@@ -29,7 +29,7 @@ func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *exec.
 	t.Helper()
 	source, ref := pgDatabaseUnitSource(t, e, catalog)
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ref, source)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.read(&e.catalog.Owner, catalog, e.roles.published), ref, source)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref || rows.Count() != 1 || len(rows.Anonymous[0]) != 18 {
 		t.Fatal("one captured database", rows, err)
@@ -74,7 +74,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d, ref := pgDatabaseUnitSource(t, e, view)
-	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
+	state, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
 	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	rows := pgDatabaseUnitCapture(t, e, view)
 	row := rows.Anonymous[0]
@@ -117,14 +117,14 @@ func TestPGDatabaseCapture(t *testing.T) {
 		t.Fatal("absent database ACL baseline", row[17], database.ACL)
 	}
 	unchanged := func() {
-		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) {
+		if e.catalog.State != state || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}
 	unchanged()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
 	unchanged()
@@ -134,7 +134,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		roles   authorization.Read
 		ref     ids.ObjectRef
 	}{{foreign.CatalogRead(), e.Roles(), ref}, {view, foreign.Roles(), ref}, {view, e.Roles(), foreign.catalog.Domain.Ref(ref.Epoch, ref.Address)}} {
-		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: tc.catalog, Roles: tc.roles, Ref: tc.ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: tc.catalog, Roles: tc.roles, Ref: tc.ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
 			t.Fatal("foreign capture admitted", got, err)
 		}
 	}
@@ -142,14 +142,14 @@ func TestPGDatabaseCapture(t *testing.T) {
 		invalid := *d
 		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(column.Usage.Type.ID())
-		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: ref, Source: &invalid, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: ref, Source: &invalid, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
 			t.Fatal("foreign concrete type", i, got, err)
 		}
 	}
 	for _, width := range []int{0, 17, 19} {
 		invalid := *d
 		invalid.Columns = make([]catalog.Column, width)
-		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: ref, Source: &invalid, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: ref, Source: &invalid, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
 			t.Fatal("invalid source width", width, got, err)
 		}
 	}
@@ -159,18 +159,18 @@ func TestPGDatabaseCapture(t *testing.T) {
 			private.RemoveDescriptor(address)
 		}
 	}
-	isolated := e.catalog.read(private)
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(e.catalog.owner(), isolated, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got == nil || err != nil || got.Count() != 1 {
+	isolated := e.catalog.Read(private)
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(&e.catalog.Owner, isolated, e.roles.published), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got == nil || err != nil || got.Count() != 1 {
 		t.Fatal("unrelated relations affect current row", got, err)
 	}
 	invalidDB := *database
 	invalidDB.Owner = foreign.roles.domain.Principal(10)
 	private.SetDescriptor(catalog.CurrentDatabaseAddress, &invalidDB)
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(e.catalog.owner(), isolated, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(&e.catalog.Owner, isolated, e.roles.published), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
 		t.Fatal("foreign owner admitted", got, err)
 	}
 	invalidDB.Owner = e.roles.domain.Principal(999999)
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(e.catalog.owner(), isolated, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(&e.catalog.Owner, isolated, e.roles.published), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
 		t.Fatal("stale owner admitted", got, err)
 	}
 	unchanged()
@@ -242,7 +242,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	if fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type {
 		t.Fatal("replacement did not remint descriptors")
 	}
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
 		t.Fatal("stale source admitted after replacement", got, err)
 	}
 	values := make([]sqltype.Value, 18)

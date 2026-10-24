@@ -71,12 +71,12 @@ func TestOperatorFamilyPublication(t *testing.T) {
 		cancel()
 		t.Fatal(err)
 	}
-	before := e.catalog.state
+	before := e.catalog.State
 	cancel()
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal("publication cancellation", err)
 	}
-	if e.catalog.state != before || e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store {
+	if e.catalog.State != before || e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store {
 		t.Fatal("cancellation published metadata/root")
 	}
 	if got, ok := e.CatalogRead().FamilySupport(member.Family, 23, 23, 1); ok || got != nil {
@@ -115,11 +115,11 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	if err := invalid.Create(&bad); err != nil {
 		t.Fatal(err)
 	}
-	before = e.catalog.state
+	before = e.catalog.State
 	if _, err := e.ValidateCatalogStage(context.Background(), invalid); err == nil {
 		t.Fatal("invalid support ceiling published")
 	}
-	if e.catalog.state != before || e.storage.IndexRoots[idx.Address()] != root {
+	if e.catalog.State != before || e.storage.IndexRoots[idx.Address()] != root {
 		t.Fatal("validation failure changed publication")
 	}
 	// Exercise the ordinary dependency/removal path, not a direct Candidate

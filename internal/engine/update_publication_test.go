@@ -16,7 +16,7 @@ func TestUpdateCoreSameLengthCatalogGuard(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	next := *old
 	next.ObjectRevision++
 	stage := e.BeginCatalogStage(e.CatalogRead())

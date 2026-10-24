@@ -95,9 +95,9 @@ func TestIdentityCreateAtomicFailure(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	before := e.catalog.state
+	before := e.catalog.State
 	roleError(t, e, op, `CREATE TABLE bad(a INT GENERATED ALWAYS AS IDENTITY,b INT GENERATED ALWAYS AS IDENTITY(CACHE 0))`, "22023", "CACHE (0) must be greater than zero", "")
-	if e.catalog.state != before || len(e.storage.Sequences) != 0 {
+	if e.catalog.State != before || len(e.storage.Sequences) != 0 {
 		t.Fatal("failed CREATE published identities")
 	}
 	roleExecute(t, e, op, `CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY)`)

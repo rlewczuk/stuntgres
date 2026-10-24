@@ -366,7 +366,7 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 				sessionSQL(t, worker, "SET SESSION AUTHORIZATION output_waiter")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				var indexAddress ids.ObjectAddress
-				for address, descriptor := range e.catalog.state.Descriptors() {
+				for address, descriptor := range e.catalog.State.Descriptors() {
 					if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == ref.Address && index.SQLIndex.Unique {
 						indexAddress = address
 					}

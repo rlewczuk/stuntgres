@@ -22,7 +22,7 @@ func (h ddlHost) IndexStage() *index.Stage { return h.stage.indexes() }
 func (h ddlHost) DescriptorStage() index.DescriptorStage { return h.stage }
 
 func (h ddlHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
-	owner := h.e.catalog.owner()
+	owner := &h.e.catalog.Owner
 	return regobj.ACLItemOutput{Owner: owner, Roles: h.e.roles.read(owner, view, h.e.operationRolesLocked(h.op))}
 }
 

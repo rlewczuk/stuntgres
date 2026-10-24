@@ -17,7 +17,7 @@ import (
 func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	e := New()
 	d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	role := roleAttributeCreate(t, e, admin, "settings_metadata_reader", true, parser.RoleOptions{})
@@ -86,7 +86,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 	defer release()
 	roleExecute(t, e, reader, "SET application_name='acl sentinel'")
 	d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 	column := ref
 	column.Address.SubID = d.Attributes[0]
 	setACL := func(t *testing.T, target ids.ObjectRef, acl authorization.ACLValue) {

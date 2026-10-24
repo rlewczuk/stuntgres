@@ -88,7 +88,7 @@ func (s *StatementScope) admitObjectGrant(req role.GrantRequest, statement *pars
 		if fresh != nil {
 			targets[i] = fresh
 		}
-		claims = append(claims, privilegeClaim{address: address, original: e.catalog.state.Get(address)})
+		claims = append(claims, privilegeClaim{address: address, original: e.catalog.State.Get(address)})
 	}
 	e.mu.Unlock()
 	slices.SortFunc(claims, func(a, b privilegeClaim) int {
@@ -106,7 +106,7 @@ func (s *StatementScope) admitObjectGrant(req role.GrantRequest, statement *pars
 			return err
 		}
 		e.mu.Lock()
-		changed := e.catalog.state.Get(claim.address) != claim.original
+		changed := e.catalog.State.Get(claim.address) != claim.original
 		e.mu.Unlock()
 		if changed {
 			if claim.address.ClassID == ids.RelationClassID {
@@ -144,7 +144,7 @@ func (s *StatementScope) admitDefaultPrivileges(claims []defaultPrivilegeClaim) 
 			return err
 		}
 		e.mu.Lock()
-		current := e.catalog.state.DefaultACL(key)
+		current := e.catalog.State.DefaultACL(key)
 		e.mu.Unlock()
 		if current == claim.original {
 			continue

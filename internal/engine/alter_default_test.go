@@ -25,7 +25,7 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	ends, generation := storage.Ends, storage.Generation
 	oldA, oldB := old.ColumnMeta.Defaults[old.Attributes[0]], old.ColumnMeta.Defaults[old.Attributes[1]]
 	run(t, e, "ALTER TABLE t ALTER renamed SET DEFAULT 7")
-	next := e.catalog.state.MustRelation(ref.Address)
+	next := e.catalog.State.MustRelation(ref.Address)
 	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || !reflect.DeepEqual(next.Attributes, old.Attributes) || &next.Columns[0] != &old.Columns[0] || next.ColumnMeta.Defaults[old.Attributes[1]].Expression != oldB.Expression || old.ColumnMeta.Defaults[old.Attributes[0]].Expression != oldA.Expression || read.Get(ref.Address) != old {
 		t.Fatal("descriptor immutability/stable attributes violated")
 	}
@@ -38,7 +38,7 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 		t.Fatal(got)
 	}
 	run(t, e, "ALTER TABLE t ALTER renamed DROP DEFAULT")
-	d := e.catalog.state.MustRelation(ref.Address)
+	d := e.catalog.State.MustRelation(ref.Address)
 	if _, ok := d.ColumnMeta.Defaults[old.Attributes[0]]; ok {
 		t.Fatal("default retained")
 	}
@@ -46,16 +46,16 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 		t.Fatal("other default changed")
 	}
 	run(t, e, "ALTER TABLE t ALTER renamed DROP DEFAULT")
-	if e.catalog.state.Get(ref.Address) != d {
+	if e.catalog.State.Get(ref.Address) != d {
 		t.Fatal("absent DROP allocated revision")
 	}
 	e.mu.Lock()
 	exhausted := *d
 	exhausted.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-	e.catalog.state.SetDescriptor(ref.Address, &exhausted)
+	e.catalog.State.SetDescriptor(ref.Address, &exhausted)
 	e.mu.Unlock()
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t ALTER renamed SET DEFAULT 9"), nil)
-	if err == nil || e.catalog.state.Get(ref.Address) != &exhausted {
+	if err == nil || e.catalog.State.Get(ref.Address) != &exhausted {
 		t.Fatal("revision exhaustion mutated", err)
 	}
 	run(t, e, "ALTER TABLE t ALTER renamed DROP DEFAULT")
@@ -70,7 +70,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 				sessionSQL(t, a, "CREATE TABLE t(a INT DEFAULT 11,b INT DEFAULT 13)")
 				sessionSQL(t, a, "INSERT INTO t DEFAULT VALUES")
 				ref := roleTableRef(t, e, "t")
-				old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+				old, storage := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
 				ends, generation := storage.Ends, storage.Generation
 				tx := transactionBegin(t, a)
 				sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
@@ -85,7 +85,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 				}
 				lockAwait(t, done, context.Canceled)
 				lockPending(t, e, 0)
-				if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || storage.Ends != ends || storage.Generation != generation || len(storage.Versions) != 1 {
+				if e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || storage.Ends != ends || storage.Generation != generation || len(storage.Versions) != 1 {
 					t.Fatal("canceled alteration changed descriptor/storage")
 				}
 				transactionEnd(t, a, tx, false)
@@ -103,7 +103,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 			e := New()
 			run(t, e, "CREATE TABLE t(a INT DEFAULT 11)")
 			ref := roleTableRef(t, e, "t")
-			old := e.catalog.state.Get(ref.Address)
+			old := e.catalog.State.Get(ref.Address)
 			storage := e.storage.Relations[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -147,7 +147,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
-			} else if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
+			} else if e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
 				t.Fatal("failed publication leaked default", err)
 			}
 			lockEmpty(t, e)
@@ -167,13 +167,13 @@ func TestAlterDefaultOwnerAuthority(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	old := e.catalog.state.Get(ref.Address)
+	old := e.catalog.State.Get(ref.Address)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	for _, action := range []string{"SET DEFAULT 'oops'", "DROP DEFAULT"} {
 		_, err := e.Execute(op, statement(t, "ALTER TABLE t ALTER a "+action), 0, nil)
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "must be owner of table t"}
-		if !errors.As(err, &got) || *got != want || e.catalog.state.Get(ref.Address) != old {
+		if !errors.As(err, &got) || *got != want || e.catalog.State.Get(ref.Address) != old {
 			t.Fatal(err, got)
 		}
 	}

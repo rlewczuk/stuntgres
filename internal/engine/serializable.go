@@ -8,7 +8,7 @@ import (
 // enrollSerializableLocked fences ref against the current catalog epoch and
 // applies its isolation to the tracker. Caller holds Engine.mu.
 func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation session.Isolation) {
-	if ref.ID() == 0 || ref.Epoch() != e.catalog.state.Epoch() {
+	if ref.ID() == 0 || ref.Epoch() != e.catalog.State.Epoch() {
 		return
 	}
 	e.visibility.EnrollSerializableLocked(ref, isolation == session.Serializable)

@@ -55,7 +55,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	e := New()
 	old := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, old, "unit_u", "i", "")
-	old = e.catalog.state.MustRelation(old.Address())
+	old = e.catalog.State.MustRelation(old.Address())
 	old = concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 1), false, true)
 	catalog := e.CatalogRead()
 	stored := e.storage.Relations[old.Address()]
@@ -63,7 +63,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	fence := materializedSourceFence{ref: e.catalog.Domain.Ref(catalog.Epoch(), old.Address()), relation: old, storage: stored}
 	current := concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 2), true, true)
 	e.mu.Lock()
-	if !view.MaterializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) || !e.materializedSourceFenceCurrent(fence) {
+	if !view.MaterializedSourceCurrent(snapshot, old, e.catalog.State, e.storage.Relations[old.Address()]) || !e.materializedSourceFenceCurrent(fence) {
 		t.Fatal("compatible publication rejected captured source")
 	}
 	changes := session.NewJournal()
@@ -78,15 +78,15 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	}
 	changed := *current
 	changed.ObjectName = "renamed"
-	e.catalog.state.SetDescriptor(current.Address(), &changed)
-	if e.materializedSourceFenceCurrent(fence) || view.MaterializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) {
+	e.catalog.State.SetDescriptor(current.Address(), &changed)
+	if e.materializedSourceFenceCurrent(fence) || view.MaterializedSourceCurrent(snapshot, old, e.catalog.State, e.storage.Relations[old.Address()]) {
 		t.Fatal("source definition retargeted")
 	}
-	e.catalog.state.SetDescriptor(current.Address(), current)
+	e.catalog.State.SetDescriptor(current.Address(), current)
 	e.mu.Unlock()
 	current = concurrentUnitReplace(t, e, current, refreshUnitRows(t, current, 3), false, true)
 	e.mu.Lock()
-	if e.materializedSourceFenceCurrent(fence) || view.MaterializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[current.Address()]) {
+	if e.materializedSourceFenceCurrent(fence) || view.MaterializedSourceCurrent(snapshot, old, e.catalog.State, e.storage.Relations[current.Address()]) {
 		t.Fatal("plain rewrite bridged active source snapshot")
 	}
 	e.mu.Unlock()

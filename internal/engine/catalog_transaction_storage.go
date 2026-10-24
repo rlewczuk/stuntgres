@@ -18,7 +18,7 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *session.CatalogAuthority, c 
 	if a == nil {
 		return nil
 	}
-	return a.PreflightLocked(e.catalog.state, e.sessionRolesLocked(a.Session), e.roles.published, e.catalog.DatabaseAddress(), c)
+	return a.PreflightLocked(e.catalog.State, e.sessionRolesLocked(a.Session), e.roles.published, e.catalog.DatabaseAddress(), c)
 }
 
 // Callers hold Engine.mu; private storage is never installed before Finish/Commit.

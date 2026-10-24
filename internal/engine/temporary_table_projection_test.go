@@ -26,7 +26,7 @@ func temporaryProjectionFixture(t *testing.T) (*Engine, *session.Session, *catal
 		sessionSQL(t, owner, q)
 	}
 	var provider, survivor, index *catalog.Relation
-	for _, d := range e.catalog.state.Descriptors() {
+	for _, d := range e.catalog.State.Descriptors() {
 		if r, ok := d.(*catalog.Relation); ok {
 			switch r.Name() {
 			case "shape_provider":
@@ -74,7 +74,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			e, owner, provider, survivor, idx := temporaryProjectionFixture(t)
 			oldRows := e.storage.Relations[survivor.Address()].Versions
 			stage, indexes := temporaryProjectionStage(t, e, provider)
-			captured := e.catalog.state
+			captured := e.catalog.State
 			var unrelated ids.ObjectAddress
 			var unrelatedRoot *storage.IndexRoot
 			switch mode {
@@ -94,16 +94,16 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 				// Reprepare after its catalog creation, then only its row/index publication.
 				e.DiscardCatalogStage(stage)
 				stage, indexes = temporaryProjectionStage(t, e, provider)
-				captured = e.catalog.state
+				captured = e.catalog.State
 				sessionSQL(t, owner, "INSERT INTO public.shape_unrelated VALUES(99)")
-				for address, d := range e.catalog.state.Descriptors() {
+				for address, d := range e.catalog.State.Descriptors() {
 					if d.Name() == "shape_unrelated_v" {
 						unrelated = address
 					}
 				}
 				unrelatedRoot = e.storage.IndexRoots[unrelated]
 			}
-			if e.catalog.state != captured {
+			if e.catalog.State != captured {
 				t.Fatal("fixture changed catalog for a row/root-only fence")
 			}
 			installed, err := temporaryProjectionInstall(e, owner, provider, stage, indexes)
@@ -111,7 +111,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 				t.Fatal("terminal predecessor decision", mode, installed, err)
 			}
 			if !installed {
-				if e.catalog.state != captured || e.catalog.state.Get(survivor.Address()) != survivor || e.catalog.state.Get(provider.Address()) != provider {
+				if e.catalog.State != captured || e.catalog.State.Get(survivor.Address()) != survivor || e.catalog.State.Get(provider.Address()) != provider {
 					t.Fatal("stale shape mutated catalog")
 				}
 				e.DiscardCatalogStage(stage)
@@ -121,7 +121,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 					t.Fatal("reprepared shape failed", err)
 				}
 			}
-			next := e.catalog.state.MustRelation(survivor.Address())
+			next := e.catalog.State.MustRelation(survivor.Address())
 			rows := e.storage.Relations[survivor.Address()].Versions
 			if len(next.Columns) != 2 || next.Columns[1].Name != "z" || len(next.ColumnMeta.Generations) != 0 || len(oldRows) != 1 || len(oldRows[0].Values) != 3 {
 				t.Fatal("shape/snapshot incoherent")
@@ -149,7 +149,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 
 func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	e, owner, provider, survivor, idx := temporaryProjectionFixture(t)
-	original := e.catalog.state
+	original := e.catalog.State
 	originalStore := e.storage.Relations[survivor.Address()]
 	retained := originalStore.Versions
 	maximum := *survivor
@@ -158,15 +158,15 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	maximumIndex.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	maximumStore := *originalStore
 	maximumStore.Generation = ^uint64(0)
-	e.catalog.state = catalog.CloneState(original)
-	e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
-	e.catalog.state.SetDescriptor(idx.Address(), &maximumIndex)
+	e.catalog.PublishLocked(catalog.CloneState(original))
+	e.catalog.State.SetDescriptor(survivor.Address(), &maximum)
+	e.catalog.State.SetDescriptor(idx.Address(), &maximumIndex)
 	e.mu.Lock()
 	e.storage.InstallRelationLocked(survivor.Address(), &maximumStore)
 	e.mu.Unlock()
 	t.Cleanup(func() {
-		if e.catalog.state.Get(provider.Address()) != nil {
-			e.catalog.state = original
+		if e.catalog.State.Get(provider.Address()) != nil {
+			e.catalog.PublishLocked(original)
 			e.mu.Lock()
 			e.storage.InstallRelationLocked(survivor.Address(), originalStore)
 			e.mu.Unlock()
@@ -202,7 +202,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	if err != nil || !installed {
 		t.Fatal("maximum full-stage install", installed, err)
 	}
-	if e.catalog.nextRevision != maximum.Revision() || len(retained[0].Values) != 3 || len(e.storage.Relations[survivor.Address()].Versions[0].Values) != 2 {
+	if e.catalog.NextRevision() != maximum.Revision() || len(retained[0].Values) != 3 || len(e.storage.Relations[survivor.Address()].Versions[0].Values) != 2 {
 		t.Fatal("maximum frontier/retained shape")
 	}
 	root := e.storage.IndexRoots[idx.Address()]
@@ -264,16 +264,16 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 	for _, counter := range []string{"Table", "Storage", "Index"} {
 		t.Run(counter, func(t *testing.T) {
 			e, _, provider, survivor, index := temporaryProjectionFixture(t)
-			original := e.catalog.state
+			original := e.catalog.State
 			store := e.storage.Relations[survivor.Address()]
 			maximum := *survivor
 			maximumIndex := *index
 			maximumStore := *store
-			e.catalog.state = catalog.CloneState(original)
+			e.catalog.PublishLocked(catalog.CloneState(original))
 			switch counter {
 			case "Table":
 				maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-				e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
+				e.catalog.State.SetDescriptor(survivor.Address(), &maximum)
 			case "Storage":
 				maximumStore.Generation = ^uint64(0)
 				e.mu.Lock()
@@ -281,12 +281,12 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 				e.mu.Unlock()
 			case "Index":
 				maximumIndex.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-				e.catalog.state.SetDescriptor(index.Address(), &maximumIndex)
+				e.catalog.State.SetDescriptor(index.Address(), &maximumIndex)
 			}
-			captured := e.catalog.state
+			captured := e.catalog.State
 			t.Cleanup(func() {
-				if e.catalog.state.Get(provider.Address()) != nil {
-					e.catalog.state = original
+				if e.catalog.State.Get(provider.Address()) != nil {
+					e.catalog.PublishLocked(original)
 					e.mu.Lock()
 					e.storage.InstallRelationLocked(survivor.Address(), store)
 					e.mu.Unlock()
@@ -300,7 +300,7 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 				e.mu.Unlock()
 			}
 			want := map[string]string{"Table": "stuntgres: definition revision exhausted", "Storage": "stuntgres: storage generation exhausted", "Index": "stuntgres: index revision exhausted"}[counter]
-			if err == nil || err.Error() != want || e.catalog.state != captured {
+			if err == nil || err.Error() != want || e.catalog.State != captured {
 				t.Fatal("ordinary overflow accepted or altered live catalog", counter, err)
 			}
 			e.DiscardCatalogStage(stage)
@@ -316,8 +316,8 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 			definition := *index.SQLIndex
 			definition.Ready, definition.Valid = ready, false
 			changed.SQLIndex = &definition
-			e.catalog.state = catalog.CloneState(e.catalog.state)
-			e.catalog.state.SetDescriptor(index.Address(), &changed)
+			e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+			e.catalog.State.SetDescriptor(index.Address(), &changed)
 			previous := e.storage.IndexRoots[index.Address()]
 			if !ready {
 				e.mu.Lock()
@@ -329,7 +329,7 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 			if err != nil || !installed {
 				t.Fatal("concurrent flag projection", installed, err)
 			}
-			next := e.catalog.state.MustRelation(index.Address())
+			next := e.catalog.State.MustRelation(index.Address())
 			if next.SQLIndex.Ready != ready || next.SQLIndex.Valid || next.SQLIndex.Live != definition.Live {
 				t.Fatal("shape cleanup healed concurrent flags")
 			}
@@ -357,7 +357,7 @@ func TestTemporaryTableRetainedOwnerProjection(t *testing.T) {
 		sessionSQL(t, owner, q)
 	}
 	var survivor *catalog.Relation
-	for _, descriptor := range e.catalog.state.Descriptors() {
+	for _, descriptor := range e.catalog.State.Descriptors() {
 		if table, ok := descriptor.(*catalog.Relation); ok && table.Name() == "shape_survivor" {
 			survivor = table
 		}

@@ -165,7 +165,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := e.catalog.AllocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +222,7 @@ func TestRLSBaseControls(t *testing.T) {
 		next.Security.RLSEnabled, next.Security.RLSForced = state.enabled, state.forced
 		catalog := catalog.CloneState(base.State())
 		catalog.SetDescriptor(d.Address(), &next)
-		groups, err := stored.RowSecurityDumpGroups(context.Background(), e.catalog.read(catalog), e.roles.read(e.catalog.owner(), e.catalog.read(catalog), e.roles.published))
+		groups, err := stored.RowSecurityDumpGroups(context.Background(), e.catalog.Read(catalog), e.roles.read(&e.catalog.Owner, e.catalog.Read(catalog), e.roles.published))
 		if err != nil {
 			t.Fatal(err)
 		}

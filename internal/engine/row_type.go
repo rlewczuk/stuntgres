@@ -39,7 +39,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 	if !ok || element.Array != array.SQLType.ID() || element.SQLType != array.SQLType.Element() || element.Namespace() != namespace {
 		return false, nil
 	}
-	revision, err := e.catalog.revisionLocked()
+	revision, err := e.catalog.RevisionLocked()
 	if err != nil {
 		return false, err
 	}
@@ -74,11 +74,11 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *catalog.Relat
 	if !relation.RelationKind.Stored() && relation.RelationKind != catalog.PartitionedRelation && relation.RelationKind != catalog.ViewRelation && relation.RelationKind != catalog.CompositeRelation && relation.RelationKind != catalog.ForeignRelation || relation.RowType != 0 {
 		return nil
 	}
-	arrayID, err := e.catalog.allocateOIDLocked()
+	arrayID, err := e.catalog.AllocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	id, err := e.catalog.allocateOIDLocked()
+	id, err := e.catalog.AllocateOIDLocked()
 	if err != nil {
 		return err
 	}

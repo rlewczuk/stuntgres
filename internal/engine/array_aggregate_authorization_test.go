@@ -20,7 +20,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.aa_column_acl(id INT,v INT,a INT[])")
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), table.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), table.Address())
 	reader := e.roles.domain.Principal(1000000)
 	roles := cloneRoleFixture(e.roles.published)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "aa_unit_reader"})

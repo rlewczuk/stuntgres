@@ -21,7 +21,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			sequenceScalar(t, s, "SELECT nextval('s')", 1)
 			table := catalogRef(t, e, e.CatalogRead(), "t")
 			sequence := catalogRef(t, e, e.CatalogRead(), "s")
-			healthyFrontier, healthyNamespace := e.visibility.CommitSeq(), e.catalog.state.NamespaceGeneration()
+			healthyFrontier, healthyNamespace := e.visibility.CommitSeq(), e.catalog.State.NamespaceGeneration()
 			ref := transactionBegin(t, s)
 			sessionSQL(t, s, "ALTER SEQUENCE s RESTART 100")
 			if r := sessionSQL(t, s, "DELETE FROM t WHERE v=1"); r.Count != 2 {
@@ -33,9 +33,9 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 				// No TEMP object has ever committed in this session: this is a
 				// genuine new namespace descriptor, not another temp relation.
 				sessionSQL(t, s, "CREATE TEMP SEQUENCE first_temp START 40")
-				state := catalog.CloneState(e.catalog.state)
+				state := catalog.CloneState(e.catalog.State)
 				state.SetNamespaceGeneration(^uint64(0))
-				e.catalog.state = state
+				e.catalog.PublishLocked(state)
 			}
 			switch phase {
 			case "frontier":
@@ -106,9 +106,9 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 				e.visibility.SetCommitSeqLocked(healthyFrontier)
 			}
 			if phase == "namespace" {
-				state := catalog.CloneState(e.catalog.state)
+				state := catalog.CloneState(e.catalog.State)
 				state.SetNamespaceGeneration(healthyNamespace)
-				e.catalog.state = state
+				e.catalog.PublishLocked(state)
 			}
 			transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 1, 2)
 			sequenceScalar(t, s, "SELECT currval('s')", 1)

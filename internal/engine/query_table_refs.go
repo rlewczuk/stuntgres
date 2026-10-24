@@ -13,7 +13,7 @@ import (
 // The view and catalog owner checks stay here; view.QueryTableRefs walks.
 func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []exec.Leaf, refs []ids.ObjectRef, token ids.SessionToken, inherited plan.RowMark) ([]ids.ObjectRef, error) {
 	read := auth.Catalog
-	if auth.Owner != e.catalog.owner() || read.Owner() != e.catalog.owner() || read.State() == nil {
+	if auth.Owner != &e.catalog.Owner || read.Owner() != &e.catalog.Owner || read.State() == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
 	return view.QueryTableRefs(auth.View, auth, invoker, leaves, refs, token, inherited)

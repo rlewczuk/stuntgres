@@ -58,7 +58,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	}
 	rows := exec.NewFinalRows([]catalog.Column{{Name: "r", Usage: d.Usage()}}, 1)
 	defer rows.Close()
-	output := regobj.RoleOutput{Owner: e.catalog.owner(), Roles: old}
+	output := regobj.RoleOutput{Owner: &e.catalog.Owner, Roles: old}
 	if err := regobj.CaptureRoleOutputValue(rows, output, array); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if text, err := rows.FormatRegrole(20000); err != nil || text != "unit_role" {
 		t.Fatal("retained output", text, err)
 	}
-	current := regobj.RoleOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
+	current := regobj.RoleOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
 	for _, tc := range []struct {
 		id   uint32
 		text string
@@ -92,7 +92,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if text, err := current.FormatRegrole(30000); err != nil || text != `"unit_role"` {
 		t.Fatal("forced quoting", text, err)
 	}
-	foreign := regobj.RoleOutput{Owner: New().catalog.owner(), Roles: old}
+	foreign := regobj.RoleOutput{Owner: &New().catalog.Owner, Roles: old}
 	if _, err := foreign.FormatRegrole(20000); err == nil {
 		t.Fatal("foreign output authority admitted")
 	}
@@ -102,7 +102,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	description := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
+	description := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), catalogOwner: &e.catalog.Owner, catalogEpoch: e.CatalogRead().Epoch()}
 	retained := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
 	again, err := retained.InputConstant("not_resolved_again", d.Usage(), pos)
 	if err != nil || !sqltype.SameDatum(captured, again) {

@@ -25,7 +25,7 @@ func (s *StatementScope) lockPartitionAttachChild(view catalog.Read, address ids
 func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogStage, view catalog.Read, candidate *catalog.Relation, jobs []partition.AttachScan) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
+	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	capture := func(d *catalog.Relation) error {

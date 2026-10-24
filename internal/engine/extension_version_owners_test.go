@@ -45,7 +45,7 @@ func extensionVersionOwnerImports(t *testing.T) {
 			if err := extensionUnitExecute(t, stage, op, extensionVersionUnitCreate(version)); err != nil {
 				t.Fatal(err)
 			}
-			before := stage.catalog.state
+			before := stage.catalog.State
 			for _, kind := range []string{"graph_only", "unknown", "member_owner", "extension_owner", "duplicate", "signature", "namespace", "member_name", "member_schema", "slot", "duplicate_slot", "swapped_slots"} {
 				bad := record
 				bad.Members = slices.Clone(record.Members)
@@ -79,15 +79,15 @@ func extensionVersionOwnerImports(t *testing.T) {
 				if err := stage.importExtensionOwners(context.Background(), op, records); err == nil {
 					t.Fatal("invalid version owners admitted", kind)
 				}
-				if stage.catalog.state != before {
+				if stage.catalog.State != before {
 					t.Fatal("failed version owner import mutated destination", kind)
 				}
 			}
 			if err := stage.importExtensionOwners(context.Background(), op, []extension.OwnerRecord{record}); err != nil {
 				t.Fatal(err)
 			}
-			a := stage.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"})
-			if stage.catalog.state.MustExtension(a).Version != version || extension.StockFuzzystrmatch.ValidateExtension(stage.CatalogRead(), stage.catalog.state.MustExtension(a)) != nil {
+			a := stage.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"})
+			if stage.catalog.State.MustExtension(a).Version != version || extension.StockFuzzystrmatch.ValidateExtension(stage.CatalogRead(), stage.catalog.State.MustExtension(a)) != nil {
 				t.Fatal("import lost genuine version manifest")
 			}
 			for _, field := range []string{"name", "schema", "version", "owner", "members"} {

@@ -16,7 +16,7 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	sessionSQL(t, worker, "INSERT INTO t VALUES(1),(2),(2)")
 	ref := roleTableRef(t, e, "t")
 	seq := roleTableRef(t, e, "s")
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	storage := e.storage.Relations[ref.Address]
 	generator := e.storage.Sequences[seq.Address]
 	ctx, cancel := context.WithCancel(context.Background())
@@ -30,7 +30,7 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 		} else {
 			e.mu.Unlock()
 		}
-		if generator.Last != 6 || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
+		if generator.Last != 6 || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
 			t.Error("provider did not see fully demanded unpublished ADD", generator.Last)
 		}
 		cancel()
@@ -42,7 +42,7 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ADD b BIGINT DEFAULT nextval('s') CHECK(nextval('s')>0)"), 0, nil)
 	op.Done()
 	e.catalog.Providers[ids.RelationClassID] = original
-	if !errors.Is(err, context.Canceled) || calls != 1 || generator.Last != 6 || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
+	if !errors.Is(err, context.Canceled) || calls != 1 || generator.Last != 6 || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
 		t.Fatal("final provider veto published candidate or rewound effects", err, calls, generator.Last)
 	}
 	lockEmpty(t, e)

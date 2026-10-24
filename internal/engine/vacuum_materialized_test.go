@@ -194,7 +194,7 @@ func vacuumMaterializedExplicitBoundary(t *testing.T) {
 				sessionSQL(t, s, q)
 			}
 			ref, store := vacuumStore(t, e, "explicit_mv")
-			root, ends, generation, facts, base := store.Versions, store.Ends, store.Generation, store.Maintenance, e.catalog.state
+			root, ends, generation, facts, base := store.Versions, store.Ends, store.Generation, store.Maintenance, e.catalog.State
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			if _, err := m.step(statement(t, "BEGIN")); err != nil {
@@ -215,11 +215,11 @@ func vacuumMaterializedExplicitBoundary(t *testing.T) {
 			if shape.Original != store || shape.Replacement == nil || shape.Replacement == store || !storage.SameVersionRoot(shape.Root, root) || shape.Ends != ends || shape.Generation != generation {
 				t.Fatal("explicit replacement lost committed predecessor", shape)
 			}
-			if e.catalog.state != base || e.storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
+			if e.catalog.State != base || e.storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
 				t.Fatal("private explicit refresh changed published roots/facts")
 			}
 			sessionSQL(t, s, "ROLLBACK")
-			if e.catalog.state != base || e.storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
+			if e.catalog.State != base || e.storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
 				t.Fatal("rolled-back explicit refresh changed published roots/facts")
 			}
 			lockEmpty(t, e)

@@ -47,7 +47,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 	})
 	parent := primaryKeyUnitRelation(t, e, "typed")
 	constraint := parent.Constraints.Unique[0]
-	idx := e.catalog.state.MustRelation(constraint.Index)
+	idx := e.catalog.State.MustRelation(constraint.Index)
 	if !constraint.Primary || !idx.SQLIndex.Constraint.Primary {
 		t.Fatal("claim fixture lacks real primary attachment")
 	}
@@ -83,7 +83,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), idx.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), idx.Address())
 	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, firstValues)
 	if err != nil {
 		t.Fatal(err)

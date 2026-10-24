@@ -22,7 +22,7 @@ func (e *Engine) captureRegclassOutput(op *session.Operation, rows *exec.FinalRo
 		return err
 	}
 	collationPath := func() ([]ids.ObjectAddress, error) { return lookupPath(auth, analyze.CollationLookup) }
-	return regobj.CaptureRowsOutput(rows, auth.Catalog, e.catalog.owner(), auth.Roles, path, collationPath)
+	return regobj.CaptureRowsOutput(rows, auth.Catalog, &e.catalog.Owner, auth.Roles, path, collationPath)
 }
 
 // String output uses the same captured namespace presentation as exec.FinalRows,

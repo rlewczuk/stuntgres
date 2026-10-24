@@ -24,18 +24,18 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 			_, tempDescription := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
 			tempRef := tempDescription.sequences.Constants[0].Ref.Address
 			sourceRef := roleTableRef(t, source, "portable.i").Address
-			original := source.catalog.state.MustRelation(sourceRef)
+			original := source.catalog.State.MustRelation(sourceRef)
 			originalIdentity := original.ColumnMeta.Identities[original.Attributes[0]]
 			if originalIdentity.Sequence != tempRef {
 				t.Fatal("fixture lacks actual sequence/TEMP collision", originalIdentity.Sequence, tempRef)
 			}
-			originalSequence := source.catalog.state.MustRelation(originalIdentity.Sequence)
+			originalSequence := source.catalog.State.MustRelation(originalIdentity.Sequence)
 			originalOwned := sourceRef
 			originalOwned.SubID = original.Attributes[0]
 			if !originalSequence.Sequence.Identity || originalSequence.Sequence.Owned != originalOwned {
 				t.Fatal("source identity lacks reciprocal ownership")
 			}
-			tempDefinition, tempGenerator, tempMemory := dest.catalog.state.Get(tempRef), dest.storage.Sequences[tempRef], payloadOf(b).sequences.Memory(tempRef)
+			tempDefinition, tempGenerator, tempMemory := dest.catalog.State.Get(tempRef), dest.storage.Sequences[tempRef], payloadOf(b).sequences.Memory(tempRef)
 			generatorState, memoryState := *tempGenerator, *tempMemory
 			if mode == "Restore" {
 				var dump bytes.Buffer
@@ -50,16 +50,16 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if dest.catalog.state.Get(tempRef) != tempDefinition || dest.storage.Sequences[tempRef] != tempGenerator || payloadOf(b).sequences.Memory(tempRef) != tempMemory || *tempGenerator != generatorState || *tempMemory != memoryState {
+			if dest.catalog.State.Get(tempRef) != tempDefinition || dest.storage.Sequences[tempRef] != tempGenerator || payloadOf(b).sequences.Memory(tempRef) != tempMemory || *tempGenerator != generatorState || *tempMemory != memoryState {
 				t.Fatal("retained TEMP authority changed")
 			}
 			ref := roleTableRef(t, dest, "portable.i").Address
-			table := dest.catalog.state.MustRelation(ref)
+			table := dest.catalog.State.MustRelation(ref)
 			identity := table.ColumnMeta.Identities[table.Attributes[0]]
 			if identity.Sequence == tempRef {
 				t.Fatal("identity forward address not remapped")
 			}
-			sequence := dest.catalog.state.MustRelation(identity.Sequence)
+			sequence := dest.catalog.State.MustRelation(identity.Sequence)
 			owned := ref
 			owned.SubID = table.Attributes[0]
 			if !sequence.Sequence.Identity || sequence.Sequence.Owned != owned {
@@ -74,10 +74,10 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 			}
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
 			sessionSQL(t, b, `DROP TABLE portable.i`)
-			if dest.catalog.state.Get(identity.Sequence) != nil || dest.storage.Sequences[identity.Sequence] != nil {
+			if dest.catalog.State.Get(identity.Sequence) != nil || dest.storage.Sequences[identity.Sequence] != nil {
 				t.Fatal("remapped dependency closure failed")
 			}
-			if source.catalog.state.Get(sourceRef) != original || original.ColumnMeta.Identities[original.Attributes[0]] != originalIdentity {
+			if source.catalog.State.Get(sourceRef) != original || original.ColumnMeta.Identities[original.Attributes[0]] != originalIdentity {
 				t.Fatal("source immutable definition changed")
 			}
 		})

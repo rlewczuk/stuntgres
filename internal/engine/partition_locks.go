@@ -25,7 +25,7 @@ func partitionReplayAllowed(op *session.Operation, auth AuthorizationView) func(
 }
 
 func partitionDefaultReplayAllowed(e *Engine, op *session.Operation, auth AuthorizationView, statement *parser.AlterTableDefault) bool {
-	if e == nil || op == nil || op.Self != op || !operationReplayOrZero(op).defaultReplay || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.Owner != e.catalog.owner() || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
+	if e == nil || op == nil || op.Self != op || !operationReplayOrZero(op).defaultReplay || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.Owner != &e.catalog.Owner || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.State || auth.Catalog.Epoch() != e.catalog.State.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
 		return false
 	}
 	if err := e.validateOperation(op); err != nil {
@@ -42,7 +42,7 @@ func (e *Engine) partitionParentAuthorization(op *session.Operation, auth Author
 	if syntax == nil || syntax.PartitionOf == nil || op == nil || !operationReplayOrZero(op).tableDestination {
 		return auth, nil
 	}
-	if e == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.Owner != e.catalog.owner() || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+	if e == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.Owner != &e.catalog.Owner || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.State || auth.Catalog.Epoch() != e.catalog.State.Epoch() {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition parent authority")
 	}
 	if err := e.validateOperation(op); err != nil {

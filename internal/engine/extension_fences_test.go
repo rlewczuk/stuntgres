@@ -58,11 +58,11 @@ func extensionLiveAuthorityFences(t *testing.T) {
 					t.Fatal("role identity reused")
 				}
 			}
-			before := e.catalog.state
+			before := e.catalog.State
 			if err := scope.Finish(nil); err == nil {
 				t.Fatal("stale actual authority installed provider")
 			}
-			if e.catalog.state != before || e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
+			if e.catalog.State != before || e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
 				t.Fatal("authority fence partially published")
 			}
 			if reason != "recreated_role" {
@@ -116,13 +116,13 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		if _, err := e.Commit(op, tx); err != nil {
 			t.Fatal(err)
 		}
-		installed := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
+		installed := e.catalog.State.MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 		if installed.Address() == ext.Address() {
 			t.Fatal("rolled-back identity reused")
 		}
 		for _, a := range installed.Members {
-			d := e.catalog.state.Get(a)
-			if e.catalog.state.NameAddress(catalog.DescriptorNameKey(d)) != a {
+			d := e.catalog.State.Get(a)
+			if e.catalog.State.NameAddress(catalog.DescriptorNameKey(d)) != a {
 				t.Fatal("committed signature identity lost")
 			}
 		}
@@ -151,7 +151,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 			t.Fatal("owner metadata lost installed slot/schema", record.Members[i])
 		}
 	}
-	before := stage.catalog.state
+	before := stage.catalog.State
 	for _, kind := range []string{"namespace", "version", "member_owner", "duplicate", "member_identity", "member_name", "member_namespace", "member_slot", "duplicate_slot", "missing_member"} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
@@ -181,7 +181,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 		if err := stage.importExtensionOwners(context.Background(), op, records); err == nil {
 			t.Fatal("invalid ownership import accepted", kind)
 		}
-		if stage.catalog.state != before {
+		if stage.catalog.State != before {
 			t.Fatal("failed ownership import changed staged identities", kind)
 		}
 	}
@@ -197,7 +197,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 		t.Fatal("extension owner dependency", dependencies)
 	}
 	for _, a := range ext.Members {
-		d := e.catalog.state.Get(a)
+		d := e.catalog.State.Get(a)
 		refs := descriptorReferences(d)
 		if a.ClassID == ids.TSTemplateClassID {
 			if len(refs) != 0 {
@@ -236,11 +236,11 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	if replacementOwner.Ref == originalOwner.Ref {
 		t.Fatal("target role identity reused")
 	}
-	incumbent := target.catalog.state
+	incumbent := target.catalog.State
 	if _, err := target.replaceCatalog(context.Background(), imported, imported.CatalogRead(), admin); err == nil {
 		t.Fatal("member owner target recreation escaped import fence")
 	}
-	if target.catalog.state != incumbent {
+	if target.catalog.State != incumbent {
 		t.Fatal("member owner fence replaced target")
 	}
 }

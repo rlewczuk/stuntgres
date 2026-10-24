@@ -38,11 +38,11 @@ func TestInstalledCodecArrayUsesRegisteredTypeProvider(t *testing.T) {
 			owner.Providers = maps.Clone(owner.Providers)
 			sentinel := errors.New("registered type provider")
 			owner.Providers[ids.TypeClassID] = stubTypeProvider{sentinel}
-			if err := tc.provider.ValidateExtension(catalog.NewRead(&owner, e.catalog.state), ext); !errors.Is(err, sentinel) {
+			if err := tc.provider.ValidateExtension(catalog.NewRead(&owner, e.catalog.State), ext); !errors.Is(err, sentinel) {
 				t.Fatalf("stubbed type provider: got %v", err)
 			}
 			delete(owner.Providers, ids.TypeClassID)
-			if err := tc.provider.ValidateExtension(catalog.NewRead(&owner, e.catalog.state), ext); err == nil {
+			if err := tc.provider.ValidateExtension(catalog.NewRead(&owner, e.catalog.State), ext); err == nil {
 				t.Fatal("missing type provider accepted")
 			}
 		})

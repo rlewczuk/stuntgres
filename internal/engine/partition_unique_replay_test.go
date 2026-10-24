@@ -55,8 +55,8 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Re
 	mi := index(mid, 47204, "unique_replay_mid_plain", ri.Address(), true)
 	li := index(leaf, 47205, "unique_replay_leaf_plain", mi.Address(), true)
 	partitionAttachUnitInstall(t, e, root, mid, leaf, ri, mi, li)
-	mid = e.catalog.state.MustRelation(mid.Address())
-	leaf = e.catalog.state.MustRelation(leaf.Address())
+	mid = e.catalog.State.MustRelation(mid.Address())
+	leaf = e.catalog.State.MustRelation(leaf.Address())
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: mid.Name()}}}, Actions: []parser.AlterTableAction{{Action: parser.AddUnique, Unique: &parser.UniqueConstraint{Name: parser.Identifier{Text: "__stuntgres_partition_key_1"}, Columns: []parser.Identifier{{Text: "k"}}, Primary: primary}}}}
 	return e, mid, leaf, raw
 }
@@ -90,11 +90,11 @@ func TestPartitionDetachUniqueReplayAuthority(t *testing.T) {
 	raw.Actions[0].Unique.Columns[0].Text = "k"
 	changed := *leaf
 	changed.ObjectRevision++
-	e.catalog.state.SetDescriptor(leaf.Address(), &changed)
+	e.catalog.State.SetDescriptor(leaf.Address(), &changed)
 	if partitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("changed subtree authorized")
 	}
-	e.catalog.state.SetDescriptor(leaf.Address(), leaf)
+	e.catalog.State.SetDescriptor(leaf.Address(), leaf)
 	operationReplay(op).partitionUnique = nil
 	if partition.ConsumerBoundary(raw, mid, partitionReplayAllowed(op, auth)) == nil {
 		t.Fatal("public hierarchy ADD widened")
@@ -113,7 +113,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if err := scope.acquireRelation(raw, true); err != nil {
 					t.Fatal(err)
 				}
-				before := e.catalog.state
+				before := e.catalog.State
 				e.mu.Lock()
 				auth, err := e.statementAuthorizationLocked(op, raw)
 				if err != nil {
@@ -124,7 +124,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if e.catalog.state != before {
+				if e.catalog.State != before {
 					t.Fatal("private staging published before Finish")
 				}
 				if cancel {
@@ -133,7 +133,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				err = scope.Finish(nil)
 				op.Done()
 				if cancel {
-					if err == nil || e.catalog.state != before {
+					if err == nil || e.catalog.State != before {
 						t.Fatal("canceled origin published", err)
 					}
 					return
@@ -141,17 +141,17 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				current := e.catalog.state.MustRelation(mid.Address())
-				child := e.catalog.state.MustRelation(leaf.Address())
+				current := e.catalog.State.MustRelation(mid.Address())
+				child := e.catalog.State.MustRelation(leaf.Address())
 				if len(current.Constraints.Unique) != 1 || len(child.Constraints.Unique) != 1 || child.Constraints.Unique[0].Parent != current.Constraints.Unique[0].OID {
 					t.Fatal("missing real constraint ancestry")
 				}
-				rootIndex := e.catalog.state.MustRelation(current.Constraints.Unique[0].Index)
-				childIndex := e.catalog.state.MustRelation(child.Constraints.Unique[0].Index)
+				rootIndex := e.catalog.State.MustRelation(current.Constraints.Unique[0].Index)
+				childIndex := e.catalog.State.MustRelation(child.Constraints.Unique[0].Index)
 				if !rootIndex.SQLIndex.Valid || childIndex.SQLIndex.PartitionParent != rootIndex.Address() || childIndex.SQLIndex.Constraint.Index != child.Constraints.Unique[0].Index || childIndex.SQLIndex.Constraint.Primary != primary {
 					t.Fatal("wrong local backing tree")
 				}
-				if e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) || e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) {
+				if e.catalog.State.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) || e.catalog.State.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) {
 					t.Fatal("attached plain tree consumed")
 				}
 				if len(child.Constraints.NotNull) != len(leaf.Constraints.NotNull) || len(current.Constraints.NotNull) != len(mid.Constraints.NotNull) {

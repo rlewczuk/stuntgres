@@ -44,8 +44,8 @@ func cubeUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, cubeUnitStage(t, e, op, "cube", ""))
-	ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
-	return e, ext, e.catalog.state.MustType(ext.Members[0])
+	ext := e.catalog.State.MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
+	return e, ext, e.catalog.State.MustType(ext.Members[0])
 }
 
 func TestCubeProviderIdentity(t *testing.T) {
@@ -140,7 +140,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 			t.Fatal("missing extension edge", address)
 		}
 	}
-	metadata, err := extension.OwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 	if len(wantSignatures) != 0 {
 		t.Fatal("missing cube ownership signatures", wantSignatures)
 	}
-	roles := e.roles.read(e.catalog.owner(), view, e.roles.published)
+	roles := e.roles.read(&e.catalog.Owner, view, e.roles.published)
 	if _, err := extension.ImportOwners(context.Background(), view.WithState(catalog.CloneState(view.State())), roles, records); err != nil {
 		t.Fatal("canonical cube ownership import", err)
 	}
@@ -226,7 +226,7 @@ func TestCubeProviderConflicts(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			before := e.catalog.state
+			before := e.catalog.State
 			e.mu.Lock()
 			err := func() error {
 				auth, err := e.authorizationLocked(op)
@@ -238,15 +238,15 @@ func TestCubeProviderConflicts(t *testing.T) {
 				namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				stage.authorizeLocked(auth, op.Session)
 				stage.extensionNamespace = namespace
-				extOID, err := e.catalog.allocateOIDLocked()
+				extOID, err := e.catalog.AllocateOIDLocked()
 				if err != nil {
 					return err
 				}
-				procOID, err := e.catalog.allocateOIDLocked()
+				procOID, err := e.catalog.AllocateOIDLocked()
 				if err != nil {
 					return err
 				}
-				revision, err := e.catalog.revisionLocked()
+				revision, err := e.catalog.RevisionLocked()
 				if err != nil {
 					return err
 				}
@@ -265,7 +265,7 @@ func TestCubeProviderConflicts(t *testing.T) {
 			}()
 			e.mu.Unlock()
 			var diagnostic *sqlstate.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || e.catalog.state != before {
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || e.catalog.State != before {
 				t.Fatal("staged codec collision published a prefix", err)
 			}
 		})
@@ -275,22 +275,22 @@ func TestCubeProviderConflicts(t *testing.T) {
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
 		e.mu.Lock()
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := e.catalog.AllocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		arrayOID, err := e.catalog.allocateOIDLocked()
+		arrayOID, err := e.catalog.AllocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		memberID, err := e.catalog.allocateEnumMemberLocked()
+		memberID, err := e.catalog.AllocateEnumMemberLocked()
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		revision, err := e.catalog.revisionLocked()
+		revision, err := e.catalog.RevisionLocked()
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -316,13 +316,13 @@ func TestCubeProviderConflicts(t *testing.T) {
 			}
 		}
 		extensionUnitPublish(t, e, op, stage)
-		before := e.catalog.state
+		before := e.catalog.State
 		e.mu.Lock()
 		_, err = e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "cube"}})
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: extension.CubeTypeContext}
-		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before {
+		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.State != before {
 			t.Fatal("type conflict was not atomic/exact", diagnostic, err)
 		}
 	})
@@ -366,12 +366,12 @@ func TestCubeProviderConflicts(t *testing.T) {
 				state.SetDescriptor(address, &array)
 			},
 		} {
-			candidate := catalog.CloneState(e.catalog.state)
+			candidate := catalog.CloneState(e.catalog.State)
 			bad := *ext
 			bad.Members = slices.Clone(ext.Members)
 			candidate.SetDescriptor(bad.Address(), &bad)
 			corrupt(candidate, &bad)
-			if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(e.catalog.read(candidate), &bad); err == nil {
+			if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(e.catalog.Read(candidate), &bad); err == nil {
 				t.Fatal("invalid manifest accepted")
 			}
 			if !slices.Equal(original, ext.Members) {
@@ -397,11 +397,11 @@ func TestCubeProviderConflicts(t *testing.T) {
 				func(p *catalog.Procedure) { p.Result = 25 },
 				func(p *catalog.Procedure) { p.Strict = false },
 			} {
-				state := catalog.CloneState(e.catalog.state)
+				state := catalog.CloneState(e.catalog.State)
 				proc := *state.MustProcedure(address)
 				corrupt(&proc)
 				state.SetDescriptor(address, &proc)
-				if err := extension.StockCube.ValidateExtension(e.catalog.read(state), ext); err == nil {
+				if err := extension.StockCube.ValidateExtension(e.catalog.Read(state), ext); err == nil {
 					t.Fatal("invalid selected procedure accepted", proc)
 				}
 			}
@@ -423,33 +423,33 @@ func TestCubeProviderControls(t *testing.T) {
 		namespace := intarrayUnitTemporaryNamespace(t, target, owner)
 		installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
 		extensionUnitPublish(t, target, installer, cubeUnitStage(t, target, installer, "unaccent", namespace.Name()))
-		unaccent := target.catalog.state.Get(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
+		unaccent := target.catalog.State.Get(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 		closeInstaller()
 		if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		ext := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
-		imported := target.catalog.state.MustType(ext.Members[0])
+		ext := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
+		imported := target.catalog.State.MustType(ext.Members[0])
 		if imported.SQLType == base.SQLType || imported.SQLType.ID() == base.SQLType.ID() {
 			t.Fatal("setup failed to exercise a genuine retained-TEMP OID collision")
 		}
 		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
-		sourceExt := source.catalog.state.MustExtension(source.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
+		sourceExt := source.catalog.State.MustExtension(source.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
 		for i, oldAddress := range sourceExt.Members[1:] {
 			if oldAddress.ClassID != ids.ProcedureClassID {
 				continue
 			}
-			old := source.catalog.state.MustProcedure(oldAddress)
+			old := source.catalog.State.MustProcedure(oldAddress)
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{base.Address(): imported.Address(), oldAddress: ext.Members[i+1]}
 			mapped := extension.RemapDescriptor(old, mapping).(*catalog.Procedure)
-			actual := target.catalog.state.MustProcedure(ext.Members[i+1])
+			actual := target.catalog.State.MustProcedure(ext.Members[i+1])
 			if mapped.Signature != actual.Signature || mapped.Result != actual.Result || mapped == old {
 				t.Fatal("constructor formals/results did not remint", old, actual)
 			}
 		}
-		if target.catalog.state.Get(namespace.Address()) != namespace || target.catalog.state.Get(unaccent.Address()) != unaccent {
+		if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(unaccent.Address()) != unaccent {
 			t.Fatal("import changed live TEMP provider authority")
 		}
 		mapped, err := typedef.ReownDomainDatum(value, imported.SQLType, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{base.SQLType: imported.SQLType}, nil)
@@ -470,7 +470,7 @@ func TestCubeProviderControls(t *testing.T) {
 		}
 		closeOwner()
 		assertTemporaryNamespacePair(t, target, namespace.Temporary, namespace.Address())
-		if target.catalog.state.Get(namespace.Address()) != namespace || target.catalog.state.Get(unaccent.Address()) != nil {
+		if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(unaccent.Address()) != nil {
 			t.Fatal("original TEMP provider failed retirement after import")
 		}
 		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {

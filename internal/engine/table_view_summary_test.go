@@ -84,7 +84,7 @@ func TestTableSummaryReplacementNormalizesIndexHistory(t *testing.T) {
 			if same {
 				target = e
 			}
-			if _, err := target.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err != nil {
+			if _, err := target.ReplaceCatalog(context.Background(), e, e.catalog.Read(state)); err != nil {
 				t.Fatal(err)
 			}
 			current := target.CatalogRead()
@@ -116,7 +116,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	// Genuine private initial-invalid index metadata; history depends on
 	// publication, not readiness or a successful physical build.
 	e.mu.Lock()
-	id, err := e.catalog.allocateOIDLocked()
+	id, err := e.catalog.AllocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err = stage.MarkIndexHistoryLocked(e.catalog.revisionLocked, stage.Replace)
+	err = stage.MarkIndexHistoryLocked(e.catalog.RevisionLocked, stage.Replace)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -209,7 +209,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalogView, Roles: e.roles.read(e.catalog.owner(), catalogView, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: stored.Presentation{}}}, captureTableViewSummary)
+	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalogView, Roles: e.roles.read(&e.catalog.Owner, catalogView, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e, presentation: stored.Presentation{}}}, captureTableViewSummary)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -244,7 +244,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 		catalog := e.CatalogRead()
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
-		captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: stored.Presentation{}}}, captureTableViewSummary)
+		captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(&e.catalog.Owner, catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e, presentation: stored.Presentation{}}}, captureTableViewSummary)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -282,7 +282,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	capture := func(catalog catalog.Read) []sqltype.Value {
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
-		captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: stored.Presentation{}}}, captureTableViewSummary)
+		captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(&e.catalog.Owner, catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e, presentation: stored.Presentation{}}}, captureTableViewSummary)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

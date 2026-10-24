@@ -104,12 +104,12 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	ordinary := New()
 	foreign, closeForeign := roleOperation(t, ordinary, "postgres")
 	defer closeForeign()
-	beforeAuthority := e.catalog.state
-	if err := e.restoreAttributeRank(foreign, parse("a")); err == nil || e.catalog.state != beforeAuthority {
+	beforeAuthority := e.catalog.State
+	if err := e.restoreAttributeRank(foreign, parse("a")); err == nil || e.catalog.State != beforeAuthority {
 		t.Fatal("foreign operation admitted", err)
 	}
-	ordinaryState := ordinary.catalog.state
-	if err := ordinary.restoreAttributeRank(foreign, parse("a")); err == nil || ordinary.catalog.state != ordinaryState {
+	ordinaryState := ordinary.catalog.State
+	if err := ordinary.restoreAttributeRank(foreign, parse("a")); err == nil || ordinary.catalog.State != ordinaryState {
 		t.Fatal("ordinary engine admitted private repair", err)
 	}
 	if err := e.restoreAttributeRank(op, parse("a")); err != nil {
@@ -119,17 +119,17 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	if current.Columns[0].DeclaredDimensions != 3 || old.Columns[0].DeclaredDimensions != 2 || current.Revision() != old.Revision()+1 || current.Columns[0].Usage != old.Columns[0].Usage || current.Columns[0].Name != old.Columns[0].Name || len(current.ColumnMeta.Dropped) != 1 {
 		t.Fatal("rank repair changed authority or old root", old, current)
 	}
-	before := e.catalog.state
+	before := e.catalog.State
 	for _, name := range []string{"b", "........pg.dropped.2........"} {
 		var diagnostic *sqlstate.Error
 		err := e.restoreAttributeRank(op, parse(name))
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || e.catalog.state != before {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || e.catalog.State != before {
 			t.Fatal("missing/dropped repair published", name, err)
 		}
 	}
 	var diagnostic *sqlstate.Error
 	err = e.restoreAttributeRank(op, parse("scalar"))
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || e.catalog.state != before {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || e.catalog.State != before {
 		t.Fatal("scalar rank repair published", err)
 	}
 }

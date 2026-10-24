@@ -50,7 +50,7 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				beforeWrites := append([]storage.RowVersion(nil), writer.Transactions.Writes[relation.Address]...)
 				beforeStorage := e.storage.Relations[relation.Address]
 				beforeFrontier, beforeRows, beforeVersions := e.visibility.CommitSeq(), e.storage.RowFrontier(), e.storage.VersionFrontier()
-				beforeCatalog := e.catalog.state
+				beforeCatalog := e.catalog.State
 				ctx, cancel := context.WithCancel(context.Background())
 				t.Cleanup(cancel)
 				reader, node := serializableUnitAcquisition(t, e, ctx, true, true)
@@ -123,7 +123,7 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				if node.Captured || node.Ready != nil || len(node.Possible) != 0 || reader.owner.SnapshotSet || len(reader.owner.Roots) != 0 || reader.owner.CurrentSnapshot != nil || reader.owner.SequenceCatalog != nil || reader.owner.Frontier != 0 || snapshot.Snapshot || snapshot.Xmin != 0 || snapshot.SafeBuilder {
 					t.Error("canceled utility retained candidate/root/snapshot evidence")
 				}
-				if reader.owner.State != session.TxAborted || writerNode.Ended || writerNode.Committed || !reflect.DeepEqual(beforeWrites, writer.Transactions.Writes[relation.Address]) || e.catalog.state != beforeCatalog || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.CommitSeq() != beforeFrontier || e.storage.RowFrontier() != beforeRows || e.storage.VersionFrontier() != beforeVersions {
+				if reader.owner.State != session.TxAborted || writerNode.Ended || writerNode.Committed || !reflect.DeepEqual(beforeWrites, writer.Transactions.Writes[relation.Address]) || e.catalog.State != beforeCatalog || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.CommitSeq() != beforeFrontier || e.storage.RowFrontier() != beforeRows || e.storage.VersionFrontier() != beforeVersions {
 					t.Error("utility changed writer/source/publication state or did not abort its owner")
 				}
 				reader.op.Done()

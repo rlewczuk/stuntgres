@@ -68,7 +68,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *sessio
 	}
 	ownershipUnitPublish(t, e, setup)
 	e.DiscardCatalogStage(setup)
-	committed := e.catalog.state.Get(catalog.CurrentDatabaseAddress)
+	committed := e.catalog.State.Get(catalog.CurrentDatabaseAddress)
 	var changes *session.Journal
 	if private {
 		// Honest installed predecessor, distinct selected owner-private authority;
@@ -138,8 +138,8 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				retainedACL := authorization.ACLValue{Explicit: old.Security.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.Security.ACL.Entries...)}
 				retainedOptions := *old.Sequence
-				oldRoles, sessionRevision, epoch := e.roles.published, session.Authorization.Revision, e.catalog.state.Epoch()
-				originalCatalog := e.catalog.state
+				oldRoles, sessionRevision, epoch := e.roles.published, session.Authorization.Revision, e.catalog.State.Epoch()
+				originalCatalog := e.catalog.State
 				// A real nontransactional draw must survive rollback without another
 				// draw, cache reset, generator replacement or currval change.
 				result, err := message.step(statement(t, "SELECT nextval('ownership_fence_seq')"))
@@ -180,7 +180,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				replaceDatabase := func() {
 					stage := e.BeginCatalogStage(e.CatalogRead())
-					database := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
+					database := *e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
 					if private {
 						// Even equal owner identities cannot excuse replacing the
 						// exact installed predecessor of a distinct private view.
@@ -194,11 +194,11 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					}
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
-					if e.roles.published != oldRoles || session.Authorization.Revision != sessionRevision || e.catalog.state.Epoch() != epoch {
+					if e.roles.published != oldRoles || session.Authorization.Revision != sessionRevision || e.catalog.State.Epoch() != epoch {
 						t.Fatal("DB-only replacement changed role/session/epoch authority")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
-						if address != catalog.CurrentDatabaseAddress && e.catalog.state.Get(address) != descriptor {
+						if address != catalog.CurrentDatabaseAddress && e.catalog.State.Get(address) != descriptor {
 							t.Fatal("DB-only replacement changed an unrelated descriptor")
 						}
 					}
@@ -219,7 +219,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					objectACLUnitEntry(target, reader, authorization.UsagePrivilege, 0),
 					objectACLUnitEntry(bootstrap, reader, authorization.SelectPrivilege, 0),
 				}}
-				if !ok || staged == old || staged.Owner != target || !reflect.DeepEqual(staged.Security.ACL, wantACL) || *staged.Sequence != retainedOptions || candidate.Generators[ref.Address] != nil || e.catalog.state != originalCatalog {
+				if !ok || staged == old || staged.Owner != target || !reflect.DeepEqual(staged.Security.ACL, wantACL) || *staged.Sequence != retainedOptions || candidate.Generators[ref.Address] != nil || e.catalog.State != originalCatalog {
 					t.Fatal("actual OWNER handler did not stage descriptor/ACL-only transfer without a prefix")
 				}
 				var checkpoint *rangePartitionPhaseContext
@@ -238,17 +238,17 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					if finishErr != nil {
 						t.Fatal("retained Statement Finish failed before DB replacement", finishErr)
 					}
-					if e.catalog.state != originalCatalog || session.Transactions.Catalog != candidate || len(session.Transactions.Writes[sentinel]) != 1 {
+					if e.catalog.State != originalCatalog || session.Transactions.Catalog != candidate || len(session.Transactions.Writes[sentinel]) != 1 {
 						t.Fatal("retained Finish installed a prefix or lost actual pending effects")
 					}
 					replaceDatabase()
 				}
 				err = message.end(finishErr)
 				if phase == "healthy" {
-					if err != nil || e.catalog.state.Get(ref.Address) != staged || !reflect.DeepEqual(staged.Security.ACL, wantACL) || len(e.storage.Relations[sentinel].Versions) != 2 {
+					if err != nil || e.catalog.State.Get(ref.Address) != staged || !reflect.DeepEqual(staged.Security.ACL, wantACL) || len(e.storage.Relations[sentinel].Versions) != 2 {
 						t.Fatal("healthy selected authority did not publish actual transfer and prefix", err)
 					}
-					if private && e.catalog.state.Get(catalog.CurrentDatabaseAddress) != selectedDB {
+					if private && e.catalog.State.Get(catalog.CurrentDatabaseAddress) != selectedDB {
 						t.Fatal("healthy private authority did not retain its own DB candidate")
 					}
 				} else {
@@ -257,11 +257,11 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 						t.Fatal("missing sequence OWNER DB predecessor veto", err)
 					}
 					indexMaintenanceUnchanged(t, e, before)
-					if e.catalog.state.Get(ref.Address) != old || !reflect.DeepEqual(e.storage.Relations[sentinel].Versions, rows) {
+					if e.catalog.State.Get(ref.Address) != old || !reflect.DeepEqual(e.storage.Relations[sentinel].Versions, rows) {
 						t.Fatal("veto installed sequence owner/ACL or retained row prefix")
 					}
 				}
-				if e.roles.published != oldRoles || session.Authorization.Revision != sessionRevision || e.catalog.state.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.Catalog.Get(ref.Address) != old || auth.Catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB || auth.DatabasePredecessor != committed || originalCatalog.Get(catalog.CurrentDatabaseAddress) != committed {
+				if e.roles.published != oldRoles || session.Authorization.Revision != sessionRevision || e.catalog.State.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.Catalog.Get(ref.Address) != old || auth.Catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB || auth.DatabasePredecessor != committed || originalCatalog.Get(catalog.CurrentDatabaseAddress) != committed {
 					t.Fatal("publication mutated immutable retained authority or sequence roots")
 				}
 				if e.storage.Sequences[ref.Address] != generator || *generator != generatorValue || payloadOf(session).sequences.Memory(ref.Address) != memory || *memory != memoryValue || payloadOf(session).sequences.Last() != lastSequence {

@@ -57,7 +57,7 @@ func (h *statementHost) IndexScope(allocate bool) *index.Scope {
 func (h *statementHost) Ticket() *lock.Ticket { return h.ticket }
 
 func (h *statementHost) CatalogRead(state *catalog.State) catalog.Read {
-	return h.scope().engine().catalog.read(state)
+	return h.scope().engine().catalog.Read(state)
 }
 
 func (h *statementHost) PositionedRow(b analyze.Binding) (dml.MutationRowIdentity, error) {

@@ -203,10 +203,10 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 		}
 	}
 	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := e.catalog.AllocateOIDLocked()
 	var revision ids.DefinitionRevision
 	if err == nil {
-		revision, err = e.catalog.revisionLocked()
+		revision, err = e.catalog.RevisionLocked()
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -283,7 +283,7 @@ func TestIndexMaintenanceMaintainRevokedDuringWait(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.catalog.state.MustRelation(table.Address).Owner
+	owner := e.catalog.State.MustRelation(table.Address).Owner
 	user, ok := e.Roles().Lookup("maintainer")
 	if !ok {
 		t.Fatal("missing role fixture")
@@ -317,12 +317,12 @@ func TestIndexMaintenancePrivilegeAdmission(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.catalog.state.MustRelation(table.Address).Owner
+	owner := e.catalog.State.MustRelation(table.Address).Owner
 	user, ok := e.Roles().Lookup("maintainer")
 	if !ok {
 		t.Fatal("missing role fixture")
 	}
-	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -400,7 +400,7 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			if err := await(); err != nil {
 				t.Fatal("same-incarnation compatible revision was rejected", err)
 			}
-			if e.catalog.state.Get(ref.Address) != &next || e.storage.IndexRoots[index.Address()] == oldRoot {
+			if e.catalog.State.Get(ref.Address) != &next || e.storage.IndexRoots[index.Address()] == oldRoot {
 				t.Fatal("grant did not retain the current descriptor and publish a real fresh root")
 			}
 			btreeWantKeys(t, e, "ix", "1", "2")

@@ -44,7 +44,7 @@ func (s *StatementScope) acquireViewWriteTarget(w *view.Write) error {
 	defer e.mu.Unlock()
 	read := e.privateCatalogLocked(s.owner.Catalog)
 	current, ok := read.Relation(w.Ref.Address)
-	if !ok || w.Ref.Domain() != e.catalog.Domain || w.Ref.Epoch != e.catalog.state.Epoch() || !index.SameRelationRowShape(current, w.BaseRelation) {
+	if !ok || w.Ref.Domain() != e.catalog.Domain || w.Ref.Epoch != e.catalog.State.Epoch() || !index.SameRelationRowShape(current, w.BaseRelation) {
 		return ids.ErrCatalogReplaced
 	}
 	for _, layer := range w.Layers {

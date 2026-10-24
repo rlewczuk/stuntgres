@@ -43,7 +43,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		}
 		e.mu.Lock()
 		_, currentErr := e.authorizationLocked(scope.op)
-		if currentErr == nil && e.catalog.state.Epoch() != stage.Base.Epoch() {
+		if currentErr == nil && e.catalog.State.Epoch() != stage.Base.Epoch() {
 			currentErr = ids.ErrCatalogReplaced
 		}
 		var validations []fdw.Validation

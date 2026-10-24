@@ -23,7 +23,7 @@ func TestRangeTypeGeneratedConstructorDumpAuthority(t *testing.T) {
 				t.Fatal("unaltered authority baseline", err)
 			}
 			roleExecute(t, e, op, alter)
-			before := e.catalog.state
+			before := e.catalog.State
 			found := false
 			view := e.CatalogRead()
 			for d := range catalog.DefinitionProceduresNamedAt(view, nil, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "authority_span") {
@@ -41,7 +41,7 @@ func TestRangeTypeGeneratedConstructorDumpAuthority(t *testing.T) {
 			if err := e.Dump(context.Background(), &rejected); err == nil || err.Error() != "stuntgres: dump cannot serialize altered generated constructor authority" || rejected.Len() != 0 {
 				t.Fatal("authority must reject before output", err, rejected.String())
 			}
-			if e.catalog.state != before {
+			if e.catalog.State != before {
 				t.Fatal("collection mutated source authority")
 			}
 			rows := tuples(roleExecute(t, e, op, "SELECT k,r::text,m::text FROM authority_saved"))

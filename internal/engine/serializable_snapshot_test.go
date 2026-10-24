@@ -208,7 +208,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 			serializableUnitAwaitCandidate(t, e, node)
 			e.mu.Lock()
 			ready := node.Ready
-			oldEpoch := e.catalog.state.Epoch()
+			oldEpoch := e.catalog.State.Epoch()
 			oldRoot := scope.owner.Roots[relation.Address]
 			before := serializableSnapshotPublication(e)
 			_, containsWriter := node.Possible[writer]
@@ -296,7 +296,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				if !reflect.DeepEqual(oldRoot.Storage.Versions[:cap(oldRoot.Storage.Versions)], before.storage[relation.Address].rows) || oldRoot.Ends != before.storage[relation.Address].ends || (oldRoot.Ends != nil && !reflect.DeepEqual(oldRoot.Ends.Rows, before.storage[relation.Address].endRows)) {
 					t.Fatal("replacement mutated immutable old snapshot")
 				}
-				if mode != "cancel" && (e.catalog.state.Epoch() != oldEpoch+1 || !node.Aborted || !writer.Aborted || len(e.visibility.Serializable.Nodes) != 0 || len(e.visibility.Serializable.Creators) != 0) {
+				if mode != "cancel" && (e.catalog.State.Epoch() != oldEpoch+1 || !node.Aborted || !writer.Aborted || len(e.visibility.Serializable.Nodes) != 0 || len(e.visibility.Serializable.Creators) != 0) {
 					t.Fatal("replacement retained old epoch SSI participation")
 				}
 			}()

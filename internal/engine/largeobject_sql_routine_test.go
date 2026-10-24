@@ -19,12 +19,12 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	base := catalog.CloneState(e.catalog.state)
+	base := catalog.CloneState(e.catalog.State)
 	object := &catalog.LargeObject{ObjectAddress: address, ObjectName: "910091", ObjectRevision: 2, Owner: e.roles.domain.Principal(10), Content: content}
 	base.SetDescriptor(address, object)
 	base.BindName(catalog.DescriptorNameKey(object), address)
-	e.catalog.state = base
-	outerRead := e.catalog.read(base)
+	e.catalog.PublishLocked(base)
+	outerRead := e.catalog.Read(base)
 	e.mu.Unlock()
 
 	bytesIn := func(view catalog.Read) string {

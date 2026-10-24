@@ -22,7 +22,7 @@ func catalogStateFixture(epoch ids.CatalogEpoch, descriptors map[ids.ObjectAddre
 func (e *Engine) ValidateObjectRef(view catalog.Read, ref ids.ObjectRef) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.catalog.validateObjectRefLocked(view, ref)
+	return e.catalog.ValidateObjectRefLocked(view, ref)
 }
 
 // PublishCatalog publishes p outside any operation or statement.

@@ -25,8 +25,8 @@ type ccuUnitFixture struct {
 func newCCUUnitFixture(t *testing.T) ccuUnitFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
-	view := f.e.catalog.read(state)
+	state := catalog.CloneState(f.e.catalog.State)
+	view := f.e.catalog.Read(state)
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	relation := func(oid ids.OID, name string) *catalog.Relation {
@@ -66,7 +66,7 @@ func newCCUUnitFixture(t *testing.T) ccuUnitFixture {
 
 func (f ccuUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.read(state)
+	view := f.f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ConstraintColumnUsageOID})
@@ -183,7 +183,7 @@ func TestInfoConstraintColumnUsageProducer(t *testing.T) {
 	if got := ccuUnitBag(t, ccuUnitRows(t, f.input(t, state, f.f.owner))); !reflect.DeepEqual(got, want) {
 		t.Fatal("dropped attribute bag", got, want)
 	}
-	empty := f.input(t, catalog.CloneState(f.f.e.catalog.state), f.f.owner)
+	empty := f.input(t, catalog.CloneState(f.f.e.catalog.State), f.f.owner)
 	if rows := ccuUnitRows(t, empty); rows == nil || len(rows) != 0 {
 		t.Fatal("successful emptiness", rows)
 	}
@@ -260,7 +260,7 @@ func TestInfoConstraintColumnUsageCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.ConstraintColumnUsageOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = New().catalog.owner() },
+		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
@@ -366,7 +366,7 @@ func TestInfoConstraintColumnUsageCancellation(t *testing.T) {
 	if rows, err := produce(base); err != nil || len(rows) != 11 {
 		t.Fatal("successful populated capture", rows, err)
 	}
-	empty := f.input(t, catalog.CloneState(f.f.e.catalog.state), f.f.owner)
+	empty := f.input(t, catalog.CloneState(f.f.e.catalog.State), f.f.owner)
 	if rows, err := produce(empty); err != nil || rows == nil || len(rows) != 0 {
 		t.Fatal("successful empty capture", rows, err)
 	}

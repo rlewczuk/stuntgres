@@ -38,10 +38,10 @@ func TestDefaultPrivilegesAtomicity(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newDefaultUnitFixture(t)
-			catalog, roles := f.e.catalog.state, f.e.roles.published
+			catalog, roles := f.e.catalog.State, f.e.roles.published
 			err := f.apply(tc.s)
 			defaultUnitDiagnostic(t, err, tc.code, tc.message)
-			if f.e.catalog.state != catalog || f.e.roles.published != roles || catalog.DefaultACLCount() != 0 {
+			if f.e.catalog.State != catalog || f.e.roles.published != roles || catalog.DefaultACLCount() != 0 {
 				t.Fatal("failed utility published a partial candidate")
 			}
 		})
@@ -54,42 +54,42 @@ func TestDefaultPrivilegesAtomicity(t *testing.T) {
 
 func TestDefaultPrivilegesRevision(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.State)
 	namespace := *state.MustNamespace(f.schema)
 	namespace.ObjectAddress.ObjectID = 20012
 	namespace.ObjectName = "default_other_schema"
 	state.SetDescriptor(namespace.Address(), &namespace)
 	state.BindName(catalog.DescriptorNameKey(&namespace), namespace.Address())
-	f.e.catalog.state = state
+	f.e.catalog.PublishLocked(state)
 	oldRevision := f.e.roles.published.Revision
 	s := defaultUnitStatement("tables", "select", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_other_schema", "default_schema"}, []string{"default_reader", "default_reader"})
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.roles.published.Revision != oldRevision+1 || f.e.catalog.state.DefaultACLCount() != 2 {
+	if f.e.roles.published.Revision != oldRevision+1 || f.e.catalog.State.DefaultACLCount() != 2 {
 		t.Fatal("multiple schemas/repeated operands not one publication")
 	}
-	firstCatalog, firstRoles := f.e.catalog.state, f.e.roles.published
+	firstCatalog, firstRoles := f.e.catalog.State, f.e.roles.published
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.state != firstCatalog || f.e.roles.published != firstRoles {
+	if f.e.catalog.State != firstCatalog || f.e.roles.published != firstRoles {
 		t.Fatal("canonical no-op published")
 	}
 	s.Revoke = true
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.state.DefaultACLCount() != 0 || f.e.roles.published.Revision != oldRevision+2 {
+	if f.e.catalog.State.DefaultACLCount() != 0 || f.e.roles.published.Revision != oldRevision+2 {
 		t.Fatal("baseline reversal")
 	}
 	roles := *f.e.roles.published
 	roles.Revision = ^uint64(0)
 	f.e.roles.published = &roles
-	firstCatalog, firstRoles = f.e.catalog.state, f.e.roles.published
+	firstCatalog, firstRoles = f.e.catalog.State, f.e.roles.published
 	s.Revoke = false
 	err := f.apply(s)
-	if err == nil || !strings.Contains(err.Error(), "authorization revision exhausted") || f.e.catalog.state != firstCatalog || f.e.roles.published != firstRoles {
+	if err == nil || !strings.Contains(err.Error(), "authorization revision exhausted") || f.e.catalog.State != firstCatalog || f.e.roles.published != firstRoles {
 		t.Fatal("revision overflow published", err)
 	}
 	s.Revoke = true
@@ -100,12 +100,12 @@ func TestDefaultPrivilegesRevision(t *testing.T) {
 
 func TestDefaultPrivilegesCancellation(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	catalog, roles := f.e.catalog.state, f.e.roles.published
+	catalog, roles := f.e.catalog.State, f.e.roles.published
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	f.op.Ctx = ctx
 	err := f.apply(defaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema"}, []string{"default_reader"}))
-	if !errors.Is(err, context.Canceled) || f.e.catalog.state != catalog || f.e.roles.published != roles {
+	if !errors.Is(err, context.Canceled) || f.e.catalog.State != catalog || f.e.roles.published != roles {
 		t.Fatal("canceled utility publication", err)
 	}
 }
@@ -130,7 +130,7 @@ func TestTransactionalPrivilegesCancellation(t *testing.T) {
 				message = &batchUnitMessage{scope: scope, op: f.op}
 				defer func() { _ = message.scope.FinishMessage(context.Canceled) }()
 			}
-			committed, roles := f.e.catalog.state, f.e.roles.published
+			committed, roles := f.e.catalog.State, f.e.roles.published
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			f.op.Ctx = ctx
@@ -141,7 +141,7 @@ func TestTransactionalPrivilegesCancellation(t *testing.T) {
 			} else {
 				err = f.apply(statement)
 			}
-			if !errors.Is(err, context.Canceled) || f.e.catalog.state != committed || f.e.roles.published != roles || f.op.Session.Transactions.Catalog != nil {
+			if !errors.Is(err, context.Canceled) || f.e.catalog.State != committed || f.e.roles.published != roles || f.op.Session.Transactions.Catalog != nil {
 				t.Fatal("cancellation installed catalog/roles/owner-journal state", err)
 			}
 		})
@@ -150,7 +150,7 @@ func TestTransactionalPrivilegesCancellation(t *testing.T) {
 
 func TestTransactionalPrivilegesPublication(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	committed, roles := f.e.catalog.state, f.e.roles.published
+	committed, roles := f.e.catalog.State, f.e.roles.published
 	if _, err := f.e.Begin(f.op, session.TxOptions{}); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestTransactionalPrivilegesPublication(t *testing.T) {
 	f.e.mu.Lock()
 	err = f.e.catalogPreflightLocked(changes)
 	f.e.mu.Unlock()
-	if err != nil || f.e.catalog.state != committed || changes.RolesBase != roles || f.e.roles.published != &stale {
+	if err != nil || f.e.catalog.State != committed || changes.RolesBase != roles || f.e.roles.published != &stale {
 		t.Fatal("compatible equal-root publication was rejected or installed early", err)
 	}
 	f.e.roles.published = roles
@@ -209,7 +209,7 @@ func TestTransactionalPrivilegesPublication(t *testing.T) {
 		f.e.mu.Lock()
 		_, err := f.e.journalRolePublicationLocked(candidate, true)
 		f.e.mu.Unlock()
-		if err == nil || f.e.roles.published != before || f.e.catalog.state != committed {
+		if err == nil || f.e.roles.published != before || f.e.catalog.State != committed {
 			t.Fatal("malformed or foreign authority was published", malformed, err)
 		}
 	}
@@ -225,7 +225,7 @@ func TestTransactionalPrivilegesPublication(t *testing.T) {
 	f.e.mu.Lock()
 	err = f.e.catalogPreflightLocked(changes)
 	f.e.mu.Unlock()
-	if err == nil || f.e.roles.published != before || f.e.catalog.state != committed || changes.RolesBase != roles {
+	if err == nil || f.e.roles.published != before || f.e.catalog.State != committed || changes.RolesBase != roles {
 		t.Fatal("retired retained-default grantee was adopted or effects installed", err)
 	}
 	if _, ok := changes.Roles.Root.Read(f.owner).Find(f.reader); !ok {
@@ -236,7 +236,7 @@ func TestTransactionalPrivilegesPublication(t *testing.T) {
 
 func TestDefaultPrivilegesPublicationFence(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	catalog, roles := f.e.catalog.state, f.e.roles.published
+	catalog, roles := f.e.catalog.State, f.e.roles.published
 	scope, err := f.e.StartStatement(f.op)
 	if err != nil {
 		t.Fatal(err)
@@ -253,7 +253,7 @@ func TestDefaultPrivilegesPublicationFence(t *testing.T) {
 	f.op.Ctx = context.Background()
 	f.op.Session.Mu.Unlock()
 	err = scope.Finish(nil)
-	if err == nil || f.e.catalog.state != catalog || f.e.roles.published != roles {
+	if err == nil || f.e.catalog.State != catalog || f.e.roles.published != roles {
 		t.Fatal("terminal session published a prepared utility candidate", err)
 	}
 }
@@ -289,7 +289,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 				t.Fatal(r.err)
 			}
 			_, err := f.e.PublishCatalog(r.p, PublicationToken{Epoch: stage.Base.Epoch()})
-			if err != (catalog.Conflict{}) || f.e.catalog.state.Get(table.Address()) != nil {
+			if err != (catalog.Conflict{}) || f.e.catalog.State.Get(table.Address()) != nil {
 				t.Fatal("stale creation default published", err)
 			}
 			for key, record := range stage.DefaultReads() {
@@ -300,7 +300,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			independent := f.e.BeginCatalogStage(f.e.CatalogRead())
 			other := defaultUnitTable(t, f, independent, "unrelated", f.owner)
 			f.grant(t, "sequences", "usage", nil)
-			if err = defaultUnitPublish(t, f.e, independent); err != nil || f.e.catalog.state.Get(other.Address()) != other {
+			if err = defaultUnitPublish(t, f.e, independent); err != nil || f.e.catalog.State.Get(other.Address()) != other {
 				t.Fatal("unrelated class spuriously fenced", err)
 			}
 		})
@@ -314,7 +314,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 	roles := cloneRoleFixture(f.e.roles.published)
 	retireFixtureRole(roles, f.reader)
 	f.e.roles.published = roles
-	if err := defaultUnitPublish(t, f.e, stage); err == nil || f.e.catalog.state.Get(table.Address()) != nil {
+	if err := defaultUnitPublish(t, f.e, stage); err == nil || f.e.catalog.State.Get(table.Address()) != nil {
 		t.Fatal("retired ACL principal published", err)
 	}
 }

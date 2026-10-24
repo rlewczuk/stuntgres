@@ -18,7 +18,7 @@ func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalog.State {
 	if s.authSession != nil && (s.authSession.Transactions.State == session.TxActive || s.authSession.Transactions.RetainsTransaction()) {
 		return e.privateCatalogLocked(s.authSession.Transactions.Catalog).State()
 	}
-	return e.catalog.state
+	return e.catalog.State
 }
 func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *storage.Relation {
 	if s.authSession != nil && (s.authSession.Transactions.State == session.TxActive || s.authSession.Transactions.RetainsTransaction()) {
@@ -36,7 +36,7 @@ func (e *Engine) storageReadsValidLocked(stage *CatalogStage) bool {
 }
 func (e *Engine) catalogReadPreflightLocked(c *session.Journal) error {
 	for _, fence := range typedef.DomainJournalOf(c.Domain).ValidationFences() {
-		if !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
+		if !fence.Current(e.catalog.Current(), e.storage.Relations) {
 			return catalog.Conflict{}
 		}
 	}
@@ -84,9 +84,9 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			return err
 		}
 	}
-	capture := session.JournalCapture{Journal: c, Candidate: &s.Candidate, Committed: e.catalog.state, Current: current}
+	capture := session.JournalCapture{Journal: c, Candidate: &s.Candidate, Committed: e.catalog.State, Current: current}
 	if s.databasePredecessor != nil {
-		if err := capture.ObserveDatabase(e.catalog.owner().DatabaseAddress(), s.databaseAuthority, s.databasePredecessor); err != nil {
+		if err := capture.ObserveDatabase(e.catalog.Owner.DatabaseAddress(), s.databaseAuthority, s.databasePredecessor); err != nil {
 			return err
 		}
 		if authority != nil {

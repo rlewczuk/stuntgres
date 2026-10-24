@@ -54,9 +54,9 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 			return fmt.Errorf("stuntgres: unpopulated snapshot contains rows")
 		}
 		e.mu.Lock()
-		namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema})
-		address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: record.Name})
-		d, ok := e.catalog.state.Relation(address)
+		namespace := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema})
+		address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: record.Name})
+		d, ok := e.catalog.State.Relation(address)
 		valid := ok && d.RelationKind == catalog.MaterializedViewRelation && !d.Populated && !seen[address]
 		e.mu.Unlock()
 		if !valid {
@@ -94,7 +94,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	next := catalog.CloneState(e.catalog.state)
+	next := catalog.CloneState(e.catalog.State)
 	for _, item := range imports {
 		versions, err := e.storage.AllocateRowVersionsLocked(item.rows, nil)
 		if err != nil {
@@ -105,7 +105,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 			versions[i].Frozen, versions[i].ImportFrozen = true, true
 		}
 		d := *item.descriptor
-		d.ObjectRevision, err = e.catalog.revisionLocked()
+		d.ObjectRevision, err = e.catalog.RevisionLocked()
 		if err != nil {
 			return err
 		}
@@ -113,7 +113,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 		next.SetDescriptor(d.Address(), &d)
 		e.storage.InstallRelationLocked(d.Address(), &storage.Relation{Versions: versions})
 	}
-	e.catalog.state = next
+	e.catalog.PublishLocked(next)
 	return nil
 }
 

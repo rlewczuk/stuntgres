@@ -28,7 +28,7 @@ func (s *CatalogStage) validateRoleCandidate(current *access.RoleRecord) error {
 }
 func (s *CatalogStage) roleRead(current *access.RoleRecord, catalog catalog.Read) authorization.Read {
 	if s.roleCandidate != nil {
-		return s.owner.roles.read(s.owner.catalog.owner(), catalog, s.roleCandidate)
+		return s.owner.roles.read(&s.owner.catalog.Owner, catalog, s.roleCandidate)
 	}
-	return s.owner.roles.read(s.owner.catalog.owner(), catalog, current)
+	return s.owner.roles.read(&s.owner.catalog.Owner, catalog, current)
 }

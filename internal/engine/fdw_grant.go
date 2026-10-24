@@ -23,7 +23,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		return Result{}, err
 	}
 	changes := scope.owner.Catalog.Clone()
-	plan, warnings, err := fdw.PlanGrant(op.Context(), auth.View, s, changes.Descriptors, e.catalog.revisionLocked)
+	plan, warnings, err := fdw.PlanGrant(op.Context(), auth.View, s, changes.Descriptors, e.catalog.RevisionLocked)
 	for _, warning := range warnings {
 		op.EmitNotice(session.LevelWarning, warning)
 	}

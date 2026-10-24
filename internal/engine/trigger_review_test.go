@@ -31,7 +31,7 @@ func triggerPartitionUnitTree(t *testing.T, e *Engine, model *catalog.Relation) 
 	}
 	var relations [3]*catalog.Relation
 	e.mu.Lock()
-	state := catalog.CloneState(e.catalog.state)
+	state := catalog.CloneState(e.catalog.State)
 	for i, name := range []string{"trigger_partition_root", "trigger_partition_low", "trigger_partition_high"} {
 		d := *model
 		d.ObjectAddress.ObjectID = 9500101 + ids.OID(i)
@@ -59,7 +59,7 @@ func triggerPartitionUnitTree(t *testing.T, e *Engine, model *catalog.Relation) 
 		state.SetDescriptor(d.Address(), d)
 		state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	e.catalog.state = state
+	e.catalog.PublishLocked(state)
 	e.storage.Relations[low.Address()] = &storage.Relation{Generation: 1}
 	e.storage.Relations[high.Address()] = &storage.Relation{Generation: 1}
 	e.mu.Unlock()

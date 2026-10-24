@@ -99,21 +99,21 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				if e.roles.published != peerRoles || op.Session.Transactions.Catalog == nil {
 					t.Fatal("Finish installed private ACLs early or lost the owner journal")
 				}
-				if defaults && e.catalog.state.DefaultACL(firstKey) != nil {
+				if defaults && e.catalog.State.DefaultACL(firstKey) != nil {
 					t.Fatal("private default policy published at Finish")
 				}
 				if _, err := e.Commit(op, ref); err != nil {
 					t.Fatal("independent private ACL commit", err)
 				}
-				if e.roles.published.Revision != peerRoles.Revision+1 || !e.roles.published.SameAuthority(peerRoles) || e.catalog.state.DefaultACL(peerKey) == nil {
+				if e.roles.published.Revision != peerRoles.Revision+1 || !e.roles.published.SameAuthority(peerRoles) || e.catalog.State.DefaultACL(peerKey) == nil {
 					t.Fatal("combined commit lost peer policy or either revision delta")
 				}
 				if defaults {
-					if record := e.catalog.state.DefaultACL(firstKey); record == nil || authorization.ACLRights(record.ACL, firstKey.Creator, []authorization.PrincipalRef{reader}, authorization.SelectPrivilege, false) == 0 {
+					if record := e.catalog.State.DefaultACL(firstKey); record == nil || authorization.ACLRights(record.ACL, firstKey.Creator, []authorization.PrincipalRef{reader}, authorization.SelectPrivilege, false) == 0 {
 						t.Fatal("selected default policy effect lost")
 					}
 				} else {
-					relation := e.catalog.state.MustRelation(address)
+					relation := e.catalog.State.MustRelation(address)
 					if authorization.ACLRights(relation.Security.ColumnACL[3], relation.Owner, []authorization.PrincipalRef{reader}, authorization.SelectPrivilege, false) == 0 {
 						t.Fatal("selected column grant effect lost")
 					}
@@ -187,19 +187,19 @@ func TestTransactionalPrivilegesPendingPrivateAuthority(t *testing.T) {
 				} else if _, err := e.Execute(peer, second, 0, nil); err != nil {
 					t.Fatal("independent peer ACL", err)
 				}
-				peerRoles, committed := e.roles.published, e.catalog.state
+				peerRoles, committed := e.roles.published, e.catalog.State
 				err = scope.Finish(nil)
 				if private.Roles.Revision != privateRevision {
 					t.Fatal("pending Finish mutated the original completed private record")
 				}
 				if roleMutation {
 					var conflict catalog.Conflict
-					if !errors.As(err, &conflict) || e.roles.published != peerRoles || e.catalog.state != committed {
+					if !errors.As(err, &conflict) || e.roles.published != peerRoles || e.catalog.State != committed {
 						t.Fatal("private snapshot hid a pending actual-role authority change", err)
 					}
 					return
 				}
-				if err != nil || e.roles.published != peerRoles || e.catalog.state != committed {
+				if err != nil || e.roles.published != peerRoles || e.catalog.State != committed {
 					t.Fatal("revision-only peer work rejected Finish or published early", err)
 				}
 				if _, err := e.Commit(op, ref); err != nil {
@@ -209,12 +209,12 @@ func TestTransactionalPrivilegesPendingPrivateAuthority(t *testing.T) {
 					t.Fatal("completed private revision delta was lost")
 				}
 				if defaults {
-					record := e.catalog.state.DefaultACL(key)
+					record := e.catalog.State.DefaultACL(key)
 					if record == nil || authorization.ACLRights(record.ACL, key.Creator, []authorization.PrincipalRef{reader}, authorization.SelectPrivilege, true) == 0 {
 						t.Fatal("private default grant option was lost")
 					}
 				} else {
-					relation := e.catalog.state.MustRelation(address)
+					relation := e.catalog.State.MustRelation(address)
 					if authorization.ACLRights(relation.Security.ColumnACL[3], relation.Owner, []authorization.PrincipalRef{reader}, authorization.SelectPrivilege, true) == 0 {
 						t.Fatal("private column grant option was lost")
 					}

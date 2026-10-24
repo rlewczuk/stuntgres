@@ -47,7 +47,7 @@ func TestAccessViewRejectsForeignOwner(t *testing.T) {
 		t.Fatalf("own owner: %v", err)
 	}
 	stolen := auth
-	stolen.Owner = foreign.catalog.owner()
+	stolen.Owner = &foreign.catalog.Owner
 	if err := stolen.CanUse(public); err == nil || !strings.Contains(err.Error(), "foreign or stale") {
 		t.Fatalf("foreign owner: %v", err)
 	}

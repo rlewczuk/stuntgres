@@ -47,9 +47,9 @@ func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
-	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
-	index, ok := e.catalog.state.Relation(address)
+	namespace := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
+	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
+	index, ok := e.catalog.State.Relation(address)
 	if !ok || index.SQLIndex == nil || index.SQLIndex.Ready != ready || index.SQLIndex.Valid != valid || !index.SQLIndex.Live {
 		t.Fatalf("index %s has unexpected phase: %#v", name, index)
 	}
@@ -77,7 +77,7 @@ func concurrentUnitError(t *testing.T, s *session.Session, query, code string) e
 func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, idx *catalog.Relation) {
 	t.Helper()
 	e.mu.Lock()
-	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
+	parent := e.catalog.State.MustRelation(idx.SQLIndex.Parent)
 	snapshot := *e.storage.Relations[parent.Address()]
 	root := e.storage.IndexRoots[idx.Address()]
 	e.mu.Unlock()

@@ -63,7 +63,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	domainUnitPublish(t, e, stage)
 	ref := catalogRef(t, e, e.CatalogRead(), "affected")
 	other := catalogRef(t, e, e.CatalogRead(), "untouched")
-	oldCatalog := e.catalog.state
+	oldCatalog := e.catalog.State
 	oldRelation := oldCatalog.MustRelation(ref.Address)
 	value, _ := mood.SQLType.Input(context.Background(), "q", -1)
 	oldStore := &storage.Relation{Versions: []storage.RowVersion{{Row: 7, Version: 11, Born: 3, KeyChangedAt: 2, Values: []sqltype.Value{value}}}, Generation: 4}
@@ -107,7 +107,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.state != oldCatalog || e.storage.Relations[ref.Address] != oldStore {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.State != oldCatalog || e.storage.Relations[ref.Address] != oldStore {
 		t.Fatal("canceled partial generation publication", err)
 	}
 	if text, err := mood.SQLType.Output(context.Background(), oldStore.Versions[0].Values[0]); err != nil || text != "q" {
@@ -150,7 +150,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	}
 	importing := catalog.NewState(0)
 	importing.SetScalarImports(imports)
-	view := New().catalog.read(importing)
+	view := New().catalog.Read(importing)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: source.Usage()}, Value: v}
 	rebound, changed, err := stored.RetagTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == source {

@@ -74,7 +74,7 @@ func TestTransactionalIndexPrivateRoots(t *testing.T) {
 					t.Fatal("wrong physical baseline identity/key", entry, row)
 				}
 			}
-			if e.storage.IndexRoots[ref.Address] != nil || e.catalog.state.Get(ref.Address) != nil || e.storage.Relations[parent.Address] != committed {
+			if e.storage.IndexRoots[ref.Address] != nil || e.catalog.State.Get(ref.Address) != nil || e.storage.Relations[parent.Address] != committed {
 				t.Fatal("private build published early")
 			}
 			if !reflect.DeepEqual(priorWrites, priorCopy) {

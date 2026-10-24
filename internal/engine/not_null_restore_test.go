@@ -137,14 +137,14 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			candidate := origin
 			mutate(&candidate)
-			before := e.catalog.state
-			if err := e.restoreNoInheritNotNull(op, raw, candidate); err == nil || e.catalog.state != before {
+			before := e.catalog.State
+			if err := e.restoreNoInheritNotNull(op, raw, candidate); err == nil || e.catalog.State != before {
 				t.Fatal("foreign pairing published", err)
 			}
 		})
 	}
 	for _, kind := range []string{"invalid", "nullable", "inherited", "primary"} {
-		before := e.catalog.state
+		before := e.catalog.State
 		altered := *old
 		altered.Columns = append([]catalog.Column(nil), old.Columns...)
 		altered.Constraints.NotNull = append([]catalog.NotNullConstraint(nil), old.Constraints.NotNull...)
@@ -160,23 +160,23 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		}
 		candidate := catalog.CloneState(before)
 		candidate.SetDescriptor(old.Address(), &altered)
-		e.catalog.state = candidate
-		if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.catalog.state != candidate {
+		e.catalog.PublishLocked(candidate)
+		if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.catalog.State != candidate {
 			t.Fatal("ineligible NN fact published", kind, err)
 		}
-		e.catalog.state = before
+		e.catalog.PublishLocked(before)
 	}
 	targets := e.importTargets
 	e.importTargets = nil
-	before := e.catalog.state
-	if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.catalog.state != before {
+	before := e.catalog.State
+	if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.catalog.State != before {
 		t.Fatal("ordinary engine gained importer authority", err)
 	}
 	e.importTargets = targets
 	foreign := New()
 	foreignOp, foreignDone := roleOperation(t, foreign, "postgres")
 	defer foreignDone()
-	if err := e.restoreNoInheritNotNull(foreignOp, raw, origin); err == nil || e.catalog.state != before {
+	if err := e.restoreNoInheritNotNull(foreignOp, raw, origin); err == nil || e.catalog.State != before {
 		t.Fatal("foreign operation gained importer authority", err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
@@ -187,7 +187,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	}
 	defer cancelDone()
 	cancel()
-	if err := e.restoreNoInheritNotNull(cancelOp, raw, origin); !errors.Is(err, context.Canceled) || e.catalog.state != before {
+	if err := e.restoreNoInheritNotNull(cancelOp, raw, origin); !errors.Is(err, context.Canceled) || e.catalog.State != before {
 		t.Fatal("canceled repair published", err)
 	}
 	if err := e.restoreNoInheritNotNull(op, raw, origin); err != nil {

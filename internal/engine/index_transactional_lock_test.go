@@ -124,11 +124,11 @@ func TestTransactionalIndexReplacementFences(t *testing.T) {
 				} else {
 					sessionSQL(t, b, "CREATE INDEX idx ON t(n)")
 					sessionSQL(t, b, "SAVEPOINT mark")
-					prior, epoch := b.Transactions.Catalog, e.catalog.state.Epoch()
+					prior, epoch := b.Transactions.Catalog, e.catalog.State.Epoch()
 					if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE bad(n INT); INSERT INTO bad VALUES('bad');")); err == nil {
 						t.Fatal("invalid Restore succeeded")
 					}
-					if b.Transactions.Catalog != prior || e.catalog.state.Epoch() != epoch {
+					if b.Transactions.Catalog != prior || e.catalog.State.Epoch() != epoch {
 						t.Fatal("failed replacement changed eligible journal/epoch")
 					}
 				}

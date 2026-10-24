@@ -175,7 +175,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		next.SetDescriptor(destination, descriptor)
 		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
-	view := e.catalog.read(next)
+	view := e.catalog.Read(next)
 	remapped := next.MustExtension(mapping[ext.Address()])
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, remapped); err != nil {
 		t.Fatal("remapped extension", err)
@@ -222,7 +222,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	next.SetDescriptor(address, consumer)
 	next.SetEpoch(next.Epoch() + 1)
-	if err := stored.ReownExpressions(e.catalog.read(next), next, mapping, false, nil); err != nil {
+	if err := stored.ReownExpressions(e.catalog.Read(next), next, mapping, false, nil); err != nil {
 		t.Fatal("relocated consumer", err)
 	}
 	relocated := next.MustRelation(address)

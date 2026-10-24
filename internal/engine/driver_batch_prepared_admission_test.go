@@ -39,7 +39,7 @@ func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
 					t.Fatal(err)
 				}
 				tx := s.Transactions
-				if tx.State != session.TxImplicit || !tx.InBlock() || tx.Ref == (ids.TxRef{}) || tx.Ref == preceding || tx.Ref != m.scope.txRef || tx.Ticket == nil || tx.Ticket != m.scope.ticket || tx.Ref.Epoch() != e.catalog.state.Epoch() || !m.scope.implicit {
+				if tx.State != session.TxImplicit || !tx.InBlock() || tx.Ref == (ids.TxRef{}) || tx.Ref == preceding || tx.Ref != m.scope.txRef || tx.Ticket == nil || tx.Ticket != m.scope.ticket || tx.Ref.Epoch() != e.catalog.State.Epoch() || !m.scope.implicit {
 					t.Fatal("reached prepared control bypassed ordinary segment authority")
 				}
 				if e.prepared.Len() != 0 || e.visibility.CommitSeq() != 0 {

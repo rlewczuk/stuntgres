@@ -121,12 +121,12 @@ func TestRegtypeOIDAllocationSkipsTypeIdentities(t *testing.T) {
 	e := New()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.catalog.nextOID = ids.OID(sqltype.Regtype)
-	id, err := e.catalog.allocateOIDLocked()
+	e.catalog.InstallOIDFrontierLocked(ids.OID(sqltype.Regtype))
+	id, err := e.catalog.AllocateOIDLocked()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for address := range e.catalog.state.Descriptors() {
+	for address := range e.catalog.State.Descriptors() {
 		if address.ObjectID == id {
 			t.Fatal("allocated published identity", address)
 		}

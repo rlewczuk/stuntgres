@@ -118,7 +118,7 @@ func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) 
 		return authorization.RoleState{}, err
 	}
 	reset := session.DiscardRoleReset(sess.Authorization)
-	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
+	roles := e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published)
 	if err := session.ValidateRoleResetLocked(sess.Authorization, reset, roles); err != nil {
 		return authorization.RoleState{}, err
 	}

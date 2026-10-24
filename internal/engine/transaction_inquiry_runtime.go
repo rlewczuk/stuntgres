@@ -12,7 +12,7 @@ func (h *statementHost) TransactionAge(xid uint32) (int32, error) {
 	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
+	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
 		return 0, ids.ErrCatalogReplaced
 	}
 	return e.transactionAgeLocked(scope.txRef, xid)
@@ -28,7 +28,7 @@ func (h *statementHost) CurrentTransactionID(assign bool) (uint64, error) {
 	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
+	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
 		return 0, ids.ErrCatalogReplaced
 	}
 	if assign {
@@ -49,7 +49,7 @@ func (h *statementHost) CurrentSnapshot() (*sqltype.Snapshot, error) {
 	if err := publicationOperationLocked(e, scope.op); err != nil {
 		return nil, err
 	}
-	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
+	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if scope.currentSnapshot == nil {
@@ -63,7 +63,7 @@ func (h *statementHost) TransactionStatus(full uint64) (string, bool, error) {
 	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
+	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
 		return "", false, ids.ErrCatalogReplaced
 	}
 	return e.visibility.TransactionStatusLocked(full)

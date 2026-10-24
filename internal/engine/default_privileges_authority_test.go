@@ -91,7 +91,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	roleExecute(t, f.e, f.op, "CREATE TEMP TABLE default_authority_seed(v INT)")
 	f.schema = f.op.Session.TemporaryNamespace
-	state := catalog.CloneState(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.State)
 	namespace := *state.MustNamespace(f.schema)
 	assertTemporaryNamespacePair(t, f.e, f.op.Session.SessionToken, f.schema)
 	namespace.ACL = authorization.ACLValue{Explicit: true}
@@ -102,7 +102,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.Catalog = f.e.catalog.read(state)
+	auth.Catalog = f.e.catalog.Read(state)
 	auth.Recapture(auth.Catalog)
 	auth.State.CurrentUser = f.reader
 	ref := f.e.catalog.Domain.Ref(state.Epoch(), f.schema)
@@ -133,7 +133,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		invalidNamespace.Temporary = token
 		candidate.SetDescriptor(f.schema, &invalidNamespace)
 		invalid := auth
-		invalid.Catalog = f.e.catalog.read(candidate)
+		invalid.Catalog = f.e.catalog.Read(candidate)
 		invalid.Recapture(invalid.Catalog)
 		invalid.session = &session.Session{SessionToken: token}
 		defaultUnitDiagnostic(t, invalid.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
@@ -146,7 +146,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	permanent.Temporary = ids.SessionToken{}
 	ordinary.SetDescriptor(f.schema, &permanent)
 	ordinaryAuth := auth
-	ordinaryAuth.Catalog = f.e.catalog.read(ordinary)
+	ordinaryAuth.Catalog = f.e.catalog.Read(ordinary)
 	ordinaryAuth.Recapture(ordinaryAuth.Catalog)
 	defaultUnitDiagnostic(t, ordinaryAuth.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	foreign := ref

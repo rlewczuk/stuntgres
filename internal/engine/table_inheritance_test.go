@@ -32,7 +32,7 @@ func inheritanceUnitView(e *Engine, relations ...*catalog.Relation) catalog.Read
 		state.SetDescriptor(d.Address(), d)
 		state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	}
-	return e.catalog.read(state)
+	return e.catalog.Read(state)
 }
 func TestInheritanceMergeStableRemap(t *testing.T) {
 	e := New()
@@ -215,7 +215,7 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 	p.Columns[1].Usage = testUsage(e, sqltype.Text)
 	q := inheritanceUnitRelation(e, "q", 22001, "y", "a")
 	q.Columns[0].Usage = testUsage(e, sqltype.Bool)
-	e.catalog.state = inheritanceUnitView(e, p, q).State()
+	e.catalog.PublishLocked(inheritanceUnitView(e, p, q).State())
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	auth, err := operationAuthorization(op)
@@ -259,7 +259,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	old := plan.ColumnExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: oldRef, Scope: 1, Frame: 1, Slot: 0}
 	state := catalog.CloneState(v.State())
 	state.SetEpoch(state.Epoch() + 1)
-	current := e.catalog.read(state)
+	current := e.catalog.Read(state)
 	mapper := analyze.LikeInput{Source: d}
 	mapped, err := stored.RemapLikeExpression(&mapper, old, d, current)
 	if err != nil || !table.SameInheritedExpression(mapped, old, d, current) || old.Origin != oldRef {

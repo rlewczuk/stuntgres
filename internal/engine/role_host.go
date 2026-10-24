@@ -41,7 +41,7 @@ func (h ddlHost) CanonicalParameter(name string) (string, error) {
 }
 
 func (h ddlHost) GrantParameter(a ddl.Authority, key string) (*catalog.Parameter, error) {
-	return role.GrantParameterDescriptorLocked(h.e.settings, ddlAuthorityOf(a).Catalog, key, &h.e.roles.domain, h.e.catalog.allocateOIDLocked, h.e.catalog.revisionLocked)
+	return role.GrantParameterDescriptorLocked(h.e.settings, ddlAuthorityOf(a).Catalog, key, &h.e.roles.domain, h.e.catalog.AllocateOIDLocked, h.e.catalog.RevisionLocked)
 }
 
 func (h ddlHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []access.RoleDependency {
@@ -51,13 +51,13 @@ func (h ddlHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []acc
 			continue
 		}
 		var dependencies []access.RoleDependency
-		for address, descriptor := range target.catalog.state.Descriptors() {
+		for address, descriptor := range target.catalog.State.Descriptors() {
 			if address.ClassID != ids.DatabaseClassID {
 				access.DescriptorRoleDependencies(descriptor, ref, &dependencies)
 			}
 		}
-		view := target.catalog.read(target.catalog.state)
-		access.DefaultRoleDependencies(view, target.roles.read(target.catalog.owner(), view, target.roles.published), ref, &dependencies)
+		view := target.catalog.Current()
+		access.DefaultRoleDependencies(view, target.roles.read(&target.catalog.Owner, view, target.roles.published), ref, &dependencies)
 		if len(dependencies) != 0 {
 			kind := "objects"
 			if len(dependencies) == 1 {

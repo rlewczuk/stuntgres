@@ -26,7 +26,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 			foreignOriginals = append(foreignOriginals, procedure)
 		}
 	}
-	if err := fdw.RebindReplacementProviders(e.catalog.read(e.catalog.state), e.foreign, state); err != nil {
+	if err := fdw.RebindReplacementProviders(e.catalog.Current(), e.foreign, state); err != nil {
 		return nil, nil, err
 	}
 	var foreignTokens map[*catalog.ForeignProcedure]*catalog.ForeignProcedure
@@ -59,7 +59,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 	if err := catalog.RemapPrincipals(state, policy); err != nil {
 		return nil, nil, err
 	}
-	if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), e.catalog.read(state)); err != nil {
+	if err := catalog.ValidateDefaultACLs(e.roles.read(&e.catalog.Owner, e.catalog.Read(state), e.roles.published), e.catalog.Read(state)); err != nil {
 		return nil, nil, err
 	}
 	return state, policy.Procedure, nil
@@ -78,7 +78,7 @@ func (e *Engine) replacementPrincipalRemap(source, targetSnapshot authorization.
 		if _, err := targetSnapshot.Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
-		if _, err := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published).Descriptor(target); err != nil {
+		if _, err := e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published).Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
 		return target, nil
@@ -102,7 +102,7 @@ func (e *Engine) replacementPrincipalMapper(source, targetSnapshot authorization
 		if !ok {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q does not exist", d.Name)
 		}
-		if _, err := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published).Descriptor(target.Ref); err != nil {
+		if _, err := e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published).Descriptor(target.Ref); err != nil {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
 		}
 		if expected != nil && expected[ref] != target.Ref {
@@ -118,7 +118,7 @@ func (e *Engine) restoreStage() *Engine {
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
 	sourceRoles, nextPrincipal := e.roles.published, e.roles.nextPrincipal
-	database := e.catalog.state.MustDatabase(e.catalog.DatabaseAddress())
+	database := e.catalog.State.MustDatabase(e.catalog.DatabaseAddress())
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
 	if err := stage.InstallForeignDefinitions(e.foreign.Definitions()); err != nil {
@@ -129,9 +129,9 @@ func (e *Engine) restoreStage() *Engine {
 	retainedDatabase := *database
 	// The private staging engine has its own principal authority, but retains
 	// the selected database address rather than silently reverting to default.
-	initial := stage.catalog.state.Get(stage.catalog.DatabaseAddress())
-	stage.catalog.state.UnbindName(catalog.DescriptorNameKey(initial))
-	stage.catalog.state.RemoveDescriptor(initial.Address())
+	initial := stage.catalog.State.Get(stage.catalog.DatabaseAddress())
+	stage.catalog.State.UnbindName(catalog.DescriptorNameKey(initial))
+	stage.catalog.State.RemoveDescriptor(initial.Address())
 	stage.catalog.Database = database.Address()
 	retainedDatabase.Owner = stage.roles.domain.Principal(database.Owner.ID())
 	retainedDatabase.ACL.Entries = append([]authorization.ACLEntry(nil), database.ACL.Entries...)
@@ -142,8 +142,8 @@ func (e *Engine) restoreStage() *Engine {
 			entry.Grantee.Role = stage.roles.domain.Principal(entry.Grantee.Role.ID())
 		}
 	}
-	stage.catalog.state.SetDescriptor(database.Address(), &retainedDatabase)
-	stage.catalog.state.BindName(catalog.DescriptorNameKey(&retainedDatabase), database.Address())
+	stage.catalog.State.SetDescriptor(database.Address(), &retainedDatabase)
+	stage.catalog.State.BindName(catalog.DescriptorNameKey(&retainedDatabase), database.Address())
 	stage.roles.published = &access.RoleRecord{Root: roles, Revision: sourceRoles.Revision}
 	stage.roles.nextPrincipal = nextPrincipal
 	return stage
@@ -152,7 +152,7 @@ func (e *Engine) restoreStage() *Engine {
 // retainedRoutineProcedureRemapper is only for destination TEMP consumers
 // selected by replacement preflight, never imported-source containers.
 func (e *Engine) retainedRoutineProcedureRemapper(current catalog.Read) catalog.ProcedureRemapper {
-	roles := e.roles.read(e.catalog.owner(), current, e.roles.published)
+	roles := e.roles.read(&e.catalog.Owner, current, e.roles.published)
 	identity := func(ref authorization.PrincipalRef) (authorization.PrincipalRef, error) {
 		if err := roles.ValidatePrincipal(ref); err != nil {
 			return authorization.PrincipalRef{}, err

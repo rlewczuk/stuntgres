@@ -65,11 +65,11 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *exec.Source {
 	t.Helper()
 	d, ref := pgCollationUnitSource(t, e, view)
-	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
+	state, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
 	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	capturedDescriptors, capturedNames := maps.Collect(view.State().Descriptors()), maps.Collect(view.State().Names())
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, d)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal("capture", rows, err)
@@ -131,7 +131,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *exec.So
 		}
 	}
 	unchanged := func() {
-		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) || !maps.Equal(capturedDescriptors, maps.Collect(view.State().Descriptors())) || !maps.Equal(capturedNames, maps.Collect(view.State().Names())) {
+		if e.catalog.State != state || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) || !maps.Equal(capturedDescriptors, maps.Collect(view.State().Descriptors())) || !maps.Equal(capturedNames, maps.Collect(view.State().Names())) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}

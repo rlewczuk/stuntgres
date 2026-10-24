@@ -90,7 +90,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 	ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('local_s')")
 	address := description.sequences.Constants[0].Ref.Address
 	namespace, token := s.TemporaryNamespace, s.SessionToken
-	descriptor, nsDescriptor := e.catalog.state.Get(address), e.catalog.state.Get(namespace)
+	descriptor, nsDescriptor := e.catalog.State.Get(address), e.catalog.State.Get(namespace)
 	held := func(want int64) {
 		t.Helper()
 		r, err := sequencePreparedExecute(e, s, ast, &description)
@@ -113,11 +113,11 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 		if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 			t.Fatal("repeated self replacement", err)
 		}
-		if s.SessionToken != token || s.TemporaryNamespace != namespace || e.catalog.state.Get(address) != descriptor || e.catalog.state.Get(namespace) != nsDescriptor || e.storage.Sequences[address] != generator || payloadOf(s).sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
+		if s.SessionToken != token || s.TemporaryNamespace != namespace || e.catalog.State.Get(address) != descriptor || e.catalog.State.Get(namespace) != nsDescriptor || e.storage.Sequences[address] != generator || payloadOf(s).sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
 			t.Fatal("self replacement changed exact live TEMP authority/cache")
 		}
-		if e.catalog.state.DescriptorCount() != len(before.descriptors) || e.catalog.state.NameCount() != len(before.names) || len(e.storage.Sequences) != 1 {
-			t.Fatal("self replacement duplicated TEMP identities", e.catalog.state.DescriptorCount(), e.catalog.state.NameCount(), len(e.storage.Sequences))
+		if e.catalog.State.DescriptorCount() != len(before.descriptors) || e.catalog.State.NameCount() != len(before.names) || len(e.storage.Sequences) != 1 {
+			t.Fatal("self replacement duplicated TEMP identities", e.catalog.State.DescriptorCount(), e.catalog.State.NameCount(), len(e.storage.Sequences))
 		}
 		assertTemporaryProjectionProviders(t, e)
 		before.unchanged(t)
@@ -131,7 +131,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 		t.Fatal("retained table rows changed", got)
 	}
 	endTemporaryProjectionSession(t, s)
-	if e.catalog.state.Get(address) != nil || e.storage.Sequences[address] != nil {
+	if e.catalog.State.Get(address) != nil || e.storage.Sequences[address] != nil {
 		t.Fatal("physical end leaked self TEMP children")
 	}
 	assertTemporaryNamespacePair(t, e, s.SessionToken, namespace)
@@ -170,7 +170,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	sequenceScalar(t, b, "SELECT nextval('dest_temp')", 1)
 	namespace, token := b.TemporaryNamespace, b.SessionToken
 	sourceNamespace := a.TemporaryNamespace
-	descriptor, nsDescriptor := dest.catalog.state.Get(address), dest.catalog.state.Get(namespace)
+	descriptor, nsDescriptor := dest.catalog.State.Get(address), dest.catalog.State.Get(namespace)
 	generator, memory := dest.storage.Sequences[address], payloadOf(b).sequences.Memory(address)
 	generatorState, memoryState := *generator, *memory
 	sourceGenerator, sourceMemory := source.storage.Sequences[sourceTemp], payloadOf(a).sequences.Memory(sourceTemp)
@@ -181,7 +181,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		sourceGenerators[a], sourceStates[a] = g, *g
 	}
 	sourceBefore, destBefore := captureTemporaryProjectionCatalog(source), captureTemporaryProjectionCatalog(dest)
-	sourceSurvivor := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.survivor").Address)
+	sourceSurvivor := source.catalog.State.MustRelation(roleTableRef(t, source, "portable.survivor").Address)
 	sourceColumns := append([]catalog.Column(nil), sourceSurvivor.Columns...)
 	sourceStore := source.storage.Relations[sourceSurvivor.Address()]
 	sourceValues := make([][]sqltype.Value, len(sourceStore.Versions))
@@ -198,16 +198,16 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	if _, err := dest.ReplaceCatalog(context.Background(), source, sourceBefore.view); err != nil {
 		t.Fatal(err)
 	}
-	if b.SessionToken != token || b.TemporaryNamespace != namespace || dest.catalog.state.Get(address) != descriptor || dest.catalog.state.Get(namespace) != nsDescriptor || dest.storage.Sequences[address] != generator || payloadOf(b).sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
+	if b.SessionToken != token || b.TemporaryNamespace != namespace || dest.catalog.State.Get(address) != descriptor || dest.catalog.State.Get(namespace) != nsDescriptor || dest.storage.Sequences[address] != generator || payloadOf(b).sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
 		t.Fatal("foreign replacement changed destination TEMP identity/cache")
 	}
 	var tempNamespaces, tempRelations int
 	toast := assertTemporaryNamespacePair(t, dest, token, namespace)
 	toastDescriptor := destBefore.view.Get(toast)
-	if toastDescriptor == nil || dest.catalog.state.Get(toast) != toastDescriptor {
+	if toastDescriptor == nil || dest.catalog.State.Get(toast) != toastDescriptor {
 		t.Fatal("foreign replacement changed destination toast identity")
 	}
-	for _, d := range dest.catalog.state.Descriptors() {
+	for _, d := range dest.catalog.State.Descriptors() {
 		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 			tempNamespaces++
 			if ns.Temporary != b.SessionToken || (ns.Address() != namespace && ns.Address() != toast) || d != destBefore.view.Get(ns.Address()) {
@@ -224,7 +224,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	if tempNamespaces != 2 || tempRelations != 1 || len(dest.storage.Sequences) != 2 {
 		t.Fatal("foreign replacement leaked TEMP descriptors/generators", tempNamespaces, tempRelations, len(dest.storage.Sequences))
 	}
-	importedSurvivor := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.survivor").Address)
+	importedSurvivor := dest.catalog.State.MustRelation(roleTableRef(t, dest, "portable.survivor").Address)
 	for id, retainedType := range retainedTypes {
 		actual, ok := dest.CatalogRead().LookupType(id)
 		if !ok || actual != retainedType {
@@ -272,7 +272,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		}
 	}
 	destBefore.unchanged(t)
-	if source.catalog.state != sourceBefore.view.State() || source.storage.Sequences[sourceTemp] != sourceGenerator || payloadOf(a).sequences.Memory(sourceTemp) != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
+	if source.catalog.State != sourceBefore.view.State() || source.storage.Sequences[sourceTemp] != sourceGenerator || payloadOf(a).sequences.Memory(sourceTemp) != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
 		t.Fatal("destination import changed source live authority")
 	}
 	r, err := sequencePreparedExecute(dest, b, ast, &description)
@@ -285,8 +285,8 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	r.Rows.Close()
 	importedTable := roleTableRef(t, dest, "portable.owner_table").Address
 	importedSequence := roleTableRef(t, dest, "portable.owned_s").Address
-	if importedTable == sourceTable || dest.catalog.state.MustRelation(importedSequence).Sequence.Owned != (ids.ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
-		t.Fatal("persistent collision did not remap OWNED BY", importedTable, dest.catalog.state.Get(importedSequence))
+	if importedTable == sourceTable || dest.catalog.State.MustRelation(importedSequence).Sequence.Owned != (ids.ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
+		t.Fatal("persistent collision did not remap OWNED BY", importedTable, dest.catalog.State.Get(importedSequence))
 	}
 	sequenceScalar(t, b, "SELECT nextval('portable.owned_s')", 40)
 	if got := tuples(sessionSQL(t, b, "SELECT v FROM portable.owner_table")); len(got) != 1 || got[0][0] != int64(7) {
@@ -308,7 +308,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		t.Fatal("retained destination rows changed", got)
 	}
 	endTemporaryProjectionSession(t, a)
-	if source.catalog.state.Get(sourceTemp) != nil || source.storage.Sequences[sourceTemp] != nil {
+	if source.catalog.State.Get(sourceTemp) != nil || source.storage.Sequences[sourceTemp] != nil {
 		t.Fatal("source retirement leaked TEMP children")
 	}
 	assertTemporaryNamespacePair(t, source, a.SessionToken, sourceNamespace)
@@ -320,17 +320,17 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		t.Fatal("source retirement changed retained rows", got)
 	}
 	sessionSQL(t, b, "DROP TABLE portable.owner_table")
-	if dest.catalog.state.Get(importedTable) != nil || dest.catalog.state.Get(importedSequence) != nil || dest.storage.Sequences[importedSequence] != nil {
+	if dest.catalog.State.Get(importedTable) != nil || dest.catalog.State.Get(importedSequence) != nil || dest.storage.Sequences[importedSequence] != nil {
 		t.Fatal("remapped ownership drop closure failed")
 	}
-	if dest.catalog.state.Get(index.Address()) != nil || dest.storage.IndexRoots[index.Address()] != nil {
+	if dest.catalog.State.Get(index.Address()) != nil || dest.storage.IndexRoots[index.Address()] != nil {
 		t.Fatal("remapped parent drop left index definition/root")
 	}
-	if source.catalog.state.Get(sourceTable) == nil {
+	if source.catalog.State.Get(sourceTable) == nil {
 		t.Fatal("destination drop changed source persistent catalog")
 	}
 	endTemporaryProjectionSession(t, b)
-	if dest.catalog.state.Get(address) != nil || dest.storage.Sequences[address] != nil {
+	if dest.catalog.State.Get(address) != nil || dest.storage.Sequences[address] != nil {
 		t.Fatal("destination retirement leaked TEMP")
 	}
 	assertTemporaryNamespacePair(t, dest, b.SessionToken, namespace)
@@ -365,11 +365,11 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 			captured := captureTemporaryProjectionCatalog(source)
 			retained := sessionSQL(t, s, "SELECT last_value FROM retired_temp")
 			endTemporaryProjectionSession(t, s)
-			if source.storage.Sequences[address] != nil || source.catalog.state.Get(address) != nil {
+			if source.storage.Sequences[address] != nil || source.catalog.State.Get(address) != nil {
 				t.Fatal("fixture TEMP generator/relation was not retired")
 			}
 			toast := assertTemporaryNamespacePair(t, source, s.SessionToken, namespace)
-			tableDescriptor, toastDescriptor := source.catalog.state.Get(namespace), source.catalog.state.Get(toast)
+			tableDescriptor, toastDescriptor := source.catalog.State.Get(namespace), source.catalog.State.Get(toast)
 			dest := source
 			if !self {
 				dest = New()
@@ -377,12 +377,12 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 			if _, err := dest.ReplaceCatalog(context.Background(), source, captured.view); err != nil {
 				t.Fatal("excluded retired TEMP required a deleted generator", err)
 			}
-			for _, d := range dest.catalog.state.Descriptors() {
+			for _, d := range dest.catalog.State.Descriptors() {
 				if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 					if !self || (ns.Address() != namespace && ns.Address() != toast) {
 						t.Fatal("imported foreign TEMP namespace")
 					}
-					if dest.catalog.state.Get(ns.Address()) != source.catalog.state.Get(ns.Address()) {
+					if dest.catalog.State.Get(ns.Address()) != source.catalog.State.Get(ns.Address()) {
 						t.Fatal("replaced retained empty namespace")
 					}
 				}
@@ -391,10 +391,10 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 				}
 			}
 			if self {
-				if dest.catalog.state.Get(namespace) != tableDescriptor || dest.catalog.state.Get(toast) != toastDescriptor || s.TemporaryNamespace != (ids.ObjectAddress{}) {
+				if dest.catalog.State.Get(namespace) != tableDescriptor || dest.catalog.State.Get(toast) != toastDescriptor || s.TemporaryNamespace != (ids.ObjectAddress{}) {
 					t.Fatal("self replacement changed retained pair/retired authority")
 				}
-			} else if dest.catalog.state.Get(namespace) != nil || dest.catalog.state.Get(toast) != nil {
+			} else if dest.catalog.State.Get(namespace) != nil || dest.catalog.State.Get(toast) != nil {
 				t.Fatal("foreign replacement imported retired source pair")
 			}
 			if len(dest.storage.Sequences) != 1 {

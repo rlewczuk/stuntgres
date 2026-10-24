@@ -70,12 +70,12 @@ func TestTriggerCorePersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	destination.mu.Lock()
-	state := catalog.CloneState(destination.catalog.state)
+	state := catalog.CloneState(destination.catalog.State)
 	rowtype := *state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.RowType)})
 	rowtype.SQLType = shape
 	state.SetDescriptor(rowtype.Address(), &rowtype)
 	state.SetDescriptor(reordered.Address(), &reordered)
-	destination.catalog.state = state
+	destination.catalog.PublishLocked(state)
 	destination.mu.Unlock()
 	targetRead = destination.CatalogRead()
 	doubleRef, doubleType := false, false

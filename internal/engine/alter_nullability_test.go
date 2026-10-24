@@ -17,14 +17,14 @@ func TestAlterNullabilityMetadataAndStorage(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(7,'keep')")
 	run(t, e, "COMMENT ON COLUMN t.a IS 'stable'")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.MustRelation(ref.Address)
+	old := e.catalog.State.MustRelation(ref.Address)
 	store := e.storage.Relations[ref.Address]
 	root := store.Versions
 	ends, generation := store.Ends, store.Generation
 	held := run(t, e, "SELECT * FROM t")
 	defer held.Rows.Close()
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL, ADD NOT NULL a")
-	next := e.catalog.state.MustRelation(ref.Address)
+	next := e.catalog.State.MustRelation(ref.Address)
 	if next.Address() != old.Address() || next.Revision() != old.Revision()+1 || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || !storage.SameVersionRoot(root, store.Versions) || &root[0].Values[0] != &store.Versions[0].Values[0] {
 		t.Fatal("pure NN rewrote identity, metadata or values")
 	}
@@ -32,7 +32,7 @@ func TestAlterNullabilityMetadataAndStorage(t *testing.T) {
 		t.Fatal(next.Constraints.NotNull)
 	}
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL, ADD NOT NULL a")
-	if e.catalog.state.Get(ref.Address) != next || e.storage.Relations[ref.Address] != store {
+	if e.catalog.State.Get(ref.Address) != next || e.storage.Relations[ref.Address] != store {
 		t.Fatal("no-op changed descriptor/storage")
 	}
 	run(t, e, "ALTER TABLE t ALTER a DROP NOT NULL")
@@ -52,7 +52,7 @@ func TestAlterNullabilityLifecycle(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(a INT,b INT)")
 			sessionSQL(t, a, "INSERT INTO t VALUES(7,9)")
 			ref := roleTableRef(t, e, "t")
-			descriptor, store := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+			descriptor, store := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
 			frontier := e.visibility.CommitSeq()
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
@@ -63,7 +63,7 @@ func TestAlterNullabilityLifecycle(t *testing.T) {
 			cancel()
 			lockAwait(t, done, context.Canceled)
 			lockPending(t, e, 0)
-			if e.catalog.state.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != store || e.visibility.CommitSeq() != frontier {
+			if e.catalog.State.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != store || e.visibility.CommitSeq() != frontier {
 				t.Fatal("canceled list published")
 			}
 			transactionEnd(t, a, tx, false)
@@ -104,7 +104,7 @@ func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 			for at := int32(1); at <= checks; at++ {
 				e, ref := setup()
 				store := e.storage.Relations[ref.Address]
-				descriptor := e.catalog.state.Get(ref.Address)
+				descriptor := e.catalog.State.Get(ref.Address)
 				frontier, generation, ends := e.visibility.CommitSeq(), store.Generation, store.Ends
 				all := append([]storage.RowVersion(nil), store.Versions[:cap(store.Versions)]...)
 				for i := range all {
@@ -123,10 +123,10 @@ func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 					if !errors.Is(err, context.Canceled) {
 						t.Fatal(at, err)
 					}
-					if e.catalog.state.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || e.visibility.CommitSeq() != frontier || !reflect.DeepEqual(all, store.Versions[:cap(store.Versions)]) {
+					if e.catalog.State.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || e.visibility.CommitSeq() != frontier || !reflect.DeepEqual(all, store.Versions[:cap(store.Versions)]) {
 						t.Fatal("cancellation mutated a prefix or spare suffix", at)
 					}
-				} else if e.catalog.state.Get(ref.Address) == descriptor {
+				} else if e.catalog.State.Get(ref.Address) == descriptor {
 					t.Fatal("success without complete metadata install", at)
 				}
 				lockEmpty(t, e)

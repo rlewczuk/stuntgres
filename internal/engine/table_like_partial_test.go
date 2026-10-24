@@ -301,10 +301,10 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 			err = bindErr
 			if err == nil {
 				definition.Predicate = predicate
-				oid, allocationErr := e.catalog.allocateOIDLocked()
+				oid, allocationErr := e.catalog.AllocateOIDLocked()
 				err = allocationErr
 				if err == nil {
-					revision, revisionErr := e.catalog.revisionLocked()
+					revision, revisionErr := e.catalog.RevisionLocked()
 					err = revisionErr
 					if err == nil {
 						for i := range columns {

@@ -20,7 +20,7 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	out := functions.LargeObjectResult{}
-	if s.txRef.Epoch() != e.catalog.state.Epoch() {
+	if s.txRef.Epoch() != e.catalog.State.Epoch() {
 		return out, ids.ErrCatalogReplaced
 	}
 	if r.Name == "lo_get" && r.Fragment && r.Length < 0 {
@@ -74,7 +74,7 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 	if r.Name == "lo_create" || r.Name == "lo_creat" || r.Name == "lo_from_bytea" {
 		if a.ObjectID == 0 {
 			for {
-				oid, err := e.catalog.allocateOIDLocked()
+				oid, err := e.catalog.AllocateOIDLocked()
 				if err != nil {
 					return out, err
 				}
@@ -87,7 +87,7 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 		if view.Get(a) != nil {
 			return out, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: `duplicate key value violates unique constraint "pg_largeobject_metadata_oid_index"`, Detail: fmt.Sprintf("Key (oid)=(%d) already exists.", a.ObjectID), Schema: "pg_catalog", Table: "pg_largeobject_metadata", Constraint: "pg_largeobject_metadata_oid_index"}
 		}
-		revision, err := e.catalog.revisionLocked()
+		revision, err := e.catalog.RevisionLocked()
 		if err != nil {
 			return out, err
 		}
@@ -123,7 +123,7 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 		} else {
 			n := *d
 			n.Content = content
-			n.ObjectRevision, err = e.catalog.revisionLocked()
+			n.ObjectRevision, err = e.catalog.RevisionLocked()
 			if err != nil {
 				return out, err
 			}

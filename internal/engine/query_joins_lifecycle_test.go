@@ -214,7 +214,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	// immutable rows, but neither it nor the separate finished statement's grant
 	// can authorize the old physical identity in the replacement catalog.
 	e.mu.Lock()
-	_, err = currentQuerySourceLocked(e, e.catalog.read(e.catalog.state), nil, grant)
+	_, err = currentQuerySourceLocked(e, e.catalog.Current(), nil, grant)
 	e.mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(old, err)
@@ -385,7 +385,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 				}
 				tx := transactionBegin(t, holder)
 				sessionSQL(t, holder, "LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
-				old := e.catalog.state.Get(left.Address)
+				old := e.catalog.State.Get(left.Address)
 				done := make(chan error, 1)
 				var result Result
 				var capturedScope *StatementScope

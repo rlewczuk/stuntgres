@@ -16,7 +16,7 @@ func TestDriverBatchUtilityQueuedReaderPublicationOrder(t *testing.T) {
 			sessionSQL(t, owner, "CREATE TABLE t(v INT)")
 			sessionSQL(t, owner, "INSERT INTO t VALUES(1)")
 			table := catalogRef(t, e, e.CatalogRead(), "t")
-			catalog, store, frontier := e.catalog.state, e.storage.Relations[table.Address], e.visibility.CommitSeq()
+			catalog, store, frontier := e.catalog.State, e.storage.Relations[table.Address], e.visibility.CommitSeq()
 			m := batchUnitStart(t, owner, context.Background())
 			t.Cleanup(func() { _ = m.end(context.Canceled) })
 			if _, err := m.step(statement(t, "ALTER TABLE t ADD j INT DEFAULT 4")); err != nil {
@@ -58,7 +58,7 @@ func TestDriverBatchUtilityQueuedReaderPublicationOrder(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			e.mu.Lock()
-			unchanged := e.catalog.state == catalog && e.storage.Relations[table.Address] == store && e.visibility.CommitSeq() == frontier && len(e.catalog.state.MustRelation(table.Address).Columns) == 1
+			unchanged := e.catalog.State == catalog && e.storage.Relations[table.Address] == store && e.visibility.CommitSeq() == frontier && len(e.catalog.State.MustRelation(table.Address).Columns) == 1
 			private := e.privateCatalogLocked(owner.Transactions.Catalog)
 			e.mu.Unlock()
 			if !unchanged || len(private.MustRelation(table.Address).Columns) != 2 || owner.Transactions.Catalog.Storage[table.Address].Replacement == store {
@@ -108,11 +108,11 @@ func TestDriverBatchUtilityQueuedReaderPublicationOrder(t *testing.T) {
 				t.Fatal("released reader observed wrong schema/data disposition", r.result.Rows.Schema())
 			}
 			if commit {
-				if e.catalog.state == catalog || e.storage.Relations[table.Address] == store || e.visibility.CommitSeq() != frontier+1 {
+				if e.catalog.State == catalog || e.storage.Relations[table.Address] == store || e.visibility.CommitSeq() != frontier+1 {
 					t.Fatal("utility roots not installed together")
 				}
 			} else {
-				if e.catalog.state != catalog || e.storage.Relations[table.Address] != store || e.visibility.CommitSeq() != frontier {
+				if e.catalog.State != catalog || e.storage.Relations[table.Address] != store || e.visibility.CommitSeq() != frontier {
 					t.Fatal("failed utility roots changed")
 				}
 			}

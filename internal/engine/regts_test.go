@@ -322,7 +322,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	_, err := denied.ResolveRegdictionary(context.Background(), "reg_ts_acl.unaccent")
 	extensionUnitError(t, err, "42501")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), ns.Address()), acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.State.Epoch(), ns.Address()), acl); err != nil {
 		t.Fatal(err)
 	}
 	granted := capture()

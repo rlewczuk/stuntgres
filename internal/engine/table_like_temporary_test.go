@@ -81,7 +81,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			if len(foreign.ColumnMeta.Defaults) != 0 {
 				t.Fatal("foreign physical token imported default")
 			}
-			before := e.catalog.state
+			before := e.catalog.State
 			stores, generators := len(e.storage.Relations), len(e.storage.Sequences)
 			bad, _, err := tableLikeBuild(t, e, op, "CREATE TABLE public.rejected(LIKE pg_temp.src INCLUDING ALL)")
 			defer e.DiscardCatalogStage(bad)
@@ -89,7 +89,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			if len(bad.sequence.StagedGenerators()) == 0 {
 				t.Fatal("fixture did not stage fresh identity before rejection")
 			}
-			if e.catalog.state != before || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators || *e.storage.Sequences[seed.Address()] != generator || !reflect.DeepEqual(source.ColumnMeta.Defaults[2].Expression, old.Expression) || !slices.Equal(source.ColumnMeta.Defaults[2].Dependencies, manifest) {
+			if e.catalog.State != before || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators || *e.storage.Sequences[seed.Address()] != generator || !reflect.DeepEqual(source.ColumnMeta.Defaults[2].Expression, old.Expression) || !slices.Equal(source.ColumnMeta.Defaults[2].Dependencies, manifest) {
 				t.Fatal("rejected/default cooking evaluated or published source state")
 			}
 			for _, name := range []string{"rejected", "rejected_id_seq"} {
@@ -120,7 +120,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				sessionSQL(t, owner, "INSERT INTO "+sourceName+" DEFAULT VALUES")
 				source := tableLikeTemporaryRelation(t, e, sourceNamespace, "src")
 				sourceIdentity := source.ColumnMeta.Identities[1]
-				sourceSequence := e.catalog.state.MustRelation(sourceIdentity.Sequence)
+				sourceSequence := e.catalog.State.MustRelation(sourceIdentity.Sequence)
 				generator := *e.storage.Sequences[sourceIdentity.Sequence]
 				op, err := owner.Acquire(context.Background())
 				if err != nil {
@@ -149,7 +149,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				if destination.Namespace() != namespace || sequence.Namespace() != namespace || sequence.Owner != destination.Owner || identity.Sequence == sourceIdentity.Sequence || sequence.Revision() == sourceSequence.Revision() || !reflect.DeepEqual(*sequence.Sequence, want) || fresh == nil || fresh.Called || fresh.Last != 7 || identity.Mode != sourceIdentity.Mode || len(destination.ColumnMeta.Defaults) != 0 {
 					t.Fatal("fresh identity destination ownership/persistence/config/state", destination, sequence, fresh)
 				}
-				if ns := e.catalog.state.MustNamespace(namespace); destinationTemporary && ns.Temporary != owner.SessionToken {
+				if ns := e.catalog.State.MustNamespace(namespace); destinationTemporary && ns.Temporary != owner.SessionToken {
 					t.Fatal("destination temporary token drift")
 				}
 				if *e.storage.Sequences[sourceIdentity.Sequence] != generator {

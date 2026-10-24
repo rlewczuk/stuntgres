@@ -28,12 +28,12 @@ func captureIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes 
 	e := stage.owner
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.catalog.state.Epoch() != stage.Base.Epoch() {
+	if e.catalog.State.Epoch() != stage.Base.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
 	return index.CaptureLayouts(index.LayoutCaptureInput{
 		Layouts: stage.indexesOrZero().Layouts, Target: evaluation.Catalog, Parent: parent,
-		Committed: e.catalog.state, CommittedRoots: e.storage.IndexRoots, CommittedStore: e.storage.Relations[parent.Address()],
+		Committed: e.catalog.State, CommittedRoots: e.storage.IndexRoots, CommittedStore: e.storage.Relations[parent.Address()],
 		Changes: changes, SourceStore: sourceStore, TargetStore: targetStore,
 	})
 }
@@ -47,7 +47,7 @@ func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalog.State, changes *
 			continue
 		}
 		if _, captured := changes.Originals[index.Address()]; !captured {
-			changes.Originals[index.Address()] = e.catalog.state.Get(index.Address())
+			changes.Originals[index.Address()] = e.catalog.State.Get(index.Address())
 		}
 	}
 }

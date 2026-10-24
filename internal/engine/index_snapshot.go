@@ -22,10 +22,10 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.Owner() != e.catalog.owner() || view.State() == nil || e.catalog.state.Epoch() != view.Epoch() || frontier != e.visibility.CommitSeq() {
+	if view.Owner() == nil || view.Owner() != &e.catalog.Owner || view.State() == nil || e.catalog.State.Epoch() != view.Epoch() || frontier != e.visibility.CommitSeq() {
 		return nil, ids.ErrCatalogReplaced
 	}
-	authority := e.catalog.state
+	authority := e.catalog.State
 	if private != nil {
 		authority = e.privateCatalogLocked(private).State()
 	}

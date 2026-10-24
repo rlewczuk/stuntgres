@@ -172,7 +172,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	if err := role.StageOwnership(stage, ns, target); err == nil {
 		t.Fatal("metadata overflow accepted")
 	}
-	if stage.DescriptorCount() != 0 || e.catalog.state.Get(ns.Address()) != ns {
+	if stage.DescriptorCount() != 0 || e.catalog.State.Get(ns.Address()) != ns {
 		t.Fatal("overflow changed private/live descriptor")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -189,9 +189,9 @@ func TestRoleOwnershipEffectFreeDescription(t *testing.T) {
 	}
 	defer done()
 	for _, stmt := range []parser.Statement{&parser.AlterOwner{Kind: "table", Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "absent"}}}, Target: parser.RoleSpec{Name: "absent"}}, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "absent"}}, Target: parser.RoleSpec{Name: "absent"}}, &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "absent"}}}} {
-		before, roles := e.catalog.state, e.roles.published
+		before, roles := e.catalog.State, e.roles.published
 		description, err := e.Describe(op, stmt)
-		if err != nil || description.Parameters.Count != 0 || len(description.Parameters.Types) != 0 || len(description.Results) != 0 || e.catalog.state != before || e.roles.published != roles {
+		if err != nil || description.Parameters.Count != 0 || len(description.Parameters.Types) != 0 || len(description.Results) != 0 || e.catalog.State != before || e.roles.published != roles {
 			t.Fatal("description resolves or mutates ownership", description, err)
 		}
 	}
@@ -203,11 +203,11 @@ func TestRoleOwnershipDirectProviderProtection(t *testing.T) {
 		ownershipUnitExec(t, e, q)
 	}
 	for _, name := range []string{"pg_catalog.pg_class", "ownership_guard_idx", "ownership_guard_c"} {
-		before, roles := e.catalog.state, e.roles.published
+		before, roles := e.catalog.State, e.roles.published
 		if _, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE "+name+" OWNER TO ownership_target"), nil); err == nil {
 			t.Fatal("direct provider/backing ownership accepted", name)
 		}
-		if e.catalog.state != before || e.roles.published != roles {
+		if e.catalog.State != before || e.roles.published != roles {
 			t.Fatal("direct provider/backing mutation", name)
 		}
 	}
@@ -224,7 +224,7 @@ func TestRoleOwnershipInitialSourceCanonicalIdentity(t *testing.T) {
 	putFixtureRole(graph, authorization.RoleDescriptor{Ref: ordinary, Name: "postgres", Superuser: true, Inherit: true})
 
 	auth := catalogAuthorization(e, e.CatalogRead())
-	auth.Roles = e.roles.read(e.catalog.owner(), auth.Catalog, graph)
+	auth.Roles = e.roles.read(&e.catalog.Owner, auth.Catalog, graph)
 	auth.RoleRecord = graph
 	retained := e.roles.published
 	for _, reassign := range []bool{false, true} {

@@ -22,11 +22,11 @@ import (
 func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2396}
-	d, ok := e.catalog.state.Relation(address)
+	d, ok := e.catalog.State.Relation(address)
 	if !ok {
 		t.Fatal("missing shared catalog descriptor")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
+	return d, e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
 }
 
 func pgShDescriptionUnitBag(t *testing.T, source *exec.Source) map[uint32]string {
@@ -90,7 +90,7 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 		{"dropped commented role", deleted},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), tc.state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
+			source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), tc.state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -180,8 +180,8 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 	if err != nil || len(pgShDescriptionUnitBag(t, captured)) != 0 {
 		t.Fatal("no invented bootstrap comment", err)
 	}
-	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), ids.ObjectRef{}, class)
+	class := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestPGShDescriptionIdentityWidth(t *testing.T) {
 	pgShDescriptionUnitRole(e, state, 20001, "empty", "")
 	pgShDescriptionUnitRole(e, state, 20002, "space", " ")
 	e.roles.nextPrincipal = highID + 1
-	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state)
+	roles := e.roles.read(&e.catalog.Owner, e.catalog.Current(), state)
 	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: roles, Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
 	want := map[uint32]string{20000: "low shared", math.MaxUint32: "max shared", 20002: " "}
 	if err != nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, captured), want) {
@@ -226,12 +226,12 @@ func TestPGShDescriptionIdentityWidth(t *testing.T) {
 	pgShDescriptionUnitInquiry(t, e, roles, e.CatalogRead(), 20000, new("low shared"))
 	removed := cloneRoleFixture(state)
 	retireFixtureRole(removed, low)
-	captured, err = captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), removed), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
+	captured, err = captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), removed), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
 	delete(want, 20000)
 	if err != nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, captured), want) {
 		t.Fatal("high principal resurrected low", err)
 	}
-	pgShDescriptionUnitInquiry(t, e, e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), removed), e.CatalogRead(), 20000, nil)
+	pgShDescriptionUnitInquiry(t, e, e.roles.read(&e.catalog.Owner, e.catalog.Current(), removed), e.CatalogRead(), 20000, nil)
 	if e.roles.nextPrincipal != highID+1 || fixtureRole(state, high).Ref.ID() != highID || fixtureRole(state, low).Comment != "low shared" {
 		t.Fatal("projection changed uint64 identities")
 	}
@@ -242,11 +242,11 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	d, ref := pgShDescriptionUnitSource(t, e)
 	old := cloneRoleFixture(e.roles.published)
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
-	snapshot := catalog.CloneState(e.catalog.state)
+	snapshot := catalog.CloneState(e.catalog.State)
 	local := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	snapshot.SetDescriptor(local, &catalog.Relation{ObjectAddress: local, Comment: "local collision"})
-	read := e.catalog.read(snapshot)
-	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), read, old), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
+	read := e.catalog.Read(snapshot)
+	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(&e.catalog.Owner, read, old), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,8 +259,8 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, fresh), map[uint32]string{20000: "replacement"}) {
 		t.Fatal(err)
 	}
-	pgShDescriptionUnitInquiry(t, e, e.roles.read(e.catalog.owner(), read, old), read, 20000, new("old text"))
-	pgShDescriptionUnitInquiry(t, e, e.roles.read(e.catalog.owner(), read, e.roles.published), read, 20000, new("replacement"))
+	pgShDescriptionUnitInquiry(t, e, e.roles.read(&e.catalog.Owner, read, old), read, 20000, new("old text"))
+	pgShDescriptionUnitInquiry(t, e, e.roles.read(&e.catalog.Owner, read, e.roles.published), read, 20000, new("replacement"))
 	deleted := cloneRoleFixture(updated)
 	retireFixtureRole(deleted, role)
 	pgShDescriptionUnitRole(e, deleted, 20001, "same_name", "")
@@ -269,8 +269,8 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	if err != nil || len(pgShDescriptionUnitBag(t, fresh)) != 0 || !reflect.DeepEqual(pgShDescriptionUnitBag(t, captured), map[uint32]string{20000: "old text"}) {
 		t.Fatal("detached rows or same-name inheritance", err)
 	}
-	pgShDescriptionUnitInquiry(t, e, e.roles.read(e.catalog.owner(), read, e.roles.published), read, 20000, nil)
-	pgShDescriptionUnitInquiry(t, e, e.roles.read(e.catalog.owner(), read, e.roles.published), read, 20001, nil)
+	pgShDescriptionUnitInquiry(t, e, e.roles.read(&e.catalog.Owner, read, e.roles.published), read, 20000, nil)
+	pgShDescriptionUnitInquiry(t, e, e.roles.read(&e.catalog.Owner, read, e.roles.published), read, 20001, nil)
 }
 
 func TestPGShDescriptionScopeSnapshot(t *testing.T) {
@@ -311,9 +311,9 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName, view.RelationKind = name, catalog.ViewRelation
-		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
+		viewRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), view.Address())
 		view.View = stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []stored.ViewLeaf{{Ref: leaf, Attributes: []int32{1, 2, 3}, Reads: []int32{1, 2, 3}}}})
-		e.catalog.state.SetDescriptor(view.Address(), &view)
+		e.catalog.State.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}
 	inner := addView(20010, "shared_inner", ref)
@@ -357,21 +357,21 @@ func TestPGShDescriptionCanceledCapture(t *testing.T) {
 	pgShDescriptionUnitRole(e, state, 20001, "second", "second")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, roles := range []authorization.Read{e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), emptyRoleFixture(e)), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state)} {
+	for _, roles := range []authorization.Read{e.roles.read(&e.catalog.Owner, e.catalog.Current(), emptyRoleFixture(e)), e.roles.read(&e.catalog.Owner, e.catalog.Current(), state)} {
 		captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: roles, Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("entry cancellation published source", captured, err)
 		}
 	}
 	inLoop := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: 3}
-	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: inLoop, Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
+	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: inLoop, Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
 	if captured != nil || !errors.Is(err, context.Canceled) || inLoop.calls != 3 {
 		t.Fatal("in-loop cancellation published partial source", captured, err, inLoop.calls)
 	}
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = testUsage(e, sqltype.Int4).Type
-	captured, err = captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), Ref: ref, Source: &invalid, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
+	captured, err = captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: engineCatalogRuntime{}}, capturePGShDescription)
 	if captured != nil || err == nil {
 		t.Fatal("OID constructor failure published partial source", captured, err)
 	}

@@ -155,7 +155,7 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 
 func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	e := New()
-	view := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
+	view := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	table := &catalog.Relation{RelationKind: catalog.TableRelation}
 	requested := plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForUpdate, Order: 1}
 	locks := &exec.LockContext{Leaves: []exec.QueryLockLeaf{

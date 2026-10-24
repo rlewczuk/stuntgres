@@ -48,7 +48,7 @@ func cubeComparisonProviderConflicts(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			before := e.catalog.state
+			before := e.catalog.State
 			e.mu.Lock()
 			err := func() error {
 				auth, err := e.authorizationLocked(op)
@@ -60,11 +60,11 @@ func cubeComparisonProviderConflicts(t *testing.T) {
 				ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				stage.authorizeLocked(auth, op.Session)
 				stage.extensionNamespace = ns
-				oid, err := e.catalog.allocateOIDLocked()
+				oid, err := e.catalog.AllocateOIDLocked()
 				if err != nil {
 					return err
 				}
-				rev, err := e.catalog.revisionLocked()
+				rev, err := e.catalog.RevisionLocked()
 				if err != nil {
 					return err
 				}
@@ -77,7 +77,7 @@ func cubeComparisonProviderConflicts(t *testing.T) {
 			}()
 			e.mu.Unlock()
 			var diagnostic *sqlstate.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || e.catalog.state != before {
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || e.catalog.State != before {
 				t.Fatal("comparison conflict published a prefix", err)
 			}
 		})
@@ -108,27 +108,27 @@ func cubeComparisonProviderConflicts(t *testing.T) {
 				s.SetDescriptor(n.Address(), &n)
 			},
 			func(s *catalog.State) {
-				c, _ := e.catalog.read(s).OperatorClass(ext.Members[17].ObjectID)
+				c, _ := e.catalog.Read(s).OperatorClass(ext.Members[17].ObjectID)
 				n := *c
 				n.Extension = ids.ObjectAddress{}
 				s.SetDescriptor(n.Address(), &n)
 			},
 			func(s *catalog.State) {
-				f, _ := e.catalog.read(s).OperatorFamily(ext.Members[16])
+				f, _ := e.catalog.Read(s).OperatorFamily(ext.Members[16])
 				n := *f
 				n.Method = 405
 				s.SetDescriptor(n.Address(), &n)
 			},
 			func(s *catalog.State) {
-				m, _ := e.catalog.read(s).FamilySupport(ext.Members[16].ObjectID, ids.OID(base.SQLType.ID()), ids.OID(base.SQLType.ID()), 1)
+				m, _ := e.catalog.Read(s).FamilySupport(ext.Members[16].ObjectID, ids.OID(base.SQLType.ID()), ids.OID(base.SQLType.ID()), 1)
 				n := *m
 				n.Function = ext.Members[3].ObjectID
 				s.SetDescriptor(n.Address(), &n)
 			},
 		} {
-			candidate := catalog.CloneState(e.catalog.state)
+			candidate := catalog.CloneState(e.catalog.State)
 			corrupt(candidate)
-			if err := extension.StockCube.ValidateExtension(e.catalog.read(candidate), ext); err == nil {
+			if err := extension.StockCube.ValidateExtension(e.catalog.Read(candidate), ext); err == nil {
 				t.Fatal("corrupt comparison manifest admitted")
 			}
 		}
@@ -147,7 +147,7 @@ func cubeComparisonProviderRemap(t *testing.T) {
 			t.Fatal("both-argument remap/source immutability", mapped, original)
 		}
 	}
-	metadata, err := extension.OwnerMetadata(e.CatalogRead(), e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published), ext)
 	if err != nil || metadata == "" {
 		t.Fatal("portable owners", err)
 	}
@@ -174,8 +174,8 @@ func cubeComparisonProviderRemap(t *testing.T) {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 		corrupt(&bad)
-		candidate := catalog.CloneState(e.catalog.state)
-		roles := e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published)
+		candidate := catalog.CloneState(e.catalog.State)
+		roles := e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published)
 		if _, err := extension.ImportOwners(context.Background(), e.CatalogRead().WithState(candidate), roles, []extension.OwnerRecord{bad}); err == nil {
 			t.Fatal("corrupt owner record admitted", bad)
 		}
@@ -260,17 +260,17 @@ func TestCubeIndexSupport(t *testing.T) {
 		func(s *catalog.OperatorFamilySupport) { s.Family++ },
 		func(s *catalog.OperatorFamilySupport) { s.OwningClass = 0 },
 	} {
-		candidate := catalog.CloneState(e.catalog.state)
+		candidate := catalog.CloneState(e.catalog.State)
 		member, _ := view.FamilySupport(ids.OID(support.Family), ids.OID(support.Left), ids.OID(support.Right), 1)
 		bad := *member
 		mutate(&bad)
 		candidate.SetDescriptor(bad.Address(), &bad)
-		if _, err := routine.BindIndexOrdering(e.catalog.read(candidate), base.SQLType.Usage(), class); err == nil {
+		if _, err := routine.BindIndexOrdering(e.catalog.Read(candidate), base.SQLType.Usage(), class); err == nil {
 			t.Fatal("corrupt actual support member admitted", bad)
 		}
 	}
 	for _, slot := range []int{0, 1} {
-		candidate := catalog.CloneState(e.catalog.state)
+		candidate := catalog.CloneState(e.catalog.State)
 		proc := *candidate.MustProcedure(ext.Members[9])
 		if slot == 0 {
 			proc.Signature = "25," + extension.CubeSignature(base.SQLType.ID())
@@ -278,7 +278,7 @@ func TestCubeIndexSupport(t *testing.T) {
 			proc.Signature = extension.CubeSignature(base.SQLType.ID()) + ",25"
 		}
 		candidate.SetDescriptor(proc.Address(), &proc)
-		if _, err := routine.BindIndexOrdering(e.catalog.read(candidate), base.SQLType.Usage(), class); err == nil {
+		if _, err := routine.BindIndexOrdering(e.catalog.Read(candidate), base.SQLType.Usage(), class); err == nil {
 			t.Fatal("wrong support formal admitted", slot)
 		}
 	}

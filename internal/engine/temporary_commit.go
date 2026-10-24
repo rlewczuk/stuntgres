@@ -16,7 +16,7 @@ import (
 // transaction/savepoint roots remain untouched until the ordinary final install.
 func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal) (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes, *session.Journal, error) {
 	e.mu.Lock()
-	if ref.Epoch() != e.catalog.state.Epoch() {
+	if ref.Epoch() != e.catalog.State.Epoch() {
 		e.mu.Unlock()
 		return nil, nil, nil, ids.ErrCatalogReplaced
 	}
@@ -115,7 +115,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 				if !observed {
 					original = base.Get(a)
 				}
-				if e.catalog.state.Get(a) != original {
+				if e.catalog.State.Get(a) != original {
 					err = catalog.Conflict{}
 					break
 				}
@@ -125,7 +125,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 				if !observed {
 					original = base.Get(a)
 				}
-				if e.catalog.state.Get(a) != original {
+				if e.catalog.State.Get(a) != original {
 					err = catalog.Conflict{}
 					break
 				}

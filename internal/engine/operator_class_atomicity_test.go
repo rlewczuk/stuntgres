@@ -80,7 +80,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	}
 	unchanged := func() {
 		t.Helper()
-		if e.catalog.state != current.State() || e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store {
+		if e.catalog.State != current.State() || e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store {
 			t.Fatal("failed candidate changed catalog/data/root")
 		}
 		if got, ok := e.CatalogRead().OperatorClass(class.Address().ObjectID); !ok || got != class {

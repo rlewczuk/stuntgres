@@ -58,7 +58,7 @@ func TestSequenceOwnerIdentityOperands(t *testing.T) {
 					if target == operand {
 						want, _ = e.Roles().Lookup("postgres")
 					}
-					if got := e.catalog.state.MustRelation(ref.Address).Owner; got != want.Ref {
+					if got := e.catalog.State.MustRelation(ref.Address).Owner; got != want.Ref {
 						t.Fatalf("%s owner=%v want=%v", target, got, want.Ref)
 					}
 				}
@@ -84,7 +84,7 @@ func TestSequenceOwnerTransitionAuthority(t *testing.T) {
 				roleExecute(t, e, op, q)
 			}
 			ref := roleTableRef(t, e, "private.s")
-			old := e.catalog.state.MustRelation(ref.Address)
+			old := e.catalog.State.MustRelation(ref.Address)
 			ns := e.catalog.Domain.Ref(ref.Epoch, old.Namespace())
 			owner, _ := e.Roles().Lookup("seq_owner")
 			target, _ := e.Roles().Lookup("seq_target")
@@ -100,25 +100,25 @@ func TestSequenceOwnerTransitionAuthority(t *testing.T) {
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_owner")
 			r := roleExecute(t, e, op, "SELECT nextval('private.s')")
 			r.Rows.Close()
-			before := e.catalog.state.MustRelation(ref.Address)
+			before := e.catalog.State.MustRelation(ref.Address)
 			state := *e.storage.Sequences[ref.Address]
 			if err := sequenceOwnerCommand(t, e, op, "ALTER SEQUENCE private.s OWNER TO seq_owner", prepared); err != nil {
 				t.Fatal("same-owner without CREATE", err)
 			}
-			after := e.catalog.state.MustRelation(ref.Address)
+			after := e.catalog.State.MustRelation(ref.Address)
 			if after.Owner != owner.Ref || after.SequencePlanStamp != before.SequencePlanStamp || !reflect.DeepEqual(after.Security.ACL, before.Security.ACL) || *e.storage.Sequences[ref.Address] != state {
 				t.Fatal("same-owner changed owner, plan stamp, ACL or generator")
 			}
 			err := sequenceOwnerCommand(t, e, op, "ALTER SEQUENCE private.s OWNER TO seq_target", prepared)
 			sequenceOwnerDiagnostic(t, err, "42501", `must be able to SET ROLE "seq_target"`, "")
-			if e.catalog.state.MustRelation(ref.Address) != after || *e.storage.Sequences[ref.Address] != state {
+			if e.catalog.State.MustRelation(ref.Address) != after || *e.storage.Sequences[ref.Address] != state {
 				t.Fatal("denied transfer mutated sequence")
 			}
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 			if err := sequenceOwnerCommand(t, e, op, "ALTER SEQUENCE private.s OWNER TO seq_target", prepared); err != nil {
 				t.Fatal("superuser transfer without destination CREATE", err)
 			}
-			after = e.catalog.state.MustRelation(ref.Address)
+			after = e.catalog.State.MustRelation(ref.Address)
 			wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: target.Ref, Grantee: authorization.ACLGrantee{Role: target.Ref}, Privileges: authorization.UsagePrivilege}, {Grantor: target.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 			if after.Owner != target.Ref || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.Security.ACL, wantACL) || *e.storage.Sequences[ref.Address] != state {
 				t.Fatalf("transfer owner/stamp/ACL/state: %#v", after)
@@ -145,7 +145,7 @@ func TestSequenceOwnerSuperuserWithoutDestinationCreate(t *testing.T) {
 				roleExecute(t, e, op, q)
 			}
 			ref := roleTableRef(t, e, "private.s")
-			before := e.catalog.state.MustRelation(ref.Address)
+			before := e.catalog.State.MustRelation(ref.Address)
 			ns := e.catalog.Domain.Ref(ref.Epoch, before.Namespace())
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 				t.Fatal(err)
@@ -154,7 +154,7 @@ func TestSequenceOwnerSuperuserWithoutDestinationCreate(t *testing.T) {
 			if err := sequenceOwnerCommand(t, e, op, "ALTER SEQUENCE private.s OWNER TO seq_target", prepared); err != nil {
 				t.Fatal("superuser transfer without destination CREATE", err)
 			}
-			after := e.catalog.state.MustRelation(ref.Address)
+			after := e.catalog.State.MustRelation(ref.Address)
 			if after.Owner != target.Ref || after.SequencePlanStamp == before.SequencePlanStamp {
 				t.Fatal("transfer failed to publish owner and plan stamp")
 			}

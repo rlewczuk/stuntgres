@@ -68,7 +68,7 @@ func effectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind analyz
 // lookupNamespaces is the shared qualified/unqualified namespace authority
 // over a validated catalog view (analyze.LookupNamespaces).
 func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
-	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
+	if err := e.catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
 		return analyze.NamespaceSelection{}, err
 	}
 	return lookupNamespacesSnapshot(auth, name, kind)
@@ -95,7 +95,7 @@ func (e *Engine) creationNamespaceWithSystem(auth AuthorizationView, name parser
 // (analyze.CreationNamespace). Callers requiring an existing namespace retain
 // the rejecting policy above.
 func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parser.ObjectName, system bool) (ids.ObjectRef, bool, error) {
-	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
+	if err := e.catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
 		return ids.ObjectRef{}, false, err
 	}
 	a, deferredTemp, err := analyze.CreationNamespace(pathInput(auth, len(name.Parts) == 1), name, system)

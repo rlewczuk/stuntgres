@@ -210,13 +210,13 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 		}
 		r.Rows.Close()
 	}
-	before := e.catalog.state
+	before := e.catalog.State
 	for _, q := range []string{"SELECT id FROM secret", "SELECT 7 FROM secret WHERE f", "SELECT 7 FROM secret ORDER BY id", "SELECT v FROM secret WHERE id=1", "SELECT id+v FROM secret", "SELECT v+1 FROM secret WHERE id+1=2"} {
 		if _, err := e.Describe(op, statement(t, q)); err != nil {
 			t.Fatal("ACL moved into Prepare", err)
 		}
 		roleError(t, e, op, q, "42501", "permission denied for table secret", "")
-		if e.catalog.state != before {
+		if e.catalog.State != before {
 			t.Fatal("denial mutated catalog")
 		}
 	}

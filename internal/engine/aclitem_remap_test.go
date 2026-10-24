@@ -81,10 +81,10 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal("foreign coincident IDs imported")
 	}
 	// The literal retagger must apply ACL import even without type changes.
-	next := catalog.CloneState(source.catalog.state)
+	next := catalog.CloneState(source.catalog.State)
 	next.SetACLItemImport(importer)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
-	rebound, changed, err := stored.RetagTypes(target.catalog.read(next), literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	rebound, changed, err := stored.RetagTypes(target.catalog.Read(next), literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed || rebound.(plan.LiteralExpr).Value == value {
 		t.Fatal("constant principal import skipped", changed, err)
 	}
@@ -96,7 +96,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	comparison := plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: literal, Right: literal, Predicate: predicate, Operator: "="}
-	rebound, changed, err = stored.RetagTypes(target.catalog.read(next), comparison, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	rebound, changed, err = stored.RetagTypes(target.catalog.Read(next), comparison, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed {
 		t.Fatal("enclosing principal import skipped", changed, err)
 	}
@@ -104,10 +104,10 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	if imported.Left.(plan.LiteralExpr).Value != sameDescriptor || imported.Right.(plan.LiteralExpr).Value != sameDescriptor || comparison.Left.(plan.LiteralExpr).Value != value {
 		t.Fatal("enclosing import lost mapped carriers or mutated source")
 	}
-	if _, err := (stored.ScalarRenderer{Validation: true}).SQL(context.Background(), target.catalog.read(next), imported); err != nil {
+	if _, err := (stored.ScalarRenderer{Validation: true}).SQL(context.Background(), target.catalog.Read(next), imported); err != nil {
 		t.Fatal("target validation ran with source CHECK carriers", err)
 	}
-	retained, changed, err := stored.RetagTypes(target.catalog.read(next), imported, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	retained, changed, err := stored.RetagTypes(target.catalog.Read(next), imported, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || changed || retained.(plan.ComparisonExpr).Left.(plan.LiteralExpr).Value != sameDescriptor {
 		t.Fatal("destination-owned enclosing expression copied/reimported", changed, err)
 	}
@@ -152,23 +152,23 @@ func TestACLItemRestoreFence(t *testing.T) {
 	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource, freshSource.CatalogRead(), nil); err != nil {
 		t.Fatal(err)
 	}
-	if freshTarget.catalog.state.ACLItemImport() != nil || freshSource.catalog.state.ACLItemImport() != nil {
+	if freshTarget.catalog.State.ACLItemImport() != nil || freshSource.catalog.State.ACLItemImport() != nil {
 		t.Fatal("import callback published")
 	}
 	aclUnitRoles(freshSource, "acl_missing_target")
 	freshSource.mu.Lock()
-	public := freshSource.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	public := freshSource.catalog.State.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	copy := *public
-	role, _ := freshSource.roles.read(freshSource.catalog.owner(), freshSource.catalog.read(freshSource.catalog.state), freshSource.roles.published).Lookup("acl_missing_target")
+	role, _ := freshSource.roles.read(&freshSource.catalog.Owner, freshSource.catalog.Current(), freshSource.roles.published).Lookup("acl_missing_target")
 	copy.Owner = role.Ref
-	freshSource.catalog.state = catalog.CloneState(freshSource.catalog.state)
-	freshSource.catalog.state.SetDescriptor(copy.Address(), &copy)
+	freshSource.catalog.PublishLocked(catalog.CloneState(freshSource.catalog.State))
+	freshSource.catalog.State.SetDescriptor(copy.Address(), &copy)
 	freshSource.mu.Unlock()
-	before := freshTarget.catalog.state
+	before := freshTarget.catalog.State
 	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource, freshSource.CatalogRead(), nil); err == nil {
 		t.Fatal("missing target principal admitted")
 	}
-	if freshTarget.catalog.state != before || freshTarget.catalog.state.ACLItemImport() != nil || freshSource.catalog.state.ACLItemImport() != nil {
+	if freshTarget.catalog.State != before || freshTarget.catalog.State.ACLItemImport() != nil || freshSource.catalog.State.ACLItemImport() != nil {
 		t.Fatal("failure published state/import callback")
 	}
 }
@@ -177,7 +177,7 @@ func TestACLItemStaleDump(t *testing.T) {
 	e := New()
 	aclUnitRoles(e, "acl_dump_a", "acl_dump_b")
 	value := aclUnitValue(t, e, "acl_dump_a=r*/acl_dump_b")
-	captured := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}
+	captured := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles(), Lossless: true}
 	ctx := regobj.ACLItemOutputContext(context.Background(), captured)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	if text, err := regobj.Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
@@ -192,12 +192,12 @@ func TestACLItemStaleDump(t *testing.T) {
 	retireFixtureRole(next, a.Ref)
 	e.roles.published = next
 	e.mu.Unlock()
-	ordinary := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
+	ordinary := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
 	text, err := value.Type().OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: ordinary})
 	if err != nil || text != "20000=r*/acl_dump_b" {
 		t.Fatal("stale ordinary output", text, err)
 	}
-	if err := regobj.PreflightACLItemValue(context.Background(), regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}, value); err == nil {
+	if err := regobj.PreflightACLItemValue(context.Background(), regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles(), Lossless: true}, value); err == nil {
 		t.Fatal("stale dump leaf accepted")
 	}
 	if text, err := regobj.Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {

@@ -53,12 +53,12 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	e := New()
 	inner := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, inner, "inner_u", "i", "")
-	inner = e.catalog.state.MustRelation(inner.Address())
+	inner = e.catalog.State.MustRelation(inner.Address())
 	gateStage, gate := queryCreateStage(t, e, "source_gate", 1)
 	queryCreatePublish(t, e, gateStage)
 	outer := concurrentSourceOuter(t, e)
 	index := materializedConcurrentUnitIndex(t, e, outer, "outer_u", "i", "")
-	outer = e.catalog.state.MustRelation(outer.Address())
+	outer = e.catalog.State.MustRelation(outer.Address())
 	innerStorage, gateStorage := e.storage.Relations[inner.Address()], e.storage.Relations[gate.Address()]
 	// A real end marker must affect visibility, rather than merely exercising
 	// preservation of a non-nil but empty root.
@@ -71,7 +71,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	innerEnds, gateEnds := innerStorage.Ends, gateStorage.Ends
 	holder := sessionStart(t, e, nil)
 	holderTx := transactionBegin(t, holder)
-	gateRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), gate.Address())
+	gateRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), gate.Address())
 	defer e.endLockOwner(holder.Transactions.Ticket)
 	if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
@@ -183,7 +183,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	changes := session.NewJournal()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.state, nil); err != nil {
+	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.State, nil); err != nil {
 		t.Fatal("actual retained capture", err)
 	}
 	sources := catalogFencesOf[materializedSourceFence](changes)
@@ -209,17 +209,17 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	// Even when the same MV has a source fence, an actual provider observation
 	// must retain strict predecessor authority; compatibility cannot replace it.
 	stage.domainBases = []catalog.Descriptor{provider, inner}
-	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.state, nil); err != nil {
+	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.State, nil); err != nil {
 		t.Fatal(err)
 	}
 	if changes.Originals[inner.Address()] != inner {
 		t.Fatal("provider/source overlap lost strict original")
 	}
 	for _, d := range []catalog.Descriptor{outer, index, provider, inner} {
-		original := e.catalog.state.Get(d.Address())
-		e.catalog.state.RemoveDescriptor(d.Address())
+		original := e.catalog.State.Get(d.Address())
+		e.catalog.State.RemoveDescriptor(d.Address())
 		err := e.catalogPreflightLocked(changes)
-		e.catalog.state.SetDescriptor(d.Address(), original)
+		e.catalog.State.SetDescriptor(d.Address(), original)
 		if err == nil {
 			t.Fatal("source compatibility weakened strict original", d.Address())
 		}

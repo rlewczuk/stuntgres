@@ -37,15 +37,15 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *catalog.Relatio
 		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, Index: map[string]int{"id": 0, "v": 1}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, RelationKind: catalog.TableRelation}
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
-	next := catalog.CloneState(e.catalog.state)
+	next := catalog.CloneState(e.catalog.State)
 	next.SetDescriptor(src.Address(), src)
 	next.SetDescriptor(sink.Address(), sink)
-	e.catalog.state = next
-	return e, e.authorityView(access.View{Owner: e.catalog.owner(), Catalog: e.catalog.read(next)}), src, sink
+	e.catalog.PublishLocked(next)
+	return e, e.authorityView(access.View{Owner: &e.catalog.Owner, Catalog: e.catalog.Read(next)}), src, sink
 }
 
 func ruleUnitRef(e *Engine, d *catalog.Relation) ids.ObjectRef {
-	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
+	return e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
 }
 func ruleUnitInt(d *catalog.Relation, n int64) expr.Expr {
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
@@ -336,7 +336,7 @@ func TestRuleProgramOrdering(t *testing.T) {
 	original := ruleUnitInsert(e, src, 4, 40)
 	p := view.RuleProgram{Count: -1, Returning: -1}
 	e.mu.Lock()
-	count, err := view.RuleRewriter{Owner: e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	count, err := view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -359,7 +359,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := view.RuleProgram{Count: -1, Returning: -1}
 	e.mu.Lock()
-	count, err := view.RuleRewriter{Owner: e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	count, err := view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -370,7 +370,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "nothing", Event: "INSERT", Instead: true})})
 	p = view.RuleProgram{Count: -1, Returning: -1}
 	e.mu.Lock()
-	count, err = view.RuleRewriter{Owner: e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	count, err = view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
 	if err != nil || count != -1 || len(p.Commands) != 0 {
 		t.Fatalf("NOTHING authority=%d commands=%d error=%v", count, len(p.Commands), err)
@@ -391,7 +391,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
 		original := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		mapped := original
-		if err := view.BindViewWrite(f.e.catalog.owner(), auth.Catalog, &mapped, &parser.Update{}); err != nil {
+		if err := view.BindViewWrite(&f.e.catalog.Owner, auth.Catalog, &mapped, &parser.Update{}); err != nil {
 			t.Fatal(err)
 		}
 		if mapped.Ref != f.viewRef || mapped.Relation != f.view || view.PhysicalBinding(mapped).Ref != f.baseRef || mapped.Targets[0] != 1 {
@@ -405,7 +405,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		}
 		program := view.RuleProgram{Count: -1, Returning: -1}
 		f.e.mu.Lock()
-		count, err := view.RuleRewriter{Owner: f.e.catalog.owner()}.ExpandLocked(auth, &parser.Update{}, mapped, nil, &program)
+		count, err := view.RuleRewriter{Owner: &f.e.catalog.Owner}.ExpandLocked(auth, &parser.Update{}, mapped, nil, &program)
 		f.e.mu.Unlock()
 		if err != nil || count != -1 || len(program.Commands) != 0 {
 			t.Fatalf("inner unconditional boundary must stop before automatic validation: count=%d commands=%d error=%v", count, len(program.Commands), err)
@@ -420,7 +420,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := view.RuleProgram{}
 	e.mu.Lock()
-	_, err := view.RuleRewriter{Owner: e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	_, err := view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
 	if err == nil || !strings.Contains(err.Error(), "infinite recursion detected in rules for relation") {
 		t.Fatalf("recursion error=%v", err)
@@ -429,7 +429,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 	stored.RulesOf(src)[0] = stored.RulesOf(src)[0].With(func(p *stored.RuleParts) { p.Actions = append(p.Actions, ruleUnitInsert(e, sink, 2, 20)) })
 	p = view.RuleProgram{}
 	e.mu.Lock()
-	_, err = view.RuleRewriter{Owner: e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	_, err = view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
 	if err != nil || len(p.Commands) != 3 {
 		t.Fatalf("sibling target reuse: commands=%d error=%v", len(p.Commands), err)
@@ -549,7 +549,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 		old.Epoch = next.Epoch()
 		return old
 	}
-	mapped, err := stored.RemapRules(e.catalog.read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil)
+	mapped, err := stored.RemapRules(e.catalog.Read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

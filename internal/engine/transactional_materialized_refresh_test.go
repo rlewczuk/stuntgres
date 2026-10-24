@@ -23,7 +23,7 @@ func TestTransactionalMaterializedRefreshJournal(t *testing.T) {
 				u := catalogRef(t, e, e.CatalogRead(), "txj_u")
 				second := catalogRef(t, e, e.CatalogRead(), "txj_second")
 				uroot, sroot := e.storage.IndexRoots[u.Address], e.storage.IndexRoots[second.Address]
-				root, ends, generation, facts, base, frontier := old.Versions, old.Ends, old.Generation, old.Maintenance, e.catalog.state, e.visibility.CommitSeq()
+				root, ends, generation, facts, base, frontier := old.Versions, old.Ends, old.Generation, old.Maintenance, e.catalog.State, e.visibility.CommitSeq()
 				sessionSQL(t, s, "BEGIN")
 				defer sessionSQL(t, s, "ROLLBACK")
 				sessionSQL(t, s, "INSERT INTO txj_source VALUES(2)")
@@ -47,7 +47,7 @@ func TestTransactionalMaterializedRefreshJournal(t *testing.T) {
 				if latest.Original != old || latest.Replacement == first.Replacement || len(latest.Replacement.Versions) != 2 || !latest.MaterializedConcurrent || latest.MaterializedContinuous == mixed {
 					t.Fatal("first predecessor/latest-only lineage", latest)
 				}
-				if e.catalog.state != base || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != old || e.storage.IndexRoots[u.Address] != uroot || e.storage.IndexRoots[second.Address] != sroot || !storage.SameVersionRoot(root, old.Versions) || old.Ends != ends || old.Generation != generation || old.Maintenance != facts {
+				if e.catalog.State != base || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != old || e.storage.IndexRoots[u.Address] != uroot || e.storage.IndexRoots[second.Address] != sroot || !storage.SameVersionRoot(root, old.Versions) || old.Ends != ends || old.Generation != generation || old.Maintenance != facts {
 					t.Fatal("private refresh mutated committed roots/facts")
 				}
 				for _, replacement := range []*storage.Relation{first.Replacement, latest.Replacement} {

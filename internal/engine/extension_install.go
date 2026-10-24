@@ -12,7 +12,7 @@ import (
 // Registration is initialization-only: the registry closes when New seeds the
 // catalog. extension.Register holds the checks.
 func (e *Engine) registerExtension(name string, implementation extension.Installer) error {
-	if e.catalog.state != nil {
+	if e.catalog.State != nil {
 		return fmt.Errorf("stuntgres: extension registry is closed")
 	}
 	registry, err := extension.Register(e.catalog.Extensions, name, implementation)
@@ -67,7 +67,7 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 	}
 	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.roleRevision, Namespace: stage.Base.Get(stage.extensionNamespace), Database: stage.databasePredecessor}})
 	scope.catalog = changes
-	scope.catalogAuthority = &session.CatalogAuthority{Session: scope.op.Session, Authorization: stage.authRevision, Roles: stage.roleRevision, Ref: ids.ObjectRef{Address: e.catalog.owner().DatabaseAddress()}, Descriptor: stage.databasePredecessor, DatabaseAuthority: stage.databaseAuthority, DatabasePredecessor: stage.databasePredecessor}
+	scope.catalogAuthority = &session.CatalogAuthority{Session: scope.op.Session, Authorization: stage.authRevision, Roles: stage.roleRevision, Ref: ids.ObjectRef{Address: e.catalog.Owner.DatabaseAddress()}, Descriptor: stage.databasePredecessor, DatabaseAuthority: stage.databaseAuthority, DatabasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()
 	return Result{}, nil
 }
