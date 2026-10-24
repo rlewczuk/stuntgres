@@ -49,4 +49,28 @@ cursor positioning to what the package owns.
 
 ## Status
 
-- 163: not started.
+- 163: done (`a172d7daf`, `36806a268`, then the docs commit).
+  - On `exec` (`cursor_motion.go`): `CursorPlace` with `CursorBefore`,
+    `CursorOn`, `CursorAfter` and `CursorFailed`; `CursorPosition` (`Place`,
+    `OrdinalPosition`, `AtEnd`, `CurrentSource`, `CurrentIndex`), embedded in
+    the root `sqlCursor`, with `Move` and `Rewind`; the `CursorProducer`
+    capability and the `CursorInput` value. The forward-only error is the
+    unexported `forwardCursorError`.
+  - The root implements the capability with `sqlCursorProducer` (the cursor
+    and its admitting scope) and builds the input in `motionInput`; FETCH,
+    MOVE and HOLD materialization call `Move` or `Rewind`.
+    `sql_cursor_motion.go` is gone.
+  - Deviations: the capability also has `Context()`, because motion read
+    `s.op.Context()` at each use and `Operation.Context` changes while COPY
+    input is held. The capability is a two-pointer value rather than
+    `*sqlCursor` reading the scope back from `authority.Host`, so the motion
+    never depends on the host field a nested statement could clear. Boxing it
+    costs one 16-byte allocation per live FETCH or MOVE statement, none per
+    row. `statement_host_dml.go` had no position-field uses.
+  - Root 401 → 400 files and 49.5k → 49.3k lines; `exec` gains 0.26k
+    production lines.
+  - Tests: `TestSQLCursorRetainedProducerReset` moved to `exec` as
+    `TestCursorRetainedProducerReset`; new `TestCursorStoreMotion` and
+    `TestCursorForwardProducerMotion` pin the seam. Root cursor, CURRENT OF,
+    `pg_cursors`, PL cursor and truncate units were adapted to the field
+    names only.

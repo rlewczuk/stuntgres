@@ -44,6 +44,14 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   refresh.
 - **Cursors and other sources**: `RowCursor` and `RowResult` (read by the
   driver), the foreign scan stage (`foreign_*.go`) and the `pg_sequences` stage.
+- **SQL cursor positioning** (`cursor_motion.go`): `CursorPosition` (embedded
+  in the root cursor) with its `CursorPlace`, and `Move` and `Rewind`, which
+  run FETCH and MOVE over a `CursorInput`: a live producer reached through the
+  `CursorProducer` capability (`Context`, `Open`, `Exhausted`), or a promoted
+  HOLD store. Motion takes no lock; its callers (FETCH, MOVE, PL cursor
+  motion and HOLD materialization) hold nothing, and the capability runs with
+  nothing held. A forward-only producer closes its stage, then reports
+  `Exhausted` once, at its end.
 - **Evaluation context** (`context*.go`, `node_runtime.go`, `aggregate.go`).
   `Context`, with its `EvalFrame`, `EvalStatement` and `EvalAdmission` groups,
   implements `expr.Context`, `plan.Runtime`, the `functions` runtimes,
@@ -238,15 +246,17 @@ Statement dispatch; query admission and capture (`query_admission.go`,
 `AdmitExpression` forwarders (they need `stored` and `table`, so they live in
 `view`); domain CHECK programme preparation; the `query_*_bind.go` binders and
 join legality; the DML prologues (executors are in [`dml`](../dml/README.md));
-data-modifying CTEs, CREATE TABLE AS, SQL cursors, portals and rule execution;
+data-modifying CTEs, CREATE TABLE AS, the SQL cursor registry, admission, HOLD
+materialization and disposal, portals and rule execution;
 `statementHost` and `enginePreparation`; query grouping admission. Callers name
 the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 ## Testing
 
 Package units cover the preparation seam, stored-view producers, source
-ownership, transition aggregates, ordered-aggregate sort cancellation, the
-pgcrypto notice host and `pgrowlocks` TIDs. Executor, row-lock, cursor,
+ownership, cursor motion (`RUN='^TestCursor'`), transition aggregates,
+ordered-aggregate sort cancellation, the pgcrypto notice host and `pgrowlocks`
+TIDs. Executor, row-lock, cursor,
 foreign-scan, preflight and routine-admission units build an `Engine` and stay
 in `internal/engine` (grep for `exec.OpenNode`); run row-lock, cursor,
 foreign-scan, CTE and detach selections with `RACE=1`. `InputDomainChecks`

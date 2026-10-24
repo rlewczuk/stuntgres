@@ -10,15 +10,14 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `077c060a8`.
+Last verified against `master` at `51f949fbf`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 161 (session, statement classification), 163 (exec, cursors) and 166
-  (ddl, CREATE DATABASE).
+- 161 (session, statement classification) and 166 (ddl, CREATE DATABASE).
 
 ## Linear plan
 
@@ -110,9 +109,15 @@ One item per session. Start one with "Implement Item N from Linear Plan in
 162. [ ] Session: statement data views —
      [session](ENGINE-SPLIT-session.md#item-162--statement-data-views) ·
      needs 161 · 0.17k
-163. [ ] Exec: SQL cursor positioning —
-     [exec](ENGINE-SPLIT-exec.md#item-163--sql-cursor-positioning) · needs — ·
-     0.20k
+163. [x] Exec: SQL cursor positioning —
+     [exec](ENGINE-SPLIT-exec.md#item-163--sql-cursor-positioning)
+     · needs — · 0.20k (`a172d7daf`, `36806a268`, then the docs commit) · root
+     401 → 400 files and 49.5k → 49.3k lines · no startup allocation change;
+     one 16-byte allocation per live FETCH/MOVE statement, none per row ·
+     targeted units (also `RACE=1`), quickcheck, `make deps` and the quick and
+     `REFERENCE=1` SQL cursor, DELETE/UPDATE CURRENT OF, server portal and
+     PL/pgSQL cursor selections passed; racecheck/finalcheck skipped at user
+     request
 164. [ ] Session: settings, DISCARD and setting calls —
      [session](ENGINE-SPLIT-session.md#item-164--settings-discard-and-setting-calls)
      · needs 161, 163 · 0.16k
