@@ -32,7 +32,7 @@ func TestPGCursorsSource(t *testing.T) {
 		return sqltype.Value{}, errors.New("metadata opened cursor producer")
 	})
 	source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: payloadOf(s).cursors}}, capturePGCursors)
-	if err != nil || len(source.Anonymous) != 1 || calls != 0 || cursor.Place != cursorBefore || cursor.stage != nil {
+	if err != nil || len(source.Anonymous) != 1 || calls != 0 || cursor.Place != exec.CursorBefore || cursor.stage != nil {
 		t.Fatal("metadata demanded producer", source, err, calls)
 	}
 	row := source.Anonymous[0]
@@ -96,7 +96,7 @@ func TestPGCursorsSource(t *testing.T) {
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
 	failed, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: payloadOf(s).cursors}}, capturePGCursors)
-	if err != nil || !reflect.DeepEqual(failed.Anonymous, source.Anonymous) || cursor.Place != cursorFailed || calls != 1 {
+	if err != nil || !reflect.DeepEqual(failed.Anonymous, source.Anonymous) || cursor.Place != exec.CursorFailed || calls != 1 {
 		t.Fatal("failed cursor metadata changed/demanded", failed, err, calls)
 	}
 

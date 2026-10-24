@@ -21,7 +21,7 @@ func (r *cursorRegistry) hasCurrentHold(ref ids.TxRef) bool {
 		return false
 	}
 	for _, c := range r.entries {
-		if c.hold && !c.promoted && c.tx == ref && c.Place != cursorFailed {
+		if c.hold && !c.promoted && c.tx == ref && c.Place != exec.CursorFailed {
 			return true
 		}
 	}
@@ -71,7 +71,7 @@ func (s *StatementScope) materializeHeldCursors() error {
 	// tests assert promotion independently of PostgreSQL's hash traversal order.
 	cursors := make([]*sqlCursor, 0, len(r.entries))
 	for _, c := range r.entries {
-		if c.hold && !c.promoted && c.tx == s.txRef && c.Place != cursorFailed {
+		if c.hold && !c.promoted && c.tx == s.txRef && c.Place != exec.CursorFailed {
 			cursors = append(cursors, c)
 		}
 	}
@@ -178,7 +178,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		s.routineDependencies = nil
 		authority.Host = nil
 		if err != nil {
-			c.Place = cursorFailed
+			c.Place = exec.CursorFailed
 			_ = c.dispose(s.op.Context())
 		}
 	}()
@@ -195,7 +195,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		}
 		offset = 0
 	}
-	if c.Place != cursorAfter {
+	if c.Place != exec.CursorAfter {
 		if err = c.openProducer(s); err != nil {
 			return err
 		}
@@ -278,7 +278,7 @@ func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog ca
 func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor) (result Result, err error) {
 	defer func() {
 		if err != nil {
-			c.Place = cursorFailed
+			c.Place = exec.CursorFailed
 			_ = c.dispose(s.op.Context())
 		}
 	}()

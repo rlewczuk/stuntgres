@@ -188,7 +188,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 		cursorUnitBatch(t, s, "FETCH ALL FROM e", [][]driver.Value{})
 		c := payloadOf(s).cursors.entries["e"]
 		sessionSQL(t, s, "COMMIT")
-		if !c.promoted || c.count != 0 || c.OrdinalPosition != 0 || !c.AtEnd || c.Place != cursorAfter {
+		if !c.promoted || c.count != 0 || c.OrdinalPosition != 0 || !c.AtEnd || c.Place != exec.CursorAfter {
 			t.Fatal("empty SCROLL export loses attempted EOF", c)
 		}
 		empty := cursorUnitBatch(t, s, "FETCH PRIOR FROM e", [][]driver.Value{})

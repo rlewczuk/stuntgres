@@ -1,51 +1,55 @@
-package engine
+package exec
 
 import (
 	"context"
 	"fmt"
 	"slices"
-	"stuntgres/internal/engine/exec"
+
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type cursorPlace uint8
+// CursorPlace is where a SQL cursor stands relative to its rows. A failed
+// cursor can no longer run.
+type CursorPlace uint8
 
 const (
-	cursorBefore cursorPlace = iota
-	cursorOn
-	cursorAfter
-	cursorFailed
+	CursorBefore CursorPlace = iota
+	CursorOn
+	CursorAfter
+	CursorFailed
 )
 
-// sqlCursorPosition is where a cursor stands. CurrentSource and CurrentIndex
+// CursorPosition is a SQL cursor's position: the state FETCH, MOVE, portal
+// Execute and HOLD materialization read and advance. OrdinalPosition counts
+// the rows before the next forward row. CurrentSource and CurrentIndex
 // name the current row's occurrence for CURRENT OF; they are nil and zero off
 // a row and after HOLD promotion.
-type sqlCursorPosition struct {
-	Place           cursorPlace
+type CursorPosition struct {
+	Place           CursorPlace
 	OrdinalPosition int64
 	AtEnd           bool
-	CurrentSource   *exec.Source
+	CurrentSource   *Source
 	CurrentIndex    int
 }
 
-// cursorProducer is a live cursor's producer for one admitted motion. Context
+// CursorProducer is a live cursor's producer for one admitted motion. Context
 // is read at each use. Open opens the stage on first use and returns it.
 // Exhausted runs once a forward-only producer reached its end and its stage
 // closed. All three run with nothing held.
-type cursorProducer interface {
+type CursorProducer interface {
 	Context() context.Context
-	Open() (*exec.Stage, error)
+	Open() (*Stage, error)
 	Exhausted() error
 }
 
-// cursorInput is what one motion reads: a live producer before HOLD
+// CursorInput is what one motion reads: a live producer before HOLD
 // promotion (Stage is nil until opened), the promoted store after it (Count
 // rows of Width values, the first at ordinal Offset).
-type cursorInput struct {
-	Producer cursorProducer
-	Stage    *exec.Stage
+type CursorInput struct {
+	Producer CursorProducer
+	Stage    *Stage
 	Store    []sqltype.Value
 	Count    int
 	Offset   int64
@@ -53,33 +57,33 @@ type cursorInput struct {
 	Scroll   bool
 }
 
-func forwardSQLCursorError() error {
+func forwardCursorError() error {
 	err := sqlError("55000", "cursor can only scan forward")
 	err.(*sqlstate.Error).Hint = "Declare it with SCROLL option to enable backward scan."
 	return err
 }
 
 // Rewind changes demand in the retained producer tree, never its binding or frame.
-func (p *sqlCursorPosition) Rewind(in cursorInput) error {
+func (p *CursorPosition) Rewind(in CursorInput) error {
 	if p.OrdinalPosition == 0 && !p.AtEnd {
 		return nil
 	}
 	if !in.Scroll {
-		return forwardSQLCursorError()
+		return forwardCursorError()
 	}
 	if in.Stage != nil {
 		if _, err := in.Stage.Rewind(in.Producer.Context()); err != nil {
 			return err
 		}
 	}
-	p.OrdinalPosition, p.AtEnd, p.Place = 0, false, cursorBefore
+	p.OrdinalPosition, p.AtEnd, p.Place = 0, false, CursorBefore
 	p.CurrentSource, p.CurrentIndex = nil, 0
 	return nil
 }
 
-func (p *sqlCursorPosition) run(in *cursorInput, backward bool, count int64, all bool, rows *exec.FinalRows) (int64, error) {
+func (p *CursorPosition) run(in *CursorInput, backward bool, count int64, all bool, rows *FinalRows) (int64, error) {
 	if backward && !in.Scroll {
-		return 0, forwardSQLCursorError()
+		return 0, forwardCursorError()
 	}
 	promoted := in.Producer == nil
 	var moved int64
@@ -101,7 +105,7 @@ func (p *sqlCursorPosition) run(in *cursorInput, backward bool, count int64, all
 				ordinal--
 			}
 			if ordinal < 0 {
-				p.OrdinalPosition, p.Place, p.AtEnd = 0, cursorBefore, false
+				p.OrdinalPosition, p.Place, p.AtEnd = 0, CursorBefore, false
 				p.CurrentSource, p.CurrentIndex = nil, 0
 				break
 			}
@@ -154,7 +158,7 @@ func (p *sqlCursorPosition) run(in *cursorInput, backward bool, count int64, all
 					return 0, err
 				}
 			}
-			p.Place, p.AtEnd = cursorAfter, true
+			p.Place, p.AtEnd = CursorAfter, true
 			p.CurrentSource, p.CurrentIndex = nil, 0
 			break
 		}
@@ -162,7 +166,7 @@ func (p *sqlCursorPosition) run(in *cursorInput, backward bool, count int64, all
 		if rows != nil {
 			rows.Count++
 		}
-		p.OrdinalPosition, p.AtEnd, p.Place = ordinal+1, false, cursorOn
+		p.OrdinalPosition, p.AtEnd, p.Place = ordinal+1, false, CursorOn
 		if !promoted {
 			p.CurrentSource, p.CurrentIndex = in.Stage.Source, in.Stage.Index(int(ordinal))
 		}
@@ -172,7 +176,7 @@ func (p *sqlCursorPosition) run(in *cursorInput, backward bool, count int64, all
 
 // Move runs one FETCH or MOVE and returns its row count. Fetched rows are
 // appended to rows; MOVE passes nil.
-func (p *sqlCursorPosition) Move(m *parser.FetchCursor, rows *exec.FinalRows, in cursorInput) (int64, error) {
+func (p *CursorPosition) Move(m *parser.FetchCursor, rows *FinalRows, in CursorInput) (int64, error) {
 	count := m.Count
 	direction := m.Direction
 	if direction == parser.CursorRelative && count != 0 {
@@ -232,22 +236,22 @@ func (p *sqlCursorPosition) Move(m *parser.FetchCursor, rows *exec.FinalRows, in
 	}
 	if m.Move && backward && m.All {
 		n := p.OrdinalPosition
-		if p.Place == cursorOn {
+		if p.Place == CursorOn {
 			n--
 		}
 		return n, p.Rewind(in)
 	}
 	if !m.All && count == 0 {
 		if m.Move {
-			if p.Place == cursorOn {
+			if p.Place == CursorOn {
 				return 1, nil
 			}
 			return 0, nil
 		}
 		if backward && !in.Scroll {
-			return 0, forwardSQLCursorError()
+			return 0, forwardCursorError()
 		}
-		if p.Place != cursorOn {
+		if p.Place != CursorOn {
 			return 0, nil
 		}
 		if _, err := p.run(&in, true, 1, false, nil); err != nil {

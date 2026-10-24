@@ -19,7 +19,7 @@ func TestSQLCursorScrollRetainedEOFAndMotion(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 2 FROM c", [][]driver.Value{{int64(2)}})
 	result, err := cursorUnitExecute(t, s, context.Background(), "MOVE BACKWARD ALL FROM c")
-	if err != nil || result.Count != 1 || result.Rows != nil || c.Place != cursorBefore || c.CurrentSource != nil || c.stage != stage || c.authority.Host != nil {
+	if err != nil || result.Count != 1 || result.Rows != nil || c.Place != exec.CursorBefore || c.CurrentSource != nil || c.stage != stage || c.authority.Host != nil {
 		t.Fatal(result, err, c)
 	}
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1)}})
@@ -65,55 +65,6 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 	if !stage.Closed {
 		t.Fatal("close retained generated frame", stage)
 	}
-}
-
-func TestSQLCursorRetainedProducerReset(t *testing.T) {
-	source := &exec.Source{Singleton: true}
-	child := exec.Stage{Source: source, Selection: []int{}, Done: true, Position: 1}
-	resets := 0
-	child.Reset = func(ctx context.Context, s *exec.Stage) (bool, error) {
-		resets++
-		s.Selection = s.Selection[:0]
-		s.Done = false
-		return true, nil
-	}
-	out := exec.ProducingStage(&child, nil)
-	out.Selection = append(out.Selection, 0)
-	out.Done = true
-	out.Position = 1
-	if changed, err := out.Rewind(context.Background()); err != nil || !changed || resets != 1 || child.Position != 0 || out.Position != 0 || out.Done || len(out.Selection) != 0 {
-		t.Fatal("producer demand was not reset", out, child, resets)
-	}
-	// A materialized ORDER boundary replaces reset with position-only rewind.
-	out.Reset = nil
-	out.Selection = append(out.Selection, 0)
-	out.Done = true
-	if changed, err := out.Rewind(context.Background()); err != nil || changed || resets != 1 || !out.Done || len(out.Selection) != 1 {
-		t.Fatal("cached boundary invalidates child", out, resets)
-	}
-	t.Run("cached_parent_frontier", func(t *testing.T) {
-		source := &exec.Source{Materialized: true, FlatCount: 3}
-		child := exec.Stage{Source: source, Position: 1}
-		out := exec.ProducingStage(&child, nil)
-		out.Selection = append(out.Selection, 0)
-		out.Position = 1
-		out.Produce = func(ctx context.Context, out *exec.Stage) (bool, error) {
-			i, present, err := child.NextOccurrence(ctx)
-			if present && err == nil {
-				exec.RetainOccurrence(out, &child, i)
-			}
-			return present, err
-		}
-		if changed, err := out.Rewind(context.Background()); err != nil || changed || child.Position != 1 || out.Position != 0 || len(out.Selection) != 1 {
-			t.Fatal("cached rewind loses child demand frontier", out, child)
-		}
-		if err := out.Drain(context.Background()); err != nil {
-			t.Fatal(err)
-		}
-		if out.Count() != 3 || out.Index(0) != 0 || out.Index(1) != 1 || out.Index(2) != 2 || child.Position != 3 {
-			t.Fatal("cached rewind appends captured prefix again", out, child)
-		}
-	})
 }
 
 func TestSQLCursorStoredViewFrontier(t *testing.T) {

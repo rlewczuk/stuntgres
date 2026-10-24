@@ -338,7 +338,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 			}
 			if oid == pgcatalog.CursorsOID {
 				name, _ := source.Anonymous[0][0].Text()
-				if name != "producer_runtime" || cursor.Place != cursorBefore || cursor.stage != nil {
+				if name != "producer_runtime" || cursor.Place != exec.CursorBefore || cursor.stage != nil {
 					t.Fatal("metadata dispatch demanded or replaced cursor")
 				}
 			} else {

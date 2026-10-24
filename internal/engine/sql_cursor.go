@@ -25,7 +25,7 @@ type cursorRegistry struct {
 }
 
 type sqlCursor struct {
-	sqlCursorPosition
+	exec.CursorPosition
 	tx                                          ids.TxRef
 	ordinal                                     uint64
 	epoch                                       ids.CatalogEpoch
@@ -155,7 +155,7 @@ func (r *cursorRegistry) rollback(mark uint64) []*sqlCursor {
 func disposeSQLCursors(ctx context.Context, cursors []*sqlCursor) error {
 	var failure error
 	for _, cursor := range cursors {
-		alreadyFailed := cursor.Place == cursorFailed
+		alreadyFailed := cursor.Place == exec.CursorFailed
 		if err := cursor.dispose(ctx); failure == nil && !alreadyFailed {
 			failure = err
 		}
@@ -268,7 +268,7 @@ type sqlCursorProducer struct {
 	scope  *StatementScope
 }
 
-var _ cursorProducer = sqlCursorProducer{}
+var _ exec.CursorProducer = sqlCursorProducer{}
 
 func (p sqlCursorProducer) Context() context.Context { return p.scope.op.Context() }
 func (p sqlCursorProducer) Open() (*exec.Stage, error) {
@@ -283,8 +283,8 @@ func (p sqlCursorProducer) Exhausted() error {
 
 // motionInput is the input of one motion admitted by s. A promoted cursor
 // reads its store and has no producer.
-func (c *sqlCursor) motionInput(s *StatementScope) cursorInput {
-	in := cursorInput{Stage: c.stage, Store: c.values, Count: c.count, Offset: c.storeOffset, Width: len(c.schema), Scroll: c.scroll}
+func (c *sqlCursor) motionInput(s *StatementScope) exec.CursorInput {
+	in := exec.CursorInput{Stage: c.stage, Store: c.values, Count: c.count, Offset: c.storeOffset, Width: len(c.schema), Scroll: c.scroll}
 	if !c.promoted {
 		in.Producer = sqlCursorProducer{cursor: c, scope: s}
 	}
@@ -362,7 +362,7 @@ func (s *StatementScope) validateCursorPortal(c *sqlCursor, name string) error {
 	if c.epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if c.Place == cursorFailed {
+	if c.Place == exec.CursorFailed {
 		return sqlError("55000", fmt.Sprintf("portal %q cannot be run", name))
 	}
 	return nil
@@ -391,7 +391,7 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 		s.routineAuth = AuthorizationView{}
 		s.routineDependencies = nil
 		if err != nil {
-			c.Place = cursorFailed
+			c.Place = exec.CursorFailed
 			_ = c.dispose(s.op.Context())
 		}
 		c.authority.Host = nil

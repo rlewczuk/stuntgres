@@ -28,12 +28,12 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	}
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
-	if c.CurrentSource != source || c.CurrentIndex != index || c.root != root || c.Place != cursorOn || c.authority.Host != nil || exec.CursorOccurrenceVersion(source, index, 0, c.locks).Row != want {
+	if c.CurrentSource != source || c.CurrentIndex != index || c.root != root || c.Place != exec.CursorOn || c.authority.Host != nil || exec.CursorOccurrenceVersion(source, index, 0, c.locks).Row != want {
 		t.Fatal("UPDATE consumed or replaced borrowed cursor authority")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 3, 22)
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
-	if c.Place != cursorOn {
+	if c.Place != exec.CursorOn {
 		t.Fatal("bounded FETCH probed EOF")
 	}
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
@@ -109,7 +109,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 		}
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	if payloadOf(s).cursors.entries["c"] != c || c.Place != cursorOn || c.authority.Host != nil {
+	if payloadOf(s).cursors.entries["c"] != c || c.Place != exec.CursorOn || c.authority.Host != nil {
 		t.Fatal("mutation cancellation invalidated healthy cursor")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
@@ -207,7 +207,7 @@ func TestUpdateCurrentOfLifetime(t *testing.T) {
 	}
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM unit_rows")
 	fresh := payloadOf(s).cursors.entries["c"]
-	if fresh == old || fresh.CurrentSource != nil || fresh.Place != cursorBefore {
+	if fresh == old || fresh.CurrentSource != nil || fresh.Place != exec.CursorBefore {
 		t.Fatal("new name incarnation inherited position")
 	}
 	sessionSQL(t, s, "ROLLBACK")

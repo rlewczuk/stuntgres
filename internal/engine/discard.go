@@ -5,6 +5,7 @@ import (
 	"sort"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -287,7 +288,7 @@ func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, ad
 func (s *StatementScope) relationCursorPreflight(catalog catalog.Read, address ids.ObjectAddress, command string) error {
 	session := s.op.Session
 	for _, cursor := range payloadOf(session).cursors.entries {
-		if cursor.tx != s.txRef || cursor.root == nil || cursor.Place == cursorFailed {
+		if cursor.tx != s.txRef || cursor.root == nil || cursor.Place == exec.CursorFailed {
 			continue
 		}
 		for _, leaf := range cursor.leaves {

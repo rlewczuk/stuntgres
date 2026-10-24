@@ -19,7 +19,7 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 AS projected FROM unit_rows ORDER BY i FOR UPDATE")
 	c := payloadOf(s).cursors.entries["c"]
 	cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(99)}, {int64(99)}})
-	if c.authority.Host != nil || c.CurrentSource == nil || c.Place != cursorOn {
+	if c.authority.Host != nil || c.CurrentSource == nil || c.Place != exec.CursorOn {
 		t.Fatal("FETCH retained admission or lost physical occurrence", c)
 	}
 	ref := catalogRef(t, engineOf(s), engineOf(s).CatalogRead(), "unit_rows")
@@ -36,11 +36,11 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 	}
 	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 0)
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
-	if c.Place != cursorOn || c.CurrentSource == nil {
+	if c.Place != exec.CursorOn || c.CurrentSource == nil {
 		t.Fatal("bounded final row probed EOF")
 	}
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{})
-	if c.Place != cursorAfter || c.CurrentSource != nil {
+	if c.Place != exec.CursorAfter || c.CurrentSource != nil {
 		t.Fatal("EOF retains current physical authority")
 	}
 }
@@ -134,7 +134,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 		t.Fatal("canceled Finish published private deletion", err)
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	if payloadOf(s).cursors.entries["c"] != cursor || cursor.Place != cursorOn || cursor.authority.Host != nil {
+	if payloadOf(s).cursors.entries["c"] != cursor || cursor.Place != exec.CursorOn || cursor.authority.Host != nil {
 		t.Fatal("mutation cancellation failed healthy cursor")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
@@ -205,7 +205,7 @@ func TestDeleteCurrentOfLifetime(t *testing.T) {
 	}
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM unit_rows")
 	fresh := payloadOf(s).cursors.entries["c"]
-	if fresh == old || fresh.CurrentSource != nil || fresh.Place != cursorBefore {
+	if fresh == old || fresh.CurrentSource != nil || fresh.Place != exec.CursorBefore {
 		t.Fatal("name incarnation inherited current identity")
 	}
 	sessionSQL(t, s, "ROLLBACK")
@@ -252,7 +252,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 					break
 				}
 			}
-			if source == nil || c.authority.Host != nil || c.Place != cursorOn {
+			if source == nil || c.authority.Host != nil || c.Place != exec.CursorOn {
 				t.Fatal("FETCH lost retained lineage or retained admission")
 			}
 			if tc.join {
