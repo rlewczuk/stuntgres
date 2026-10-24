@@ -373,7 +373,7 @@ func TestTriggerDDLAdmission(t *testing.T) {
 		mode        lock.Mode
 		transaction bool
 	}{
-		{&parser.CreateTrigger{Table: name}, lock.ShareRowExclusive, false},
+		{&parser.CreateTrigger{Table: name}, lock.ShareRowExclusive, true},
 		{&parser.AlterTrigger{Table: name, Action: "rename"}, lock.AccessExclusive, true},
 		{&parser.AlterTrigger{Table: name, Action: "depends"}, lock.AccessShare, true},
 		{&parser.DropTrigger{Table: name}, lock.AccessShare, true},

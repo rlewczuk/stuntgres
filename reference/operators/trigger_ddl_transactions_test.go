@@ -9,6 +9,22 @@ import (
 )
 
 func TestReferenceTriggerDDLTransactions(t *testing.T) {
+	t.Run("replacement-commit", func(t *testing.T) {
+		triggerDDLScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+			triggerSetup(t, p, b, c)
+			userOperatorExec(t, p, b, c, "CREATE EXTENSION unaccent", "CREATE TRIGGER a BEFORE INSERT ON tr_data FOR EACH ROW EXECUTE FUNCTION tr_double()", "ALTER TRIGGER a ON tr_data DEPENDS ON EXTENSION unaccent")
+			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
+			defer c.ExecContext(context.Background(), "ROLLBACK")
+			run(fixture.Exec("BEGIN", 0))
+			run(fixture.Exec("CREATE OR REPLACE TRIGGER a BEFORE INSERT ON tr_data FOR EACH ROW EXECUTE FUNCTION tr_add(7)", 0))
+			run(triggerDDLX("tr_data", "unaccent", 0))
+			run(triggerRows("INSERT INTO tr_data VALUES(1,5) RETURNING id,v", []any{int64(1), int64(12)}))
+			run(fixture.Exec("COMMIT", 0))
+			run(fixture.Exec("DROP EXTENSION unaccent RESTRICT", 0))
+			run(triggerRows("INSERT INTO tr_data VALUES(2,5) RETURNING id,v", []any{int64(2), int64(12)}))
+			run(triggerRows("SELECT id,v FROM tr_data ORDER BY id", []any{int64(1), int64(12)}, []any{int64(2), int64(12)}))
+		})
+	})
 	t.Run("private-chain", func(t *testing.T) {
 		triggerDDLScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 			triggerDDLChain(t, p, b, c)
@@ -64,6 +80,29 @@ func TestReferenceTriggerDDLTransactions(t *testing.T) {
 			run(triggerDDLX("tr_data", "unaccent", 0))
 			run(fixture.Exec("ALTER TRIGGER a ON tr_data DEPENDS ON EXTENSION unaccent", 0))
 			observe(1)
+			identityQuery := "SELECT objid::bigint AS oid FROM pg_depend WHERE classid=2620 AND objsubid=0 AND refclassid=1259 AND refobjid='tr_data'::regclass::oid AND deptype='a'"
+			var originalOID int64
+			if err := c.QueryRowContext(p.Ctx, identityQuery).Scan(&originalOID); err != nil || originalOID <= 0 {
+				t.Fatal(originalOID, err)
+			}
+			identity := func() { run(fixture.Select(identityQuery, []string{"oid"}, []string{"INT8"}, [][]any{{originalOID}})) }
+			run(fixture.Exec("BEGIN", 0))
+			run(fixture.Exec("SAVEPOINT replacement", 0))
+			replace := "CREATE OR REPLACE TRIGGER a BEFORE INSERT ON tr_data FOR EACH ROW EXECUTE FUNCTION tr_add(7)"
+			held := triggerDDLHeld(t, p, b, c, replace)
+			for i := int64(0); i < 2; i++ {
+				held(fixture.Exec(replace, 0))
+				run(triggerDDLX("tr_data", "unaccent", 0))
+				identity()
+				observe(1)
+				run(triggerRows("INSERT INTO tr_data VALUES(90,5) RETURNING id,v", []any{int64(90), int64(12)}))
+				run(fixture.Exec("ROLLBACK TO replacement", 0))
+				run(triggerDDLX("tr_data", "unaccent", 1))
+				identity()
+				run(triggerRows("SELECT id,v FROM tr_data WHERE id=90"))
+			}
+			run(triggerRows("INSERT INTO tr_data VALUES(91,5) RETURNING id,v", []any{int64(91), int64(10)}))
+			run(fixture.Exec("ROLLBACK", 0))
 			run(fixture.Exec("BEGIN", 0))
 			run(fixture.Prepared(fixture.Exec("ALTER TRIGGER a ON tr_data NO DEPENDS ON EXTENSION unaccent", 0)))
 			run(triggerDDLX("tr_data", "unaccent", 0))

@@ -18,6 +18,8 @@ func TestTransactionalSchemaAdmission(t *testing.T) {
 		&parser.RefreshMaterializedView{}, parsedStatement(t, "REFRESH MATERIALIZED VIEW CONCURRENTLY admission_mv"),
 		&parser.CreateComposite{}, &parser.CreateDomain{}, &parser.AlterDomain{}, &parser.AlterComposite{},
 		&parser.AlterType{}, &parser.DropDomain{}, &parser.DropType{},
+		&parser.CreateTrigger{}, parsedStatement(t, "CREATE OR REPLACE TRIGGER admission BEFORE INSERT ON admission_t FOR EACH ROW EXECUTE FUNCTION admission_fn()"),
+		&parser.AlterTrigger{Action: "rename"}, &parser.AlterTrigger{Action: "depends"}, &parser.AlterTrigger{Action: "no_depends"}, &parser.DropTrigger{},
 	} {
 		if !TransactionalSchemaUtility(stmt) {
 			t.Errorf("missing admission: %T", stmt)

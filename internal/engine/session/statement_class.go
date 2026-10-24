@@ -271,7 +271,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 // source.
 func TransactionalSchemaUtility(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
-	case *parser.AlterTrigger, *parser.DropTrigger:
+	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger:
 		return true
 	case *parser.CreateTable, *parser.DropTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema,
 		*parser.AlterTable, *parser.AlterTableRenameTable, *parser.AlterTableRenameColumn,

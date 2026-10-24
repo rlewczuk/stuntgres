@@ -20,9 +20,16 @@ Lifetime witnesses combine supported routine/relation/column rename with
 dependency RESTRICT/CASCADE/drop-recreate routes. A competing function reusing
 the original name must not retarget an installed trigger, including two native
 replacement rounds and unchanged-stream PostgreSQL replay.
-Trigger lifecycle scenarios cover rename ordering and held handles, table-local
-DROP identity, ownership/notices, automatic extension retirement, stable partition
-clones, private transaction/savepoint chains and unchanged-stream native replay.
+Trigger definition and lifecycle scenarios cover autocommit, SQL and Go
+transactions through direct and held handles, private firing and savepoint
+recovery, ownership/notices, automatic extension retirement and stable partition
+clones. Lock witnesses cover descendant admission, cancellation and owner end;
+native-control phases check committed-only Dump, replacement fencing and
+unchanged-stream PostgreSQL replay.
+Trigger protocol scenarios use the real server fixture for simple messages,
+separate quiet Parse/Describe and Bind/Describe phases, utility Execute and
+server-backed Go transactions. Held DML observes private and committed trigger
+changes with exact completion/Ready states and atomic message rollback.
 Generated partition CREATE/ATTACH boundaries are asserted explicitly; movement
 semantics use nongenerated partitions, while ordinary-table Ordering covers
 generation after BEFORE transformation.
@@ -49,6 +56,15 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   helpers `castDefinitionSource`, `castDefinitionScore`, `castDefinitionEdge`,
   `castDefinitionCleanup`, `castDefinitionFrozenReplayChecks` and
   `castDefinitionReplaySQL`, which stay private to this package.
+- Trigger helpers: `triggerScenario`/`triggerDDLScenario` own configured-backend
+  loops, `triggerSetup` and `triggerDDLChain` provide shared definitions, and
+  `triggerRows`, `triggerDDLHeld`, `triggerDDLError` and `triggerDDLX` assert
+  metadata, actual retained-handle execution, diagnostics and extension edges.
+- Trigger protocol helpers use `fixture.NewServerFixture` for process, backend
+  and credential ownership. The local `triggerProtocolWire` uses public pgconn
+  startup/authentication and typed pgproto3 messages; each received message is
+  encoded into owned bytes before another receive can reuse its flyweight fields.
+  Keep these helpers test-focused, without importing the sessions-private harness.
 - `fixture/regoperator.go` (`RegOperatorRows`, `Metadata`, `DiagnosticRoutes`,
   `Error`, `Literal`, `Context`) is shared with `reference/type_resolution`; after
   changing it, run both packages' alias selectors.
@@ -84,6 +100,7 @@ Add `REFERENCE=1` for the oracle.
 - <a id="cast-definitions"></a>CREATE CAST definitions: `RUN='^TestReferenceCastDefinition'`
 - Row-level triggers: `RUN='^TestReferenceTriggerCore'`
 - Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`
+- Transactional trigger integration and protocol: `RUN='^TestReferenceTransactionalTrigger'`
 
 ### PL/pgSQL core
 

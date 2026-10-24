@@ -7,11 +7,15 @@ native Dump/Restore and the wire protocol. Subsystem logic lives in layered
 subpackages ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SPLIT.md) §3) that never
 import the root and reach it through the hosts below.
 
-Trigger lifecycle utilities publish immutable relation payloads through the
-ordinary catalog stage. Rename admits AccessExclusive on the root and each
-partition before mutation; addressed DROP and extension metadata use the generic
-AccessShare target admission. Ownership is table authority, not trigger-creation
-or routine-execution grants. Clone synchronization preserves exact Parent/OID
+Trigger definitions and lifecycle utilities publish immutable relation payloads
+through the ordinary catalog stage and transaction journal. Definitions,
+dependencies and row effects commit together or restore at rollback/savepoints;
+each DML activation captures the current owner-private trigger list, not a list
+cached by its prepared handle. CREATE/REPLACE admits ShareRowExclusive on the
+root and descendants; rename admits AccessExclusive before mutation. Addressed
+DROP and extension metadata use the generic AccessShare target admission.
+Creation checks table TRIGGER and function EXECUTE grants; lifecycle ownership
+requires table authority. Clone synchronization preserves exact Parent/OID
 identity and fails a descendant name collision before publication. Extension x
 retirement uses the shared dependency closure, including the partition-owner
 deletion guard; CASCADE does not grant upward partition deletion authority.
@@ -256,10 +260,9 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   view and materialized-view DDL (including ordinary/concurrent REFRESH), domain/
   composite creation and alterations, and type/domain identity/drop that Describe
   and Execute run on the existing transaction journal
-  ([policy](session/README.md#what-it-owns)). CREATE TRIGGER retains its independent
-  utility policy. Generic OWNER admits only tables; feature-specific view/
-  materialized OWNER is AlterView. Concurrent index variants keep their independent
-  restrictions.
+  ([policy](session/README.md#what-it-owns)). Generic OWNER admits only tables;
+  feature-specific view/materialized OWNER is AlterView. Concurrent index variants
+  keep their independent restrictions.
 - Ordinary non-concurrent CREATE INDEX (including UNIQUE and shipped methods)
   is admitted separately at Execute. It uses the same private catalog/storage,
   journal, Finish and combined publication path as table/schema DDL. Its canonical

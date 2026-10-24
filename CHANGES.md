@@ -1,3 +1,8 @@
+BEFORE row trigger CREATE/REPLACE now shares SQL and Go transactions with existing
+rename, DROP and extension dependencies, including private firing, savepoint
+recovery and atomic definition/row publication. CREATE/REPLACE retains
+ShareRowExclusive locks on partition descendants through transaction end.
+
 Ordinary and concurrent REFRESH MATERIALIZED VIEW now participate in SQL BEGIN
 and Go BeginTx as well as autocommit. Source writes, stored rows, indexes and
 population commit or roll back together, including savepoint recovery, with
