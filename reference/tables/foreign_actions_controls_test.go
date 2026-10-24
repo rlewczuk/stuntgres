@@ -3,6 +3,8 @@ package reference_test
 import (
 	"bytes"
 	"context"
+	"errors"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -30,22 +32,67 @@ func TestReferenceForeignActionsTransactionsTwoPhase(t *testing.T) {
 					fixture.RowAffected(t, p.Ctx, a, q, true, 1)
 					fixture.PreparedReferencePrepare(t, p, b, a, "foreign_action_holds")
 					fixture.PreparedReferenceOne(t, p, waiter, "foreign_action_holds")
-					// The parent statement has ended. The internally modified child
-					// grant must still block this unrelated public child writer.
+					// Probe interruption separately from the observed admission/release
+					// witness below: neither observer must race the 100ms deadline.
 					ctx, cancel := context.WithTimeout(p.Ctx, 100*time.Millisecond)
+					defer cancel()
 					o := fixture.RowExecute(ctx, waiter, "UPDATE c SET note='later' WHERE id=10", false)
-					if o.Err == nil || ctx.Err() != context.DeadlineExceeded {
-						cancel()
-						t.Fatal("prepared child grant was released", o.Err, ctx.Err())
+					if b.PG {
+						got := fixture.ExtractDiagnostic(t, o.Err)
+						// Heap coordinates vary; the action and relation must not.
+						pattern := regexp.MustCompile(`^while updating tuple \([0-9]+,[1-9][0-9]*\) in relation "c"$`)
+						if !pattern.MatchString(got.Context) {
+							t.Fatalf("prepared child interruption Context got %q", got.Context)
+						}
+						want := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to user request")
+						want.Context = got.Context
+						fixture.AssertDiagnostic(t, o.Err, &want)
+					} else if !errors.Is(o.Err, context.DeadlineExceeded) || o.Result != nil {
+						t.Fatal("prepared child probe did not time out without a result", o.Err, o.Result)
+					}
+					<-ctx.Done()
+					ctxErr := ctx.Err()
+					if ctxErr != context.DeadlineExceeded {
+						t.Fatal("prepared child probe context", ctxErr)
 					}
 					cancel()
-					run(fixture.Exec(completion+" PREPARED 'foreign_action_holds'", 0))
-					fixture.PreparedReferenceAbsent(t, p, b.DB, "foreign_action_holds")
+					if err := waiter.Close(); err != nil {
+						t.Fatal(err)
+					}
+					fixture.PreparedReferenceOne(t, p, a, "foreign_action_holds")
+					control, writer := fixture.LockConnections(t, p.Ctx, b.DB)
+					var waiterPID int
+					if b.PG {
+						waiterPID = fixture.LockPID(t, p.Ctx, writer)
+					}
+					completed := make(chan struct{})
+					join := fixture.LockOperation(t, p.Ctx, func(workerCtx context.Context) fixture.RelationOutcome {
+						defer close(completed)
+						return fixture.RowExecute(workerCtx, writer, "UPDATE c SET note='later' WHERE id=10", true)
+					})
+					if b.PG {
+						observeCtx, observeCancel := context.WithTimeout(p.Ctx, 3*time.Second)
+						defer observeCancel()
+						fixture.RowWait(t, observeCtx, waiterPID, 0)
+					} else {
+						fixture.NativeUpdateRowWait(t, p.Ctx, completed)
+					}
+					select {
+					case <-completed:
+						t.Fatal("prepared child writer completed before prepared resolution")
+					default:
+					}
+					fixture.LockExec(t, p.Ctx, control, completion+" PREPARED 'foreign_action_holds'", 0)
+					outcome := join()
+					if outcome.Err != nil {
+						t.Fatal(outcome.Err)
+					}
+					fixture.PreparedReferenceAbsent(t, p, control, "foreign_action_holds")
 					count := int64(1)
 					if direction == "DELETE" && completion == "COMMIT" {
 						count = 0
 					}
-					run(fixture.Prepared(fixture.Exec("UPDATE c SET note='later' WHERE id=10", count)))
+					fixture.LockAffected(t, outcome.Result, count)
 					var rows [][]any
 					if count != 0 {
 						pid := int64(1)

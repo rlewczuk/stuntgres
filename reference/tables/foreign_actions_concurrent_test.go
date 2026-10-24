@@ -3,7 +3,9 @@ package reference_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -213,12 +215,30 @@ func TestReferenceForeignActionsCancellation(t *testing.T) {
 			defer holder.Rollback()
 			fixture.RowAffected(t, p.Ctx, holder, "UPDATE c SET id=id WHERE id=20", false, 1)
 			ctx, cancel := context.WithTimeout(p.Ctx, 100*time.Millisecond)
+			defer cancel()
 			o := fixture.RowExecute(ctx, z, "DELETE FROM p", prepared)
-			if o.Err == nil || ctx.Err() != context.DeadlineExceeded {
-				cancel()
-				t.Fatal("blocked action did not cancel", o.Err, ctx.Err())
+			if b.PG {
+				got := fixture.ExtractDiagnostic(t, o.Err)
+				// Only the physical tuple coordinates vary in this cascade.
+				pattern := regexp.MustCompile(`^while deleting tuple \([0-9]+,[1-9][0-9]*\) in relation "c"\nSQL statement "DELETE FROM ONLY "public"\."c" WHERE \$1 OPERATOR\(pg_catalog\.=\) "pid""$`)
+				if !pattern.MatchString(got.Context) {
+					t.Fatalf("blocked action interruption Context got %q", got.Context)
+				}
+				want := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to user request")
+				want.Context = got.Context
+				fixture.AssertDiagnostic(t, o.Err, &want)
+			} else if !errors.Is(o.Err, context.DeadlineExceeded) || o.Result != nil {
+				t.Fatal("blocked action did not cancel without a result", o.Err, o.Result)
+			}
+			<-ctx.Done()
+			ctxErr := ctx.Err()
+			if ctxErr != context.DeadlineExceeded {
+				t.Fatal("blocked action context", ctxErr)
 			}
 			cancel()
+			if err = z.Close(); err != nil {
+				t.Fatal(err)
+			}
 			if err = holder.Rollback(); err != nil {
 				t.Fatal(err)
 			}

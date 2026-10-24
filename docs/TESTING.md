@@ -116,9 +116,18 @@ package share one container, so **never use `t.Parallel()`**. Each package's
   time out: dispose of the armed owner instead of resetting it, and never raise the
   timer or retry.
 - **Cancellation.** Native pre-canceled and expired routes return ordinary context
-  errors. For PostgreSQL user cancellation, observe real server admission, cancel,
-  join, then check the same physical owner. Never assert that a fast pre-canceled
-  pq command returns nil outputs.
+  errors. An operation can classify an elapsed source deadline before the source's
+  Done notification: check the operation error independently, then wait for the
+  owned context's Done and snapshot its terminal Err before cleanup cancellation.
+  For an admitted pq deadline probe, require the exact `57014` user-request
+  cancellation diagnostic before waiting for Done; reject unrelated SQL and
+  transport errors. Validate any physical-tuple Context with an anchored grammar
+  that varies only the heap coordinates, not the action, relation or cascaded SQL.
+  Return context-interrupted pq borrowers instead of reusing their possibly closed
+  transport. Use an independent admission/release witness rather than racing an
+  observer against a 100ms interruption probe. For PostgreSQL user cancellation,
+  observe real server admission, cancel, join, then check the same physical owner.
+  Never assert that a fast pre-canceled pq command returns nil outputs.
 - **Randomness and floats.** Test random functions through independent
   properties, never backend parity. Finite irrational FLOAT8 results may differ by
   at most 2 ULP; NaN, infinities, signs and errors stay exact.
