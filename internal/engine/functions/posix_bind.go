@@ -24,7 +24,7 @@ func BindPosix(b Binder, raw parser.OperatorExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !PatternAllowed(visible, left.Usage, right.Usage) {
+	if !visible || (!PatternTextType(left.Usage.Type) && !left.Usage.Type.IsCitext()) || (!PatternTextType(right.Usage.Type) && !right.Usage.Type.IsCitext()) {
 		return nil, OperatorError(sqlError("42883", "operator does not exist"), left.Usage.Type, right.Usage.Type, raw)
 	}
 	l, r, err := CoercePatternArguments(b, left, right, b.Type(sqltype.Text).Usage())

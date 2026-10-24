@@ -74,11 +74,13 @@ host methods.
   through `extension.ProcedureSymbol`; labels never select executable capability.
   Scalar serialization and deparse validate the original carrier, then format
   checked current labels without refreshing its pointer or dependency revision.
-  Citext comparison captures retain the original procedure declaration, revision,
+  Citext comparison and pattern captures retain the original procedure declaration, revision,
   operation and input collation independently of their selected-operator wrapper.
   Import validates the mapped original against the destination's exact installed
   member, remaps registered collations, and rebuilds the scalar predicate.
   Replay renders checked current labels without refreshing captured authority.
+  Pattern replay casts both original operands explicitly, retaining the selected
+  citext/text signature even when ESCAPE normalization produced a text pattern.
   Installed citext `CastRoutine` calls use this same presentation seam after
   validating the original carrier and current provider manifest/signature.
   Schema rename therefore updates deparse and default replay labels without

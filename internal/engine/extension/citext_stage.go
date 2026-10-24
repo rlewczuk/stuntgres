@@ -26,7 +26,7 @@ func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 		class := ids.ProcedureClassID
 		if i == 0 {
 			class = ids.TypeClassID
-		} else if i >= CitextComparisonOperatorStart && i < CitextConversionProcedureStart {
+		} else if CitextOperatorSlot(i) {
 			class = ids.OperatorClassID
 		}
 		oid, err := stage.AllocateOID()
@@ -108,5 +108,5 @@ func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			return err
 		}
 	}
-	return nil
+	return p.stagePatterns(stage, ext, owner, typ)
 }

@@ -111,6 +111,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, failure
 				}
 			}
+			if capture, isCitext := citextPatternCaptureOf(node); isCitext {
+				if failure := remapCitextPatternRoutine(view, reader, captured, current, capture, retainedType); failure != nil {
+					return nil, false, failure
+				}
+			}
 			sameSignature := ok && current.Signature == captured.Signature
 			if captured.RangeConstructor != nil {
 				sameSignature = ok && current.RangeConstructor != nil && current.RangeConstructor.Form == captured.RangeConstructor.Form && current.RangeConstructor.Type == retainedType(captured.RangeConstructor.Type)
@@ -300,6 +305,25 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			changed = changed || mapped != n.Collation
 			n.Collation = mapped
 		}
+		if changed {
+			rebound, err = n.Rebuild(info, n.Args[:])
+		}
+	case plan.CitextPatternExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if err != nil {
+			return node, false, err
+		}
+		if len(collations) != 0 && collations[0] != nil && n.Collation.ID != 0 {
+			mapped, failure := collations[0](n.Collation)
+			if failure != nil {
+				return nil, false, failure
+			}
+			changed = changed || mapped != n.Collation
+			n.Collation = mapped
+		}
+		text := retainedType(n.Text.Type)
+		changed = changed || text != n.Text.Type
+		n.Text.Type = text
 		if changed {
 			rebound, err = n.Rebuild(info, n.Args[:])
 		}

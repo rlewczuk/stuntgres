@@ -148,8 +148,20 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 		t.Fatal("INSERT source lost its selected function", source)
 	}
 	keywordDiagnostic(t, "INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)", "42601", `syntax error at or near "1"`, "50")
-	// UNKNOWN remains a type-name tail before a postfix target can reduce to
-	// a projection alias, matching the existing adjacent-type shift policy.
-	keywordDiagnostic(t, "SELECT v::int4 unknown FROM t", "42601", `syntax error at or near "unknown"`, "16")
+	statements, err = Parse("SELECT v::int4 unknown FROM t")
+	if err != nil || len(statements) != 1 {
+		t.Fatal("postfix cast keyword alias rejected", statements, err)
+	}
+	aliased := statements[0].(*Select)
+	if len(aliased.Targets) != 1 || len(aliased.Labels) != 1 || aliased.Labels[0].Text != "unknown" || aliased.Labels[0].Pos.Character != 16 {
+		t.Fatal("lost postfix cast target label", aliased)
+	}
+	cast, ok := aliased.Targets[0].(CastExpr)
+	if !ok || cast.Syntax != PostfixCast || cast.TypeName.Name != "integer" || cast.Pos.Character != 9 {
+		t.Fatal("lost postfix cast", aliased.Targets[0])
+	}
+	if column, ok := cast.Child.(ColumnExpr); !ok || len(column.Name.Parts) != 1 || column.Name.Parts[0].Text != "v" {
+		t.Fatal("lost postfix cast operand", cast.Child)
+	}
 	keywordDiagnostic(t, "SELECT CAST(v AS int4 unknown) FROM t", "42601", `syntax error at or near "unknown"`, "23")
 }

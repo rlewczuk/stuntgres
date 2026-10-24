@@ -14,7 +14,9 @@ import (
 const CitextComparisonProcedureStart = 3
 const CitextComparisonOperatorStart = 9
 const CitextConversionProcedureStart = 15
-const CitextMemberCount = 18
+const CitextPatternProcedureStart = 18
+const CitextPatternOperatorStart = 26
+const CitextMemberCount = 42
 
 // The slot order is the immutable installed manifest, not a public name lookup.
 var CitextComparisonNames = [...]string{"citext_eq", "citext_ne", "citext_lt", "citext_le", "citext_gt", "citext_ge"}

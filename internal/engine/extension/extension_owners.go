@@ -363,8 +363,11 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
 			return "citext,citext", true
 		}
-		if name == "citext" && slot >= CitextConversionProcedureStart && slot < CitextMemberCount {
+		if name == "citext" && slot >= CitextConversionProcedureStart && slot < CitextPatternProcedureStart {
 			return []string{"1042", "16", "869"}[slot-CitextConversionProcedureStart], true
+		}
+		if name == "citext" && slot >= CitextPatternProcedureStart && slot < CitextPatternOperatorStart {
+			return [2]string{"citext,citext", "citext,25"}[(slot-CitextPatternProcedureStart)%2], true
 		}
 		if slot == 1 {
 			return "2275", true
@@ -402,6 +405,10 @@ func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 	case "citext":
 		if slot >= CitextComparisonOperatorStart && slot < CitextConversionProcedureStart {
 			return citextOperatorNames[slot-CitextComparisonOperatorStart], "citext,citext", true
+		}
+		if slot >= CitextPatternOperatorStart && slot < CitextMemberCount {
+			index := slot - CitextPatternOperatorStart
+			return citextPatternOperators[index%8], [2]string{"citext,citext", "citext,25"}[index/8], true
 		}
 	case "earthdistance":
 		if slot == EarthPointOperatorSlot {

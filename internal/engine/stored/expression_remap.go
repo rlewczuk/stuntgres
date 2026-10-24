@@ -87,6 +87,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case plan.CitextPatternExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case plan.CubeComparisonExpr:
 		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
 		if ref != nil {

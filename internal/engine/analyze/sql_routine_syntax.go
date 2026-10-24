@@ -25,7 +25,7 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 	var cast *parser.CastExpr
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
-		if r.JSON != nil || r.Within || r.Variadic || (!b.hasDynamicProcedureName(r.Name) && !b.hasProviderProcedureOverride(r.Name) && !functions.CubeFunctionName(r.Name) && !functions.EarthFunctionName(r.Name) && !extension.CubeComparisonName(r.Name) && !extension.CitextComparisonName(r.Name)) {
+		if r.JSON != nil || r.Within || r.Variadic || (!b.hasDynamicProcedureName(r.Name) && !b.hasProviderProcedureOverride(r.Name) && !functions.CubeFunctionName(r.Name) && !functions.EarthFunctionName(r.Name) && !extension.CubeComparisonName(r.Name) && !extension.CitextComparisonName(r.Name) && !extension.CitextPatternName(r.Name)) {
 			return nil, false, nil
 		}
 		parts := []parser.Identifier{{Text: r.Name, Pos: r.Pos}}

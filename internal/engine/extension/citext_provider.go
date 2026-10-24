@@ -49,7 +49,7 @@ func (p *CitextProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 		return err
 	}
 	for slot := 1; slot < CitextMemberCount; slot++ {
-		if slot >= CitextComparisonOperatorStart && slot < CitextConversionProcedureStart {
+		if CitextOperatorSlot(slot) {
 			continue
 		}
 		proc, ok := v.Procedure(ext.Members[slot])
@@ -62,6 +62,11 @@ func (p *CitextProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 	}
 	for i := range CitextComparisonNames {
 		if err := validateCitextOperator(v, ext, base, i); err != nil {
+			return err
+		}
+	}
+	for i := range 16 {
+		if err := validateCitextPatternOperator(v, ext, base, i); err != nil {
 			return err
 		}
 	}

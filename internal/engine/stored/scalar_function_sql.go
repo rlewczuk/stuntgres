@@ -166,6 +166,25 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.rendering(ctx, view, spec)
+	case plan.CitextPatternExpr:
+		original, ok := n.RoutineReference.(*catalog.Procedure)
+		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, original) {
+			return "", fmt.Errorf("stuntgres: invalid stored citext pattern reference")
+		}
+		procedure, err := currentCitextPattern(n, view)
+		if err != nil {
+			return "", err
+		}
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored citext pattern namespace")
+		}
+		spec, err := citextPatternRendering(n, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()))
+		if err != nil {
+			return "", err
+		}
+		r.record(n.Ref)
+		return r.rendering(ctx, view, spec)
 	case plan.CubeComparisonExpr:
 		original, ok := n.RoutineReference.(*catalog.Procedure)
 		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, original) {

@@ -8,6 +8,12 @@ of the exact PostgreSQL 18 release conformance matrix, with nullable domain-type
 metadata, PUBLIC readability and standard ACL admission. These release metadata
 flags do not add native execution support for the listed SQL language features.
 
+Installed citext now supplies case-insensitive LIKE/ILIKE and regular-expression
+operators for citext and text patterns, including negations and explicit ESCAPE.
+Embedded regex options retain their ordinary precedence, so (?c) restores
+case-sensitive matching. Selected routines and operators survive stored SQL and
+native Dump/Reset/Restore without changing input spelling.
+
 information_schema.role_routine_grants now exposes ten domain-typed columns over
 real routine EXECUTE grant origins, preserving named grantors, grant options and
 enabled-role visibility across direct and prepared metadata reads.

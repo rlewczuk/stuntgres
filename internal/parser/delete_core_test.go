@@ -68,7 +68,6 @@ func TestDeleteCoreParserBoundaries(t *testing.T) {
 	for _, tc := range []struct{ query, code, message, position string }{
 		{"DELETE FROM t WHERE", "42601", "syntax error at end of input", "20"},
 		{"CREATE TABLE t(v int4 delete)", "42601", `syntax error at or near "delete"`, "23"},
-		{"SELECT v::int4 delete FROM t", "42601", `syntax error at or near "delete"`, "16"},
 	} {
 		statements, err := Parse(tc.query)
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.position}
@@ -76,6 +75,21 @@ func TestDeleteCoreParserBoundaries(t *testing.T) {
 		if statements != nil || !errors.As(err, &got) || *got != want {
 			t.Fatal(tc.query, statements, err, got, want)
 		}
+	}
+	statements, err := Parse("SELECT v::int4 delete FROM t")
+	if err != nil || len(statements) != 1 {
+		t.Fatal("postfix cast keyword alias rejected", statements, err)
+	}
+	aliased := statements[0].(*Select)
+	if len(aliased.Targets) != 1 || len(aliased.Labels) != 1 || aliased.Labels[0].Text != "delete" || aliased.Labels[0].Pos.Character != 16 {
+		t.Fatal("lost postfix cast target label", aliased)
+	}
+	cast, ok := aliased.Targets[0].(CastExpr)
+	if !ok || cast.Syntax != PostfixCast || cast.TypeName.Name != "integer" || cast.Pos.Character != 9 {
+		t.Fatal("lost postfix cast", aliased.Targets[0])
+	}
+	if column, ok := cast.Child.(ColumnExpr); !ok || len(column.Name.Parts) != 1 || column.Name.Parts[0].Text != "v" {
+		t.Fatal("lost postfix cast operand", cast.Child)
 	}
 	for _, query := range []string{"SELECT t.id FROM t", "SELECT id FROM t d WHERE d.id=1", "SELECT id FROM t WHERE t.id=1"} {
 		if statements, err := Parse(query); err != nil || len(statements) != 1 {

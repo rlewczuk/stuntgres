@@ -866,6 +866,23 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", err
 		}
 		return r.rendering(ctx, n, spec, parent)
+	case plan.CitextPatternExpr:
+		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
+			return "", fmt.Errorf("stuntgres: invalid stored citext pattern reference")
+		}
+		procedure, err := currentCitextPattern(n, r.View)
+		if err != nil {
+			return "", err
+		}
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing citext pattern namespace")
+		}
+		spec, err := citextPatternRendering(n, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()))
+		if err != nil {
+			return "", err
+		}
+		return r.rendering(ctx, n, spec, parent)
 	case plan.CubeComparisonExpr:
 		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
 			return "", fmt.Errorf("stuntgres: invalid stored cube comparison reference")

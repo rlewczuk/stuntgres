@@ -73,6 +73,23 @@ func TestIndexMaintenanceNameEligibility(t *testing.T) {
 			t.Fatal("REINDEX lost ordinary name/type eligibility", q, statements, err)
 		}
 	}
+	for _, alias := range []string{"reindex", "index"} {
+		statements, err := Parse("SELECT 1::int4 " + alias)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("postfix cast keyword alias rejected", alias, statements, err)
+		}
+		aliased := statements[0].(*Select)
+		if len(aliased.Targets) != 1 || len(aliased.Labels) != 1 || aliased.Labels[0].Text != alias || aliased.Labels[0].Pos.Character != 16 {
+			t.Fatal("lost postfix cast target label", alias, aliased)
+		}
+		cast, ok := aliased.Targets[0].(CastExpr)
+		if !ok || cast.Syntax != PostfixCast || cast.TypeName.Name != "integer" || cast.Pos.Character != 9 {
+			t.Fatal("lost postfix cast", alias, aliased.Targets[0])
+		}
+		if literal, ok := cast.Child.(LiteralExpr); !ok || literal.Value.Integer != 1 {
+			t.Fatal("lost postfix cast operand", alias, cast.Child)
+		}
+	}
 }
 
 func TestIndexMaintenanceWholeInputDiagnostics(t *testing.T) {
@@ -83,8 +100,6 @@ func TestIndexMaintenanceWholeInputDiagnostics(t *testing.T) {
 		{"REINDEX (parallel=-1) INDEX ix", `syntax error at or near "="`, "18"},
 		{"ALTER INDEX ix RENAME TO fresh; SELECT FROM", "syntax error at end of input", "44"},
 		{"DROP INDEX ix; SELECT FROM", "syntax error at end of input", "27"},
-		{"SELECT 1::int4 reindex", `syntax error at or near "reindex"`, "16"},
-		{"SELECT 1::int4 index", `syntax error at or near "index"`, "16"},
 	} {
 		_, err := Parse(c.q)
 		var got *sqlstate.Error

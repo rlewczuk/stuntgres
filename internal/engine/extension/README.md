@@ -78,6 +78,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
 - **citext and earthdistance.** Citext stages the scalar, two I/O routines,
   six strict immutable comparison routines and their six operators, plus the
   real strict `citext(bpchar)`, `citext(bool)` and `citext(inet)` conversions.
+  Its eight strict immutable INTERNAL pattern procedures and sixteen operators
+  accept `(citext,citext)` and `(citext,text)`. Their append-only slots preserve
+  the storage/comparison/conversion prefix; paired negators retain exact routine
+  and operand identities through symbolic owner metadata and import.
   Incumbent comparison/operator slots remain fixed; the associated array is
   lookup-only. Operator links and procedure authority come from exact manifest
   slots and signatures. Comparison routine display declarations retain C
@@ -233,7 +237,7 @@ the retained TEMP descriptor; incidental prerequisite-member counts are not
 collision evidence.
 
 ```sh
-make check RUN='^Test(Extension|Citext(Provider|Comparison)|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
+make check RUN='^Test(Extension|Citext(Provider|Comparison|Pattern)|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
 make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```
 

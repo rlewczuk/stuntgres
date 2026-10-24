@@ -160,7 +160,7 @@ func LikeEscapeAllowed(visible, variadic bool, operands [2]Argument, target sqlt
 				if d.BaseType().ID() != sqltype.Bytea {
 					return false
 				}
-			} else if !PatternTextType(d) {
+			} else if !PatternTextType(d) && !d.IsCitext() {
 				return false
 			}
 		}

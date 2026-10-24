@@ -161,7 +161,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if p.Implementation == StockCitext {
 			count = CitextMemberCount
 		}
-		if slot < 1 || slot >= count || p.Implementation == StockCitext && slot >= CitextComparisonOperatorStart && slot < CitextConversionProcedureStart {
+		if slot < 1 || slot >= count || p.Implementation == StockCitext && CitextOperatorSlot(slot) {
 			return invalid()
 		}
 		base, ok := v.Type(ext.Members[0])
@@ -198,8 +198,19 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name = CitextComparisonNames[slot-CitextComparisonProcedureStart]
 			signature, result = CitextComparisonSignature(base.SQLType.ID()), ids.OID(sqltype.Bool)
 		}
-		if p.Implementation == StockCitext && slot >= CitextConversionProcedureStart {
+		if p.Implementation == StockCitext && slot >= CitextConversionProcedureStart && slot < CitextPatternProcedureStart {
 			name, signature, result = "citext", []catalog.ProcedureSignature{"1042", "16", "869"}[slot-CitextConversionProcedureStart], ids.OID(base.SQLType.ID())
+		}
+		if p.Implementation == StockCitext && slot >= CitextPatternProcedureStart && slot < CitextPatternOperatorStart {
+			index := slot - CitextPatternProcedureStart
+			name = CitextPatternNames[index/2]
+			signature, result = CitextPatternSignature(base.SQLType.ID(), citextPatternRight(base.SQLType.ID(), index%2)), ids.OID(sqltype.Bool)
+			if p.Display.Language != catalog.InternalRoutineLanguage || p.Display.Source != name {
+				return invalid()
+			}
+			if err := ValidateProviderHeader(v, p, ids.ProcedureClassID); err != nil {
+				return invalid()
+			}
 		}
 	case StockPgrowlocks:
 		count = 1

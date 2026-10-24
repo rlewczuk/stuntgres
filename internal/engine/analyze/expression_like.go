@@ -138,7 +138,7 @@ func bindLike(b functions.Binder, raw parser.OperatorExpr) (expr.Expr, error) {
 		if binary {
 			return d.ID() == sqltype.Bytea
 		}
-		return d.ID() == sqltype.Text || d.ID() == sqltype.Name || d.ID() == sqltype.BPChar || d.ID() == sqltype.VarChar
+		return functions.PatternTextType(d) || d.IsCitext()
 	}
 	if !valid(lt, lhs.ID() == sqltype.Bytea) || !valid(rt, rhs.ID() == sqltype.Bytea) {
 		return missing()

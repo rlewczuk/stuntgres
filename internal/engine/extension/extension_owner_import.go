@@ -114,15 +114,21 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				}
 			case *catalog.Operator:
 				if record.Name == "citext" {
-					i := member.Slot - CitextComparisonOperatorStart
 					base, ok := candidate.Type(ext.Members[0])
-					if !ok || i < 0 || i >= len(CitextComparisonNames) {
+					_, portable, valid := ownerOperatorIdentity(record.Name, member.Slot)
+					if !ok || !valid {
 						return false, fmt.Errorf("stuntgres: invalid citext ownership slot")
 					}
-					if err := validateCitextOperator(candidateView, ext, base, i); err != nil {
+					var err error
+					if member.Slot >= CitextPatternOperatorStart {
+						err = validateCitextPatternOperator(candidateView, ext, base, member.Slot-CitextPatternOperatorStart)
+					} else {
+						err = validateCitextOperator(candidateView, ext, base, member.Slot-CitextComparisonOperatorStart)
+					}
+					if err != nil {
 						return false, err
 					}
-					kind, signature = "operator", "citext,citext"
+					kind, signature = "operator", portable
 					break
 				}
 				if record.Name == "earthdistance" {
