@@ -35,6 +35,7 @@ func (s *StatementScope) Finish(err error) error {
 		s.routineAuth = AuthorizationView{}
 		s.routineDependencies = nil
 		s.routinePrograms = nil
+		s.checkPrograms = nil
 		s.domains.endAdmission()
 		s.partitionsSlot.DropPrograms()
 		for i := range s.mutations {

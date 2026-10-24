@@ -14,6 +14,11 @@ Embedded regex options retain their ordinary precedence, so (?c) restores
 case-sensitive matching. Selected routines and operators survive stored SQL and
 native Dump/Reset/Restore without changing input spelling.
 
+Ordinary table CHECKs retain original routine calls, including folded constants,
+for current-authority readmission after unique waits and before publication.
+Revoked EXECUTE refuses the statement without a row/output prefix or CHECK truth
+replay; invoker and trusted referential-owner phases remain independently admitted.
+
 information_schema.role_routine_grants now exposes ten domain-typed columns over
 real routine EXECUTE grant origins, preserving named grantors, grant options and
 enabled-role visibility across direct and prepared metadata reads.

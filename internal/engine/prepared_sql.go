@@ -221,7 +221,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 				}
 			}
 			if !retained {
-				s.routinePrograms = append(s.routinePrograms, commandRoutineProgram{admission: actualProgram})
+				s.routinePrograms = append(s.routinePrograms, commandRoutineProgram{admission: &actualProgram})
 			}
 		}
 		e.mu.Lock()

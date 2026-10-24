@@ -112,6 +112,10 @@ production dependency is involved.
   native stack before its holder commits or rolls back. A started channel or
   elapsed delay is not admission; premature worker completion fails, and the
   caller still joins and validates its outcome.
+  `NativeUniqueKeyWait` uses the same bounded observer, requiring the actual
+  `statementHost.ClaimUniqueKey`, parked `relationRequest.wait` and
+  `LockOperation` worker frames in one live stack. It observes the measured
+  worker itself, not a prior timeout probe or an unrelated pending request.
   `RelationLockPending` observes the exact PostgreSQL relation/mode/blocker tuple
   (relation zero selects a real transaction-ID name-conflict wait), or the native
   relation-request wait and `LockOperation` frames in one complete live stack.

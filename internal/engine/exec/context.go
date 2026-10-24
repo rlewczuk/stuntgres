@@ -73,9 +73,9 @@ type EvalStatement struct {
 	Input      sqltype.InputEnvironment
 	Output     sqltype.OutputEnvironment
 	Catalog    catalog.Read // Current imported request/view authority for local lowering.
-	// Stored CHECK syntax stays immutable; detached executable expressions
-	// belong only to this command. A cached nil slice means no nodes changed.
-	PreparedChecks       map[*catalog.Relation][]expr.Expr
+	// Stored CHECK syntax stays immutable; command-private expressions and
+	// consumed actor phases belong to the live statement, never catalog nodes.
+	PreparedChecks       map[*catalog.Relation]CheckProgram
 	PreparedDomainChecks map[*catalog.Type]DomainCheckProgram
 	PreparedGenerations  map[*catalog.Relation][]expr.Expr // First actual tuple prepares executable recipes, not permission results.
 	PGRegex              sqltype.PGRegexExecution

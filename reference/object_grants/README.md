@@ -44,6 +44,11 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   execution checks current authority on every execution. Specify each backend's
   held outcome independently and use fresh executions for immutable
   all-constant calls.
+  Ordinary CHECK wait scenarios independently expect PostgreSQL's already-warmed
+  execution to finish after a queued unique conflict clears, while native
+  readmission requires current EXECUTE before resumption/publication. Both modes
+  separately assert fresh revoked denial, unchanged committed rows and no
+  volatile truth replay; ordinary held CHECK executions reinitialize admission.
 - Large-object isolation witnesses use two physical connections; SQL-body
   snapshot witnesses guard against SQL-function inlining with a one-row source.
 - Transactional privilege families cover autocommit, SQL BEGIN and Go BeginTx
@@ -77,6 +82,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Access-privilege inquiry functions: `RUN='^TestReferenceObjectGrantAccessInquiry'`
 - Partition-key recipes: `RUN='^TestReferenceObjectGrantPartitionKey'`
 - Domain CHECK recipes: `RUN='^TestReferenceObjectGrantDomainCheck'`
+- Ordinary table CHECK admission and readmission: `RUN='^TestReferenceObjectGrantCheck'`
 - SQL cursors: `RUN='^TestReferenceObjectGrantSQLCursor'`
 - Non-table REVOKE: `RUN='^TestReferenceObjectRevoke'`
 - Large-object metadata: `RUN='^TestReferenceLargeObjectMetadata'`

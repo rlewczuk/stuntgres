@@ -19,7 +19,7 @@ type commandRoutineProgram struct {
 	outer     *catalog.Procedure
 	consumer  *catalog.Relation
 	ri        bool
-	admission exec.RoutineProgram
+	admission *exec.RoutineProgram
 }
 
 func admitInquiryBody(c *exec.Context, node expr.Info) error {
@@ -53,8 +53,8 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 			return nil
 		}
 	}
-	programme := commandRoutineProgram{outer: outer, consumer: local.RoutineConsumer, ri: ri}
-	local.RoutineProgram = &programme.admission
+	programme := commandRoutineProgram{outer: outer, consumer: local.RoutineConsumer, ri: ri, admission: new(exec.RoutineProgram)}
+	local.RoutineProgram = programme.admission
 	// The outer call has already passed executable-graph admission. Retain
 	// that actual first entry too, so later readmission preserves outer-before-
 	// body diagnostics without another permission check at each row.

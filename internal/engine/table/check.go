@@ -8,7 +8,6 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -138,56 +137,32 @@ func ValidateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *exec.Conte
 	oldRow, oldScope, oldFrame := eval.Row, eval.Scope, eval.Frame
 	eval.Row, eval.Scope, eval.Frame = row, 1, 1
 	defer func() { eval.Row, eval.Scope, eval.Frame = oldRow, oldScope, oldFrame }()
-	expressions, prepared := eval.PreparedChecks[d]
-	if !prepared {
-		// Prepare every CHECK before any volatile row evaluation, matching
-		// ExecRelCheck. Keep descriptors/dependencies untouched and copy the
-		// executable expression slice only when a branch actually changes.
-		for i := range d.Constraints.Check {
-			checkEvaluation := *eval
-			checkEvaluation.RoutineRecipe, checkEvaluation.RoutineGraft = true, false
-			checkEvaluation.RoutineChecks = d.Constraints.Check[i].Dependencies
-			checkEvaluation.RoutineReferences = nil
-			checkEvaluation.RoutineConsumer = d
-			node, changed, err := exec.PreflightCoercionsWithPolicy(&checkEvaluation, d.Constraints.Check[i].Expression, true)
-			eval.PreparedDomainChecks = checkEvaluation.PreparedDomainChecks
-			if err != nil {
-				return nil, err
-			}
-			if err := exec.AdmitExpression(&checkEvaluation, node, checkEvaluation.Catalog); err != nil {
-				return nil, err
-			}
-			if changed {
-				if expressions == nil {
-					expressions = make([]expr.Expr, len(d.Constraints.Check))
-					for j := range d.Constraints.Check {
-						expressions[j] = d.Constraints.Check[j].Expression
-					}
-				}
-				expressions[i] = node
-			}
-		}
-		if eval.PreparedChecks == nil {
-			eval.PreparedChecks = make(map[*catalog.Relation][]expr.Expr)
-		}
-		eval.PreparedChecks[d] = expressions
+	program, admission, err := prepareCheckProgram(d, eval)
+	if err != nil {
+		return nil, err
 	}
 	// Lazy SQL-body demand happens during truth, after preflight's stack
 	// context has ended. Keep this actual CHECK's original recipe for Eval;
 	// the shared statement manifest cannot stand in for a stored constraint.
 	oldRecipe, oldGraft := eval.RoutineRecipe, eval.RoutineGraft
 	oldChecks, oldReferences, oldConsumer := eval.RoutineChecks, eval.RoutineReferences, eval.RoutineConsumer
+	oldProgram := eval.RoutineProgram
+	eval.RoutineProgram = admission
 	defer func() {
 		eval.RoutineRecipe, eval.RoutineGraft = oldRecipe, oldGraft
 		eval.RoutineChecks, eval.RoutineReferences, eval.RoutineConsumer = oldChecks, oldReferences, oldConsumer
+		eval.RoutineProgram = oldProgram
+		if _, hosted := eval.LiveHost().(CheckRecipeHost); !hosted && oldProgram != nil {
+			oldProgram.Include(admission)
+		}
 	}()
 	for i := range d.Constraints.Check {
 		c := &d.Constraints.Check[i]
 		eval.RoutineRecipe, eval.RoutineGraft = true, false
 		eval.RoutineChecks, eval.RoutineReferences, eval.RoutineConsumer = c.Dependencies, nil, d
 		expression := c.Expression
-		if expressions != nil {
-			expression = expressions[i]
+		if program.Expressions != nil {
+			expression = program.Expressions[i]
 		}
 		value, err := expression.Eval(eval)
 		if err != nil {

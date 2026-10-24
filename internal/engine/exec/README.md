@@ -95,6 +95,12 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   labels/ownership; original-source calls retain their revision fence and
   prepared reanalysis. `RoutineProgram` preserves this distinction through
   readmission and phase initialization without retaining granted rights.
+  `CheckProgram` owns ordinary CHECK cooked expressions plus command/actor/RI
+  phases, each holding a stable `RoutineProgram` pointer. The live statement
+  retains that same pointer through lazy truth and existing wait/publication
+  readmission; catalog trees retain neither executable state nor authority.
+  A new actor phase admits original consumed calls before borrowing cooked
+  expressions, without replaying truth or retaining permission results.
   Earth coordinate body failures use `EarthCoordinateDiagnosticName` in
   `context_admission.go`: the same descriptor extraction and stored-declaration
   revalidation select the current name from the statement's catalog. Hard calls

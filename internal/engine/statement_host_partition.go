@@ -37,5 +37,5 @@ func (h *statementHost) RecordPartitionPrograms(identity partition.RoutineIdenti
 		slot.Programs = make(map[partition.RoutineIdentity][]expr.Expr)
 	}
 	slot.Programs[identity] = expressions
-	h.routinePrograms = append(h.routinePrograms, commandRoutineProgram{admission: admission})
+	h.routinePrograms = append(h.routinePrograms, commandRoutineProgram{admission: &admission})
 }

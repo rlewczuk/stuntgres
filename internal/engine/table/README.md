@@ -56,6 +56,13 @@ call live here.
   `BindChecks`, `ValidateChecks`, `PhysicalRowViolation` (first NOT NULL or
   CHECK violation of a row), `EvaluateGenerations`,
   `PrepareGenerationProgram` and `ValidateGenerationPlan`.
+  `ValidateCheckRow` prepares every ordinary CHECK before completed-row truth,
+  retaining each constraint's immutable original manifest and relation consumer.
+  `CheckRecipeHost` shares cooked expressions within the live statement and
+  registers stable consumed routine programs for its existing wait/publication
+  readmission. Actual invoker and trusted RI-owner phases initialize separately;
+  repeated rows reuse preparation without per-row ACL lookup. Readmission never
+  evaluates CHECK truth or folds expressions. The no-CHECK path allocates nothing.
 - **DROP dependency decisions** (`composite_field_dependency.go`,
   `owned_sequences.go`, `drop_removal.go`, the CHECK, DEFAULT, foreign-key and
   identity drop files): passes over `DropDependencyReader`, the drop stage the

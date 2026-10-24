@@ -193,6 +193,13 @@ func NativeDeleteRowWait(t *testing.T, ctx context.Context, completed <-chan str
 	nativeMutationRowWait(t, ctx, completed, "(*StatementScope).acquireRow")
 }
 
+// NativeUniqueKeyWait observes the LockOperation worker itself parked in the
+// unique-key claim, not another request or a previously completed timeout probe.
+func NativeUniqueKeyWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
+	t.Helper()
+	nativeMutationRowWait(t, ctx, completed, "(*statementHost).ClaimUniqueKey")
+}
+
 func nativeMutationRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}, owner string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)

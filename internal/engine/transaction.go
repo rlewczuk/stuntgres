@@ -227,7 +227,8 @@ type StatementScope struct {
 	admissionWaited             bool
 	implicit                    bool
 	input                       sqltype.InputEnvironment
-	routinePrograms             []commandRoutineProgram // Consumed command graphs; same admission lease as exec.Authority.
+	routinePrograms             []commandRoutineProgram                 // Consumed command graphs; same admission lease as exec.Authority.
+	checkPrograms               map[*catalog.Relation]exec.CheckProgram // Lazy ordinary CHECK preparation; shared by borrowed evaluations.
 	statementStart              time.Time
 	transactionStart            time.Time
 	lease                       session.StatementLease // identity for session-layer state; never copied on purpose

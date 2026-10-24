@@ -327,15 +327,15 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 		}
 	}
 	cached, ok := eval.PreparedChecks[d]
-	if !ok || len(cached) != 2 || !reflect.DeepEqual(cached[0], column) {
+	if !ok || len(cached.Expressions) != 2 || !reflect.DeepEqual(cached.Expressions[0], column) {
 		t.Fatal("unchanged CHECK references or descriptor cache lost", cached, ok)
 	}
-	if _, ok := cached[1].(plan.LiteralExpr); !ok {
-		t.Fatal("constant-NULL executable CHECK was not detached", cached[1])
+	if _, ok := cached.Expressions[1].(plan.LiteralExpr); !ok {
+		t.Fatal("constant-NULL executable CHECK was not detached", cached.Expressions[1])
 	}
-	first := &cached[0]
+	first := &cached.Expressions[0]
 	failed, err := table.ValidateCheckRow(d, []sqltype.Value{falseValue}, eval)
-	if err != nil || failed != &d.Constraints.Check[0] || &eval.PreparedChecks[d][0] != first {
+	if err != nil || failed != &d.Constraints.Check[0] || &eval.PreparedChecks[d].Expressions[0] != first {
 		t.Fatal("row changes must reuse preparation and return original constraint", failed, err)
 	}
 	if eval.Scope != 9 || eval.Frame != 7 || &eval.Row[0] != &oldRow[0] {
@@ -348,19 +348,19 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	// Descriptor identity, not a relation name/address, bounds cache reuse;
 	// fresh command contexts never inherit a previous command's preparation.
 	other := *d
-	if failed, err := table.ValidateCheckRow(&other, []sqltype.Value{trueValue}, eval); err != nil || failed != nil || &eval.PreparedChecks[&other][0] == first {
+	if failed, err := table.ValidateCheckRow(&other, []sqltype.Value{trueValue}, eval); err != nil || failed != nil || &eval.PreparedChecks[&other].Expressions[0] == first {
 		t.Fatal("distinct descriptor reused executable cache", failed, err)
 	}
 	fresh := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}
-	if failed, err := table.ValidateCheckRow(d, []sqltype.Value{trueValue}, fresh); err != nil || failed != nil || &fresh.PreparedChecks[d][0] == first {
+	if failed, err := table.ValidateCheckRow(d, []sqltype.Value{trueValue}, fresh); err != nil || failed != nil || &fresh.PreparedChecks[d].Expressions[0] == first {
 		t.Fatal("new command inherited executable CHECK cache", failed, err)
 	}
 	plain := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "plain", Expression: trueNode}}}}
 	if failed, err := table.ValidateCheckRow(plain, nil, eval); err != nil || failed != nil {
 		t.Fatal(failed, err)
 	}
-	if nodes, ok := eval.PreparedChecks[plain]; !ok || nodes != nil {
-		t.Fatal("unchanged CHECK preparation allocated an expression slice", nodes, ok)
+	if program, ok := eval.PreparedChecks[plain]; !ok || program.Expressions != nil {
+		t.Fatal("unchanged CHECK preparation allocated an expression slice", program, ok)
 	}
 	emptyEval := &exec.Context{}
 	if failed, err := table.ValidateCheckRow(&catalog.Relation{}, nil, emptyEval); err != nil || failed != nil || emptyEval.PreparedChecks != nil {

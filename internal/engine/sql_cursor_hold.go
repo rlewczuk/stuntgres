@@ -54,6 +54,7 @@ func (e *Engine) holdPrecommit(op *session.Operation, owner *session.Transaction
 		scope.routineAuth = AuthorizationView{}
 		scope.routineDependencies = nil
 		scope.routinePrograms = nil
+		scope.checkPrograms = nil
 		scope.domains.endAdmission()
 		scope.partitionsSlot.DropPrograms()
 		scope.finished = true
