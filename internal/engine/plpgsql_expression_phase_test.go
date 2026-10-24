@@ -53,7 +53,7 @@ func TestPLExceptionExpressionProvenance(t *testing.T) {
 		query := &parser.Select{Targets: []parser.Expr{raw}, Pos: raw.SourcePosition()}
 		_, _, _, err = s.evaluatePLExpression(frame, query, e.CatalogRead(), nil)
 		var diagnostic *sqlstate.Error
-		var planning *plExpressionPlanningError
+		var planning *proc.PLExpressionPlanningError
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
 			t.Fatalf("expression %s: %v", tc.expression, err)
 		}

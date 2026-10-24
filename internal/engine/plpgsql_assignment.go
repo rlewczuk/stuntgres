@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
 
 	"stuntgres/internal/engine/analyze"
@@ -14,10 +13,6 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-type plCardinalityError struct{ error }
-
-func (e *plCardinalityError) Unwrap() error { return e.error }
 
 // plTargetDatum retains one reached semantic datum and its detached publisher.
 // Query assignments and fetched values share binding, authority and reconstruction.
@@ -144,26 +139,4 @@ func finishPLTarget(f *proc.PLFrame, slot int, prepared *plTargetDatum, value sq
 		return sqltype.Value{}, sqlError("22004", fmt.Sprintf("null value cannot be assigned to variable %q declared NOT NULL", variable.Name))
 	}
 	return value, nil
-}
-
-func plAssignmentError(err error, read catalog.Read, d *catalog.Procedure, statement *parser.PLStatement) error {
-	callback := plNoCallback
-	var planning *plan.PLAssignmentPlanningError
-	var domain *plan.AssignmentDomainError
-	var projection *plan.PLAssignmentProjectionError
-	var cardinality *plCardinalityError
-	switch {
-	case errors.As(err, &cardinality):
-		callback = plQueryDetail
-	case errors.As(err, &planning) && !errors.As(err, &domain) || errors.As(err, &projection):
-		callback = plAssignmentContext
-		if planning != nil {
-			callback = plAssignmentCallback
-		}
-	}
-	query := plDiagnosticQuery{}
-	if callback != plNoCallback {
-		query = plBodyDiagnostic(d.SQL.Source, statement.Pos, statement.ExpressionEnd, callback)
-	}
-	return plRuntimeQueryError(err, read, d, statement.Pos, "at assignment", query)
 }

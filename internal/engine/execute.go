@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -345,7 +346,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if err != nil {
 		e.mu.Unlock()
 		if scope.sqlRoutine.lexical != nil && scope.sqlRoutine.lexical.Program.Trigger {
-			return Result{}, &plExpressionBindingError{err}
+			return Result{}, &proc.PLExpressionBindingError{Err: err}
 		}
 		return Result{}, err
 	}

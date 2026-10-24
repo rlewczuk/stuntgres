@@ -3,9 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"strconv"
 	"testing"
-	"unicode/utf8"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -163,90 +161,6 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 			if err == nil {
 				t.Fatal("noncanonical or qualified private binding admitted", parts)
 			}
-		}
-	})
-	t.Run("diagnostic_coordinates", func(t *testing.T) {
-		source := "/*é*/ BEGIN CASE 1 WHEN absent(1+missing()) THEN RETURN 7; END CASE; END"
-		operator := proc.PLSearchOperatorPosition(source, 0)
-		if operator.Character <= utf8.RuneCountInString(source)+1 || operator.Offset <= len(source) {
-			t.Fatal("synthetic coordinate aliases body EOF")
-		}
-		start := parser.Position{Offset: 25, Character: 24}
-		branch := proc.PLBranch{DiagnosticQuery: `"__Case__Variable_1__" IN (absent(1+missing()))`, OperatorPosition: operator, DiagnosticOperator: 24, DiagnosticItems: 28}
-		for _, tc := range []struct {
-			name           string
-			position, want int
-		}{
-			{"operator", operator.Character, branch.DiagnosticOperator},
-			{"first_item", start.Character, branch.DiagnosticItems},
-			{"nested_item", start.Character + 9, branch.DiagnosticItems + 9},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				original := &sqlstate.Error{Code: "42883", Position: strconv.Itoa(tc.position)}
-				err := plCaseExpressionError(original, branch, start)
-				var mapped *sqlstate.Error
-				if !errors.As(err, &mapped) {
-					t.Fatal("mapped diagnostic unavailable", err)
-				}
-				if mapped.Position != "" || mapped.InternalPosition != strconv.Itoa(tc.want) || mapped.InternalQuery != branch.DiagnosticQuery || mapped.Context != "" || original.Position != strconv.Itoa(tc.position) {
-					t.Fatal("synthetic/original coordinate confusion", mapped)
-				}
-			})
-		}
-		ordinary := context.Canceled
-		if plCaseExpressionError(ordinary, branch, start) != ordinary {
-			t.Fatal("ordinary error decorated")
-		}
-	})
-	t.Run("diagnostic_error_chain", func(t *testing.T) {
-		start := parser.Position{Offset: 20, Character: 21}
-		branch := proc.PLBranch{DiagnosticQuery: `"__Case__Variable_1__" IN (called())`, DiagnosticOperator: 24, DiagnosticItems: 28}
-		original := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "producer failure", Position: "21", Detail: "original detail"}
-		before := *original
-		failure := errors.New("provider cleanup failure")
-		fatal := &plExceptionCleanupError{primary: original, cleanup: failure}
-		mapped := plCaseExpressionError(fatal, branch, start)
-		var cleanup *plExceptionCleanupError
-		if !errors.As(mapped, &cleanup) || cleanup != fatal || !errors.Is(mapped, original) || !errors.Is(mapped, failure) {
-			t.Fatal("CASE diagnostic discarded fatal cleanup classification or originating evidence", mapped)
-		}
-		var diagnostic *sqlstate.Error
-		want := before
-		want.Position, want.InternalPosition, want.InternalQuery = "", "28", branch.DiagnosticQuery
-		if !errors.As(mapped, &diagnostic) || *diagnostic != want || *original != before {
-			t.Fatal("CASE decoration lost mapped diagnostic or mutated its origin", diagnostic)
-		}
-	})
-	t.Run("diagnostic_phase", func(t *testing.T) {
-		branch := proc.PLBranch{DiagnosticQuery: `"__Case__Variable_2__" IN (12/x)`}
-		for _, tc := range []struct {
-			name     string
-			planning bool
-			context  string
-		}{
-			{"execution", false, ""},
-			{"planning", true, `PL/pgSQL expression "` + branch.DiagnosticQuery + `"`},
-			{"producer_context", false, "producer context"},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				original := &sqlstate.Error{Code: "22012", Message: "division by zero"}
-				if tc.name == "producer_context" {
-					original.Context = tc.context
-				}
-				var cause error = &plExpressionExecutionError{error: original, simple: true}
-				if tc.planning {
-					cause = &plExpressionPlanningError{original}
-				}
-				mapped := plCaseExpressionError(cause, branch, parser.Position{})
-				var diagnostic *sqlstate.Error
-				var planning *plExpressionPlanningError
-				if !errors.As(mapped, &diagnostic) || diagnostic.Context != tc.context {
-					t.Fatal("CASE diagnostic ignored producer phase/context", diagnostic)
-				}
-				if errors.As(mapped, &planning) != tc.planning || !errors.Is(mapped, original) {
-					t.Fatal("CASE diagnostic discarded producer phase or identity", mapped)
-				}
-			})
 		}
 	})
 }

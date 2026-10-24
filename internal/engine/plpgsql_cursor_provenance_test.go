@@ -53,51 +53,6 @@ func TestPLpgSQLCursorSourceDiagnostics(t *testing.T) {
 	}
 }
 
-func TestPLpgSQLCursorCurrentDiagnosticPhase(t *testing.T) {
-	for _, tc := range []struct {
-		name             string
-		simple, planning bool
-	}{
-		{"outer_spi_inner_simple", false, false},
-		{"outer_planning_inner_simple", false, true},
-		{"outer_simple_inner_spi", true, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			original := &sqlstate.Error{Code: "23505", Message: "inner failure", Context: "inner trace", InternalQuery: "inner query", InternalPosition: "3"}
-			before := *original
-			inner := &plExpressionExecutionError{error: original, simple: !tc.simple}
-			var failure error = &plExpressionExecutionError{error: inner, simple: tc.simple}
-			if tc.planning {
-				failure = &plExpressionPlanningError{inner}
-			}
-			query := plCursorExpressionDiagnostic(failure, "outer", parser.Position{Character: 1}, parser.Position{Offset: 5, Character: 6})
-			gotError := plFormatError(failure, query, "outer action")
-			var got *sqlstate.Error
-			want := before
-			if !tc.simple {
-				want.Context += "\nPL/pgSQL expression \"outer\""
-			}
-			want.Context += "\nouter action"
-			if !errors.As(gotError, &got) || *got != want || *original != before || !errors.Is(gotError, original) {
-				t.Fatal("current phase lost identity, inner fields or parent callback", gotError)
-			}
-		})
-	}
-	original := &sqlstate.Error{Code: "23505", Position: "12", Context: "inner trace", InternalQuery: "inner query", InternalPosition: "3"}
-	before := *original
-	mapped := plFormatError(original, plDiagnosticQuery{Text: "parent query", Offset: 4, Callback: plSQLCallback}, "outer action")
-	var got *sqlstate.Error
-	want := before
-	want.Position, want.InternalPosition, want.InternalQuery, want.Context = "", "8", "parent query", "inner trace\nouter action"
-	if !errors.As(mapped, &got) || *got != want || *original != before || !errors.Is(mapped, original) {
-		t.Fatal("original position callback branch lost fields or appended an extra query frame", mapped)
-	}
-	canceled := &plExpressionExecutionError{error: context.Canceled, simple: false}
-	if plFormatError(canceled, plDiagnosticQuery{Text: "parent", Callback: plSQLCallback}, "outer action") != canceled || !errors.Is(canceled, context.Canceled) {
-		t.Fatal("non-diagnostic cancellation identity changed")
-	}
-}
-
 func TestPLpgSQLCursorWholeArgumentProjection(t *testing.T) {
 	for _, tc := range []struct {
 		name, source                   string

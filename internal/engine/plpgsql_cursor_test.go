@@ -325,7 +325,7 @@ func TestPLpgSQLCursorExpressionProvenance(t *testing.T) {
 		})
 	}
 	cause := context.Canceled
-	if !errors.Is(&plExpressionExecutionError{error: cause, simple: true}, cause) {
+	if !errors.Is(&proc.PLExpressionExecutionError{Err: cause, Simple: true}, cause) {
 		t.Fatal("execution provenance hid cancellation")
 	}
 }
@@ -353,8 +353,8 @@ func TestPLpgSQLCursorPositionedDiagnostics(t *testing.T) {
 				t.Fatalf("positioned preparation diagnostic: %+v", diagnostic)
 			}
 			if tc.name == "assignment" {
-				var planning *plExpressionPlanningError
-				if !errors.As(err, &planning) || !errors.Is(err, planning.error) {
+				var planning *proc.PLExpressionPlanningError
+				if !errors.As(err, &planning) || !errors.Is(err, planning.Err) {
 					t.Fatal("assignment decoration lost preparation cause", err)
 				}
 			}

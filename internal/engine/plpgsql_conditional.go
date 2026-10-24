@@ -43,7 +43,7 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 			arm := raw.Arms[i]
 			first := arm.Conditions[0]
 			if checked.Search != nil && expressionError {
-				err = plCaseExpressionError(err, branch, first.Start)
+				err = proc.PLCaseExpressionError(err, branch, first.Start)
 			}
 			return sqltype.Value{}, plFlow{}, plRuntimeError(err, read, d, first.Start, arm.Conditions[len(arm.Conditions)-1].End, instruction.Syntax.Pos, action, expressionError && checked.Search == nil)
 		}
@@ -64,21 +64,4 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 		return sqltype.Value{}, plFlow{}, plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, instruction.Syntax.Pos, action, false)
 	}
 	return s.executePLStatements(d, f, checked.Else, read)
-}
-
-// The operator has its own disjoint coordinate; original WHEN children retain
-// their original byte/character coordinates. Neither source is reparsed.
-func plCaseExpressionError(err error, branch proc.PLBranch, start parser.Position) error {
-	if !plExpressionCallback(err) {
-		return err
-	}
-	query := plDiagnosticQuery{
-		Text:     branch.DiagnosticQuery,
-		Offset:   start.Character - branch.DiagnosticItems,
-		Callback: plExpressionCallbackKind,
-	}
-	if branch.OperatorPosition.Character > 0 {
-		query.Positions = []plDiagnosticPosition{{Start: branch.OperatorPosition.Character, End: branch.OperatorPosition.Character + 1, Output: branch.DiagnosticOperator}}
-	}
-	return plFormatError(err, query, "")
 }

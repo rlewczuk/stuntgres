@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
@@ -165,7 +166,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 							// coercion reaches it during query preflight. Constants
 							// and admission failures retain their planning callback.
 							scope.sqlRoutine.plPlanning = false
-							err = &plExpressionExecutionError{error: err, simple: !scope.sqlRoutine.plArgumentRow && plan.PLSimpleExpression(b.Query.Root)}
+							err = &proc.PLExpressionExecutionError{Err: err, Simple: !scope.sqlRoutine.plArgumentRow && plan.PLSimpleExpression(b.Query.Root)}
 						}
 					}
 				} else {
@@ -477,7 +478,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	simplePL := plExpression && !scope.sqlRoutine.plArgumentRow && execution.binding.Query != nil && plan.PLSimpleExpression(execution.binding.Query.Root)
 	defer func() {
 		if failure != nil && plExpression {
-			failure = &plExpressionExecutionError{error: failure, simple: simplePL}
+			failure = &proc.PLExpressionExecutionError{Err: failure, Simple: simplePL}
 		}
 	}()
 	previousRLSCommand := scope.rlsCommand

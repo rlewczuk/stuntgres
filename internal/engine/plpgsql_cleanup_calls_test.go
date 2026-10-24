@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -103,7 +104,7 @@ func TestPLExceptionCleanupCalledRoutines(t *testing.T) {
 						_, err = result.Rows.Next(op.Context(), make([]sqltype.Value, len(result.Rows.Schema())))
 					}
 				}
-				var cleanup *plExceptionCleanupError
+				var cleanup *proc.PLExceptionCleanupError
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &cleanup) || !errors.Is(err, failure) || !errors.Is(err, original) {
 					t.Fatalf("called routine lost fatal cleanup identity/evidence or ran OTHERS: %v", err)

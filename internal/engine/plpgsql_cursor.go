@@ -15,7 +15,7 @@ import (
 
 func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow plFlow, err error) {
 	raw := in.Syntax.Cursor
-	var failure plDiagnosticQuery
+	var failure proc.PLDiagnosticQuery
 	action := "OPEN"
 	switch raw.Action {
 	case parser.PLOpenCursor:
@@ -54,7 +54,7 @@ func plCursorName(f *proc.PLFrame, slot int) (string, error) {
 	return v.Text()
 }
 
-func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *plDiagnosticQuery) (opened *sqlCursor, name string, err error) {
+func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *proc.PLDiagnosticQuery) (opened *sqlCursor, name string, err error) {
 	v := f.Values[in.Slot]
 	generated := v.Type() == nil || v.IsNull()
 	if !generated {
@@ -97,7 +97,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 	if dynamic {
 		commandValue, _, _, e := s.evaluatePLExpression(f, &parser.Select{Targets: []parser.Expr{raw.Command}, Pos: raw.Command.SourcePosition()}, read, nil)
 		if e != nil {
-			*failure = plCursorExpressionDiagnostic(e, f.Program.Source, raw.CommandStart, raw.CommandEnd)
+			*failure = proc.PLCursorExpressionDiagnostic(e, f.Program.Source, raw.CommandStart, raw.CommandEnd)
 			return nil, name, e
 		}
 		if commandValue.IsNull() {
@@ -112,7 +112,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 		for i, expression := range raw.Using {
 			value, usage, _, e := s.evaluatePLExpression(f, &parser.Select{Targets: []parser.Expr{expression.Expression}, Pos: expression.Expression.SourcePosition()}, read, nil)
 			if e != nil {
-				*failure = plCursorExpressionDiagnostic(e, f.Program.Source, expression.Start, expression.End)
+				*failure = proc.PLCursorExpressionDiagnostic(e, f.Program.Source, expression.Start, expression.End)
 				return nil, name, e
 			}
 			parameters[i] = value
@@ -120,7 +120,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 		}
 		statements, e := parser.ParseWithOptions(command, parser.Options{StandardConformingStrings: !s.op.NonstandardStrings, Context: s.op.Context(), Notice: s.op.ParseNotice})
 		if e != nil {
-			*failure = plDiagnosticQuery{Text: command, Callback: plSQLCallback}
+			*failure = proc.PLDiagnosticQuery{Text: command, Callback: proc.PLSQLCallback}
 			return nil, name, e
 		}
 		if len(statements) != 1 {
@@ -161,7 +161,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 		s.sqlRoutine.cursorName = &s.sqlRoutine.cursor.Name.Text
 	}
 	if err = s.acquireRelation(query, true); err != nil {
-		*failure = plDiagnosticQuery{Text: command, Callback: plSQLCallback}
+		*failure = proc.PLDiagnosticQuery{Text: command, Callback: proc.PLSQLCallback}
 		if !dynamic {
 			failure.Offset = queryStart.Character - 1
 		}
@@ -172,7 +172,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 		return nil
 	})
 	if err != nil {
-		*failure = plDiagnosticQuery{Text: command, Callback: plSQLCallback}
+		*failure = proc.PLDiagnosticQuery{Text: command, Callback: proc.PLSQLCallback}
 		if !dynamic {
 			failure.Offset = queryStart.Character - 1
 		}
@@ -192,7 +192,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 	return opened, name, nil
 }
 
-func (s *StatementScope) movePLCursor(f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *plDiagnosticQuery) (err error) {
+func (s *StatementScope) movePLCursor(f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *proc.PLDiagnosticQuery) (err error) {
 	name, err := plCursorName(f, in.Slot)
 	if err != nil {
 		return err
@@ -205,7 +205,7 @@ func (s *StatementScope) movePLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 	if raw.Motion.Count != nil {
 		value, _, _, e := s.evaluatePLExpression(f, &parser.Select{Targets: []parser.Expr{raw.Motion.Count}, Pos: raw.Motion.Count.SourcePosition()}, read, nil)
 		if e != nil {
-			*failure = plCursorExpressionDiagnostic(e, f.Program.Source, raw.Motion.CountStart, raw.Motion.CountEnd)
+			*failure = proc.PLCursorExpressionDiagnostic(e, f.Program.Source, raw.Motion.CountStart, raw.Motion.CountEnd)
 			return e
 		}
 		if value.IsNull() {
@@ -303,7 +303,7 @@ func (s *StatementScope) assignPLCursorTargets(f *proc.PLFrame, targets []proc.P
 func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow plFlow, err error) {
 	original := f.Values[in.Cursor.Slot]
 	wasNull := original.Type() == nil || original.IsNull()
-	var failure plDiagnosticQuery
+	var failure proc.PLDiagnosticQuery
 	cursor, name, err := s.openPLCursor(f, in.Cursor, in.Syntax.Cursor, read, &failure)
 	if err != nil {
 		return value, plFlow{}, plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at FOR over cursor", failure)
@@ -361,27 +361,20 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in p
 	return value, plFlow{}, nil
 }
 
-func plCursorExpressionDiagnostic(err error, source string, start, end parser.Position) plDiagnosticQuery {
-	if !plExpressionCallback(err) {
-		return plDiagnosticQuery{}
-	}
-	return plBodyDiagnostic(source, start, end, plExpressionCallbackKind)
-}
-
-func plCursorArgumentDiagnostic(program *proc.PLProgram, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement) plDiagnosticQuery {
+func plCursorArgumentDiagnostic(program *proc.PLProgram, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement) proc.PLDiagnosticQuery {
 	named := false
 	for _, actual := range raw.Arguments {
 		named = named || actual.Name.Text != ""
 	}
 	var query strings.Builder
-	positions := make([]plDiagnosticPosition, len(in.Arguments))
+	positions := make([]proc.PLDiagnosticPosition, len(in.Arguments))
 	characters := 0
 	for i, argument := range in.Arguments {
 		if i != 0 {
 			query.WriteString(", ")
 			characters += 2
 		}
-		positions[i] = plDiagnosticPosition{Start: argument.Start.Character, End: argument.End.Character, Output: characters + 1}
+		positions[i] = proc.PLDiagnosticPosition{Start: argument.Start.Character, End: argument.End.Character, Output: characters + 1}
 		text := parser.PLExpressionSource(program.Source, argument.Start, argument.End)
 		query.WriteString(text)
 		characters += utf8.RuneCountInString(text)
@@ -391,7 +384,7 @@ func plCursorArgumentDiagnostic(program *proc.PLProgram, in *proc.PLCursorInstru
 			characters += utf8.RuneCountInString(label)
 		}
 	}
-	return plDiagnosticQuery{Text: query.String(), Positions: positions, Callback: plExpressionCallbackKind}
+	return proc.PLDiagnosticQuery{Text: query.String(), Positions: positions, Callback: proc.PLExpressionCallbackKind}
 }
 
 // Ordinary admission binds every target before opening the first-row producer.

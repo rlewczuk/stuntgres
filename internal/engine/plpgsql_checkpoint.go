@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"fmt"
 	"maps"
 	"slices"
 
@@ -11,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -51,13 +51,6 @@ type plExceptionCheckpoint struct {
 // A failed provider cleanup makes every enclosing block ineligible to catch:
 // handlers must never execute against a partly restored foreign transaction.
 // Unwrap retains both the originating SQL diagnostic and secondary evidence.
-type plExceptionCleanupError struct{ primary, cleanup error }
-
-func (e *plExceptionCleanupError) Error() string {
-	return fmt.Sprintf("%v (exception cleanup: %v)", e.primary, e.cleanup)
-}
-func (e *plExceptionCleanupError) Unwrap() []error { return []error{e.primary, e.cleanup} }
-
 func exceptionRows(rows map[ids.ObjectAddress][]storage.RowVersion) map[ids.ObjectAddress][]storage.RowVersion {
 	copy := maps.Clone(rows)
 	for a, rows := range copy {
@@ -128,7 +121,7 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 	t.Mu.Unlock()
 	s.foreignUnlocked()
 	if err := foreignSavepoint(t, s.op.Context(), 0, mark.Serial); err != nil {
-		return nil, &plExceptionCleanupError{primary: err, cleanup: errors.New("exception mark acquisition failed")}
+		return nil, &proc.PLExceptionCleanupError{Primary: err, Cleanup: errors.New("exception mark acquisition failed")}
 	}
 	c := &plExceptionCheckpoint{scope: s, owner: t, serial: mark.Serial, rows: exceptionRows(s.stage.rows), deletes: exceptionDeletes(s.stage.deletes), replacing: s.stage.replacing,
 		ownWrites: exceptionRows(s.ownWrites), ownDeletes: exceptionDeletes(s.ownDeletes), catalog: s.catalog, catalogAuthority: s.catalogAuthority,
@@ -244,7 +237,7 @@ func (s *StatementScope) endPLException(c *plExceptionCheckpoint, rollback bool,
 		s.engine().locks.Restore(t.Ticket, mark.Locks)
 	}
 	if cleanup != nil {
-		return &plExceptionCleanupError{primary: primary, cleanup: cleanup}
+		return &proc.PLExceptionCleanupError{Primary: primary, Cleanup: cleanup}
 	}
 	return nil
 }

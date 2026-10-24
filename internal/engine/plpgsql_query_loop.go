@@ -55,9 +55,9 @@ func (s *StatementScope) forPLQuery(d *catalog.Procedure, f *proc.PLFrame, in pr
 	raw := in.Syntax.QueryLoop
 	const action = "at FOR over SELECT rows"
 	queryError := func(cause error, planning bool) error {
-		diagnostic := plDiagnosticQuery{}
+		diagnostic := proc.PLDiagnosticQuery{}
 		if planning {
-			diagnostic = plDiagnosticQuery{Text: parser.PLExpressionSource(f.Program.Source, raw.Start, raw.End), Offset: raw.Start.Character - 1, Callback: plSQLCallback}
+			diagnostic = proc.PLDiagnosticQuery{Text: parser.PLExpressionSource(f.Program.Source, raw.Start, raw.End), Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
 		}
 		return plRuntimeQueryError(cause, read, d, in.Syntax.Pos, action, diagnostic)
 	}
@@ -114,7 +114,7 @@ func (s *StatementScope) consumePLQuery(d *catalog.Procedure, f *proc.PLFrame, i
 	var shape *sqltype.Descriptor
 	owner := in.QueryLoop.Body.Control
 	failure := func(cause error) error {
-		return plRuntimeQueryError(cause, read, d, in.Syntax.Pos, "at FOR over SELECT rows", plDiagnosticQuery{})
+		return plRuntimeQueryError(cause, read, d, in.Syntax.Pos, "at FOR over SELECT rows", proc.PLDiagnosticQuery{})
 	}
 	for {
 		if err = s.op.Context().Err(); err != nil {
