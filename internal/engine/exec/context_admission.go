@@ -150,13 +150,19 @@ func SQLRoutineStatementContext(err error, name string, statement int) error {
 		return err
 	}
 	copy := *diagnostic
-	context := "SQL function " + strconv.Quote(name)
-	if statement != 0 {
-		context += " statement " + strconv.Itoa(statement)
-	}
+	context := SQLRoutineStatementFrame(name, statement)
 	if copy.Context != "" {
 		copy.Context += "\n"
 	}
 	copy.Context += context
 	return sqlstate.WithDiagnostic(err, &copy)
+}
+
+// SQLRoutineStatementFrame is shared by error unwinding and buffered notices.
+func SQLRoutineStatementFrame(name string, statement int) string {
+	context := "SQL function " + strconv.Quote(name)
+	if statement != 0 {
+		context += " statement " + strconv.Itoa(statement)
+	}
+	return context
 }

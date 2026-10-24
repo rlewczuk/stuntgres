@@ -837,11 +837,21 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			case "alias":
 				token.code = PL_ALIAS
 			case "exception":
-				token.code = PL_EXCEPTION
+				if l.previousToken == PL_RAISE {
+					token.code = PL_RAISE_LEVEL
+				} else {
+					token.code = PL_EXCEPTION
+				}
 			case "raise":
 				token.code = PL_RAISE
+			case "assert":
+				token.code = PL_ASSERT
+			case "debug", "log", "info", "notice", "warning":
+				if l.previousToken == PL_RAISE {
+					token.code = PL_RAISE_LEVEL
+				}
 			case "sqlstate":
-				if l.previousToken == WHEN || l.previousToken == OR {
+				if l.previousToken == WHEN || l.previousToken == OR || l.previousToken == PL_RAISE || l.previousToken == PL_RAISE_LEVEL {
 					token.code = PL_SQLSTATE
 				}
 			case "elsif", "elseif":

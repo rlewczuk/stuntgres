@@ -81,7 +81,7 @@ func (r Deparser) typeSQL(u sqltype.Usage) (string, error) {
 		}
 		return r.Identifier(r.View.Get(d.Namespace()).Name()) + "." + name, nil
 	}
-	return catalog.TypeDiagnosticNameAt(r.View, d, r.Path), nil
+	return catalog.TypeDiagnosticNameAt(r.View, nil, d, r.Path), nil
 }
 
 func (r Deparser) cast(child string, usage sqltype.Usage, simple bool) (string, error) {

@@ -74,6 +74,9 @@ package parser
  plMotion PLCursorMotion
  plActual PLCursorActual
  plActuals []PLCursorActual
+ plRaise *PLRaise
+ plRaiseOption PLRaiseOption
+ plRaiseOptions []PLRaiseOption
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
@@ -239,6 +242,7 @@ package parser
 %token <tok> TYPE_INPUT
 %token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN PL_EXCEPTION PL_RAISE PL_SQLSTATE PL_ELSIF
 %token <tok> PL_THEN PL_WHEN PL_WHEN_COMMA
+%token <tok> PL_ASSERT PL_RAISE_LEVEL PL_MESSAGE_COMMA PL_RAISE_USING
 %token <tok> TRIGGER
 %token <tok> PL_OPEN PL_LOOP PL_NEXT PL_PRIOR PL_LAST PL_EXIT PL_CONTINUE
 %token <tok> SETOF_TYPE
@@ -534,6 +538,12 @@ package parser
 %type <tok> pl_cursor_for pl_cursor_from
 %type <row> pl_cursor_targets
 %type <plExpressions> pl_using pl_using_values
+%type <plRaise> pl_raise_body
+%type <plRaiseOptions> pl_raise_options pl_raise_option_list
+%type <plRaiseOption> pl_raise_option pl_raise_option_name
+%type <plExpressions> pl_raise_arguments
+%type <plExpression> pl_assert_message
+%type <tok> pl_message_comma pl_raise_using pl_option_assign pl_assert_head
 %type <tok> cast_context
 %type <tok> returns_word
 %type <routineParameters> function_arguments function_declaration_argument_list
@@ -1717,6 +1727,9 @@ pl_statements: /* empty */ {$$=nil}
  | pl_statements pl_statement ';' {$$=append($1,$2)} ;
 pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}}
+ | PL_RAISE pl_raise_body {$$=PLStatement{Raise:$2,Pos:$1.pos}}
+ | PL_RAISE PL_RAISE_LEVEL pl_raise_body {$3.Level=plRaiseLevel($2);$$=PLStatement{Raise:$3,Pos:$1.pos}}
+ | pl_assert_head pl_expression pl_assert_message {$$=PLStatement{Assert:&PLAssert{Condition:sqllex.(*lexer).plBoundExpression($2,$1),Message:$3},Pos:$1.pos}}
  | pl_target PL_ASSIGN pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
  | pl_target '=' pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
  | PL_RETURN pl_return_value {value:=sqllex.(*lexer).plBoundExpression($2,$1);$$=PLStatement{Return:true,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
@@ -1738,6 +1751,24 @@ pl_transfer_when_head: WHEN {sqllex.(*lexer).plBeginExpression(plSemicolonBounda
 pl_transfer_expression: pl_expression_start projection_item {l:=sqllex.(*lexer);l.plExpression=false;$$=l.plParsedExpression($2.Targets[0]);$$.Alias=$2.Labels[0]} ;
 pl_expression: pl_expression_start scalar_projection {l:=sqllex.(*lexer);l.plExpression=false;$$=l.plParsedExpression($2)} ;
 pl_expression_start: /* empty */ {sqllex.(*lexer).plExpression=true} ;
+pl_raise_body: STRING pl_raise_arguments pl_raise_options {$$=&PLRaise{Form:PLRaiseFormat,Format:$1.text,Arguments:$2,Options:$3}}
+ | pl_condition pl_raise_options {form:=PLRaiseCondition;if $1.Code!=""{form=PLRaiseSQLState};$$=&PLRaise{Form:form,Condition:$1,Options:$2}}
+ | pl_raise_using pl_raise_option_list {$$=&PLRaise{Form:PLRaiseUsing,Options:$2}} ;
+pl_raise_arguments: /* empty */ {$$=nil}
+ | pl_raise_arguments pl_message_comma pl_expression {$$=append($1,sqllex.(*lexer).plBoundExpression($3,$2))} ;
+pl_message_comma: ',' {sqllex.(*lexer).plBeginExpression(plMessageBoundary);$$=$1}
+ | PL_MESSAGE_COMMA {sqllex.(*lexer).plBeginExpression(plMessageBoundary);$$=$1} ;
+pl_raise_using: USING {$$=$1} | PL_RAISE_USING {$$=$1} ;
+pl_raise_options: /* empty */ {$$=nil} | pl_raise_using pl_raise_option_list {$$=$2} ;
+pl_raise_option_list: pl_raise_option {$$=[]PLRaiseOption{$1}}
+ | pl_raise_option_list PL_MESSAGE_COMMA pl_raise_option {$$=append($1,$3)} ;
+pl_raise_option_name: col_label {$$=sqllex.(*lexer).plRaiseOption($1);if sqllex.(*lexer).err!=nil{return 1}} ;
+pl_option_assign: '=' {sqllex.(*lexer).plBeginExpression(plOptionBoundary);$$=$1}
+ | PL_ASSIGN {sqllex.(*lexer).plBeginExpression(plOptionBoundary);$$=$1} ;
+pl_raise_option: pl_raise_option_name pl_option_assign pl_expression {$1.Value=sqllex.(*lexer).plBoundExpression($3,$2);$$=$1} ;
+pl_assert_head: PL_ASSERT {sqllex.(*lexer).plBeginExpression(plMessageBoundary);$$=$1} ;
+pl_assert_message: /* empty */ {$$=PLExpression{}}
+ | pl_message_comma pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} ;
 pl_if_condition: pl_expression PL_THEN {sqllex.(*lexer).plThen=false;$$=$1} ;
 pl_if_head: IF {sqllex.(*lexer).plBeginExpression(plThenBoundary);$$=$1} ;
 pl_elsif_head: PL_ELSIF {sqllex.(*lexer).plBeginExpression(plThenBoundary);$$=$1} ;

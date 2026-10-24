@@ -13,7 +13,7 @@ import (
 func StandaloneComposite(view catalog.Read, typ *catalog.Type, path []ids.ObjectAddress) (*catalog.Relation, error) {
 	name := typ.SQLType.DiagnosticName()
 	if typ.SQLType.IsUserDefined() {
-		name = catalog.TypeDiagnosticNameAt(view, typ, path)
+		name = catalog.TypeDiagnosticNameAt(view, nil, typ, path)
 	}
 	if !typ.SQLType.IsComposite() {
 		return nil, sqlError("42809", "type "+name+" is not a composite type")

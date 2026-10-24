@@ -16,7 +16,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 	capture := func(s *session.Session) map[string]string {
 		t.Helper()
 		facts, err := (engineCatalogRuntime{settings: s.Settings, registry: e.settings}).SessionSettings(t.Context())
-		if err != nil || len(facts) != 33 {
+		if err != nil || len(facts) != 34 {
 			t.Fatal(len(facts), err)
 		}
 		out := make(map[string]string)

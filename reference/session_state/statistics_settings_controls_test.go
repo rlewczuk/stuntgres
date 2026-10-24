@@ -72,7 +72,7 @@ func TestReferenceStatisticsSettingsControls(t *testing.T) {
 					}
 				}
 			}
-			if rows.Err() != nil || count != 33 || !seen {
+			if rows.Err() != nil || count != 34 || !seen {
 				t.Fatal(count, seen, rows.Err())
 			}
 			rows.Close()
@@ -111,7 +111,7 @@ func TestReferenceStatisticsSettingsControls(t *testing.T) {
 			}
 			count++
 		}
-		if count != 33 || !reflect.DeepEqual(rows.Columns(), columns) {
+		if count != 34 || !reflect.DeepEqual(rows.Columns(), columns) {
 			t.Fatal(count, rows.Columns())
 		}
 	})

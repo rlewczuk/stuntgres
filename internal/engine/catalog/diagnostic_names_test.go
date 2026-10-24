@@ -82,7 +82,7 @@ func TestTypeDiagnosticNameAtQualifiesHiddenTypes(t *testing.T) {
 		{"array visible", moods, path(s1), "mood[]"},
 		{"array shadowed", moods, path(odd, s1), "s1.mood[]"},
 	} {
-		if got := TypeDiagnosticNameAt(view, tc.typ, tc.path); got != tc.want {
+		if got := TypeDiagnosticNameAt(view, nil, tc.typ, tc.path); got != tc.want {
 			t.Errorf("%s: got %s, want %s", tc.name, got, tc.want)
 		}
 	}
@@ -109,7 +109,7 @@ func TestTypeDiagnosticNameAtBuiltinSQLSpelling(t *testing.T) {
 	} {
 		typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(tc.id)})
 		for _, path := range [][]ids.ObjectAddress{nil, {}, {{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}} {
-			if got := TypeDiagnosticNameAt(view, typ, path); got != tc.want {
+			if got := TypeDiagnosticNameAt(view, nil, typ, path); got != tc.want {
 				t.Errorf("type %d path %v: got %s, want %s", tc.id, path, got, tc.want)
 			}
 		}

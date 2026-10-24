@@ -94,7 +94,7 @@ func utilityRoutineArguments(h DDLHost, auth ddl.Authority, target parser.GrantR
 		signature.Write(strconv.AppendUint(digits[:0], uint64(id), 10))
 		typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 		if typ.SQLType.IsUserDefined() {
-			canonical.WriteString(catalog.TypeDiagnosticNameAt(view, typ, path))
+			canonical.WriteString(catalog.TypeDiagnosticNameAt(view, nil, typ, path))
 		} else {
 			canonical.WriteString(typ.SQLType.DiagnosticName())
 		}
@@ -123,7 +123,7 @@ func utilityRoutineSignatureDiagnostic(h DDLHost, auth ddl.Authority, signature 
 			text.WriteString(", ")
 		}
 		if typ.SQLType.IsUserDefined() {
-			text.WriteString(catalog.TypeDiagnosticNameAt(view, typ, path))
+			text.WriteString(catalog.TypeDiagnosticNameAt(view, nil, typ, path))
 		} else {
 			text.WriteString(typ.SQLType.DiagnosticName())
 		}

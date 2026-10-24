@@ -22,7 +22,7 @@ func TestSettingsMetadataRaw(t *testing.T) {
 func TestSettingsMetadataRegistry(t *testing.T) {
 	for _, tracking := range []bool{false, true} {
 		r := NewRegistry(nil, tracking)
-		if len(r.Order()) != 33 {
+		if len(r.Order()) != 34 {
 			t.Fatal(len(r.Order()))
 		}
 		for _, name := range r.Order() {

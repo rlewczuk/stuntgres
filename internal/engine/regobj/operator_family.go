@@ -73,7 +73,7 @@ func OperatorFamilyDescription(view catalog.Read, d catalog.Descriptor, path []i
 			var text strings.Builder
 			text.WriteString(identity.Name)
 			text.WriteByte('(')
-			WriteRoutineArguments(&text, view, path, identity.Signature, true)
+			WriteRoutineArguments(&text, view, nil, path, identity.Signature, true)
 			text.WriteByte(')')
 			impl = text.String()
 		}

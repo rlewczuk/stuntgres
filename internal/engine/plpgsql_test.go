@@ -437,7 +437,8 @@ func TestPLpgSQLDepthUnwind(t *testing.T) {
 }
 
 func TestPLpgSQLDiagnosticIdentity(t *testing.T) {
-	read := New().CatalogRead()
+	e, scope := plUnitScope(t)
+	read := e.CatalogRead()
 	for _, tc := range []struct {
 		name      string
 		signature catalog.ProcedureSignature
@@ -448,16 +449,39 @@ func TestPLpgSQLDiagnosticIdentity(t *testing.T) {
 		{"Mixed Name", "23,25", `"Mixed Name"(integer,text)`},
 	} {
 		d := &catalog.Procedure{ObjectName: tc.name, Signature: tc.signature}
-		if got := plRoutineDiagnosticIdentity(read, d); got != tc.want {
+		if got := scope.plRoutineDiagnosticIdentity(read, d); got != tc.want {
 			t.Fatalf("identity %q, want %q", got, tc.want)
 		}
 		d.SQL = &proc.Definition{Source: "BEGIN RETURN; END"}
-		err := plRuntimeError(sqlError("22012", "division by zero"), read, d, parser.Position{}, parser.Position{}, parser.Position{}, "at assignment", false)
+		err := scope.plRuntimeError(sqlError("22012", "division by zero"), read, d, parser.Position{}, parser.Position{}, parser.Position{}, "at assignment", false)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Context != "PL/pgSQL function "+tc.want+" line 1 at assignment" {
 			t.Fatal("runtime context lost canonical identity", err)
 		}
 	}
+	t.Run("definition_visibility", func(t *testing.T) {
+		candidate := catalog.NewCandidate(read)
+		namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 910010}, ObjectName: "Mixed Schema"}
+		typ := &catalog.Type{SQLType: sqltype.LookupOnly(910011, "special", 0), ObjectNamespace: namespace.Address()}
+		routine := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 910012}, ObjectNamespace: namespace.Address(), ObjectName: "Mixed Name", Signature: "23,910011"}
+		shadow := *routine
+		shadow.ObjectAddress.ObjectID = 910013
+		shadow.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		for _, descriptor := range []catalog.Descriptor{namespace, typ, routine, &shadow} {
+			if err := candidate.Create(descriptor); err != nil { t.Fatal(err) }
+		}
+		reader := candidate.Definitions()
+		public := shadow.Namespace()
+		for _, tc := range []struct { path []ids.ObjectAddress; want string }{
+			{[]ids.ObjectAddress{namespace.Address(), public}, `"Mixed Name"(integer,special)`},
+			{[]ids.ObjectAddress{public, namespace.Address()}, `"Mixed Schema"."Mixed Name"(integer,special)`},
+			{[]ids.ObjectAddress{public}, `"Mixed Schema"."Mixed Name"(integer,"Mixed Schema".special)`},
+		} {
+			if got := formatPLDiagnosticIdentity(read, reader, tc.path, routine); got != tc.want {
+				t.Fatalf("definition-aware identity got %q want %q", got, tc.want)
+			}
+		}
+	})
 }
 
 func TestPLpgSQLCheckedCallCollation(t *testing.T) {

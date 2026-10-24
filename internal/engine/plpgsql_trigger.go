@@ -26,11 +26,18 @@ func plTriggerRelation(read catalog.Read, relation *catalog.Relation) (proc.PLTr
 // invokePLTrigger is reached only by the admitted trigger payload entry, never
 // by ordinary SQL routine dispatch. Its caller owns depth and live provenance.
 func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, read catalog.Read, relation *catalog.Relation) (sqltype.Value, error) {
+	diagnosticIdentity, err := s.plDiagnosticIdentityFor(d, read)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	previousIdentity := s.sqlRoutine.plDiagnostic
+	s.sqlRoutine.plDiagnostic = diagnosticIdentity
+	defer func() { s.sqlRoutine.plDiagnostic = previousIdentity }()
 	result, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	identity := "PL/pgSQL function " + plRoutineDiagnosticIdentity(read, d)
+	identity := "PL/pgSQL function " + s.plRoutineDiagnosticIdentity(read, d)
 	if flow.Kind != proc.PLReturn {
 		return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2F005", Message: "control reached end of trigger procedure without RETURN", Context: identity}
 	}

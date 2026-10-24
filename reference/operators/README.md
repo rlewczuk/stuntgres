@@ -103,6 +103,13 @@ after fatal cleanup failure.
 Loop scenarios reuse the same direct/prepared, held and replay helpers for bounded
 iteration, nested label transfers, reached WHEN evaluation, complete diagnostics,
 protected effects and actively admitted cancellation.
+RAISE/ASSERT scenarios reuse the PL value/complete-diagnostic helpers and the
+shared notice-enabled fixture. They cover ordered operands, lazy assertions,
+effective settings, held calls and stored callers through unchanged replay.
+Nested successful notices compare complete ordered records through PL and
+non-inline SQL callers, including direct, fresh-prepared and original-held
+execution, source-versus-body FOR ownership, and subsequent context-leak probes.
+Family selector: `RUN='^TestReferencePLpgSQL(Raise|Assert)'`.
 
 ```sh
 make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRecords|Returns|LazyBinding|LanguageAuthority|Persistence|CompositeNull|RecordClear|CompositeDomain|CopiedCollation|InvocationCollation|FormalNamespace)$'

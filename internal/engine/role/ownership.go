@@ -185,7 +185,7 @@ func PlanTypeOwnership(h Host, auth ddl.Authority, s *parser.AlterOwner, name st
 		return OwnerChange{}, sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(s.Name)))
 	}
 	diagnosticPath, _ := auth.ReferencePath()
-	display := catalog.TypeDiagnosticNameAt(view.Catalog, old, diagnosticPath)
+	display := catalog.TypeDiagnosticNameAt(view.Catalog, nil, old, diagnosticPath)
 	if s.Kind == "domain" && !old.SQLType.IsDomain() {
 		return OwnerChange{}, sqlError("42809", display+" is not a domain")
 	}

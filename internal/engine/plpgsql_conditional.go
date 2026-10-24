@@ -19,9 +19,9 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 		if err := s.op.Context().Err(); err != nil {
 			return sqltype.Value{}, proc.PLFlow{}, err
 		}
-		value, usage, _, err := s.evaluatePLExpression(f, checked.Search, read, nil)
+		value, usage, _, err := s.evaluatePLExpression(f, checked.Search, read, nil, s.plNoticeOrigin(f, instruction.Syntax.Pos, action))
 		if err != nil {
-			return sqltype.Value{}, proc.PLFlow{}, plRuntimeError(err, read, d, raw.Search.Start, raw.Search.End, instruction.Syntax.Pos, action, true)
+			return sqltype.Value{}, proc.PLFlow{}, s.plRuntimeError(err, read, d, raw.Search.Start, raw.Search.End, instruction.Syntax.Pos, action, true)
 		}
 		f.Searches[checked.SearchSlot] = proc.PLSearch{Value: value, Usage: usage}
 		defer func() { f.Searches[checked.SearchSlot] = proc.PLSearch{} }()
@@ -34,10 +34,12 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 		if err := s.op.Context().Err(); err != nil {
 			return sqltype.Value{}, proc.PLFlow{}, err
 		}
-		value, _, _, err := s.evaluatePLExpression(f, branch.Query, read, nil)
+		value, _, _, err := s.evaluatePLExpression(f, branch.Query, read, nil, s.plNoticeOrigin(f, instruction.Syntax.Pos, action))
 		expressionError := err != nil
 		if err == nil {
+			noticeStart := len(s.op.Notices)
 			value, err = s.convertPLValue(value, boolean.Usage())
+			s.appendPLNoticeContext(noticeStart, s.plNoticeOrigin(f, instruction.Syntax.Pos, action))
 		}
 		if err != nil {
 			arm := raw.Arms[i]
@@ -45,7 +47,7 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 			if checked.Search != nil && expressionError {
 				err = proc.PLCaseExpressionError(err, branch, first.Start)
 			}
-			return sqltype.Value{}, proc.PLFlow{}, plRuntimeError(err, read, d, first.Start, arm.Conditions[len(arm.Conditions)-1].End, instruction.Syntax.Pos, action, expressionError && checked.Search == nil)
+			return sqltype.Value{}, proc.PLFlow{}, s.plRuntimeError(err, read, d, first.Start, arm.Conditions[len(arm.Conditions)-1].End, instruction.Syntax.Pos, action, expressionError && checked.Search == nil)
 		}
 		if value.IsNull() {
 			continue
@@ -61,7 +63,7 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 	if isCase && !checked.HasElse {
 		err := sqlError("20000", "case not found").(*sqlstate.Error)
 		err.Hint = "CASE statement is missing ELSE part."
-		return sqltype.Value{}, proc.PLFlow{}, plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, instruction.Syntax.Pos, action, false)
+		return sqltype.Value{}, proc.PLFlow{}, s.plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, instruction.Syntax.Pos, action, false)
 	}
 	return s.executePLStatements(d, f, checked.Else, read)
 }

@@ -274,7 +274,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				}
 				for _, dependency := range catalog.RangeDependencies(d) {
 					if dependency == target {
-						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: d.SQLType.IsMultirange(), Label: "type " + catalog.TypeDiagnosticNameAt(base, d, path)})
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: d.SQLType.IsMultirange(), Label: "type " + catalog.TypeDiagnosticNameAt(base, nil, d, path)})
 					}
 				}
 				if !domains[a] {
@@ -308,7 +308,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					if defaultRootDependency {
 						dependencyTarget = root
 					}
-					direct = append(direct, table.DomainDependency{Address: a, Target: dependencyTarget, Root: root, OID: a.ObjectID, Label: "type " + catalog.TypeDiagnosticNameAt(base, d, path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: dependencyTarget, Root: root, OID: a.ObjectID, Label: "type " + catalog.TypeDiagnosticNameAt(base, nil, d, path)})
 				}
 				if d.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})

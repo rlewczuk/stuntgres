@@ -43,7 +43,7 @@ func castTypeError(h DDLHost, a ddl.Authority, s, t *catalog.Type, code, format 
 	v := h.AccessView(a).Catalog
 	typeName := func(t *catalog.Type) string {
 		if t.SQLType.IsUserDefined() {
-			return catalog.TypeDiagnosticNameAt(v, t, path)
+			return catalog.TypeDiagnosticNameAt(v, nil, t, path)
 		}
 		return t.SQLType.DiagnosticName()
 	}

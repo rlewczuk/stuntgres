@@ -26,6 +26,8 @@ type sqlRoutineAnalysis struct {
 	descriptions   []StatementDescription
 	statements     []parser.Statement   // Immutable invocation syntax shares retained occurrence keys.
 	inputCollation sqltype.CollationRef // Quoted aggregate-support analysis context, not caller explicitness.
+	plProcedure    *catalog.Procedure // Session-private validator/first-use signature owner.
+	plDiagnostic   string
 }
 
 // InvokeSQLRoutine runs a SQL-language routine body inside the statement.
@@ -127,6 +129,12 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 }
 
 func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *StatementDescription, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) (value sqltype.Value, err error) {
+	noticeStart := len(s.op.Notices)
+	defer func() {
+		if noticeStart != len(s.op.Notices) {
+			s.appendNoticeContext(noticeStart, exec.SQLRoutineStatementFrame(d.Name(), index+1))
+		}
+	}()
 	restore := s.activateSQLRoutine(d.SQL.Inputs, read)
 	defer func() { err = restore(err) }()
 	finishCommand, err := s.beginRoutineCommand()

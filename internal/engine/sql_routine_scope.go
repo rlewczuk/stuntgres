@@ -148,6 +148,7 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 // sqlRoutineDemand is the internal SQL routine result demand of a statement.
 type sqlRoutineDemand struct {
 	lexical            *proc.PLFrame
+	plDiagnostic       string // Invocation-private cached PL signature; balanced with lexical scratch.
 	plPlanning         bool                  // PL diagnostic provenance; cleared at the real executor handoff.
 	assignment         *analyze.PLAssignment // Reached semantic-datum projection, never retained.
 	assignmentPlanning bool                  // Borrowed PL origin for a called SQL body, not its destination.

@@ -60,7 +60,7 @@ func plUnitAssignQueryValue(t *testing.T, s *StatementScope, f *proc.PLFrame, pa
 		t.Fatal(err)
 	}
 	query := &parser.Select{Targets: []parser.Expr{statement.Expression}, Pos: statement.Expression.SourcePosition()}
-	return s.assignPLTarget(f, target, statement.Target, query, s.engine().CatalogRead())
+	return s.assignPLTarget(f, target, statement.Target, query, s.engine().CatalogRead(), plNoticeOrigin{})
 }
 
 func TestPLpgSQLAssignmentAtomicity(t *testing.T) {
@@ -443,7 +443,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		{"SELECT 1::pa_origin_domain", false},
 	} {
 		raw := statement(t, tc.query).(*parser.Select)
-		_, _, _, err := s.evaluatePLExpression(frame, raw, read, &analyze.PLAssignment{Usage: integer.Usage()})
+		_, _, _, err := s.evaluatePLExpression(frame, raw, read, &analyze.PLAssignment{Usage: integer.Usage()}, plNoticeOrigin{})
 		var planning *plan.PLAssignmentPlanningError
 		if err == nil || errors.As(err, &planning) != tc.planning {
 			t.Fatal("reached query lost planning/runtime origin", tc.query, err)
@@ -452,7 +452,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 			t.Fatal("failed assignment query leaked borrowed demand/depth", tc.query)
 		}
 	}
-	value, _, present, err := s.evaluatePLExpression(frame, statement(t, "SELECT pa_origin_dynamic('7'::text)").(*parser.Select), read, &analyze.PLAssignment{Usage: integer.Usage()})
+	value, _, present, err := s.evaluatePLExpression(frame, statement(t, "SELECT pa_origin_dynamic('7'::text)").(*parser.Select), read, &analyze.PLAssignment{Usage: integer.Usage()}, plNoticeOrigin{})
 	if err != nil || !present {
 		t.Fatal("recovery after planning/runtime failures", err)
 	}
@@ -561,7 +561,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 		}
 		statement := raw.Statements[0]
 		query := &parser.Select{Targets: []parser.Expr{statement.Expression}, Pos: statement.Expression.SourcePosition()}
-		return s.assignPLTarget(frame, plUnitAssignmentTarget(t, path), statement.Target, query, read)
+		return s.assignPLTarget(frame, plUnitAssignmentTarget(t, path), statement.Target, query, read, plNoticeOrigin{})
 	}
 	_, err = run(f, "a[1]", "generate_series(1,0)")
 	domainUnitDiagnostic(t, err, "22004", `null value cannot be assigned to variable "a" declared NOT NULL`)
@@ -666,7 +666,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 
 	query := statement(t, "SELECT generate_series(1,0)").(*parser.Select)
 	target := plUnitAssignmentTarget(t, "a[1]")
-	value, usage, present, err := s.evaluatePLExpression(f, query, read, &analyze.PLAssignment{Usage: array.Usage(), Current: initial, Steps: target.Steps, Name: "a"})
+	value, usage, present, err := s.evaluatePLExpression(f, query, read, &analyze.PLAssignment{Usage: array.Usage(), Current: initial, Steps: target.Steps, Name: "a"}, plNoticeOrigin{})
 	if err != nil || present || usage != array.Usage() || !value.IsNull() || value.Type() != array {
 		t.Fatal("query outcome lost cardinality/root Usage", value, usage, present, err)
 	}

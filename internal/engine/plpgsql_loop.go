@@ -42,17 +42,19 @@ func (s *StatementScope) executePLTransfer(d *catalog.Procedure, f *proc.PLFrame
 		action, kind = "at CONTINUE", proc.PLContinue
 	}
 	if in.Query != nil {
-		value, _, _, err := s.evaluatePLExpression(f, in.Query, read, nil)
+		value, _, _, err := s.evaluatePLExpression(f, in.Query, read, nil, s.plNoticeOrigin(f, raw.Pos, action))
 		expressionError := err != nil
 		if err == nil {
 			boolean, ok := read.LookupType(sqltype.Bool)
 			if !ok {
 				return sqltype.Value{}, proc.PLFlow{}, fmt.Errorf("stuntgres: missing PL condition Boolean type")
 			}
+			noticeStart := len(s.op.Notices)
 			value, err = s.convertPLValue(value, boolean.Usage())
+			s.appendPLNoticeContext(noticeStart, s.plNoticeOrigin(f, raw.Pos, action))
 		}
 		if err != nil {
-			return sqltype.Value{}, proc.PLFlow{}, plRuntimeError(err, read, d, raw.ExpressionStart, raw.ExpressionEnd, raw.Pos, action, expressionError)
+			return sqltype.Value{}, proc.PLFlow{}, s.plRuntimeError(err, read, d, raw.ExpressionStart, raw.ExpressionEnd, raw.Pos, action, expressionError)
 		}
 		if value.IsNull() {
 			return sqltype.Value{}, proc.PLFlow{}, nil

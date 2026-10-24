@@ -24,15 +24,19 @@ type plTargetDatum struct {
 	expression expr.Expr
 }
 
-func (s *StatementScope) assignPLTarget(f *proc.PLFrame, checked proc.PLTarget, raw parser.Expr, query *parser.Select, read catalog.Read) (value sqltype.Value, err error) {
+func (s *StatementScope) assignPLTarget(f *proc.PLFrame, checked proc.PLTarget, raw parser.Expr, query *parser.Select, read catalog.Read, origin plNoticeOrigin) (value sqltype.Value, err error) {
+	noticeStart := len(s.op.Notices)
 	restore := s.activateSQLRoutine(nil, read)
-	defer func() { err = restore(err) }()
+	defer func() {
+		err = restore(err)
+		s.appendPLNoticeContext(noticeStart, origin)
+	}()
 	s.sqlRoutine.lexical = f
 	prepared, err := s.preparePLTargetDatum(f, checked, f.Values[checked.Slot], raw, nil)
 	if err != nil {
 		return value, err
 	}
-	value, _, _, err = s.evaluatePLExpression(f, query, read, &prepared.assignment)
+	value, _, _, err = s.evaluatePLExpression(f, query, read, &prepared.assignment, plNoticeOrigin{})
 	if err == nil {
 		value, err = finishPLTarget(f, checked.Slot, prepared, value)
 	}

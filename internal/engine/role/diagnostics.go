@@ -106,12 +106,12 @@ func DependencyDescription(v access.View, path []ids.ObjectAddress, dep access.R
 		}
 		if relation.RelationKind == catalog.CompositeRelation {
 			typ := read.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-			kind, name = "type ", catalog.TypeDiagnosticNameAt(read, typ, path)
+			kind, name = "type ", catalog.TypeDiagnosticNameAt(read, nil, typ, path)
 		}
 	}
 	if typ, ok := d.(*catalog.Type); ok && (typ.SQLType.IsUserDefined() || typ.SQLType.IsArray() && typ.SQLType.Element().IsDomain()) {
 		kind = "type "
-		name = catalog.TypeDiagnosticNameAt(read, typ, path)
+		name = catalog.TypeDiagnosticNameAt(read, nil, typ, path)
 	}
 	if c, ok := d.(*catalog.Collation); ok {
 		kind = "collation "

@@ -109,6 +109,10 @@ scalar syntax errors.
 Expression-origin probes inherit the predecessor's byte/character coordinates,
 so their two-token scan does not recount the preceding body.
 Contextual PL keywords do not change SQL parsing or configured prewalk behavior.
+RAISE retains severity, explicit source form, decoded format, ordered arguments
+and option occurrences; bare rethrow remains distinct. ASSERT retains separate
+condition and optional-message spans. Their depth-zero commas and RAISE USING
+boundaries do not consume nested SQL delimiters or quoted identifiers.
 LOOP and cursor-FOR bodies retain opening/closing labels and an explicit loop
 discriminator. Transfers retain positioned labels and WHEN expression boundaries;
 WHEN projection aliases use the ordinary projection grammar and remain positioned
@@ -158,6 +162,7 @@ feature prefix.
 - Database creation: `RUN='^TestCreateDatabase'`
 - PL block/conditional/control syntax and full consumption: `RUN='^TestPLpgSQL(ConditionalParser|LoopParser|QueryLoopParser|ParserFullConsumption)$'`
 - Exception syntax and handler full consumption: `RUN='^TestPLExceptionParsing$'`
+- Message and assertion syntax: `RUN='^TestPLpgSQL(Raise|Assert)Parser$'`
 
 **Benchmarks.** Compare scratch-receiver changes with the unchanged
 `parser_scratch_bench_test.go` harness before and after:

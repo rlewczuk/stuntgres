@@ -292,7 +292,7 @@ func grantRoutineArgumentDisplay(view access.View, env access.Environment, input
 		}
 		typ := view.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 		if typ.SQLType.IsUserDefined() {
-			display.WriteString(catalog.TypeDiagnosticNameAt(view.Catalog, typ, path))
+			display.WriteString(catalog.TypeDiagnosticNameAt(view.Catalog, nil, typ, path))
 		} else {
 			display.WriteString(typ.SQLType.DiagnosticName())
 		}

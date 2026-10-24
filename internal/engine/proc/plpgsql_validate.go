@@ -177,6 +177,9 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			if (instruction.QueryLoop != nil) != (raw.QueryLoop != nil) || (instruction.Loop != nil) != (raw.Loop != nil) || (instruction.Transfer != nil) != (raw.Transfer != nil) {
 				return invalid()
 			}
+			if (instruction.Raise != nil) != (raw.Raise != nil) || (instruction.Assert != nil) != (raw.Assert != nil) {
+				return invalid()
+			}
 			if err := diagnostics.target(p, d.Source, raw, scopes); err != nil {
 				return invalid()
 			}
@@ -184,7 +187,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			variants := 0
-			for _, present := range []bool{raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
+			for _, present := range []bool{raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
 				if present {
 					variants++
 				}
@@ -193,6 +196,32 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			switch {
+			case raw.Raise != nil || raw.Assert != nil:
+				empty := instruction
+				empty.Raise, empty.Assert = nil, nil
+				if instruction.Block != nil || raw.Expression != nil || !emptyPLInstructionPayload(empty) {
+					return invalid()
+				}
+				operand := func(value parser.PLExpression, checked *parser.Select, required bool) bool {
+					return (!required || value.Expression != nil) &&
+						value.Alias == (parser.Identifier{}) &&
+						plSourceSpan(d.Source, value.Expression, value.Start, value.End, value.Delimiter) &&
+						query(checked, value.Expression) &&
+						diagnostics.expression(p, d.Source, value.Start, value.End, scopes) == nil
+				}
+				if raw.Raise != nil {
+					if !p.validRaise(raw.Raise, instruction.Raise, raw.Pos) {
+						return invalid()
+					}
+					for i, value := range raw.Raise.Arguments {
+						if !operand(value, instruction.Raise.Arguments[i], true) { return invalid() }
+					}
+					for i, option := range raw.Raise.Options {
+						if !operand(option.Value, instruction.Raise.Options[i].Query, true) { return invalid() }
+					}
+				} else if !operand(raw.Assert.Condition, instruction.Assert.Condition, true) || !operand(raw.Assert.Message, instruction.Assert.Message, false) {
+					return invalid()
+				}
 			case raw.QueryLoop != nil:
 				q := raw.QueryLoop
 				checked := instruction.QueryLoop
@@ -645,5 +674,5 @@ func (p *PLProgram) validCursorInstruction(raw *parser.PLCursorStatement, in *PL
 }
 
 func emptyPLInstructionPayload(in PLInstruction) bool {
-	return in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
+	return in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
 }

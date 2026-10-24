@@ -111,7 +111,7 @@ func TestReferenceStatisticsSettingsMetadata(t *testing.T) {
 		}
 		// Full native registry membership is bounded; PostgreSQL has many more GUCs.
 		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_settings", []string{"count"}, []string{"INT8"}, [][]any{{int64(33)}}))
+			run(fixture.Select("SELECT count(*) FROM pg_settings", []string{"count"}, []string{"INT8"}, [][]any{{int64(34)}}))
 		}
 		run(fixture.Exec("SET statistics.placeholder='hidden'", 0))
 		run(fixture.Select("SELECT name FROM pg_settings WHERE name='statistics.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
@@ -146,7 +146,7 @@ func TestReferenceStatisticsSettingsFeatureSmoke(t *testing.T) {
 		inventory.CheckMetadata = func(t *testing.T, rows *sql.Rows) { statisticsSettingsMetadata(t, rows, pg) }
 		run(inventory)
 		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_settings", []string{"count"}, []string{"INT8"}, [][]any{{int64(33)}}))
+			run(fixture.Select("SELECT count(*) FROM pg_settings", []string{"count"}, []string{"INT8"}, [][]any{{int64(34)}}))
 		}
 		query := "SELECT setting,unit,source FROM pg_settings WHERE name='statement_timeout'"
 		stmt, err := conn.PrepareContext(p.Ctx, query)

@@ -61,7 +61,7 @@ func TestReferenceStatisticsSettingsCustom(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s)
 		}
 	}
-	fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Select("SELECT count(*) FROM pg_settings", []string{"count"}, []string{"INT8"}, [][]any{{int64(46)}}))
+	fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Select("SELECT count(*) FROM pg_settings", []string{"count"}, []string{"INT8"}, [][]any{{int64(47)}}))
 	for _, tc := range []struct{ query, raw string }{
 		{"SET demo.real_time='1.23456789'", "1.23457"},
 		{"SET demo.real_time='1500ms'", "1.5"},

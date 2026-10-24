@@ -136,6 +136,7 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 					}
 					defer b.Close()
 					run := func(s fixture.Step) { s.Prepared = prepared; fixture.RunStep(t, p.Ctx, a, backend.Recorder, s) }
+					run(fixture.Exec("DO $$BEGIN END$$", 0))
 					// Independent REL_18_0 guc_tables.c short_desc expectations.
 					expected := map[string][2]string{
 						"DateStyle":                           {"ISO, MDY", "Sets the display format for date and time values."},
@@ -151,6 +152,7 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 						"lock_timeout":                        {"0", "Sets the maximum allowed duration of any wait for a lock."},
 						"log_statement_stats":                 {"off", "Writes cumulative performance statistics to the server log."},
 						"max_parallel_workers_per_gather":     {"2", "Sets the maximum number of parallel processes per executor node."},
+						"plpgsql.check_asserts":                {"on", "Perform checks given in ASSERT statements."},
 						"quote_all_identifiers":               {"off", "When generating SQL fragments, quote all identifiers."},
 						"row_security":                        {"on", "Enables row security."},
 						"search_path":                         {`"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
@@ -176,7 +178,7 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 					if backend.Name == "postgres" {
 						expected["TimeZone"] = [2]string{"Etc/UTC", "Sets the time zone for displaying and interpreting time stamps."}
 						// Project the genuine registry, not fabricated whole-catalog parity.
-						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','track_commit_timestamp','application_name','bytea_output','client_min_messages','default_transaction_deferrable','default_transaction_isolation','default_transaction_read_only','IntervalStyle','lock_timeout','log_statement_stats','max_parallel_workers_per_gather','quote_all_identifiers','row_security','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_deferrable','transaction_isolation','transaction_read_only','transaction_timeout','idle_in_transaction_session_timeout','idle_session_timeout','client_encoding','lc_messages','lc_monetary','lc_numeric','lc_time','icu_validation_level','extra_float_digits') ORDER BY lower(name)"
+						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','track_commit_timestamp','application_name','bytea_output','client_min_messages','default_transaction_deferrable','default_transaction_isolation','default_transaction_read_only','IntervalStyle','lock_timeout','log_statement_stats','max_parallel_workers_per_gather','plpgsql.check_asserts','quote_all_identifiers','row_security','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_deferrable','transaction_isolation','transaction_read_only','transaction_timeout','idle_in_transaction_session_timeout','idle_session_timeout','client_encoding','lc_messages','lc_monetary','lc_numeric','lc_time','icu_validation_level','extra_float_digits') ORDER BY lower(name)"
 						run(fixture.Select("SELECT name FROM pg_settings WHERE name='demo.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
 					}
 					var rows *sql.Rows

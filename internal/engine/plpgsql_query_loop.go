@@ -44,6 +44,12 @@ func (s *StatementScope) assignPLRow(f *proc.PLFrame, slot int, shape **sqltype.
 
 func (s *StatementScope) forPLQuery(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
 	iterated, consumed := false, false
+	diagnosticIdentity := s.sqlRoutine.plDiagnostic
+	origin := s.plNoticeOrigin(f, in.Syntax.Pos, "at FOR over SELECT rows")
+	noticeStart, sourceComplete := len(s.op.Notices), false
+	defer func() {
+		if !sourceComplete { s.appendPLNoticeContext(noticeStart, origin) }
+	}()
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() {
 		err = restore(err)
@@ -52,6 +58,9 @@ func (s *StatementScope) forPLQuery(d *catalog.Procedure, f *proc.PLFrame, in pr
 		}
 	}()
 	s.sqlRoutine.lexical, s.sqlRoutine.scalar, s.sqlRoutine.rows = f, false, true
+	// The private producer and its PL body still belong to this function.
+	// Nested SQL calls get their own cleared activation and restore this owner.
+	s.sqlRoutine.plDiagnostic = diagnosticIdentity
 	raw := in.Syntax.QueryLoop
 	const action = "at FOR over SELECT rows"
 	queryError := func(cause error, planning bool) error {
@@ -59,7 +68,7 @@ func (s *StatementScope) forPLQuery(d *catalog.Procedure, f *proc.PLFrame, in pr
 		if planning {
 			diagnostic = proc.PLDiagnosticQuery{Text: parser.PLExpressionSource(f.Program.Source, raw.Start, raw.End), Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
 		}
-		return plRuntimeQueryError(cause, read, d, in.Syntax.Pos, action, diagnostic)
+		return s.plRuntimeQueryError(cause, read, d, in.Syntax.Pos, action, diagnostic)
 	}
 	s.sqlRoutine.plPlanning = true
 	if err = s.acquireRelation(in.QueryLoop.Query, true); err != nil {
@@ -84,7 +93,11 @@ func (s *StatementScope) forPLQuery(d *catalog.Procedure, f *proc.PLFrame, in pr
 	// DML and modifying WITH have completed eagerly. Settle their command before
 	// any body SQL can observe the effects or create its own command identity.
 	err = finishCommand(executionErr)
+	s.appendPLNoticeContext(noticeStart, origin)
+	sourceComplete = true
 	defer func() {
+		noticeStart := len(s.op.Notices)
+		defer func() { s.appendPLNoticeContext(noticeStart, origin) }()
 		if result.Rows != nil {
 			if closeErr := result.Rows.Close(); err == nil {
 				err = queryError(closeErr, false)
@@ -113,20 +126,26 @@ func (s *StatementScope) consumePLQuery(d *catalog.Procedure, f *proc.PLFrame, i
 	fields := make([]sqltype.Value, len(schema))
 	var shape *sqltype.Descriptor
 	owner := in.QueryLoop.Body.Control
+	origin := s.plNoticeOrigin(f, in.Syntax.Pos, "at FOR over SELECT rows")
 	failure := func(cause error) error {
-		return plRuntimeQueryError(cause, read, d, in.Syntax.Pos, "at FOR over SELECT rows", proc.PLDiagnosticQuery{})
+		return s.plRuntimeQueryError(cause, read, d, in.Syntax.Pos, "at FOR over SELECT rows", proc.PLDiagnosticQuery{})
 	}
 	for {
 		if err = s.op.Context().Err(); err != nil {
 			return value, proc.PLFlow{}, failure(err)
 		}
+		noticeStart := len(s.op.Notices)
 		present, fetchErr := rows.Next(s.op.Context(), fields)
+		s.appendPLNoticeContext(noticeStart, origin)
 		if fetchErr != nil {
 			return value, proc.PLFlow{}, failure(fetchErr)
 		}
 		if !present {
 			if !*iterated {
-				if err = s.assignPLRow(f, in.QueryLoop.Target.Slot, &shape, schema, nil); err != nil {
+				noticeStart := len(s.op.Notices)
+				err = s.assignPLRow(f, in.QueryLoop.Target.Slot, &shape, schema, nil)
+				s.appendPLNoticeContext(noticeStart, origin)
+				if err != nil {
 					return value, proc.PLFlow{}, failure(err)
 				}
 			}
@@ -136,7 +155,10 @@ func (s *StatementScope) consumePLQuery(d *catalog.Procedure, f *proc.PLFrame, i
 		if f.Program.Variables[in.QueryLoop.Target.Slot].Record {
 			owned = slices.Clone(fields)
 		}
-		if err = s.assignPLRow(f, in.QueryLoop.Target.Slot, &shape, schema, owned); err != nil {
+		noticeStart = len(s.op.Notices)
+		err = s.assignPLRow(f, in.QueryLoop.Target.Slot, &shape, schema, owned)
+		s.appendPLNoticeContext(noticeStart, origin)
+		if err != nil {
 			return value, proc.PLFlow{}, failure(err)
 		}
 		*iterated = true

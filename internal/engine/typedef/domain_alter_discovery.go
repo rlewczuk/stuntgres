@@ -129,7 +129,7 @@ func DomainUsesAt(view catalog.Read, target ids.ObjectAddress, path []ids.Object
 				}
 			} else if stored {
 				d := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(found)})
-				name := catalog.TypeDiagnosticNameAt(view, d, path)
+				name := catalog.TypeDiagnosticNameAt(view, nil, d, path)
 				if blocker == nil {
 					blocker = sqlError("0A000", fmt.Sprintf("cannot alter type %q because column %q uses it", name, relation.Name()+"."+column.Name))
 				}

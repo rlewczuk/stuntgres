@@ -20,7 +20,7 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		if cast, ok := d.(*catalog.Cast); ok {
 			source := read.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(cast.Source)})
 			target := read.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(cast.Target)})
-			return "cast from " + catalog.TypeDiagnosticNameAt(read, source, path) + " to " + catalog.TypeDiagnosticNameAt(read, target, path)
+			return "cast from " + catalog.TypeDiagnosticNameAt(read, nil, source, path) + " to " + catalog.TypeDiagnosticNameAt(read, nil, target, path)
 		}
 		if description, family := regobj.OperatorFamilyDescription(read, d, path); family {
 			return description
@@ -71,7 +71,7 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		text.WriteString("function ")
 		text.WriteString(name)
 		text.WriteByte('(')
-		regobj.WriteRoutineArguments(&text, read, path, d.Signature, true)
+		regobj.WriteRoutineArguments(&text, read, nil, path, d.Signature, true)
 		text.WriteByte(')')
 		return text.String()
 	}
@@ -93,7 +93,7 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		return "text search dictionary " + name
 	}
 	if t, ok := read.Type(base); ok {
-		return "type " + catalog.TypeDiagnosticNameAt(read, t, path)
+		return "type " + catalog.TypeDiagnosticNameAt(read, nil, t, path)
 	}
 	if d, ok := read.Collation(base); ok {
 		name := catalog.DependencyIdentifier(d.Name())

@@ -26,6 +26,9 @@ import this package directly.
   encoding, locale and `icu_validation_level` normalizers. `MessageLevelRank`
   orders the client message levels; the `session.NoticeLevel` constants
   follow that order.
+  `plpgsql.check_asserts` is an ordinary user-settable Boolean, booting on, with
+  `Customized Options` metadata. Procedural execution reads its effective session
+  value; registry construction does not capture an assertion decision.
 - **Values** (`value.go`, `number.go`, `units.go`): `Value` and
   `Definition.Parse`/`Format` and base-unit `Raw`, PostgreSQL-compatible number
   scanning (`ParseNumber`, also used for storage options) and memory/time units.

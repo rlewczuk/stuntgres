@@ -333,6 +333,7 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 		"IntervalStyle":                       {"postgres", "Sets the display format for interval values."},
 		"log_statement_stats":                 {"off", "Writes cumulative performance statistics to the server log."},
 		"max_parallel_workers_per_gather":     {"2", "Sets the maximum number of parallel processes per executor node."},
+		"plpgsql.check_asserts":                {"on", "Perform checks given in ASSERT statements."},
 		"quote_all_identifiers":               {"off", "When generating SQL fragments, quote all identifiers."},
 		"row_security":                        {"on", "Enables row security."},
 		"server_encoding":                     {"UTF8", "Shows the server (database) character set encoding."},

@@ -27,6 +27,11 @@ SQL and Go transactions, including private visibility, savepoints and atomic
 cluster-wide publication. Session authorization rolls back with its physical
 owner; role conflicts share the canonical lock and deadlock lifecycle.
 
+PL/pgSQL RAISE supports severity levels, formatted messages, SQLSTATE/condition
+forms and structured diagnostic fields. ASSERT evaluates messages only on failure
+and honors the session's live plpgsql.check_asserts setting.
+Successful nested messages retain their enclosing PL and SQL caller context.
+
 PL/pgSQL static query FOR loops assign existing RECORD and row variables,
 preserve query ordering and duplicates, retain VOID query-result members,
 shape empty results as NULL fields, stream SELECT demand across CTE lifetimes,

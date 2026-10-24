@@ -36,6 +36,27 @@ propagating outward flow, restoring initially NULL cursor variables. Loop iterat
 checks the admitted operation context even for an empty body, without allocating a
 control signal per iteration. The hidden function namespace is not a block-exit
 consumer; an escaping EXIT reaches the routine's missing-RETURN diagnostic.
+PL diagnostic signatures belong to the existing per-session routine-analysis
+cache, seeded by CREATE validation or that session's first admitted invocation.
+They use exact-signature visibility over the current definition overlay and
+canonical diagnostic argument names. Path changes do not relabel a retained
+signature; replacement immutable procedure carriers invalidate it. Invocation
+scratch balances the selected signature across nested calls and failures, without
+persisting session presentation in catalog definitions or checked PL programs.
+RAISE and ASSERT reuse reached-only expression execution and external type output.
+RAISE evaluates arguments and options in written order before buffered notice
+filtering; option expressions and NULL checks precede duplicate detection.
+Constructed errors carry their structured fields and statement action without an
+expression frame. ASSERT reads the effective session setting before binding its
+condition, and a true condition skips message binding. Neither message callbacks
+nor invocation values are retained in immutable routine programs.
+Successful nested messages retain the enclosing PL action and non-inline SQL
+statement frames as well. Expression and SQL-command owners finalize only their
+new buffered notice range after cleanup, using the caller identity captured
+before lexical scratch activation. Query-loop producer execute/fetch/close ranges
+exclude body execution, so a body message does not gain a spurious FOR frame.
+No callback stack or rendered context is allocated when a range is empty; error
+unwinding and later adapter callback delivery remain separate.
 Static query loops borrow a private all-row producer under a live lexical
 activation. Pure SELECT CTE resources transfer to the returned row owner, whose
 main stage closes before its CTE chain and captured sources. Borrowed CTE scope

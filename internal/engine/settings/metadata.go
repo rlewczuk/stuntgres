@@ -5,6 +5,8 @@ package settings
 func builtinMetadata(d Definition) Definition {
 	d.Category = "Client Connection Defaults / Statement Behavior"
 	switch d.Name {
+	case "plpgsql.check_asserts":
+		d.Category = "Customized Options"
 	case "application_name":
 		d.Category = "Reporting and Logging / What to Log"
 	case "track_commit_timestamp":

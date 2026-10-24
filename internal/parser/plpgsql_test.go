@@ -13,6 +13,7 @@ func TestPLpgSQLParserFullConsumption(t *testing.T) {
 		"DECLARE b boolean := true AND NOT false; BEGIN b := b OR false; RETURN b IS NOT NULL AND b; END",
 		"BEGIN IF true THEN RETURN; END IF; END",
 		"BEGIN LOOP END LOOP; END",
+		"BEGIN RAISE NOTICE 'supported'; ASSERT true; END",
 	} {
 		block, err := ParsePLpgSQL(source, PLReturnPolicy{})
 		if err != nil || block == nil {
@@ -23,7 +24,6 @@ func TestPLpgSQLParserFullConsumption(t *testing.T) {
 		"BEGIN END; junk", "BEGIN END; BEGIN END", "<<a>> BEGIN END b",
 		"DECLARE x integer; BEGIN RETURN 7; x := 1+; END",
 		"BEGIN BEGIN END RETURN 7; END",
-		"BEGIN RAISE NOTICE 'not supported'; END",
 		"BEGIN RETURN NEXT 1; END", "BEGIN SELECT 1; END", "BEGIN END\x00", "BEGIN END\xff",
 	} {
 		if _, err := ParsePLpgSQL(source, PLReturnPolicy{}); err == nil {

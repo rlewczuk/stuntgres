@@ -54,9 +54,15 @@ func PLRuntimeQueryError(err error, d *Definition, identity func() string, origi
 	if !errors.As(err, &diagnostic) {
 		return err
 	}
-	line := strings.Count(d.Source[:origin.Offset], "\n") + 1
-	context := fmt.Sprintf("PL/pgSQL function %s line %d %s", identity(), line, action)
+	context := PLActionContext(d.Source, identity(), origin, action)
 	return PLFormatError(err, query, context)
+}
+
+// PLActionContext formats the shared action frame for errors and buffered
+// notices. Its caller owns identity visibility and the execution boundary.
+func PLActionContext(source, identity string, origin parser.Position, action string) string {
+	line := strings.Count(source[:origin.Offset], "\n") + 1
+	return fmt.Sprintf("PL/pgSQL function %s line %d %s", identity, line, action)
 }
 
 // PLFormatError is the single SPI/query and PL action formatter. Eligibility is

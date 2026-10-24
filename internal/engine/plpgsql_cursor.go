@@ -14,6 +14,7 @@ import (
 )
 
 func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
+	noticeStart := len(s.op.Notices)
 	raw := in.Syntax.Cursor
 	var failure proc.PLDiagnosticQuery
 	action := "OPEN"
@@ -41,7 +42,10 @@ func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, 
 		return value, proc.PLFlow{}, fmt.Errorf("stuntgres: invalid PL cursor instruction")
 	}
 	if err != nil {
-		err = plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at "+action, failure)
+		err = s.plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at "+action, failure)
+	}
+	if noticeStart != len(s.op.Notices) {
+		s.appendPLNoticeContext(noticeStart, s.plNoticeOrigin(f, in.Syntax.Pos, "at "+action))
 	}
 	return value, flow, err
 }
@@ -87,7 +91,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 	var command string
 	dynamic := raw.Command != nil
 	if dynamic {
-		commandValue, _, _, e := s.evaluatePLExpression(f, &parser.Select{Targets: []parser.Expr{raw.Command}, Pos: raw.Command.SourcePosition()}, read, nil)
+		commandValue, _, _, e := s.evaluatePLExpression(f, &parser.Select{Targets: []parser.Expr{raw.Command}, Pos: raw.Command.SourcePosition()}, read, nil, plNoticeOrigin{})
 		if e != nil {
 			*failure = proc.PLCursorExpressionDiagnostic(e, f.Program.Source, raw.CommandStart, raw.CommandEnd)
 			return nil, name, e
@@ -102,7 +106,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 		parameters = make([]sqltype.Value, len(raw.Using))
 		inputs = make([]sqltype.Usage, len(raw.Using))
 		for i, expression := range raw.Using {
-			value, usage, _, e := s.evaluatePLExpression(f, &parser.Select{Targets: []parser.Expr{expression.Expression}, Pos: expression.Expression.SourcePosition()}, read, nil)
+			value, usage, _, e := s.evaluatePLExpression(f, &parser.Select{Targets: []parser.Expr{expression.Expression}, Pos: expression.Expression.SourcePosition()}, read, nil, plNoticeOrigin{})
 			if e != nil {
 				*failure = proc.PLCursorExpressionDiagnostic(e, f.Program.Source, expression.Start, expression.End)
 				return nil, name, e
@@ -195,7 +199,7 @@ func (s *StatementScope) movePLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 	}
 	motion := &parser.FetchCursor{Name: parser.Identifier{Text: name}, Direction: raw.Motion.Direction, Count: 1, All: raw.Motion.All, Move: raw.Action == parser.PLMoveCursor}
 	if raw.Motion.Count != nil {
-		value, _, _, e := s.evaluatePLExpression(f, &parser.Select{Targets: []parser.Expr{raw.Motion.Count}, Pos: raw.Motion.Count.SourcePosition()}, read, nil)
+		value, _, _, e := s.evaluatePLExpression(f, &parser.Select{Targets: []parser.Expr{raw.Motion.Count}, Pos: raw.Motion.Count.SourcePosition()}, read, nil, plNoticeOrigin{})
 		if e != nil {
 			*failure = proc.PLCursorExpressionDiagnostic(e, f.Program.Source, raw.Motion.CountStart, raw.Motion.CountEnd)
 			return e
@@ -296,12 +300,17 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in p
 	original := f.Values[in.Cursor.Slot]
 	wasNull := original.Type() == nil || original.IsNull()
 	var failure proc.PLDiagnosticQuery
+	origin := s.plNoticeOrigin(f, in.Syntax.Pos, "at FOR over cursor")
+	noticeStart := len(s.op.Notices)
 	cursor, name, err := s.openPLCursor(f, in.Cursor, in.Syntax.Cursor, read, &failure)
+	s.appendPLNoticeContext(noticeStart, origin)
 	if err != nil {
-		return value, proc.PLFlow{}, plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at FOR over cursor", failure)
+		return value, proc.PLFlow{}, s.plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at FOR over cursor", failure)
 	}
 	cursor.pinned = true
 	defer func() {
+		noticeStart := len(s.op.Notices)
+		defer func() { s.appendPLNoticeContext(noticeStart, origin) }()
 		cursor.pinned = false
 		r := payloadOf(s.op.Session).cursors
 		if r.entries[name] == cursor {
@@ -325,11 +334,13 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in p
 			return value, proc.PLFlow{}, err
 		}
 		previousFound := f.Values[f.Program.FoundSlot]
+		noticeStart := len(s.op.Notices)
 		err = s.movePLCursorPortal(f, targets, cursor, fetch, read)
+		s.appendPLNoticeContext(noticeStart, origin)
 		found, _ := f.Values[f.Program.FoundSlot].Boolean()
 		f.Values[f.Program.FoundSlot] = previousFound
 		if err != nil {
-			return value, proc.PLFlow{}, plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, in.Syntax.Pos, "at FOR over cursor", false)
+			return value, proc.PLFlow{}, s.plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, in.Syntax.Pos, "at FOR over cursor", false)
 		}
 		if !found {
 			break

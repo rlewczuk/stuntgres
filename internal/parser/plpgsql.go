@@ -52,6 +52,8 @@ type PLStatement struct {
 	Pos                 Position
 	Cursor              *PLCursorStatement
 	QueryLoop           *PLQueryLoop
+	Raise               *PLRaise
+	Assert              *PLAssert
 }
 
 // PLQueryLoop retains the ordinary SQL syntax and its original source boundary.
@@ -103,6 +105,8 @@ const (
 	plWhenItemBoundary
 	plSemicolonBoundary
 	plLoopBoundary
+	plMessageBoundary
+	plOptionBoundary
 )
 
 func (l *lexer) plBeginExpression(boundary plExpressionBoundary) {
@@ -128,6 +132,12 @@ func (l *lexer) plExpressionToken(token rawToken) rawToken {
 			code = PL_WHEN
 		case token.code == ',' && l.plBoundary == plWhenItemBoundary:
 			code = PL_WHEN_COMMA
+		case token.code == ',' && (l.plBoundary == plMessageBoundary || l.plBoundary == plOptionBoundary):
+			code = PL_MESSAGE_COMMA
+		case token.code == USING && l.plBoundary == plMessageBoundary:
+			code = PL_RAISE_USING
+		case token.code == ';' && (l.plBoundary == plMessageBoundary || l.plBoundary == plOptionBoundary):
+			code = ';'
 		case token.code == ';' && l.plBoundary == plSemicolonBoundary:
 			code = ';'
 		case l.plBoundary == plLoopBoundary && (token.lexeme.keyword != nil || token.code == IDENT) && !quotedIdentifierLexeme(token.lexeme) && token.lexeme.text == "loop":

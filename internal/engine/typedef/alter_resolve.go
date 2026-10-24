@@ -50,7 +50,7 @@ func ResolveAlterEnumLocked(h ddl.Host, auth ddl.Authority, name parser.ObjectNa
 				if err != nil {
 					return nil, ref, err
 				}
-				display = catalog.TypeDiagnosticNameAt(view.Catalog, d, path)
+				display = catalog.TypeDiagnosticNameAt(view.Catalog, nil, d, path)
 			}
 			return nil, ref, sqlError("42809", display+" is not an enum")
 		}
@@ -88,7 +88,7 @@ func ResolveAlterDomainLocked(h ddl.Host, auth ddl.Authority, name parser.Object
 		}
 		if err := ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
-				err = sqlError("42501", "must be owner of type "+catalog.TypeDiagnosticNameAt(view.Catalog, d, diagnosticPath))
+				err = sqlError("42501", "must be owner of type "+catalog.TypeDiagnosticNameAt(view.Catalog, nil, d, diagnosticPath))
 			}
 			return nil, ref, err
 		}

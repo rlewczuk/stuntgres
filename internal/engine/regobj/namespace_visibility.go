@@ -47,10 +47,11 @@ func VisibleCollation(view catalog.Read, path []ids.ObjectAddress, d catalog.Des
 }
 
 func NamedObjectVisible(view catalog.Read, path []ids.ObjectAddress, d catalog.Descriptor) bool {
-	return namedObjectVisibleAt(view, nil, path, d)
+	return NamedObjectVisibleAt(view, nil, path, d)
 }
 
-func namedObjectVisibleAt(view catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, d catalog.Descriptor) bool {
+// NamedObjectVisibleAt uses the same exact-name/signature selection over staged definitions.
+func NamedObjectVisibleAt(view catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, d catalog.Descriptor) bool {
 	for _, namespace := range path {
 		key := catalog.DescriptorNameKey(d)
 		key.Namespace = namespace

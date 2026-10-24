@@ -140,5 +140,6 @@ func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth Authorizatio
 	}
 	d.SQL.PLSyntax, d.SQL.PL = raw, program
 	d.DeclarationDependencies = dependencies
-	return nil
+	_, err = e.retainPLDiagnosticIdentityLocked(op, auth, d)
+	return err
 }

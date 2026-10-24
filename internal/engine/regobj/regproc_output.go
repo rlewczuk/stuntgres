@@ -35,7 +35,7 @@ func RoutineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, si
 	var text strings.Builder
 	text.WriteString(name)
 	text.WriteByte('(')
-	WriteRoutineArguments(&text, view, path, procedure.Signature, false)
+	WriteRoutineArguments(&text, view, nil, path, procedure.Signature, false)
 	text.WriteByte(')')
 	return text.String()
 }
@@ -43,7 +43,7 @@ func RoutineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, si
 // Signatures come from the validated catalog identity inventory. Diagnostics use
 // canonical builtin names and diagnostic path authority; regprocedure output
 // retains its own type visibility rules.
-func WriteRoutineArguments(text *strings.Builder, view catalog.Read, path []ids.ObjectAddress, signature catalog.ProcedureSignature, diagnostic bool) {
+func WriteRoutineArguments(text *strings.Builder, view catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, signature catalog.ProcedureSignature, diagnostic bool) {
 	first := true
 	if signature != "" {
 		for arg := range strings.SplitSeq(string(signature), ",") {
@@ -53,11 +53,12 @@ func WriteRoutineArguments(text *strings.Builder, view catalog.Read, path []ids.
 			first = false
 			oid, _ := strconv.ParseUint(arg, 10, 32)
 			if diagnostic {
-				typ := view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oid)}).(*catalog.Type)
+				descriptor, _ := catalog.DescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oid)})
+				typ := descriptor.(*catalog.Type)
 				if typ.SQLType.NamespaceName() == "pg_catalog" {
 					text.WriteString(typ.SQLType.DiagnosticName())
 				} else {
-					text.WriteString(catalog.TypeDiagnosticNameAt(view, typ, path))
+					text.WriteString(catalog.TypeDiagnosticNameAt(view, reader, typ, path))
 				}
 			} else {
 				text.WriteString(TypeSpelling(view, path, ids.OID(oid)))

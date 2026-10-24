@@ -31,7 +31,7 @@ func (b *Binder) DiagnosticTypeName(typ *sqltype.Descriptor) string {
 	if err != nil {
 		return typ.DiagnosticName()
 	}
-	return catalog.TypeDiagnosticNameAt(auth.ReadCatalog(), descriptor, path)
+	return catalog.TypeDiagnosticNameAt(auth.ReadCatalog(), nil, descriptor, path)
 }
 
 func (b *Binder) CaptureTypeDiagnosticInput(typ *sqltype.Descriptor) error {

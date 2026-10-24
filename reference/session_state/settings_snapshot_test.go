@@ -14,6 +14,7 @@ func TestReferenceSettingsUtilitySnapshotOwnership(t *testing.T) {
 			c := fixture.SequenceCoreConn(t, p.Ctx, backend.DB)
 			fixture.LockExec(t, p.Ctx, c, "SET TIME ZONE 'UTC'", 0)
 			fixture.LockExec(t, p.Ctx, c, "SET extra_float_digits=1", 0)
+			fixture.LockExec(t, p.Ctx, c, "DO $$BEGIN END$$", 0)
 			for _, prepared := range []bool{false, true} {
 				fixture.LockExec(t, p.Ctx, c, "SET application_name TO initial", 0)
 				for _, tc := range []struct {
@@ -140,6 +141,7 @@ func settingsSnapshotExpectedRows() [][]string {
 		{"lock_timeout", "0", "Sets the maximum allowed duration of any wait for a lock."},
 		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
 		{"max_parallel_workers_per_gather", "2", "Sets the maximum number of parallel processes per executor node."},
+		{"plpgsql.check_asserts", "on", "Perform checks given in ASSERT statements."},
 		{"quote_all_identifiers", "off", "When generating SQL fragments, quote all identifiers."},
 		{"row_security", "on", "Enables row security."},
 		{"search_path", `"$user", public`, "Sets the schema search order for names that are not schema-qualified."},

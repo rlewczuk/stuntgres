@@ -39,8 +39,8 @@ func TypeAlterArrayProtection(v Read, typ *Type, path []ids.ObjectAddress) error
 		if err != nil {
 			return err
 		}
-		name := TypeDiagnosticNameAt(v, typ, path)
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter array type " + name, Hint: "You can alter type " + TypeDiagnosticNameAt(v, element, path) + ", which will alter the array type as well."}
+		name := TypeDiagnosticNameAt(v, nil, typ, path)
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter array type " + name, Hint: "You can alter type " + TypeDiagnosticNameAt(v, nil, element, path) + ", which will alter the array type as well."}
 	}
 	return nil
 }
@@ -49,7 +49,7 @@ func TypeAlterArrayProtection(v Read, typ *Type, path []ids.ObjectAddress) error
 // but precedes its companion-name check and any descriptor mutation.
 func TypeAlterRowProtection(v Read, typ *Type, path []ids.ObjectAddress) error {
 	if typ.OwningRelation != (ids.ObjectAddress{}) && v.MustRelation(typ.OwningRelation).RelationKind != CompositeRelation {
-		name := TypeDiagnosticNameAt(v, typ, path)
+		name := TypeDiagnosticNameAt(v, nil, typ, path)
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: name + " is a table's row type", Hint: "Use ALTER TABLE instead."}
 	}
 	return nil
@@ -65,7 +65,7 @@ func MultirangeOwnerProtection(v Read, typ *Type, path []ids.ObjectAddress) erro
 	if err != nil {
 		return err
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter multirange type " + TypeDiagnosticNameAt(v, typ, path), Hint: "You can alter type " + TypeDiagnosticNameAt(v, owner, path) + ", which will alter the multirange type as well."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter multirange type " + TypeDiagnosticNameAt(v, nil, typ, path), Hint: "You can alter type " + TypeDiagnosticNameAt(v, nil, owner, path) + ", which will alter the multirange type as well."}
 }
 
 // TypeDropProtection is for fully resolved, authorized explicit SQL roots only.
@@ -84,7 +84,7 @@ func TypeDropProtection(v Read, typ *Type, path []ids.ObjectAddress, pending map
 			return nil
 		}
 	}
-	name := "type " + TypeDiagnosticNameAt(v, typ, path)
+	name := "type " + TypeDiagnosticNameAt(v, nil, typ, path)
 	if typ.OwningRelation == (ids.ObjectAddress{}) && !typ.SQLType.IsUserDefined() && !(typ.SQLType.IsArray() && typ.SQLType.Element().IsUserDefined()) {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + name + " because it is required by the database system"}
 	}
@@ -99,11 +99,11 @@ func TypeDropProtection(v Read, typ *Type, path []ids.ObjectAddress, pending map
 		if required.OwningRelation != (ids.ObjectAddress{}) {
 			r := v.MustRelation(required.OwningRelation)
 			if r.RelationKind != CompositeRelation {
-				owner = RelationDiagnosticKind(r) + " " + TypeDiagnosticNameAt(v, required, path)
+				owner = RelationDiagnosticKind(r) + " " + TypeDiagnosticNameAt(v, nil, required, path)
 			}
 		}
 		if owner == "" && required != typ {
-			owner = "type " + TypeDiagnosticNameAt(v, required, path)
+			owner = "type " + TypeDiagnosticNameAt(v, nil, required, path)
 		}
 	}
 	if owner == "" {

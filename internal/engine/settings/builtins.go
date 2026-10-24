@@ -18,6 +18,7 @@ var applicationName = Definition{
 var builtins = []Definition{
 	applicationName,
 	{Name: "row_security", Type: Boolean, BootDefault: "on", Description: "Enables row security."},
+	{Name: "plpgsql.check_asserts", Type: Boolean, BootDefault: "on", Description: "Perform checks given in ASSERT statements."},
 	{Name: "track_commit_timestamp", Type: Boolean, Access: StartupOnly, BootDefault: "off", Description: "Collects transaction commit time."},
 	{Name: "default_transaction_isolation", Type: Enum, BootDefault: "read committed", EnumValues: []string{"read committed", "read uncommitted", "repeatable read", "serializable"}, Description: "Sets the transaction isolation level of each new transaction."},
 	{Name: "transaction_isolation", Type: Enum, BootDefault: "read committed", EnumValues: []string{"read committed", "read uncommitted", "repeatable read", "serializable"}, Description: "Sets the current transaction's isolation level."},

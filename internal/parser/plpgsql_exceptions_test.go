@@ -22,11 +22,13 @@ func TestPLExceptionParsing(t *testing.T) {
 	if inner.Handlers[0].Statements[0].Return || inner.Handlers[0].Statements[0].Expression != nil {
 		t.Fatal("rethrow confused with RETURN")
 	}
+	if _, err := ParsePLpgSQL("BEGIN RAISE 'constructed'; END", PLReturnPolicy{}); err != nil {
+		t.Fatal(err)
+	}
 	for _, source := range []string{
 		"BEGIN RETURN 7; EXCEPTION WHEN division_by_zero THEN RETURN 1+; END",
 		"BEGIN RETURN 7; EXCEPTION WHEN THEN RETURN 1; END",
 		"BEGIN RETURN 7; EXCEPTION WHEN OTHERS RETURN 1; END",
-		"BEGIN RAISE 'constructed'; END",
 		"BEGIN RAISE; END; junk",
 	} {
 		if _, err := ParsePLpgSQL(source, PLReturnPolicy{}); err == nil {

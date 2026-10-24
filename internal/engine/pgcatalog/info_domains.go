@@ -168,7 +168,7 @@ func infoDomainsBaseName(view catalog.Read, base *catalog.Type, path []ids.Objec
 	if typ.ID() == sqltype.JSON {
 		return "json", nil
 	}
-	return catalog.TypeDiagnosticNameAt(view, base, path), nil
+	return catalog.TypeDiagnosticNameAt(view, nil, base, path), nil
 }
 
 // The released helpers inspect the immediate base ID and the domain typmod,

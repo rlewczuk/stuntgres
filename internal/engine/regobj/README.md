@@ -27,6 +27,8 @@ import it.
   value. `SpellingCache` (`spelling_cache.go`) is a statement's regproc,
   regprocedure, operator and text-search spellings by OID, filled on first
   use; the caller passes the inquiry catalog and path on every call.
+  Diagnostic `WriteRoutineArguments` accepts a transient definition reader so
+  CREATE validation sees staged argument types without cloning a catalog.
 - **Prepared reg\* literal analysis** (`regtype_analysis.go`): `Analysis`,
   the cell a prepared statement holds for its reg\* constants (`Constants`,
   the role, database and lookup paths they were resolved under), with
@@ -90,11 +92,14 @@ import it.
   overload or typename input shortcut, select `length(text)` instead of
   `length(lseg)`, or lose the `npoints(path)`/`npoints(polygon)` overload on replay.
 - **Search-path visibility of named objects** (`namespace_visibility.go`,
-  `visibility_inquiry.go`): `NamedObjectVisible`, `CollationCandidate`,
+  `visibility_inquiry.go`): `NamedObjectVisible`, `NamedObjectVisibleAt`,
+  `CollationCandidate`,
   `SelectCollation`, `VisibleCollation`, and `VisibilityInquiry`, which answers
   the `pg_*_is_visible` and collation-version inquiries over the statement's
   visibility snapshot (catalog, relation path, TEMP-filtered path). These are
   name-visibility rules, not MVCC visibility.
+  The explicit-reader variant uses the same exact descriptor name/signature key
+  over unpublished definitions and is never retained in a formatting cache.
 - **`aclitem` I/O** (`aclitem_*.go`, `acl_empty.go`): `ACLItemInput`,
   `ACLItemOutput`, `ACLItemValidationOutput`, `ACLItemContextFormatter`,
   `ACLItemOutputContext`, `PreflightACLItemValue`, `ContainsEmptyACL`.

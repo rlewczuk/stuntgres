@@ -130,8 +130,11 @@ private frames, not catalog authority.
 - **Diagnostic names** (`diagnostic_names.go`): `QuoteIdentifier` always quotes;
   `Identifier` quotes only when the grammar needs it (deparse, dump);
   `DependencyIdentifier` follows PostgreSQL `quote_identifier`;
-  `TypeDiagnosticNameAt`/`TypeDiagnosticNamer` name a type bare when the search
-  path finds it first. The engine and `access` share them.
+  `TypeDiagnosticNameAt` names a type through an explicit transient definition
+  reader, bare when the search path selects it first; arrays use that same reader
+  for their element and namespace. Ordinary callers pass nil.
+  `TypeDiagnosticNamer` captures ordinary catalog/path naming. The engine and
+  `access` share these canonical diagnostic spellings.
 - **Name claims** (`name_claims.go`): a `BindingClaim` is one name a stage
   binds. After the root holds the claim's name lock, `BindingCurrent` rechecks
   it: a vanished binding is `ids.ErrCatalogReplaced`, another one the

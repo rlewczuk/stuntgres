@@ -12,10 +12,12 @@ func statisticsSettingsBuiltinInventory(t *testing.T, pg bool, run statisticsSet
 	const behavior = "Client Connection Defaults / Statement Behavior"
 	const locale = "Client Connection Defaults / Locale and Formatting"
 	const previous = "Version and Platform Compatibility / Previous PostgreSQL Versions"
+	run(fixture.Exec("DO $$BEGIN END$$", 0))
 	for _, tc := range []struct {
 		name, kind, context, category, description string
 	}{
 		{"application_name", "string", "user", "Reporting and Logging / What to Log", "Sets the application name to be reported in statistics and logs."},
+		{"plpgsql.check_asserts", "bool", "user", "Customized Options", "Perform checks given in ASSERT statements."},
 		{"row_security", "bool", "user", behavior, "Enables row security."},
 		{"track_commit_timestamp", "bool", "postmaster", "Replication / Sending Servers", "Collects transaction commit time."},
 		{"default_transaction_isolation", "enum", "user", behavior, "Sets the transaction isolation level of each new transaction."},
@@ -160,7 +162,7 @@ func statisticsSettingsNativeBoot(name string) string {
 	switch name {
 	case "application_name":
 		return ""
-	case "row_security", "standard_conforming_strings":
+	case "row_security", "standard_conforming_strings", "plpgsql.check_asserts":
 		return "on"
 	case "default_transaction_isolation", "transaction_isolation":
 		return "read committed"

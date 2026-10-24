@@ -84,6 +84,8 @@ type PLInstruction struct {
 	Loop      *PLBlock
 	Transfer  *PLControl
 	QueryLoop *PLQueryLoop
+	Raise     *PLRaise
+	Assert    *PLAssert
 }
 type PLQueryLoop struct {
 	Target PLTarget
@@ -272,6 +274,25 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 			}
 			var err error
 			switch {
+			case statement.Raise != nil:
+				instruction.Raise, err = p.compileRaise(statement.Raise, statement.Pos)
+				if err == nil {
+					for _, operand := range statement.Raise.Arguments {
+						if err = diagnostics.expression(p, definition.Source, operand.Start, operand.End, scopes); err != nil { break }
+					}
+				}
+				if err == nil {
+					for _, option := range statement.Raise.Options {
+						if err = diagnostics.expression(p, definition.Source, option.Value.Start, option.Value.End, scopes); err != nil { break }
+					}
+				}
+			case statement.Assert != nil:
+				rawAssert := statement.Assert
+				instruction.Assert = &PLAssert{Condition: plExpressionQuery(rawAssert.Condition.Expression), Message: plExpressionQuery(rawAssert.Message.Expression)}
+				err = diagnostics.expression(p, definition.Source, rawAssert.Condition.Start, rawAssert.Condition.End, scopes)
+				if err == nil {
+					err = diagnostics.expression(p, definition.Source, rawAssert.Message.Start, rawAssert.Message.End, scopes)
+				}
 			case statement.QueryLoop != nil:
 				rawLoop := statement.QueryLoop
 				target, targetErr := p.queryLoopTarget(rawLoop.Target, scopes)

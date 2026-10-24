@@ -98,6 +98,13 @@ The released error-condition inventory preserves aliases. Every initializer,
 body and handler expression query must match the compiler's complete synthetic
 single-target SELECT, including its parser expression and position; extra query
 clauses are not a checked expression program.
+RAISE arguments and ordered option occurrences each own an exact single-target
+query; ASSERT owns its condition and optional message queries. Compilation checks
+decoded format arity and direct conditions without binding operands. Construction
+selects the first released condition alias, while handlers retain every alias.
+Validation checks all variant exclusions, source spans and operand order and
+reconstructs the diagnostic ledger for both message statements. Runtime assertion
+settings and rendered diagnostics never enter a published program.
 Bound cursor actuals are the explicit row-projection exception: one ordinary
 multi-target SELECT matches the complete declaration-ordered expression list and
 optional formal aliases, without destination coercions. Each destination retains
@@ -235,6 +242,7 @@ PL cursor units use `RUN='^TestPLpgSQLCursor'`; public scenarios live in
 [reference/cursors](../../../reference/cursors/README.md#testing).
 Static query-loop validation units use `RUN='^TestPLpgSQLQueryLoopValidation$'`.
 Runtime diagnostic units use `RUN='^TestPL(FormatError|AssignmentErrorPhase|CaseExpressionError|pgSQLCursorCurrentDiagnostic)'`.
+Message/assertion compilation and validation use `RUN='^TestPLpgSQL(Raise|Assert)'`.
 
 ```sh
 make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'

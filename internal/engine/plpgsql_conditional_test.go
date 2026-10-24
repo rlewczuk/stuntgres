@@ -135,7 +135,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 		if err != nil || before.Type() != varchar || !before.IsNull() || local.ResultUsage() != usage {
 			t.Fatalf("captured search before frame close: value=%#v usage=%#v err=%v", before, local.ResultUsage(), err)
 		}
-		evaluated, effective, present, err := s.evaluatePLExpression(frame, &parser.Select{Targets: []parser.Expr{raw}}, e.CatalogRead(), nil)
+		evaluated, effective, present, err := s.evaluatePLExpression(frame, &parser.Select{Targets: []parser.Expr{raw}}, e.CatalogRead(), nil, plNoticeOrigin{})
 		if err != nil || !present || effective != usage || evaluated.Type() != varchar || !evaluated.IsNull() {
 			t.Fatalf("expression result lost full Usage/presence: value=%#v usage=%#v present=%t err=%v", evaluated, effective, present, err)
 		}

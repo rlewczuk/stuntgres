@@ -73,7 +73,7 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 			if err != nil {
 				return key, err
 			}
-			typeName = catalog.TypeDiagnosticNameAt(view, descriptor, path)
+			typeName = catalog.TypeDiagnosticNameAt(view, nil, descriptor, path)
 		}
 	}
 	base := u.Type.BaseType()

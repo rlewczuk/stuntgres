@@ -131,6 +131,7 @@ func TestReferenceSettingsShowAllCurrentOverrides(t *testing.T) {
 		for name, value := range map[string]string{
 			"application_name": "", "client_min_messages": "notice",
 			"lock_timeout": "0", "log_statement_stats": "off",
+			"plpgsql.check_asserts": "on",
 			"search_path": `"$user", public`, "server_encoding": "UTF8",
 			"track_commit_timestamp":      "off",
 			"standard_conforming_strings": "on", "statement_timeout": "0",

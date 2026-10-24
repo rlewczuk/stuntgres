@@ -57,11 +57,11 @@ func DependencyIdentifier(name string) string {
 
 // TypeDiagnosticNameAt names a type for error messages: bare when path finds
 // it first (or path is nil), schema-qualified otherwise; arrays get "[]".
-func TypeDiagnosticNameAt(view Read, d *Type, path []ids.ObjectAddress) string {
+func TypeDiagnosticNameAt(view Read, reader DefinitionReader, d *Type, path []ids.ObjectAddress) string {
 	if d.SQLType.IsArray() {
-		element, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
+		element, ok := DescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if ok {
-			return TypeDiagnosticNameAt(view, element.(*Type), path) + "[]"
+			return TypeDiagnosticNameAt(view, reader, element.(*Type), path) + "[]"
 		}
 	}
 	// PostgreSQL format_type uses SQL spellings for these builtin types,
@@ -80,14 +80,15 @@ func TypeDiagnosticNameAt(view Read, d *Type, path []ids.ObjectAddress) string {
 		return name
 	}
 	for _, ns := range path {
-		if address, ok := view.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
+		if address := DefinitionLookupAt(view, reader, ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); address != (ids.ObjectAddress{}) {
 			if address == d.Address() {
 				return name
 			}
 			break
 		}
 	}
-	return DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
+	namespace, _ := DefinitionNamespaceAt(view, reader, d.Namespace())
+	return DependencyIdentifier(namespace.Name()) + "." + name
 }
 
 // Identifier quotes name only when the supported grammar would not read it
@@ -116,6 +117,6 @@ func TypeDiagnosticNamer(view Read, path []ids.ObjectAddress) func(sqltype.ID) s
 			// as int4, and do not identifier-quote builtin names such as json.
 			return descriptor.SQLType.DiagnosticName()
 		}
-		return TypeDiagnosticNameAt(view, descriptor, path)
+		return TypeDiagnosticNameAt(view, nil, descriptor, path)
 	}
 }
