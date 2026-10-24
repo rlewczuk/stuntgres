@@ -113,6 +113,12 @@ func ValidateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 		return table.AdmitColumnVirtualGeneration(c, column, catalog)
 	}
 	if subquery, ok := expression.(plan.SubqueryExpr); ok {
+		// Retained definitions preserve analysis and lifetime identities, not
+		// invocation demand. Referenced CTEs admit their preflighted DerivedNode
+		// root below; recursing here would revive its eliminated expressions.
+		if subquery.CTEEdge {
+			return nil
+		}
 		project := subquery.QueryPlan.Root.(*plan.ProjectNode)
 		child := *c
 		child.Scope, child.Frame = 1, project.Frame

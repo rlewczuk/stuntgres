@@ -55,6 +55,12 @@ imports `view`.
   the `Validate*JoinExecution` and `ValidateMarkedQueryJoin` checks. They run on
   execution-owned parameters, never at Prepare, and are the bodies behind the
   root's `exec` preparation forwarders.
+  Retained CTE definition edges are not separately admitted as invocations:
+  referenced CTEs admit their actual preflighted roots, including arm elimination.
+  Named-window key expressions still demand current-invoker EXECUTE even when
+  the window is unused. Complete analysis graphs, original routine lifetimes,
+  static diagnostics, dependencies and namespace fences remain independent of
+  that invocation decision.
 - **Privilege walkers** (`write_authority.go`, `source_authority.go`,
   `query_table_refs.go`): `CheckWrite` (a write through a view: the logical
   target, then each layer under its owner or the invoker), `AuthorizeSource`,
