@@ -120,4 +120,12 @@ invariants.
   policy and rule commits (`7ae826adb`, `cae4fce3f`, `6bd13811c`) added root
   production code, mostly to `rule_ddl.go`, `relation_scope.go` and
   `view_locks.go`.
-- 172: not started.
+- 172: done (`08398dbea`, `578a40386`, docs commit).
+  `view.SynchronizeTriggersLocked` (`trigger_sync.go`) takes the stage's
+  `*catalog.Candidate`, a stage-read callback, a `ddl.Allocator` and the
+  `TriggerReplacement`. Deviation: the root passes `&e.catalog` rather than
+  `ddlHost{e: e}`. `catalogStore` gains `AllocateOID` and `Revision`, so the
+  interface holds a pointer. A three-word `ddlHost` leaks through the
+  interface method calls and would allocate on every publication, including
+  trigger-free ones. No root unit named the function or built its stage. For
+  177: `catalog.Store` takes over the `ddl.Allocator` methods with the store.

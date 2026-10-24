@@ -41,6 +41,13 @@ imports `view`.
   REPLACE replaces. Creation checks table TRIGGER and function EXECUTE grants;
   lifecycle ownership requires table authority, which a rename checks before
   the trigger's existence. `FreezeDefinition` freezes view queries.
+- **Trigger partition synchronization** (`trigger_sync.go`):
+  `SynchronizeTriggersLocked` keeps partition trigger clones in step with
+  their parents at every catalog publication (CREATE, ATTACH, DETACH and
+  parent replacement). Its inputs are the stage's `*catalog.Candidate`, a
+  callback that reads the candidate's current state, a `ddl.Allocator` for
+  clone OIDs and revisions, and the stage's `TriggerReplacement`. The
+  partition-clone provenance rules live in [`stored`](../stored/README.md).
 - **Query preflight and join legality** (`query_preflight.go`,
   `query_set_preflight.go`, `query_join_legality.go`): `PreflightQuery` copies
   the plan paths that hold folded coercions for one execution;
@@ -140,7 +147,8 @@ host bodies (`view_host.go`), rule program execution (it runs DML), view source
 opening (`view_source.go`), refresh row production and staging,
 `importMaterializedSnapshots` and the per-row statement scope and binder, the
 policy import's storage, lock waits, authority refresh, snapshots and source
-preparation, the row-security authority wrappers and `dropProvider`.
+preparation, the row-security authority wrappers and `dropProvider`. The
+`SynchronizeTriggersLocked` call stays in `ValidateCatalogStage` (`catalog.go`).
 
 ## Invariants
 
@@ -175,6 +183,13 @@ preparation, the row-security authority wrappers and `dropProvider`.
 - `Host` and `StageHost` methods run with `Engine.mu` held, never take or release
   it and never wait; the decisions never begin, publish or discard a stage.
   `StageCreate` writes only to the stage it is given.
+- `SynchronizeTriggersLocked` runs under `Engine.mu` on every publication and
+  takes no lock. Its first step is the exit for publications in which no
+  relation has or inherits triggers, so those publications pay nothing; the
+  root passes a pointer-shaped allocator for the same reason. Clones keep
+  their Parent and OID identity, a descendant name collision fails before
+  publication, and an OR REPLACE displaces a local child definition only
+  along the `TriggerReplacement` lineage.
 - The package holds no engine state and no mutex, and its functions never wait.
   `RuleRewriter.ExpandLocked` reads live storage through the rule authority, so
   its caller (and `NormalizeRuleCTEsLocked`'s) holds `Engine.mu`.
