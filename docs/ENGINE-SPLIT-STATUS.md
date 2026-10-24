@@ -1,169 +1,124 @@
 # Engine split — status
 
 This page tracks the `internal/engine` split. The plan is
-[ENGINE-SPLIT.md](ENGINE-SPLIT.md). Each item's scope is in the prompt file
+[ENGINE-SPLIT.md](ENGINE-SPLIT.md); each item's scope is in the prompt file
 linked from its line.
 
-Items 1–167 are done:
-- steps 1–30 and the `access` steps;
-- rounds 2–5;
-- three closing reviews.
+Items 1–180 are done: steps 1–30, the `access` steps, rounds 2–6 and four
+closing reviews. Their record is in `git log` and in this file at `26f8fea15`
+(`git show 26f8fea15:docs/ENGINE-SPLIT-STATUS.md`). Item 180, closing review 4,
+measured the root, built the `closure` tool, planned the seventh round (items
+181–205) and reset these docs.
 
-Their record is in `git log` and in this file at `ea8c445fe`
-(`git show ea8c445fe:docs/ENGINE-SPLIT-STATUS.md`). Item 167, the third
-closing review, did these things:
-- it measured the root at `ea8c445fe`;
-- it planned the sixth round, items 168–180;
-- it reset these docs.
-
-Last verified against `master` at `628f3cd11` (item 179 rebased on it;
-`c00a2dd91` added about 0.39k lines of root production code since item 176's
-check, mostly `definition_object_locks.go`, a finding for item 180).
+Last verified against `master` at `b320a46e4` (item 180 rebased on it; no root
+file changed since the `26f8fea15` measurement).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
-in parallel on separate branches. None of them is broad.
+in parallel on separate branches.
 
-- 180.
+- 181.
 
 ## Linear plan
 
 One item per session. Start one with "Implement Item N from Linear Plan in
-`docs/ENGINE-SPLIT-STATUS.md`". Sizes are approximate lines at `ea8c445fe`.
+`docs/ENGINE-SPLIT-STATUS.md`". Mode and size (MB leaving the root) are from
+ENGINE-SPLIT.md §4.
 
-167. [x] Closing review 3 (docs only): re-measure after the fifth round,
-     plan the sixth round, reset the split docs —
-     [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §1 and §4 · needs the whole fifth round · (docs
-     commit) · root 402 files and 48.9k lines (16.5% of the engine);
-     link and linear-plan checks and quickcheck passed;
+180. [x] Closing review 4 (docs only): re-measure, plan the seventh round —
+     [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-180--closing-review-4) · needs
+     the whole sixth round · (docs commit) · root 395 files and 48.5k lines
+     (15.8% of the engine) plus 10.65 MB of tests; runtime core planned with
+     `closure`; link and linear-plan checks and quickcheck passed;
      `REFERENCE=1`, bench, racecheck and finalcheck skipped (docs only, and
      racecheck/finalcheck at user request)
-168. [x] Root cleanup and clean-now moves —
-     [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-168--cleanup-and-clean-now-moves)
-     · needs — · 0.2k (`ae0d9246e`, `abb1bb4ce`, `35ed552c8`, `a88e1c321`,
-     `82477bd05`, docs commit) · clean helpers moved to `catalog`, `fdw`,
-     `routine` and `session`, eight capture/identity methods freed,
-     `access.WithObjectACL` moved into the root fixture; quickcheck, quick and
-     `REFERENCE=1` selections and bench (allocations unchanged) passed;
-     racecheck and finalcheck skipped (user decision)
-169. [x] Proc: PL/pgSQL diagnostics, error phases and flow —
-     [proc](ENGINE-SPLIT-proc.md#item-169--plpgsql-diagnostics-error-phases-and-flow)
-     · needs — · 0.29k (`df6ca810d`, `6e0834bde`, `6b0a2f092`,
-     `4b9cf5736`, docs commit) · diagnostic formatter, phase errors, flow,
-     cursor name and trigger frame moved to `proc`, two assignment helpers
-     to `plan`; quickcheck, quick and `REFERENCE=1`
-     selections and deps passed; bench skipped (error paths and a value
-     type only); racecheck and finalcheck skipped (user decision)
-170. [x] Proc: PL/pgSQL statement walk —
-     [proc](ENGINE-SPLIT-proc.md#item-170--plpgsql-statement-walk) · needs
-     169 · 0.45k (`2a1ad8f5b`, `83e97e898`, `e10a85e40`, `7509d27ef`,
-     `18db099f5`, docs commit) · the walk moved to `proc.PLRun` behind the
-     11-method `proc.PLHost`, adapted by the root `plHost`; quickcheck, quick
-     and `REFERENCE=1` selections, `RACE=1` exception and cancellation units,
-     bench (+1 allocation per invocation only) and deps passed; racecheck and
-     finalcheck skipped (user decision)
-171. [x] View: trigger DDL decisions —
-     [view](ENGINE-SPLIT-view.md#item-171--trigger-ddl-decisions) · needs —
-     · 0.25k (`72e54064b`, `8f6aeb486`, docs commit) · CREATE, ALTER and DROP
-     TRIGGER decisions moved to `view.PlanTrigger`, `view.Host` gained
-     `SelectFunction` and `BindTriggerWhen`; quickcheck, quick and
-     `REFERENCE=1` selections and deps passed; bench skipped (DDL decision
-     path only); racecheck and finalcheck skipped (user decision)
-172. [x] View: trigger partition synchronization —
-     [view](ENGINE-SPLIT-view.md#item-172--trigger-partition-synchronization)
-     · needs 171 · 0.18k (`08398dbea`, `578a40386`, docs commit) · partition
-     trigger clone synchronization moved to `view.SynchronizeTriggersLocked`,
-     the catalog store became its pointer-shaped `ddl.Allocator`; quickcheck,
-     quick and `REFERENCE=1` selections, bench (allocations unchanged) and
-     deps passed; racecheck and finalcheck skipped (user decision)
-173. [x] Control: Restore comparison context —
-     [control](ENGINE-SPLIT-control.md#item-173--restore-comparison-context)
-     · needs — · 0.29k (`92e17acb0`, `b7a0c629e`, docs commit) · the
-     comparison-context state machine moved to `control.ComparisonRestore`
-     and the bound-definition check to `control.ValidateComparisonBinding`;
-     quickcheck, quick and `REFERENCE=1` selections and deps passed; bench
-     skipped (Restore-only path); racecheck and finalcheck skipped (user
-     decision)
-174. [x] Exec: row owners —
-     [exec](ENGINE-SPLIT-exec.md#item-174--row-owners) · needs — · 0.17k
-     (`62c06ce5a`, `e72db642f`, `9d71907ee`, docs commit) · the nested
-     producer, `exec.CTEOwnedRows` and the `ts_rewrite` rule batches and
-     diagnostic mapping moved to `exec`; quickcheck, quick and `REFERENCE=1`
-     selections, `RACE=1` cancellation units, bench (allocations unchanged)
-     and deps passed; racecheck and finalcheck skipped (user decision)
-175. [x] Table: prepared DROP log —
-     [table](ENGINE-SPLIT-table.md#item-175--prepared-drop-log) · needs — ·
-     0.37k (`d81543475`, `b8260bfcb`, docs commit) · the prepared-drop effect
-     log moved to `table.DropPreparation` with `table.DropPreparationView` for
-     the prepared-mode reads, and the cascade column-drop pass to
-     `table.CascadeColumnDrops`; quickcheck, quick and `REFERENCE=1`
-     selections, `RACE=1` transactional and admission units and deps passed;
-     bench skipped (DROP COLUMN prepare path only); racecheck and finalcheck
-     skipped (user decision)
-176. [x] Index, storage, session: catalog publication sub-steps —
-     [catalog](ENGINE-SPLIT-catalog.md#item-176--catalog-publication-sub-steps)
-     · needs — · 0.3k (`776886564`, `ec303876b`, `7c493cfdf`, `60fc6d9eb`,
-     `91ecadea8`, docs commit) · publication value sub-steps moved: row shapes,
-     candidate relations, birth stamping and capacity to `storage`, candidate
-     fences and index captures to `index`, catalog authority and shape
-     recording to `session`, the namespace scan and revision frontier to
-     `catalog`; quickcheck, quick and `REFERENCE=1` selections, `RACE=1`
-     concurrent selections, bench (allocations unchanged), `reference/tables`
-     CPU time within noise and deps passed; racecheck and finalcheck skipped
-     (user decision)
-177. [x] Catalog: `catalog.Store` —
-     [catalog](ENGINE-SPLIT-catalog.md#item-177--catalogstore) · needs 168,
-     169, 170, 171, 172, 173, 174, 175, 176 · 0.29k (`46cfad58e`,
-     `bdddf63f9`, docs commit) · the catalog store moved to `catalog.Store`
-     with `NewStore`, `PublishLocked`, the frontier readers and installers,
-     and the database projection helpers; quickcheck, quick and
-     `REFERENCE=1` selections, bench (allocations unchanged) and deps
-     passed; racecheck and finalcheck skipped (user decision)
-178. [x] Catalog: builtin catalog seed —
-     [catalog](ENGINE-SPLIT-catalog.md#item-178--builtin-catalog-seed) ·
-     needs 177 · 0.19k (`19c0852b8`, `8b2e99d16`, docs commit) · the seed
-     install steps moved to `catalog` (`InstallBuiltin…`,
-     `InstallCatalogSource`, `Store.InstallBuiltinLanguagesLocked`) and the
-     process-level memos to `catalog.SeedShare`; quickcheck, quick and
-     `REFERENCE=1` selections, bench (allocations unchanged) and deps
-     passed; racecheck and finalcheck skipped (user decision)
-179. [x] Access: `access.RoleStore` —
-     [catalog](ENGINE-SPLIT-catalog.md#item-179--accessrolestore) · needs
-     177 · 0.23k (`5a1e06743`, `6364243ef`, `ee661f1bc`, `c1a854936`,
-     docs commit) · the role store moved to `access.RoleStore` with
-     `PublishedRead`, the frontier readers and writers, the principal
-     mapper and remap, the aclitem importer, replacement ACL validation,
-     the Restore capture and `CheckDatabaseConnect`; quickcheck, quick and
-     `REFERENCE=1` selections, bench (allocations within per-process noise)
-     and deps passed; racecheck and finalcheck skipped (user decision)
-180. [ ] Closing review 4 (docs only): re-measure, then plan a seventh round
-     or close the split —
-     [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-180--closing-review-4) · needs
-     168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179
+181. [ ] Test fixture and pilot —
+     [enginetest](ENGINE-SPLIT-enginetest.md#item-181--test-fixture-and-pilot)
+     · needs 180 · P · 0.3 MB
+182. [ ] Export pass in place —
+     [core](ENGINE-SPLIT-core.md#item-182--export-pass-in-place) · needs 181 ·
+     S
+183. [ ] Builtin function, operator and type tests —
+     [enginetest](ENGINE-SPLIT-enginetest.md#item-183--builtin-function-operator-and-type-tests)
+     · needs 182 · P · 1.25 MB
+184. [ ] Query, DML, COPY, cursor and protocol tests —
+     [enginetest](ENGINE-SPLIT-enginetest.md#item-184--query-dml-copy-cursor-and-protocol-tests)
+     · needs 182 · P · 1.05 MB
+185. [ ] Transaction, session, catalog and procedural tests —
+     [enginetest](ENGINE-SPLIT-enginetest.md#item-185--transaction-session-catalog-and-procedural-tests)
+     · needs 182 · P · 0.8 MB
+186. [ ] Table, index, partition and sequence DDL tests —
+     [enginetest](ENGINE-SPLIT-enginetest.md#item-186--table-index-partition-and-sequence-ddl-tests)
+     · needs 182 · P · 0.95 MB
+187. [ ] Type, view, role and schema-object DDL tests —
+     [enginetest](ENGINE-SPLIT-enginetest.md#item-187--type-view-role-and-schema-object-ddl-tests)
+     · needs 182 · P · 0.8 MB
+188. [ ] Composition seams —
+     [core](ENGINE-SPLIT-core.md#item-188--composition-seams) · needs 182 · P,
+     bench
+189. [ ] Core hooks — [core](ENGINE-SPLIT-core.md#item-189--core-hooks) ·
+     needs 188 · P, bench
+190. [ ] Host and slot splits —
+     [core](ENGINE-SPLIT-core.md#item-190--host-and-slot-splits) · needs 189 ·
+     P
+191. [ ] Family methods to functions I —
+     [core](ENGINE-SPLIT-core.md#item-191--family-methods-to-functions-i) ·
+     needs 183, 184, 185, 186, 187, 190 · P
+192. [ ] Family methods to functions II —
+     [core](ENGINE-SPLIT-core.md#item-192--family-methods-to-functions-ii) ·
+     needs 191 · P
+193. [ ] Test accessors I: runtime areas —
+     [enginetest](ENGINE-SPLIT-enginetest.md#item-193--test-accessors-i-runtime-areas)
+     · needs 192 · P
+194. [ ] Test accessors II: DDL areas and family tests —
+     [enginetest](ENGINE-SPLIT-enginetest.md#item-194--test-accessors-ii-ddl-areas-and-family-tests)
+     · needs 193 · P
+195. [ ] Core move — [core](ENGINE-SPLIT-core.md#item-195--core-move) · needs
+     194 · S, bench · 3.7 MB
+196. [ ] `tablecmds`: tables —
+     [cmds](ENGINE-SPLIT-cmds.md#item-196--tablecmds-tables) · needs 195 · S ·
+     0.35 MB
+197. [ ] `tablecmds`: sequences, identity, VACUUM —
+     [cmds](ENGINE-SPLIT-cmds.md#item-197--tablecmds-sequences-identity-vacuum)
+     · needs 196 · S
+198. [ ] `indexcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-198--indexcmds) ·
+     needs 197 · S
+199. [ ] `partitioncmds` —
+     [cmds](ENGINE-SPLIT-cmds.md#item-199--partitioncmds) · needs 198 · S
+200. [ ] `typecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-200--typecmds) · needs
+     199 · S
+201. [ ] `viewcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-201--viewcmds) · needs
+     200 · S
+202. [ ] `rolecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-202--rolecmds) · needs
+     201 · S
+203. [ ] `schemacmds` — [cmds](ENGINE-SPLIT-cmds.md#item-203--schemacmds) ·
+     needs 202 · S · 1.65 MB
+204. [ ] Composition cleanup —
+     [core](ENGINE-SPLIT-core.md#item-204--composition-cleanup) · needs 203 · S
+205. [ ] Closing review 5 (docs only) —
+     [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-205--closing-review-5) · needs
+     204
 
 ## Updating this file
 
-Every split session updates this page, in the same commit that records its
+Every split session updates this page in the same commit that records its
 item.
-
 1. **Before starting**, check this page against `git log`. If they disagree,
    trust `git log`, fix the page and say so in the report.
-2. **When an item is done** (verified under ENGINE-SPLIT.md §5.3), tick it,
-   add its commit hashes in parentheses with the docs commit marked
-   `docs`, and add one line: what moved and which checks passed or were
+2. **When an item is done** (ENGINE-SPLIT.md §5.3), tick it. Add its commit
+   hashes in parentheses, with the docs commit marked `docs`, and one line:
+   what moved, the root bytes after it, and which checks passed or were
    skipped.
-3. **Leave an item unticked** if one of its checks failed or was blocked,
-   and add a short note such as `*(blocked: REFERENCE=1 needs Docker)*`.
-4. **Keep the plan strictly linear.** New items go at the end with the next
-   free number, a needs list naming only earlier items, and a section in a
-   prompt file. Never renumber, and never add lettered sub-items. If an item
-   splits, the part left over becomes a new item at the end, and the
-   original records what it did.
+3. **Leave an item unticked** if a check failed or was blocked, with a short
+   note such as `*(blocked: REFERENCE=1 needs Docker)*`.
+4. **Keep the plan strictly linear.** New items go at the end with the next free
+   number, a needs list naming only earlier items, and a section in a prompt
+   file. Never renumber, and never add lettered sub-items. If an item splits,
+   the part left over becomes a new item at the end.
 5. **Rewrite "Next ready items"**: every unticked item whose needs are all
    ticked.
-6. **Update the "Last verified" line** with the `master` commit you checked
-   against.
+6. **Update "Last verified"** with the `master` commit you checked against.
 
-Keep entries short. Details, deviations and notes for later items go in the
-prompt file's Status section, not here.
+Keep entries short. Details and notes for later items go in the prompt file's
+Status section.
