@@ -73,12 +73,15 @@ func TestReferenceUserOperatorTransactions(t *testing.T) {
 			for _, query := range []string{"CREATE OPERATOR public.#?# (LEFTARG=int4,RIGHTARG=int4,FUNCTION=int4mi)", "ALTER OPERATOR public.#~# (int4,int4) SET (RESTRICT=NONE)", "DROP OPERATOR public.#~# (int4,int4)"} {
 				userOperatorExec(t, p, b, c, "BEGIN")
 				step := fixture.Exec(query, 0)
-				if !b.PG {
-					step = fixture.ErrorDiagnostic(query, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction"))
-					step.ErrorStage = "execute"
-				}
 				step.Prepared = prepared
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+				if query == "CREATE OPERATOR public.#?# (LEFTARG=int4,RIGHTARG=int4,FUNCTION=int4mi)" {
+					userOperatorValue(t, p, b, c, "SELECT 2 OPERATOR(public.#?#) 3 AS v", "INT4", int64(-1))
+				} else if query == "ALTER OPERATOR public.#~# (int4,int4) SET (RESTRICT=NONE)" {
+					userOperatorValue(t, p, b, c, "SELECT 2 OPERATOR(public.#~#) 3 AS v", "INT4", int64(5))
+				} else {
+					userOperatorValue(t, p, b, c, "SELECT count(*) AS v FROM pg_operator WHERE oprnamespace='public'::regnamespace AND oprname='#~#'", "INT8", int64(0))
+				}
 				userOperatorExec(t, p, b, c, "ROLLBACK")
 				userOperatorValue(t, p, b, c, "SELECT 2 OPERATOR(public.#~#) 3 AS v", "INT4", int64(5))
 				userOperatorValue(t, p, b, c, "SELECT count(*) AS v FROM pg_operator WHERE oprnamespace='public'::regnamespace AND oprname='#?#'", "INT8", int64(0))

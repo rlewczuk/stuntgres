@@ -121,7 +121,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			return err
 		}
 	}
-	for _, sources := range [][]catalog.Descriptor{s.tableOrZero().LikeSources, domainBases} {
+	for _, sources := range [][]catalog.Descriptor{s.tableOrZero().LikeSources, domainBases, s.definitionSources} {
 		for _, d := range sources {
 			if err := capture.ObserveBase(d.Address()); err != nil {
 				return err

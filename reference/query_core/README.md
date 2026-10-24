@@ -51,6 +51,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Scalar SQL routines: `RUN='^TestReferenceRoutine(Core|StoredArgumentIdentity|Review)'`
 - <a id="ordered-sql-routine-bodies"></a>Ordered and SQL-standard routine bodies, procedures: `RUN='^TestReferenceRoutineSQLBodies'`
 - DROP FUNCTION/PROCEDURE: `RUN='^TestReferenceRoutineDrop'`
+- Transactional routine/operator/aggregate matrix: `RUN='^TestReferenceTransactionalRoutine'`.
+  The shared direct/held × autocommit/SQL/Go route helper retains actual handles;
+  definition bodies, authorization, peer graphs, savepoints and native controls
+  share independent expectations. Protocol phases live in operators.
 - SQL overloads beside builtin, window and aggregate providers; rule qualifications: `RUN='^TestReferenceRoutine(Resolution|Window|Nesting|LateChild|Rule)'`
 - <a id="select-cte-verification"></a>WITH queries: `RUN='^TestReferenceQueryCTE'`
 - <a id="recursive-cte-verification"></a>Recursive CTEs: `RUN='^TestReferenceQueryRecursiveCTE'`

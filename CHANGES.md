@@ -1,3 +1,8 @@
+Shipped function, aggregate and operator definitions and routine identity changes
+now share SQL BEGIN and Go BeginTx with autocommit and retained messages.
+Private callable programs, overload names, dependencies and rows publish or roll
+back together, including savepoints, held consumers and provider/name conflicts.
+
 Table/type/domain/database OWNER, view/materialized-view OWNER and REASSIGN/DROP
 OWNED now share SQL and Go transactions with autocommit and retained protocol
 messages. Ownership and ACL/default/policy/membership cleanup see earlier private

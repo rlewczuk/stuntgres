@@ -52,11 +52,8 @@ func TestReferenceRoutineDropAuthorityAndAdmission(t *testing.T) {
 				routineExec(t, p, b, c, "ROLLBACK")
 			}
 			routineExec(t, p, b, c, "BEGIN")
-			if b.PG {
-				routineExec(t, p, b, c, "DROP FUNCTION rd_admit()")
-			} else {
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Error("DROP FUNCTION rd_admit()", "0A000"))
-			}
+			routineExec(t, p, b, c, "DROP FUNCTION rd_admit()")
+			routineValueWithNativeNullability(t, p, b, c, "SELECT count(*) AS v FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='rd_admit'", "v", "INT8", int64(0), false, true)
 			routineExec(t, p, b, c, "ROLLBACK")
 			routineValue(t, p, b, c, "SELECT rd_admit() AS v", "v", "INT4", int64(5))
 			for _, q := range []string{"DROP FUNCTION pg_catalog.abs(integer) CASCADE", "DROP FUNCTION IF EXISTS pg_catalog.abs(integer) CASCADE"} {

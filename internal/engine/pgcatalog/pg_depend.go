@@ -98,7 +98,6 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				add(d.Address(), required, 'n')
 			}
 		case *catalog.Procedure:
-			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), catalog.RangeConstructorOwner(d), 'i')
 			if constructor := d.RangeConstructor; constructor != nil {
 				if err := catalog.ValidateRangeConstructor(view, d); err != nil {
@@ -119,25 +118,10 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}, 'n')
 				}
 			}
-			for address := range catalog.OwnedAggregateDependencies(d) {
+			catalog.VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
 				add(d.Address(), address, 'n')
-			}
-			if d.SQL != nil {
-				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
-				for _, formal := range d.SQL.Formals {
-					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(formal.Usage.Type.ID())}, 'n')
-				}
-				if d.SQLBody != nil {
-					for _, dependency := range d.SQLBody.Dependencies() {
-						add(d.Address(), dependency.Ref.Address, 'n')
-					}
-				}
-				if d.SQLDefaults != nil {
-					for _, dependency := range d.SQLDefaults.Dependencies() {
-						add(d.Address(), dependency.Ref.Address, 'n')
-					}
-				}
-			}
+				return true
+			})
 			if runtime.TypeProviderProcedure(d) {
 				if d.Name() == "bqarr_in" || d.Name() == "cube_in" || d.Name() == "ean13_in" {
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')

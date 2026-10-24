@@ -111,6 +111,12 @@ private frames, not catalog authority.
   take precedence, a context-ineligible pair blocks generic fallback, and there
   is no transitive search. Aggregate binary adapters keep their own
   `AggregateBinaryRecipe` and never borrow current cast rows.
+- **Routine definition dependencies** (`aggregate_dependencies.go`):
+  `VisitProcedureDefinitionDependencies` owns the common namespace, result/formal,
+  checked standard-body/default and ordinary aggregate edges consumed by
+  catalog projection, definition admission and retirement preflight. Quoted source
+  and PL replay-order metadata do not become hard edges. Generated and extension
+  provider edges remain with their owning providers.
 - **Builtin routine identities** (`builtin_routine_identities.go`,
   `regproc_lookup.go`): lookup-only `RoutineIdentity` facts and result OIDs of
   the released `pg_proc` rows. They are not descriptors or SQL rows and never
@@ -138,8 +144,9 @@ private frames, not catalog authority.
 - **Name claims** (`name_claims.go`): a `BindingClaim` is one name a stage
   binds. After the root holds the claim's name lock, `BindingCurrent` rechecks
   it: a vanished binding is `ids.ErrCatalogReplaced`, another one the
-  PostgreSQL unique-index violation of `pg_class`, `pg_type` or
-  `pg_namespace`.
+  PostgreSQL unique-index violation of `pg_class`, `pg_type`, `pg_namespace`,
+  `pg_proc` or `pg_operator`. Procedure bindings include the full input signature;
+  operator bindings include both operand identities, including NONE.
 - **Prepared type identity** (`type_identity.go`):
   `SamePreparedTypeDefinition` decides whether held prepared analysis survives
   a type revision; domains never do.

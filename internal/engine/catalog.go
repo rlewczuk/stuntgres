@@ -121,12 +121,13 @@ type CatalogStage struct {
 	terminalCleanup bool
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
-	initialTables    map[ids.ObjectAddress]*storage.Relation
-	initialTx        ids.TxRef
-	querySources     []catalog.Descriptor
-	tableSlot        *table.Stage
-	indexesSlot      *index.Stage
-	materializedSlot *view.MaterializedStage
+	initialTables     map[ids.ObjectAddress]*storage.Relation
+	initialTx         ids.TxRef
+	querySources      []catalog.Descriptor
+	definitionSources []catalog.Descriptor // Checked routine/operator definition inputs.
+	tableSlot         *table.Stage
+	indexesSlot       *index.Stage
+	materializedSlot  *view.MaterializedStage
 }
 
 // Only terminal dependency removal can saturate. Other DDL retains its ordinary
@@ -439,7 +440,13 @@ func (e *Engine) publishCatalogOperation(op *session.Operation, scope *Statement
 		if err := scope.acquireStageRoleDependencies(p.stage); err != nil {
 			return ChangeSet{}, err
 		}
+		if err := scope.acquireRoutineRetirements(p.stage); err != nil {
+			return ChangeSet{}, err
+		}
 		if err := scope.acquireCatalogNames(p.stage); err != nil {
+			return ChangeSet{}, err
+		}
+		if err := scope.acquireRoutineDefinitionProviders(p.stage); err != nil {
 			return ChangeSet{}, err
 		}
 	}
@@ -505,6 +512,12 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if !s.DomainBasesCurrent(current, s.domainBases, s.terminalCleanup) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
+		}
+		for _, source := range s.definitionSources {
+			if current.Get(source.Address()) != source {
+				e.mu.Unlock()
+				return ChangeSet{}, catalog.Conflict{}
+			}
 		}
 		if err := s.validateLikeSources(e.catalog.read(current)); err != nil {
 			e.mu.Unlock()

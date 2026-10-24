@@ -15,8 +15,8 @@ engine.
   Its transaction ID, phase and completion state are atomic mirrors that the
   engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
   detached from its session (`DetachPrepared`).
-- **Resources and modes.** A `Resource` is a real relation, type, namespace or
-  shared role (`ids.ObjectRef`), an exact catalog destination binding (`Name`),
+- **Resources and modes.** A `Resource` is a real relation, type, namespace,
+  procedure or shared role (`ids.ObjectRef`), an exact catalog destination binding (`Name`),
   a role attribute tuple claim (`RoleTuple`), a logical row (`Row`), an interned
   unique key (`PinUniqueKey`), transaction completion (`CompletionOf`) or a
   database-scoped advisory key (`Database`, `Kind`, `High`, `Low`). Local resources
@@ -26,6 +26,9 @@ engine.
   checkpoint and deadlock graph across databases. `Mode` uses PostgreSQL's table
   and row names; modes accumulate as bits and owners never conflict with
   themselves. Advisory grants are counted (`Hold.Shared`, `Hold.Exclusive`).
+  Procedure/operator names include exact input signatures, including zero-arity
+  procedures and NONE operator operands; other name classes forbid signatures.
+  Procedure providers use ordinary AS/AX object grants, not relation aliases.
   Catalog ACL writer claims use a real catalog-object address; default ACL
   claims use the actual creator ID, namespace/global scope and default class.
   Their distinct resource kinds share this manager's queues and ticket
@@ -82,8 +85,8 @@ engine.
   the engine uses to validate its own admission (`Holds`, `MissingRowGrant`,
   `ReplacementGrants`, `ValidSession`, `TransactionTicket`, `IndexWriters`,
   `AppendRelationNameClaims`).
-  Namespace and shared role holds project as real object tags; shared roles have
-  SQL database zero. Exact name and role-tuple claims are internal, not physical
+  Namespace, procedure and shared role holds project as real object tags; shared
+  roles have SQL database zero. Exact name and role-tuple claims are internal, not physical
   object tags; pending claims project the actual blocker XID. Their queues join
   blocking inquiry and the same deadlock graph without exposing peer local locks.
   Catalog/default ACL claims likewise emit no invented relation, object or

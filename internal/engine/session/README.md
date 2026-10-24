@@ -95,10 +95,13 @@ implement its slots, so either import would form a cycle.
   CREATE/OR REPLACE/ALTER/DROP, CREATE/OR REPLACE/ALTER/DROP VIEW,
   CREATE/ALTER/DROP MATERIALIZED VIEW plus ordinary/concurrent REFRESH,
   CREATE/ALTER/DROP POLICY (including rename), CREATE DOMAIN/composite TYPE,
-  ALTER DOMAIN/composite attributes, and type/domain rename, schema move and DROP
-  use the existing transaction journal, as do generic table/type/domain/database
-  OWNER and REASSIGN/DROP OWNED. Feature-specific view/materialized OWNER is AlterView.
-  Unrelated utility exclusions retain their independent policies. The root reads
+  ALTER DOMAIN/composite attributes, type/domain rename, schema move and DROP,
+  shipped function creation, routine identity ALTER/DROP, aggregate creation and
+  operator CREATE/ALTER/DROP use the existing transaction journal, as do generic
+  table/type/domain/database OWNER and REASSIGN/DROP OWNED. Feature-specific
+  view/materialized OWNER is AlterView. CreateFunction admits only non-procedure
+  declarations; procedure creation and language lifecycle keep their separate
+  admission. Unrelated utility exclusions retain their independent policies. The root reads
   state, InBlock and ReadOnly under `t.Mu` and keeps its locks, preflights,
   short-circuits (`partitionIndexTransaction`, `transactionalIndexMaintenance`)
   and call order.

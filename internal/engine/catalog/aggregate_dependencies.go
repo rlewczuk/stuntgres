@@ -35,3 +35,56 @@ func OwnedAggregateDependencies(d *Procedure) iter.Seq[ids.ObjectAddress] {
 		}
 	}
 }
+
+// VisitProcedureDefinitionDependencies visits the ordinary hard definition
+// edges shared by pg_depend, publication admission and retirement preflight.
+// Quoted source and PL replay-order metadata are deliberately not hard edges.
+// Provider-specific generated/extension edges remain with their providers.
+func VisitProcedureDefinitionDependencies(d *Procedure, yield func(ids.ObjectAddress) bool) {
+	if !yield(d.Namespace()) {
+		return
+	}
+	for address := range OwnedAggregateDependencies(d) {
+		if !yield(address) {
+			return
+		}
+	}
+	if d.SQL == nil {
+		return
+	}
+	if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}) {
+		return
+	}
+	for _, formal := range d.SQL.Formals {
+		if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(formal.Usage.Type.ID())}) {
+			return
+		}
+	}
+	if d.SQLBody != nil {
+		for _, dependency := range d.SQLBody.Dependencies() {
+			if !yield(dependency.Ref.Address) {
+				return
+			}
+		}
+	}
+	if d.SQLDefaults != nil {
+		for _, dependency := range d.SQLDefaults.Dependencies() {
+			if !yield(dependency.Ref.Address) {
+				return
+			}
+		}
+	}
+}
+
+// ProcedureDefinitionDependsOn is allocation-free and stops at the first edge.
+func ProcedureDefinitionDependsOn(d *Procedure, target ids.ObjectAddress) bool {
+	if target.ObjectID == 0 {
+		return false
+	}
+	found := false
+	VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+		found = address == target
+		return !found
+	})
+	return found
+}

@@ -64,6 +64,11 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		}
 	}
 	defer e.DiscardCatalogStage(stage)
+	if _, droppingRoutine := stmt.(*parser.DropRoutine); droppingRoutine {
+		if err := scope.acquireRoutineRetirementRoots(stage); err != nil {
+			return Result{}, err
+		}
+	}
 	switch stmt.(type) {
 	case *parser.AlterDomain, *parser.AlterType:
 		// The identity stager records its exact source before companion

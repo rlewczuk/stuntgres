@@ -39,19 +39,17 @@ func TestReferenceRoutineAlterAtomicity(t *testing.T) {
 		routineExec(t, p, b, c, "SET default_transaction_read_only=on")
 		routineAlterError(t, p, b, c, "ALTER FUNCTION ra_missing(integer) RENAME TO bad", "25006", "cannot execute ALTER FUNCTION in a read-only transaction")
 		routineExec(t, p, b, c, "SET default_transaction_read_only=off")
-		if !b.PG {
-			tx, err := c.BeginTx(p.Ctx, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tx.Rollback()
-			s := fixture.ErrorDiagnostic("ALTER FUNCTION ra_atomic_old(integer) RENAME TO ra_atomic_new", fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction"))
-			s.ErrorStage = "execute"
-			fixture.RunStep(t, p.Ctx, tx, b.Recorder, s)
-			if err := tx.Rollback(); err != nil {
-				t.Fatal(err)
-			}
+		tx, err := c.BeginTx(p.Ctx, nil)
+		if err != nil {
+			t.Fatal(err)
 		}
+		defer tx.Rollback()
+		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: tx, Statement: stmt, SQL: "ALTER FUNCTION ra_atomic_old(integer) RENAME TO ra_atomic_new"}, b.Recorder, fixture.Exec("ALTER FUNCTION ra_atomic_old(integer) RENAME TO ra_atomic_new", 0))
+		fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Select("SELECT ra_atomic_new(4) AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(5)}}))
+		if err := tx.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		routineValue(t, p, b, c, "SELECT ra_atomic_old(4) AS v", "v", "INT4", int64(5))
 	})
 }
 

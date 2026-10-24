@@ -23,6 +23,8 @@ func TestTransactionalSchemaAdmission(t *testing.T) {
 		&parser.AlterOwner{Kind: "type"}, &parser.AlterOwner{Kind: "domain"}, &parser.AlterOwner{Kind: "database"},
 		&parser.AlterView{Action: "owner"}, &parser.AlterView{Action: "owner", Materialized: true},
 		&parser.ReassignOwned{}, &parser.DropOwned{},
+		&parser.CreateFunction{}, &parser.CreateAggregate{}, &parser.AlterRoutine{}, &parser.DropRoutine{},
+		&parser.CreateOperator{}, &parser.AlterOperator{}, &parser.DropOperator{},
 	} {
 		if !TransactionalSchemaUtility(stmt) {
 			t.Errorf("missing admission: %T", stmt)
@@ -31,7 +33,7 @@ func TestTransactionalSchemaAdmission(t *testing.T) {
 	for _, stmt := range []parser.Statement{
 		&parser.AlterOwner{Kind: "view"}, &parser.AlterOwner{Kind: "unknown"}, &parser.AlterOwner{},
 		&parser.CreateDatabaseStmt{}, &parser.CreateTablespace{}, &parser.CreateIndex{}, &parser.DropIndex{},
-		&parser.CreateFunction{}, &parser.CreateRole{}, &parser.Comment{},
+		&parser.CreateFunction{Procedure: true}, &parser.CreateLanguage{}, &parser.CreateCast{}, &parser.DropCast{}, &parser.CreateRole{}, &parser.Comment{},
 		&parser.ObjectGrant{}, &parser.CreateConversion{},
 	} {
 		if TransactionalSchemaUtility(stmt) {

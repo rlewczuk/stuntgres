@@ -41,9 +41,10 @@ Released builtin/window and installed extension execution stays attached to its
 genuine provider. Moving one installed member changes neither membership nor
 the extension target namespace or siblings.
 
-Existing read-only/autocommit DDL boundaries remain. This ALTER work does not
-add CALL, OR REPLACE, external ABIs, new declaration/result forms or a complete
-pg_proc/pg_language projection. See
+Shipped function, aggregate and operator definitions and routine identity changes
+share explicit, autocommit and retained-message publication. Programs, providers
+and hard dependencies remain descriptor-owned; private calls use the owner's
+current view. Read-only and syntax admission remain separate from publication. See
 [native replay](../../../docs/FIXTURES.md#routine-identity-replay) and
 [selected public proof](../../../reference/query_core/README.md#routine-alter-proof).
 

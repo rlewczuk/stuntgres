@@ -378,15 +378,21 @@ Catalog inquiry rows capture their statement's metadata values; retained results
 remain immutable after later changes or rollback. Those row snapshots are not
 permission to reuse stale internal identity or authorization.
 
-Relation/schema/type candidates resolve against current committed state plus the owner's
-private catalog and storage in both explicit and retained-message transactions.
-`publishCatalogOperation` claims only changed namespace,
-relation and type destination names through the existing lock ticket, then
-retains the normal authority/provider/touched-predecessor preflight. Namespace
+Relation/schema/type/routine/operator candidates resolve against current committed
+state plus the owner's private catalog and storage in explicit, autocommit and
+retained-message transactions. `publishCatalogOperation` claims only changed
+namespace, relation, type, procedure and operator destination names through the
+existing lock ticket; overloaded names include their full input signature.
+It retains the normal authority/provider/touched-predecessor preflight. Namespace
 existence uses real AS resources and DROP uses AX; rename/owner changes do not
 serialize all namespace members. Ordinary table DROP acquires AX on every
 captured root before building its one dependency stage from grant-time
 authority. Waiting never adopts a same-named replacement.
+Routine DROP likewise holds captured procedure roots AX before dependency
+discovery. Checked standard-body/default/aggregate/operator providers hold real
+procedure AS through transaction end; grant-time identity checks never retarget
+a dropped provider. Type and definition-source reads join ordinary stage/journal
+fences. Quoted bodies do not acquire hard edges by scanning their source.
 Schema DROP carries an ordered namespace/name manifest, including conditional
 absences, across admission. Current bindings and ownership are validated in the
 same Engine.mu section that constructs its identity-bound stage; any changed

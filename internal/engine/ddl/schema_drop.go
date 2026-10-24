@@ -197,7 +197,7 @@ func schemaDependents(read catalog.Read, children []ids.ObjectAddress) ([]*catal
 				return nil, nil, err
 			}
 			continue // genuine INTERNAL children follow the owning family
-		} else if procedure, ok := d.(*catalog.Procedure); ok && procedure.Foreign != nil {
+		} else if procedure, ok := d.(*catalog.Procedure); ok && (procedure.Foreign != nil || procedure.RoutineKind != catalog.ProcedureRoutine && procedure.DynamicCallable()) {
 			add(procedure)
 		} else if t, ok := d.(*catalog.Type); ok && (t.OwningRelation != (ids.ObjectAddress{}) || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined()) {
 			continue // removed automatically with the owning relation or element type

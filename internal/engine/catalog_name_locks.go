@@ -53,7 +53,7 @@ func (s *StatementScope) acquireCatalogResource(resource lock.Resource, mode loc
 }
 
 // Claim only changed destinations, not reads or vacated names. Acquisition is
-// in pure class/namespace/name order. Diagnostic precedence is selected only
+// in pure class/namespace/name/signature order. Diagnostic precedence is selected only
 // after the entire group is held and current authority is recaptured once.
 func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	if stage.namesAdmitted {
@@ -64,7 +64,8 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	claims := claimScratch[:0]
 	namespaces := namespaceScratch[:0]
 	for key, address := range stage.Names() {
-		if key.ClassID != ids.NamespaceClassID && key.ClassID != ids.RelationClassID && key.ClassID != ids.TypeClassID || key.Signature != "" || stage.Base.NameAddress(key) == address {
+		if key.ClassID != ids.NamespaceClassID && key.ClassID != ids.RelationClassID && key.ClassID != ids.TypeClassID &&
+			key.ClassID != ids.ProcedureClassID && key.ClassID != ids.OperatorClassID || stage.Base.NameAddress(key) == address {
 			continue
 		}
 		priority := 1
@@ -102,7 +103,10 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 		if n := cmp.Compare(a.Key.Namespace.ObjectID, b.Key.Namespace.ObjectID); n != 0 {
 			return n
 		}
-		return cmp.Compare(a.Key.Name, b.Key.Name)
+		if n := cmp.Compare(a.Key.Name, b.Key.Name); n != 0 {
+			return n
+		}
+		return cmp.Compare(a.Key.Signature, b.Key.Signature)
 	})
 	for _, claim := range claims {
 		resource := lock.Resource{ObjectRef: stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), claim.Key.Namespace), Name: claim.Key}

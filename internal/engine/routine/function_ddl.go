@@ -37,6 +37,12 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		}
 		id, err := h.ResolveRegtype(auth, raw)
 		if err != nil {
+			var diagnostic *sqlstate.Error
+			if !s.Procedure && errors.As(err, &diagnostic) && diagnostic.Code == "42704" {
+				// Parsed declaration types have SQL source coordinates and use
+				// declaration spelling, not regtype text-input diagnostics.
+				return sqltype.Usage{}, expr.ErrorAt("42704", "type "+writtenRoutineTypeName(raw)+" does not exist", raw.Pos)
+			}
 			return sqltype.Usage{}, err
 		}
 		if err = checkOperatorArgumentUsage(h, auth, id); err != nil {

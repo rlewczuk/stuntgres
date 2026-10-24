@@ -572,11 +572,12 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 	} else if ref.Name != (ids.NameKey{}) {
 		key := ref.Name
 		validNamespace := key.Namespace.ClassID == ids.NamespaceClassID && key.Namespace.ObjectID != 0 && key.Namespace.SubID == 0
-		validClass := (key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID) && validNamespace ||
+		overloaded := key.ClassID == ids.ProcedureClassID || key.ClassID == ids.OperatorClassID
+		validClass := (key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID || overloaded) && validNamespace ||
 			key.ClassID == ids.NamespaceClassID && key.Namespace == (ids.ObjectAddress{})
 		roleName := key.ClassID == ids.RoleClassID && key.Namespace == (ids.ObjectAddress{}) && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
 		localName := validClass && ref.Domain() == t.ref.Domain() && ref.Epoch == t.ref.Epoch()
-		if (!localName && !roleName) || key.Name == "" || key.Signature != "" ||
+		if (!localName && !roleName) || key.Name == "" || !overloaded && key.Signature != "" ||
 			ref.Address != key.Namespace || ref.RoleTuple || ref.Row != 0 || ref.key != nil || ref.completion != nil || mode != AccessExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid catalog name lock request")
@@ -606,6 +607,12 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 			ref.Row != 0 || ref.key != nil || mode != AccessShare && mode != AccessExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid namespace lock request")
+		}
+	} else if ref.Address.ClassID == ids.ProcedureClassID {
+		if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 ||
+			ref.Row != 0 || ref.key != nil || mode != AccessShare && mode != AccessExclusive {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid procedure lock request")
 		}
 	} else if ref.Address.ClassID == ids.TypeClassID {
 		if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.Row != 0 || ref.key != nil || mode != TypeExclusive {

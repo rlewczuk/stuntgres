@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -40,12 +41,19 @@ func bindingDuplicate(claim BindingClaim) error {
 	if key.ClassID == ids.TypeClassID && claim.RelationRename {
 		key.ClassID = ids.RelationClassID
 	}
-	table, constraint, detail := "pg_class", "pg_class_relname_nsp_index", fmt.Sprintf("Key (relname, relnamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
+	var table, constraint, detail string
 	switch key.ClassID {
 	case ids.NamespaceClassID:
 		table, constraint, detail = "pg_namespace", "pg_namespace_nspname_index", fmt.Sprintf("Key (nspname)=(%s) already exists.", key.Name)
 	case ids.TypeClassID:
 		table, constraint, detail = "pg_type", "pg_type_typname_nsp_index", fmt.Sprintf("Key (typname, typnamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
+	case ids.ProcedureClassID:
+		table, constraint, detail = "pg_proc", "pg_proc_proname_args_nsp_index", fmt.Sprintf("Key (proname, proargtypes, pronamespace)=(%s, %s, %d) already exists.", key.Name, strings.ReplaceAll(key.Signature, ",", " "), key.Namespace.ObjectID)
+	case ids.OperatorClassID:
+		left, right, _ := strings.Cut(key.Signature, ",")
+		table, constraint, detail = "pg_operator", "pg_operator_oprname_l_r_n_index", fmt.Sprintf("Key (oprname, oprleft, oprright, oprnamespace)=(%s, %s, %s, %d) already exists.", key.Name, left, right, key.Namespace.ObjectID)
+	default:
+		table, constraint, detail = "pg_class", "pg_class_relname_nsp_index", fmt.Sprintf("Key (relname, relnamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: fmt.Sprintf("duplicate key value violates unique constraint %q", constraint), Detail: detail, Schema: "pg_catalog", Table: table, Constraint: constraint}
 }

@@ -92,6 +92,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
 Add `REFERENCE=1` for the oracle.
 
 - User-defined operators: `RUN='^TestReferenceUserOperator'`
+- Transactional routine/operator/aggregate protocol: `RUN='^TestReferenceTransactionalRoutinesProtocol$'`.
+  Typed wire scenarios reuse `triggerProtocol*` helpers; the database/sql route
+  matrix lives in [query_core](../query_core/README.md#testing), not a second operator fixture.
 - Operator option forms and checkpoints: `RUN='^TestReferenceUserOperator(Option|CreationCheckpoints|ParameterCheckpoints)'`
 - Comparison consumers of custom operators: `RUN='^TestReferenceUserOperatorComparisonConsumer'`
 - Polymorphic operator selection: `RUN='^TestReferenceUserOperatorPolymorphic'`

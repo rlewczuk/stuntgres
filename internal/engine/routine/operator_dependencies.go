@@ -8,28 +8,45 @@ import (
 // Commutator and negator are reciprocal links, deliberately not dependencies.
 func OperatorDependencyAddresses(view catalog.Read, d *catalog.Operator) []ids.ObjectAddress {
 	refs := make([]ids.ObjectAddress, 0, 7)
-	add := func(a ids.ObjectAddress) {
-		if a.ObjectID == 0 {
-			return
+	VisitOperatorDependencyAddresses(view, d, func(address ids.ObjectAddress) bool {
+		refs = append(refs, address)
+		return true
+	})
+	return refs
+}
+
+// VisitOperatorDependencyAddresses visits the same deduplicated hard edges
+// without allocating a list for definition admission.
+func VisitOperatorDependencyAddresses(view catalog.Read, d *catalog.Operator, yield func(ids.ObjectAddress) bool) {
+	var seen [7]ids.ObjectAddress
+	count := 0
+	add := func(address ids.ObjectAddress) bool {
+		if address.ObjectID == 0 {
+			return true
 		}
-		for _, old := range refs {
-			if old == a {
-				return
+		for _, old := range seen[:count] {
+			if old == address {
+				return true
 			}
 		}
-		refs = append(refs, a)
+		seen[count] = address
+		count++
+		return yield(address)
 	}
-	add(d.Namespace())
+	if !add(d.Namespace()) {
+		return
+	}
 	for _, id := range [...]ids.OID{d.Left, d.Right, d.Result} {
-		add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-	}
-	for _, id := range [...]ids.OID{d.Function, d.Restriction, d.Join} {
-		a := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
-		if _, ok := view.Find(a); ok {
-			add(a)
+		if !add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}) {
+			return
 		}
 	}
-	return refs
+	for _, id := range [...]ids.OID{d.Function, d.Restriction, d.Join} {
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
+		if _, ok := view.Find(address); ok && !add(address) {
+			return
+		}
+	}
 }
 
 // OperatorDependsOn reports whether target is one of

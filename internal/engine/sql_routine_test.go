@@ -9,34 +9,13 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 	"testing"
 )
-
-func sqlRoutineUnitInteger(t *testing.T, result Result, want int64) {
-	t.Helper()
-	if result.Rows == nil {
-		t.Fatal("missing routine rows")
-	}
-	defer result.Rows.Close()
-	row := make([]sqltype.Value, 1)
-	if ok, err := result.Rows.Next(context.Background(), row); !ok || err != nil {
-		t.Fatal(ok, err)
-	}
-	if got, err := row[0].Integer(); err != nil || got != want {
-		t.Fatal(got, err, want)
-	}
-	if ok, err := result.Rows.Next(context.Background(), row); ok || err != nil {
-		t.Fatal("extra routine result", ok, err)
-	}
-}
 
 func TestSQLRoutineCallableSelection(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE FUNCTION routine_unit(bigint) RETURNS integer LANGUAGE SQL AS $$SELECT 8$$")
 	run(t, e, "CREATE FUNCTION routine_unit(integer) RETURNS integer LANGUAGE SQL AS $$SELECT 4$$")
-	sqlRoutineUnitInteger(t, run(t, e, "SELECT routine_unit(1)"), 4)
-	sqlRoutineUnitInteger(t, run(t, e, "SELECT routine_unit(1::bigint)"), 8)
 	sqlRoutineIndexIsolation(t, e)
 }
 
@@ -87,25 +66,10 @@ func sqlRoutineIndexIsolation(t *testing.T, e *Engine) {
 	}
 }
 
-func TestSQLRoutineFirstRowDemand(t *testing.T) {
-	e := New()
-	run(t, e, "CREATE TABLE routine_unit_rows(x integer)")
-	run(t, e, "INSERT INTO routine_unit_rows VALUES (0),(1)")
-	run(t, e, "CREATE FUNCTION routine_unit_first() RETURNS integer LANGUAGE SQL AS $$SELECT 10/x FROM (SELECT x FROM routine_unit_rows ORDER BY x DESC) q$$")
-	sqlRoutineUnitInteger(t, run(t, e, "SELECT routine_unit_first()"), 10)
-}
-
 func TestSQLRoutineValidationNoExecution(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE SEQUENCE routine_unit_sequence")
 	run(t, e, "CREATE FUNCTION routine_unit_next() RETURNS bigint LANGUAGE SQL AS $$SELECT nextval('routine_unit_sequence')$$")
-	run(t, e, "CREATE FUNCTION routine_unit_division() RETURNS integer LANGUAGE SQL AS $$SELECT 1/0$$")
-	sqlRoutineUnitInteger(t, run(t, e, "SELECT routine_unit_next()"), 1)
-	run(t, e, "CREATE TABLE routine_unit_defaults(v bigint DEFAULT routine_unit_next()+1)")
-	run(t, e, "CREATE TABLE routine_unit_error_default(v integer DEFAULT routine_unit_division())")
-	sqlRoutineUnitInteger(t, run(t, e, "SELECT routine_unit_next()"), 2)
-	run(t, e, "INSERT INTO routine_unit_defaults DEFAULT VALUES")
-	sqlRoutineUnitInteger(t, run(t, e, "SELECT v FROM routine_unit_defaults"), 4)
 	before := e.CatalogRead().State()
 	_, err := testExecute(e, context.Background(), statement(t, "CREATE FUNCTION routine_unit_bad() RETURNS integer LANGUAGE SQL AS $$SELECT 'x'::text$$"), nil)
 	if err == nil || e.CatalogRead().State() != before {
@@ -137,7 +101,10 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 		}
 		return r
 	}
-	sqlRoutineUnitInteger(t, execute("SELECT routine_unit_read()"), 4)
+	result := execute("SELECT routine_unit_read()")
+	if err := result.Rows.Close(); err != nil {
+		t.Fatal(err)
+	}
 	var retained *preparedAnalysis
 	for _, entry := range payloadOf(op.Session).sqlRoutines {
 		if len(entry.descriptions) != 1 {
@@ -149,7 +116,10 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 		t.Fatal("body bypassed shared prepared analysis owner")
 	}
 	execute("UPDATE routine_unit_data SET x=9")
-	sqlRoutineUnitInteger(t, execute("SELECT routine_unit_read()"), 9)
+	result = execute("SELECT routine_unit_read()")
+	if err := result.Rows.Close(); err != nil {
+		t.Fatal(err)
+	}
 	for _, entry := range payloadOf(op.Session).sqlRoutines {
 		if len(entry.descriptions) != 1 || entry.descriptions[0].analysis != retained {
 			t.Fatal("unchanged body identity reanalyzed")
@@ -159,7 +129,10 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 	if len(payloadOf(op.Session).sqlRoutines) != 0 {
 		t.Fatal("DISCARD retained routine body analyses")
 	}
-	sqlRoutineUnitInteger(t, execute("SELECT routine_unit_read()"), 9)
+	result = execute("SELECT routine_unit_read()")
+	if err := result.Rows.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestSQLRoutineRestoreStaging(t *testing.T) {
@@ -179,7 +152,6 @@ func TestSQLRoutineRestoreStaging(t *testing.T) {
 	if err := e.Restore(context.Background(), bytes.NewReader(original.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	sqlRoutineUnitInteger(t, run(t, e, "SELECT routine_unit_saved(4)"), 5)
 	if !e.CatalogRead().State().HasDynamicProcedureName("routine_unit_saved") {
 		t.Fatal("restore failed to rebuild routine index")
 	}

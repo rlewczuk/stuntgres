@@ -57,6 +57,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 Add `REFERENCE=1` for the oracle.
 
 - <a id="create-aggregate-contract"></a>CREATE AGGREGATE: `RUN='^TestReferenceCreateAggregate'`
+- The transactional routine/operator/aggregate matrix lives in
+  [query_core](../query_core/README.md#testing), reusing its held-handle routes.
+  Aggregate results keep their explicit native nullable/known metadata contract
+  rather than inheriting scalar SQL-function metadata.
 - DISTINCT, local ORDER BY, FILTER: `RUN='^TestReferenceAggregateModifiers'`
 - `any_value`: `RUN='^TestReferenceAnyValue'`
 - `min`, `max`: `RUN='^TestReferenceExtrema'`

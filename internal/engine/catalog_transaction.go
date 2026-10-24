@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
@@ -168,6 +169,14 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 			owner := candidate.Get(address)
 			for _, target := range observation.Targets {
 				switch owner := owner.(type) {
+				case *catalog.Procedure:
+					if (target.ClassID != ids.TypeClassID || candidate.Get(target) == nil) && catalog.ProcedureDefinitionDependsOn(owner, target) {
+						return catalog.Conflict{}
+					}
+				case *catalog.Operator:
+					if (target.ClassID != ids.TypeClassID || candidate.Get(target) == nil) && routine.OperatorDependsOn(catalog.NewRead(nil, current), owner, target) {
+						return catalog.Conflict{}
+					}
 				case *catalog.Type:
 					if candidate.Get(target) != nil {
 						continue

@@ -166,6 +166,9 @@ func (m *Manager) detectDeadlockSnapshot(newRequest *relationRequest, notify **r
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for transaction completion", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch())
 		} else if r.ref.Name != (ids.NameKey{}) {
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on catalog name %q (class %d, namespace %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), r.ref.Name.Name, r.ref.Name.ClassID, r.ref.Name.Namespace.ObjectID)
+			if r.ref.Name.ClassID == ids.ProcedureClassID || r.ref.Name.ClassID == ids.OperatorClassID {
+				fmt.Fprintf(&detail, " signature %q", r.ref.Name.Signature)
+			}
 		} else {
 			kind := "relation"
 			if r.ref.Address.ClassID == ids.TypeClassID {
@@ -174,6 +177,8 @@ func (m *Manager) detectDeadlockSnapshot(newRequest *relationRequest, notify **r
 				kind = "namespace"
 			} else if r.ref.Address.ClassID == ids.RoleClassID {
 				kind = "role"
+			} else if r.ref.Address.ClassID == ids.ProcedureClassID {
+				kind = "procedure"
 			}
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on %s %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), kind, r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)
 			if r.ref.Row != 0 {
