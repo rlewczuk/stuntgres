@@ -1408,7 +1408,7 @@ func (b *Binder) InputConstant(text string, u sqltype.Usage, pos parser.Position
 		}
 		return node.(plan.LiteralExpr).Value, nil
 	}
-	if u.Type.BaseType().ID() == sqltype.Polygon || u.Type.BaseType().ID() == sqltype.Circle || sqltype.IsFTS(u.Type.BaseType().ID()) || u.Type.BaseType().IsCube() || u.Type.BaseType().IsQueryInt() || u.Type.BaseType().IsCitext() || u.Type.BaseType().IsEan13() || u.Type.BaseType().IsIsbn() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().IsRange() || u.Type.BaseType().IsMultirange() {
+	if u.Type.BaseType().ID() == sqltype.Polygon || u.Type.BaseType().ID() == sqltype.Circle || sqltype.IsFTS(u.Type.BaseType().ID()) || u.Type.BaseType().IsCube() || u.Type.BaseType().IsQueryInt() || u.Type.BaseType().IsCitext() || u.Type.BaseType().IsEan13() || u.Type.BaseType().IsIsbn() || u.Type.BaseType().IsIsbn13() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().IsRange() || u.Type.BaseType().IsMultirange() {
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}

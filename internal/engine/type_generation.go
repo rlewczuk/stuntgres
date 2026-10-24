@@ -26,11 +26,11 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	authorized := false
 	for address, descriptor := range next.Descriptors() {
 		typ, ok := descriptor.(*catalog.Type)
-		if !ok || !typ.SQLType.IsCitext() && !typ.SQLType.IsEan13() && !typ.SQLType.IsIsbn() {
+		if !ok || !typ.SQLType.IsCitext() && !typ.SQLType.IsEan13() && !typ.SQLType.IsIsbn() && !typ.SQLType.IsIsbn13() {
 			continue
 		}
 		old, exists := stage.Base.Type(address)
-		if !exists || !(old.SQLType.IsCitext() && typ.SQLType.IsCitext() || old.SQLType.IsEan13() && typ.SQLType.IsEan13() || old.SQLType.IsIsbn() && typ.SQLType.IsIsbn()) || old.SQLType == typ.SQLType || old.Extension != typ.Extension || old.Array != typ.Array {
+		if !exists || !(old.SQLType.IsCitext() && typ.SQLType.IsCitext() || old.SQLType.IsEan13() && typ.SQLType.IsEan13() || old.SQLType.IsIsbn() && typ.SQLType.IsIsbn() || old.SQLType.IsIsbn13() && typ.SQLType.IsIsbn13()) || old.SQLType == typ.SQLType || old.Extension != typ.Extension || old.Array != typ.Array {
 			continue
 		}
 		if !authorized {

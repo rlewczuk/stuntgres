@@ -183,17 +183,20 @@ func isbnIdentityVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 		run(s)
 		run(fixture.Prepared(s))
 	}
-	for _, role := range []struct{ name, owner, input, output string }{
-		{eName, "isbn_e_owner", "isbn_src.ean13_in(cstring)", "isbn_src.ean13_out(" + eName + ")"},
-		{vName, "isbn_v_owner", "isbn_dst.moved_isbn_input(cstring)", "isbn_dst.moved_isbn_output(" + vName + ")"},
+	e, v := isbnIdentityStamp(t, p, c, eName), isbnIdentityStamp(t, p, c, vName)
+	for _, role := range []struct {
+		name, owner, input, output string
+		array int64
+	}{
+		{eName, "isbn_e_owner", "isbn_src.ean13_in(cstring)", "isbn_src.ean13_out(" + eName + ")", e[1]},
+		{vName, "isbn_v_owner", "isbn_dst.moved_isbn_input(cstring)", "isbn_dst.moved_isbn_output(" + vName + ")", v[1]},
 	} {
-		q := "SELECT pg_get_userbyid(t.typowner) AS owner,pg_get_userbyid(a.typowner) AS array_owner,a.typelem=t.oid AS reciprocal,t.typnamespace=a.typnamespace AS same_schema,t.typinput="+ean13Literal(role.input)+"::regprocedure::oid AS input_identity,t.typoutput="+ean13Literal(role.output)+"::regprocedure::oid AS output_identity FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid="+ean13Literal(role.name)+"::regtype::oid"
+		q := fmt.Sprintf("SELECT pg_get_userbyid(t.typowner) AS owner,pg_get_userbyid(a.typowner) AS array_owner,a.typelem=t.oid AS reciprocal,t.typnamespace=a.typnamespace AS same_schema,t.typinput=%s::regprocedure::oid AS input_identity,t.typoutput=%s::regprocedure::oid AS output_identity FROM (SELECT * FROM pg_type WHERE oid=%s::regtype::oid) t JOIN (SELECT * FROM pg_type WHERE oid=%d) a ON a.oid=t.typarray", ean13Literal(role.input), ean13Literal(role.output), ean13Literal(role.name), role.array)
 		run(fixture.Select(q, []string{"owner", "array_owner", "reciprocal", "same_schema", "input_identity", "output_identity"}, []string{"NAME", "NAME", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{role.owner, role.owner, true, true, true, true}}))
 		for _, signature := range []string{role.input, role.output} {
-			run(fixture.Select("SELECT p.prorettype="+ean13Literal(role.name)+"::regtype::oid AS returns_base,p.oid=t.typinput AS is_input,p.oid=t.typoutput AS is_output FROM pg_proc p JOIN pg_type t ON t.oid="+ean13Literal(role.name)+"::regtype::oid WHERE p.oid="+ean13Literal(signature)+"::regprocedure::oid", []string{"returns_base", "is_input", "is_output"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{signature == role.input, signature == role.input, signature == role.output}}))
+			run(fixture.Select("SELECT p.prorettype="+ean13Literal(role.name)+"::regtype::oid AS returns_base,p.oid=t.typinput AS is_input,p.oid=t.typoutput AS is_output FROM (SELECT * FROM pg_proc WHERE oid="+ean13Literal(signature)+"::regprocedure::oid) p JOIN (SELECT * FROM pg_type WHERE oid="+ean13Literal(role.name)+"::regtype::oid) t ON t.oid="+ean13Literal(role.name)+"::regtype::oid", []string{"returns_base", "is_input", "is_output"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{signature == role.input, signature == role.input, signature == role.output}}))
 		}
 	}
-	e, v := isbnIdentityStamp(t, p, c, eName), isbnIdentityStamp(t, p, c, vName)
 	seen := map[int64]bool{}
 	for _, id := range append(e[:], v[:]...) {
 		if id <= 0 || seen[id] {

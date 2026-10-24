@@ -281,7 +281,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
+			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn" && member.Name != "isbn13") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
 				return invalid()
 			}
 			if record.Name == "isn" {

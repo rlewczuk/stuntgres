@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// ImportScalarTypesLocked gives enum, query_int, cube, citext and ean13 types of
+// ImportScalarTypesLocked gives enum, query_int, cube, citext and ISN types of
 // the isolated candidate next, which belongs to a different lifetime, their
 // destination codecs: enum members get fresh identities from
 // allocateEnumMember, in member order, and each type is installed at its
@@ -17,7 +17,7 @@ import (
 func ImportScalarTypesLocked(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, allocateEnumMember func() (int64, error)) error {
 	for address, descriptor := range next.Descriptors() {
 		d, ok := descriptor.(*catalog.Type)
-		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsQueryInt() && !d.SQLType.IsCube() && !d.SQLType.IsCitext() && !d.SQLType.IsEan13() && !d.SQLType.IsIsbn() {
+		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsQueryInt() && !d.SQLType.IsCube() && !d.SQLType.IsCitext() && !d.SQLType.IsEan13() && !d.SQLType.IsIsbn() && !d.SQLType.IsIsbn13() {
 			continue
 		}
 		source := d.SQLType
@@ -45,6 +45,8 @@ func ImportScalarTypesLocked(next *catalog.State, mapping map[ids.ObjectAddress]
 			typ, err = sqltype.Ean13(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		} else if source.IsIsbn() {
 			typ, err = sqltype.Isbn(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
+		} else if source.IsIsbn13() {
+			typ, err = sqltype.Isbn13(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		} else {
 			typ, err = sqltype.QueryInt(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		}

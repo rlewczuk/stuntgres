@@ -62,7 +62,7 @@ func ean13Identity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn
 		run(fixture.Select(q, []string{"proname", "pronargs", "result_identity", "proisstrict", "provolatile", "proparallel", "same_owner", "deptype"}, []string{"NAME", "INT2", "BOOL", "BOOL", "CHAR", "CHAR", "BOOL", "CHAR"}, [][]any{{tc.name, int64(1), true, true, "i", "s", true, "e"}}))
 	}
 	if !b.PG {
-		s := fixture.Select("SELECT p.proname FROM pg_proc p WHERE p.pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}})
+		s := fixture.Select("SELECT p.proname FROM pg_proc p WHERE p.pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}, {"isbn13_in"}, {"ean13_out"}})
 		s.Bag = true
 		run(s)
 	}

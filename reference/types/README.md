@@ -8,7 +8,7 @@ nullability, CHECK and identity lifecycle); composite types (declarations, field
 expressions, ALTER TYPE attributes); enums (values, ALTER TYPE, support
 functions); integer, numeric, date, timestamp and timestamptz ranges, custom range
 definitions and their multiranges (operators, inspection, `multirange`/`unnest`); text search types and
-operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`, `lo`); ACL values
+operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`, `isbn`, `isbn13`, `lo`); ACL values
 (`aclitem`, `makeaclitem`, `acldefault`, `aclexplode`); TID; UUID (values,
 `gen_random_uuid`/`uuidv4`/`uuidv7`, extraction); BOOLEAN diagnostics and
 aggregates; the `information_schema` domains; and scalar comparison operators and
@@ -117,11 +117,18 @@ these are shared across families:
   provenance. The GeometryMeasure, GeometryMeasureBoxLine and
   GeometryMeasurePath families share these helpers; path-specific helpers live in
   `geometry_measure_path_helpers_test.go`.
-- `ean13_helpers_test.go`: shared installed-identifier scenario, raw string/byte
-  transport, exact diagnostics and metadata checks. The reusable family selector
-  is `RUN='^TestReferenceEan13'`; controls retain readers across replacement,
+- `ean13_helpers_test.go`: shared installed-ISN scenario, raw string/byte
+  transport, exact diagnostics and metadata checks for EAN13, ISBN and ISBN13.
+  ISBN helpers share relational manifest identity and owner-record mutation
+  checks across all three roles. The reusable family selector is
+  `RUN='^TestReference(Ean13|Isbn)'`; controls retain readers across replacement,
   validate whole-script diagnostic positions and rollback with identical failing
   SQL on PostgreSQL, and replay actual emitted SQL on PostgreSQL.
+  Relational identity witnesses filter catalog inputs to the installed
+  scalar/companion/codec and relevant dependency edges before joining. Keep
+  reciprocal links, overload signatures, ownership, membership and exact result
+  metadata assertions; unrelated builtin catalog populations must not multiply
+  the work of each repeated lifecycle check.
 - `lo_helpers_test.go`: shared installed-domain scenarios reuse the fixture's OID
   raw-value adapter. Logical lo identity is independent of physical OID result
   metadata, including NULL/empty results and declared nullability. Numeric

@@ -20,14 +20,15 @@ var StockIsn = &IsnProvider{control: catalog.ExtensionControl{Version: "1.3", Tr
 
 type isnRecipe struct {
 	slot int
-	name, input, output string
+	name, input, output, inputSource string
 	construct func(sqltype.ID, string, string) (*sqltype.Descriptor, error)
 	accept func(*sqltype.Descriptor) bool
 }
 
 var isnRecipes = [...]isnRecipe{
-	{0, "ean13", "ean13_in", "ean13_out", sqltype.Ean13, (*sqltype.Descriptor).IsEan13},
-	{3, "isbn", "isbn_in", "isn_out", sqltype.Isbn, (*sqltype.Descriptor).IsIsbn},
+	{0, "ean13", "ean13_in", "ean13_out", "ean13_in", sqltype.Ean13, (*sqltype.Descriptor).IsEan13},
+	{3, "isbn", "isbn_in", "isn_out", "isbn_in", sqltype.Isbn, (*sqltype.Descriptor).IsIsbn},
+	{6, "isbn13", "isbn13_in", "ean13_out", "isbn_in", sqltype.Isbn13, (*sqltype.Descriptor).IsIsbn13},
 }
 
 const isnMemberCount = len(isnRecipes)*3
@@ -54,7 +55,7 @@ func (p *IsnProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) 
 			if !ok || address.ClassID != ids.ProcedureClassID || proc.Address() != address || IsnProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() == (ids.ObjectAddress{}) || proc.Revision() == 0 { return invalid() }
 			signature, result := catalog.ProcedureSignature("2275"), ids.OID(base.SQLType.ID())
 			if i == 1 { signature, result = IsnSignature(base.SQLType.ID()), 2275 }
-			source := recipe.input
+			source := recipe.inputSource
 			if i == 1 { source = recipe.output }
 			if proc.Display.Source != source { return invalid() }
 			if proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address { return invalid() }

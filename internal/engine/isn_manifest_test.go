@@ -14,16 +14,16 @@ import (
 func TestIsnManifestRoles(t *testing.T) {
 	e, ext, _ := isnUnitInstalled(t)
 	before := e.CatalogRead()
-	for _, slots := range [][2]int{{0,3},{1,4},{2,5},{1,2},{4,5}} {
+	for _, slots := range [][2]int{{0,3},{1,4},{2,5},{1,2},{4,5},{0,6},{3,6},{1,7},{2,8},{7,8}} {
 		candidate := catalog.CloneState(before.State())
 		changed := *ext; changed.Members = append([]ids.ObjectAddress(nil), ext.Members...)
 		changed.Members[slots[0]], changed.Members[slots[1]] = changed.Members[slots[1]], changed.Members[slots[0]]
 		candidate.SetDescriptor(changed.Address(), &changed)
 		if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), &changed); err == nil { t.Fatal("swapped manifest roles accepted", slots) }
 	}
-	for _, slot := range []int{0,3} {
+	for _, slot := range []int{0,3,6} {
 		base := before.MustType(ext.Members[slot])
-		other := before.MustType(ext.Members[3-slot])
+		other := before.MustType(ext.Members[(slot+3)%9])
 		input := "9780123456780!"; if slot == 0 { input = "1234567890120!" }
 		value, err := base.SQLType.Input(context.Background(), input, -1); if err != nil { t.Fatal(err) }
 		for _, source := range []sqltype.Value{value, sqltype.Null(base.SQLType)} {
@@ -35,6 +35,11 @@ func TestIsnManifestRoles(t *testing.T) {
 		candidate.SetDescriptor(array.Address(), &array)
 		if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), ext); err == nil { t.Fatal("cross-family companion accepted") }
 		for _, offset := range []int{1,2} {
+			codec := before.MustProcedure(ext.Members[slot+offset])
+			source := [...]string{"", "ean13_in", "ean13_out"}[offset]
+			if slot == 3 { source = [...]string{"", "isbn_in", "isn_out"}[offset] }
+			if slot == 6 { source = [...]string{"", "isbn_in", "ean13_out"}[offset] }
+			if codec.Display.Source != source { t.Fatal("wrong immutable codec source", slot, offset, codec.Display.Source) }
 			candidate := catalog.CloneState(before.State())
 			proc := *candidate.MustProcedure(ext.Members[slot+offset])
 			proc.Display.Source = "foreign_symbol"

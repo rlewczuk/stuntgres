@@ -34,8 +34,8 @@ func isbnInvalidOwnerDump(t *testing.T, script, kind string) string {
 		t.Fatal("actual owner record is not isn", name, err)
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 6 {
-		t.Fatal("actual isn owner inventory must contain six members", members, err)
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 9 {
+		t.Fatal("actual isn owner inventory must contain nine members", members, err)
 	}
 	bySlot := make(map[int]map[string]json.RawMessage)
 	for _, member := range members {
@@ -45,7 +45,7 @@ func isbnInvalidOwnerDump(t *testing.T, script, kind string) string {
 		}
 		bySlot[slot] = member
 	}
-	for slot := range 6 {
+	for slot := range 9 {
 		if bySlot[slot] == nil {
 			t.Fatal("missing actual manifest slot", slot)
 		}
@@ -64,6 +64,19 @@ func isbnInvalidOwnerDump(t *testing.T, script, kind string) string {
 		bySlot[3]["name"] = json.RawMessage(`"ean13"`)
 	case "wrong_output_signature":
 		bySlot[5]["signature"] = json.RawMessage(`"ean13"`)
+	case "isbn13_missing_member":
+		for i, member := range members {
+			if string(member["slot"]) == "8" {
+				members = append(members[:i], members[i+1:]...)
+				break
+			}
+		}
+	case "isbn13_duplicate_slot":
+		bySlot[8]["slot"] = json.RawMessage(`5`)
+	case "isbn13_wrong_type_role":
+		bySlot[6]["name"] = json.RawMessage(`"isbn"`)
+	case "isbn13_wrong_output_signature":
+		bySlot[8]["signature"] = json.RawMessage(`"isbn"`)
 	case "wrong_version":
 		record["version"] = json.RawMessage(`"0.0"`)
 	default:

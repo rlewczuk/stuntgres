@@ -1,3 +1,8 @@
+Installed isn now provides independently identified isbn13 columns, literal and
+bound string/byte input, canonical long ISBN output and ISBN13 result metadata.
+ISBN10 expansion, corrected check digits, retained invalid markers and NULLs
+survive prepared execution, extension recreation and native Reset/Dump/Restore.
+
 information_schema.sql_sizing now supports direct and prepared reads through four
 nullable domain-typed columns. Its standardized inventory reports enforced
 native limits, zero for unlimited or undetermined sizes, and NULL for unsupported

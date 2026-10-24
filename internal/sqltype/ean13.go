@@ -83,8 +83,13 @@ func eanPattern(digits []byte, ranges []eanRange) string {
 
 func (d *Descriptor) ean13Output(v Value) (string, error) {
 	if !v.validEan13() { return "", fmt.Errorf("invalid ean13 payload") }
+	return isnLongOutput(v.integer), nil
+}
+
+// isnLongOutput formats a packed value after its scalar role validates it.
+func isnLongOutput(packed int64) string {
 	var digits [13]byte
-	number := v.integer >> 1
+	number := packed >> 1
 	for i := 12; i >= 0; i-- {
 		digits[i] = byte(number%10) + '0'
 		number /= 10
@@ -114,6 +119,6 @@ func (d *Descriptor) ean13Output(v Value) (string, error) {
 		out[n] = c
 		n++
 	}
-	if v.integer&1 != 0 { out[n] = '!'; n++ }
-	return string(out[:n]), nil
+	if packed&1 != 0 { out[n] = '!'; n++ }
+	return string(out[:n])
 }

@@ -75,9 +75,12 @@ func isbnRetain(t *testing.T, p *fixture.Pair, c *sql.Conn, query string) (*sql.
 	return rows, metadata
 }
 
-func isbnConsumeRetained(t *testing.T, rows *sql.Rows, metadata []*sql.ColumnType, expected [][]any) {
+func isbnConsumeRetained(t *testing.T, rows *sql.Rows, metadata []*sql.ColumnType, expected [][]any, types ...string) {
 	t.Helper()
-	ean13ColumnMetadata(t, false, metadata, []string{"id", "e", "v"}, []string{"INT4", "EAN13", "ISBN"}, []bool{false, true, true})
+	if len(types) == 0 {
+		types = []string{"INT4", "EAN13", "ISBN"}
+	}
+	ean13ColumnMetadata(t, false, metadata, []string{"id", "e", "v"}, types, []bool{false, true, true})
 	got := [][]any{}
 	for rows.Next() {
 		var id, e, v any

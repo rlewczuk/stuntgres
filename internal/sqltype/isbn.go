@@ -12,7 +12,12 @@ func (d *Descriptor) IsIsbn() bool { return d != nil && d.isbn }
 
 func (v Value) validIsbn() bool {
 	if v.typ == nil || !v.typ.BaseType().IsIsbn() || v.integer < 0 { return false }
-	n := v.integer >> 1
+	return validIsbnNumber(v.integer)
+}
+
+func validIsbnNumber(packed int64) bool {
+	if packed < 0 { return false }
+	n := packed >> 1
 	return n >= 9780000000000 && n <= 9789999999999 || n >= 9791000000000 && n <= 9799999999999
 }
 

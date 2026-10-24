@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -30,6 +31,9 @@ func (s *isnReservedStage) AllocateOID() (ids.OID, error) {
 }
 
 func TestIsnProviderStageCollisions(t *testing.T) {
+	for _, family := range []string{"isbn", "isbn13"} {
+	slot, inputName, outputName := 3, "isbn_in", "isn_out"
+	if family == "isbn13" { slot, inputName, outputName = 6, "isbn13_in", "ean13_out" }
 	for _, tc := range []struct {
 		name string
 		output, existingType bool
@@ -40,14 +44,14 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 		{"output_before_type", true, true},
 	} {
 		output := tc.output
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(family+"/"+tc.name, func(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			var existing *catalog.Type
 			if tc.existingType {
-				domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE isbn AS ENUM ('occupied')"))
-				existing = domainUnitType(t, e.CatalogRead(), "isbn")
+				domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE "+family+" AS ENUM ('occupied')"))
+				existing = domainUnitType(t, e.CatalogRead(), family)
 			}
 			before := e.CatalogRead()
 			var seed, stage *CatalogStage
@@ -71,7 +75,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 					return err
 				}
 				host := &extensionHost{engine: e, op: op, auth: auth}
-				var reserved [6]ids.OID
+				var reserved [9]ids.OID
 				for i := range reserved {
 					reserved[i], err = host.AllocateOID()
 					if err != nil {
@@ -99,13 +103,13 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 				original = &catalog.Procedure{
 					ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: procOID},
 					ObjectNamespace: ns, ObjectRevision: revision,
-					ObjectName: "isbn_in", Signature: "2275",
+					ObjectName: inputName, Signature: "2275",
 					RoutineKind: catalog.FunctionRoutine, Result: ids.OID(sqltype.Text),
 					Owner: auth.State.CurrentUser,
 				}
 				if output {
-					original.ObjectName = "isn_out"
-					outputType := sqltype.ID(reserved[3])
+					original.ObjectName = outputName
+					outputType := sqltype.ID(reserved[slot])
 					if existing != nil {
 						outputType = existing.SQLType.ID()
 					}
@@ -123,7 +127,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 					competing = &catalog.Procedure{
 						ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid},
 						ObjectNamespace: ns, ObjectRevision: revision,
-						ObjectName: "isn_out", Signature: extension.IsnSignature(existing.SQLType.ID()),
+						ObjectName: outputName, Signature: extension.IsnSignature(existing.SQLType.ID()),
 						RoutineKind: catalog.FunctionRoutine, Result: 2275, Owner: original.Owner,
 					}
 					if err := seed.Create(competing); err != nil {
@@ -152,9 +156,9 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723",
 				Message: `function "` + original.Name() + `" already exists with same argument types`,
 			}
-			if !output {
+			if family == "isbn" && !output {
 				want.Context = "SQL statement \"CREATE FUNCTION isbn_in(cstring)\n\tRETURNS isbn\n\tAS '$libdir/isn'\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line 100"
-			} else {
+			} else if family == "isbn" {
 				want.Context = "SQL statement \"CREATE FUNCTION isn_out(isbn)\n\tRETURNS cstring\n\tAS '$libdir/isn'\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line 106"
 			}
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
@@ -173,10 +177,11 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 			}
 		})
 	}
+	}
 }
 
 func TestIsnGeneratedArrayDisplacement(t *testing.T) {
-	for _, occupied := range []string{"isbn", "_isbn"} {
+	for _, occupied := range []string{"isbn", "_isbn", "isbn13", "_isbn13"} {
 		t.Run(occupied, func(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
@@ -225,7 +230,9 @@ func TestIsnGeneratedArrayDisplacement(t *testing.T) {
 			}
 			view := e.stageRead(stage)
 			ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
-			isbn := view.MustType(ext.Members[3])
+			slot := 3
+			if occupied == "isbn13" || occupied == "_isbn13" { slot = 6 }
+			isbn := view.MustType(ext.Members[slot])
 			companion := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(isbn.Array)})
 			if err := extension.StockIsn.ValidateExtension(view, ext); err != nil {
 				t.Fatal(err)
@@ -234,7 +241,7 @@ func TestIsnGeneratedArrayDisplacement(t *testing.T) {
 			if companion.Address() == array.Address() || companion.SQLType.Element() != isbn.SQLType || retained.SQLType.Element() != element.SQLType || view.MustType(element.Address()).Array != array.SQLType.ID() {
 				t.Fatal("displacement broke reciprocal identities")
 			}
-			if occupied == "isbn" && retained.Name() == occupied || occupied == "_isbn" && retained.Name() != occupied {
+			if !strings.HasPrefix(occupied, "_") && retained.Name() == occupied || strings.HasPrefix(occupied, "_") && retained.Name() != occupied {
 				t.Fatal("wrong generated-array displacement", retained.Name())
 			}
 			if before.MustType(original.Address()) != original || original.SQLType.Name() != "_holder" || e.CatalogRead().State() != before.State() {

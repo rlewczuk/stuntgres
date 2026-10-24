@@ -90,7 +90,7 @@ continue owning their original descriptors. Fresh metadata and diagnostics name
 the current type; prepared occurrence capture/recreation policy belongs to the
 engine, not a codec-level stale-name retry.
 
-Installed cube/query_int/citext/ean13/isbn/earth/lo retain real codec/manifest roles and earth
+Installed cube/query_int/citext/ean13/isbn/isbn13/earth/lo retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
 Neither a logical OID nor lifecycle support introduces a new range provider,
@@ -184,16 +184,19 @@ or widen it.
 
 ## ISN identifiers
 
-`Ean13` and `Isbn` descriptors own distinct scalar families with packed
+`Ean13`, `Isbn` and `Isbn13` descriptors own distinct scalar roles with packed
 thirteen-digit identifiers and independent invalid-input flags. Their shared
-scanner preserves raw character lookahead and ASCII separator rules. ISBN short
-input validates its weighted check digit before expansion; short output computes
-its own check digit instead of reusing the stored EAN digit. Formatting uses the
-attributed PostgreSQL 18.6 ranges in `ean13_ranges.go`.
+scanner preserves raw character lookahead and ASCII separator rules. ISBN and
+ISBN13 share ISBN-family input validation: short input validates its weighted
+check digit before expansion. ISBN short output computes its own check digit
+instead of reusing the stored EAN digit; ISBN13 and EAN13 share a validated long
+formatter. Formatting uses the attributed PostgreSQL 18.6 ranges in
+`ean13_ranges.go`.
 Leading zeros, computed check digits, marked corrected inputs and typed NULLs
 retain distinct identities. Explicit text I/O and assignment to text reuse the
-shared coercion planner; typed text needs an explicit conversion to ISBN.
-Neither equal OIDs nor shared physical storage authorize family interchange.
+shared coercion planner; typed text needs an explicit conversion to either ISBN
+role. Neither equal OIDs nor shared physical storage authorize family interchange;
+imports require exact source/destination descriptor authorization.
 
 ## Type families
 
@@ -396,7 +399,7 @@ match engine tests of the same mechanism):
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
-- Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
+- Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|Isbn|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
 - Refcursor scalar codecs and admission: `RUN='^TestPLpgSQLCursorCodec$'`
 - Composite descriptors, expression shapes and payload ownership: `RUN='^TestComposite'`
 - Trailing array slices and payload ownership: `RUN='^TestArrayForeachSlice$'`

@@ -40,13 +40,16 @@ func TestReferenceIsbnInstallAndIdentity(t *testing.T) {
 	})
 }
 
-// Every identity is relational: no allocator value or EAN codec is an ISBN
-// oracle. Verify both scalars together so accidental member-zero reuse fails.
+// Every identity is relational. Verify all installed scalars together so
+// accidental manifest-role reuse and output-overload aliasing fail.
+// Bound each catalog input before joining: the native nested-loop executor
+// otherwise visits unrelated builtin types, routines and dependency edges on
+// every lifecycle witness. Keep the joins themselves as identity assertions.
 func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, ns string) {
 	t.Helper()
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 	seen := map[int64]string{}
-	for _, role := range []struct{ scalar, input, output string }{{"ean13", "ean13_in", "ean13_out"}, {"isbn", "isbn_in", "isn_out"}} {
+	for _, role := range []struct{ scalar, input, output string }{{"ean13", "ean13_in", "ean13_out"}, {"isbn", "isbn_in", "isn_out"}, {"isbn13", "isbn13_in", "ean13_out"}} {
 		name := ns + "." + role.scalar
 		var oid, array, input, output int64
 		if err := c.QueryRowContext(p.Ctx, "SELECT oid,typarray,typinput::oid,typoutput::oid FROM pg_type WHERE oid="+ean13Literal(name)+"::regtype::oid").Scan(&oid, &array, &input, &output); err != nil {
@@ -58,16 +61,16 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 			}
 			seen[id] = name
 		}
-		q := fmt.Sprintf("SELECT t.typname,t.typtype,t.typcategory,t.typlen,t.typbyval,t.typalign,t.typstorage,t.typtypmod,t.typcollation::bigint,a.typelem=t.oid AS reciprocal,t.typinput=%s::regprocedure::oid AS input_identity,t.typoutput=%s::regprocedure::oid AS output_identity FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=%d", ean13Literal(ns+"."+role.input+"(cstring)"), ean13Literal(ns+"."+role.output+"("+name+")"), oid)
+		q := fmt.Sprintf("SELECT t.typname,t.typtype,t.typcategory,t.typlen,t.typbyval,t.typalign,t.typstorage,t.typtypmod,t.typcollation::bigint,a.typelem=t.oid AS reciprocal,t.typinput=%s::regprocedure::oid AS input_identity,t.typoutput=%s::regprocedure::oid AS output_identity FROM (SELECT * FROM pg_type WHERE oid=%d) t JOIN (SELECT * FROM pg_type WHERE oid=%d) a ON a.oid=t.typarray", ean13Literal(ns+"."+role.input+"(cstring)"), ean13Literal(ns+"."+role.output+"("+name+")"), oid, array)
 		s := fixture.Select(q, []string{"typname", "typtype", "typcategory", "typlen", "typbyval", "typalign", "typstorage", "typtypmod", "typcollation", "reciprocal", "input_identity", "output_identity"}, []string{"NAME", "CHAR", "CHAR", "INT2", "BOOL", "CHAR", "CHAR", "INT4", "INT8", "BOOL", "BOOL", "BOOL"}, [][]any{{role.scalar, "b", "U", int64(8), true, "d", "p", int64(-1), int64(0), true, true, true}})
 		run(s)
 		run(fixture.Prepared(s))
-		run(fixture.Select(fmt.Sprintf("SELECT t.typnamespace=e.extnamespace AS same_namespace,t.typowner=e.extowner AS same_owner,d.deptype,e.extversion FROM pg_type t JOIN pg_depend d ON d.objid=t.oid JOIN pg_extension e ON e.oid=d.refobjid WHERE t.oid=%d AND d.classid=1247 AND d.refclassid=3079 AND e.extname='isn'", oid), []string{"same_namespace", "same_owner", "deptype", "extversion"}, []string{"BOOL", "BOOL", "CHAR", "TEXT"}, [][]any{{true, true, "e", "1.3"}}))
+		run(fixture.Select(fmt.Sprintf("SELECT t.typnamespace=e.extnamespace AS same_namespace,t.typowner=e.extowner AS same_owner,d.deptype,e.extversion FROM (SELECT * FROM pg_type WHERE oid=%d) t JOIN (SELECT * FROM pg_depend WHERE objid=%d AND classid=1247 AND refclassid=3079) d ON d.objid=t.oid JOIN (SELECT * FROM pg_extension WHERE extname='isn') e ON e.oid=d.refobjid", oid, oid), []string{"same_namespace", "same_owner", "deptype", "extversion"}, []string{"BOOL", "BOOL", "CHAR", "TEXT"}, [][]any{{true, true, "e", "1.3"}}))
 		for _, codec := range []struct {
 			id int64
 			name, arg, result string
 		}{{input, role.input, "cstring", name}, {output, role.output, name, "cstring"}} {
-			q := fmt.Sprintf("SELECT p.proname,p.pronargs,p.oid=%s::regprocedure::oid AS argument_identity,p.prorettype=%s::regtype::oid AS result_identity,p.proisstrict,p.provolatile,p.proparallel,l.lanname,p.proowner=e.extowner AS same_owner,d.deptype FROM pg_proc p JOIN pg_language l ON l.oid=p.prolang JOIN pg_depend d ON d.objid=p.oid JOIN pg_extension e ON e.oid=d.refobjid WHERE p.oid=%d AND d.classid=1255 AND d.refclassid=3079 AND e.extname='isn'", ean13Literal(ns+"."+codec.name+"("+codec.arg+")"), ean13Literal(codec.result), codec.id)
+			q := fmt.Sprintf("SELECT p.proname,p.pronargs,p.oid=%s::regprocedure::oid AS argument_identity,p.prorettype=%s::regtype::oid AS result_identity,p.proisstrict,p.provolatile,p.proparallel,l.lanname,p.proowner=e.extowner AS same_owner,d.deptype FROM (SELECT * FROM pg_proc WHERE oid=%d) p JOIN (SELECT * FROM pg_language WHERE lanname='c') l ON l.oid=p.prolang JOIN (SELECT * FROM pg_depend WHERE objid=%d AND classid=1255 AND refclassid=3079) d ON d.objid=p.oid JOIN (SELECT * FROM pg_extension WHERE extname='isn') e ON e.oid=d.refobjid", ean13Literal(ns+"."+codec.name+"("+codec.arg+")"), ean13Literal(codec.result), codec.id, codec.id)
 			run(fixture.Select(q, []string{"proname", "pronargs", "argument_identity", "result_identity", "proisstrict", "provolatile", "proparallel", "lanname", "same_owner", "deptype"}, []string{"NAME", "INT2", "BOOL", "BOOL", "BOOL", "CHAR", "CHAR", "NAME", "BOOL", "CHAR"}, [][]any{{codec.name, int64(1), true, true, true, "i", "s", "c", true, "e"}}))
 			// Each routine depends normally on its own scalar, not the other
 			// manifest role. Builtin cstring is pinned and has no normal edge.
@@ -75,7 +78,7 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 		}
 	}
 	if !b.PG {
-		s := fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}})
+		s := fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}, {"isbn13_in"}, {"ean13_out"}})
 		s.Bag = true
 		run(s)
 	}
