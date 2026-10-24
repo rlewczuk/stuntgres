@@ -10,10 +10,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 	"testing"
 )
 
@@ -26,31 +28,131 @@ func objectGrantUnitFixture(t *testing.T) (*Engine, *session.Operation, authoriz
 	reader := roleAttributeCreate(t, e, op, "grant_reader", true, parser.RoleOptions{}).Ref
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900001}
 	namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
-	relation := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "grant_unit", Owner: op.RoleState().CurrentUser, Columns: []catalog.Column{{Name: "a"}, {Name: "b"}}, Index: map[string]int{"a": 0, "b": 1}, Attributes: []int32{1, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}}
+	typ, ok := e.CatalogRead().LookupType(sqltype.Int4)
+	if !ok {
+		t.Fatal("missing int4 fixture type")
+	}
+	relation := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "grant_unit", ObjectRevision: 1, RelationKind: catalog.TableRelation, Owner: op.RoleState().CurrentUser, Columns: []catalog.Column{{Name: "a", Usage: typ.Usage()}, {Name: "b", Usage: typ.Usage()}}, Index: map[string]int{"a": 0, "b": 1}, Attributes: []int32{1, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}}
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	e.catalog.state.SetDescriptor(address, relation)
 	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.Name()}, address)
 	return e, op, reader, address
 }
 func applyObjectGrantUnit(e *Engine, op *session.Operation, s *parser.ObjectGrant) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	v, err := e.authorizationLocked(op)
-	if err != nil {
-		return err
-	}
-	_, err = e.objectGrantLocked(op, v, s)
+	_, err := e.Execute(op, s, 0, nil)
 	return err
 }
 func objectGrantUnitRequest() *parser.ObjectGrant {
 	return &parser.ObjectGrant{Privileges: []parser.GrantPrivilege{{Name: "select", Columns: []parser.Identifier{{Text: "b"}}}}, Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: "grant_unit"}}}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "grant_reader"}}}}
 }
 
+func TestTransactionalPrivilegesJournal(t *testing.T) {
+	for _, retained := range []bool{false, true} {
+		t.Run(map[bool]string{false: "active", true: "retained"}[retained], func(t *testing.T) {
+			e, op, reader, address := objectGrantUnitFixture(t)
+			committed, roles := e.catalog.state, e.roles.published
+			if _, err := e.Begin(op, session.TxOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			var message *batchUnitMessage
+			if retained {
+				scope, err := e.StartStatement(op)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = scope.RetainMessage(); err != nil {
+					_ = scope.Finish(err)
+					t.Fatal(err)
+				}
+				message = &batchUnitMessage{scope: scope, op: op}
+				defer func() { _ = message.scope.FinishMessage(context.Canceled) }()
+			}
+			apply := func(statement parser.Statement) error {
+				if message != nil {
+					_, err := message.step(statement)
+					return err
+				}
+				_, err := e.Execute(op, statement, 0, nil)
+				return err
+			}
+			request := objectGrantUnitRequest()
+			if err := apply(request); err != nil {
+				t.Fatal(err)
+			}
+			changes := op.Session.Transactions.Catalog
+			if changes == nil || changes.Roles == nil || changes.RolesBase != roles || e.catalog.state != committed || e.roles.published != roles {
+				t.Fatal("active ACL utility must retain one private catalog/role pair")
+			}
+			e.mu.Lock()
+			private := e.privateCatalogLocked(changes)
+			e.mu.Unlock()
+			column := private.State().MustRelation(address).Security.ColumnACL[3]
+			if authorization.ACLRights(column, op.RoleState().CurrentUser, []authorization.PrincipalRef{reader}, authorization.SelectPrivilege, false) == 0 {
+				t.Fatal("private stable column identity lost its grant")
+			}
+			before := changes.Clone()
+			if err := apply(request); err != nil {
+				t.Fatal(err)
+			}
+			if op.Session.Transactions.Catalog.Roles != before.Roles {
+				t.Fatal("no-op advanced private role revision")
+			}
+			mark := parser.Identifier{Text: "acl_mark"}
+			if err := apply(&parser.SavepointControl{Kind: parser.CreateSavepoint, Name: mark}); err != nil {
+				t.Fatal(err)
+			}
+			request.Revoke = true
+			if err := apply(request); err != nil {
+				t.Fatal(err)
+			}
+			e.mu.Lock()
+			suffix := e.privateCatalogLocked(op.Session.Transactions.Catalog)
+			e.mu.Unlock()
+			if authorization.ACLRights(suffix.State().MustRelation(address).Security.ColumnACL[3], op.RoleState().CurrentUser, []authorization.PrincipalRef{reader}, authorization.SelectPrivilege, false) != 0 {
+				t.Fatal("private revoke suffix had no actual effect")
+			}
+			request.Revoke = false
+			request.Relations = append(request.Relations, parser.ObjectName{Parts: []parser.Identifier{{Text: "missing"}}})
+			if err := apply(request); err == nil {
+				t.Fatal("missing late target accepted")
+			}
+			for range 2 {
+				if err := apply(&parser.SavepointControl{Kind: parser.RollbackSavepoint, Name: mark}); err != nil {
+					t.Fatal(err)
+				}
+				live := op.Session.Transactions.Catalog
+				if live == nil || live.Roles != before.Roles {
+					t.Fatal("rollback-to lost the live premark authorization")
+				}
+				e.mu.Lock()
+				restored := e.privateCatalogLocked(live)
+				e.mu.Unlock()
+				if !reflect.DeepEqual(column, restored.State().MustRelation(address).Security.ColumnACL[3]) {
+					t.Fatal("rollback-to did not restore the live ACL suffix")
+				}
+			}
+			if err := apply(&parser.SavepointControl{Kind: parser.ReleaseSavepoint, Name: mark}); err != nil {
+				t.Fatal(err)
+			}
+			if err := apply(request); err == nil {
+				t.Fatal("unmarked missing late target accepted")
+			}
+			if e.catalog.state != committed || e.roles.published != roles || op.Session.Transactions.Catalog != nil || changes.Roles != before.Roles || !reflect.DeepEqual(column, private.State().MustRelation(address).Security.ColumnACL[3]) {
+				t.Fatal("failed block changed committed or detached private roots")
+			}
+		})
+	}
+}
+
 func TestObjectGrantSequencePublication(t *testing.T) {
 	e, op, reader, address := objectGrantUnitFixture(t)
 	original := e.catalog.state.MustRelation(address)
-	original.RelationKind = catalog.SequenceRelation
-	original.SequencePlanStamp = 1
+	options, _, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original = sequence.NewRelation(sequence.RelationSpec{Address: address, Namespace: original.Namespace(), Name: original.Name(), Revision: 1, Owner: original.Owner, Columns: sequence.Columns(e.CatalogRead()), Options: options})
+	e.catalog.state.SetDescriptor(address, original)
 	generator := &storage.SequenceGenerator{Last: 11}
 	e.mu.Lock()
 	e.storage.InstallSequenceLocked(address, generator)
@@ -403,5 +505,42 @@ func TestObjectGrantPlanWarningsBeforeError(t *testing.T) {
 	}
 	if notices := op.DetachNotices(); len(notices) != 1 || notices[0] != warnings[0] {
 		t.Fatal("objectGrantLocked did not emit the warning before the error", notices)
+	}
+}
+
+func TestTransactionalPrivilegesNamespace(t *testing.T) {
+	e, op, _, _ := objectGrantUnitFixture(t)
+	request := &parser.ObjectGrant{Kind: "schema", Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: "public"}}}}, Privileges: []parser.GrantPrivilege{{Name: "usage"}}, Grantees: objectGrantUnitRequest().Grantees}
+	before, roles := e.catalog.state, e.roles.published
+	if err := applyObjectGrantUnit(e, op, request); err != nil {
+		t.Fatal(err)
+	}
+	after := e.catalog.state
+	if after.NamespaceGeneration() != before.NamespaceGeneration()+1 || e.roles.published == roles {
+		t.Fatal("schema ACL lost its single canonical invalidation")
+	}
+	if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.state != after {
+		t.Fatal("schema ACL no-op invalidated", err)
+	}
+	ref, err := e.Begin(op, session.TxOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Revoke = true
+	if err := applyObjectGrantUnit(e, op, request); err != nil {
+		t.Fatal(err)
+	}
+	if e.catalog.state != after {
+		t.Fatal("private schema ACL invalidated committed root")
+	}
+	if _, err := e.Rollback(op, ref); err != nil || e.catalog.state != after {
+		t.Fatal("schema ACL rollback published", err)
+	}
+	saturated := catalog.CloneState(after)
+	saturated.SetNamespaceGeneration(^uint64(0))
+	e.catalog.state = saturated
+	roles = e.roles.published
+	if err := applyObjectGrantUnit(e, op, request); err == nil || !strings.Contains(err.Error(), "namespace invalidation generation exhausted") || e.catalog.state != saturated || e.roles.published != roles {
+		t.Fatal("schema namespace overflow published", err)
 	}
 }

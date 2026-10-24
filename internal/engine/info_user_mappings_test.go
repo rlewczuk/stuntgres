@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -94,8 +95,7 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 		t.Fatal(err)
 	}
 	renamedAuth := originalAuth
-	renamedAuth.RoleRecord = originalAuth.RoleRecord.Advance()
-	renamedAuth.RoleRecord.Root = renamedRoot
+	renamedAuth.RoleRecord = &access.RoleRecord{Root: renamedRoot, Revision: originalAuth.RoleRecord.Revision + 1}
 	renamedAuth.Recapture(view)
 	if _, ok := renamedAuth.Roles.Lookup(originalRole.Name); ok {
 		t.Fatal("replacement retained old role-name index")

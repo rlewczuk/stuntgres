@@ -17,28 +17,12 @@ func TestReferenceRoleDefaultPrivilegesTransactions(t *testing.T) {
 			run(fixture.Exec("ALTER DEFAULT PRIVILEGES REVOKE SELECT ON TABLES FROM dp_reader", 0))
 			run(fixture.Exec("BEGIN", 0))
 			q := "ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO dp_reader"
-			if b.PG {
-				run(fixture.Exec(q, 0))
-				run(fixture.Exec(end, 0))
-			} else {
-				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-				s.ErrorStage = "execute"
-				if prepared {
-					s.ErrorStage = "prepare"
-				}
-				run(s)
-				s = fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
-				s.ErrorStage = "execute"
-				if prepared {
-					s.ErrorStage = "prepare"
-				}
-				run(s)
-				run(fixture.Exec("ROLLBACK", 0))
-			}
+			run(fixture.Exec(q, 0))
+			run(fixture.Exec(end, 0))
 			name := []string{"dp_rollback", "dp_commit"}[i]
 			dpTable(run, name, 9)
 			fixture.RoleGrantActor(run, "dp_reader", func() {
-				if b.PG && end == "COMMIT" {
+				if end == "COMMIT" {
 					dpRead(run, name, 9)
 				} else {
 					fixture.RoleGrantPermissionDenied(run, "SELECT x FROM "+name, "table", name)

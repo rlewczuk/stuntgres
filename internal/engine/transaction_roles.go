@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -85,6 +86,9 @@ func (e *Engine) mergedJournalRolesLocked(ctx context.Context, c *session.Journa
 	if c.RolesBase == nil {
 		return nil, catalog.Conflict{}
 	}
+	if c.Roles.SameAuthority(c.RolesBase) {
+		return e.journalRolePublicationLocked(c, true)
+	}
 	root, err := authorization.MergeRoots(ctx, &c.RolesBase.Root, &c.Roles.Root, &e.roles.published.Root)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -104,19 +108,52 @@ func (e *Engine) refreshOperationRolesLocked(op *session.Operation) error {
 	if t == nil || t.Catalog == nil || t.Catalog.Roles == nil || t.Catalog.RolesBase == e.roles.published {
 		return nil
 	}
+	// A peer ACL publication changed no principal graph. Preserve the owner's
+	// exact private root/base and logical ACL delta until final publication.
+	if e.roles.published.SameAuthority(t.Catalog.RolesBase) {
+		return nil
+	}
+	if t.Catalog.Roles.SameAuthority(t.Catalog.RolesBase) {
+		// Completed ACL work has no actual principal delta. Refresh its view
+		// through the incoming merge, preserving the original logical delta
+		// without reserving the allocator frontier during a read.
+		if _, err := e.journalRolePublicationLocked(t.Catalog, false); err != nil {
+			return err
+		}
+		c := t.Catalog.Clone()
+		next := e.roles.published.Advance()
+		next.Revision = e.roles.published.Revision + (c.Roles.Revision - c.RolesBase.Revision)
+		c.Roles, c.RolesBase = next, e.roles.published
+		t.Catalog = c
+		return nil
+	}
 	next, err := e.mergedJournalRolesLocked(op.Context(), t.Catalog)
 	if err != nil {
 		return err
 	}
 	c := t.Catalog.Clone()
 	c.Roles, c.RolesBase = next, e.roles.published
-	e.roles.nextRevision = next.Revision + 1
+	if next.Revision >= e.roles.nextRevision {
+		e.roles.nextRevision = next.Revision
+		if next.Revision != ^uint64(0) {
+			e.roles.nextRevision++
+		}
+	}
 	t.Catalog = c
 	return nil
 }
 
 func (e *Engine) publicationRolesLocked(ctx context.Context, c *session.Journal) (*session.Journal, error) {
 	if c == nil || c.Roles == nil {
+		return c, nil
+	}
+	if c.RolesBase != nil && c.Roles.SameAuthority(c.RolesBase) {
+		// Only final installation mints the allocator-consistent ACL stamp.
+		// Rebasing here would also let the actual-role merge frontier overwrite
+		// the logical delta later in combined publication.
+		if _, err := e.journalRolePublicationLocked(c, false); err != nil {
+			return nil, err
+		}
 		return c, nil
 	}
 	if c.RolesBase == e.roles.published {
@@ -129,4 +166,87 @@ func (e *Engine) publicationRolesLocked(ctx context.Context, c *session.Journal)
 	copy := *c
 	copy.Roles, copy.RolesBase = next, e.roles.published
 	return &copy, nil
+}
+
+// Completed ACL-only journals preserve their checked revision delta and merge
+// zero actual principal changes into the current authority. SameAuthority is
+// the allocation-free fast path, not an outer-publication authority fence.
+// Actual-role and mixed journals retain the existing explicit root merge.
+// materialize is false during ACL journal validation, avoiding allocations.
+func (e *Engine) journalRolePublicationLocked(c *session.Journal, materialize bool) (*access.RoleRecord, error) {
+	if c == nil {
+		return nil, nil
+	}
+	if c.Roles == nil {
+		if c.RolesBase != nil && c.RolesBase != e.roles.published {
+			return nil, catalog.Conflict{}
+		}
+		return nil, nil
+	}
+	base, next, current := c.RolesBase, c.Roles, e.roles.published
+	if base == nil || current == nil {
+		return nil, fmt.Errorf("stuntgres: missing authorization publication predecessor")
+	}
+	if next.Revision <= base.Revision {
+		return nil, fmt.Errorf("stuntgres: invalid authorization revision delta")
+	}
+	if !next.SameAuthority(base) {
+		if current == base {
+			if materialize {
+				return next, nil
+			}
+			return nil, nil
+		}
+		merged, err := e.mergedJournalRolesLocked(context.Background(), c)
+		if err != nil || materialize {
+			return merged, err
+		}
+		return nil, nil
+	}
+	if !current.SameAuthority(base) {
+		// SameAuthority above proves that next has exactly base's principal
+		// graph. Canonicalize that zero delta so MergeRoots takes its existing
+		// candidate==base path instead of rescanning an unchanged graph.
+		if _, err := authorization.MergeRoots(context.Background(), &base.Root, &base.Root, &current.Root); err != nil {
+			return nil, catalog.Conflict{}
+		}
+	}
+	delta := next.Revision - base.Revision
+	if current.Revision > ^uint64(0)-delta {
+		return nil, fmt.Errorf("stuntgres: authorization revision exhausted")
+	}
+	revision, err := e.roles.revisionCandidateLocked()
+	if err != nil {
+		return nil, err
+	}
+	if !materialize {
+		return nil, nil
+	}
+	revision = max(revision, current.Revision+delta)
+	if current == base && next.Revision == revision {
+		return next, nil
+	}
+	published := current.Advance()
+	published.Revision = revision
+	return published, nil
+}
+
+// A selected ACL tail on a private actual-role root is a mixed journal. Reserve
+// its fresh record through the existing allocator, just like actual role
+// installation; ACL-only journals retain their unreserved logical delta.
+// Caller owns Engine.mu and this statement's newly cloned role record.
+func (e *Engine) reserveMixedACLRevisionLocked(c *session.Journal) error {
+	if c.Roles.SameAuthority(c.RolesBase) {
+		return nil
+	}
+	revision, err := e.roles.revisionCandidateLocked()
+	if err != nil {
+		return err
+	}
+	c.Roles.Revision = max(c.Roles.Revision, revision)
+	e.roles.nextRevision = c.Roles.Revision
+	if c.Roles.Revision != ^uint64(0) {
+		e.roles.nextRevision++
+	}
+	return nil
 }

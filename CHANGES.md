@@ -23,6 +23,16 @@ and type/domain rename, schema move and DROP now share SQL and Go transactions
 with autocommit and retained messages. Definitions, consuming rows and logical keys
 commit or roll back together, with savepoint recovery and exact source authority.
 
+Supported object GRANT/REVOKE and ALTER DEFAULT PRIVILEGES now participate in
+SQL and Go transactions and retained messages. Private ACLs and creator defaults
+compose with object creation, rows, dependencies and savepoints, and publish
+atomically at commit. Named relation grants honor AccessShare admission;
+independent ACL/default targets avoid false statement-authority and
+role-publication conflicts without changing ordinary lock fast-path allocation.
+Completed ACL effects preserve compatible unrelated role publications, while
+pending statements retain their separate authority fence. These ACL/default
+directives do not widen existing role, ownership or ALTER SYSTEM policies.
+
 View and materialized-view definitions now participate in SQL and Go transactions
 as well as autocommit, with private definitions and stored rows, identity-preserving
 alterations, savepoints and atomic commit or rollback. REFRESH remains separate.

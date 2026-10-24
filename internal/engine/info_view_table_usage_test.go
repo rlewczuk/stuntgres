@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -186,8 +187,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 		t.Fatal(err)
 	}
 	nextAuth := auth
-	nextAuth.RoleRecord = auth.RoleRecord.Advance()
-	nextAuth.RoleRecord.Root = nextRoot
+	nextAuth.RoleRecord = &access.RoleRecord{Root: nextRoot, Revision: auth.RoleRecord.Revision + 1}
 	nextAuth.Recapture(view)
 	check(input(view, nextAuth), all)
 	for _, mutate := range []func(*pgcatalog.Input){

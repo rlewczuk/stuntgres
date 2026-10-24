@@ -26,6 +26,16 @@ engine.
   checkpoint and deadlock graph across databases. `Mode` uses PostgreSQL's table
   and row names; modes accumulate as bits and owners never conflict with
   themselves. Advisory grants are counted (`Hold.Shared`, `Hold.Exclusive`).
+  Catalog ACL writer claims use a real catalog-object address; default ACL
+  claims use the actual creator ID, namespace/global scope and default class.
+  Their distinct resource kinds share this manager's queues and ticket
+  checkpoints, cancellation, end and epoch fencing. Internal exclusive claim
+  mode is not a relation AX lock; named grants separately acquire relation AS.
+  `DefaultACLWriter` encodes the creator in High/Low only for that distinct
+  kind; `DefaultCreator` decodes it. The class fits beside Kind in existing
+  padding. Keep Resource within its original compact layout and below Go's
+  indirect map-key threshold; ordinary immediate/reentrant grants must remain
+  zero-allocation, as the existing lock/timeout tests require.
 - **Queues and waits.** `StartAcquire` grants at once or returns the queued
   `Request`, which the caller waits on (`Wait`) after releasing its own
   locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,
@@ -76,6 +86,9 @@ engine.
   SQL database zero. Exact name and role-tuple claims are internal, not physical
   object tags; pending claims project the actual blocker XID. Their queues join
   blocking inquiry and the same deadlock graph without exposing peer local locks.
+  Catalog/default ACL claims likewise emit no invented relation, object or
+  advisory holder tags. Their pending projection follows real blocker XIDs
+  through the existing transaction dependency path.
   Generated ordinary index naming snapshots only other owners' granted relation
   names for the exact namespace/domain/epoch into caller-owned scratch. Pending
   requests alone reserve no generated name. Capture takes only manager metadata,

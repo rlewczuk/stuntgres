@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -8,8 +9,11 @@ import (
 )
 
 type catalogAuthority struct {
-	session                                *session.Session
-	authorization, roles                   uint64
+	session              *session.Session
+	authorization, roles uint64
+	// Only selected ACL/default stages may survive revision-only peer ACL work.
+	// Other statement authority retains its exact numeric revision fence.
+	aclRoles, aclPublishedRoles            *access.RoleRecord
 	ref                                    ids.ObjectRef
 	descriptor                             catalog.Descriptor
 	databaseAuthority, databasePredecessor catalog.Descriptor
@@ -29,7 +33,15 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *session
 	if a == nil {
 		return nil
 	}
-	if a.session.Authorization.Revision != a.authorization || e.sessionRolesLocked(a.session).Revision != a.roles || e.catalog.state.Get(a.ref.Address) != a.descriptor {
+	if a.session.Authorization.Revision != a.authorization || e.catalog.state.Get(a.ref.Address) != a.descriptor {
+		return catalog.Conflict{}
+	}
+	roles := e.sessionRolesLocked(a.session)
+	if a.aclRoles != nil {
+		if !roles.SameAuthority(a.aclRoles) || !e.roles.published.SameAuthority(a.aclPublishedRoles) {
+			return catalog.Conflict{}
+		}
+	} else if roles.Revision != a.roles {
 		return catalog.Conflict{}
 	}
 	if a.databasePredecessor != nil {

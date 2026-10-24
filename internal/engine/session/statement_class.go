@@ -228,12 +228,6 @@ func ExplicitUtility(stmt parser.Statement) bool {
 			return false
 		}
 	}
-	if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
-		return false
-	}
-	if grant, ok := stmt.(*parser.ObjectGrant); ok && ForeignGrantKind(grant.Kind) {
-		return false
-	}
 	switch stmt.(type) {
 	case *parser.CreateDatabaseStmt:
 		return true
@@ -257,7 +251,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true
-	case *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
+	case *parser.RoleMembership:
 		return true
 	}
 	return false

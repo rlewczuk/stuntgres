@@ -225,3 +225,18 @@ func TestAccessMethodOwnerlessACLValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestRoleRecordAuthorityLineage(t *testing.T) {
+	base := &RoleRecord{Revision: 7}
+	one, two := base.Advance(), base.Advance().Advance()
+	if base.origin != nil || one.origin != base || two.origin != base ||
+		one.Revision != 8 || two.Revision != 9 || base.Revision != 7 ||
+		!one.SameAuthority(base) || !two.SameAuthority(one) {
+		t.Fatal("revision-only advancement changed or chained immutable authority")
+	}
+	fresh := &RoleRecord{Root: base.Root, Revision: base.Revision}
+	var absent *RoleRecord
+	if fresh.SameAuthority(base) || absent.SameAuthority(base) || base.SameAuthority(absent) || !absent.SameAuthority(nil) {
+		t.Fatal("fresh or nil authority lineage")
+	}
+}

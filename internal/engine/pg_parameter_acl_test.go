@@ -251,6 +251,8 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
+	writer, done := roleOperation(t, e, "postgres")
+	defer done()
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -274,7 +276,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	old := before.MustParameter(address)
 	request.Privileges = []parser.GrantPrivilege{{All: true}}
 	request.GrantOption = true
-	if err := applyObjectGrantUnit(e, op, request); err != nil {
+	if err := applyObjectGrantUnit(e, writer, request); err != nil {
 		t.Fatal(err)
 	}
 	if e.catalog.state == before.State() || e.roles.published == scope.inquiry.deparseAuth.RoleRecord {
@@ -301,7 +303,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.Revoke, request.GrantOption = true, false
-	if err := applyObjectGrantUnit(e, op, request); err != nil {
+	if err := applyObjectGrantUnit(e, writer, request); err != nil {
 		t.Fatal(err)
 	}
 	if rows := pgParameterACLUnitCapture(t, e, e.CatalogRead(), e.Roles()); rows.Count() != 0 {

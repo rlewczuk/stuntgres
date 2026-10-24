@@ -160,13 +160,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
-		if grant, ok := stmt.(*parser.ObjectGrant); ok && session.ForeignGrantKind(grant.Kind) {
+	case *parser.ObjectGrant:
+		grant := stmt.(*parser.ObjectGrant)
+		if session.ForeignGrantKind(grant.Kind) {
 			return e.executeForeignGrant(scope, grant, count)
 		}
-		if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
+		if grant.Kind == "database" {
 			return e.executeDatabaseGrant(scope, grant, count)
 		}
+		return e.executeObjectGrant(scope, grant, count)
+	case *parser.AlterDefaultPrivileges:
+		return e.executeDefaultPrivileges(scope, stmt.(*parser.AlterDefaultPrivileges), count)
+	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership:
 		if drop, ok := stmt.(*parser.DropRole); ok && count == 0 {
 			if err := scope.acquireRoleRetirementLocks(drop); err != nil {
 				return Result{}, err

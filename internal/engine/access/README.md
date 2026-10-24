@@ -42,6 +42,12 @@ No parallel language-permission table or cached grant decision exists.
 - **Roles** (`roles.go`): `RoleRecord` (a committed root and its revision,
   with `Advance`) and `RoleRead`, the role view of a record as seen by a
   catalog read's database owner.
+  `Advance` changes only the revision and preserves a normalized immutable
+  authority origin; an actual root mutation constructs a fresh record.
+  `SameAuthority` is the fast path for checked ACL-only publication and the
+  selected pending-statement authority fence. It is not a blanket completed
+  publication permission: compatible actual roots use the existing explicit
+  merge. It never replaces exact `Stamp` validation or caches permission.
 - **Ownership** (`ownership.go`): `OwnershipSuccessor`,
   `OwnershipEligibility`, `OwnershipDatabaseCreate`, `SchemaOwner` and
   `OwnershipRoleOperand`, which share the `current_user`/`session_user`

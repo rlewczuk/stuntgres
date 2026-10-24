@@ -19,19 +19,9 @@ func TestReferenceRoleRevokeTransactions(t *testing.T) {
 			run(fixture.Exec("GRANT SELECT ON t TO rg_reader", 0))
 			run(fixture.Exec("BEGIN", 0))
 			q := "REVOKE SELECT ON t FROM rg_reader CASCADE"
-			if b.PG {
-				run(fixture.Exec(q, 0))
-				run(fixture.Exec(end, 0))
-			} else {
-				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-				s.ErrorStage = "execute"
-				run(s)
-				s = fixture.ImplicitError("SELECT a FROM t", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
-				s.SelectRows = true
-				run(s)
-				run(fixture.Exec("ROLLBACK", 0))
-			}
-			revokeRead(run, "rg_reader", !b.PG || end == "ROLLBACK")
+			run(fixture.Exec(q, 0))
+			run(fixture.Exec(end, 0))
+			revokeRead(run, "rg_reader", end == "ROLLBACK")
 		}
 		for _, q := range []string{"REVOKE SELECT ON missing_table FROM missing_role CASCADE", "REVOKE GRANT OPTION FOR SELECT(a) ON missing_table FROM missing_role RESTRICT"} {
 			var stmt *sql.Stmt

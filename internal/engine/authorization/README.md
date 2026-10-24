@@ -83,6 +83,19 @@ and ACL DDL decisions are in [`role`](../role/README.md).
   committed record with the current `Root` and its revision headroom, and
   principal allocation. Cancellation fences, journals and savepoints stay
   with the transaction code.
+  Object/default ACL changes use that same scope-owned journal and combined
+  publication. The `access.RoleRecord` immutable authority origin distinguishes
+  revision-only ACL changes from actual role-root mutations. ACL-only journals
+  keep a checked logical delta until final allocator-consistent publication.
+  Completed ACL-only work merges its zero actual role delta when a compatible
+  principal publication changed the root, and validates retained catalog/default
+  references against current authority. Actual-role and mixed journals retain
+  explicit three-way merging and principal/member/precondition checks.
+  Same-authority reads retain the exact private record; compatible actual-root
+  refreshes preserve the original ACL delta without reserving an allocator
+  revision. Pending selected statements separately retain their original
+  private/published authority pair through Finish, not through outer Commit.
+  This does not weaken exact access stamps or make lineage a permission token.
 - **Pairing:** each `Read` is captured together with its exact `catalog.Read`;
   a stamp reads that captured pair, not later engine state. There is no cached
   ACL decision.
@@ -91,6 +104,9 @@ and ACL DDL decisions are in [`role`](../role/README.md).
   `relacl`.
 - **Statements:** GRANT, REVOKE, ALTER DEFAULT PRIVILEGES, role DDL, SET ROLE
   and session startup.
+  Transactional object/default ACLs do not widen existing role lifecycle,
+  membership or ownership policies, enable ALTER SYSTEM or admit SQL PREPARE
+  of those utilities; class-owned boundaries remain outside this package.
 
 The ACL SQL functions (`aclexplode`, `acldefault`, `makeaclitem`, `aclitem`
 input and output) work on raw `aclitem` bits and live in

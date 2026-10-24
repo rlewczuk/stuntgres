@@ -65,6 +65,13 @@ authority.
   `rls_policy_lifecycle_test.go` and `rls_combination_latest_test.go` match the
   native `(*relationRequest).wait` frame plus their own workers
   `policyLockExecute` and `combinationMutation`. Update them when renaming.
+- Transactional privilege cases use SQL BEGIN and Go BeginTx, direct and held
+  utilities/readers, private owner versus peer observations, commit/rollback,
+  savepoint suffix restoration, creator-only future defaults and atomic object
+  creation. Scope does not expand role lifecycle/membership, generic ownership,
+  ALTER SYSTEM or SQL PREPARE. Protocol cases live in `reference/sessions`;
+  non-table families and lock/concurrent-writer cases live in
+  `reference/object_grants`.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
@@ -76,6 +83,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Table and column GRANT: `RUN='^TestReferenceRoleGrant'`
 - Table and column REVOKE: `RUN='^TestReferenceRoleRevoke'`
 - Default privileges: `RUN='^TestReferenceRoleDefaultPrivileges'`
+- Transactional ACL/default creation, delegation, controls and held execution:
+  `RUN='^TestReferenceTransactionalPrivileges(Creation|Defaults|Savepoints|Delegation|Prepared|Controls)$'`
+- Private publication/lineage and cancellation invariants:
+  `RUN='^TestTransactionalPrivileges'`
 - Predefined roles: `RUN='^TestReferencePredefined'`
 - `pg_has_role`, `row_security_active`: `RUN='^TestReferenceAccessRole'`
 - `row_security` setting: `RUN='^TestReferenceRowSecurity'`

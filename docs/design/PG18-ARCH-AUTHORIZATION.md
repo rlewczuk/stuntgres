@@ -179,6 +179,61 @@ Preparation retains resolved refs and bound requirements, **never permission tok
 
 Namespace USAGE is a lookup privilege: preserve PostgreSQL's documented previously-looked-up statement caveat. Do not promise fresh name lookup on every prepared execution or that schema USAGE revoke alone guarantees inaccessibility. This is distinct from mandatory reevaluation of relation/column ACLs at execution.
 
+### Transactional object and default privileges
+
+Supported object GRANT/REVOKE and ALTER DEFAULT PRIVILEGES stage into the
+canonical statement-owned catalog/role pair. Finish merges one journal result;
+commit publishes ACL descriptors, defaults, dependencies, created metadata and
+rows together. Private creation reads the actual creator's private defaults.
+`Journal.RecordCandidateDefaults` omits already-private outputs from committed
+input fences. Savepoint marks restore the same pair and lock checkpoint;
+discarded work never emits committed namespace invalidation.
+
+Named relation/sequence grants take real AccessShare admission before ACL
+candidate planning. A wait may re-resolve a replacement only before a candidate
+exists. Staged identities and epochs remain strict. Existing lock-manager
+tickets also own bounded catalog-object/default-key writer claims, with normal
+wait, cancel, savepoint, end and replacement cleanup; these are not relation AX,
+advisory or invented system-row locks. Wait projection uses actual transaction
+dependencies. Pinned relation/default writer witnesses preserve XX000 concurrent
+tuple failure and absent-default 23505 uniqueness separately; no generic
+catalog-conflict-to-SQLSTATE translator or statement retry is introduced.
+
+`access.RoleRecord.Advance` preserves an immutable normalized authority origin.
+Actual role-root changes establish a new origin. Actual-role and mixed journals
+retain the canonical three-way root merge with principal/member/precondition
+checks. Completed ACL-only journals use unchanged authority as a fast path;
+otherwise their zero actual principal delta goes through the same explicit
+merge. Retained descriptor/default references validate against current merged
+authority, while touched descriptors and default predecessors remain exact.
+Read refresh retains the exact private role record/base when the external
+principal graph is unchanged. A compatible actual-root refresh rebases the
+private record to current revision plus the original logical ACL delta, without
+reserving allocator space. Early publication preparation keeps that original
+delta intact. Final installation uses the maximum of the checked current
+revision plus logical delta and the canonical allocator frontier.
+Mixed private-root ACL tails reserve their fresh revision
+through that same allocator at staging. General authorization/cache stamps stay
+exact. Existing detached namespace publication owns the single schema-ACL
+generation advance, including overflow rejection.
+Selected ACL/default statements capture both private and published immutable role
+records in the initial coherent window for the Execute-to-Finish authority fence:
+revision-only peer ACL work is compatible, but an actual role-root change is not,
+even if an earlier completed ACL left a private role view. This statement
+authority expires at successful Finish; it is not a completed outer-commit
+fence or a reason to reauthorize/replay an already completed grant.
+Other catalog statements retain their
+exact numeric role-revision fence. Session authorization, database predecessor
+and consulted target/provider identities remain strict in both paths.
+
+Preparation of these utilities is syntax-only and effect-free; Execute owns
+read-only/aborted-state precedence and current authority. These directives do not
+widen existing role lifecycle/membership or ownership policies, enable ALTER
+SYSTEM or language execution/ABI capabilities, or admit SQL PREPARE of these
+utilities. Catalog/default writer claims remain database-local; shared principal
+dependency/retirement claims use the cluster's stable role domain. Dependency
+admission releases Engine.mu for waits and revalidates before retaining results.
+
 ## 5. Checkpoints and diagnostic ownership
 
 Extend the shared binder to emit deduplicated `[]AccessRequirement` for actual uses, retaining positions. Combine only equivalent ref/mode requirements; keep ownership and distinct columns separate. Describe/Execute follow §4; §9 removes alternate/default-allow paths.

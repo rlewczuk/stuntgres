@@ -46,6 +46,24 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   all-constant calls.
 - Large-object isolation witnesses use two physical connections; SQL-body
   snapshot witnesses guard against SQL-function inlining with a one-row source.
+- Transactional privilege families cover autocommit, SQL BEGIN and Go BeginTx
+  with direct/held utilities and real consumers. Language/tablespace ACL
+  metadata uses represented `aclexplode` rows rather than adding unsupported
+  inquiry functions; language declaration and post-admission consumers remain
+  independent behavioral witnesses.
+  Named aggregate/window and ALL FUNCTIONS/ROUTINES/PROCEDURES cases keep the
+  same held consumers across private ACL changes and transaction recovery/end.
+  Schema-CREATE delegation cases inspect CREATE-filtered origin/option rows,
+  failed RESTRICT, private CASCADE and independent surviving grants. Actual
+  fresh and same held owner/peer CREATE probes INSERT7/SELECT7/DROP and leave
+  no target after denial or cleanup; USAGE and table SELECT remain independently
+  unchanged prerequisites.
+- Relation ACL wait witnesses take a real AX holder before starting the named
+  grant/revoke. Sequence holders rename away and back: INCREMENT alone does not
+  establish the required AccessShare conflict. Replacement cases compare
+  distinct OIDs and actual old7/new9 recipient effects. Concurrent default
+  writers distinguish absent-key uniqueness from existing-row update failure;
+  independent keys preserve both ACLs and unrelated committed rows.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
@@ -63,6 +81,13 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Non-table REVOKE: `RUN='^TestReferenceObjectRevoke'`
 - Large-object metadata: `RUN='^TestReferenceLargeObjectMetadata'`
 - Large objects: `RUN='^TestReferenceLargeObject'`
+- Transactional families, admission and independent writer outcomes:
+  `RUN='^TestReferenceTransactionalPrivileges(Families|RoutineKinds|NonTableDelegation|Locks|Conflicts)$'`
+  Run selected native and `REFERENCE=1` modes; add `RACE=1` to selected
+  Locks/Conflicts for native race proof. Protocol coverage lives in
+  `reference/sessions`, creator defaults and controls in `reference/roles`.
+- Preserved routine-kind and non-table dependency controls:
+  `RUN='^(TestReferenceObjectGrantRoutineSchemaKinds|TestReferenceObjectRevokeDependencies)$'`.
 
 - Databases, parameters and tablespaces:
   `RUN='^TestReferenceObjectGrant(DatabaseAdmission|ParametersTablespaces)$'`

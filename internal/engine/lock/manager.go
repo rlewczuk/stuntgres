@@ -72,16 +72,22 @@ const (
 	OrdinaryResource ResourceKind = iota
 	AdvisoryBigintResource
 	AdvisoryPairResource
+	CatalogACLResource
+	DefaultACLResource
 )
 
 // Row zero is the relation resource; logical rows use their stable RowID.
+// Keep the comparable key inline (at most 128 bytes); oversized map keys make
+// even ordinary immediate requests escape. Default claims share High/Low only
+// under their distinct kind, and keep their class in the tag's existing padding.
 type Resource struct {
 	ids.ObjectRef
 	// Keep the discriminators adjacent: Resource must remain small enough for
 	// by-value closure capture on the allocation-free immediate-acquire path.
-	Kind      ResourceKind
-	RoleTuple bool        // Internal authid tuple claim, distinct from a role object lock.
-	Database  *ids.Domain // Advisory keys are scoped to their originating database.
+	Kind         ResourceKind
+	RoleTuple    bool // Internal authid tuple claim, distinct from a role object lock.
+	DefaultClass uint8
+	Database     *ids.Domain // Advisory keys are scoped to their originating database.
 	// Name is an exact catalog binding claim. ObjectRef carries its real
 	// domain/epoch and namespace (zero address for database-wide schema names).
 	// It is not a relation lock or a fabricated catalog object identity.
@@ -298,7 +304,7 @@ func (m *Manager) Checkpoint(t *Ticket) Checkpoint {
 	}
 	held := make(Checkpoint, len(t.resources))
 	for ref := range t.resources {
-		if ref.completion != nil || ref.Kind != OrdinaryResource && ref.Kind != AdvisoryBigintResource && ref.Kind != AdvisoryPairResource {
+		if ref.completion != nil {
 			continue
 		}
 		if entry := m.entries[ref]; entry != nil && entry.holders[t].Mode != 0 {
@@ -330,7 +336,7 @@ func (m *Manager) Restore(t *Ticket, held Checkpoint) {
 	if m.valid(t) && !t.persistent {
 		m.restoreMultiContributionsLocked(t, held)
 		for ref := range t.resources {
-			if ref.completion != nil || ref.Kind != OrdinaryResource && ref.Kind != AdvisoryBigintResource && ref.Kind != AdvisoryPairResource {
+			if ref.completion != nil {
 				continue
 			}
 			entry := m.entries[ref]
@@ -538,8 +544,9 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		return nil, ids.ErrCatalogReplaced
 	}
 	advisory := ref.Kind == AdvisoryBigintResource || ref.Kind == AdvisoryPairResource
+	catalogACL := ref.Kind == CatalogACLResource || ref.Kind == DefaultACLResource
 	if advisory {
-		if ref.Database != t.session.Domain() || ref.ObjectRef != (ids.ObjectRef{}) || ref.RoleTuple || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil ||
+		if ref.Database != t.session.Domain() || ref.ObjectRef != (ids.ObjectRef{}) || ref.RoleTuple || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil || ref.DefaultClass != 0 ||
 			mode != AdvisoryShare && mode != AdvisoryExclusive || t.detached {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid advisory lock request")
@@ -551,11 +558,16 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 				return nil, ids.ErrCatalogReplaced
 			}
 		}
-	} else if t.persistent || ref.Kind != OrdinaryResource || ref.Database != nil || ref.High != 0 || ref.Low != 0 || ref.RoleTuple && ref.Address.ClassID != ids.RoleClassID {
+	} else if t.persistent || ref.Database != nil || !catalogACL && (ref.Kind != OrdinaryResource || ref.High != 0 || ref.Low != 0 || ref.DefaultClass != 0) || ref.RoleTuple && (catalogACL || ref.Address.ClassID != ids.RoleClassID) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid ordinary lock resource")
 	}
-	if advisory {
+	if catalogACL {
+		if !m.validACLResource(t, ref, mode) {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid catalog ACL lock request")
+		}
+	} else if advisory {
 		// Advisory tags have no catalog ObjectRef, for either lifetime.
 	} else if ref.Name != (ids.NameKey{}) {
 		key := ref.Name
@@ -769,7 +781,7 @@ func (m *Manager) Fence(domain *ids.Domain, epoch ids.CatalogEpoch) {
 		}
 		m.retireMultiXactsLocked(domain)
 		for ref, entry := range m.entries {
-			if ref.Kind == OrdinaryResource && ref.Domain() == domain && ref.Epoch < epoch {
+			if (ref.Kind == OrdinaryResource || ref.Kind == CatalogACLResource || ref.Kind == DefaultACLResource) && ref.Domain() == domain && ref.Epoch < epoch {
 				for _, request := range entry.pending {
 					if !request.terminal {
 						terminalRequest(request, ids.ErrCatalogReplaced, &notify)

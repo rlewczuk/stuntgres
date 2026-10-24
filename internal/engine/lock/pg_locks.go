@@ -135,13 +135,14 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 		if resource.Name != (ids.NameKey{}) && resource.Domain() != m.roleDomain {
 			continue
 		}
-		if resource.Kind == OrdinaryResource && resource.completion == nil && resource.Domain() != m.roleDomain && (resource.Domain() != domain || resource.Epoch != epoch) ||
-			resource.Kind != OrdinaryResource && resource.Database != domain {
+		catalogACL := resource.Kind == CatalogACLResource || resource.Kind == DefaultACLResource
+		if (resource.Kind == OrdinaryResource || catalogACL) && resource.completion == nil && resource.Domain() != m.roleDomain && (resource.Domain() != domain || resource.Epoch != epoch) ||
+			(resource.Kind == AdvisoryBigintResource || resource.Kind == AdvisoryPairResource) && resource.Database != domain {
 			continue
 		}
 		// Logical row/key holds have no physical target. Completion ownership
 		// was emitted exactly once from the owning ticket above.
-		projectHolds := resource.Row == 0 && resource.key == nil && resource.completion == nil && resource.Name == (ids.NameKey{}) && !resource.RoleTuple
+		projectHolds := !catalogACL && resource.Row == 0 && resource.key == nil && resource.completion == nil && resource.Name == (ids.NameKey{}) && !resource.RoleTuple
 		advisory := resource.Kind == AdvisoryBigintResource || resource.Kind == AdvisoryPairResource
 		clear(advisoryRows)
 		if projectHolds {
@@ -199,7 +200,7 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 			}
 			owner := identity.owner
 			var record Record
-			if resource.completion != nil || resource.Row != 0 || resource.key != nil || resource.Name != (ids.NameKey{}) || resource.RoleTuple {
+			if catalogACL || resource.completion != nil || resource.Row != 0 || resource.key != nil || resource.Name != (ids.NameKey{}) || resource.RoleTuple {
 				target := resource.completion
 				purpose := request.policy.CompletionPurpose
 				if target == nil {

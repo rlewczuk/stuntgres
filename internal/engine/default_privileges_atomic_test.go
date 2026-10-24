@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -109,13 +110,140 @@ func TestDefaultPrivilegesCancellation(t *testing.T) {
 	}
 }
 
+func TestTransactionalPrivilegesCancellation(t *testing.T) {
+	for _, retained := range []bool{false, true} {
+		t.Run(map[bool]string{false: "active", true: "retained"}[retained], func(t *testing.T) {
+			f := newDefaultUnitFixture(t)
+			if _, err := f.e.Begin(f.op, session.TxOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			var message *batchUnitMessage
+			if retained {
+				scope, err := f.e.StartStatement(f.op)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = scope.RetainMessage(); err != nil {
+					_ = scope.Finish(err)
+					t.Fatal(err)
+				}
+				message = &batchUnitMessage{scope: scope, op: f.op}
+				defer func() { _ = message.scope.FinishMessage(context.Canceled) }()
+			}
+			committed, roles := f.e.catalog.state, f.e.roles.published
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			f.op.Ctx = ctx
+			statement := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
+			var err error
+			if message != nil {
+				_, err = message.step(statement)
+			} else {
+				err = f.apply(statement)
+			}
+			if !errors.Is(err, context.Canceled) || f.e.catalog.state != committed || f.e.roles.published != roles || f.op.Session.Transactions.Catalog != nil {
+				t.Fatal("cancellation installed catalog/roles/owner-journal state", err)
+			}
+		})
+	}
+}
+
+func TestTransactionalPrivilegesPublication(t *testing.T) {
+	f := newDefaultUnitFixture(t)
+	committed, roles := f.e.catalog.state, f.e.roles.published
+	if _, err := f.e.Begin(f.op, session.TxOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	f.grant(t, "tables", "select", nil)
+	changes := f.op.Session.Transactions.Catalog
+	if changes == nil {
+		t.Fatal("active directive has no journal")
+	}
+	f.e.mu.Lock()
+	err := f.e.catalogPreflightLocked(changes)
+	f.e.mu.Unlock()
+	if err != nil {
+		t.Fatal("own unchanged predecessor rejected", err)
+	}
+	stale := *roles
+	stale.Revision++
+	f.e.roles.published = &stale
+	f.e.mu.Lock()
+	err = f.e.catalogPreflightLocked(changes)
+	f.e.mu.Unlock()
+	if err != nil || f.e.catalog.state != committed || changes.RolesBase != roles || f.e.roles.published != &stale {
+		t.Fatal("compatible equal-root publication was rejected or installed early", err)
+	}
+	f.e.roles.published = roles
+	peer := roles.Advance()
+	f.e.roles.published = peer
+	f.e.mu.Lock()
+	published, err := f.e.journalRolePublicationLocked(changes, true)
+	f.e.mu.Unlock()
+	if err != nil || published == nil || published.Revision != peer.Revision+changes.Roles.Revision-roles.Revision || !published.SameAuthority(peer) || f.e.roles.published != peer {
+		t.Fatal("independent revision-only publication lost a peer stamp or installed early", published, err)
+	}
+	mark := changes.Clone()
+	if mark.Roles != changes.Roles || mark.RolesBase != roles {
+		t.Fatal("cloned/savepoint journal lost exact immutable role delta")
+	}
+	for _, malformed := range []string{"missing", "zero", "underflow", "overflow", "foreign-root"} {
+		candidate := changes.Clone()
+		f.e.roles.published = roles
+		switch malformed {
+		case "missing":
+			candidate.RolesBase = nil
+		case "zero":
+			candidate.Roles = roles.Advance()
+			candidate.Roles.Revision = roles.Revision
+		case "underflow":
+			candidate.Roles = roles.Advance()
+			candidate.Roles.Revision = roles.Revision - 1
+		case "overflow":
+			f.e.roles.published = roles.Advance()
+			f.e.roles.published.Revision = ^uint64(0)
+		case "foreign-root":
+			f.e.roles.published = &access.RoleRecord{Root: authorization.Seed(&authorization.Domain{}), Revision: roles.Revision + 1}
+		}
+		before := f.e.roles.published
+		f.e.mu.Lock()
+		_, err := f.e.journalRolePublicationLocked(candidate, true)
+		f.e.mu.Unlock()
+		if err == nil || f.e.roles.published != before || f.e.catalog.state != committed {
+			t.Fatal("malformed or foreign authority was published", malformed, err)
+		}
+	}
+	// A completed directive may merge an unrelated role publication, but it
+	// must not validate its retained ACL against a stale, still-live grantee.
+	grantee, err := roles.Root.Read(f.owner).Descriptor(f.reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retired := roles.Root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{f.reader: grantee})
+	f.e.roles.published = &access.RoleRecord{Root: retired, Revision: roles.Revision + 1}
+	before := f.e.roles.published
+	f.e.mu.Lock()
+	err = f.e.catalogPreflightLocked(changes)
+	f.e.mu.Unlock()
+	if err == nil || f.e.roles.published != before || f.e.catalog.state != committed || changes.RolesBase != roles {
+		t.Fatal("retired retained-default grantee was adopted or effects installed", err)
+	}
+	if _, ok := changes.Roles.Root.Read(f.owner).Find(f.reader); !ok {
+		t.Fatal("publication validation mutated the retained private authority")
+	}
+	f.e.roles.published = roles
+}
+
 func TestDefaultPrivilegesPublicationFence(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	catalog, roles := f.e.catalog.state, f.e.roles.published
-	f.e.mu.Lock()
-	auth, err := f.e.authorizationLocked(f.op)
-	f.e.mu.Unlock()
+	scope, err := f.e.StartStatement(f.op)
 	if err != nil {
+		t.Fatal(err)
+	}
+	statement := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
+	if _, err := scope.Execute(statement, 0, nil); err != nil {
+		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
 	f.op.Session.RequestEnd(session.CleanClose)
@@ -124,9 +252,7 @@ func TestDefaultPrivilegesPublicationFence(t *testing.T) {
 	f.op.Session.Mu.Lock()
 	f.op.Ctx = context.Background()
 	f.op.Session.Mu.Unlock()
-	f.e.mu.Lock()
-	_, err = f.e.alterDefaultPrivilegesLocked(f.op, auth, defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"}))
-	f.e.mu.Unlock()
+	err = scope.Finish(nil)
 	if err == nil || f.e.catalog.state != catalog || f.e.roles.published != roles {
 		t.Fatal("terminal session published a prepared utility candidate", err)
 	}

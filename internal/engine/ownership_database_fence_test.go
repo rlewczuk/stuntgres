@@ -123,6 +123,11 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			if _, err := message.scope.Execute(selected, 0, nil); err != nil {
 				t.Fatal("private DB owner authorization failed", err)
 			}
+			// Scope-owned candidates enter the owner journal only at Finish; the
+			// message still owns final publication and its database/context fences.
+			if err := message.scope.Finish(nil); err != nil {
+				t.Fatal(err)
+			}
 			retained, err := operationAuthorization(message.op)
 			if err != nil {
 				t.Fatal(err)

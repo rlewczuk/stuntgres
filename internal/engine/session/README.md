@@ -101,6 +101,11 @@ implement its slots, so either import would form a cycle.
   state, InBlock and ReadOnly under `t.Mu` and keeps its locks, preflights,
   short-circuits (`partitionIndexTransaction`, `transactionalIndexMaintenance`)
   and call order.
+  Supported object GRANT/REVOKE and ALTER DEFAULT PRIVILEGES use the canonical
+  transaction path and syntax-only utility Describe classification. Execution
+  keeps read-only/aborted-state precedence and current identity checks. These
+  directives do not widen existing role lifecycle/membership, ownership or
+  ALTER SYSTEM policies; SQL PREPARE of these utilities remains excluded.
 - **Protocol codec** (`protocol_values.go`, `protocol_statement.go`): the wire
   value types `ProtocolInput`, `ProtocolLogParameter`, `ProtocolContext` and
   `ProtocolField`; format decoding (`ProtocolFormats`,
@@ -134,15 +139,19 @@ implement its slots, so either import would form a cycle.
   `RecordCandidateDefaults` and `MergeCandidate` (a `catalog.Candidate`
   checked and recorded against the published base). The root's `…Locked`
   wrappers pass the published base under `Engine.mu`.
-  Role mutations and comments use the same immutable role overlay. The first
-  actual role delta captures its predecessor as `RolesBase`; later private
-  deltas preserve that base. `RolesBase` fences actual private role-root writes,
-  not authorization consulted by a completed catalog statement; execution
-  authority ends at Finish. Pending query-derived rows and materialized
-  replacements separately retain a root-owned role-read fence until publication.
-  Journal clones and savepoint marks retain or discard that fence with its
-  producer, not as a role overlay. Savepoints also restore the private role root,
-  retirement obligations, session identity and lock marks.
+  Object/default ACLs, role mutations and comments share the immutable role
+  overlay. The first actual role delta captures its predecessor as `RolesBase`;
+  later private deltas preserve that base. Actual-role and mixed journals keep
+  the root's explicit merge and principal/member/precondition checks.
+  ACL-only revision changes preserve their immutable authority origin; root
+  publication checks and rebases their revision delta without conflicting with
+  independent ACL targets. General access stamps stay exact. `RolesBase` is not
+  authorization consulted by a completed catalog statement; execution authority
+  ends at Finish. Pending query-derived rows and materialized replacements
+  separately retain a root-owned role-read fence until publication. Journal
+  clones and savepoint marks retain or discard that fence with its producer,
+  not as a role overlay. Savepoints also restore the private role root,
+  retirement obligations, session identity, descriptors and lock marks.
   `StorageChange.MergeFills` merges added-column fills and drops those of
   removed attributes, replacing the shared fill map instead of mutating it.
 - **Journal capture** (`journal_capture.go`): `JournalCapture` turns a

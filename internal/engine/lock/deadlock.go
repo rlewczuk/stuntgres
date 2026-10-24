@@ -154,11 +154,15 @@ func (m *Manager) detectDeadlockSnapshot(newRequest *relationRequest, notify **r
 			detail.WriteByte('\n')
 		}
 		r, blocker := edge.request, edge.blocker
-		if r.ref.Kind != OrdinaryResource {
+		if r.ref.Kind == AdvisoryBigintResource || r.ref.Kind == AdvisoryPairResource {
 			fmt.Fprintf(&detail, "Session %d waits for %s on advisory lock [%d,%d,%d]; blocked by session %d.", r.ticket.session.ID(), deadlockMode(r.mode), r.ref.High, r.ref.Low, r.ref.Kind, blocker.session.ID())
 			continue
 		}
-		if r.ref.completion != nil {
+		if r.ref.Kind == DefaultACLResource {
+			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for a default ACL writer (creator %d, namespace %d, class %d)", r.ticket.ref.ID(), r.ticket.session.ID(), r.ref.Epoch, r.ref.DefaultCreator(), r.ref.Address.ObjectID, r.ref.DefaultClass)
+		} else if r.ref.Kind == CatalogACLResource {
+			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for a catalog ACL writer (class %d, object %d)", r.ticket.ref.ID(), r.ticket.session.ID(), r.ref.Epoch, r.ref.Address.ClassID, r.ref.Address.ObjectID)
+		} else if r.ref.completion != nil {
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for transaction completion", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch())
 		} else if r.ref.Name != (ids.NameKey{}) {
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on catalog name %q (class %d, namespace %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), r.ref.Name.Name, r.ref.Name.ClassID, r.ref.Name.Namespace.ObjectID)

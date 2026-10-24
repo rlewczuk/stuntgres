@@ -10,12 +10,28 @@ import (
 type RoleRecord struct {
 	Root     authorization.Root
 	Revision uint64
+	// origin changes only when the principal authority changes. Revision-only
+	// ACL publications retain the original immutable authority in constant time.
+	origin *RoleRecord
 }
 
 // Advance returns a record with the same root and the next revision. Callers
 // check revision exhaustion first.
 func (r *RoleRecord) Advance() *RoleRecord {
-	return &RoleRecord{Root: r.Root, Revision: r.Revision + 1}
+	return &RoleRecord{Root: r.Root, Revision: r.Revision + 1, origin: r.authorityOrigin()}
+}
+
+func (r *RoleRecord) authorityOrigin() *RoleRecord {
+	if r == nil || r.origin == nil {
+		return r
+	}
+	return r.origin
+}
+
+// SameAuthority distinguishes principal changes from ACL-only revision bumps.
+// Exact publication stamps still compare records/revisions, not this lineage.
+func (r *RoleRecord) SameAuthority(other *RoleRecord) bool {
+	return r.authorityOrigin() == other.authorityOrigin()
 }
 
 // RoleRead returns the role view of root as seen by view's current database

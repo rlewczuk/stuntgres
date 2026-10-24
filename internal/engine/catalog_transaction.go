@@ -77,18 +77,29 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 	return view.State(), ctx.Err()
 }
 func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
+	if c.Roles != nil && c.RolesBase != nil && c.Roles.SameAuthority(c.RolesBase) {
+		if _, err := e.journalRolePublicationLocked(c, false); err != nil {
+			return err
+		}
+	}
 	if err := e.catalogFencesCurrentLocked(c, fenceCatalogRoleRead); err != nil {
 		return err
 	}
 	roles := e.roles.published
 	if c.Roles != nil {
-		roles = c.Roles
-		if c.RolesBase != e.roles.published {
+		if c.Roles.SameAuthority(c.RolesBase) {
+			// A completed ACL-only journal contributes no actual role delta.
+			// Validate its catalog/default principal refs in current authority,
+			// not in the completed statement's stale private snapshot.
+			roles = e.roles.published
+		} else if c.RolesBase != e.roles.published {
 			var err error
 			roles, err = e.mergedJournalRolesLocked(context.Background(), c)
 			if err != nil {
 				return err
 			}
+		} else {
+			roles = c.Roles
 		}
 	}
 	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultReads) {

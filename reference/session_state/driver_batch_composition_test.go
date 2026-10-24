@@ -46,16 +46,29 @@ func batchUtilityComposition(t *testing.T) {
 		batchExec(t, p, b, a, "DROP TABLE recreate; CREATE TABLE recreate(i INT); INSERT INTO recreate VALUES(8)", 1)
 		batchValues(t, p, b, peer, "SELECT i FROM recreate", 8)
 	})
-	// Keep unrelated native exclusions; table/schema utilities are transactional.
+	// Each admitted utility retains its effects until the explicit owner ends.
 	for _, utility := range []string{"CREATE SCHEMA excluded", "CREATE INDEX excluded ON batch_t(i)", "COMMENT ON TABLE batch_t IS 'excluded'", "GRANT SELECT ON batch_t TO PUBLIC"} {
 		t.Run("explicit/"+utility, func(t *testing.T) {
+			fixture.RoleReferenceCleanup(t, []string{"batch_acl_reader"})
 			batchScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, a, peer *sql.Conn) {
 				batchSeed(t, p, b, a)
+				if utility == "GRANT SELECT ON batch_t TO PUBLIC" {
+					batchExec(t, p, b, a, "CREATE ROLE batch_acl_reader", 0)
+					batchExec(t, p, b, a, "GRANT USAGE ON SCHEMA public TO batch_acl_reader", 0)
+				}
 				batchExec(t, p, b, a, "BEGIN", 0)
 				q := "INSERT INTO batch_t VALUES(1); " + utility
-				if b.PG || utility == "CREATE SCHEMA excluded" || utility == "CREATE INDEX excluded ON batch_t(i)" || utility == "COMMENT ON TABLE batch_t IS 'excluded'" {
+				{
 					batchExec(t, p, b, a, q, 0)
 					batchValues(t, p, b, a, "SELECT i FROM batch_t ORDER BY i", 1, 7)
+					if utility == "GRANT SELECT ON batch_t TO PUBLIC" {
+						batchExec(t, p, b, a, "SET ROLE batch_acl_reader", 0)
+						batchValues(t, p, b, a, "SELECT i FROM batch_t ORDER BY i", 1, 7)
+						batchExec(t, p, b, a, "RESET ROLE", 0)
+						batchExec(t, p, b, peer, "SET ROLE batch_acl_reader", 0)
+						fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.RoleGrantDenied("SELECT i FROM batch_t", "batch_t"))
+						batchExec(t, p, b, peer, "RESET ROLE", 0)
+					}
 					if utility == "CREATE INDEX excluded ON batch_t(i)" {
 						fixture.RunStep(t, p.Ctx, a, b.Recorder, fixture.Select("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname='excluded'", []string{"indexname"}, []string{"NAME"}, [][]any{{"excluded"}}))
 						fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname='excluded'", []string{"indexname"}, []string{"NAME"}, nil))
@@ -64,10 +77,21 @@ func batchUtilityComposition(t *testing.T) {
 						fixture.RunStep(t, p.Ctx, a, b.Recorder, fixture.Select("SELECT obj_description('batch_t'::regclass,'pg_class') AS text", []string{"text"}, []string{"TEXT"}, [][]any{{"excluded"}}))
 						fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT obj_description('batch_t'::regclass,'pg_class') AS text", []string{"text"}, []string{"TEXT"}, [][]any{{nil}}))
 					}
-				} else {
-					batchError(t, p, a, q, batchDiag("0A000", "statement is unsupported in an explicit transaction"))
 				}
 				batchExec(t, p, b, a, "ROLLBACK", 0)
+				if utility == "GRANT SELECT ON batch_t TO PUBLIC" {
+					batchExec(t, p, b, peer, "SET ROLE batch_acl_reader", 0)
+					fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.RoleGrantDenied("SELECT i FROM batch_t", "batch_t"))
+					batchExec(t, p, b, peer, "RESET ROLE", 0)
+					failure := utility + "; INSERT INTO batch_t VALUES(11); SELECT missing"
+					want := batchDiag("42703", `column "missing" does not exist`)
+					want.Position = batchPosition(failure, "missing")
+					batchError(t, p, a, failure, want)
+					batchExec(t, p, b, peer, "SET ROLE batch_acl_reader", 0)
+					fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.RoleGrantDenied("SELECT i FROM batch_t", "batch_t"))
+					batchExec(t, p, b, peer, "RESET ROLE", 0)
+					batchValues(t, p, b, peer, "SELECT i FROM batch_t", 7)
+				}
 				batchValues(t, p, b, peer, "SELECT i FROM batch_t", 7)
 				fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname='excluded'", []string{"indexname"}, []string{"NAME"}, nil))
 				if utility == "COMMENT ON TABLE batch_t IS 'excluded'" {

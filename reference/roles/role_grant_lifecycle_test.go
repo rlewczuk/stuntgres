@@ -18,21 +18,10 @@ func TestReferenceRoleGrantTransactions(t *testing.T) {
 		q := "GRANT SELECT ON t TO rg_reader"
 		for _, end := range []string{"ROLLBACK", "COMMIT"} {
 			run(fixture.Exec("BEGIN", 0))
-			if b.PG {
-				run(fixture.Exec(q, 0))
-				run(fixture.Exec(end, 0))
-			} else {
-				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-				s.ErrorStage = "execute"
-				run(s)
-				// The unsupported utility fails the ordinary native transaction.
-				s = fixture.ImplicitError("SELECT a FROM t", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
-				s.SelectRows = true
-				run(s)
-				run(fixture.Exec("ROLLBACK", 0))
-			}
+			run(fixture.Exec(q, 0))
+			run(fixture.Exec(end, 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION rg_reader", 0))
-			if b.PG && end == "COMMIT" {
+			if end == "COMMIT" {
 				run(fixture.Select("SELECT a FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			} else {
 				run(fixture.RoleGrantDenied("SELECT a FROM t", "t"))

@@ -22,6 +22,7 @@ func (s *StatementScope) acquireTransactionResource(resource lock.Resource, mode
 	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, resource, mode, policy)
 	if request != nil {
+		s.admissionWaited = true
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false

@@ -67,13 +67,7 @@ func defaultUnitStatement(class, privilege string, creators, schemas, grantees [
 	return s
 }
 func (f defaultUnitFixture) apply(s *parser.AlterDefaultPrivileges) error {
-	f.e.mu.Lock()
-	defer f.e.mu.Unlock()
-	auth, err := f.e.authorizationLocked(f.op)
-	if err != nil {
-		return err
-	}
-	_, err = f.e.alterDefaultPrivilegesLocked(f.op, auth, s)
+	_, err := f.e.Execute(f.op, s, 0, nil)
 	return err
 }
 func (f defaultUnitFixture) grant(t *testing.T, class, privilege string, schemas []string) *parser.AlterDefaultPrivileges {

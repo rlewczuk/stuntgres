@@ -63,8 +63,19 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	committedCatalog, committedRoles := f.e.catalog.state, f.e.roles.published
-	f.op.Session.Transactions.RetainedMessage = true
-	f.grant(t, "tables", "select", nil)
+	scope, err := f.e.StartStatement(f.op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = scope.RetainMessage(); err != nil {
+		_ = scope.Finish(err)
+		t.Fatal(err)
+	}
+	message := &batchUnitMessage{scope: scope, op: f.op}
+	defer func() { _ = message.scope.FinishMessage(context.Canceled) }()
+	if _, err = message.step(defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})); err != nil {
+		t.Fatal(err)
+	}
 	changes := f.op.Session.Transactions.Catalog
 	f.e.mu.Lock()
 	private := f.e.privateCatalogLocked(changes)
@@ -78,7 +89,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	f.e.mu.Lock()
 	f.e.stageCatalogChangesLocked(stage, changes)
 	combined := f.e.privateCatalogLocked(changes)
-	err := f.e.catalogPreflightLocked(changes)
+	err = f.e.catalogPreflightLocked(changes)
 	f.e.mu.Unlock()
 	if err != nil || combined.Get(table.Address()) != table || authorization.ACLRights(table.Security.ACL, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)&authorization.SelectPrivilege != authorization.SelectPrivilege {
 		t.Fatal("later retained creation missed default", err)
@@ -91,14 +102,55 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 		t.Fatal("combined preparation lost default or object", err)
 	}
 	late := defaultUnitStatement("sequences", "usage", []string{"default_owner", "missing"}, nil, []string{"default_reader"})
-	defaultUnitDiagnostic(t, f.apply(late), "42704", `role "missing" does not exist`)
-	// The real retained-message rejection path discards the same entire overlay;
-	// independently prove that neither root was ever mutated and detached reads
-	// retain the earlier private result after the owning overlay is discarded.
-	f.op.Session.Transactions.Catalog = nil
-	f.op.Session.Transactions.RetainedMessage = false
-	if f.e.catalog.state != committedCatalog || f.e.roles.published != committedRoles || combined.Get(table.Address()) != table || private.State().DefaultACL(key) == nil {
+	_, err = message.step(late)
+	defaultUnitDiagnostic(t, err, "42704", `role "missing" does not exist`)
+	// Reject through the actual owning message admission; detached reads retain
+	// their earlier private result without installing either committed root.
+	defaultUnitDiagnostic(t, message.scope.FinishMessage(err), "42704", `role "missing" does not exist`)
+	if f.op.Session.Transactions.Catalog != nil || f.op.Session.Transactions.RetainedMessage || f.e.catalog.state != committedCatalog || f.e.roles.published != committedRoles || combined.Get(table.Address()) != table || private.State().DefaultACL(key) == nil {
 		t.Fatal("retained failure changed committed or retained snapshots")
+	}
+}
+
+func TestTransactionalPrivilegesCreation(t *testing.T) {
+	f := newDefaultUnitFixture(t)
+	committed, roles := f.e.catalog.state, f.e.roles.published
+	if _, err := f.e.Begin(f.op, session.TxOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	f.grant(t, "tables", "select", nil)
+	changes := f.op.Session.Transactions.Catalog
+	if changes == nil || changes.Roles == nil || changes.RolesBase != roles || f.e.catalog.state != committed || f.e.roles.published != roles {
+		t.Fatal("private default directive leaked or lost its paired roles")
+	}
+	f.e.mu.Lock()
+	private := f.e.privateCatalogLocked(changes)
+	f.e.mu.Unlock()
+	stage := f.e.BeginCatalogStage(private)
+	own := defaultUnitTable(t, f, stage, "private_creator", f.owner)
+	other := defaultUnitTable(t, f, stage, "different_creator", f.member)
+	right := func(table *catalog.Relation) authorization.Privileges {
+		return authorization.ACLRights(table.Security.ACL, table.Owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)
+	}
+	if right(own) == 0 || right(other) != 0 {
+		t.Fatal("private actual-creator policy not materialized")
+	}
+	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
+	merged := changes.Clone()
+	f.e.mu.Lock()
+	f.e.stageCatalogChangesLocked(stage, merged)
+	f.e.mu.Unlock()
+	if _, observed := merged.DefaultReads[key]; observed {
+		t.Fatal("private policy recorded as a committed journal predecessor")
+	}
+	saved := own.Security.ACL
+	revoke := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
+	revoke.Revoke = true
+	if err := f.apply(revoke); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(saved, own.Security.ACL) || f.e.catalog.state != committed || f.e.roles.published != roles {
+		t.Fatal("later private directive rewrote an earlier object or committed root")
 	}
 }
 

@@ -35,6 +35,11 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   a `GrantPlan` (`Candidate`, `Changed`); sequence plan stamps come from a
   `revision` allocator; the partial-grant warning is
   `authorization.GrantWarning`, which database and FDW grants share.
+  The root admits named relations with AccessShare before ACL planning and may
+  refresh the request-owned `Targets` inventory after a wait. Once staged,
+  descriptor identity and epoch remain strict. Selected ACL/default commands
+  return scope-owned candidates: the root merges them into the transaction
+  journal at Finish and publishes them with other private work, never here.
   Narrow LANGUAGE USAGE resolves real catalog language identities and uses this
   same grant-option/revoke/cascade/role-dependency authority. It does not add
   language lifecycle or grant a native interpreter/ABI execution capability.
@@ -49,6 +54,9 @@ library, and never the engine, `analyze`'s binder or another upper feature.
 - **Default privileges** (`default_privileges.go`): `DefaultPrivilegesPlan`
   returns the default ACL records ALTER DEFAULT PRIVILEGES changes, without
   OIDs.
+  The root owns OID assignment, default-key writer admission and the paired
+  catalog/role journal. Creator defaults are read from the same private view as
+  object creation; already-private outputs are not committed input fences.
 - **REASSIGN/DROP OWNED** (`owned.go`, `owned_cleanup.go`): `OwnedSources`
   and `PlanOwned` resolve and authorize the roles and pick the roots
   (`OwnedPlan`); `StageOwnedCleanup` stages DROP OWNED's ACL, policy,
@@ -104,6 +112,9 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   lookup; each target's current/session identity checks precede its lock wait.
   Engine readmission repeats these shared checks against the captured principal
   before planning whole-group dependencies and atomic retirement.
+- **Scope stays bounded.** Object/default ACL transaction support does not widen
+  existing role lifecycle/membership or ownership policies, enable ALTER SYSTEM
+  or language execution/ABI capabilities, or admit SQL PREPARE of these utilities.
 - **No locks, no publication.** The package adds no mutex and publishes
   nothing. Every `Host` and `StageHost` method runs with `Engine.mu` held;
   none takes, releases or waits on a lock. Plans return candidates and

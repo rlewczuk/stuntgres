@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -166,8 +167,7 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 		t.Fatal(err)
 	}
 	nextAuth := auth
-	nextAuth.RoleRecord = auth.RoleRecord.Advance()
-	nextAuth.RoleRecord.Root = nextRoot
+	nextAuth.RoleRecord = &access.RoleRecord{Root: nextRoot, Revision: auth.RoleRecord.Revision + 1}
 	nextAuth.Recapture(view)
 	check(input(view, nextAuth), "sequence_a", "sequence_b")
 	for _, ctx := range []context.Context{&dtpCancelContext{Context: context.Background(), remaining: 1}, &dtpCancelContext{Context: context.Background(), remaining: 6}} {

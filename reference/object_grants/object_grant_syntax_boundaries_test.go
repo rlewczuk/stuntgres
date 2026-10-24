@@ -305,24 +305,65 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, tx, b.Recorder, s)
 			}()
 		}
-		for _, q := range []string{
-			"GRANT EXECUTE ON FUNCTION pg_catalog.abs(integer) TO og_object_reader",
-			"REVOKE EXECUTE ON FUNCTION pg_catalog.abs(integer) FROM og_object_reader",
-		} {
-			tx, err := c.BeginTx(p.Ctx, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			func() {
-				defer tx.Rollback()
-				s := fixture.Exec(q, 0)
-				if !b.PG {
-					s = fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-					s.ErrorStage = "execute"
+		for _, end := range []string{"ROLLBACK", "COMMIT"} {
+			for _, grant := range []bool{true, false} {
+				baseline := "REVOKE EXECUTE ON FUNCTION pg_catalog.abs(integer) FROM og_object_reader"
+				q := "GRANT EXECUTE ON FUNCTION pg_catalog.abs(integer) TO og_object_reader"
+				if !grant {
+					baseline, q = q, baseline
 				}
-				s.Prepared = prepared
-				fixture.RunStep(t, p.Ctx, tx, b.Recorder, s)
-			}()
+				run(fixture.Exec(baseline, 0))
+				var utility *sql.Stmt
+				if prepared {
+					var err error
+					utility, err = c.PrepareContext(p.Ctx, q)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer utility.Close()
+				}
+				tx, err := c.BeginTx(p.Ctx, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				func() {
+					defer tx.Rollback()
+					var source fixture.Executor = tx
+					if utility != nil {
+						source = fixture.HeldStatement{Executor: tx, Statement: utility, SQL: q}
+					}
+					fixture.RunStep(t, p.Ctx, source, b.Recorder, fixture.Exec(q, 0))
+					fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("SET ROLE og_object_reader", 0))
+					step := fixture.Select("SELECT abs($1::integer) AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}, -7)
+					if !grant {
+						// Recover the expected permission error before committing.
+						fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("SAVEPOINT routine_probe", 0))
+						step = fixture.ImplicitError(step.Query, fixture.Diagnostic{Code: "42501", Message: "permission denied for function abs"}, -7)
+						step.SelectRows = true
+					}
+					fixture.RunStep(t, p.Ctx, tx, b.Recorder, step)
+					if !grant {
+						fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("ROLLBACK TO routine_probe", 0))
+					}
+					fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("RESET ROLE", 0))
+					if end == "COMMIT" {
+						if err := tx.Commit(); err != nil {
+							t.Fatal(err)
+						}
+					} else if err := tx.Rollback(); err != nil {
+						t.Fatal(err)
+					}
+				}()
+				fixture.RoleGrantActor(run, "og_object_reader", func() {
+					if grant == (end == "COMMIT") {
+						run(fixture.Select("SELECT abs($1::integer) AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}, -7))
+					} else {
+						s := fixture.ImplicitError("SELECT abs($1::integer) AS v", fixture.Diagnostic{Code: "42501", Message: "permission denied for function abs"}, -7)
+						s.SelectRows = true
+						run(s)
+					}
+				})
+			}
 		}
 
 		// Plain pg_node_tree grouping is an existing private native comparison,

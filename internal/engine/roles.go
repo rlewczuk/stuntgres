@@ -58,10 +58,6 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		return Result{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.ObjectGrant:
-		return e.objectGrantLocked(op, v, s)
-	case *parser.AlterDefaultPrivileges:
-		return e.alterDefaultPrivilegesLocked(op, v, s)
 	case *parser.RoleMembership:
 		return e.membershipLocked(op, v, s)
 	case *parser.RoleSelection:

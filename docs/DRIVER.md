@@ -99,6 +99,16 @@ ordinary SQL errors leave the connection reusable.
   messages use the same supported forms. Feature-specific view/materialized OWNER
   is included; generic ownership outside the admitted table forms, including
   TYPE/DOMAIN OWNER, keeps its separate transaction boundaries.
+- `GRANT`/`REVOKE` on supported objects (including table columns) and
+  `ALTER DEFAULT PRIVILEGES` participate in SQL and Go transactions and retained
+  messages. Later owner operations see private ACLs and creation-time defaults;
+  peers see them only after commit. Savepoints and rollback restore ACLs,
+  defaults, created definitions, dependencies and rows together. Defaults apply
+  only to future objects of the actual creator, never retroactively or through
+  inherited creator roles. Sequence generator advancement is not rolled back.
+  These ACL/default directives do not widen existing role lifecycle/membership
+  or ownership policies, enable `ALTER SYSTEM`, or admit SQL `PREPARE` of these
+  utilities.
 - A Go transaction handle outlived by a SQL `COMMIT`/`ROLLBACK`/`AND CHAIN` boundary
   returns `stuntgres: stale transaction reference` instead of ending newer work.
 - Under `SERIALIZABLE`, retry the whole transaction on SQLSTATE 40001.
@@ -113,7 +123,8 @@ ordinary SQL errors leave the connection reusable.
   42P18. Prepared statements keep their parameter and result signatures: an
   incompatible catalog change fails with 0A000 `cached plan must not change result
   type` rather than changing shape.
-- Relation/schema/type utility Prepare/Describe is effect-free; execution performs
+- Relation/schema/type and object/default-privilege utility Prepare/Describe is
+  effect-free; execution performs
   current authority and identity checks. CTAS/SELECT INTO and materialized-view
   creation still analyze their query source during preparation. Ordinary view
   creation analyzes its body at execution. Actual held statements use these

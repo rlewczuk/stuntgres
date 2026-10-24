@@ -41,6 +41,11 @@ type GrantRequest struct {
 	superuser  bool
 }
 
+// Targets is the request-owned ordered target inventory. The engine may refresh
+// these descriptor pointers during lock admission, before planning any ACL.
+// Descriptors themselves remain immutable.
+func (r GrantRequest) Targets() []catalog.Descriptor { return r.targets }
+
 // ObjectGrantRequest validates s: grantor, object kind, targets, grantees,
 // privileges and GRANT OPTION for PUBLIC, in PostgreSQL's order. The targets
 // are resolved only for supported kinds, after the kind check and before

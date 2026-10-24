@@ -461,6 +461,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			remoteSettled = true
 			goto publicationFence
 		}
+		rolePublication, err := e.journalRolePublicationLocked(c, true)
+		if err != nil {
+			sess.Mu.Unlock()
+			e.mu.Unlock()
+			return err
+		}
 		var databaseRoots map[*Engine]*catalog.State
 		if c != nil {
 			databaseRoots = e.databaseProjectionLocked(nextCatalog)
@@ -561,9 +567,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			installDatabaseProjectionLocked(databaseRoots)
 			e.catalog.nextRevision = nextRevision
 			if c.Roles != nil {
-				e.roles.published = c.Roles
-				if c.Roles.Revision >= e.roles.nextRevision {
-					e.roles.nextRevision = c.Roles.Revision + 1
+				e.roles.published = rolePublication
+				if rolePublication.Revision >= e.roles.nextRevision {
+					e.roles.nextRevision = rolePublication.Revision
+					if rolePublication.Revision != ^uint64(0) {
+						e.roles.nextRevision++
+					}
 				}
 			}
 			for a, d := range c.Descriptors {
