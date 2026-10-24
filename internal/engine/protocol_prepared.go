@@ -107,7 +107,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 		return ProtocolStatement{}, err
 	}
 	s.completed, s.sessionCompleted = true, true
-	return ProtocolStatement{Description: description, ParameterOIDs: protocolParameterOIDs(description.Parameters), Context: ProtocolContext{Source: source}, Empty: body == nil, HasRows: protocolHasRows(body, description.Results)}, nil
+	return ProtocolStatement{Description: description, ParameterOIDs: protocolParameterOIDs(description.Parameters.Count, description.Parameters.Types), Context: ProtocolContext{Source: source}, Empty: body == nil, HasRows: protocolHasRows(body, description.Results)}, nil
 }
 
 func (s *StatementScope) publishProtocolStatement(name string, entry *sqlPreparedStatement) error {
@@ -136,7 +136,7 @@ func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStateme
 		}
 		oids := entry.parameterOIDs
 		if entry.body != nil {
-			oids = protocolParameterOIDs(description.Parameters)
+			oids = protocolParameterOIDs(description.Parameters.Count, description.Parameters.Types)
 		}
 		return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: ProtocolContext{Source: entry.source}, Empty: entry.body == nil}, nil
 	}
@@ -155,7 +155,7 @@ func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStateme
 	}
 	oids := entry.parameterOIDs
 	if entry.body != nil {
-		oids = protocolParameterOIDs(description.Parameters)
+		oids = protocolParameterOIDs(description.Parameters.Count, description.Parameters.Types)
 	}
 	return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: ProtocolContext{Source: entry.source}, Empty: entry.body == nil, HasRows: protocolHasRows(entry.body, description.Results)}, nil
 }
@@ -220,9 +220,9 @@ func protocolPlainSelect(stmt parser.Statement) bool {
 	return true
 }
 
-func protocolParameterOIDs(formal analyze.ParameterInfo) []uint32 {
-	ids := make([]uint32, formal.Count)
-	for i, usage := range formal.Types {
+func protocolParameterOIDs(count int, types []sqltype.Usage) []uint32 {
+	ids := make([]uint32, count)
+	for i, usage := range types {
 		if usage.Type != nil {
 			ids[i] = uint32(usage.Type.ID())
 		}

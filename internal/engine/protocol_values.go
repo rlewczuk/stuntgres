@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/sqltype"
 )
 
@@ -85,8 +84,8 @@ const (
 	protocolFunctionInput
 )
 
-func (s *StatementScope) protocolImport(input ProtocolInput, formats []int16, formal analyze.ParameterInfo, frame []sqltype.Value, env sqltype.InputEnvironment, log *ProtocolContext, kind protocolReceiveKind) error {
-	for i := range formal.Count {
+func protocolImport(ctx context.Context, output sqltype.OutputEnvironment, input ProtocolInput, formats []int16, count int, types []sqltype.Usage, frame []sqltype.Value, env sqltype.InputEnvironment, log *ProtocolContext, kind protocolReceiveKind) error {
+	for i := range count {
 		n, err := input.Int32()
 		if err != nil {
 			return err
@@ -97,7 +96,7 @@ func (s *StatementScope) protocolImport(input ProtocolInput, formats []int16, fo
 			}
 			return sqlError("08P01", "invalid message format")
 		}
-		parameter := ProtocolLogParameter{OID: uint32(formal.Types[i].Type.ID()), Type: formal.Types[i].Type.DiagnosticName(), Format: protocolFormat(formats, i), Null: n == -1}
+		parameter := ProtocolLogParameter{OID: uint32(types[i].Type.ID()), Type: types[i].Type.DiagnosticName(), Format: protocolFormat(formats, i), Null: n == -1}
 		var raw []byte
 		if n >= 0 {
 			raw, err = input.Bytes(int(n))
@@ -112,19 +111,19 @@ func (s *StatementScope) protocolImport(input ProtocolInput, formats []int16, fo
 		switch parameter.Format {
 		case 0:
 			if parameter.Null {
-				value = sqltype.Null(formal.Types[i].Type)
-				err = formal.Types[i].Type.CheckDomainInput(s.op.Context(), value, parameterInput)
+				value = sqltype.Null(types[i].Type)
+				err = types[i].Type.CheckDomainInput(ctx, value, parameterInput)
 			} else {
-				value, err = formal.Types[i].Type.InputWithEnvironment(s.op.Context(), string(raw), -1, parameterInput)
+				value, err = types[i].Type.InputWithEnvironment(ctx, string(raw), -1, parameterInput)
 			}
 		case 1:
 			if parameter.Null {
-				if err = formal.Types[i].Type.CheckBinaryInput(); err == nil {
-					value = sqltype.Null(formal.Types[i].Type)
-					err = formal.Types[i].Type.CheckDomainInput(s.op.Context(), value, parameterInput)
+				if err = types[i].Type.CheckBinaryInput(); err == nil {
+					value = sqltype.Null(types[i].Type)
+					err = types[i].Type.CheckDomainInput(ctx, value, parameterInput)
 				}
 			} else {
-				value, err = formal.Types[i].Type.BinaryInputWithEnvironment(s.op.Context(), raw, -1, parameterInput)
+				value, err = types[i].Type.BinaryInputWithEnvironment(ctx, raw, -1, parameterInput)
 			}
 		default:
 			log.Parameters[i].Bytes = slices.Clone(raw)
@@ -141,7 +140,7 @@ func (s *StatementScope) protocolImport(input ProtocolInput, formats []int16, fo
 			entry.Bytes = nil
 			continue
 		}
-		text, outputErr := value.Type().OutputWithEnvironment(s.op.Context(), value, s.output)
+		text, outputErr := value.Type().OutputWithEnvironment(ctx, value, output)
 		if outputErr == nil {
 			entry.Decoded = true
 			entry.Bytes = []byte(text)

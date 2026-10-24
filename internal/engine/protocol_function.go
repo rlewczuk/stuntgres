@@ -142,7 +142,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		return ProtocolField{}, sqlError("08P01", fmt.Sprintf("function call message contains %d argument formats but %d arguments", len(formats), count))
 	}
 	var log ProtocolContext
-	if err = s.protocolImport(input, formats, formal, evaluation.Parameters, evaluation.Input, &log, protocolFunctionInput); err != nil {
+	if err = protocolImport(s.op.Context(), s.output, input, formats, formal.Count, formal.Types, evaluation.Parameters, evaluation.Input, &log, protocolFunctionInput); err != nil {
 		var diagnostic *sqlstate.Error
 		if errors.As(err, &diagnostic) && diagnostic.Code == "22P03" {
 			copy := *diagnostic

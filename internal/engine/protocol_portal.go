@@ -146,7 +146,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 		}
 	}()
 	importer := func(ctx context.Context, formal analyze.ParameterInfo, frame []sqltype.Value, env sqltype.InputEnvironment) error {
-		if e := s.protocolImport(input, formats, formal, frame, env, &p.context, protocolBindInput); e != nil {
+		if e := protocolImport(s.op.Context(), s.output, input, formats, formal.Count, formal.Types, frame, env, &p.context, protocolBindInput); e != nil {
 			var diagnostic *sqlstate.Error
 			if errors.As(e, &diagnostic) {
 				copy := *diagnostic
