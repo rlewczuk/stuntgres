@@ -365,10 +365,13 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	if err != nil {
 		// Parse analysis opens SELECT/INSERT/UPDATE/DELETE with a positioned
-		// error callback. Cached execution, COPY targets and utility locks do not.
+		// error callback. CREATE VIEW analyzes its body during utility execution,
+		// even for a held handle; its quiet Describe has no cached source analysis.
+		// Cached query execution, COPY targets and other utility locks do not.
 		// Query cancellation (57014) deliberately bypasses that callback.
 		_, copyTarget := stmt.(*parser.Copy)
-		if !copyTarget && (mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive) && (!execute || s.Expected == nil) {
+		_, viewDefinition := authorityStmt.(*parser.CreateView)
+		if !copyTarget && (mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive) && (!execute || s.Expected == nil || viewDefinition) {
 			var diagnostic *sqlstate.Error
 			if errors.As(err, &diagnostic) && (diagnostic.Code == "55P03" || diagnostic.Code == "40P01" || diagnostic.Code == "25P04") && name.Parts[0].Pos.Character > 0 {
 				copy := *diagnostic

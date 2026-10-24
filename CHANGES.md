@@ -1,3 +1,7 @@
+View and materialized-view definitions now participate in SQL and Go transactions
+as well as autocommit, with private definitions and stored rows, identity-preserving
+alterations, savepoints and atomic commit or rollback. REFRESH remains separate.
+
 PL/pgSQL static query FOR loops assign existing RECORD and row variables,
 preserve query ordering and duplicates, retain VOID query-result members,
 shape empty results as NULL fields, stream SELECT demand across CTE lifetimes,

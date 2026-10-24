@@ -239,21 +239,34 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
 
 - Ordinary modifying utilities reject read-only execution before object
   resolution, authorization or relation locks; Prepare remains effect-free.
-  CTAS/SELECT INTO retain source analysis, source locking and snapshot admission
-  before their read-only execution check. WITH NO DATA resolves source names and
-  output types but does not demand the skipped SELECT executor's privileges.
+  CTAS/SELECT INTO and CREATE MATERIALIZED VIEW retain source analysis, source
+  locking and snapshot admission before their read-only execution check. WITH
+  NO DATA resolves source names and output types but does not demand the skipped
+  SELECT executor's privileges.
 - `transactionalSchemaUtility` is the shared bounded Describe/Execute admission
   policy: permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA,
-  shipped ALTER TABLE forms and trigger ALTER/DROP use the existing transaction
-  journal. CREATE TRIGGER keeps its independent utility policy. Generic OWNER
-  admits only tables; materialized and standalone utility policies remain
-  independent, including nontransactional concurrent variants.
+  shipped ALTER TABLE forms, trigger ALTER/DROP, CREATE/OR REPLACE/ALTER/DROP VIEW
+  and CREATE/ALTER/DROP MATERIALIZED VIEW use the existing transaction journal.
+  CREATE TRIGGER and REFRESH retain their independent utility policies. Generic
+  OWNER admits only tables; feature-specific view/materialized OWNER is AlterView.
+  Nontransactional concurrent variants keep their independent restrictions.
 - Ordinary non-concurrent CREATE INDEX (including UNIQUE and shipped methods)
   is admitted separately at Execute. It uses the same private catalog/storage,
   journal, Finish and combined publication path as table/schema DDL. Its canonical
   owner-authorized Share grant is retained through transaction end; savepoints
   restore only postmark contributions and locks. CONCURRENTLY and standalone
   index maintenance keep their existing independent boundaries.
+
+View and materialized definitions resolve against the owner's private catalog,
+including private source relations and providers. Materialized producers consume
+captured source roots plus earlier own writes once; detached result rows and the
+producer transaction enter the same statement journal as the definition. NO DATA
+does not demand a producer. Stored readers recapture private definitions,
+attribute layouts, authorization and population state; retained results stay
+immutable. Empty catalog-provider rows remain an owned empty anonymous source,
+not a missing physical source. Finish, savepoints and combined commit retain or
+discard these paired catalog/data roots through the existing publication path.
+
 - `session.ExplicitUtility` admits the shipped COMMENT kinds (TABLE, COLUMN,
   FOREIGN TABLE, SCHEMA, ROLE and SEQUENCE) in SQL BEGIN and Go BeginTx.
   Describe remains effect-free; Execute preserves read-only and aborted-state
@@ -272,7 +285,7 @@ Catalog inquiry rows capture their statement's metadata values; retained results
 remain immutable after later changes or rollback. Those row snapshots are not
 permission to reuse stale internal identity or authorization.
 
-Table/schema candidates resolve against current committed state plus the owner's
+Relation/schema candidates resolve against current committed state plus the owner's
 private catalog and storage in both explicit and retained-message transactions.
 `publishCatalogOperation` claims only changed namespace,
 relation and type destination names through the existing lock ticket, then

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/sqltype"
 )
 
 // Consumes Engine.mu. These cases select capture policy, never producers: all
@@ -133,6 +134,11 @@ func captureCatalogSourceRows(in pgcatalog.Input, produce pgcatalog.Producer) (*
 	rows, err := produce(in)
 	if err != nil {
 		return nil, err
+	}
+	// Anonymous nil denotes a physical source requiring a visibility view.
+	// A catalog producer's empty result is still an owned anonymous rowset.
+	if rows == nil {
+		rows = [][]sqltype.Value{}
 	}
 	return &exec.Source{Ref: in.Ref, Anonymous: rows}, nil
 }

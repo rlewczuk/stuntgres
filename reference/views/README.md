@@ -20,6 +20,15 @@ cases cover INSERT/UPDATE and held statements; the separate INSTEAD OF boundary
 asserts native capability rejection and preserved check enforcement, without
 depending on diagnostic wording or the phase in which rejection occurs.
 
+View definitions and materialized-view definitions support ordinary autocommit,
+SQL BEGIN and Go BeginTx through direct and held prepared handles. Earlier own
+DDL and source writes are visible privately; definitions, dependencies and
+materialized rows commit together or are restored together by rollback and
+savepoints. CREATE OR REPLACE and metadata ALTER preserve object identity and
+ACLs. WITH DATA captures stored results once; WITH NO DATA does not execute the
+producer and leaves the materialized view unpopulated. REFRESH retains its
+separate explicit-transaction restriction.
+
 - Helpers: `ruleRoutes`/`ruleRun` (`rule_helpers_test.go`), `viewCheckRoutes`/
   `viewCheckRun` (`view_check_helpers_test.go`), `recursiveViewReference`
   (`recursive_view_helpers_test.go`) and `deparseReviewNullableColumns`
@@ -44,6 +53,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Persistent views (all `View*` families): `RUN='^TestReferenceView'`
 - CREATE OR REPLACE VIEW: `RUN='^TestReferenceViewReplace'`
+- Transactional view/materialized definitions: `RUN='^TestReferenceTransactionalViews'`
+  (wire coverage lives in [sessions](../sessions/README.md#testing)).
 - Updatable views: `RUN='^TestReferenceViewUpdatable'`
 - WITH CHECK OPTION: `RUN='^TestReferenceViewCheck'`
 - <a id="recursive-view-contract"></a>Recursive views: `RUN='^TestReferenceRecursiveView'`
@@ -53,4 +64,4 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Materialized views (create, refresh, ALTER, extensions): `RUN='^TestReferenceMaterialized'`
 - Deparse (`pg_get_constraintdef`, `pg_get_viewdef`, ...): `RUN='^TestReferenceDeparse'`
 
-Engine units: `make check RUN='^Test(Rule|ViewWrite|ViewCheck|Materialized|TemporaryView|CreateTemporaryView)'`.
+Engine units: `make check RUN='^Test(Rule|ViewWrite|ViewCheck|Materialized|TemporaryView|CreateTemporaryView|TransactionalSchemaAdmission|CatalogSourceEmptyMaterializedRows)'`.

@@ -45,6 +45,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   owner/committed peer text, savepoint recovery, held reuse and simple-message
   rollback. Shared metadata/lifecycle coverage lives in
   [catalogs](../catalogs/README.md#testing).
+- Transactional view definitions use actual simple-query messages and named
+  Parse/Describe/Bind/Execute traffic, plus server-backed Go BeginTx. Ordinary
+  utility preparation stays quiet; materialized creation retains source
+  analysis. Check command counts, Ready states, private peer invisibility,
+  held-reader freshness and rollback/savepoint recovery through the same server.
 - Keep the comparison wire matrix pipelined: one server fixture, a fresh session
   per left source, and each pair's cells sent as one pipeline of Sync-terminated
   groups whose responses are checked in order.
@@ -96,9 +101,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Prepared-statement revalidation and rebind: `RUN='^TestReferencePrepared(Rebind|QueryRevalidates)'`
 - DISCARD: `RUN='^TestReferenceDiscard'`
 - SQL PREPARE/EXECUTE/DEALLOCATE: `RUN='^TestReferenceSQLPrepared'`
-- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol)'`
+- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol)'`
 - Wire extended protocol and portals: `RUN='^TestReferenceServer(Extended|Portal|Unnamed|FailedPortal|WrappedPortal)'`
 - Wire transactional comments: `RUN='^TestReferenceTransactionalCommentProtocol$'`
+- Wire transactional view/materialized definitions: `RUN='^TestReferenceTransactionalViewsProtocol$'`
 - Wire COPY: `RUN='^TestReferenceServer(Copy|PreparedCopy)'`
 - Wire comparison matrix: `RUN='^TestReferenceServerComparison'`
 - Wire notifications: `RUN='^TestReferenceServerNotifications'`

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,7 +6,7 @@ import (
 )
 
 func TestReferenceViewOracle(t *testing.T) {
-	p := fixture.NewPair(t)
+	p := fixture.NewScenario(t)
 	setup := fixture.Exec("CREATE TABLE t(id INT,txt TEXT)", 0)
 	p.Step(t, setup)
 	for _, tc := range []struct {
@@ -27,8 +25,8 @@ func TestReferenceViewOracle(t *testing.T) {
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			step := fixture.ImplicitError(tc.query, tc.diagnostic)
-			t.Run("postgres_first", func(t *testing.T) { fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, step) })
-			t.Run("paired", func(t *testing.T) { p.Step(t, step) })
+			p.Step(t, step)
+			p.Step(t, fixture.Select("SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relname IN ('bad','ébad')", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		})
 	}
 }

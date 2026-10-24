@@ -161,7 +161,7 @@ func TestViewFrozenRelativeLiteralNativeReplay(t *testing.T) {
 	create := statement(t, "CREATE VIEW frozen(d) AS SELECT DATE 'today' FROM t")
 	// Establish the implicit transaction before fixing its authoritative clock.
 	// Execute refreshes scope.input from this owner; setting scope.input directly
-	// would be overwritten, and explicit transactions do not admit this utility.
+	// would be overwritten.
 	if err = scope.gate(create); err != nil {
 		_ = scope.Finish(err)
 		t.Fatal(err)

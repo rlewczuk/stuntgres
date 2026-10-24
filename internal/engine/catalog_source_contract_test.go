@@ -203,6 +203,25 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 	}
 }
 
+func TestCatalogSourceEmptyMaterializedRows(t *testing.T) {
+	e := New()
+	read := e.CatalogRead()
+	d := read.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12006})
+	produce, ok := pgcatalog.ProducerFor(d.Address().ObjectID)
+	if !ok {
+		t.Fatal("missing materialized catalog producer")
+	}
+	in := pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: e.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(read.Epoch(), d.Address()), Source: d, Runtime: engineCatalogRuntime{engine: e}}
+	source, err := captureCatalogSourceRows(in, produce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	if source.Ref != in.Ref || source.Anonymous == nil || len(source.Anonymous) != 0 || source.View != nil {
+		t.Fatal("empty catalog rows became a missing physical source", source)
+	}
+}
+
 func TestCatalogSourceInputProvenance(t *testing.T) {
 	e, foreign := New(), New()
 	view := e.CatalogRead()

@@ -110,12 +110,8 @@ func TestReferenceMaterializedAlterBoundaries(t *testing.T) {
 			run(fixture.Exec("SET default_transaction_read_only=off", 0))
 			tx := fixture.QueryLockBegin(t, p.Ctx, c)
 			q := "ALTER MATERIALIZED VIEW alter_mv RENAME COLUMN i TO key"
-			if b.PG {
-				fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec(q, 0))
-				fixture.RunStep(t, p.Ctx, tx, b.Recorder, alterBag("alter_mv", alterThree))
-			} else {
-				fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")))
-			}
+			fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec(q, 0))
+			fixture.RunStep(t, p.Ctx, tx, b.Recorder, alterBag("alter_mv", alterThree))
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}

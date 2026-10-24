@@ -106,28 +106,3 @@ func TestViewCreateSequenceDependencyCancellation(t *testing.T) {
 	transactionEnd(t, holder, tx, false)
 	lockEmpty(t, e)
 }
-
-func TestViewSequenceCatalogPrivateVisibility(t *testing.T) {
-	e := New()
-	owner := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, owner, "CREATE SEQUENCE s")
-	sessionSQL(t, owner, "CREATE VIEW sequence_view AS SELECT last_value FROM s")
-	tx := transactionBegin(t, owner)
-	sessionSQL(t, owner, "DROP SEQUENCE s CASCADE")
-	queries := []string{"SELECT viewname FROM pg_catalog.pg_views WHERE viewname='sequence_view'", "SELECT relname FROM pg_catalog.pg_class WHERE relname='sequence_view'"}
-	for _, query := range queries {
-		if result := sessionSQL(t, owner, query); result.Count != 0 {
-			t.Fatal("own removed view still visible", query, result.Count)
-		}
-		if result := sessionSQL(t, peer, query); result.Count != 1 {
-			t.Fatal("uncommitted view removal leaked", query, result.Count)
-		}
-	}
-	transactionEnd(t, owner, tx, false)
-	for _, query := range queries {
-		if result := sessionSQL(t, owner, query); result.Count != 1 {
-			t.Fatal("rollback did not restore view facts", query, result.Count)
-		}
-	}
-}
