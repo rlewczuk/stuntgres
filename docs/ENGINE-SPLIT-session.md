@@ -314,7 +314,39 @@ run `make bench` before and after.
     `cadb6dba6`), `catalog_name_locks.go` and `transactional_schema.go`
     (0.33k, `b1787a044`), and `range_reown.go` and
     `restore_range_constructor.go` (86 lines, `212c92013`).
-- 161: not started.
+- 161: done (`210068247`, `ead37a123`, then the docs commit).
+  - On `session`: `ControlAction`, `ControlStep`, `ClassifyControl`,
+    `AbortedControlAllowed`, `SavepointOutsideBlockError`, `AbortedError`
+    and `NoTransactionWarning` (`transaction_control.go`); `ReadOnlyExempt`,
+    `ReadOnlyRefusal`, `ExplicitUtilityRefusal` and `UnsupportedInBlockError`
+    (`statement_class.go`); `SnapshotStatement`, `SnapshotTargetAdmission`,
+    `ReplacementRead`, `DescribeClass`, `DescribeBeforeSnapshot` and
+    `DescribeAfterSnapshot` (new `statement_phases.go`). The root's
+    `protocolAbortedError` is gone; the 5 aborted-block, 4 no-transaction,
+    2 CHAIN-word and 2 "unsupported in an explicit transaction" copies are
+    one each.
+  - The root keeps every call point and lock: `executeControl` and
+    `executePrepared` switch on the `ControlStep` (PREPARE in an aborted
+    block still ends it in the root), `readOnlyUtilityEligibility` returns
+    before `t.Mu` for exempt statements, and `executionEligibility` keeps its
+    short-circuits before `ExplicitUtilityRefusal`.
+  - Deviations: `session/statement_class.go` already existed (item 129), so
+    the phase predicates went to a new `statement_phases.go` and the control
+    table to `transaction_control.go`. The two Describe switches were in
+    `transaction.go`, not `execute.go`; the first also absorbed the
+    TransactionCharacteristics, SET CONSTRAINTS and RENAME CONSTRAINT
+    empties. `UnsupportedInBlockError` is an extra dedupe (2 copies).
+  - Root 400 files and 49.3k → 49.2k lines (−0.11k); `session` gains 0.27k
+    production lines (the control table and doc comments).
+  - Tests: none moved or rewritten (root tests call the root methods, which
+    stay). New session units: `transaction_control_test.go`
+    (`TestClassifyControl`, `TestAbortedControlAllowed`) and
+    `statement_phases_test.go` (`TestReadOnlyRefusal`,
+    `TestExplicitUtilityRefusal`, `TestStatementPhases`).
+  - For item 167: `077c060a8` added a non-concurrent CREATE INDEX early
+    return to the root prefix of `executionEligibility`; it stays in the root
+    because it must return before `t.Mu` and before the 0A000 refusal. No new
+    root feature files since 165.
 - 162: not started.
 - 164: not started.
 - 165: done (`1b75fbd78`, `6fb0e5f37`, then the docs commit).

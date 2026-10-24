@@ -69,11 +69,18 @@ implement its slots, so either import would form a cycle.
   `SettingAccess`) parse and check without installing; the root keeps the
   install windows and the authorization behind `SettingAccess`'s `allowed`
   callback.
-- **Statement classification** (pure AST functions): command tags
-  (`command_tag.go`) and admission predicates (`statement_class.go`:
-  `ModifyingTag`, `ExplicitUtility`, ...). For COMMENT, `ExplicitUtility` admits
-  only the enumerated shipped kinds; unknown kinds and unrelated utility
-  exclusions remain intact. The root keeps execution checks and diagnostics.
+- **Statement classification** (pure functions of the AST and owner values):
+  command tags (`command_tag.go`); admission predicates and refusals
+  (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,
+  `ExplicitUtilityRefusal`); snapshot, replacement-read and Describe classes
+  (`statement_phases.go`); and the transaction-control table
+  (`transaction_control.go`: `ClassifyControl` returns a `ControlStep`, plus
+  `AbortedControlAllowed`, `SavepointOutsideBlockError` and the shared
+  `AbortedError` and `NoTransactionWarning`). For COMMENT, `ExplicitUtility`
+  admits only the enumerated shipped kinds; unknown kinds and unrelated
+  utility exclusions remain intact. The root reads state, InBlock and
+  ReadOnly under `t.Mu` and keeps its locks, preflights, short-circuits
+  (`transactionalSchemaUtility`, `partitionIndexTransaction`) and call order.
 - **Protocol codec** (`protocol_values.go`, `protocol_statement.go`): the wire
   value types `ProtocolInput`, `ProtocolLogParameter`, `ProtocolContext` and
   `ProtocolField`; format decoding (`ProtocolFormats`,
@@ -196,13 +203,13 @@ Package units cover the journal with its fences, capture and merge, notices,
 SET LOCAL actions, the 2PC registry's claim and preflight, CHAIN modes and
 PREPARE refusals, the notification
 queue, registry and publication, characteristic modes, serializable write
-survival, the `lc_messages` access callback, the UUID v1 allocator and the
-protocol codec. Engine
+survival, the `lc_messages` access callback, the UUID v1 allocator, the
+protocol codec and statement classification. Engine
 tests (in `internal/engine`) cover the host and root slots, catalog fences,
 column-shape projections and settings provider capture.
 
 ```sh
-make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|SerializableWriteSurvives|SettingAccessAllowedCallback|SettingsLocal|UUIDOsspTime)'
+make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|StatementPhases|SerializableWriteSurvives|SettingAccessAllowedCallback|SettingsLocal|UUIDOsspTime)'
 make check RACE=1 RUN='^Test(SessionHost|SessionPayload|OwnerExtension|ExclusionMark|Operation(AnalysisSlot|ReplaySlot)|UUIDOsspTimeConcurrent$$)'
 make check RUN='^Test(CatalogFences|EnumProvenanceSavepoints|AlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection)$$)'
 make check RUN='^Test(PGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)|RowSecurity(SettingProvenance|ProviderLifecycle))$$'

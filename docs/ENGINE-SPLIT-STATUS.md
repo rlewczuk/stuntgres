@@ -10,14 +10,17 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `51f949fbf`.
+Last verified against `master` at `f2a0a9f65`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 161 (session, statement classification) and 166 (ddl, CREATE DATABASE).
+- 162 (session, statement data views), 164 (session, settings, DISCARD and
+  setting calls) and 166 (ddl, CREATE DATABASE). 162 and 164 both edit
+  `transaction_isolation.go`; expect a small rebase conflict if run in
+  parallel.
 
 ## Linear plan
 
@@ -103,9 +106,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      selections passed (`REFERENCE=1` hit a load-dependent PostgreSQL-side race
      in `TestReferenceAdvisoryXactPreparedTransactions`, then passed);
      racecheck/finalcheck skipped at user request
-161. [ ] Session: statement classification —
+161. [x] Session: statement classification —
      [session](ENGINE-SPLIT-session.md#item-161--statement-classification) ·
-     needs 160 · 0.17k
+     needs 160 · 0.17k (`210068247`, `ead37a123`, then the docs commit) ·
+     root 400 files and 49.3k → 49.2k lines · no startup allocation change ·
+     session units, targeted root units (also `RACE=1`), quickcheck,
+     `make deps` and the quick and `REFERENCE=1` transaction-control,
+     aborted-describe, read-only query-table, prepared-transaction and
+     savepoint selections passed; racecheck/finalcheck skipped at user request
 162. [ ] Session: statement data views —
      [session](ENGINE-SPLIT-session.md#item-162--statement-data-views) ·
      needs 161 · 0.17k
