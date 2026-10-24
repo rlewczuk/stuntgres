@@ -75,7 +75,7 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 		if mark.Mode != 0 {
 			command = catalog.PolicyUpdate
 		}
-		p.occurrences[i].program, err = e.rowSecurityInputLocked(s, leaf.Relation, leaf.Principal, command, mark.Mode != 0)
+		p.occurrences[i].program, err = e.captureRowSecurityLocked(s, leaf.Relation, leaf.Principal, command, false, mark.Mode != 0)
 		if err != nil {
 			return nil, err
 		}

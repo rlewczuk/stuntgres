@@ -100,90 +100,17 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 		return ids.ErrCatalogReplaced
 	}
 	read := auth.Catalog
-	if err := policy.Validate(read, consumer); err != nil {
-		return err
-	}
-	definition := policy.Presentation()
-	binding := analyze.Binding{}
-	var importer view.StoredQueryImporter
-	node, _, err := stored.RewriteViewExpression(read, policy.Expression(), nil, func(n expr.Expr) (expr.Expr, bool, error) {
-		switch demand := n.(type) {
-		case functions.Binary:
-			binding.VisibilitySnapshot = binding.VisibilitySnapshot || !demand.Plan.Immutable()
-		case expr.SnapshotDemander:
-			_, catalogText, visibility := demand.SnapshotDemand(exec.RandomLiteralNull)
-			binding.Prepared.RegclassConcat = binding.Prepared.RegclassConcat || catalogText
-			binding.VisibilitySnapshot = binding.VisibilitySnapshot || visibility
-		}
-		column, ok := n.(plan.ColumnExpr)
-		if !ok || column.Frame != 1 || column.Origin.Address.ClassID != ids.RelationClassID || column.Origin.Address.ObjectID != consumer.Address().ObjectID {
-			return n, false, nil
-		}
-		slot := -1
-		attribute := column.Origin.Address.SubID
-		if attribute == 0 && column.Slot >= 0 && column.Slot < len(definition.Sources()[0].Attributes) {
-			attribute = definition.Sources()[0].Attributes[column.Slot]
-		}
-		for i, current := range consumer.Attributes {
-			if current == attribute {
-				slot = i
-				break
-			}
-		}
-		if slot < 0 {
-			return nil, false, ids.ErrCatalogReplaced
-		}
-		use, err := stored.ViewUseReference(read, consumer, column.Origin)
-		if err != nil {
-			return nil, false, err
-		}
-		column.Slot, column.QueryOccurrence, column.Origin = slot, 0, use
-		return column, true, nil
-	}, func(root plan.Node, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
-		return importer.GraftQuery(&binding, read, root, definition, consumer, rewrite)
-	})
+	imported, err := importPolicyClause(read, e.catalog.Domain, consumer, policy, auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
+	definition, binding, node, closure, refs := policy.Presentation(), &imported.Binding, imported.Node, imported.Closure, imported.Refs
 	for i := range binding.QuerySources {
-		binding.QuerySources[i].Principal = auth.State.CurrentUser
 		binding.QuerySources[i].Storage = e.privateStorageLocked(s.owner.Catalog, binding.QuerySources[i].Ref.Address)
-	}
-	// Closure treats its root leaves as already admitted, so explicitly acquire
-	// those captured refs in addition to the nested-view closure and providers.
-	var closure view.SourceClosure
-	if len(binding.QuerySources) != 0 {
-		closure, err = (view.SourceWalk{Catalog: read, Domain: e.catalog.Domain, Epoch: read.Epoch(), Leaves: binding.QuerySources}).Closure()
-		if err != nil {
-			return err
-		}
 	}
 	admitted := make([]exec.Leaf, 0, len(closure.Modes))
 	for ref := range closure.Modes {
 		admitted = append(admitted, exec.Leaf{Ref: ref, Relation: read.MustRelation(ref.Address), Storage: e.privateStorageLocked(s.owner.Catalog, ref.Address)})
-	}
-	refs := append([]ids.ObjectRef(nil), closure.Refs...)
-	add := func(ref ids.ObjectRef) {
-		ref.Address.SubID = 0
-		for _, prior := range refs {
-			if prior == ref {
-				return
-			}
-		}
-		refs = append(refs, ref)
-	}
-	for _, leaf := range binding.QuerySources {
-		add(leaf.Ref)
-	}
-	for _, dep := range definition.Dependencies() {
-		if dep.Ref.Address.ClassID != ids.RelationClassID || dep.Ref.Address.ObjectID == consumer.Address().ObjectID {
-			continue
-		}
-		ref, err := stored.ViewUseReference(read, consumer, dep.Ref)
-		if err != nil {
-			return err
-		}
-		add(ref)
 	}
 	if len(refs) != 0 {
 		roots := binding.QuerySources
@@ -278,4 +205,101 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 	admission.sources = append(admission.sources, policySourcePreparation{clause: out, sources: prepared})
 	admission.Volatile = admission.Volatile || prepared.volatile()
 	return nil
+}
+
+// policyClauseImport is a policy clause grafted onto its consumer: the
+// expression, its binding, the nested-view source closure and the relations
+// to acquire. Query sources run as the policy's user and have no storage yet.
+type policyClauseImport struct {
+	Node    expr.Expr
+	Binding analyze.Binding
+	Closure view.SourceClosure
+	Refs    []ids.ObjectRef
+}
+
+// importPolicyClause grafts policy's stored expression onto consumer over
+// read. It reads only the immutable catalog and never waits.
+func importPolicyClause(read catalog.Read, domain *ids.Domain, consumer *catalog.Relation, policy *stored.Policy, principal authorization.PrincipalRef) (out policyClauseImport, err error) {
+	if err := policy.Validate(read, consumer); err != nil {
+		return out, err
+	}
+	definition := policy.Presentation()
+	binding := &out.Binding
+	var importer view.StoredQueryImporter
+	out.Node, _, err = stored.RewriteViewExpression(read, policy.Expression(), nil, func(n expr.Expr) (expr.Expr, bool, error) {
+		switch demand := n.(type) {
+		case functions.Binary:
+			binding.VisibilitySnapshot = binding.VisibilitySnapshot || !demand.Plan.Immutable()
+		case expr.SnapshotDemander:
+			_, catalogText, visibility := demand.SnapshotDemand(exec.RandomLiteralNull)
+			binding.Prepared.RegclassConcat = binding.Prepared.RegclassConcat || catalogText
+			binding.VisibilitySnapshot = binding.VisibilitySnapshot || visibility
+		}
+		column, ok := n.(plan.ColumnExpr)
+		if !ok || column.Frame != 1 || column.Origin.Address.ClassID != ids.RelationClassID || column.Origin.Address.ObjectID != consumer.Address().ObjectID {
+			return n, false, nil
+		}
+		slot := -1
+		attribute := column.Origin.Address.SubID
+		if attribute == 0 && column.Slot >= 0 && column.Slot < len(definition.Sources()[0].Attributes) {
+			attribute = definition.Sources()[0].Attributes[column.Slot]
+		}
+		for i, current := range consumer.Attributes {
+			if current == attribute {
+				slot = i
+				break
+			}
+		}
+		if slot < 0 {
+			return nil, false, ids.ErrCatalogReplaced
+		}
+		use, err := stored.ViewUseReference(read, consumer, column.Origin)
+		if err != nil {
+			return nil, false, err
+		}
+		column.Slot, column.QueryOccurrence, column.Origin = slot, 0, use
+		return column, true, nil
+	}, func(root plan.Node, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
+		return importer.GraftQuery(binding, read, root, definition, consumer, rewrite)
+	})
+	if err != nil {
+		return out, err
+	}
+	for i := range binding.QuerySources {
+		binding.QuerySources[i].Principal = principal
+	}
+	// Closure treats its root leaves as already admitted, so the caller
+	// explicitly acquires those captured refs in addition to the nested-view
+	// closure and providers.
+	if len(binding.QuerySources) != 0 {
+		out.Closure, err = (view.SourceWalk{Catalog: read, Domain: domain, Epoch: read.Epoch(), Leaves: binding.QuerySources}).Closure()
+		if err != nil {
+			return out, err
+		}
+	}
+	refs := append([]ids.ObjectRef(nil), out.Closure.Refs...)
+	add := func(ref ids.ObjectRef) {
+		ref.Address.SubID = 0
+		for _, prior := range refs {
+			if prior == ref {
+				return
+			}
+		}
+		refs = append(refs, ref)
+	}
+	for _, leaf := range binding.QuerySources {
+		add(leaf.Ref)
+	}
+	for _, dep := range definition.Dependencies() {
+		if dep.Ref.Address.ClassID != ids.RelationClassID || dep.Ref.Address.ObjectID == consumer.Address().ObjectID {
+			continue
+		}
+		ref, err := stored.ViewUseReference(read, consumer, dep.Ref)
+		if err != nil {
+			return out, err
+		}
+		add(ref)
+	}
+	out.Refs = refs
+	return out, nil
 }

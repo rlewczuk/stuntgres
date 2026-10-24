@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 )
 
 // The engine owns admission identity; exec sources borrow only the embedded
@@ -66,49 +67,51 @@ func (e *Engine) refreshPolicyAuthorityLocked(s *StatementScope, consumer *catal
 		return auth, err
 	}
 	auth.Recapture(e.privateCatalogLocked(s.owner.Catalog))
-	return e.checkPolicyAuthorityLocked(auth, consumer, policy, principal)
+	auth.State.CurrentUser = principal
+	return auth, checkPolicyAuthority(auth.View, auth, consumer, policy)
 }
 
-func (e *Engine) checkPolicyAuthorityLocked(auth AuthorizationView, consumer *catalog.Relation, policy *stored.Policy, principal authorization.PrincipalRef) (AuthorizationView, error) {
-	auth.State.CurrentUser = principal
-	current, ok := auth.Catalog.Relation(consumer.Address())
+// checkPolicyAuthority checks the policy's admitted sources against a's
+// current catalog and rights, with a's current user as the policy's user.
+func checkPolicyAuthority(a access.View, env access.Environment, consumer *catalog.Relation, policy *stored.Policy) error {
+	current, ok := a.Catalog.Relation(consumer.Address())
 	if !ok || current != consumer {
-		return auth, ids.ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
-	if err := policy.Validate(auth.Catalog, consumer); err != nil {
-		return auth, err
+	if err := policy.Validate(a.Catalog, consumer); err != nil {
+		return err
 	}
 	for _, leaf := range policy.Presentation().Sources()[1:] {
 		if leaf.AnalysisOnly {
 			continue
 		}
-		relation, ok := auth.Catalog.Relation(leaf.Ref.Address)
+		relation, ok := a.Catalog.Relation(leaf.Ref.Address)
 		if !ok {
-			return auth, ids.ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		indices, err := analyze.QuerySourceReadUses(leaf.Reads, relation.Attributes)
 		if err != nil {
-			return auth, err
+			return err
 		}
-		ref, err := stored.ViewUseReference(auth.Catalog, consumer, leaf.Ref)
+		ref, err := stored.ViewUseReference(a.Catalog, consumer, leaf.Ref)
 		if err != nil {
-			return auth, err
+			return err
 		}
-		if err := auth.CheckColumns(ref, relation, authorization.SelectPrivilege, indices); err != nil {
-			return auth, err
+		if err := a.CheckColumns(env, ref, relation, authorization.SelectPrivilege, indices); err != nil {
+			return err
 		}
 		if exec.EffectiveQueryRowMark(relation, leaf.Mark).Mode != 0 {
-			if err := auth.CheckColumns(ref, relation, authorization.UpdatePrivilege, nil); err != nil {
-				return auth, err
+			if err := a.CheckColumns(env, ref, relation, authorization.UpdatePrivilege, nil); err != nil {
+				return err
 			}
 		}
-		if relation.RelationKind == catalog.ViewRelation {
-			if err := auth.CheckViewRowMarks(relation, leaf.Mark); err != nil {
-				return auth, err
+		if relation.RelationKind == catalog.ViewRelation && (leaf.Mark.Mode != 0 || stored.ViewHasRowMarks(relation, a.Catalog)) {
+			if err := view.CheckRowMarks(a, env, relation, leaf.Mark, a.State.CurrentUser); err != nil {
+				return err
 			}
 		}
 	}
-	return auth, nil
+	return nil
 }
 
 // A nested view cannot replace its admitted body/definer graph across a wait.
@@ -176,8 +179,9 @@ func (e *Engine) fenceRowSecurityProgramsLocked(s *StatementScope) error {
 		}
 		readmit := func(selected []access.RLSClause, runtime []exec.RLSRuntimeClause) error {
 			for i, clause := range selected {
-				fresh, err := e.checkPolicyAuthorityLocked(auth, p.relation, stored.PolicyOf(clause.Payload), p.principal)
-				if err != nil {
+				fresh := auth
+				fresh.State.CurrentUser = p.principal
+				if err := checkPolicyAuthority(fresh.View, fresh, p.relation, stored.PolicyOf(clause.Payload)); err != nil {
 					return err
 				}
 				local := runtime[i].Evaluation

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -157,13 +158,27 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *session.
 	if err != nil {
 		return nil, err
 	}
+	environment, err := materializedSnapshotEnvironment(&b, input)
+	if err != nil {
+		return nil, err
+	}
+	scope.routineDependencies = b.Dependencies
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: environment, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
+	evaluation.Input.DomainChecks = &evaluation
+	return evaluateMaterializedSnapshotRows(&evaluation, &b, d, s)
+}
+
+// materializedSnapshotEnvironment checks that b is a snapshot row INSERT
+// whose constructors use the builtin providers, then returns input with b's
+// statement resolvers.
+func materializedSnapshotEnvironment(b *analyze.Binding, input sqltype.InputEnvironment) (sqltype.InputEnvironment, error) {
 	if b.Parameters.Count != 0 || len(b.QuerySources) != 0 || len(b.Insert.Defaults) != 0 {
-		return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot row binding")
+		return input, fmt.Errorf("stuntgres: invalid materialized view snapshot row binding")
 	}
 	for _, expressions := range b.Expressions {
 		for _, expression := range expressions {
 			if err := materializedSnapshotConstructorProviders(expression); err != nil {
-				return nil, err
+				return input, err
 			}
 		}
 	}
@@ -174,17 +189,20 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *session.
 	environment.RegTS, environment.ACLItem = b.Resolvers.RegTS, b.Resolvers.ACLItem
 	environment.FTS = b.Resolvers.FTS
 	environment.TypeDiagnosticName, environment.EnumMemberSafe = b.Resolvers.TypeDiagnosticName, b.Resolvers.EnumMemberSafe
-	scope.routineDependencies = b.Dependencies
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: environment, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
-	evaluation.Input.DomainChecks = &evaluation
+	return environment, nil
+}
+
+// evaluateMaterializedSnapshotRows evaluates the bound snapshot rows of s
+// into d's column types under evaluation.
+func evaluateMaterializedSnapshotRows(evaluation *exec.Context, b *analyze.Binding, d *catalog.Relation, s *parser.Insert) (rows [][]sqltype.Value, err error) {
 	for _, expressions := range b.Expressions {
 		values := make([]sqltype.Value, len(d.Columns))
 		for i, expression := range expressions {
-			expression, _, err = exec.PreflightCoercionsWithPolicy(&evaluation, expression, false)
+			expression, _, err = exec.PreflightCoercionsWithPolicy(evaluation, expression, false)
 			if err != nil {
 				return nil, err
 			}
-			value, evalErr := expression.Eval(&evaluation)
+			value, evalErr := expression.Eval(evaluation)
 			if evalErr != nil {
 				return nil, evalErr
 			}
@@ -198,7 +216,7 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *session.
 				if value.IsNull() || !value.Type().BaseType().IsArray() || value.ArrayRank() != len(s.Targets[i].Steps) {
 					return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot array shape")
 				}
-				bounded, applyErr := b.ArrayTargets[i].Apply(&evaluation, sqltype.Null(d.Columns[i].Usage.Type), value)
+				bounded, applyErr := b.ArrayTargets[i].Apply(evaluation, sqltype.Null(d.Columns[i].Usage.Type), value)
 				if applyErr != nil {
 					return nil, applyErr
 				}

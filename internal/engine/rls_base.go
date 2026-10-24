@@ -3,18 +3,10 @@ package engine
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
-
-// The caller holds Engine.mu; capture returns with it held after unlocked
-// admission of the selected expression graph and nested sources.
-func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, selectRead bool) (*exec.RLSProgram, error) {
-	return e.captureRowSecurityLocked(scope, d, principal, command, false, selectRead)
-}
 
 // configureRowSecurityLocked writes the command's row-level security
 // (scope.rls) under the statement authority, as the rule action's user when
