@@ -176,9 +176,10 @@ no SQLSTATE-family rule or cause-unwrapping decides recovery.
   `stored` and `index`, which import `regobj`.
 - `regtypeAnalysis` and `Engine.regtypeAnalysisLocked`/`ValidLocked`: the
   prepared-statement regtype analysis cell is statement state, not SQL text.
-- `aclitem_remap.go` and `principal_remap.go` (the Restore stage and
-  publication; see the [`control` README](../control/README.md)). The Dump ACL
-  preflight is `control.PreflightACLItems`; the scalar renderer is
+- `principal_remap.go` (the Restore stage and publication; see the
+  [`control` README](../control/README.md)). The aclitem importer is
+  `access.RoleStore.ACLItemImporter`, the Dump ACL preflight is
+  `control.PreflightACLItems` and the scalar renderer is
   `stored.ScalarRenderer`.
 
 ## Testing

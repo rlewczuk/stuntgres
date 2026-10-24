@@ -133,7 +133,7 @@ library, and never the engine, `analyze`'s binder or another upper feature.
 ## What stays in the engine
 
 `Engine.mu` and its unlock/relock windows, lock waits, `AuthorizationView`
-capture, `roleStore` publication and `installOperationRolesLocked`, the host
+capture, `access.RoleStore` publication and `installOperationRolesLocked`, the host
 adapter (`role_host.go`) and the
 `*CatalogStage` adapters (`owned_stage.go`), the `ParameterProvider`
 registration, the `roleRetirementPreflightLocked` adapter, and the

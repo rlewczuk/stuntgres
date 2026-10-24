@@ -95,7 +95,8 @@ that handoff; PL-local, parameter, row, domain and volatile demand barriers rema
 ## Cluster and logical database ownership
 
 Each exact Driver DSN owns one `databaseCluster`: a pointer-stable metadata mutex,
-shared `roleStore`/principal domain/ACL authority and database registry with a
+shared [`access.RoleStore`](access/README.md) (principal domain, ACL authority,
+committed roles) and database registry with a
 stable default target and monotonic identities. Local Engine runtimes borrow
 that mutex and role authority from birth, but own independent catalog domains,
 storage, visibility, locks, replacement gates and session resources. Equal numeric

@@ -2,8 +2,8 @@
 
 Authorization enforcement on catalog objects. It sits above `catalog` (layer
 L4 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture))
-and imports `catalog`, `authorization`, `ids`, `parser`, `sqlstate` and the
-standard library. It never imports the engine. The role graph and ACL
+and imports `catalog`, `authorization`, `ids`, `parser`, `sqlstate`, `sqltype`
+and the standard library. It never imports the engine. The role graph and ACL
 algorithms it applies live in [`authorization`](../authorization/README.md).
 
 Language descriptors use the ordinary owner/ACL/class-mask and paired role
@@ -48,6 +48,29 @@ No parallel language-permission table or cached grant decision exists.
   selected pending-statement authority fence. It is not a blanket completed
   publication permission: compatible actual roots use the existing explicit
   merge. It never replaces exact `Stamp` validation or caches permission.
+- **Role store** (`role_store.go`): `RoleStore`, the engine's role state:
+  the principal `Domain`, the `ACLAuthority`, the committed `Published`
+  record and the principal and revision allocators. It has no mutex; the
+  engine mutex guards every field and mutating methods carry the `Locked`
+  suffix. Cluster runtimes share one pointer-stable store, because
+  `catalog.Owner.Principals`, `catalog.Owner.ACLAuthority` and
+  `Root.Reprovenance` keep pointers into it, so it is never copied (a
+  `noCopy` guard lets `go vet` report copies).
+  - Publication: `Published` changes only through `PublishLocked`, the
+    frontiers only through `InstallPrincipalFrontierLocked`,
+    `InstallRevisionFrontierLocked` and `AdvanceRevisionFrontierLocked`.
+    `PrincipalCandidateLocked` and `RevisionCandidateLocked` return private
+    candidates; only publication advances allocation.
+  - Reads: `Read` and `PublishedRead`, the store-checked `RoleRead`.
+  - Replacement (`role_remap.go`, `aclitem_import.go`): `PrincipalMapper`
+    and `PrincipalRemap` map a source's principals by name with
+    target-incarnation fences, reading the destination `*catalog.Store`
+    at each mapping; `ACLItemImporter` reowns typed aclitem values from the
+    source store's ACL authority; `ValidateReplacementACLsLocked` checks a
+    replacement's ACLs against the committed roles. `CaptureLocked` and
+    `InstallCapture` copy a committed record and principal frontier into a
+    private Restore stage's domain. `PrincipalRemap` takes the
+    seeded-operator predicate as a value.
 - **Ownership** (`ownership.go`): `OwnershipSuccessor`,
   `OwnershipEligibility`, `OwnershipDatabaseCreate`, `SchemaOwner` and
   `OwnershipRoleOperand`, which share the `current_user`/`session_user`
@@ -88,7 +111,8 @@ No parallel language-permission table or cached grant decision exists.
   `DescriptorRoleDependencies` and `DefaultRoleDependencies`. A nil collector
   stops at the first dependency.
 - **Privileges** (`privileges.go`): `DatabaseRights`, `PredefinedPrivileges`,
-  `RawObjectACL` and `ObjectACLClass`.
+  `RawObjectACL` and `ObjectACLClass`. `CheckDatabaseConnect`
+  (`database_connect.go`) is the CONNECT check of physical session start.
 
 `access` keeps its own `sqlError`. Type and identifier names in its messages
 come from the `catalog` diagnostic name helpers it shares with the engine.
@@ -118,7 +142,9 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
   that pass the view itself as the `Environment`. It implements
   `analyze.Privileges` for the binding walkers.
 - View capture (`authorizationLocked`, `statementAuthorizationLocked`,
-  `operationAuthorization`), role publication (`roleStore`) and the catalog
+  `operationAuthorization`), `Engine.roles` (the cluster's `*RoleStore`),
+  the session role overlays (`sessionRolesLocked`,
+  `installOperationRolesLocked`, `preparedActorLocked`) and the catalog
   authority fences.
 - The lock windows, staging and publication of role DDL, GRANT/REVOKE,
   ALTER DEFAULT PRIVILEGES and the ownership statements. Their decisions are
@@ -140,13 +166,14 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
 The package tests build a catalog owner, a seeded role root and a current
 database without an engine, and pin the view's owner, pairing and epoch
 rejection, `RoleRead`'s owner and domain checks, the lazy TEMP environment,
-`RowSecurityPrincipal`, the row-security setting guard, DROP OWNED policy
+`RowSecurityPrincipal`, the role store's read fences, allocators and Restore
+capture, the row-security setting guard, DROP OWNED policy
 cleanup, the `RowSecurityKind` fallback, the TEMP namespace helpers and the
 ownerless ACL validation of access methods and casts. Engine unit tests
 exercise the checks through `AuthorizationView`.
 
 ```sh
-make check RUN='^Test(AccessMethodOwnerlessACLValidation|AdjustRelationCreationPersistence|CastDefinitionOwnerlessACL|DropOwnedPolicyTargets|OperatorFamilyMemberOwnershipValidation|OwnTemporaryNamespace|RoleReadRequiresOwnerDomainAndRoot|RowSecurity(KindDelegates|PrincipalFollows|SettingGuard)|View(RejectsForeign|TemporaryNamespaceOnly))'
+make check RUN='^Test(AccessMethodOwnerlessACLValidation|AdjustRelationCreationPersistence|RoleStore|CastDefinitionOwnerlessACL|DropOwnedPolicyTargets|OperatorFamilyMemberOwnershipValidation|OwnTemporaryNamespace|RoleReadRequiresOwnerDomainAndRoot|RowSecurity(KindDelegates|PrincipalFollows|SettingGuard)|View(RejectsForeign|TemporaryNamespaceOnly))'
 make check RUN='^Test(AccessView|RoleStore|DatabaseTemporaryCapturedRights|DataTypePrivilegesCapture|ObjectACLAddressLookup|RLS|Ownership|RoleOwnership|DropOwned|ReassignOwned)'
 make check RUN='^TestReference(AccessRole|ForeignActionsAuthorization|SchemaAuthorization$$|TypedTableAuthorization$$)'
 ```

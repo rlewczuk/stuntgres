@@ -361,4 +361,42 @@ store sentence becomes a pointer to it.
   - For 179: `newEngine` reads `e.roles.domain` and `e.roles.published`
     once each for the seed owners; `bootstrapAuthorization` still calls
     `e.roles.read`.
-- 179: not started.
+- 179: done (`5a1e06743`, `6364243ef`, `ee661f1bc`, `c1a854936`, docs
+  commit), started at master `7245ce77e`, rebased on `628f3cd11` (item 178
+  and the `role_table_grants` view). The root lost 227 production lines and
+  three files.
+  - Commit 1 (by hand) made the helpers `roleStore` methods in place;
+    commits 2 and 3 are scripted and re-runnable
+    (`.cswd/tmp/PG18-ENGINE-SPLIT-ACCESS-ROLE-STORE/c2.sh`, `c3.sh`,
+    `rebase.sh`): a new go/types tool, `rolerw`, turns the record and
+    frontier writes into `PublishLocked` and `Install…FrontierLocked` calls,
+    frontier reads into `NextPrincipal` and `NextRevision`, and the 111
+    remaining `read(owner, view, published)` copies (20 in production; the
+    moved helpers held the other four) into `PublishedRead`; `movex`
+    exports the rest and moves the files.
+  - `access/role_store.go` (store, frontiers, `CaptureLocked` and
+    `InstallCapture`), `role_remap.go` (`PrincipalMapper`,
+    `PrincipalRemap`, `ValidateReplacementACLsLocked`),
+    `aclitem_import.go` (`ACLItemImporter`) and `database_connect.go`
+    (`CheckDatabaseConnect`). A zero-size `noCopy` guard makes `go vet`
+    report copies; none exist.
+  - Deviations: the mapper, remap and importer take the destination
+    `*catalog.Store` and read its current view at each mapping, as the root
+    did; `PrincipalRemap` takes `routine.OperatorSeeded` as a value. The
+    role half of `replacementACLsLocked` is named
+    `ValidateReplacementACLsLocked` and reads the roles once instead of per
+    descriptor. The three copies of the revision-frontier advance became
+    `AdvanceRevisionFrontierLocked`; the two `revision + 1` installs stay
+    plain installs. The Restore stage's role part is `CaptureLocked` under
+    the source lock and `InstallCapture` into the private stage, which
+    returns the import targets. New units cover principal and revision
+    allocation, frontier saturation and the capture.
+  - Checks: quickcheck; quick and `REFERENCE=1` selections
+    (`TestReference(RoleRestoreOwnerReset|RoleAttributesConnectionAdmission|RoleOwnershipAuthority|ObjectACLDatabase)`);
+    the root ACL import, remap and role units and the `access` store units;
+    deps. `make bench` with interleaved base and branch binaries under load
+    43–72: allocations vary per process on both (base 5,619–5,628, branch
+    5,621–5,635), bytes per op flat, ns/op overlapping (2.7–7.1 ms, above
+    the 1 ms target on both under load).
+    `-gcflags=-m`: every new accessor inlines. Racecheck and finalcheck
+    skipped (user decision).

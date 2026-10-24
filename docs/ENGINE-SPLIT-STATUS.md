@@ -16,7 +16,7 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `39c2be6b9` (item 178 rebased on it;
+Last verified against `master` at `628f3cd11` (item 179 rebased on it;
 `c00a2dd91` added about 0.39k lines of root production code since item 176's
 check, mostly `definition_object_locks.go`, a finding for item 180).
 
@@ -25,7 +25,7 @@ check, mostly `definition_object_locks.go`, a finding for item 180).
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 179.
+- 180.
 
 ## Linear plan
 
@@ -128,9 +128,15 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      process-level memos to `catalog.SeedShare`; quickcheck, quick and
      `REFERENCE=1` selections, bench (allocations unchanged) and deps
      passed; racecheck and finalcheck skipped (user decision)
-179. [ ] Access: `access.RoleStore` —
+179. [x] Access: `access.RoleStore` —
      [catalog](ENGINE-SPLIT-catalog.md#item-179--accessrolestore) · needs
-     177 · 0.19k
+     177 · 0.23k (`5a1e06743`, `6364243ef`, `ee661f1bc`, `c1a854936`,
+     docs commit) · the role store moved to `access.RoleStore` with
+     `PublishedRead`, the frontier readers and writers, the principal
+     mapper and remap, the aclitem importer, replacement ACL validation,
+     the Restore capture and `CheckDatabaseConnect`; quickcheck, quick and
+     `REFERENCE=1` selections, bench (allocations within per-process noise)
+     and deps passed; racecheck and finalcheck skipped (user decision)
 180. [ ] Closing review 4 (docs only): re-measure, then plan a seventh round
      or close the split —
      [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-180--closing-review-4) · needs
