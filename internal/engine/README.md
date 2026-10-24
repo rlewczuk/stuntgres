@@ -478,10 +478,12 @@ Producers, the OID registry and descriptor specs live in
   Direct validated publication still enforces captured identity, epoch and
   incoming-dependency fences without manufacturing a transaction for preparation.
 - Every engine seeds the same built-in catalog in one bulk load (`newEngine`'s
-  `BeginBulkLoad` … `finishSeed`) from pure constructors; `builtin_catalog.go`
-  validates the shared seed once per process, and each engine validates and
-  binds only its database descriptor and option-dependent parts. Check
-  `make bench` allocations when adding built-ins.
+  `BeginBulkLoad` … `FinishSeedLocked`) through the
+  [`catalog`](catalog/README.md) seed steps. The root keeps their order, the
+  capacity, the process's `catalog.SeedShare` (`builtin_catalog.go`), the
+  builtin domain checks, the catalog source descriptors and the database
+  descriptor; each engine validates and binds only its option-dependent
+  parts. Check `make bench` allocations when adding built-ins.
 
 ## Function runtimes
 

@@ -16,7 +16,7 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `4b5a5ad64` (item 177 rebased on it;
+Last verified against `master` at `39c2be6b9` (item 178 rebased on it;
 `c00a2dd91` added about 0.39k lines of root production code since item 176's
 check, mostly `definition_object_locks.go`, a finding for item 180).
 
@@ -25,7 +25,6 @@ check, mostly `definition_object_locks.go`, a finding for item 180).
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 178.
 - 179.
 
 ## Linear plan
@@ -121,9 +120,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      and the database projection helpers; quickcheck, quick and
      `REFERENCE=1` selections, bench (allocations unchanged) and deps
      passed; racecheck and finalcheck skipped (user decision)
-178. [ ] Catalog: builtin catalog seed —
+178. [x] Catalog: builtin catalog seed —
      [catalog](ENGINE-SPLIT-catalog.md#item-178--builtin-catalog-seed) ·
-     needs 177 · 0.19k
+     needs 177 · 0.19k (`19c0852b8`, `8b2e99d16`, docs commit) · the seed
+     install steps moved to `catalog` (`InstallBuiltin…`,
+     `InstallCatalogSource`, `Store.InstallBuiltinLanguagesLocked`) and the
+     process-level memos to `catalog.SeedShare`; quickcheck, quick and
+     `REFERENCE=1` selections, bench (allocations unchanged) and deps
+     passed; racecheck and finalcheck skipped (user decision)
 179. [ ] Access: `access.RoleStore` —
      [catalog](ENGINE-SPLIT-catalog.md#item-179--accessrolestore) · needs
      177 · 0.19k

@@ -328,5 +328,37 @@ store sentence becomes a pointer to it.
   - For 179: the role reads pass `&e.catalog.Owner` where they called
     `catalog.owner()`, so `PublishedRead` replaces
     `roles.read(&e.catalog.Owner, view, roles.published)`.
-- 178: not started.
+- 178: done (`19c0852b8`, `8b2e99d16`, docs commit), started at master
+  `7245ce77e`, rebased on `39c2be6b9`. `reach` showed every declaration in
+  the move set dirty only through the `*Engine` receiver.
+  - `catalog/seed.go`: `InstallBuiltinNamespaces`, `InstallBuiltinTypes`,
+    `InstallBuiltinCollations`, `InstallBuiltinConversions`,
+    `InstallBuiltinProcedures` (variadic groups, then the native access
+    methods), `InstallBuiltinOperators`, `Store.InstallBuiltinLanguagesLocked`
+    and `InstallCatalogSource`; `InstallBuiltinTablespaces` sits next to
+    `BuiltinTablespaces`. The root files `tablespace_catalog.go` and
+    `plpgsql_bootstrap.go` are gone; `registerCatalogSource` became a
+    `pgcatalog.InitializeAttributes` call plus `InstallCatalogSource`.
+  - `catalog/seed_share.go`: the three process-level memos became one
+    `SeedShare` with `ShareProcedureNamesLocked`, `FinishSeedLocked`,
+    `ValidateSeed` and `ValidateDescriptors`. The root keeps the one
+    `builtinSeed` share, so the root seed-name test swaps the whole share.
+  - Deviations: `installBuiltinLanguages` moved whole; its only root part
+    was the owner, now passed in. `newEngine` reads the bootstrap owner and
+    the `postgres` and `pg_database_owner` refs once instead of per loop
+    iteration. New units: `TestSeedShareNamesMatchOwnSeed` and
+    `TestInstallCatalogSourceOwnsRowType`.
+  - Checks: quickcheck; quick and `REFERENCE=1` selections
+    (`TestReference(PGTypeLifecycle|RangeTypeProviders|PLpgSQLCoreLanguageAuthority)`);
+    the root seed units and the catalog store and seed units; deps.
+    `make bench` with interleaved base and branch binaries under load 43–54:
+    allocations vary per process on both (base 5,609–5,618, branch
+    5,611–5,622 at one CPU; GC off 5,611–5,618 base, 5,617–5,618 branch),
+    bytes per op flat, `-gcflags=-m` shows the same heap sites and the
+    variadic procedure groups do not escape. ns/op overlap: about 1.25–1.3 ms
+    on both with GC off, 2–12 ms under load, above the 1 ms target on both.
+    Racecheck and finalcheck skipped (user decision).
+  - For 179: `newEngine` reads `e.roles.domain` and `e.roles.published`
+    once each for the seed owners; `bootstrapAuthorization` still calls
+    `e.roles.read`.
 - 179: not started.

@@ -80,6 +80,22 @@ private frames, not catalog authority.
   `InstallLocked` publishes, and `DatabaseOIDLocked` reserves a database OID
   past every store's frontier and roots. The stores come as an iterator, so a
   publication without a database change allocates nothing.
+- **Builtin seed** (`seed.go`, `seed_share.go`). The install steps write a
+  state still in its bulk load, before the store is shared:
+  `InstallBuiltinNamespaces`, `InstallBuiltinTypes`, `InstallBuiltinCollations`,
+  `InstallBuiltinProcedures` (then the native access methods),
+  `Store.InstallBuiltinLanguagesLocked` (plpgsql and its handlers at allocated
+  OIDs), `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
+  `InstallBuiltinOperators`, `InstallBuiltinFamilies`, `InstallBuiltinClasses`
+  and `InstallCatalogSource`, which hands a same-named row type and its array
+  to the catalog relation. Owners and the compiled tables of `routine` and
+  `typedef` come in as values. A `SeedShare` memoizes what the binary fixes:
+  `ShareProcedureNamesLocked` installs one procedure-name index,
+  `FinishSeedLocked` ends the bulk load with one name map plus the store's
+  database binding (a seed with other names builds its own), and `ValidateSeed`
+  validates the seed once and the database descriptor every time, through
+  `ValidateDescriptors`. Every store seeded with one share holds the same
+  immutable index and name map.
 - **Candidate** (`candidate.go`). The pure copy-on-write overlay of a catalog
   change over an immutable base `Read`; `CatalogStage` embeds it. `Create` and
   `Replace` run name-conflict and sticky relation-history checks;
@@ -261,7 +277,9 @@ DDL commands, `CatalogStage` and publication (taking `Engine.mu`, the storage,
 index and materialized-view fences including the extension materialized-view
 recheck, the relations map and the post-apply validators), the engine's
 `Store` field and every acquisition of `Engine.mu`, the journal and
-`AuthorizationView` wrappers around the store, seeding, the transaction catalog
+`AuthorizationView` wrappers around the store, the seed order in `newEngine`
+with its capacity, the process-level `SeedShare`, builtin domain checks, catalog
+source descriptors and extension registration, the transaction catalog
 journal, the registration of
 providers that live in their own packages (`role.ParameterProvider`,
 `table.RelationProvider`, `stored.TypeProvider`, `stored.ProcedureProvider`,
@@ -288,8 +306,9 @@ rollback before fresh same-owner transaction use.
 
 Package units cover the read/write API, persistent storage and bulk loads,
 Candidate ownership, cast pair indexes, operator class and family identity,
-principal and address remaps, diagnostic names, tablespace validators and the
-builtin routine inventory, and the `Store` allocators and frontiers. `testdata/builtin_routine_results_pg18_6.tsv` is the
+principal and address remaps, diagnostic names, tablespace validators, the
+builtin routine inventory, the `Store` allocators and frontiers, and the seed
+share and catalog-source installation. `testdata/builtin_routine_results_pg18_6.tsv` is the
 independent record of every builtin routine identity and result, extracted from
 the pinned PostgreSQL 18.6 oracle; `TestBuiltinRoutineResultInventory` checks it.
 Engine-side seams (provider registry, payload accessors, operator index,
@@ -297,7 +316,7 @@ publication, including the candidate publication helpers) are units in
 `internal/engine`.
 
 ```sh
-make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad)|Candidate|BuiltinRoutineResultInventory|(New)?Store)'
+make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad)|Candidate|BuiltinRoutineResultInventory|(New)?Store|SeedShare|InstallCatalogSource)'
 make check RACE=1 RUN='^Test(CastDefinition(PairIndex|CandidateIsolation)|.*PrincipalRemap|OperatorClass(Catalog|Value))'
 make check RUN='^Test(CatalogProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload|UserOperatorIndex)'
 make check RACE=1 RUN='^Test(AccessMethodDescriptor|PgClassSubclass|TableSummary|DefaultPrivileges(PublicationFence|CreationFence)|SQLRoutineStagedLookup|DropReaderSeam)'
