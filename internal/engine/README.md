@@ -71,6 +71,23 @@ settle command effects before body execution, with no second result
 materialization. Its `Close` closes the producers, formats their failures and
 then ends the activation; open failures are already formatted.
 
+Static capture uses the same lexical activation, admission, command completion
+and SQL diagnostic formatter. SELECT demands one row, or two for STRICT, through
+an activation-local capture mode. Writable CTE auxiliaries complete without a
+row cap before the primary SELECT opens its lazy producer; its CTE resources
+remain owned by that producer until close. Ordinary SQL and query-loop demand
+keep their separate completion policies.
+DML installs a command-private capture counter: the second successful RETURNING
+projection signals cardinality immediately, before a third candidate. Projection
+errors precede that signal; existing checkpoints discard the staged prefix.
+Rule rewriting transfers only that policy to its designated RETURNING provider
+(or count provider when absent) before preparing command scratch. Unrelated rule
+actions, auxiliary mutations and nested commands do not inherit it; ordinary DML
+without capture remains uncapped.
+Successful commands retain ordinary complete-mutation semantics. Capture closes
+all producers before restoring activation, publishes FOUND before cardinality
+and assignment, and publishes list destinations sequentially, unlike FETCH.
+
 Accepted write events retain their actual predecessor/successor and command token.
 `sql_command_effects.go` completes only the active nested SQL command's pending
 constraint obligations and causal referential actions; probes still see the full
@@ -661,6 +678,7 @@ description rules are in the [`settings` README](settings/README.md#testing).
 Add `RACE=1` for lifecycle, cancellation and contention selections.
 PL cursor compiler/provider/ownership units: `RUN='^TestPLpgSQLCursor'`.
 Internal producer lifetime/cancellation units use `RUN='^TestPLpgSQLQueryLoop(Lifetime|Cancellation)$'`.
+Static capture demand/cancellation/cleanup units use `RUN='^TestPLpgSQLSelectIntoRuntime$'`.
 Lo provider units use `RUN='^TestLo(Provider|OwnerMetadata|ManifestAdmission)'`.
 They stage concrete domain/companion recipes through the shared extension host,
 validate immutable manifests and symbolic ownership, and exercise genuine

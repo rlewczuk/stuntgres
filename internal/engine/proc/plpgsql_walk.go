@@ -163,6 +163,8 @@ func (r *PLRun) Statements(statements []PLInstruction) (sqltype.Value, PLFlow, e
 			value, flow, err = r.conditional(instruction)
 		case instruction.Foreach != nil:
 			value, flow, err = r.foreach(instruction)
+		case instruction.Into != nil:
+			err = r.Host.Capture(r, f, instruction)
 		case instruction.QueryLoop != nil:
 			value, flow, err = r.forQuery(instruction)
 		case instruction.Cursor != nil:

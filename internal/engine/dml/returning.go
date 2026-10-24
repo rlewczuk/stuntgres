@@ -51,7 +51,7 @@ func (o *MergeReturningOutput) Project(b analyze.Binding, c *exec.Context, actio
 	return nil
 }
 
-func ProjectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
+func ProjectForeignReturning(h Host, b analyze.Binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
 	if output == nil {
 		return nil
 	}
@@ -75,7 +75,7 @@ func ProjectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old
 		output.Values = append(output.Values, value)
 	}
 	output.Count++
-	return nil
+	return h.Command().CapturedRow()
 }
 
 type ForeignMutationRow struct {

@@ -151,6 +151,9 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 					rows.Values = append(rows.Values, value)
 				}
 				rows.Count++
+				if err := h.Command().CapturedRow(); err != nil {
+					return Outcome{}, err
+				}
 			}
 		}
 	}

@@ -67,6 +67,9 @@ type lexer struct {
 	plForeachSource    Position // Failure-only delimiter provenance; never executable syntax.
 	plAfterForeach     bool
 	plAssignmentHead   lexeme
+	plCapture          *PLIntoStatement
+	plTargetsEntry     bool
+	plTargetsResult    []Expr
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool
@@ -800,6 +803,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.plEntry = false
 		return PL_ENTRY
 	}
+	if l.plTargetsEntry {
+		l.plTargetsEntry = false
+		return PL_TARGETS_ENTRY
+	}
 	if l.typeInputEntry {
 		l.typeInputEntry = false
 		return TYPE_INPUT
@@ -812,6 +819,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		return 0
 	}
 	token := l.nextRaw()
+	if l.plMode && !l.plExpression && l.plStatementStart() && (token.code == SELECT || token.code == INSERT || token.code == UPDATE || token.code == DELETE || token.code == WITH) {
+		l.plBeginCapture(token)
+	}
+	if l.plCapture != nil && token.lexeme.pos.Offset == l.plCapture.IntoStart.Offset {
+		for token.code != 0 && token.lexeme.pos.Offset < l.plCapture.TargetsEnd.Offset {
+			token = l.nextRaw()
+		}
+	}
 	if l.plMode {
 		if l.plAssignmentHead.pos.Character != 0 && (token.code == '=' || token.lexeme.text == ":=" || token.code == ';') {
 			l.plAssignmentHead = lexeme{}

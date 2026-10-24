@@ -134,6 +134,18 @@ prefixes and digit separators; leading-zero decimal spelling stays decimal.
 Failed FOREACH syntax retains scanner-owned source/delimiter and following
 assignment-head provenance for diagnostics only. Failure probes never return
 tokens or syntax to executable parsing and cannot turn rejected input into success.
+Static SELECT and DML RETURNING capture retain a separate `PLIntoStatement`:
+ordinary SQL syntax, ordered target expressions, STRICT, positioned boundaries
+and original SQL with the procedural interval blanked. At every INTO placement,
+the raw-token probe completes the datum/field list structurally before returning
+the remaining tokens to ordinary SQL grammar, without a SQL-tail keyword list.
+It excludes nested SQL and INSERT's table INTO. Field components retain quoted
+identity and PL reserved-word admission; malformed fields fail at their dot.
+Static INTO rejects array subscripts at the opening bracket, independently of
+the broader assignment/FETCH target grammar. The bounded targets use the
+generated PL target-list entry; SQL table-creation INTO remains a separate AST.
+An isolated procedural target without an assignment operator is rejected at its
+original head token, not at the following statement delimiter.
 Diagnostic compound-name accounting scans bounded original expression and
 assignment-target tokens, not SQL AST node kinds. It shares identifier/Unicode
 decoding with the lexer and applies PL's reserved-word list and greedy,
@@ -155,6 +167,7 @@ text is sliced from these boundaries and never rescanned into executable syntax.
 ## Testing
 
 Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
+Static capture AST/boundary units use `RUN='^TestPLpgSQLSelectIntoParser$'`.
 
 Unit tests here drive the real lexer and generated parser and check AST shape,
 positions, ownership and complete-input rejection. Public SQL acceptance and

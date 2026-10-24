@@ -87,6 +87,7 @@ type PLInstruction struct {
 	Foreach   *PLForeach
 	Raise     *PLRaise
 	Assert    *PLAssert
+	Into      *PLInto
 }
 type PLQueryLoop struct {
 	Target PLTarget
@@ -100,6 +101,11 @@ type PLForeach struct {
 	SliceSpecified bool
 	SlicePos       parser.Position
 	Body           *PLBlock
+}
+type PLInto struct {
+	Query   parser.Statement
+	Targets []PLTarget
+	Strict  bool
 }
 type PLConditional struct {
 	Search     *parser.Select
@@ -283,6 +289,11 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 			}
 			var err error
 			switch {
+			case statement.Into != nil:
+				instruction.Into, err = p.compileInto(statement.Into, scopes)
+				if err == nil {
+					err = diagnostics.into(p, definition.Source, statement.Into, instruction.Into, scopes)
+				}
 			case statement.Raise != nil:
 				instruction.Raise, err = p.compileRaise(statement.Raise, statement.Pos)
 				if err == nil {

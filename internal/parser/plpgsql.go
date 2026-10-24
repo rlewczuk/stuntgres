@@ -55,6 +55,7 @@ type PLStatement struct {
 	Foreach             *PLForeach
 	Raise               *PLRaise
 	Assert              *PLAssert
+	Into                *PLIntoStatement
 }
 
 // PLQueryLoop retains the ordinary SQL syntax and its original source boundary.
@@ -102,6 +103,16 @@ func (l *lexer) plForeachSlice(keyword, token lexeme) *PLForeach {
 	return &PLForeach{Slice: int(level), SliceSpecified: true, SlicePos: keyword.pos}
 }
 
+// PLIntoStatement separates procedural capture from SQL table creation.
+type PLIntoStatement struct {
+	Query                               Statement
+	Separators                          []Position
+	Targets                             []Expr
+	Strict                              bool
+	Start, End, Delimiter               Position
+	IntoStart, TargetsStart, TargetsEnd Position
+	Text                                string
+}
 type PLBlock struct {
 	Label        Identifier
 	EndLabel     Identifier
@@ -333,6 +344,14 @@ func (l *lexer) plLoop(label Identifier, statements []PLStatement, end Identifie
 	block := l.plBlock(label, nil, statements, end, pos)
 	block.IsLoop = true
 	return block
+}
+
+// A bare target is not a statement. Diagnose its original head token rather
+// than the delimiter that made the missing assignment operator apparent.
+func (l *lexer) plBareTarget(target Expr) {
+	position := target.SourcePosition()
+	probe := lexer{input: l.input, offset: position.Offset, positionOffset: position.Offset, positionCharacters: position.Character - 1}
+	l.syntax(probe.nextRaw().lexeme)
 }
 
 // PLExpressionSource is diagnostic provenance only, never reparsed or rewritten.

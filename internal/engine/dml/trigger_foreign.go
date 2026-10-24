@@ -23,7 +23,7 @@ func (s *foreignTriggerInsert) accept(h Host, row []sqltype.Value, evaluation *e
 		if err := CheckViewRow(h, &s.binding, actual, evaluation); err != nil {
 			return err
 		}
-		return ProjectForeignReturning(s.binding, s.output, actual, nil, evaluation)
+		return ProjectForeignReturning(h, s.binding, s.output, actual, nil, evaluation)
 	})
 	if err == nil {
 		s.count += count

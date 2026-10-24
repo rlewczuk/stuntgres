@@ -97,6 +97,12 @@ per-command mutation, so writable CTEs, rules and SQL routines swap it whole.
 | Prologue decisions | `latest_row.go`, `default_fold.go`, `cte_completion.go`, `row_diagnostic.go` | `LatestUpdateRow`/`LatestDeleteRow`/`LatestMergeRow`, `FoldDefault`, `CompleteCTEMutation`, `RowDiagnosticDetail` |
 | Target admission | `target_admission.go` | `TargetAdmission`, the `table.TargetEntry` of single-table SELECT, COPY and DML |
 
+Static PL capture may attach `CaptureCardinality` to the existing active
+`Command`. RETURNING producers call `CapturedRow` only after successful complete
+projection; its second row signals the structured private error. Command swaps
+isolate nested writes and writable-CTE auxiliaries. Ordinary SQL has no counter
+and retains its normal output and affected-count semantics.
+
 Prologue decisions run over values the root captures in its own window.
 Package-internal helpers keep lower-case names.
 

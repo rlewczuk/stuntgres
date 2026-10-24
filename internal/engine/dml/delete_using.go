@@ -157,6 +157,9 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 				rows.Values = append(rows.Values, value)
 			}
 			rows.Count++
+			if err := h.Command().CapturedRow(); err != nil {
+				return Outcome{}, err
+			}
 		}
 	}
 	if rows != nil && b.Returning.RegclassOutput && count != 0 {

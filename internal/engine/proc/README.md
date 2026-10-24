@@ -168,6 +168,13 @@ arrayness precedes per-item assignment. Lists unpack composite fields ordinally
 and publish each destination sequentially; repeated roots see earlier writes.
 Whole targets use normal slot conversion; partial values reuse the host's
 semantic-target binder and ancestor publisher. FOREACH never uses FETCH staging.
+Static capture instructions retain only ordinary query syntax, resolved ordered
+targets and STRICT. Scalar/field lists add one diagnostic-only ROW after target
+lexing, including singleton lists; whole RECORD/named rows add none. Validation
+reconstructs lexical query/target accounting, source boundaries and target
+legality; a suffix INTO has no post-target SQL span to visit. Nonempty spans
+still use the strict bounded-token visitor. No capture evaluator or runtime
+shape is persisted.
 Checked ordered branches cache syntax queries, never bound
 evaluators. Simple CASE search slots are separate invocation-private Value/Usage
 pairs, not declarations, formals or persisted type dependencies. Their canonical
@@ -271,6 +278,10 @@ already formatted; the walk calls `PLRows.Close` exactly once with its primary
 error and publishes FOUND only if that returns nil. `Cursor` and `Message` run
 cursor statements and RAISE/ASSERT.
 
+`Capture` owns reached static SQL and publishes FOUND before cardinality and
+target conversion. Lists publish sequentially from one captured source row;
+whole rows use `AssignRow`, with producer-shaped NULL fields for no rows.
+
 RETURN/EXIT/CONTINUE use compact non-error flow, so successful protected
 transfers release checkpoints rather than invoking handlers. Blocks and loops
 consume only their own transfers. Loop iteration checks `Host.Context()` even for
@@ -292,6 +303,7 @@ SQL bodies, review) and [reference/operators](../../../reference/operators/READM
 PL cursor units use `RUN='^TestPLpgSQLCursor'`; public scenarios live in
 [reference/cursors](../../../reference/cursors/README.md#testing).
 Static query-loop validation units use `RUN='^TestPLpgSQLQueryLoopValidation$'`.
+Static capture compiler/validation units use `RUN='^TestPLpgSQLSelectIntoValidation$'`.
 Runtime diagnostic units use `RUN='^TestPL(FormatError|AssignmentErrorPhase|CaseExpressionError|pgSQLCursorCurrentDiagnostic)'`.
 Message/assertion compilation and validation use `RUN='^TestPLpgSQL(Raise|Assert)'`.
 Statement-walk units over a fake host use `RUN='^TestPLRun'`.

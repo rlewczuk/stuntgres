@@ -63,6 +63,7 @@ type PLHost interface {
 	EndException(c PLCheckpoint, rollback bool, primary error) error
 	// OpenQuery opens a static query-FOR producer; its errors are already formatted.
 	OpenQuery(f *PLFrame, in PLInstruction) (PLRows, error)
+	Capture(r *PLRun, f *PLFrame, in PLInstruction) error
 	// Cursor runs a cursor instruction. Cursor-FOR re-enters r.Block.
 	Cursor(r *PLRun, f *PLFrame, in PLInstruction) (sqltype.Value, PLFlow, error)
 	// Message runs RAISE or ASSERT.

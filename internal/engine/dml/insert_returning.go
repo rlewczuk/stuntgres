@@ -63,7 +63,7 @@ func projectInsertReturning(h Host, row, old []sqltype.Value, c *exec.Context) e
 		output.Rows.Values = append(output.Rows.Values, value)
 	}
 	output.Rows.Count++
-	return nil
+	return h.Command().CapturedRow()
 }
 func finishInsertReturning(h Host) (Outcome, error) {
 	output := h.Command().InsertReturning

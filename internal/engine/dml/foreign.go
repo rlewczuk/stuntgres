@@ -174,7 +174,7 @@ func foreignInsertResult(h Host, m *fdw.Modification, b analyze.Binding, rows []
 		if err := CheckViewRow(h, &b, row, evaluation); err != nil {
 			return err
 		}
-		return ProjectForeignReturning(b, output, row, nil, evaluation)
+		return ProjectForeignReturning(h, b, output, row, nil, evaluation)
 	})
 	if err != nil {
 		if output != nil {
@@ -395,7 +395,7 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 					return Outcome{}, err
 				}
 			}
-			if err := ProjectForeignReturning(b, output, actual, candidate.Row, evaluation); err != nil {
+			if err := ProjectForeignReturning(h, b, output, actual, candidate.Row, evaluation); err != nil {
 				return Outcome{}, err
 			}
 			count++

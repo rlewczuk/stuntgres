@@ -395,6 +395,9 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 				output.Values = append(output.Values, value)
 			}
 			output.Count++
+			if err := h.Command().CapturedRow(); err != nil {
+				return Outcome{}, err
+			}
 		}
 		count++
 		if b.Update.From != nil {

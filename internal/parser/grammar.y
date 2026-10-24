@@ -242,6 +242,7 @@ package parser
 %token <tok> INSERT_SCALAR_VALUES
 %token <tok> TYPE_INPUT
 %token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN PL_EXCEPTION PL_RAISE PL_SQLSTATE PL_ELSIF
+%token <tok> PL_TARGETS_ENTRY
 %token <tok> PL_THEN PL_WHEN PL_WHEN_COMMA
 %token <tok> PL_ASSERT PL_RAISE_LEVEL PL_MESSAGE_COMMA PL_RAISE_USING
 %token <tok> TRIGGER
@@ -541,6 +542,7 @@ package parser
 %type <expr> pl_foreach_target
 %type <tok> pl_foreach_array
 %type <stmt> pl_query_loop_statement
+%type <stmt> pl_capture_statement
 %type <tok> pl_cursor_for pl_cursor_from
 %type <row> pl_cursor_targets
 %type <plExpressions> pl_using pl_using_values
@@ -900,7 +902,8 @@ package parser
 %%
 script: separators optional_statements
  | TYPE_INPUT standalone_type { sqllex.(*lexer).typeInputResult = standaloneType($2) }
- | PL_ENTRY pl_block pl_final_semicolon { sqllex.(*lexer).plResult = $2 } ;
+ | PL_ENTRY pl_block pl_final_semicolon { sqllex.(*lexer).plResult = $2 }
+ | PL_TARGETS_ENTRY pl_cursor_targets { sqllex.(*lexer).plTargetsResult = $2 } ;
 standalone_type: type { $$=$1 }
  | standalone_type '.' col_label { $$=appendStandalonePart($1,$3) }
  | standalone_type '(' { if len($1.Parts)<3 {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).characterGeneric=true;sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).multipleModifiers=true;sqllex.(*lexer).bitModifier=true } generic_modifiers ')' { $$=$1;$$.Modifiers=$4.Modifiers }
@@ -1732,12 +1735,14 @@ pl_default: /* empty */ {$$=PLExpression{}} | DEFAULT pl_expression {$$=sqllex.(
 pl_statements: /* empty */ {$$=nil}
  | pl_statements pl_statement ';' {$$=append($1,$2)} ;
 pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
+ | pl_capture_statement {l:=sqllex.(*lexer);raw:=l.plCapture;if raw==nil {l.failAt("42601","INTO used with a command that cannot return data",l.current.pos.Offset);return 1};raw.Query=$1;l.plCapture=nil;l.plExpression=false;$$=PLStatement{Into:raw,Pos:raw.Start}}
  | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}}
  | PL_RAISE pl_raise_body {$$=PLStatement{Raise:$2,Pos:$1.pos}}
  | PL_RAISE PL_RAISE_LEVEL pl_raise_body {$3.Level=plRaiseLevel($2);$$=PLStatement{Raise:$3,Pos:$1.pos}}
  | pl_assert_head pl_expression pl_assert_message {$$=PLStatement{Assert:&PLAssert{Condition:sqllex.(*lexer).plBoundExpression($2,$1),Message:$3},Pos:$1.pos}}
  | pl_target PL_ASSIGN pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
  | pl_target '=' pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
+ | pl_target {sqllex.(*lexer).plBareTarget($1);return 1}
  | PL_RETURN pl_return_value {value:=sqllex.(*lexer).plBoundExpression($2,$1);$$=PLStatement{Return:true,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
  | pl_if_head pl_if_condition pl_statements pl_elsif_arms pl_else END IF {condition:=sqllex.(*lexer).plBoundExpression($2,$1);arms:=append([]PLArm{{Conditions:[]PLExpression{condition},Statements:$3}},$4...);$$=PLStatement{If:&PLConditional{Arms:arms,HasElse:$5.HasElse,Else:$5.Else},Pos:$1.pos}}
  | PL_OPEN pl_target pl_open_tail {$3.Action=PLOpenCursor;$3.Variable=$2;$$=PLStatement{Cursor:$3,Pos:$1.pos}}
@@ -1814,6 +1819,7 @@ pl_cursor_for: FOR | IS ;
 pl_cursor_query: pl_expression_start query_select {l:=sqllex.(*lexer);l.plExpression=false;$$=plCursorQuery{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
 pl_query_loop_source: pl_query_loop_start pl_query_loop_statement {l:=sqllex.(*lexer);l.plExpression=false;$$=&PLQueryLoop{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
 pl_query_loop_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | merge {$$=$1} | with_mutation {$$=$1} ;
+pl_capture_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | with_rule_mutation {$$=$1} ;
 pl_query_loop_start: /* empty */ {sqllex.(*lexer).plBeginExpression(plLoopBoundary)} ;
 pl_foreach_slice: /* empty */ {$$=&PLForeach{}}
  | PL_SLICE NUMBER {$$=sqllex.(*lexer).plForeachSlice($1,$2);if sqllex.(*lexer).err!=nil{return 1}} ;

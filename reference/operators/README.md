@@ -200,3 +200,18 @@ make check RUN='^TestReferencePLpgSQLAssignment(Coercion|Targets|Bounds|Diagnost
 make check RUN='^TestReferencePLpgSQLAssignment(Coercion|Targets|Bounds|Diagnostics|Order|Lifecycle|Cardinality)$' REFERENCE=1
 make check RUN='^TestPLpgSQL(Assignment(Atomicity|TargetValidation|TargetUsage|BoundsOrder|PlanningOrigin|Parser)|RowAssignment|CompositeAssignmentAtomicity)$' RACE=1
 ```
+
+### PL/pgSQL static capture
+
+Static SELECT/DML RETURNING INTO scenarios reuse `plpgsqlScenario` and the
+shared PL value/complete-diagnostic helpers. They cover STRICT cardinality,
+ordinal RECORD/row/list movement, shaped empty records, FOUND publication,
+sequential partial assignment, protected mutation rollback and retained handles
+through two native replacement rounds. Demand witnesses distinguish one-row
+SELECT from second-row STRICT/DML detection, including projection-error
+precedence, no third mutation proposal and nested command isolation.
+
+Family selector: `RUN='^TestReferencePLpgSQLSelectInto'`;
+add `REFERENCE=1` for the pinned oracle. Supplemental parser, checked-program
+and producer units use `RUN='^TestPLpgSQLSelectInto(Parser|Validation|Runtime)$'`.
+

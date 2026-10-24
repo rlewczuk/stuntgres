@@ -47,13 +47,14 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   driver), the foreign scan stage (`foreign_*.go`) and the `pg_sequences` stage.
 - **Private row owners** (`nested_query_rows.go`, `cte_owned_rows.go`,
   `fts_rewrite_rules.go`). `OpenNestedQueryRows` is the all-row producer that
-  PL/pgSQL static query loops and `ts_rewrite` SQL borrow. It reads the live
-  host's environments for its whole lifetime, owns its source from the call on,
-  and keeps open errors distinct from row-demand errors. Pure SELECT CTE
-  resources transfer to `CTEOwnedRows`: its `Close` closes the main stage before
-  its CTE chain and captured sources, which FOUND publication after producer
-  cleanup relies on. Borrowed CTE scope pointers restore independently of
-  retained resource ownership. `ConsumeRewriteRules` reads rule rows in fetches
+  PL/pgSQL static query loops, bounded static SELECT capture and `ts_rewrite` SQL
+  borrow. It reads the live host's environments for its whole lifetime, owns its
+  source from the call on, and keeps open errors distinct from row-demand errors.
+  Streaming SELECT CTE resources transfer to `CTEOwnedRows`, including completed
+  writable auxiliaries under static capture: its `Close` closes the main stage
+  before its CTE chain and captured sources, which FOUND publication after
+  producer cleanup relies on. Borrowed CTE scope pointers restore independently
+  of retained resource ownership. `ConsumeRewriteRules` reads rule rows in fetches
   of at most 100 into `sqltype.FTSRewriteRules` and closes the cursor;
   `RewriteSQLDiagnostic` maps SPI prepare/open errors, never FETCH errors.
   Statement preparation and dispatch re-entry stay in the engine.

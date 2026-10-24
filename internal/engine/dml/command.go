@@ -31,6 +31,23 @@ type Command struct {
 	RLS            view.RowSecurity
 	BeforeCaptures map[BeforeKey]BeforeCapture
 	BeforeTargets  []BeforeTargets
+	// Capture belongs only to this static PL command, never nested mutations.
+	Capture *CaptureCardinality
+}
+
+// CaptureCardinality signals only after a successful second projection.
+type CaptureCardinality struct{ Count int }
+
+func (*CaptureCardinality) Error() string { return "query returned more than one row" }
+func (c *Command) CapturedRow() error {
+	if c.Capture == nil {
+		return nil
+	}
+	c.Capture.Count++
+	if c.Capture.Count == 2 {
+		return c.Capture
+	}
+	return nil
 }
 
 // Indexes holds the unique and exclusion write bindings (index).

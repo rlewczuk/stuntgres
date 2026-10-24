@@ -111,6 +111,10 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	e.mu.Unlock()
 	scope.routineAuth = auth
 	original := scope.ruleScratch()
+	captureOwner := program.Returning
+	if captureOwner < 0 {
+		captureOwner = program.Count
+	}
 	originalMutation := scope.activeMutation
 	originalWrites, originalDeletes := scope.ownWrites, scope.ownDeletes
 	originalView := scope.view
@@ -142,6 +146,11 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		physical := view.PhysicalBinding(command.Binding)
 		commandAuth := ruleAuthorizationOf(command.Auth)
 		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.Syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: view.ViewWriteOf(command.Binding.ViewWrite), sources: command.Binding.QuerySources, ruleAction: ruleActionScope{auth: &commandAuth}})
+		// Preparation saves this command's scratch for execution. Only the
+		// designated result provider inherits the original capture policy.
+		if i == captureOwner {
+			scope.Command.Capture = original.mutation.Command.Capture
+		}
 		captures := &exec.QuoteCaptureCandidate{}
 		if command.Binding.Parameters.Count == 0 {
 			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
