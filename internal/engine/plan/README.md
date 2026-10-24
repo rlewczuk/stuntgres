@@ -54,10 +54,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   Its closed native declaration invokes typed range/member construction directly;
   explicit VARIADIC retains the genuine associated range-array formal.
 - **Installed extension nodes** (`expression_installed.go`,
-  `expression_cube.go`, `expression_cube_spatial.go`, `expression_earth_coordinate.go`, `expression_extension_paths.go`):
+  `expression_cube.go`, `expression_cube_spatial.go`, `expression_earth_coordinate.go`, `expression_earth_point.go`, `expression_extension_paths.go`):
   `InstalledTextExpr` (unaccent, `daitch_mokotoff`), `InstalledCryptoExpr`,
   `InstalledUUIDOsspExpr`, `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
-  `InstalledCubeExpr`, `InstalledCubeSpatialExpr`, `InstalledEarthExpr`, `InstalledPgrowlocksExpr` and
+  `InstalledCubeExpr`, `InstalledCubeSpatialExpr`, `InstalledEarthExpr`, `InstalledEarthPointExpr`, `InstalledPgrowlocksExpr` and
   `InstalledSoundexExpr` wrap a `functions` kernel with the captured
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity
@@ -111,10 +111,11 @@ evaluation needs beyond it. `*exec.Context` is its only implementation.
   `EvalMergeAction`, `EvalCachedOrder`, `EvalWindow`, `EvalDomainValue`,
   `EvalUpdateOutput`, `EvalSubquery`, `EvalSQLRoutine`) holds that node's
   evaluation body in `exec`.
-- `EvalInstalledText` and `EvalInstalledCubeSpatial` run the prologue, validate
-  captured provider authority and evaluate the kernel, including strict NULL
-  calls. `InstalledCubeSpatialExpr` retains Procedure/Ref through reconstruction;
-  stored remap/retag rebuilds its checked plan against the destination type.
+- `EvalInstalledText`, `EvalInstalledCubeSpatial` and `EvalInstalledEarthPoint`
+  run the prologue, validate captured provider authority and evaluate the kernel,
+  including strict NULL calls. Spatial and point wrappers retain Procedure/Ref
+  through reconstruction; stored remap/retag rebuilds their checked plans against
+  destination descriptors.
   `OpenExtensionPaths` reads version pairs from the live catalog. Provider
   checks and catalog reads stay in the engine behind `exec`'s runtime seam.
 

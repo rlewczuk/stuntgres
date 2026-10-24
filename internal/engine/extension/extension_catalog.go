@@ -83,12 +83,24 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 	case *catalog.Operator:
 		proc, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Function})
-		if !ok || CubeProviderOf(proc) != StockCube || proc.Extension != d.Extension {
+		if !ok || proc.Extension != d.Extension {
 			return invalid()
 		}
 		ext = d.Extension
-		if err := StockCube.ValidateProcedure(v, proc); err != nil {
-			return err
+		switch {
+		case CubeProviderOf(proc) == StockCube:
+			if err := StockCube.ValidateProcedure(v, proc); err != nil {
+				return err
+			}
+		case EarthdistanceProviderOf(proc) == StockEarthdistance:
+			if v.Get(d.Address()) != d {
+				return invalid()
+			}
+			if err := StockEarthdistance.ValidateProcedure(v, proc); err != nil {
+				return err
+			}
+		default:
+			return invalid()
 		}
 	case *catalog.TSTemplate:
 		if d.Name() != "unaccent" || UnaccentTemplateProviderOf(d) != StockUnaccent {

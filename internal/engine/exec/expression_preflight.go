@@ -118,6 +118,8 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		return e, false, nil
 	case plan.InstalledCubeExpr:
 		return preflightComposite(c, e, decisiveDefaults)
+	case plan.InstalledEarthPointExpr:
+		return preflightComposite(c, e, decisiveDefaults)
 	case plan.InstalledEarthExpr:
 		// Its protocol rebuild retains procedure authority while the shared
 		// preflight materializes child coercions and applies constant folding.

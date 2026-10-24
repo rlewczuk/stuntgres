@@ -355,6 +355,14 @@ func ValidateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		return args(n.Args)
 	case plan.InstalledCryptoExpr:
 		return args(n.Args)
+	case plan.InstalledEarthPointExpr:
+		if !stored.ReferenceEpochValid(view, d, n.Ref) {
+			return fmt.Errorf("stuntgres: invalid generated earth point reference")
+		}
+		if err := stored.ValidateInstalledEarthPoint(n, view); err != nil {
+			return err
+		}
+		return args(n.Args[:])
 	case plan.InstalledCubeSpatialExpr:
 		if !stored.ReferenceEpochValid(view, d, n.Ref) {
 			return fmt.Errorf("stuntgres: invalid generated cube spatial reference")

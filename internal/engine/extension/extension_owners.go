@@ -80,8 +80,8 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			}
 			principal = d.Owner
 		case *catalog.Operator:
-			name, signature, known := cubeOwnerOperatorIdentity(slot)
-			if ext.Name() != "cube" || !known || d.Name() != name || d.Extension != ext.Address() {
+			name, signature, known := ownerOperatorIdentity(ext.Name(), slot)
+			if !known || d.Name() != name || d.Extension != ext.Address() {
 				return "", fmt.Errorf("stuntgres: invalid extension operator owner")
 			}
 			member = MemberOwner{Kind: "operator", Name: d.Name(), Signature: signature}
@@ -268,8 +268,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "operator":
-			name, signature, valid := cubeOwnerOperatorIdentity(member.Slot)
-			if record.Name != "cube" || !valid || member.Name != name || member.Signature != signature {
+			name, signature, valid := ownerOperatorIdentity(record.Name, member.Slot)
+			if !valid || member.Name != name || member.Signature != signature {
 				return invalid()
 			}
 		case "operator_class", "operator_family":
@@ -303,10 +303,12 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 	switch name {
 	case "earthdistance":
-		if version != "1.2" || slot < 2 || slot >= EarthMemberCount {
+		if version != "1.2" || slot < 2 || slot >= EarthPointOperatorSlot {
 			return "", false
 		}
 		switch slot {
+		case EarthPointProcedureSlot:
+			return "600,600", true
 		case 2:
 			return "", true
 		case 5:
@@ -378,6 +380,18 @@ func cubeOwnerOperatorIdentity(slot int) (string, string, bool) {
 	}
 	if slot >= cubeSpatialOperatorStart && slot < CubeMemberCount {
 		return cubeSpatialMembers[slot-cubeSpatialOperatorStart].operator, "cube,cube", true
+	}
+	return "", "", false
+}
+
+func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
+	switch extension {
+	case "cube":
+		return cubeOwnerOperatorIdentity(slot)
+	case "earthdistance":
+		if slot == EarthPointOperatorSlot {
+			return "<@>", "600,600", true
+		}
 	}
 	return "", "", false
 }

@@ -12,6 +12,9 @@ import (
 var earthCoordinateNames = [...]string{"earth", "sec_to_gc", "gc_to_sec", "ll_to_earth", "latitude", "longitude"}
 
 func EarthFunctionName(name string) bool {
+	if name == "geo_distance" {
+		return true
+	}
 	for _, candidate := range earthCoordinateNames {
 		if name == candidate {
 			return true

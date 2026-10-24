@@ -211,6 +211,13 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledEarthExpr{EarthCoordinate: c, Procedure: p, Ref: ref}, nil
+	case functions.EarthPoint:
+		if extension.EarthdistanceProviderOf(p) != extension.StockEarthdistance {
+			break
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledEarthPointExpr{EarthPoint: c, Procedure: p, Ref: ref}, nil
 	case functions.UUIDGeneration:
 		if extension.UUIDOsspProviderOf(p) != extension.StockUUIDOssp {
 			break

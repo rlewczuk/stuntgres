@@ -105,6 +105,7 @@ var definitions = [...]Definition{
 	{Names: fuzzystrmatchNames[:], Bind: bindFuzzystrmatch},
 	{Names: []string{"cube", "cube_dim", "cube_is_point", "cube_ll_coord", "cube_ur_coord", "cube_coord", "cube_coord_llur"}, Bind: bindCube},
 	{Names: earthCoordinateNames[:], Bind: bindEarthCoordinate},
+	{Names: []string{"geo_distance"}, Bind: bindEarthPoint},
 	{Names: []string{"unaccent", "daitch_mokotoff"}, Bind: bindInstalledText},
 	{Names: []string{"acldefault", "makeaclitem", "aclexplode"}, Bind: bindACLValue, NamedCall: namedACLValue},
 	{Names: []string{"pg_get_acl"}, Bind: bindObjectACL, NamedCall: namedObjectACL},

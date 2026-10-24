@@ -639,6 +639,9 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return children(r.Args, []expr.Expr{n.Arg})
 		}
+		if n, ok := bound.(plan.InstalledEarthPointExpr); ok {
+			return children(r.Args, n.Args[:])
+		}
 		if n, ok := bound.(plan.InstalledEarthExpr); ok {
 			return children(r.Args, n.Args)
 		}

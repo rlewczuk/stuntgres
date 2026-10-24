@@ -18,10 +18,14 @@ func earthIdentityChecks(t *testing.T, p *fixture.Pair, b fixture.Backend, c fix
 	run(fixture.Select("SELECT e.typarray=a.oid AND a.typelem=e.oid AS companion FROM pg_type e JOIN pg_type a ON a.oid=e.typarray WHERE e.oid='earth'::regtype::oid AND a.oid='earth[]'::regtype::oid", []string{"companion"}, []string{"BOOL"}, [][]any{{true}}))
 	run(fixture.Select("SELECT conname,contype,convalidated,contypid='earth'::regtype AS actual,oid<>0 AS identity FROM pg_constraint WHERE contypid='earth'::regtype ORDER BY conname", []string{"conname", "contype", "convalidated", "actual", "identity"}, []string{"NAME", "CHAR", "BOOL", "BOOL", "BOOL"}, [][]any{{"not_3d", "c", true, true, true}, {"not_point", "c", true, true, true}, {"on_surface", "c", true, true, true}}))
 	run(fixture.Select("SELECT t.typname FROM pg_depend d JOIN pg_type t ON t.oid=d.objid WHERE d.classid='pg_type'::regclass::oid AND d.refclassid='pg_extension'::regclass::oid AND d.deptype='e' AND d.refobjid=(SELECT oid FROM pg_extension WHERE extname='earthdistance') ORDER BY t.typname", []string{"typname"}, []string{"NAME"}, [][]any{{"_earth"}, {"earth"}}))
+	// Selected named members, not the complete PostgreSQL extension inventory.
+	run(fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('earth','cube_dim','cube_is_point','cube_distance','ll_to_earth','geo_distance','latitude','longitude','sec_to_gc','gc_to_sec') ORDER BY proname", []string{"proname"}, []string{"NAME"}, [][]any{{"cube_dim"}, {"cube_distance"}, {"cube_is_point"}, {"earth"}, {"gc_to_sec"}, {"geo_distance"}, {"latitude"}, {"ll_to_earth"}, {"longitude"}, {"sec_to_gc"}}))
+	for _, s := range earthPointCatalogChecks("public", "geo_distance", "") {
+		run(s)
+	}
 	if !b.PG {
-		// Selected coordinate routines join the installed cube inquiries;
-		// adjacent earth_distance remains outside this inventory.
-		run(fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('earth','cube_dim','cube_is_point','cube_distance','ll_to_earth','earth_distance','latitude','longitude','sec_to_gc','gc_to_sec') ORDER BY proname", []string{"proname"}, []string{"NAME"}, [][]any{{"cube_dim"}, {"cube_distance"}, {"cube_is_point"}, {"earth"}, {"gc_to_sec"}, {"latitude"}, {"ll_to_earth"}, {"longitude"}, {"sec_to_gc"}}))
+		// Adjacent cube-based distance/box routines are not installed natively.
+		run(fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('earth_distance','earth_box') ORDER BY proname", []string{"proname"}, []string{"NAME"}, [][]any{}))
 		run(fixture.Select("SELECT typsend::oid=0 AS text_only FROM pg_type WHERE oid='cube'::regtype", []string{"text_only"}, []string{"BOOL"}, [][]any{{true}}))
 	}
 }

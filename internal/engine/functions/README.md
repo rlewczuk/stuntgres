@@ -326,6 +326,10 @@ publication and lock-manager tickets stay in the engine.
   and coercion errors keep their own origin. Successful calls perform no
   diagnostic-name lookup. `InstalledEarthExpr` retains callable authority
   through reconstruction and catalog replacement.
+  `EarthPoint` separately owns two POINT operands and a checked mile-distance
+  plan, without domain/cube generations or SQL-body error wrapping.
+  `InstalledEarthPointExpr` retains its selected procedure through the same
+  reconstruction and lifecycle seams; no callable exists without installation.
 - **unaccent**: `unaccent.rules` (PostgreSQL REL_18_0) is embedded and compiled
   once into `StockUnaccent`, used by `extension.UnaccentProvider`.
 - **dmetaphone licence**: Single Metaphone retains its complete release

@@ -100,6 +100,16 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 					signature = "ean13"
 				}
 			case *catalog.Operator:
+				if record.Name == "earthdistance" {
+					if member.Slot != EarthPointOperatorSlot || selected.Address() != ext.Members[EarthPointOperatorSlot] {
+						return false, fmt.Errorf("stuntgres: invalid earth operator ownership slot")
+					}
+					if err := StockEarthdistance.validatePoint(candidateView, ext); err != nil {
+						return false, err
+					}
+					kind, signature = "operator", "600,600"
+					break
+				}
 				expectedName, portableSignature, valid := cubeOwnerOperatorIdentity(member.Slot)
 				if record.Name != "cube" || !valid {
 					return false, fmt.Errorf("stuntgres: invalid extension operator owner")

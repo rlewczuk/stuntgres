@@ -118,7 +118,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		name, signature, result, strict, kind = m.Name, m.Signature, m.Result, m.Strict, m.Kind
 	case StockEarthdistance:
 		count = EarthMemberCount
-		if ext.Version != "1.2" || slot < 2 || slot >= count {
+		if ext.Version != "1.2" || slot < 2 || slot >= EarthPointOperatorSlot {
 			return invalid()
 		}
 		base, ok := v.Type(ext.Members[0])
@@ -128,8 +128,12 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
 			return invalid()
 		}
-		op := sqltype.EarthOperation(slot - 2)
-		name, signature, result, strict = op.Name(), earthRoutineSignature(op, base.SQLType.ID()), earthRoutineResult(op, base.SQLType.ID()), op != sqltype.EarthRadiusOperation
+		if slot == EarthPointProcedureSlot {
+			name, signature, result = "geo_distance", "600,600", ids.OID(sqltype.Float8)
+		} else {
+			op := sqltype.EarthOperation(slot - 2)
+			name, signature, result, strict = op.Name(), earthRoutineSignature(op, base.SQLType.ID()), earthRoutineResult(op, base.SQLType.ID()), op != sqltype.EarthRadiusOperation
+		}
 	case StockCube:
 		count = CubeMemberCount
 		if ext.Version != StockCube.control.Version || slot < 1 || slot >= cubeSpatialOperatorStart {

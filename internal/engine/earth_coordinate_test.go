@@ -22,10 +22,7 @@ import (
 func TestEarthCoordinateProvider(t *testing.T) {
 	e, ext, earth := earthUnitInstalled(t)
 	view := e.CatalogRead()
-	if len(ext.Members) != 8 {
-		t.Fatal("selected eight-member manifest")
-	}
-	for i, a := range ext.Members[2:] {
+	for i, a := range ext.Members[2:extension.EarthPointProcedureSlot] {
 		proc := view.MustProcedure(a)
 		symbol, err := extension.ProcedureSymbol(view, proc)
 		if err != nil || symbol != sqltype.EarthOperation(i).Name() || proc.Strict != (i != 0) || proc.Volatility != expr.Immutable {
@@ -79,7 +76,7 @@ func TestEarthCoordinateOwners(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(text), "-- "))
-	if err != nil || !found || len(record.Members) != 8 {
+	if err != nil || !found {
 		t.Fatal("owner codec", err)
 	}
 	for slot, signature := range map[int]string{2: "", 3: "701", 4: "701", 5: "701,701", 6: "earth", 7: "earth"} {
@@ -175,7 +172,7 @@ func TestEarthCoordinateExpression(t *testing.T) {
 		return n
 	}
 	mapperProc := extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil)
-	for slot := 2; slot < 8; slot++ {
+	for slot := 2; slot < extension.EarthPointProcedureSlot; slot++ {
 		op := sqltype.EarthOperation(slot - 2)
 		proc := before.MustProcedure(ext.Members[slot])
 		args := make([]expr.Expr, op.Arity())

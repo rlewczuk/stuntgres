@@ -87,6 +87,13 @@ func earthOwnerCodecUnits(t *testing.T) {
 		func(r *extension.OwnerRecord) { r.Members[1].Name = "_earth" },
 		func(r *extension.OwnerRecord) { r.Members[1] = r.Members[0] },
 		func(r *extension.OwnerRecord) { r.Members[1].Owner = "inconsistent" },
+		func(r *extension.OwnerRecord) { r.Members[extension.EarthPointProcedureSlot].Kind = "operator" },
+		func(r *extension.OwnerRecord) { r.Members[extension.EarthPointProcedureSlot].Signature = "earth,earth" },
+		func(r *extension.OwnerRecord) { r.Members[extension.EarthPointOperatorSlot].Kind = "procedure" },
+		func(r *extension.OwnerRecord) { r.Members[extension.EarthPointOperatorSlot].Signature = "cube,cube" },
+		func(r *extension.OwnerRecord) {
+			r.Members[extension.EarthPointOperatorSlot].Slot = extension.EarthPointProcedureSlot
+		},
 	} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)

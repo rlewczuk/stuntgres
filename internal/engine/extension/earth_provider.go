@@ -130,7 +130,7 @@ func (p *EarthdistanceProvider) ValidateExtension(v catalog.Read, ext *catalog.E
 			}
 		}
 	}
-	for slot := 2; slot < EarthMemberCount; slot++ {
+	for slot := 2; slot < EarthPointOperatorSlot; slot++ {
 		proc, ok := v.Procedure(ext.Members[slot])
 		if !ok || proc.Implementation != p {
 			return invalid()
@@ -139,5 +139,5 @@ func (p *EarthdistanceProvider) ValidateExtension(v catalog.Read, ext *catalog.E
 			return err
 		}
 	}
-	return nil
+	return p.validatePoint(v, ext)
 }

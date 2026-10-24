@@ -866,6 +866,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", err
 		}
 		return r.rendering(ctx, n, spec, parent)
+	case plan.InstalledEarthPointExpr:
+		procedure, err := currentEarthPointProcedure(n, r.View)
+		if err != nil {
+			return "", err
+		}
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing earth point function namespace")
+		}
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args[:], true)
 	case plan.InstalledCubeSpatialExpr:
 		procedure, err := currentCubeSpatialProcedure(n, r.View)
 		if err != nil {

@@ -11,8 +11,8 @@ implemented by the root engine.
 Layer L9.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`, `lock`,
 `access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate` and the
-standard library. It imports `extension` only for `ValidateCubeSpatialCall`,
-the installed cube spatial call check. It never imports the engine,
+standard library. Its `extension` imports validate genuine installed cube-spatial
+and earth-point calls before kernel evaluation. It never imports the engine,
 `analyze`, `session` or another feature package (`routine`, ...).
 
 The shared checked routine call/frame contract also admits PL definitions.

@@ -88,6 +88,10 @@ host methods.
   This ordering does not relax provider validation or bootstrap user defaults.
   FLOAT8-only coordinate calls still track their hidden earth generation in
   the existing descriptor-change scans.
+  Earth-point captures instead depend only on builtin POINT/FLOAT8 generations
+  and their installed procedure; the selected operator retains a separate address.
+  Remap/retag rebuilds that kernel against destination descriptors, and rendering
+  validates current manifest links before using qualified presentation names.
   `StoredProviderRoutine` is distinct from SQL-body/owned-aggregate markers and
   reuses the existing `routineRefs` occurrence map and dependency manifest.
   `StoredProviderSymbol` records immutable symbols to reject substituted captures;
@@ -512,4 +516,4 @@ reject, while healthy fresh current manifests remain usable.
 - Catalog projections: `RUN='^TestReference(PGDepend|PGTableViews)'`
 - Stored generated columns: `RUN='^TestReferenceGeneratedStored'`
 - Installed comparison capture and lifecycle: `RUN='^TestCube'`
-- Installed earth captures and generation ordering: `RUN='^TestEarthCoordinate'`
+- Installed earth captures and generation ordering: `RUN='^TestEarth(Coordinate|Point)'`

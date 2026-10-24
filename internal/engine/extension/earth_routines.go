@@ -11,8 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const EarthMemberCount = 8
-
 func earthRoutineSignature(op sqltype.EarthOperation, earth sqltype.ID) catalog.ProcedureSignature {
 	switch op {
 	case sqltype.EarthRadiusOperation:
@@ -50,7 +48,7 @@ func (p *EarthdistanceProvider) stageRoutines(stage Stage, ext *catalog.Extensio
 			return err
 		}
 	}
-	return nil
+	return p.stagePoint(stage, ext, owner)
 }
 func (p *EarthdistanceProvider) ValidateProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if p != StockEarthdistance || EarthdistanceProviderOf(d) != p {
@@ -87,6 +85,10 @@ func validEarthOwnerRoles(record OwnerRecord) bool {
 				return false
 			}
 			types[m.Slot] = m
+		} else if m.Slot == EarthPointOperatorSlot {
+			if m.Kind != "operator" || m.Name != "<@>" || m.Signature != "600,600" {
+				return false
+			}
 		} else {
 			signature, ok := ownerProcedureSignature(record.Name, record.Version, m.Slot)
 			if !ok || m.Kind != "procedure" || m.Signature != signature {

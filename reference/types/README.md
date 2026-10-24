@@ -172,13 +172,19 @@ Rules:
   force remapping and replay the emitted SQL on PostgreSQL. Excluded Restore
   INSERT producers fail with ordinary control errors, not SQL codec diagnostics.
 - `earthIdentityChecks` is shared by Earth Metadata, Controls and
-  PrerequisiteRemoval; rerun all three after changing it. Its function inventory
-  includes `cube_distance` and the six installed earth coordinate/conversion routines.
+  PrerequisiteRemoval; rerun all three after changing it. Its selected inventory
+  includes `cube_distance`, the six earth coordinate/conversion routines and
+  `geo_distance(point,point)` with its operator backing/commutator/membership links.
 - Earth coordinate principal roundtrips reject nonfinite outputs before applying
   their finite tolerance or circular longitude comparison.
   `TestReferenceEarthCoordinateRenamedDiagnostics` checks complete current-name
   body errors and execute stages through direct/fresh/held calls, pre-rename
   stored views/defaults, native Restore and emitted-SQL PostgreSQL replay.
+- Earth-point shared scenarios check raw FLOAT8 statute miles and fixed independent
+  rounded witnesses, complete diagnostics and stored consumers through native
+  controls. Raw precision additionally compares native/oracle direct/fresh/held
+  results within two ULP, with exact NULL/nonfinite categories and zero signs.
+  Reuse the family selector `RUN='^TestReferenceEarthPoint'` in both modes.
 
 Path measurement scenarios cover all eight `isclosed/isopen/pclose/popen(path)`,
 `length(path/lseg)` and `npoints(path/polygon)` signatures. Closing/reopening a

@@ -7,6 +7,11 @@ characters and preserves hard compiler errors separately from recoverable input
 mismatches. Unrecognized temporal-input diagnostics retain decoded characters
 without Go-style escaping.
 
+Installed earthdistance now exposes geo_distance(point,point) and POINT <@> POINT
+for longitude-first great-circle distances in statute miles, including NULL and
+nonfinite inputs, prepared calls, complete installation-collision diagnostics
+and identity-preserving native controls.
+
 Shipped function, aggregate and operator definitions and routine identity changes
 now share SQL BEGIN and Go BeginTx with autocommit and retained messages.
 Private callable programs, overload names, dependencies and rows publish or roll

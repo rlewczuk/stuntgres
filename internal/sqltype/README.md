@@ -211,6 +211,11 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   retains SQL NaN ordering, signed zero and underflow. Projection borrows private
   coordinates; ll construction owns one three-coordinate point allocation and
   checks the result through the ordinary domain input environment before wrapping.
+- `EarthPointPlan` captures only builtin POINT/FLOAT8 descriptor generations and
+  measures longitude-first coordinates in statute miles, independently of the
+  earth domain's meter radius. Inline coordinates require no evaluation allocation
+  or text conversion. Raw haversine arithmetic retains the released operation
+  order, nonfinite propagation and upper clamp; descriptor checks precede NULL.
 - One path walker serves JSONPath, SQL/JSON query plans and `JSONTableRows`.
   Numeric path arithmetic borrows exact decimal operands into private typed
   NUMERIC headers and reuses the numeric kernels; no provider identity escapes
@@ -362,7 +367,7 @@ match engine tests of the same mechanism):
 
 - Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryAlignment|GeometryRelation|GeometryPosition|GeometryConversion|GeometryMeasure|CubeSpatial|EarthCubeChecks|NetworkSubnet)'`
 - Cube constructors, coordinates and spatial kernels: `RUN='^TestCube'`
-- Earth domain and coordinate kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel)$'`
+- Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|PointKernel)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`

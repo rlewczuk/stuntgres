@@ -77,10 +77,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   members, resolving I/O helper names through `ScriptFunctions`; its owner
   metadata serializes the output signature symbolically and resolves it to the
   destination's installed descriptor on import, never copying a source OID.
-  Earthdistance requires installed cube and atomically stages eight members:
-  `earth`, its actual companion, and the six coordinate/conversion routines.
-  `Stage.EarthChecks` attaches the three released domain recipes. Owner metadata
-  records type roles `earth`/`earth[]` and symbolic earth input signatures;
+  Earthdistance requires installed cube and atomically stages the `earth` domain,
+  its actual companion and six coordinate/conversion routines, followed by
+  `geo_distance(point,point)` and its self-commuting `<@>` operator. Incumbent slots
+  stay fixed. Operator admission validates its exact slot, formals, result and
+  backing procedure against the current manifest. `Stage.EarthChecks` attaches the
+  three released domain recipes. Owner metadata records type roles `earth`/`earth[]`,
+  symbolic earth inputs and the fixed `600,600` point signature;
   companion resolution uses the domain's actual Array identity, not `_earth`.
   Routine labels, namespaces and owners can vary independently; domain and
   companion retain matching namespace/owner. Legacy two-member records reject.

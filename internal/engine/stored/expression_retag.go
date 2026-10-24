@@ -370,6 +370,25 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			err = ValidateInstalledCrypto(n, view)
 		}
 		rebound = n
+	case plan.InstalledEarthPointExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if err != nil {
+			return nil, false, err
+		}
+		if !ok || extension.EarthdistanceProviderOf(proc) != extension.StockEarthdistance {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped earth point function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure = proc
+		n.EarthPoint, err = functions.NewEarthPoint(info, n.Args)
+		if err == nil {
+			err = ValidateInstalledEarthPoint(n, view)
+		}
+		rebound = n
 	case plan.InstalledCubeSpatialExpr:
 		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
 		if err != nil {
