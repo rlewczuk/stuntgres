@@ -59,6 +59,12 @@ const (
 	PublicNamespaceOID           OID = 2200
 )
 
+// IsForeignCatalogClass reports whether class is an SQL/MED catalog class:
+// foreign-data wrappers, foreign servers and user mappings.
+func IsForeignCatalogClass(class OID) bool {
+	return class == ForeignWrapperClassID || class == ForeignServerClassID || class == ForeignMappingClassID
+}
+
 type ObjectKind uint8
 
 const (

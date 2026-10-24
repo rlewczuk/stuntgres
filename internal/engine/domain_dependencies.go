@@ -7,15 +7,14 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // PostgreSQL dependency traversal visits a dependent domain's descendants before
@@ -64,7 +63,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	// complete dependent closure before classifying any surviving-owner mutation.
 	// In particular a schema can remove both a provider and an inheritance parent.
 	var retirementRoots []ids.ObjectAddress
-	for address, descriptor := range provider.removalDescriptors() {
+	for address, descriptor := range provider.RemovalDescriptors() {
 		if _, relation := descriptor.(*catalog.Relation); relation && !slices.Contains(roots, address) {
 			retirementRoots = append(retirementRoots, address)
 		}
@@ -104,7 +103,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 		if !slices.Contains(targets, edge.Target) {
 			targets = append(targets, edge.Target)
 		}
-		if fdw.IsCatalogClass(edge.Address.ClassID) || edge.Address.ClassID == ids.AccessMethodClassID || edge.Address.ClassID == ids.CastClassID || edge.Address.ClassID == ids.OperatorClassCatalogID || edge.Address.ClassID == ids.OperatorClassID || edge.Address.ClassID == ids.OperatorFamilyClassID || edge.Address.ClassID == ids.AccessMethodOperatorClassID || edge.Address.ClassID == ids.AccessMethodProcedureClassID || edge.Address.ClassID == ids.TypeClassID || edge.Address.ClassID == ids.ExtensionClassID || edge.Address.ClassID == ids.ProcedureClassID || edge.Address.ClassID == ids.TSTemplateClassID || edge.Address.ClassID == ids.TSDictionaryClassID || edge.Column != "" || edge.Relation != nil && edge.Address == edge.Relation.Address() {
+		if ids.IsForeignCatalogClass(edge.Address.ClassID) || edge.Address.ClassID == ids.AccessMethodClassID || edge.Address.ClassID == ids.CastClassID || edge.Address.ClassID == ids.OperatorClassCatalogID || edge.Address.ClassID == ids.OperatorClassID || edge.Address.ClassID == ids.OperatorFamilyClassID || edge.Address.ClassID == ids.AccessMethodOperatorClassID || edge.Address.ClassID == ids.AccessMethodProcedureClassID || edge.Address.ClassID == ids.TypeClassID || edge.Address.ClassID == ids.ExtensionClassID || edge.Address.ClassID == ids.ProcedureClassID || edge.Address.ClassID == ids.TSTemplateClassID || edge.Address.ClassID == ids.TSDictionaryClassID || edge.Column != "" || edge.Relation != nil && edge.Address == edge.Relation.Address() {
 			targets = append(targets, edge.Address)
 			if edge.Address.ClassID == ids.RelationClassID && edge.Address.SubID == 0 {
 				seen[edge.Address] = true
@@ -256,7 +255,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 		}
 	}
 	for _, target := range targets {
-		if fdw.IsCatalogClass(target.ClassID) || target.ClassID == ids.AccessMethodClassID || target.ClassID == ids.CastClassID || target.ClassID == ids.OperatorClassCatalogID || target.ClassID == ids.OperatorClassID || target.ClassID == ids.OperatorFamilyClassID || target.ClassID == ids.AccessMethodOperatorClassID || target.ClassID == ids.AccessMethodProcedureClassID || target.ClassID == ids.TypeClassID || target.ClassID == ids.CollationClassID || target.ClassID == ids.ConversionClassID || target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ProcedureClassID || target.ClassID == ids.TSTemplateClassID || target.ClassID == ids.TSDictionaryClassID {
+		if ids.IsForeignCatalogClass(target.ClassID) || target.ClassID == ids.AccessMethodClassID || target.ClassID == ids.CastClassID || target.ClassID == ids.OperatorClassCatalogID || target.ClassID == ids.OperatorClassID || target.ClassID == ids.OperatorFamilyClassID || target.ClassID == ids.AccessMethodOperatorClassID || target.ClassID == ids.AccessMethodProcedureClassID || target.ClassID == ids.TypeClassID || target.ClassID == ids.CollationClassID || target.ClassID == ids.ConversionClassID || target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ProcedureClassID || target.ClassID == ids.TSTemplateClassID || target.ClassID == ids.TSDictionaryClassID {
 			if err = provider.Remove(e.catalog.Domain.Ref(provider.base.Epoch(), target)); err != nil {
 				break
 			}
@@ -364,15 +363,7 @@ func (provider *dropProvider) removeDomainCheck(d *catalog.Type, oid ids.OID) er
 	if replacement, ok := provider.Replacement(d.Address()).(*catalog.Type); ok {
 		d = replacement
 	}
-	next := *d
-	next.DomainChecks = make([]catalog.DomainCheckConstraint, 0, len(d.DomainChecks))
-	for _, check := range d.DomainChecks {
-		if check.OID != oid {
-			next.DomainChecks = append(next.DomainChecks, check)
-		}
-	}
-	var err error
-	next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), len(next.DomainChecks) != 0, d.SQLType.OwnDomainNotNull())
+	next, err := typedef.WithoutDomainCheck(d, oid)
 	if err != nil {
 		return err
 	}
@@ -380,5 +371,5 @@ func (provider *dropProvider) removeDomainCheck(d *catalog.Type, oid ids.OID) er
 	if err != nil {
 		return err
 	}
-	return provider.Replace(&next)
+	return provider.Replace(next)
 }

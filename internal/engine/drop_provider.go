@@ -233,7 +233,7 @@ func (p *dropProvider) DescriptorCount() int {
 	return count
 }
 
-func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (p *dropProvider) RemovalDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		if p.stage != nil {
 			for address, removal := range p.stage.Removals() {
@@ -270,11 +270,11 @@ func (p *dropProvider) applyForeignKeyDependents(edges []table.DomainDependency)
 }
 
 func (p *dropProvider) Notice(notice sqlstate.Error) {
-	if p.prepared == nil {
+	if p.prepared != nil {
+		p.prepared.recordEffect(dropEffect{missing: &notice})
+	} else if p.scope != nil {
 		p.scope.op.EmitNotice(session.LevelNotice, notice)
-		return
 	}
-	p.prepared.recordEffect(dropEffect{missing: &notice})
 }
 
 func (p *dropProvider) cascadeNotice(notice string) {
@@ -441,7 +441,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 }
 
 func (p *dropProvider) lockInheritanceClosure(roots []ids.ObjectAddress) error {
-	catalog, err := admitInheritanceDropClosure(p.scope, p.base, roots, p.removalDescriptors())
+	catalog, err := admitInheritanceDropClosure(p.scope, p.base, roots, p.RemovalDescriptors())
 	if err != nil {
 		return err
 	}

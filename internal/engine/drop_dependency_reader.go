@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 )
 
@@ -40,6 +41,12 @@ func (p *dropProvider) DefinitionInput() catalog.DefinitionReader {
 	return nil
 }
 func (p *dropProvider) StatementBound() bool { return p.scope != nil }
+
+// TypedFieldCheckOwner reports whether the stage's admitted typed closure owns
+// relation's inherited CHECKs; a prepared or bare drop owns none.
+func (p *dropProvider) TypedFieldCheckOwner(relation *catalog.Relation) bool {
+	return p.stage != nil && typedef.TypedFieldCheckOwner(p.stage.typed, p.stage.Base, relation)
+}
 func (p *dropProvider) RecursingInheritance() bool {
 	return p.scope != nil && p.scope.inheritance.alter != nil
 }

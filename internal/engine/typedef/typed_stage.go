@@ -26,3 +26,25 @@ func (t *TypedStage) ObservedTables() map[ids.ObjectAddress]catalog.Descriptor {
 	}
 	return t.Observed
 }
+
+// TypedFieldCheckOwner reports whether relation is a typed table of typed's
+// source type, or inherits from one, among the tables typed admitted: only
+// that propagation closure may prune inherited CHECKs when a composite field
+// is dropped. Parents are read from base.
+func TypedFieldCheckOwner(typed *TypedStage, base catalog.Read, relation *catalog.Relation) bool {
+	if typed.SourceType() == (ids.ObjectAddress{}) || typed.ObservedTables()[relation.Address()] == nil {
+		return false
+	}
+	if relation.OfType == typed.SourceType() {
+		return true
+	}
+	if relation.Inheritance != nil {
+		for _, edge := range relation.Inheritance.Parents {
+			parent, ok := base.Relation(edge.Relation)
+			if ok && TypedFieldCheckOwner(typed, base, parent) {
+				return true
+			}
+		}
+	}
+	return false
+}

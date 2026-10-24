@@ -92,10 +92,6 @@ func RunValidations(ctx context.Context, jobs []Validation) error {
 	return ctx.Err()
 }
 
-func IsCatalogClass(class ids.OID) bool {
-	return class == ids.ForeignWrapperClassID || class == ids.ForeignServerClassID || class == ids.ForeignMappingClassID
-}
-
 func MappingDiagnostic(view access.View, role authorization.PrincipalRef, server *catalog.ForeignObject, exists bool) string {
 	name := "public"
 	if role != (authorization.PrincipalRef{}) {

@@ -80,7 +80,7 @@ func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relatio
 		if len(kept) == len(relation.Constraints.Check) || mode != parser.DropCascade {
 			continue
 		}
-		if provider.stage == nil || !typedFieldCheckOwner(provider.stage, relation) {
+		if !provider.TypedFieldCheckOwner(relation) {
 			if err := provider.InheritanceAlterGuard(relation); err != nil {
 				return err
 			}
@@ -147,24 +147,4 @@ func (provider *dropProvider) compositeFieldNotice(message string) {
 	} else if provider.scope != nil {
 		provider.scope.op.EmitNotice(session.LevelNotice, notice)
 	}
-}
-
-// Only the already admitted typed propagation closure may prune inherited CHECKs.
-func typedFieldCheckOwner(stage *CatalogStage, relation *catalog.Relation) bool {
-	if stage.typed.SourceType() == (ids.ObjectAddress{}) || stage.typed.ObservedTables()[relation.Address()] == nil {
-		return false
-	}
-	if relation.OfType == stage.typed.SourceType() {
-		return true
-	}
-	if relation.Inheritance != nil {
-		for _, edge := range relation.Inheritance.Parents {
-			address := edge.Relation
-			parent, ok := stage.Base.Relation(address)
-			if ok && typedFieldCheckOwner(stage, parent) {
-				return true
-			}
-		}
-	}
-	return false
 }

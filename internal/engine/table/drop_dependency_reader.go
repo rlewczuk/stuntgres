@@ -24,6 +24,11 @@ type DropDependencyReader interface {
 	Context() context.Context
 	BaseRead() catalog.Read
 	InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	// Descriptors enumerates the base and the pass's new descriptors.
+	Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	// RemovalDescriptors enumerates what the drop already removed, with the
+	// removed descriptors.
+	RemovalDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
 	Descriptor(ids.ObjectAddress) catalog.Descriptor
 	Replacement(ids.ObjectAddress) catalog.Descriptor
 	Removed(ids.ObjectAddress) bool
@@ -38,6 +43,9 @@ type DropDependencyReader interface {
 	// RecursingInheritance reports whether the statement is an inheritance
 	// ALTER TABLE recursion.
 	RecursingInheritance() bool
+	// TypedFieldCheckOwner reports whether the admitted typed-table closure
+	// of an ALTER TYPE owns relation's inherited CHECKs.
+	TypedFieldCheckOwner(*catalog.Relation) bool
 	DependencyClosure(targets []ids.ObjectAddress) ([]DomainDependency, error)
 	Acquire(ref ids.ObjectRef, reserveReplacement bool) error
 	ApplyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...DomainDependency) error

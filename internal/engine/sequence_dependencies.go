@@ -23,7 +23,7 @@ func (provider *dropProvider) OwnedExpressionDependencies(targets []ids.ObjectAd
 	extended := false
 	// Include removed hierarchy owners, not unrelated removals staged by an
 	// earlier pass. Ordinary column projection retains its existing ordering.
-	for address, descriptor := range provider.removalDescriptors() {
+	for address, descriptor := range provider.RemovalDescriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok || relation.RelationKind != catalog.TableRelation || !catalog.InheritanceParticipant(provider.base, relation) {
 			continue
