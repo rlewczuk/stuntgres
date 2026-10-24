@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
@@ -20,7 +22,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 type partitionConstraintUnit struct {
@@ -386,7 +387,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 		next := catalog.CloneState(source.catalog.State)
 		relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
 		e.mu.Lock()
-		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalogOIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
+		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -509,7 +510,7 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	next := catalog.CloneState(f.view.State())
 	relations := map[ids.ObjectAddress]*storage.Relation{f.leaf.Address(): {}}
 	destination.mu.Lock()
-	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(f.e, destination), &catalogOIDReservation{Base: destination.catalog.NextOID(), Next: destination.catalog.NextOID()})
+	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(f.e, destination), &catalog.OIDReservation{Base: destination.catalog.NextOID(), Next: destination.catalog.NextOID()})
 	destination.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

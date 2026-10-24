@@ -3,8 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -12,7 +13,6 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Fixture identities use the real allocator: bootstrap definitions can occupy
@@ -161,43 +161,9 @@ type testProvider struct{ id ids.OID }
 func (p testProvider) ClassID() ids.OID                              { return p.id }
 func (testProvider) Validate(catalog.Read, catalog.Descriptor) error { return nil }
 
-func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
+// Allocator units are in catalog/store_test.go.
+func TestCatalogProviderBoundaries(t *testing.T) {
 	e := New()
-	e.catalog.InstallOIDFrontierLocked(ids.PGCatalogNamespaceOID)
-	if n, err := e.catalog.AllocateOIDLocked(); err != nil || n != ids.PGCatalogNamespaceOID+1 {
-		t.Fatalf("reserved OID skip: %d %v", n, err)
-	}
-	for _, class := range []ids.OID{ids.NamespaceClassID, ids.RelationClassID} {
-		t.Run(fmt.Sprint(class), func(t *testing.T) {
-			e := New()
-			last := ^ids.OID(0)
-			address := ids.ObjectAddress{ClassID: class, ObjectID: last}
-			// Exercise terminal occupancy through the allocator's actual catalog
-			// seam; exhaustion must not wrap, reuse or publish anything.
-			e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-			if class == ids.NamespaceClassID {
-				e.catalog.State.SetDescriptor(address, &catalog.Namespace{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
-			} else {
-				e.catalog.State.SetDescriptor(address, &catalog.Relation{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}})
-			}
-			before := e.catalog.State
-			e.catalog.InstallOIDFrontierLocked(last)
-			if _, err := e.catalog.AllocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" || e.catalog.NextOID() != 0 || e.catalog.State != before {
-				t.Fatal("occupied terminal OID did not exhaust without publication", err)
-			}
-			if _, err := e.catalog.AllocateOIDLocked(); err == nil || e.catalog.NextOID() != 0 || e.catalog.State != before {
-				t.Fatal("exhausted allocator reused identity", err)
-			}
-		})
-	}
-	e.catalog.InstallOIDFrontierLocked(0)
-	if _, err := e.catalog.AllocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" {
-		t.Fatalf("OID exhaustion: %v", err)
-	}
-	e.catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
-	if _, err := e.catalog.RevisionLocked(); err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
-		t.Fatalf("revision exhaustion: %v", err)
-	}
 	if err := e.RegisterCatalogProvider(nil); err == nil {
 		t.Fatal("nil provider accepted")
 	}

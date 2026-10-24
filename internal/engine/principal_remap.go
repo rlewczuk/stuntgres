@@ -16,7 +16,7 @@ import (
 // I/O run here. ReplaceCatalog already projected its immutable source into private
 // maps, so principal remapping does not need another catalog clone.
 func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalog.State, catalog.ProcedureRemapper, error) {
-	e.retainDatabaseLocked(state)
+	e.catalog.RetainDatabasesLocked(state)
 	// Resolve configured destination capabilities before the principal graph
 	// memoizes private declarations. A later provider COW copy would otherwise
 	// look like a foreign-source declaration to that same strict source policy.

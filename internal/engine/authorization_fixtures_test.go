@@ -167,7 +167,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		state.SetDescriptor(addr, next)
 	}
 	roles := e.roles.published.Advance()
-	databaseRoots := e.databaseProjectionLocked(state)
+	databaseRoots := e.catalog.ProjectDatabasesLocked(state, e.cluster.catalogs)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		}
 	}
 	e.catalog.PublishLocked(state)
-	installDatabaseProjectionLocked(databaseRoots)
+	databaseRoots.InstallLocked()
 	e.roles.published = roles
 	return nil
 }

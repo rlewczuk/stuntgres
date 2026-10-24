@@ -250,7 +250,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	target.catalog.InstallOIDFrontierLocked(30000)
 	next := catalog.CloneState(source.catalog.State)
 	target.mu.Lock()
-	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target), &catalogOIDReservation{Base: target.catalog.NextOID(), Next: target.catalog.NextOID()})
+	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target), &catalog.OIDReservation{Base: target.catalog.NextOID(), Next: target.catalog.NextOID()})
 	target.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

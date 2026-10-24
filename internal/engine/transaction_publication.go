@@ -464,9 +464,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.mu.Unlock()
 			return err
 		}
-		var databaseRoots map[*Engine]*catalog.State
+		var databaseRoots catalog.DatabaseProjection
 		if c != nil {
-			databaseRoots = e.databaseProjectionLocked(nextCatalog)
+			databaseRoots = e.catalog.ProjectDatabasesLocked(nextCatalog, e.cluster.catalogs)
 		}
 		// No callback, allocation or failure remains after this point.
 		e.installNotificationPublicationLocked(notifications)
@@ -561,7 +561,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.storage.ReplaceSequencesLocked(nextSequences)
 			e.storage.ReplaceRelationsLocked(nextStorage)
 			e.catalog.PublishLocked(nextCatalog)
-			installDatabaseProjectionLocked(databaseRoots)
+			databaseRoots.InstallLocked()
 			e.catalog.InstallRevisionFrontierLocked(nextRevision)
 			if c.Roles != nil {
 				e.roles.published = rolePublication

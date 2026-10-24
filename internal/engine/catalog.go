@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
@@ -764,9 +765,9 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if err == nil && s.roleCandidate != nil {
 			roleRevision, err = e.roles.revisionCandidateLocked()
 		}
-		var databaseRoots map[*Engine]*catalog.State
+		var databaseRoots catalog.DatabaseProjection
 		if err == nil {
-			databaseRoots = e.databaseProjectionLocked(next)
+			databaseRoots = e.catalog.ProjectDatabasesLocked(next, e.cluster.catalogs)
 		}
 		if err == nil {
 			// Staged replacements may advance revisions without reserving from
@@ -808,7 +809,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				e.visibility.SerializableCommittedLocked(s.initialTx, e.visibility.CommitSeq())
 			}
 			e.catalog.PublishLocked(next)
-			installDatabaseProjectionLocked(databaseRoots)
+			databaseRoots.InstallLocked()
 			e.storage.ReplaceRelationsLocked(relations)
 			index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
 			e.storage.ReplaceIndexRootsLocked(indexRoots)
@@ -1074,7 +1075,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalogOIDReservation) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation) error {
 	if prepared.Catalog != next || prepared.BaseCatalog != e.catalog.State || prepared.BaseRow != e.storage.RowFrontier() || prepared.BaseVersion != e.storage.VersionFrontier() || prepared.Frontier != e.visibility.CommitSeq() || e.catalog.NextOID() != oids.Base {
 		return ids.ErrCatalogReplaced
 	}

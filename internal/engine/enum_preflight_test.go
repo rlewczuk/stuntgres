@@ -3,11 +3,12 @@ package engine
 import (
 	"context"
 	"strings"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"testing"
-	"time"
 )
 
 func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
@@ -31,7 +32,12 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		catalog, member := e.catalog.State, e.catalog.nextEnumMember
+		// A probe reservation on each side shows the failure reserved none.
+		member, err := e.catalog.AllocateEnumMemberLocked()
+		if err != nil {
+			t.Fatal(err)
+		}
+		catalog := e.catalog.State
 		ast := &parser.AlterEnum{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "mood"}}}, Label: parser.EnumLabel{Text: strings.Repeat("x", 64)}, Old: parser.EnumLabel{Text: "old"}, Rename: rename}
 		_, failure := e.executeEnumDDL(scope, ast, 0)
 		d, ok := failure.(*sqlstate.Error)
@@ -39,7 +45,8 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 		entry := lockState.Resources[resource]
 		_, owned := entry.Holders[scope.owner.Ticket]
 		queued := len(entry.Pending)
-		unchanged := e.catalog.State == catalog && e.catalog.nextEnumMember == member && scope.catalog == nil && scope.owner.Catalog == nil
+		next, err := e.catalog.AllocateEnumMemberLocked()
+		unchanged := e.catalog.State == catalog && err == nil && next == member+2 && scope.catalog == nil && scope.owner.Catalog == nil
 		finish := scope.Finish(failure)
 		if !ok || d.Code != "42602" || d.Detail != "Labels must be 63 bytes or less." || owned || queued != 0 || !unchanged || finish != failure {
 			t.Fatal("invalid immutable label entered queue/reserved member/staged catalog", failure, owned, queued, unchanged, finish)

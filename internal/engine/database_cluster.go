@@ -31,56 +31,17 @@ type databaseCluster struct {
 	seedError error
 }
 
-// databaseOIDLocked reserves beyond local allocation frontiers, including
-// transaction-private allocations not yet present in a published root. Imported
-// definitions may lie beyond those frontiers, so inspect the actual roots too.
-// No frontier changes until the complete database publication succeeds.
-func (e *Engine) databaseOIDLocked(target *Engine) (ids.OID, error) {
-	oid := e.cluster.nextOID
-	advance := func(runtime *Engine) bool {
-		if runtime.catalog.NextOID() == 0 {
-			return false
-		}
-		if runtime.catalog.NextOID() > oid {
-			oid = runtime.catalog.NextOID()
-		}
-		return true
+// catalogs yields the catalog store of every registered runtime. A nil
+// cluster yields none.
+func (c *databaseCluster) catalogs(yield func(*catalog.Store) bool) {
+	if c == nil {
+		return
 	}
-	if oid == 0 || !advance(target) {
-		return 0, fmt.Errorf("stuntgres: database identity exhausted")
-	}
-	for _, runtime := range e.cluster.targets {
-		if !advance(runtime) {
-			return 0, fmt.Errorf("stuntgres: database identity exhausted")
+	for _, runtime := range c.targets {
+		if !yield(&runtime.catalog) {
+			return
 		}
 	}
-	used := func(runtime *Engine) bool {
-		for address, descriptor := range runtime.catalog.State.Descriptors() {
-			if (address.ClassID != ids.LargeObjectClassID && address.ObjectID == oid) || catalog.DefinitionOIDUsed(descriptor, oid) {
-				return true
-			}
-		}
-		for _, record := range runtime.catalog.State.DefaultACLs() {
-			if record != nil && record.OID == oid {
-				return true
-			}
-		}
-		return false
-	}
-	for oid != ^ids.OID(0) {
-		reserved := used(target)
-		for _, runtime := range e.cluster.targets {
-			if reserved {
-				break
-			}
-			reserved = used(runtime)
-		}
-		if !reserved {
-			return oid, nil
-		}
-		oid++
-	}
-	return 0, fmt.Errorf("stuntgres: database identity exhausted")
 }
 
 // SelectDatabase resolves an exact decoded NAME, never an opaque host key.
@@ -97,45 +58,6 @@ func (e *Engine) SelectDatabase(ctx context.Context, name string) (*Engine, erro
 	return target, nil
 }
 
-// databaseProjectionLocked prepares all roots before installing any. Descriptor
-// publications are shared, but each catalog remains rooted in its own domain.
-func (e *Engine) databaseProjectionLocked(next *catalog.State) map[*Engine]*catalog.State {
-	if e.cluster == nil {
-		return nil
-	}
-	var changed []catalog.Descriptor
-	for address, descriptor := range next.Descriptors() {
-		if address.ClassID == ids.DatabaseClassID && e.catalog.State.Get(address) != descriptor {
-			changed = append(changed, descriptor)
-		}
-	}
-	if len(changed) == 0 {
-		return nil
-	}
-	roots := make(map[*Engine]*catalog.State, len(e.cluster.targets))
-	for _, target := range e.cluster.targets {
-		root := next
-		if target != e {
-			root = catalog.CloneState(target.catalog.State)
-		}
-		for _, descriptor := range changed {
-			if old := root.Get(descriptor.Address()); old != nil {
-				root.UnbindName(catalog.DescriptorNameKey(old))
-			}
-			root.SetDescriptor(descriptor.Address(), descriptor)
-			root.BindName(catalog.DescriptorNameKey(descriptor), descriptor.Address())
-		}
-		roots[target] = root
-	}
-	return roots
-}
-
-func installDatabaseProjectionLocked(roots map[*Engine]*catalog.State) {
-	for target, root := range roots {
-		target.catalog.PublishLocked(root)
-	}
-}
-
 func (e *Engine) publishDatabaseFrozenXIDLocked() {
 	old := e.catalog.State.MustDatabase(e.catalog.DatabaseAddress())
 	if old.FrozenXID == e.databaseFrozenXID {
@@ -145,7 +67,7 @@ func (e *Engine) publishDatabaseFrozenXIDLocked() {
 	database.FrozenXID = e.databaseFrozenXID
 	next := catalog.CloneState(e.catalog.State)
 	next.SetDescriptor(database.Address(), &database)
-	roots := e.databaseProjectionLocked(next)
+	roots := e.catalog.ProjectDatabasesLocked(next, e.cluster.catalogs)
 	e.catalog.PublishLocked(next)
-	installDatabaseProjectionLocked(roots)
+	roots.InstallLocked()
 }

@@ -82,7 +82,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	backing := make([]ids.ObjectAddress, 4)
 	backing[0], backing[1] = first.Address(), other.Address()
 	base.OperatorNames().Buckets[key] = backing[:1]
-	e := &Engine{catalog: catalogStore{State: base}}
+	e := &Engine{catalog: catalog.Store{State: base}}
 	stage := e.BeginCatalogStage(e.catalog.Read(base))
 	second := indexUnitOperator(90003, namespace, first.Name())
 	second.Left = 0
@@ -337,7 +337,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	next := catalog.CloneState(source.catalog.State)
 	target.catalog.InstallOIDFrontierLocked(100000)
 	target.mu.Lock()
-	err = target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target), &catalogOIDReservation{Base: target.catalog.NextOID(), Next: target.catalog.NextOID()})
+	err = target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target), &catalog.OIDReservation{Base: target.catalog.NextOID(), Next: target.catalog.NextOID()})
 	target.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

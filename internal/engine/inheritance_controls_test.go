@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
@@ -14,7 +16,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func inheritanceControlsTemporary(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *catalog.Relation {
@@ -39,7 +40,7 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	state, oid, revision, epoch, stored := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision(), e.catalog.State.Epoch(), e.storage.Relations[temp.Address()]
 	next := catalog.CloneState(New().catalog.State)
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, nil, &catalogOIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
+	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, nil, &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
 	e.mu.Unlock()
 	if err == nil || err.Error() != control.TemporaryInheritanceReplacementError {
 		t.Fatal(err)
@@ -69,7 +70,7 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}}
 	e.catalog.InstallOIDFrontierLocked(30000)
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalogOIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +132,7 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	next := catalog.CloneState(source.catalog.State)
 	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}}
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalogOIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -181,7 +182,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}}
 	retainedStorage := e.storage.Relations[tempChild.Address()]
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalogOIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -264,7 +265,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	parentStorage, childStorage := &storage.Relation{}, &storage.Relation{}
 	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): parentStorage, child.Address(): childStorage}
 	e.mu.Lock()
-	err = e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalogOIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
+	err = e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

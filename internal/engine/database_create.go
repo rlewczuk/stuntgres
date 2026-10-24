@@ -105,14 +105,14 @@ func (e *Engine) publishDatabaseTargetLocked(ctx context.Context, name string, t
 	if _, err := e.roles.published.Root.Read(authorization.PrincipalRef{}).Descriptor(owner); err != nil {
 		return Result{}, err
 	}
-	oid, err := e.databaseOIDLocked(target)
+	oid, err := catalog.DatabaseOIDLocked(e.cluster.nextOID, &target.catalog, e.cluster.catalogs)
 	if err != nil {
 		return Result{}, err
 	}
 	address := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: oid}
 	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.databaseFrozenXID}
 	targets := make(map[string]*Engine, len(e.cluster.targets)+1)
-	roots := make(map[*Engine]*catalog.State, len(e.cluster.targets)+1)
+	roots := make(catalog.DatabaseProjection, len(e.cluster.targets)+1)
 	for key, runtime := range e.cluster.targets {
 		targets[key] = runtime
 	}
@@ -120,29 +120,18 @@ func (e *Engine) publishDatabaseTargetLocked(ctx context.Context, name string, t
 	for _, runtime := range targets {
 		next := catalog.CloneState(runtime.catalog.State)
 		if runtime == target {
-			for a, d := range next.Descriptors() {
-				if a.ClassID == ids.DatabaseClassID {
-					next.UnbindName(catalog.DescriptorNameKey(d))
-					next.RemoveDescriptor(a)
-				}
-			}
-			for a, d := range e.catalog.State.Descriptors() {
-				if a.ClassID == ids.DatabaseClassID {
-					next.SetDescriptor(a, d)
-					next.BindName(catalog.DescriptorNameKey(d), a)
-				}
-			}
+			e.catalog.RetainDatabasesLocked(next)
 		}
 		next.SetDescriptor(address, database)
 		next.BindName(catalog.DescriptorNameKey(database), address)
-		roots[runtime] = next
+		roots[&runtime.catalog] = next
 	}
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
 	target.catalog.Database = address
 	target.cluster = e.cluster
-	installDatabaseProjectionLocked(roots)
+	roots.InstallLocked()
 	e.cluster.targets = targets
 	e.cluster.nextOID = oid + 1
 	return Result{CommandTag: "CREATE DATABASE"}, nil

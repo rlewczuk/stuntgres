@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"math"
 	"reflect"
 	"testing"
 
@@ -17,22 +16,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func TestPGEnumAllocatorBounds(t *testing.T) {
+// Allocator bounds are in catalog/store_test.go; this pins the engine's
+// lifecycle: no discard, Reset or Restore recycles a reservation.
+func TestPGEnumAllocatorLifecycle(t *testing.T) {
 	e := New()
 	for _, want := range []int64{1, 3} {
-		got, err := e.catalog.AllocateEnumMemberLocked()
-		if err != nil || got != want {
+		if got, err := e.catalog.AllocateEnumMemberLocked(); err != nil || got != want {
 			t.Fatal("initial allocation", got, want, err)
-		}
-	}
-	e.catalog.nextEnumMember = math.MaxUint32 - 2
-	if got, err := e.catalog.AllocateEnumMemberLocked(); err != nil || got != math.MaxUint32 {
-		t.Fatal("last OID", got, err)
-	}
-	for range 2 {
-		got, err := e.catalog.AllocateEnumMemberLocked()
-		if got != 0 || err == nil || err.Error() != "stuntgres: enum member identity exhausted" || e.catalog.nextEnumMember != math.MaxUint32 {
-			t.Fatal("exhaustion wrapped/aliased", got, err, e.catalog.nextEnumMember)
 		}
 	}
 	// Discard an actual CREATE candidate: rollback cannot recycle reservations.
@@ -57,16 +47,17 @@ func TestPGEnumAllocatorBounds(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err != nil {
 		t.Fatal(err)
 	}
-	frontier := e.catalog.nextEnumMember
+	// Probe the frontier on both sides: Restore reserves the restored label,
+	// so the next member lies past the probe and that reservation.
+	frontier, err := e.catalog.AllocateEnumMemberLocked()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.nextEnumMember <= frontier {
-		t.Fatal("Restore reused reservations", frontier, e.catalog.nextEnumMember)
-	}
-	last := e.catalog.nextEnumMember
-	if got, err := e.catalog.AllocateEnumMemberLocked(); err != nil || got != last+2 {
-		t.Fatal("post-Restore frontier", got, last, err)
+	if got, err := e.catalog.AllocateEnumMemberLocked(); err != nil || got < frontier+4 {
+		t.Fatal("Restore reused reservations", frontier, got, err)
 	}
 }
 

@@ -14,7 +14,7 @@ import (
 // catalog and storage before this runtime can be registered.
 func (e *Engine) newDatabaseRuntime(seed *Engine, name string, owner authorization.PrincipalRef) *Engine {
 	target := &Engine{mu: e.mu, roles: e.roles, settings: e.settings, foreign: seed.foreign, databaseName: name, databaseFrozenXID: 3}
-	target.catalog = catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Principals: &e.roles.domain, ACLAuthority: &e.roles.aclAuthority, Providers: make(map[ids.OID]catalog.Provider, len(e.catalog.Providers)), Extensions: e.catalog.Extensions}, nextOID: seed.catalog.NextOID(), nextRevision: seed.catalog.NextRevision()}
+	target.catalog = catalog.NewStore(catalog.Owner{Principals: &e.roles.domain, ACLAuthority: &e.roles.aclAuthority, Providers: make(map[ids.OID]catalog.Provider, len(e.catalog.Providers)), Extensions: e.catalog.Extensions}, seed.catalog.NextOID(), seed.catalog.NextRevision())
 	for class, provider := range e.catalog.Providers {
 		target.catalog.Providers[class] = provider
 	}

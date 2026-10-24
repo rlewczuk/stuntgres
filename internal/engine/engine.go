@@ -18,6 +18,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
@@ -30,6 +31,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// The store is the ddl.Allocator of identity-only callers such as partition
+// trigger synchronization. A pointer fits an interface without allocating, so
+// those callers add no allocation per publication. Engine.mu is held.
+var _ ddl.Allocator = (*catalog.Store)(nil)
+
 type Engine struct {
 	mu            *sync.Mutex
 	locks         *lock.Manager
@@ -37,7 +43,7 @@ type Engine struct {
 	notifications session.NotificationRegistry // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu     replacementAdmission
-	catalog           catalogStore
+	catalog           catalog.Store
 	databaseName      string
 	databaseNameError error
 	storage           storage.Store
@@ -90,7 +96,7 @@ func NewWithSettings(definitions []settings.Definition, database string, trackCo
 func newEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	cluster := &databaseCluster{}
-	e := &Engine{mu: &cluster.mu, roles: &cluster.roles, cluster: cluster, catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}}
+	e := &Engine{mu: &cluster.mu, roles: &cluster.roles, cluster: cluster, catalog: catalog.NewStore(catalog.Owner{Providers: map[ids.OID]catalog.Provider{}}, 16384, 2)}
 	e.analysis = bindingHost{engine: e}
 	e.authority = authorityInputs{domain: e.catalog.Domain, settings: &e.settings, storage: &e.storage}
 	e.mu.Lock()
