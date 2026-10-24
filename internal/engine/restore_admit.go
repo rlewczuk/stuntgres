@@ -141,16 +141,13 @@ func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *par
 		if owner.Name != record.Owner {
 			continue
 		}
-		role, typ, err := extension.InstalledType(auth.Catalog, ext)
-		if err != nil {
-			return err
-		}
-		if role != "ean13" || typ == nil || typ.Name() != s.Name.Parts[1].Text || auth.Catalog.MustNamespace(typ.Namespace()).Name() != s.Name.Parts[0].Text {
-			continue
-		}
-		for _, member := range record.Members {
-			if member.Kind == "type" && member.Name == role && member.Signature == "" && member.Owner == s.Target.Name {
-				return nil // The ordinary ownership executor still checks authority.
+		roles, err := extension.InstalledTypes(auth.Catalog, ext)
+		if err != nil { return err }
+		for _, role := range roles {
+			typ := role.Type
+			if typ.Name() != s.Name.Parts[1].Text || auth.Catalog.MustNamespace(typ.Namespace()).Name() != s.Name.Parts[0].Text { continue }
+			for _, member := range record.Members {
+				if member.Kind == "type" && member.Name == role.Name && member.Signature == "" && member.Owner == s.Target.Name { return nil }
 			}
 		}
 	}

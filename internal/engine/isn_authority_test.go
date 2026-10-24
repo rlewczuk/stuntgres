@@ -11,7 +11,16 @@ import (
 )
 
 func TestIsnProviderAuthority(t *testing.T) {
-	e, ext, base := isnUnitInstalled(t)
+	for _, family := range []string{"ean13", "isbn"} {
+		t.Run(family, func(t *testing.T) { testIsnProviderAuthority(t, family) })
+	}
+}
+
+func testIsnProviderAuthority(t *testing.T, family string) {
+	e, ext, _ := isnUnitInstalled(t)
+	slot, constructor := 0, sqltype.Ean13
+	if family == "isbn" { slot, constructor = 3, sqltype.Isbn }
+	base := e.CatalogRead().MustType(ext.Members[slot])
 	unowned := *base
 	unowned.Extension = ids.ObjectAddress{}
 	if err := (stored.TypeProvider{}).Validate(e.CatalogRead(), &unowned); err == nil {
@@ -19,7 +28,7 @@ func TestIsnProviderAuthority(t *testing.T) {
 	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, q := range []string{"CREATE SCHEMA isn_authority_dst", "ALTER TYPE public.ean13 RENAME TO moved", "ALTER TYPE public.moved SET SCHEMA isn_authority_dst"} {
+	for _, q := range []string{"CREATE SCHEMA isn_authority_dst", "ALTER TYPE public."+family+" RENAME TO moved", "ALTER TYPE public.moved SET SCHEMA isn_authority_dst"} {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	base = e.CatalogRead().MustType(base.Address())
@@ -28,42 +37,47 @@ func TestIsnProviderAuthority(t *testing.T) {
 	}
 	for _, corrupt := range []func(*catalog.State){
 		func(state *catalog.State) {
-			proc := *state.MustProcedure(ext.Members[1])
+			proc := *state.MustProcedure(ext.Members[slot+1])
 			proc.Result++
 			state.SetDescriptor(proc.Address(), &proc)
 		},
 		func(state *catalog.State) {
-			proc := *state.MustProcedure(ext.Members[2])
+			proc := *state.MustProcedure(ext.Members[slot+2])
 			proc.Signature = "25"
 			state.SetDescriptor(proc.Address(), &proc)
 		},
 		func(state *catalog.State) {
-			proc := *state.MustProcedure(ext.Members[1])
+			proc := *state.MustProcedure(ext.Members[slot+1])
 			proc.Implementation = extension.StockCitext
+			state.SetDescriptor(proc.Address(), &proc)
+		},
+		func(state *catalog.State) {
+			proc := *state.MustProcedure(ext.Members[slot+1])
+			proc.Implementation = new(extension.IsnProvider)
 			state.SetDescriptor(proc.Address(), &proc)
 		},
 		func(state *catalog.State) {
 			wrong := *base
 			var err error
-			wrong.SQLType, err = sqltype.Citext(base.SQLType.ID(), "ean13", "public.ean13")
+			wrong.SQLType, err = sqltype.Citext(base.SQLType.ID(), family, "public."+family)
 			if err != nil {
 				t.Fatal(err)
 			}
 			state.SetDescriptor(base.Address(), &wrong)
 		},
 		func(state *catalog.State) {
-			proc := *state.MustProcedure(ext.Members[1])
+			proc := *state.MustProcedure(ext.Members[slot+1])
 			proc.ObjectNamespace = ids.ObjectAddress{}
 			state.SetDescriptor(proc.Address(), &proc)
 		},
 		func(state *catalog.State) {
-			proc := *state.MustProcedure(ext.Members[2])
+			proc := *state.MustProcedure(ext.Members[slot+2])
 			proc.Extension = ids.ObjectAddress{}
 			state.SetDescriptor(proc.Address(), &proc)
 		},
 		func(state *catalog.State) {
 			array := *state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
-			foreign, err := sqltype.Ean13(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
+			foreign, err := constructor(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -82,7 +96,7 @@ func TestIsnProviderAuthority(t *testing.T) {
 			t.Fatal("forged installed provider accepted")
 		}
 		view := e.catalog.Read(candidate)
-		if _, _, err := extension.InstalledType(view, ext); err == nil {
+		if _, err := extension.InstalledTypes(view, ext); err == nil {
 			t.Fatal("ownership role accepted forged installed provider")
 		}
 		if _, err := extension.OwnerMetadata(view, e.Roles(), ext); err == nil {

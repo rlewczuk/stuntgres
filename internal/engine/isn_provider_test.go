@@ -46,13 +46,13 @@ func isnUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type)
 func TestIsnProviderIdentity(t *testing.T) {
 	e, ext, base := isnUnitInstalled(t)
 	view := e.CatalogRead()
-	if role, typ, err := extension.InstalledType(view, ext); err != nil || role != "ean13" || typ != base {
-		t.Fatal("installed ownership role", role, typ, err)
+	if roles, err := extension.InstalledTypes(view, ext); err != nil || len(roles) != 2 || roles[0].Name != "ean13" || roles[0].Type != base || roles[1].Name != "isbn" || !roles[1].Type.SQLType.IsIsbn() {
+		t.Fatal("installed ownership roles", roles, err)
 	}
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.3" || len(ext.Members) != 3 || base.Extension != ext.Address() || !base.SQLType.IsEan13() || base.Owner != ext.Owner {
+	if ext.Version != "1.3" || len(ext.Members) != 6 || base.Extension != ext.Address() || !base.SQLType.IsEan13() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	array, ok := view.LookupArray(base.SQLType)
@@ -75,7 +75,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 		if owner != ext.Owner {
 			t.Fatal("owner", address)
 		}
-		if i == 0 {
+		if i == 0 || i == 3 {
 			if err := (stored.TypeProvider{}).Validate(view, member); err != nil {
 				t.Fatal(err)
 			}
@@ -97,7 +97,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 3 || !arrayInternal {
+	if len(members) != 6 || !arrayInternal {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -126,7 +126,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 		t.Fatal("owner metadata comments", records, err)
 	}
 	record := records[0]
-	if record.Name != "isn" || record.Schema != "public" || record.Version != "1.3" || record.Owner != "postgres" || len(record.Members) != 3 {
+	if record.Name != "isn" || record.Schema != "public" || record.Version != "1.3" || record.Owner != "postgres" || len(record.Members) != 6 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {
@@ -152,8 +152,8 @@ func TestIsnProviderIdentity(t *testing.T) {
 	}
 	current := e.CatalogRead()
 	moved := current.MustType(base.Address())
-	if role, typ, err := extension.InstalledType(current, ext); err != nil || role != "ean13" || typ != moved {
-		t.Fatal("renamed ownership role", role, typ, err)
+	if roles, err := extension.InstalledTypes(current, ext); err != nil || len(roles) != 2 || roles[0].Name != "ean13" || roles[0].Type != moved {
+		t.Fatal("renamed ownership roles", roles, err)
 	}
 	if role, err := extension.MemberTypeRole(current, ext, moved); err != nil || role != "ean13" {
 		t.Fatal("renamed canonical member role", role, err)
@@ -171,6 +171,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 		t.Fatal("renamed unchanged owner import", changed, err)
 	}
 	for _, address := range ext.Members[1:] {
+		if address.ClassID != ids.ProcedureClassID { continue }
 		if current.MustProcedure(address) != view.MustProcedure(address) {
 			t.Fatal("base identity edit replaced independent I/O authority")
 		}
@@ -178,15 +179,19 @@ func TestIsnProviderIdentity(t *testing.T) {
 }
 
 func TestIsnProviderImport(t *testing.T) {
-	t.Run("real_import_remapping_and_retained_codec", func(t *testing.T) {
-		source, _, base := isnUnitInstalled(t)
+	for _, family := range []string{"ean13", "isbn"} {
+	t.Run(family, func(t *testing.T) {
+		source, installed, _ := isnUnitInstalled(t)
+		slot, input, output, constructor := 0, "1234567890120!", "123-456789012-8!", sqltype.Ean13
+		if family == "isbn" { slot, input, output, constructor = 3, "9780123456780!", "0-12-345678-9!", sqltype.Isbn }
+		base := source.CatalogRead().MustType(installed.Members[slot])
 		op, done := roleOperation(t, source, "postgres")
 		defer done()
-		for _, q := range []string{"CREATE SCHEMA isn_import_dst", "ALTER TYPE public.ean13 RENAME TO moved", "ALTER TYPE public.moved SET SCHEMA isn_import_dst"} {
+		for _, q := range []string{"CREATE SCHEMA isn_import_dst", "ALTER TYPE public."+family+" RENAME TO moved", "ALTER TYPE public.moved SET SCHEMA isn_import_dst"} {
 			domainUnitPublish(t, source, domainUnitStage(t, source, op, q))
 		}
 		base = source.CatalogRead().MustType(base.Address())
-		value, err := base.SQLType.Input(context.Background(), "1234567890120!", -1)
+		value, err := base.SQLType.Input(context.Background(), input, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -201,15 +206,15 @@ func TestIsnProviderImport(t *testing.T) {
 			t.Fatal(err)
 		}
 		ext := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
-		imported := target.catalog.State.MustType(ext.Members[0])
+		imported := target.catalog.State.MustType(ext.Members[slot])
 		if imported.SQLType == base.SQLType || imported.SQLType.ID() == base.SQLType.ID() {
 			t.Fatal("setup failed to exercise a genuine retained-TEMP OID collision")
 		}
 		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
-		if role, typ, err := extension.InstalledType(target.CatalogRead(), ext); err != nil || role != "ean13" || typ != imported || imported.Name() != "moved" || imported.SQLType.SQLName() != "isn_import_dst.moved" {
-			t.Fatal("imported mutable identity lost canonical role", role, typ, err)
+		if roles, err := extension.InstalledTypes(target.CatalogRead(), ext); err != nil || len(roles) != 2 || roles[slot/3].Name != family || roles[slot/3].Type != imported || imported.Name() != "moved" || imported.SQLType.SQLName() != "isn_import_dst.moved" {
+			t.Fatal("imported mutable identity lost canonical role", roles, err)
 		}
 		if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(unaccent.Address()) != unaccent {
 			t.Fatal("import changed live TEMP provider authority")
@@ -224,7 +229,7 @@ func TestIsnProviderImport(t *testing.T) {
 			if err != nil || mapped.Type() != imported.SQLType || mapped.IsNull() != datum.IsNull() {
 				t.Fatal("authorized scalar import", mapped, err)
 			}
-			foreign, err := sqltype.Ean13(imported.SQLType.ID(), "ean13", "public.ean13")
+			foreign, err := constructor(imported.SQLType.ID(), family, "public."+family)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -238,13 +243,13 @@ func TestIsnProviderImport(t *testing.T) {
 		if _, err := value.Retag(imported.SQLType); err == nil {
 			t.Fatal("ordinary Retag authorized cross-OID import")
 		}
-		if text, err := imported.SQLType.Output(context.Background(), mapped); err != nil || text != "123-456789012-8!" {
+		if text, err := imported.SQLType.Output(context.Background(), mapped); err != nil || text != output {
 			t.Fatal("imported codec", text, err)
 		}
 		if err := source.Reset(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if text, err := base.SQLType.Output(context.Background(), value); err != nil || text != "123-456789012-8!" {
+		if text, err := base.SQLType.Output(context.Background(), value); err != nil || text != output {
 			t.Fatal("retained codec", text, err)
 		}
 		closeOwner()
@@ -256,4 +261,5 @@ func TestIsnProviderImport(t *testing.T) {
 			t.Fatal("persistent imported provider damaged by TEMP retirement", err)
 		}
 	})
+	}
 }

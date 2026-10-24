@@ -17,13 +17,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func TestEan13PreparedAuthorityRebind(t *testing.T) {
-	e, _, base := isnUnitInstalled(t)
+func TestEan13PreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "ean13", 0) }
+func TestIsbnPreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "isbn", 3) }
+
+func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
+	e, ext, _ := isnUnitInstalled(t)
+	base := e.CatalogRead().MustType(ext.Members[slot])
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public.ean13 RENAME TO moved"))
+	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public."+family+" RENAME TO moved"))
 	current := e.CatalogRead().MustType(base.Address())
-	raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "ean13", Schema: &parser.Identifier{Text: "public"}, Pos: parser.Position{Offset: 11, Character: 12}}, Syntax: parser.PostfixCast}
+	raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: family, Schema: &parser.Identifier{Text: "public"}, Pos: parser.Position{Offset: 11, Character: 12}}, Syntax: parser.PostfixCast}
 	key := analyze.PreparedTypeKey{Offset: 11, Kind: analyze.IdentityCast}
 	shared := map[analyze.PreparedTypeKey]analyze.TypeOccurrence{key: {Kind: analyze.IdentityCast, Base: base.SQLType.Usage()}}
 	e.mu.Lock()
@@ -85,7 +89,9 @@ func TestEan13PreparedAuthorityRebind(t *testing.T) {
 			}
 		})
 	}
-	foreign, err := sqltype.Citext(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
+	sibling := sqltype.Isbn
+	if family == "isbn" { sibling = sqltype.Ean13 }
+	foreign, err := sibling(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,9 +117,9 @@ func TestEan13PreparedAuthorityRebind(t *testing.T) {
 	expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{base.SQLType.Usage()}}, catalogOwner: e.CatalogRead().Owner(), catalogEpoch: e.CatalogRead().Epoch(), types: shared, analysis: &analysis}
 	expected.planGeneration = auth.session.DiscardPlansGeneration
 	e.mu.Lock()
-	eligible := e.preparedEan13AuthorityRebindLocked(auth, expected, path)
+	eligible := e.preparedIsnAuthorityRebindLocked(auth, expected, path)
 	expected.planGeneration++
-	discarded := e.preparedEan13AuthorityRebindLocked(auth, expected, path)
+	discarded := e.preparedIsnAuthorityRebindLocked(auth, expected, path)
 	e.mu.Unlock()
 	if !eligible || discarded {
 		t.Fatal("DISCARD must disallow nominal rebind")
@@ -149,8 +155,20 @@ func TestEan13PreparedAuthorityRebind(t *testing.T) {
 	}
 }
 
-func TestEan13PreparedLiteralReown(t *testing.T) {
-	e, ext, base := isnUnitInstalled(t)
+func TestEan13PreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "ean13", 0) }
+func TestIsbnPreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "isbn", 3) }
+
+func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
+	e, ext, _ := isnUnitInstalled(t)
+	base := e.CatalogRead().MustType(ext.Members[slot])
+	inputs := []string{"1234567890120!", "0123456789012"}
+	outputs := []string{"123-456789012-8!", "012-345678901-2", ""}
+	constructor := sqltype.Ean13
+	if family == "isbn" {
+		inputs = []string{"9780123456780!", "123456789X"}
+		outputs = []string{"0-12-345678-9!", "1-234-56789-X", ""}
+		constructor = sqltype.Isbn
+	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	before := e.CatalogRead()
@@ -163,14 +181,14 @@ func TestEan13PreparedLiteralReown(t *testing.T) {
 		return v
 	}
 	original := []analyze.TemporalConstant{
-		{Offset: 7, TypeID: base.SQLType.ID(), Typmod: -1, Typed: true, TypedTypmod: -1, Value: makeValue(t, base.SQLType, "1234567890120!")},
-		{Offset: 31, TypeID: base.SQLType.ID(), Typmod: -1, Value: makeValue(t, base.SQLType, "0123456789012")},
+		{Offset: 7, TypeID: base.SQLType.ID(), Typmod: -1, Typed: true, TypedTypmod: -1, Value: makeValue(t, base.SQLType, inputs[0])},
+		{Offset: 31, TypeID: base.SQLType.ID(), Typmod: -1, Value: makeValue(t, base.SQLType, inputs[1])},
 		{Offset: 59, TypeID: base.SQLType.ID(), Typmod: -1, Value: sqltype.Null(base.SQLType)},
 		{Offset: 83, TypeID: sqltype.Date, Typmod: -1, Scalar: 42},
 	}
 	saved := append([]analyze.TemporalConstant(nil), original...)
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE SCHEMA ean_literal"))
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public.ean13 RENAME TO moved"))
+	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public."+family+" RENAME TO moved"))
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public.moved SET SCHEMA ean_literal"))
 	current := e.CatalogRead().MustType(base.Address())
 	e.mu.Lock()
@@ -196,14 +214,14 @@ func TestEan13PreparedLiteralReown(t *testing.T) {
 	reown := func(a AuthorizationView, d *StatementDescription) []analyze.TemporalConstant {
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		return e.preparedEan13LiteralTemporalsLocked(a, d, path)
+		return e.preparedIsnLiteralTemporalsLocked(a, d, path)
 	}
 	assertRemapped := func(t *testing.T, got []analyze.TemporalConstant) {
 		t.Helper()
 		if len(got) != len(original) || &got[0] == &original[0] {
 			t.Fatal("changed candidate must own its slice")
 		}
-		for i, text := range []string{"123-456789012-8!", "012-345678901-2", ""} {
+		for i, text := range outputs {
 			want := original[i]
 			if i == 2 {
 				want.Value = sqltype.Null(current.SQLType)
@@ -234,13 +252,13 @@ func TestEan13PreparedLiteralReown(t *testing.T) {
 		if i == 2 {
 			same.temporals[i].Value = sqltype.Null(current.SQLType)
 		} else {
-			same.temporals[i].Value = makeValue(t, current.SQLType, []string{"1234567890120!", "0123456789012"}[i])
+			same.temporals[i].Value = makeValue(t, current.SQLType, inputs[i])
 		}
 	}
 	if got := reown(auth, &same); &got[0] != &same.temporals[0] {
 		t.Fatal("unchanged generation copied temporal slice")
 	}
-	foreign, err := sqltype.Ean13(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
+	foreign, err := constructor(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +275,7 @@ func TestEan13PreparedLiteralReown(t *testing.T) {
 			a.dependencies = []catalog.ExpressionDependency{{Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch()+1, base.Address()), Revision: base.Revision()}}
 		}},
 		{"alien source pointer", func(t *testing.T, d *StatementDescription, _ *preparedAnalysis) {
-			d.temporals[0].Value = makeValue(t, foreign, "1234567890120!")
+			d.temporals[0].Value = makeValue(t, foreign, inputs[0])
 		}},
 		{"wrong type id", func(_ *testing.T, d *StatementDescription, _ *preparedAnalysis) { d.temporals[0].TypeID++ }},
 		{"discard", func(_ *testing.T, d *StatementDescription, _ *preparedAnalysis) { d.planGeneration++ }},
@@ -319,18 +337,20 @@ func TestEan13PreparedLiteralReown(t *testing.T) {
 			case "array":
 				destination.Array++
 			case "family":
-				destination.SQLType, err = sqltype.Citext(base.SQLType.ID(), current.Name(), current.SQLType.SQLName())
+				sibling := sqltype.Isbn
+				if family == "isbn" { sibling = sqltype.Ean13 }
+				destination.SQLType, err = sibling(base.SQLType.ID(), current.Name(), current.SQLType.SQLName())
 				if err != nil {
 					t.Fatal(err)
 				}
 			case "procedure":
-				proc := *auth.Catalog.MustProcedure(ext.Members[1])
+				proc := *auth.Catalog.MustProcedure(ext.Members[slot+1])
 				proc.Strict = false
 				if err := stage.Replace(&proc); err != nil {
 					t.Fatal(err)
 				}
 			case "procedure membership":
-				proc := *auth.Catalog.MustProcedure(ext.Members[1])
+				proc := *auth.Catalog.MustProcedure(ext.Members[slot+1])
 				proc.Extension = ids.ObjectAddress{}
 				if err := stage.Replace(&proc); err != nil {
 					t.Fatal(err)
@@ -360,8 +380,8 @@ func TestEan13PreparedLiteralReown(t *testing.T) {
 			description.temporals = append([]analyze.TemporalConstant(nil), original...)
 			got := reown(a, &description)
 			if name == "owner/ACL" {
-				role, installed, err := extension.InstalledType(a.Catalog, ext)
-				if err != nil || role != "ean13" || installed != a.Catalog.MustType(current.Address()) {
+				role, err := extension.MemberTypeRole(a.Catalog, ext, a.Catalog.MustType(current.Address()))
+				if err != nil || role != family {
 					t.Fatal("owner change must preserve genuine installed authority", err)
 				}
 				if destination.Owner == current.Owner || authorization.EqualACL(destination.ACL, current.ACL) {

@@ -168,6 +168,7 @@ var Specs = [...]Spec{
 		{"proparallel", sqltype.Char, false, 0, 0, -1},
 		{"prokind", sqltype.Char, false, 0, 0, -1},
 		{"proargnames", 1009, true, 0, 0, -1},
+		{"prolang", sqltype.Oid, false, 0, 0, -1},
 	}, false, CatalogHasIndexes(1255), false, false, "stuntgres: missing catalog source type"},
 	{3764, ids.PGCatalogNamespaceOID, "pg_ts_template", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},

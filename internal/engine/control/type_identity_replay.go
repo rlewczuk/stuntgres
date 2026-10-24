@@ -52,7 +52,7 @@ func replayTypeName(v catalog.Read, key ids.NameKey) string {
 func (s *dumpScript) renderExtensionTypes(ctx context.Context, order []ids.OID) (*typedef.DomainReplayNames, error) {
 	replay := typedef.NewDomainReplayNames()
 	var changed []*catalog.Type
-	var ean *catalog.Type
+	var isnTypes []*catalog.Type
 	for _, oid := range order {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -61,23 +61,15 @@ func (s *dumpScript) renderExtensionTypes(ctx context.Context, order []ids.OID) 
 		if !ok {
 			continue
 		}
-		name, typ, err := extension.InstalledType(s.CatalogView, ext)
-		if err != nil {
-			return nil, err
-		}
-		if typ == nil {
-			continue
-		}
-		if typ.SQLType.IsEan13() {
-			ean = typ
-		}
-		key := ids.NameKey{ClassID: ids.TypeClassID, Namespace: ext.TargetNamespace, Name: name}
-		if err := replay.ReserveIdentity(typ.SQLType.ID(), key); err != nil {
-			return nil, err
-		}
-		replay.AssociateIdentity(typ.SQLType.ID(), typ.Array)
-		if typ.Name() != name || typ.Namespace() != ext.TargetNamespace {
-			changed = append(changed, typ)
+		roles, err := extension.InstalledTypes(s.CatalogView, ext)
+		if err != nil { return nil, err }
+		for _, role := range roles {
+			name, typ := role.Name, role.Type
+			if typ.SQLType.IsEan13() || typ.SQLType.IsIsbn() { isnTypes = append(isnTypes, typ) }
+			key := ids.NameKey{ClassID: ids.TypeClassID, Namespace: ext.TargetNamespace, Name: name}
+			if err := replay.ReserveIdentity(typ.SQLType.ID(), key); err != nil { return nil, err }
+			replay.AssociateIdentity(typ.SQLType.ID(), typ.Array)
+			if typ.Name() != name || typ.Namespace() != ext.TargetNamespace { changed = append(changed, typ) }
 		}
 	}
 	var text strings.Builder
@@ -130,14 +122,14 @@ func (s *dumpScript) renderExtensionTypes(ctx context.Context, order []ids.OID) 
 			return nil, err
 		}
 	}
-	if ean != nil {
-		owner, err := s.DomainRoles.Descriptor(ean.Owner)
+	for _, typ := range isnTypes {
+		owner, err := s.DomainRoles.Descriptor(typ.Owner)
 		if err != nil {
 			return nil, err
 		}
 		// PostgreSQL ignores native owner metadata. Transfer the base through
 		// ordinary SQL, which also transfers its companion, but not its I/O.
-		text.WriteString("ALTER TYPE " + replayTypeName(s.CatalogView, replay.Names[ean.SQLType.ID()]) + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n")
+		text.WriteString("ALTER TYPE " + replayTypeName(s.CatalogView, replay.Names[typ.SQLType.ID()]) + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n")
 	}
 	if text.Len() != 0 && s.extensionTypeAfter == 0 {
 		return nil, fmt.Errorf("stuntgres: missing extension replay barrier")

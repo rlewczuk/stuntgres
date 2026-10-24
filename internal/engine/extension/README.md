@@ -71,10 +71,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   dependency removal and remap use the shared extension lifecycle; no lock state
   is serialized.
 - **isn** (`isn_provider.go`, `isn_stage.go`): the trusted, relocatable 1.3
-  provider installs `ean13`, its lookup-only associated array and genuine
-  `ean13_in(cstring)`/`ean13_out(ean13)` immutable strict I/O members. Owner
-  metadata records the output argument symbolically and remaps it to the
-  destination descriptor during catalog replacement.
+  provider installs `ean13` and `isbn`, each with a reciprocal lookup-only
+  associated array and immutable strict C-language codecs. Fixed manifest roles
+  bind `ean13_in(cstring)`/`ean13_out(ean13)` and
+  `isbn_in(cstring)`/`isn_out(isbn)` to their own scalars. Owner metadata records
+  each output argument symbolically and remaps it to its destination descriptor.
+  Admission follows script order: input signature, output signature, then full
+  type collision. An occupied type supplies only the existing output argument
+  identity for collision detection; installation never adopts its descriptor.
 - **citext and earthdistance.** Citext stages the scalar, two I/O routines,
   six strict immutable comparison routines and their six operators, plus the
   real strict `citext(bpchar)`, `citext(bool)` and `citext(inet)` conversions.
@@ -168,7 +172,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   that is also a source does not trigger another mapping step.
 
 Type identity is its validated manifest role, not its mutable name or namespace.
-`InstalledType`/`MemberTypeRole` resolve cube/query_int/citext/ean13/earth/lo through the
+`InstalledTypes`/`MemberTypeRole` resolve cube/query_int/citext/ean13/isbn/earth/lo through the
 existing manifest/provider and reciprocal array checks. Member ALTER retains
 installation membership; direct DROP remains protected. The owner metadata codec
 keeps canonical type role keys (including earth[] and lo[]) across rename/move, preserving

@@ -73,7 +73,7 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 		{"fuzzystrmatch", catalog.CRoutineLanguage, []string{"daitch_mokotoff", "levenshtein", "levenshtein_with_costs", "levenshtein_less_equal", "levenshtein_less_equal_with_costs", "metaphone", "dmetaphone", "dmetaphone_alt", "soundex", "difference"}},
 		{"citext", catalog.InternalRoutineLanguage, []string{"textin", "textout", "citext_eq", "citext_ne", "citext_lt", "citext_le", "citext_gt", "citext_ge", "rtrim1", "booltext", "network_show", "texticlike", "texticlike", "texticnlike", "texticnlike", "texticregexeq", "texticregexeq", "texticregexne", "texticregexne"}},
 		{"intarray", catalog.CRoutineLanguage, []string{"bqarr_in", "bqarr_out"}},
-		{"isn", catalog.CRoutineLanguage, []string{"ean13_in", "ean13_out"}},
+		{"isn", catalog.CRoutineLanguage, []string{"ean13_in", "ean13_out", "isbn_in", "isn_out"}},
 		{"intagg", catalog.InternalRoutineLanguage, []string{"aggregate_dummy", "array_unnest"}},
 		{"pgrowlocks", catalog.CRoutineLanguage, []string{"pgrowlocks"}},
 		{"cube", catalog.CRoutineLanguage, []string{"cube_in", "cube_out", "cube_eq", "cube_ne", "cube_lt", "cube_le", "cube_gt", "cube_ge", "cube_cmp", "cube_f8", "cube_f8_f8", "cube_a_f8", "cube_a_f8_f8", "cube_c_f8", "cube_c_f8_f8", "cube_dim", "cube_is_point", "cube_ll_coord", "cube_ur_coord", "cube_coord", "cube_coord_llur", "cube_overlap", "cube_contains", "cube_contained", "cube_distance", "distance_taxicab", "distance_chebyshev"}},

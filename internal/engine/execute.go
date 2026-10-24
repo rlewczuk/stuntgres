@@ -266,7 +266,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	valid := true
 	var rebindTypes map[analyze.PreparedTypeKey]analyze.TypeOccurrence
 	var rebindTemporals []analyze.TemporalConstant
-	eanAuthorityRebind := false
+	isnAuthorityRebind := false
 	replan := scope.prepared.invalid || expected != nil && expected.planOwner == op.Session.SessionToken && expected.planGeneration != op.Session.DiscardPlansGeneration
 	if expected != nil && expected.analysis != nil {
 		path, er := e.sequenceEnvironmentLocked(auth)
@@ -281,12 +281,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.prepared.changedDuringAdmission = true
 		}
 		replan = replan || !current
-		eanAuthorityRebind = replan && e.preparedEan13AuthorityRebindLocked(auth, expected, path)
-		rebindTemporals = e.preparedEan13LiteralTemporalsLocked(auth, expected, path)
+		isnAuthorityRebind = replan && e.preparedIsnAuthorityRebindLocked(auth, expected, path)
+		rebindTemporals = e.preparedIsnLiteralTemporalsLocked(auth, expected, path)
 	}
 	if expected != nil {
 		if replan {
-			rebindTypes = expected.retireAnalysisTypeCastsForRebind(eanAuthorityRebind)
+			rebindTypes = expected.retireAnalysisTypeCastsForRebind(isnAuthorityRebind)
 		}
 		valid, err = e.sequenceAnalysisValidLocked(auth, expected.sequences)
 		if err != nil {

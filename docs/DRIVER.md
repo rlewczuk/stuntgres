@@ -202,11 +202,17 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | `json` | `string` (exact input text) |
 | `jsonb`, `uuid`, network, geometric, bit strings, text search | canonical `string` |
 | arrays, composites, ranges, multiranges, enums | canonical `string` |
+| installed `ean13`, `isbn` | canonical `string`, including retained invalid marker |
 | `reg*` types | symbolic `string` |
 
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
 empty `[]byte` is an empty value. `bytea` string and `[]byte` arguments are raw
 octets. Time zone and Unicode data are embedded; no host locale is consulted.
+
+After `CREATE EXTENSION isn`, ISBN columns accept textual literals and bound
+strings or bytes. Results expose `ISBN` database type metadata and string scan
+types. An already-typed text expression requires an explicit `::isbn` conversion;
+the driver does not add implicit conversions between installed scalar families.
 
 ## Errors
 

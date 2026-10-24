@@ -77,6 +77,15 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			integer(3, int64(d.Owner.ID()))
 			integer(4, ProcedureArity(d))
 			integer(5, int64(d.Result))
+			language := ""
+			switch d.Display.Language {
+			case catalog.InternalRoutineLanguage: language = "internal"
+			case catalog.CRoutineLanguage: language = "c"
+			case catalog.SQLRoutineLanguage: language = "sql"
+			case catalog.PLpgSQLRoutineLanguage: language = "plpgsql"
+			}
+			languageAddress := view.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: language})
+			integer(11, int64(languageAddress.ObjectID))
 			vol := "v"
 			if d.Volatility == expr.Stable {
 				vol = "s"

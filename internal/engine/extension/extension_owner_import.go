@@ -102,15 +102,12 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if IntarrayProviderOf(selected) != nil && symbol == "bqarr_out" {
 					signature = "query_int"
 				}
-				if CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil {
+				if CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil || IsnProviderOf(selected) != nil {
 					var valid bool
 					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
 					if !valid {
 						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
 					}
-				}
-				if IsnProviderOf(selected) != nil && symbol == "ean13_out" {
-					signature = "ean13"
 				}
 			case *catalog.Operator:
 				if record.Name == "citext" {

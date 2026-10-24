@@ -42,9 +42,10 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   `stored.ProcedureProvider`, `stored.TypeProvider`).
 - **Provider differences** (`provider_replay.go`): immutable released builtin
   identity and checked versioned extension slots, never mutable labels, select
-  real ALTER FUNCTION replay. Required schemas/extensions precede differences;
-  dependent definitions follow. Free destinations move first; only occupied
-  cycles/blocked intermediate keys need collision-checked temporary names.
+  real ALTER FUNCTION replay. Required schemas/extensions and every installed
+  scalar identity relocation precede differences; dependent definitions follow.
+  Free destinations move first; only occupied cycles or blocked intermediate keys
+  need collision-checked temporary names.
   Owner changes follow relabeling, then stable-slot owner metadata. Unchanged
   provider streams stay unchanged; explicit routine ACLs remain a Dump error.
   Restore/Reset starts from canonical destination providers and destination
@@ -104,14 +105,19 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   replay through a binary `xid → real` cast; Restore has no raw-datum decoder.
 - **Installed type identity replay** (`type_identity_replay.go`): canonical
   extension installations follow prerequisite order before ordinary consumer
-  declarations. Current renamed/moved type identities are then reconstructed with
+  declarations. Every installed scalar role's renamed/moved identity is reconstructed with
   ordinary ALTERs under bootstrap authority. Deterministic free temporary names
   break cross-member cycles; moves preserve companion spelling and renames use
   the shared generated-array predictor. This predictor seeds mixed domain/composite
-  rendering, including domains over installed arrays. The EAN base's captured
-  owner is then restored with ordinary TYPE OWNER SQL, which transfers its
-  companion without changing independent extension or I/O owners. The schedule
-  is transient captured rendering state, not a persisted identity registry.
+  rendering, including domains over installed arrays. Both ISN scalars' captured
+  owners are then restored with ordinary TYPE OWNER SQL, which transfers each
+  companion without changing independent extension or I/O owners. Separate ordinary
+  FUNCTION OWNER replay preserves independent codec owners in native Restore and
+  PostgreSQL replay. When provider
+  alterations take ownership of early extension declarations, they also emit this
+  shared scalar schedule before routine ALTERs and owner metadata; otherwise the
+  ordinary last-extension declaration emits it. The schedule is transient captured
+  rendering state, not a persisted identity registry.
 
 ## Restore
 
@@ -130,7 +136,7 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   over `Check*` functions). The root's table names them in its own order, so
   rejection order is the table's.
   TYPE admission covers the implemented RENAME/SET SCHEMA identity AST and
-  qualified named-role OWNER for a genuine installed EAN base paired to its
+  qualified named-role OWNER for each genuine installed ISN scalar paired to its
   canonical captured owner record, not arbitrary TYPE evolution or DROP TYPE.
   Ownership uses ordinary authority checks and staged base/companion transfer.
   Canonical extension member-role owner metadata resolves through genuine

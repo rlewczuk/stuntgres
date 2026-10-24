@@ -39,8 +39,9 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   generation with current naming and base authority.
 - `Value.Retag` remints descriptor ownership without changing the datum. It
   requires the same type ID, domain/base identity and constraints, and rejects
-  foreign citext/ean13 generations and enum members even for equal OIDs; only
-  source-authorized catalog import remaps explicitly (`RemapCitext`, `RemapEan13`).
+  foreign citext/ISN generations and enum members even for equal OIDs; only
+  source-authorized catalog import remaps explicitly (`RemapCitext`,
+  `RemapEan13`, `RemapIsbn`).
 - Capabilities (comparison, ordering, grouping, hashing, index, binary
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
@@ -89,7 +90,7 @@ continue owning their original descriptors. Fresh metadata and diagnostics name
 the current type; prepared occurrence capture/recreation policy belongs to the
 engine, not a codec-level stale-name retry.
 
-Installed cube/query_int/citext/ean13/earth/lo retain real codec/manifest roles and earth
+Installed cube/query_int/citext/ean13/isbn/earth/lo retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
 Neither a logical OID nor lifecycle support introduces a new range provider,
@@ -181,14 +182,18 @@ or widen it.
   with received members, never from an announced cardinality. Wire OIDs never
   grant catalog identity.
 
-## EAN13 identifiers
+## ISN identifiers
 
-`Ean13` descriptors own a packed integer containing thirteen decimal digits and
-the invalid-input flag. Text input validates digit counts and checksums; output
-uses the attributed PostgreSQL 18.6 prefix/family ranges in `ean13_ranges.go`.
+`Ean13` and `Isbn` descriptors own distinct scalar families with packed
+thirteen-digit identifiers and independent invalid-input flags. Their shared
+scanner preserves raw character lookahead and ASCII separator rules. ISBN short
+input validates its weighted check digit before expansion; short output computes
+its own check digit instead of reusing the stored EAN digit. Formatting uses the
+attributed PostgreSQL 18.6 ranges in `ean13_ranges.go`.
 Leading zeros, computed check digits, marked corrected inputs and typed NULLs
 retain distinct identities. Explicit text I/O and assignment to text reuse the
-shared coercion planner; descriptor generations are never interchangeable by OID.
+shared coercion planner; typed text needs an explicit conversion to ISBN.
+Neither equal OIDs nor shared physical storage authorize family interchange.
 
 ## Type families
 

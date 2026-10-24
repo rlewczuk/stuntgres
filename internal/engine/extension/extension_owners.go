@@ -65,15 +65,12 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if IntarrayProviderOf(d) != nil && symbol == "bqarr_out" {
 				member.Signature = "query_int"
 			}
-			if CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil {
+			if CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil || IsnProviderOf(d) != nil {
 				var valid bool
 				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
 				if !valid {
 					return "", fmt.Errorf("stuntgres: invalid cube ownership signature")
 				}
-			}
-			if IsnProviderOf(d) != nil && symbol == "ean13_out" {
-				member.Signature = "ean13"
 			}
 			principal = d.Owner
 		case *catalog.Operator:
@@ -208,7 +205,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	case record.Name == "citext" && record.Version == "1.8":
 		expectedMembers = CitextMemberCount
 	case record.Name == "isn" && record.Version == "1.3":
-		expectedMembers = 3
+		expectedMembers = isnMemberCount
 	case record.Name == "earthdistance" && record.Version == "1.2":
 		expectedMembers = EarthMemberCount
 	case record.Name == "lo" && record.Version == "1.2":
@@ -284,8 +281,13 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
+			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
 				return invalid()
+			}
+			if record.Name == "isn" {
+				valid := false
+				for _, recipe := range isnRecipes { if member.Slot == recipe.slot && member.Name == recipe.name { valid = true } }
+				if !valid { return invalid() }
 			}
 			if record.Name == "citext" && member.Slot != 0 {
 				return invalid()
@@ -359,7 +361,12 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		if slot >= cubeSpatialProcedureStart && slot < cubeSpatialOperatorStart {
 			return "cube,cube", true
 		}
-	case "intarray", "citext", "isn":
+	case "isn":
+		for _, recipe := range isnRecipes {
+			if slot == recipe.slot+1 { return "2275", true }
+			if slot == recipe.slot+2 { return recipe.name, true }
+		}
+	case "intarray", "citext":
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
 			return "citext,citext", true
 		}
@@ -375,9 +382,6 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		if slot == 2 {
 			if name == "intarray" {
 				return "query_int", true
-			}
-			if name == "isn" {
-				return "ean13", true
 			}
 			return name, true
 		}

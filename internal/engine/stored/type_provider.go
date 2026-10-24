@@ -45,8 +45,8 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 			err = extension.StockCube.ValidateExtension(view, parent)
 		case parent.Name() == "citext" && t.SQLType.IsCitext():
 			err = extension.StockCitext.ValidateExtension(view, parent)
-		case parent.Name() == "isn" && t.SQLType.IsEan13():
-			err = extension.StockIsn.ValidateExtension(view, parent)
+		case parent.Name() == "isn" && (t.SQLType.IsEan13() || t.SQLType.IsIsbn()):
+			_, err = extension.MemberTypeRole(view, parent, t)
 		case parent.Name() == "earthdistance" && (t.SQLType.IsDomain() || t.SQLType.IsArray()):
 			err = extension.StockEarthdistance.ValidateExtension(view, parent)
 		case parent.Name() == "lo" && (t.SQLType.IsDomain() || t.SQLType.IsArray()):
@@ -60,7 +60,7 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 		if err != nil {
 			return err
 		}
-	} else if t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() {
+	} else if t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() {
 		return fmt.Errorf("stuntgres: installed scalar type has no installation")
 	}
 	if t.OwningRelation != (ids.ObjectAddress{}) {

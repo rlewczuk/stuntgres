@@ -67,9 +67,9 @@ func TestLoProviderIdentity(t *testing.T) {
 	if extension.StockLo.Versions().Bases[0] != "1.2" {
 		t.Fatal("shared version storage")
 	}
-	name, actual, err := extension.InstalledType(view, ext)
-	if err != nil || name != "lo" || actual != domain {
-		t.Fatal("installed domain role", name, actual, err)
+	roles, err := extension.InstalledTypes(view, ext)
+	if err != nil || len(roles) != 1 || roles[0].Name != "lo" || roles[0].Type != domain {
+		t.Fatal("installed domain role", roles, err)
 	}
 	for i, member := range []*catalog.Type{domain, array} {
 		role, err := extension.MemberTypeRole(view, ext, member)

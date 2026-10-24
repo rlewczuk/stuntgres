@@ -58,6 +58,8 @@ func SamePreparedTypeDefinition(old, current *Type) bool {
 		return b.IsCitext()
 	case a.IsEan13():
 		return b.IsEan13()
+	case a.IsIsbn():
+		return b.IsIsbn()
 	}
 	return false
 }

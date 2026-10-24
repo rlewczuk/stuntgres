@@ -6,6 +6,7 @@ import (
 	"math"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"strconv"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -77,21 +78,32 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 	if !ok {
 		return f, fmt.Errorf("stuntgres: missing admitted type metadata")
 	}
-	if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() {
+	if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() {
 		ext, ok := catalog.Extension(d.Extension)
 		if !ok || len(ext.Members) < 3 {
 			return f, fmt.Errorf("stuntgres: missing installed type routines")
 		}
-		input, exists := catalog.Procedure(ext.Members[1])
+		slot := -1
+		for i, address := range ext.Members { if address == d.Address() { slot = i } }
+		if slot < 0 || slot+2 >= len(ext.Members) { return f, fmt.Errorf("stuntgres: missing installed scalar role") }
+		input, exists := catalog.Procedure(ext.Members[slot+1])
 		if !exists || input.Implementation == nil {
 			return f, fmt.Errorf("stuntgres: missing installed type provider")
 		}
 		if err := input.Implementation.ValidateExtension(catalog, ext); err != nil {
 			return f, err
 		}
-		f.Input, f.Output = uint32(ext.Members[1].ObjectID), uint32(ext.Members[2].ObjectID)
+		out, exists := catalog.Procedure(ext.Members[slot+2])
+		if !exists || input.Signature != "2275" || input.Result != d.Address().ObjectID || out.Signature != catalogSignature(d.Address().ObjectID) || out.Result != 2275 {
+			return f, fmt.Errorf("stuntgres: invalid installed type codec relationship")
+		}
+		f.Input, f.Output = uint32(ext.Members[slot+1].ObjectID), uint32(ext.Members[slot+2].ObjectID)
 	}
 	return f, nil
+}
+
+func catalogSignature(oid ids.OID) catalog.ProcedureSignature {
+	return catalog.ProcedureSignature(strconv.FormatUint(uint64(oid), 10))
 }
 
 // Released builtin metadata preserves its existing nodeToString witness. User

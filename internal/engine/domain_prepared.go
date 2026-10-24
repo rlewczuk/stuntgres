@@ -16,13 +16,13 @@ func (d *StatementDescription) retireAnalysisTypeCasts() {
 	}
 }
 
-// retireAnalysisTypeCastsForRebind keeps eligible nominal EAN13 occurrences
+// retireAnalysisTypeCastsForRebind keeps eligible nominal ISN occurrences
 // only in this attempt's candidate. Failure cannot revive the retired original.
-func (d *StatementDescription) retireAnalysisTypeCastsForRebind(eanAuthorityRebind bool) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
+func (d *StatementDescription) retireAnalysisTypeCastsForRebind(isnAuthorityRebind bool) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
 	var captures map[analyze.PreparedTypeKey]analyze.TypeOccurrence
-	if eanAuthorityRebind {
+	if isnAuthorityRebind {
 		for key, captured := range d.types {
-			if key.Kind == analyze.IdentityCast && captured.Kind == analyze.IdentityCast && captured.Base.Type != nil && captured.Base.Type.IsEan13() {
+			if key.Kind == analyze.IdentityCast && captured.Kind == analyze.IdentityCast && captured.Base.Type != nil && (captured.Base.Type.IsEan13() || captured.Base.Type.IsIsbn()) {
 				if captures == nil {
 					captures = make(map[analyze.PreparedTypeKey]analyze.TypeOccurrence)
 				}

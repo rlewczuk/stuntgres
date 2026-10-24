@@ -264,6 +264,13 @@ func emitDumpProviderReplay(ctx context.Context, s *dumpScript, w *dumpWriter) e
 	if err := w.setOwner("postgres"); err != nil {
 		return err
 	}
+	// This phase owns the extension declaration events, so it also owns their
+	// scalar-identity barrier. Routine arguments already use final type names.
+	if s.extensionTypeSQL != "" {
+		if err := w.emit(s.extensionTypeSQL); err != nil {
+			return err
+		}
+	}
 	if err := emitDumpLines(w, s.providerStatements); err != nil {
 		return err
 	}

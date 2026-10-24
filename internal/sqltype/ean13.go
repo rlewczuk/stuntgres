@@ -29,60 +29,9 @@ func (v Value) validEan13() bool {
 // Recognition order follows REL_18_6 string2ean, including short-family errors
 // before checksum validation and the raw-character lookahead for ? and !.
 func (d *Descriptor) ean13Input(text string) (Value, error) {
-	invalid := func() (Value, error) {
-		return Value{}, failure("22P02", fmt.Sprintf("invalid input syntax for EAN13 number: \"%s\"", text))
-	}
 	var digits [14]byte
-	n, family := 0, ""
-	magic, valid := false, true
-	for i := range len(text) {
-		c := text[i]
-		last := i+1 == len(text) || text[i+1] == '!'
-		digit := c >= '0' && c <= '9'
-		if c == '?' && last {
-			magic, digit = true, true
-		}
-		switch {
-		case n == 0 && (c == 'M' || c == 'm'):
-			if family != "" { return invalid() }
-			family, c = "ISMN", 'M'
-		case n == 7 && (digit || c == 'X' || c == 'x') && last:
-			if family != "" { return invalid() }
-			family = "ISSN"
-		case n == 9 && (digit || c == 'X' || c == 'x') && last:
-			if family != "" && family != "ISMN" { return invalid() }
-			if family == "" { family = "ISBN" }
-		case n == 11 && digit && last:
-			if family != "" { return invalid() }
-			family = "UPC"
-		case c == '-' || c == ' ':
-			continue
-		case c == '!' && i+1 == len(text):
-			if !magic { valid = false }
-			magic = true
-			continue
-		case !digit:
-			return invalid()
-		}
-		digits[n] = c
-		n++
-		if n > 13 {
-			return Value{}, failure("22003", fmt.Sprintf("value \"%s\" is out of range for EAN13 type", text))
-		}
-	}
-	switch n {
-	case 13:
-		if family != "" { return invalid() }
-	case 12:
-		if family != "UPC" { return invalid() }
-	case 10:
-		if family != "ISBN" && family != "ISMN" { return invalid() }
-	case 8:
-		if family != "" && family != "ISSN" { return invalid() }
-		family = "ISSN"
-	default:
-		return invalid()
-	}
+	_, family, magic, valid, err := scanIsn(text, "EAN13", &digits)
+	if err != nil { return Value{}, err }
 	if family != "" {
 		return Value{}, failure("22P02", fmt.Sprintf("cannot cast %s to EAN13 for number: \"%s\"", family, text))
 	}

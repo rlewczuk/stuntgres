@@ -10,12 +10,21 @@ import (
 )
 
 func TestIsnTypeGenerationIdentity(t *testing.T) {
-	e, _, base := isnUnitInstalled(t)
+	for _, family := range []string{"ean13", "isbn"} {
+		t.Run(family, func(t *testing.T) { testIsnTypeGenerationIdentity(t, family) })
+	}
+}
+
+func testIsnTypeGenerationIdentity(t *testing.T, family string) {
+	e, ext, _ := isnUnitInstalled(t)
+	slot, input, output, constructor := 0, "1234567890120!", "123-456789012-8!", sqltype.Ean13
+	if family == "isbn" { slot, input, output, constructor = 3, "9780123456780!", "0-12-345678-9!", sqltype.Isbn }
+	base := e.CatalogRead().MustType(ext.Members[slot])
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	table := domainUnitTable(t, e, op, "CREATE TABLE public.isn_generation(v public.ean13)")
+	table := domainUnitTable(t, e, op, "CREATE TABLE public.isn_generation(v public."+family+")")
 	before := e.CatalogRead()
-	value, err := base.SQLType.Input(context.Background(), "1234567890120!", -1)
+	value, err := base.SQLType.Input(context.Background(), input, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +39,7 @@ func TestIsnTypeGenerationIdentity(t *testing.T) {
 
 	// Exercise the private generation seam directly, without executing SQL.
 	next := *base
-	next.SQLType, err = sqltype.Ean13(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
+	next.SQLType, err = constructor(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +49,7 @@ func TestIsnTypeGenerationIdentity(t *testing.T) {
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	foreign, err := sqltype.Ean13(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
+	foreign, err := constructor(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +76,7 @@ func TestIsnTypeGenerationIdentity(t *testing.T) {
 			t.Fatal("generation changed row identity, NULL framing or destination")
 		}
 		if !mapped.IsNull() {
-			if text, err := next.SQLType.Output(context.Background(), mapped); err != nil || text != "123-456789012-8!" {
+			if text, err := next.SQLType.Output(context.Background(), mapped); err != nil || text != output {
 				t.Fatal("generation lost marked payload", text, err)
 			}
 		}

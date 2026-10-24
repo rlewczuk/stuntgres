@@ -40,6 +40,10 @@ diagnostics without exposing those relations as inputs. Unsupported setting-call
 signatures retain the final function-name component's diagnostic position after
 operand analysis; missing-column diagnostics still precede that shape boundary.
 
+The isn extension now supports ISBN columns, short and long text input,
+canonical output and marked-invalid values, with independent type metadata and
+identity preservation through prepared statements and native Dump/Reset/Restore.
+
 information_schema.role_routine_grants now exposes ten domain-typed columns over
 real routine EXECUTE grant origins, preserving named grantors, grant options and
 enabled-role visibility across direct and prepared metadata reads.

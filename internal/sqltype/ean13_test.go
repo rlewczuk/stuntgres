@@ -55,13 +55,17 @@ func TestEan13Identity(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	foreign, err := Ean13(d.ID(), "ean13", "public.ean13")
 	if err != nil { t.Fatal(err) }
+	sibling, err := Isbn(d.ID(), "ean13", "public.ean13")
+	if err != nil { t.Fatal(err) }
 	v, err := d.Input(context.Background(), "1234567890128", -1)
 	if err != nil { t.Fatal(err) }
 	marked, err := d.Input(context.Background(), "1234567890128!", -1)
 	if err != nil { t.Fatal(err) }
 	if SameDatum(v, marked) || !SameDatum(v, v) { t.Fatal("invalid marker identity") }
-	for _, source := range []Value{v, Null(d)} {
+	for _, source := range []Value{v, marked, Null(d)} {
 		if _, err := source.Retag(foreign); err == nil { t.Fatal("foreign generation retagged") }
+		if _, err := source.Retag(sibling); err == nil { t.Fatal("sibling family retagged") }
+		if _, err := source.RemapEan13(sibling); err == nil { t.Fatal("sibling family imported") }
 		mapped, err := source.RemapEan13(foreign)
 		if err != nil || mapped.Type() != foreign || mapped.IsNull() != source.IsNull() { t.Fatal(mapped, err) }
 	}

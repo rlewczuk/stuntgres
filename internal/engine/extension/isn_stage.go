@@ -12,62 +12,74 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Stage installs the ean13 type, its array and its two I/O functions into
-// stage, owned by owner, allocating identities in member order.
+// Stage installs all scalar roles and their codecs into the statement's private stage.
 func (p *IsnProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
-	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "ean13")
-	if err != nil {
-		return err
-	}
-	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "ean13") {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "ean13" already exists`}
-	}
-	ext.Members = make([]ids.ObjectAddress, 3)
-	for i, class := range [3]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
-		oid, err := stage.AllocateOID()
-		if err != nil {
-			return err
+	ext.Members = make([]ids.ObjectAddress, isnMemberCount)
+	for _, recipe := range isnRecipes {
+		for offset, class := range [...]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
+			oid, err := stage.AllocateOID()
+			if err != nil { return err }
+			ext.Members[recipe.slot+offset] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 		}
-		ext.Members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
 	ns := stage.Read().Get(ext.TargetNamespace).Name()
-	typ, err := sqltype.Ean13(sqltype.ID(ext.Members[0].ObjectID), "ean13", catalog.DependencyIdentifier(ns)+".ean13")
-	if err != nil {
-		return err
-	}
-	arrayOID, err := stage.AllocateOID()
-	if err != nil {
-		return err
-	}
-	array := sqltype.LookupArray(sqltype.ID(arrayOID), stage.AssociatedArrayName(ext.TargetNamespace, typ.Name()), typ)
-	revision, err := stage.Revision()
-	if err != nil {
-		return err
-	}
-	acl, synthetic := stage.CreationTypeACL(owner, ext.TargetNamespace)
-	if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
-		return err
-	}
-	if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
-		return err
-	}
-	for i := range 2 {
-		revision, err := stage.Revision()
-		if err != nil {
-			return err
+	for _, recipe := range isnRecipes {
+		// The script declares input, then output, before completing the type.
+		// An occupied type contributes only its signature identity here; it
+		// never becomes the scalar installed under this manifest's new OID.
+		outputType := ext.Members[recipe.slot].ObjectID
+		existing := stage.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ext.TargetNamespace, Name: recipe.name})
+		if existing != (ids.ObjectAddress{}) {
+			outputType = existing.ObjectID
 		}
-		name, signature, result := "ean13_in", catalog.ProcedureSignature("2275"), ids.OID(typ.ID())
-		if i == 1 {
-			name, signature, result = "ean13_out", IsnSignature(typ.ID()), 2275
+		for codec := range 2 {
+			name, signature := recipe.input, catalog.ProcedureSignature("2275")
+			if codec == 1 {
+				name, signature = recipe.output, IsnSignature(sqltype.ID(outputType))
+			}
+			key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: name, Signature: string(signature)}
+			if stage.LookupName(key) != (ids.ObjectAddress{}) {
+				return isnCodecConflict(recipe, codec)
+			}
 		}
-		proc := &catalog.Procedure{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: [2]string{"ean13_in", "ean13_out"}[i]}, Implementation: p}
-		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
-			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
-			return err
+		available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, recipe.name)
+		if err != nil { return err }
+		if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, recipe.name) {
+			e := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, recipe.name)}
+			if recipe.name == "isbn" { e.Context = "SQL statement \"CREATE TYPE isbn (\n\tINPUT = isbn_in,\n\tOUTPUT = isn_out,\n\tLIKE = pg_catalog.int8\n)\"\nextension script file \"isn--1.1.sql\", near line 112" }
+			return e
 		}
-		if err := stage.Create(proc); err != nil {
-			return err
+		typ, err := recipe.construct(sqltype.ID(ext.Members[recipe.slot].ObjectID), recipe.name, catalog.DependencyIdentifier(ns)+"."+recipe.name)
+		if err != nil { return err }
+		arrayOID, err := stage.AllocateOID(); if err != nil { return err }
+		array := sqltype.LookupArray(sqltype.ID(arrayOID), stage.AssociatedArrayName(ext.TargetNamespace, typ.Name()), typ)
+		revision, err := stage.Revision(); if err != nil { return err }
+		acl, synthetic := stage.CreationTypeACL(owner, ext.TargetNamespace)
+		if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil { return err }
+		if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil { return err }
+		for i := range 2 {
+			revision, err := stage.Revision(); if err != nil { return err }
+			name, signature, result := recipe.input, catalog.ProcedureSignature("2275"), ids.OID(typ.ID())
+			if i == 1 { name, signature, result = recipe.output, IsnSignature(typ.ID()), 2275 }
+			proc := &catalog.Procedure{ObjectAddress: ext.Members[recipe.slot+1+i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}, Implementation: p}
+			if err := stage.Create(proc); err != nil { return err }
 		}
 	}
 	return nil
+}
+
+func isnCodecConflict(recipe isnRecipe, codec int) error {
+	name := recipe.input
+	if codec == 1 {
+		name = recipe.output
+	}
+	e := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
+	if recipe.name == "isbn" {
+		argument, result, line := "cstring", recipe.name, 100
+		if codec == 1 {
+			argument, result, line = recipe.name, "cstring", 106
+		}
+		e.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS '$libdir/isn'\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line %d", name, argument, result, line)
+	}
+	return e
 }

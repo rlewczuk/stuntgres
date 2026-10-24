@@ -33,13 +33,13 @@ func ean13Diagnostic(code, message string) fixture.Diagnostic {
 func ean13Select(b fixture.Backend, q string, names, types []string, expected [][]any, nullable []bool, args ...any) fixture.Step {
 	dbTypes := append([]string(nil), types...)
 	for i, typ := range types {
-		if typ == "EAN13" && b.PG {
+		if (typ == "EAN13" || typ == "ISBN") && b.PG {
 			dbTypes[i] = ""
 		}
 	}
 	s := fixture.Select(q, names, dbTypes, expected, args...)
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
-		if types[column] != "EAN13" {
+		if types[column] != "EAN13" && types[column] != "ISBN" {
 			return false
 		}
 		if value != nil {
@@ -48,7 +48,7 @@ func ean13Select(b fixture.Backend, q string, names, types []string, expected []
 				want = reflect.TypeFor[[]byte]()
 			}
 			if reflect.TypeOf(value) != want {
-				t.Fatalf("EAN13 raw %d/%d = %T, want %v", row, column, value, want)
+				t.Fatalf("%s raw %d/%d = %T, want %v", types[column], row, column, value, want)
 			}
 		}
 		return true
@@ -81,23 +81,23 @@ func ean13ColumnMetadata(t *testing.T, pg bool, columns []*sql.ColumnType, names
 				t.Fatalf("%s nullable = %v/%v, want %v/%v", col.Name(), n, ok, wantNull, wantKnown)
 			}
 		}
-		if types[i] != "EAN13" {
+		if types[i] != "EAN13" && types[i] != "ISBN" {
 			continue
 		}
-		wantName, wantScan := "EAN13", reflect.TypeFor[string]()
+		wantName, wantScan := types[i], reflect.TypeFor[string]()
 		if pg {
 			wantName, wantScan = "", reflect.TypeFor[any]()
 		}
 		length, lengthOK := col.Length()
 		precision, scale, decimalOK := col.DecimalSize()
 		if col.DatabaseTypeName() != wantName || col.ScanType() != wantScan {
-			t.Fatalf("EAN13 type = %q/%v, want %q/%v", col.DatabaseTypeName(), col.ScanType(), wantName, wantScan)
+			t.Fatalf("%s type = %q/%v, want %q/%v", types[i], col.DatabaseTypeName(), col.ScanType(), wantName, wantScan)
 		}
 		if length != 0 || lengthOK {
-			t.Fatalf("EAN13 Length = (%d,%v), want (0,false)", length, lengthOK)
+			t.Fatalf("%s Length = (%d,%v), want (0,false)", types[i], length, lengthOK)
 		}
 		if precision != 0 || scale != 0 || decimalOK {
-			t.Fatalf("EAN13 DecimalSize = (%d,%d,%v), want (0,0,false)", precision, scale, decimalOK)
+			t.Fatalf("%s DecimalSize = (%d,%d,%v), want (0,0,false)", types[i], precision, scale, decimalOK)
 		}
 	}
 }

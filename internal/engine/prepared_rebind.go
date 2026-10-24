@@ -75,15 +75,15 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 	return e.preparedAnalysisDefinitionsValidLocked(auth, analysis, path, false)
 }
 
-func (e *Engine) preparedEan13AuthorityRebindLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) bool {
+func (e *Engine) preparedIsnAuthorityRebindLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) bool {
 	return expected != nil && expected.planGeneration == auth.session.DiscardPlansGeneration && e.preparedAnalysisDefinitionsValidLocked(auth, expected.analysis, path, true)
 }
 
 // Caller holds Engine.mu. Only the exact prepared source cell can authorize a
-// statement-owned EAN datum import into the genuine current manifest member.
+// statement-owned ISN datum import into the genuine current manifest member.
 // The returned slice belongs to this attempt; neither imports nor values publish
 // until the existing successful reanalysis publication path accepts them.
-func (e *Engine) preparedEan13LiteralTemporalsLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) []analyze.TemporalConstant {
+func (e *Engine) preparedIsnLiteralTemporalsLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) []analyze.TemporalConstant {
 	if expected == nil {
 		return nil
 	}
@@ -93,11 +93,11 @@ func (e *Engine) preparedEan13LiteralTemporalsLocked(auth AuthorizationView, exp
 	checked := false
 	for i, capture := range original {
 		source := capture.Value.Type()
-		if source == nil || !source.IsEan13() {
+		if source == nil || !source.IsEan13() && !source.IsIsbn() {
 			continue
 		}
 		if !checked {
-			if expected.planGeneration != auth.session.DiscardPlansGeneration || (!e.preparedAnalysisValidLocked(auth, expected.analysis, path) && !e.preparedEan13AuthorityRebindLocked(auth, expected, path)) {
+			if expected.planGeneration != auth.session.DiscardPlansGeneration || (!e.preparedAnalysisValidLocked(auth, expected.analysis, path) && !e.preparedIsnAuthorityRebindLocked(auth, expected, path)) {
 				return original
 			}
 			checked = true
@@ -115,7 +115,7 @@ func (e *Engine) preparedEan13LiteralTemporalsLocked(auth AuthorizationView, exp
 			}
 		}
 		current, ok := auth.Catalog.Type(address)
-		if !captured || !ok || !current.SQLType.IsEan13() || old.Extension != current.Extension || old.Array != current.Array {
+		if !captured || !ok || source.IsEan13() != current.SQLType.IsEan13() || source.IsIsbn() != current.SQLType.IsIsbn() || old.Extension != current.Extension || old.Array != current.Array {
 			return original
 		}
 		nominal := *old
@@ -127,10 +127,7 @@ func (e *Engine) preparedEan13LiteralTemporalsLocked(auth AuthorizationView, exp
 		if !ok {
 			return original
 		}
-		role, installed, err := extension.InstalledType(auth.Catalog, ext)
-		if err != nil || role != "ean13" || installed != current || installed.SQLType != current.SQLType {
-			return original
-		}
+		if _, err := extension.MemberTypeRole(auth.Catalog, ext, current); err != nil { return original }
 		if source == current.SQLType {
 			continue
 		}
@@ -153,9 +150,9 @@ func (e *Engine) preparedEan13LiteralTemporalsLocked(auth AuthorizationView, exp
 	return original
 }
 
-// The rebind mode validates nominal EAN13 occurrences only, never executable
+// The rebind mode validates nominal ISN occurrences only, never executable
 // reuse. Owner/ACL changes still require fresh analysis and authority checks.
-func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment, eanAuthorityRebind bool) bool {
+func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment, isnAuthorityRebind bool) bool {
 	if !e.preparedAnalysisEnvironmentValidLocked(auth, analysis, path) {
 		return false
 	}
@@ -175,14 +172,14 @@ func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, 
 			if !ok {
 				return false
 			}
-			if eanAuthorityRebind && !current.SQLType.IsEan13() {
+			if isnAuthorityRebind && !current.SQLType.IsEan13() && !current.SQLType.IsIsbn() {
 				return false
 			}
 			old := analysis.types[dep.Ref.Address]
 			if catalog.SamePreparedTypeDefinition(old, current) {
 				continue
 			}
-			if !eanAuthorityRebind || old == nil || !old.SQLType.IsEan13() || !current.SQLType.IsEan13() {
+			if !isnAuthorityRebind || old == nil || old.SQLType.IsEan13() != current.SQLType.IsEan13() || old.SQLType.IsIsbn() != current.SQLType.IsIsbn() || !old.SQLType.IsEan13() && !old.SQLType.IsIsbn() {
 				return false
 			}
 			// Compare the same immutable definition while deliberately leaving

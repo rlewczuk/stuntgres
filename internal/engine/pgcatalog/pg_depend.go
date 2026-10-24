@@ -123,11 +123,16 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				return true
 			})
 			if runtime.TypeProviderProcedure(d) {
-				if d.Name() == "bqarr_in" || d.Name() == "cube_in" || d.Name() == "ean13_in" {
-					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
-				} else {
-					ext := view.MustExtension(d.Extension)
-					add(d.Address(), ext.Members[0], 'n')
+				ext, ok := view.Extension(d.Extension)
+				if !ok || d.Implementation == nil { return nil, fmt.Errorf("stuntgres: missing installed codec authority") }
+				if err := d.Implementation.ValidateExtension(view, ext); err != nil { return nil, err }
+				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
+				for arguments := string(d.Signature); arguments != ""; {
+					argument, rest, _ := strings.Cut(arguments, ",")
+					id, err := strconv.ParseUint(argument, 10, 32)
+					if err != nil { return nil, fmt.Errorf("stuntgres: invalid installed codec signature") }
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}, 'n')
+					arguments = rest
 				}
 			} else if d.Implementation != nil {
 				if ext, ok := view.Extension(d.Extension); ok && len(ext.Members) > 0 {

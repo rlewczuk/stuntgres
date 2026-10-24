@@ -132,6 +132,55 @@ func TestProviderReplayEmissionPrerequisites(t *testing.T) {
 	}
 }
 
+func TestProviderReplayInstalledTypeOrdering(t *testing.T) {
+	for _, cycle := range []bool{false, true} {
+		name := "independent_moves"
+		schedule := "ALTER TYPE isbn_src.ean13 SET SCHEMA isbn_dst;\n" +
+			"ALTER TYPE isbn_dst.ean13 RENAME TO moved_e;\n" +
+			"ALTER TYPE isbn_src.isbn SET SCHEMA isbn_dst;\n" +
+			"ALTER TYPE isbn_dst.isbn RENAME TO moved_v;\n"
+		argument := "isbn_dst.moved_v"
+		if cycle {
+			name = "canonical_name_cycle"
+			schedule = "ALTER TYPE isbn_src.ean13 RENAME TO parked;\n" +
+				"ALTER TYPE isbn_src.isbn RENAME TO ean13;\n" +
+				"ALTER TYPE isbn_src.parked RENAME TO isbn;\n"
+			argument = "isbn_src.ean13"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			var out bytes.Buffer
+			alter := "ALTER FUNCTION isbn_src.isn_out(" + argument + ") RENAME TO moved_output;\n"
+			s := &dumpScript{Capture: &Capture{
+				Views: []OwnedStatement{{"postgres", "CREATE EXTENSION isn SCHEMA isbn_src;\n"}},
+				ViewIndices: map[ids.OID]int{10: 0},
+			}, eventOrder: []dump.Event{{OID: 10}},
+				extensionTypeAfter: 10,
+				extensionTypeSQL: schedule,
+				extensionMetadata: map[ids.OID]string{10: "-- member owners\n"},
+				providerStatements: []string{alter},
+			}
+			w := &dumpWriter{ctx: ctx, dst: &out}
+			if err := emitDumpProviderReplay(ctx, s, w); err != nil { t.Fatal(err) }
+			if err := emitDumpDeclaration(ctx, s, w, dump.Event{OID: 10}); err != nil { t.Fatal(err) }
+			text := out.String()
+			want := "CREATE EXTENSION isn SCHEMA isbn_src;\n" + schedule + alter + "-- member owners\n"
+			if !strings.HasSuffix(text, want) || strings.Count(text, schedule) != 1 || strings.Count(text, "CREATE EXTENSION") != 1 {
+				t.Fatalf("early replay must install, relocate both scalars, alter codecs, then apply metadata exactly once: %q", text)
+			}
+			// Without an early provider phase, the ordinary declaration keeps
+			// ownership of the same scalar barrier, also exactly once.
+			s.providerStatements, s.extensionMetadata = nil, nil
+			out.Reset()
+			if err := emitDumpProviderReplay(ctx, s, w); err != nil || out.Len() != 0 { t.Fatal("unexpected early emission", err) }
+			if err := emitDumpDeclaration(ctx, s, w, dump.Event{OID: 10}); err != nil { t.Fatal(err) }
+			if got := out.String(); !strings.HasSuffix(got, s.Views[0].SQL+schedule) || strings.Count(got, schedule) != 1 {
+				t.Fatalf("ordinary declaration lost or duplicated scalar replay: %q", got)
+			}
+		})
+	}
+}
+
 func TestProviderReplayRejectsExplicitACL(t *testing.T) {
 	p := &catalog.Procedure{}
 	p.ACL.Explicit = true

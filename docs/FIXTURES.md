@@ -62,6 +62,12 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   comments (JSON fields `schema`, `name`, `populated`, `rows`). Native Restore
   reloads them; PostgreSQL ignores them, leaving views unpopulated until
   `REFRESH`.
+- Installed ISN scalars replay through their shared extension installation before
+  consumers. Independent type names, schemas, base/array owners and codec owners
+  survive replacement through validated member roles rather than labels.
+  Ordinary TYPE OWNER and FUNCTION OWNER statements preserve named owners in
+  native Restore and PostgreSQL replay; native owner metadata comments provide
+  additional validated member-role reconciliation during native Restore.
 - Custom range declarations include their selected subtype class, collation,
   optional diff and generated multirange name. Restore rebuilds destination-owned
   family descriptors and endpoint values rather than retaining source captures.

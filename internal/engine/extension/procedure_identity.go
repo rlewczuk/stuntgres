@@ -156,7 +156,21 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			}
 			name, signature, result = spec.name, spec.signature(base.SQLType.ID()), spec.resultOID(base.SQLType.ID())
 		}
-	case StockIntarray, StockCitext, StockIsn:
+	case StockIsn:
+		count = isnMemberCount
+		found := false
+		for _, recipe := range isnRecipes {
+			if slot != recipe.slot+1 && slot != recipe.slot+2 { continue }
+			if len(ext.Members) != count { return invalid() }
+			base, ok := v.Type(ext.Members[recipe.slot])
+			if !ok || !recipe.accept(base.SQLType) || base.Extension != ext.Address() || base.Revision() == 0 { return invalid() }
+			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }
+			name, signature, result = recipe.input, "2275", ids.OID(base.SQLType.ID())
+			if slot == recipe.slot+2 { name, signature, result = recipe.output, IsnSignature(base.SQLType.ID()), 2275 }
+			found = true
+		}
+		if !found { return invalid() }
+	case StockIntarray, StockCitext:
 		count = 3
 		if p.Implementation == StockCitext {
 			count = CitextMemberCount
@@ -168,7 +182,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if !ok || base.SQLType == nil {
 			return invalid()
 		}
-		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockCitext && !base.SQLType.IsCitext() || p.Implementation == StockIsn && !base.SQLType.IsEan13() {
+		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
 			return invalid()
 		}
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
@@ -185,11 +199,6 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name = "citextin"
 			if slot == 2 {
 				name = "citextout"
-			}
-		case StockIsn:
-			name = "ean13_in"
-			if slot == 2 {
-				name = "ean13_out"
 			}
 		}
 		if slot == 2 {

@@ -1,0 +1,46 @@
+package engine
+
+import (
+	"context"
+	"testing"
+
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/sqltype"
+)
+
+func TestIsnManifestRoles(t *testing.T) {
+	e, ext, _ := isnUnitInstalled(t)
+	before := e.CatalogRead()
+	for _, slots := range [][2]int{{0,3},{1,4},{2,5},{1,2},{4,5}} {
+		candidate := catalog.CloneState(before.State())
+		changed := *ext; changed.Members = append([]ids.ObjectAddress(nil), ext.Members...)
+		changed.Members[slots[0]], changed.Members[slots[1]] = changed.Members[slots[1]], changed.Members[slots[0]]
+		candidate.SetDescriptor(changed.Address(), &changed)
+		if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), &changed); err == nil { t.Fatal("swapped manifest roles accepted", slots) }
+	}
+	for _, slot := range []int{0,3} {
+		base := before.MustType(ext.Members[slot])
+		other := before.MustType(ext.Members[3-slot])
+		input := "9780123456780!"; if slot == 0 { input = "1234567890120!" }
+		value, err := base.SQLType.Input(context.Background(), input, -1); if err != nil { t.Fatal(err) }
+		for _, source := range []sqltype.Value{value, sqltype.Null(base.SQLType)} {
+			if _, err := typedef.ReownDomainDatum(source, other.SQLType, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{base.SQLType: other.SQLType}, nil); err == nil { t.Fatal("source authorization crossed ISN family") }
+		}
+		candidate := catalog.CloneState(before.State())
+		array := *candidate.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
+		array.SQLType = sqltype.LookupArray(array.SQLType.ID(), array.Name(), other.SQLType)
+		candidate.SetDescriptor(array.Address(), &array)
+		if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), ext); err == nil { t.Fatal("cross-family companion accepted") }
+		for _, offset := range []int{1,2} {
+			candidate := catalog.CloneState(before.State())
+			proc := *candidate.MustProcedure(ext.Members[slot+offset])
+			proc.Display.Source = "foreign_symbol"
+			candidate.SetDescriptor(proc.Address(), &proc)
+			if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), ext); err == nil { t.Fatal("forged codec declaration accepted") }
+		}
+	}
+	if e.CatalogRead().State() != before.State() { t.Fatal("rejected role mutations changed catalog") }
+}
