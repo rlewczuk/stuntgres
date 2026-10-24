@@ -87,7 +87,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			scope.owner.Catalog = unsafeRoot
 			if err == nil {
 				captureEnumOperationSafety(op, &b.Input)
-				err = e.captureEnumOperationInput(auth, &b.Input)
+				err = captureEnumOperationInput(auth, &b.Input)
 			}
 			e.mu.Unlock()
 			if err != nil || !lazyNamingOnly || calls != 0 || b.Input.TypeDiagnosticName == nil || b.Input.EnumMemberSafe == nil {
@@ -132,7 +132,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil {
+	if err := captureEnumOperationInput(auth, &b.Input); err != nil {
 		t.Fatal(err)
 	}
 	original := b.Input
@@ -142,7 +142,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	// A preexisting coherent name callback must not suppress safety admission.
 	b.Input = sqltype.InputEnvironment{TypeDiagnosticName: original.TypeDiagnosticName}
 	captureEnumOperationSafety(op, &b.Input)
-	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil || b.Input.EnumMemberSafe == nil || b.Input.EnumMemberSafe(mood.ID(), members[1].ID) {
+	if err := captureEnumOperationInput(auth, &b.Input); err != nil || b.Input.EnumMemberSafe == nil || b.Input.EnumMemberSafe(mood.ID(), members[1].ID) {
 		t.Fatal("existing naming suppressed operation safety", err)
 	}
 	if allocations := testing.AllocsPerRun(100, func() {
@@ -162,7 +162,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	scope.owner.Catalog = candidate
 	b.Input = sqltype.InputEnvironment{TypeDiagnosticName: original.TypeDiagnosticName}
 	captureEnumOperationSafety(op, &b.Input)
-	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil {
+	if err := captureEnumOperationInput(auth, &b.Input); err != nil {
 		t.Fatal(err)
 	}
 	child := b.Input.EnumMemberSafe
@@ -172,14 +172,14 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	scope.owner.Catalog = mark.Catalog
 	b.Input = sqltype.InputEnvironment{TypeDiagnosticName: original.TypeDiagnosticName}
 	captureEnumOperationSafety(op, &b.Input)
-	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil || !b.Input.EnumMemberSafe(mood.ID(), members[0].ID) || b.Input.EnumMemberSafe(mood.ID(), members[1].ID) || child(mood.ID(), members[0].ID) {
+	if err := captureEnumOperationInput(auth, &b.Input); err != nil || !b.Input.EnumMemberSafe(mood.ID(), members[0].ID) || b.Input.EnumMemberSafe(mood.ID(), members[1].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("savepoint root replacement mutated old capture or failed refresh", err)
 	}
 	// Completion clears current provenance, not previously admitted captures.
 	scope.owner.Catalog = nil
 	b.Input = sqltype.InputEnvironment{}
 	captureEnumOperationSafety(op, &b.Input)
-	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil || b.Input.EnumMemberSafe != nil || original.EnumMemberSafe(mood.ID(), members[1].ID) || child(mood.ID(), members[0].ID) {
+	if err := captureEnumOperationInput(auth, &b.Input); err != nil || b.Input.EnumMemberSafe != nil || original.EnumMemberSafe(mood.ID(), members[1].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("completed root retained stale safety or changed old capture", err)
 	}
 	for _, empty := range []*session.Journal{nil, session.NewJournal()} {
@@ -188,7 +188,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 		// Nil engine deliberately makes any unnecessary naming/path capture fail.
 		if allocations := testing.AllocsPerRun(100, func() {
 			captureEnumOperationSafety(op, &probe.Input)
-			if err := (*Engine)(nil).captureEnumOperationInput(auth, &probe.Input); err != nil || probe.Input.TypeDiagnosticName != nil || probe.Input.EnumMemberSafe != nil {
+			if err := captureEnumOperationInput(auth, &probe.Input); err != nil || probe.Input.TypeDiagnosticName != nil || probe.Input.EnumMemberSafe != nil {
 				panic("empty provenance acquired an environment")
 			}
 		}); allocations != 0 {

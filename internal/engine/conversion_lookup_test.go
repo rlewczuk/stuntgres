@@ -248,11 +248,11 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 		t.Fatal("retained literal identity changed", id, err)
 	}
 	op, auth := conversionUnitAuth(t, e)
-	types, err := e.captureRegtypeInput(auth, op)
+	types, err := captureRegtypeInput(auth, op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fresh, err := e.captureRoutineInput(auth, types)
+	fresh, err := captureRoutineInput(auth, types)
 	if err != nil {
 		t.Fatal(err)
 	}

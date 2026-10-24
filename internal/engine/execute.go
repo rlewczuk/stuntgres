@@ -215,7 +215,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err := e.captureEnumOperationInput(auth, &scope.input); err != nil {
+	if err := captureEnumOperationInput(auth, &scope.input); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

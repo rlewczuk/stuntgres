@@ -22,7 +22,7 @@ func batchUnitIdentity(m *batchUnitMessage, current authorization.PrincipalRef) 
 	if session.RoleRevisionHeadroom(s.Authorization, uint64(len(t.Savepoints))+3) != nil {
 		return false
 	}
-	engineOf(s).touchOperationIdentityLocked(m.op)
+	touchOperationIdentityLocked(m.op)
 	s.Settings.TouchRole(s.Authorization.State.CurrentUser, false)
 	s.Authorization.State.CurrentUser = current
 	s.Authorization.Revision++

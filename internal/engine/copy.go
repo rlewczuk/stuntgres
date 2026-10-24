@@ -381,29 +381,29 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth
 		var err error
 		usage := b.Relation.Columns[target].Usage
 		if usage.Type.ContainsRegclass() && s.input.Regclass == nil {
-			s.input.Regclass, err = e.captureRegclassInput(auth)
+			s.input.Regclass, err = captureRegclassInput(auth)
 		}
 		if err == nil && (usage.Type.ContainsRegtype() || usage.Type.ContainsRegproc()) && s.input.Regtype == nil {
-			s.input.Regtype, err = e.captureRegtypeInput(auth, s.op)
+			s.input.Regtype, err = captureRegtypeInput(auth, s.op)
 		}
 		if err == nil && usage.Type.ContainsRegrole() && s.input.Regrole == nil {
 			s.input.Regrole = regobj.RoleInput{Roles: auth.Roles}
 		}
 		if err == nil && usage.Type.ContainsOperatorAlias() && s.input.Operator == nil {
-			s.input.Operator, err = e.captureOperatorInput(auth, s.op)
+			s.input.Operator, err = captureOperatorInput(auth, s.op)
 		}
 		if err == nil && usage.Type.ContainsRegproc() && s.input.Regproc == nil {
-			s.input.Regproc, err = e.captureRoutineInput(auth, s.input.Regtype.(regobj.TypeInput))
+			s.input.Regproc, err = captureRoutineInput(auth, s.input.Regtype.(regobj.TypeInput))
 		}
 		if err == nil && usage.Type.ContainsRegObject() && (s.input.Regcollation == nil || s.input.Regnamespace == nil) {
 			var input regobj.ObjectInput
-			input, err = e.captureRegObjectInput(auth)
+			input, err = captureRegObjectInput(auth)
 			if err == nil {
 				s.input.Regcollation, s.input.Regnamespace = input, input
 			}
 		}
 		if err == nil && usage.Type.ContainsRegTS() && s.input.RegTS == nil {
-			s.input.RegTS, err = e.captureRegTSInput(auth)
+			s.input.RegTS, err = captureRegTSInput(auth)
 		}
 		if err == nil {
 			err = binder.CaptureTypeDiagnosticInput(usage.Type)

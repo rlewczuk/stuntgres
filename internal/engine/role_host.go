@@ -27,7 +27,7 @@ func (h ddlHost) ResolveRelation(a ddl.Authority, name parser.ObjectName) (ids.O
 }
 
 func (h ddlHost) ArgumentTypes(a ddl.Authority) (func(context.Context, parser.TypeName) (uint32, error), error) {
-	types, err := h.e.captureRegtypeInput(ddlAuthorityOf(a), h.op)
+	types, err := captureRegtypeInput(ddlAuthorityOf(a), h.op)
 	if err != nil {
 		return nil, err
 	}

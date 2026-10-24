@@ -65,7 +65,7 @@ func (h ddlHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName,
 }
 
 func (h ddlHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
-	input, err := h.e.captureRegtypeInput(ddlAuthorityOf(a), h.op)
+	input, err := captureRegtypeInput(ddlAuthorityOf(a), h.op)
 	if err != nil {
 		return 0, err
 	}

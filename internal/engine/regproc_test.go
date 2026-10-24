@@ -197,11 +197,11 @@ func TestRoutineDomainCompositeRemap(t *testing.T) {
 func TestRoutineDiagnosticOwnership(t *testing.T) {
 	view := New()
 	op, auth := conversionUnitAuth(t, view)
-	types, err := view.captureRegtypeInput(auth, op)
+	types, err := captureRegtypeInput(auth, op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := view.captureRoutineInput(auth, types)
+	input, err := captureRoutineInput(auth, types)
 	if err != nil {
 		t.Fatal(err)
 	}

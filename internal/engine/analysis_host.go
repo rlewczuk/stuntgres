@@ -178,7 +178,7 @@ func (h *bindingHost) CaptureElementInput(auth analyze.Authority, input *sqltype
 // providers it resolved. Capture errors come back as they are; resolution
 // errors carry the literal's position.
 func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth analyze.Authority, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error) {
-	input, err := h.engine.captureOperatorInput(h.view(auth), h.op)
+	input, err := captureOperatorInput(h.view(auth), h.op)
 	if err != nil {
 		return 0, nil, nil, err
 	}
@@ -201,7 +201,7 @@ func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth analyze.Auth
 // capture and returns the namespaces it qualified. Capture errors come back as
 // they are; resolution errors carry the literal's position.
 func (h *bindingHost) ResolveRegtypeText(ctx context.Context, auth analyze.Authority, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error) {
-	input, err := h.engine.captureRegtypeInput(h.view(auth), h.op)
+	input, err := captureRegtypeInput(h.view(auth), h.op)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -222,7 +222,7 @@ func (h *bindingHost) CaptureTypeDiagnosticName(auth analyze.Authority) (func(sq
 }
 
 func (h *bindingHost) CaptureEnumOperationInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
-	return h.engine.captureEnumOperationInput(h.view(auth), input)
+	return captureEnumOperationInput(h.view(auth), input)
 }
 
 func (h *bindingHost) CaptureEnumOperationSafety(input *sqltype.InputEnvironment) {

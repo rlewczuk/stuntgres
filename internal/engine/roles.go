@@ -106,7 +106,7 @@ func (e *Engine) switchSessionRoleLocked(op *session.Operation, target authoriza
 	if err := publicationOperationLocked(e, op); err != nil {
 		return err
 	}
-	e.touchOperationIdentityLocked(op)
+	touchOperationIdentityLocked(op)
 	settings.TouchRole(a.State.CurrentUser, local)
 	if sessionUser {
 		a.State.SessionUser = target

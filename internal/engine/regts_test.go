@@ -312,7 +312,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		input, err := e.captureRegTSInput(auth)
+		input, err := captureRegTSInput(auth)
 		if err != nil {
 			t.Fatal(err)
 		}

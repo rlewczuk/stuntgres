@@ -31,7 +31,7 @@ func captureEnumOperationSafety(op *session.Operation, input *sqltype.InputEnvir
 
 // Capture naming only after the caller supplies its coherent catalog authority.
 // Alternate staged binders retain lazy naming through captureTypeDiagnosticInput.
-func (e *Engine) captureEnumOperationInput(auth AuthorizationView, input *sqltype.InputEnvironment) error {
+func captureEnumOperationInput(auth AuthorizationView, input *sqltype.InputEnvironment) error {
 	if input.EnumMemberSafe == nil || input.TypeDiagnosticName != nil {
 		return nil
 	}

@@ -395,7 +395,7 @@ func TestRegOperatorSignatureArgumentLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := e.captureOperatorInput(auth, op)
+	input, err := captureOperatorInput(auth, op)
 	if err != nil {
 		t.Fatal(err)
 	}

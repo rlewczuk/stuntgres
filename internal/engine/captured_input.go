@@ -28,7 +28,7 @@ func inputCapture(auth AuthorizationView, path []ids.ObjectAddress) regobj.Input
 	return c
 }
 
-func (e *Engine) captureRegclassInput(auth AuthorizationView) (sqltype.RegclassResolver, error) {
+func captureRegclassInput(auth AuthorizationView) (sqltype.RegclassResolver, error) {
 	path, err := referencePath(auth)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (e *Engine) captureRegclassInput(auth AuthorizationView) (sqltype.RegclassR
 	return regobj.NewClassInput(inputCapture(auth, path)), nil
 }
 
-func (e *Engine) captureRegtypeInput(auth AuthorizationView, op *session.Operation) (regobj.TypeInput, error) {
+func captureRegtypeInput(auth AuthorizationView, op *session.Operation) (regobj.TypeInput, error) {
 	path, err := lookupPath(auth, analyze.TypeLookup)
 	if err != nil {
 		return regobj.TypeInput{}, err
@@ -44,8 +44,8 @@ func (e *Engine) captureRegtypeInput(auth AuthorizationView, op *session.Operati
 	return regobj.NewTypeInput(inputCapture(auth, path), op), nil
 }
 
-func (e *Engine) captureOperatorInput(auth AuthorizationView, op *session.Operation) (regobj.OperatorInput, error) {
-	types, err := e.captureRegtypeInput(auth, op)
+func captureOperatorInput(auth AuthorizationView, op *session.Operation) (regobj.OperatorInput, error) {
+	types, err := captureRegtypeInput(auth, op)
 	if err != nil {
 		return regobj.OperatorInput{}, err
 	}
@@ -58,7 +58,7 @@ func (e *Engine) captureOperatorInput(auth AuthorizationView, op *session.Operat
 
 // captureRoutineInput uses the type input's authority; its function path
 // excludes temporary namespaces.
-func (e *Engine) captureRoutineInput(auth AuthorizationView, types regobj.TypeInput) (regobj.RoutineInput, error) {
+func captureRoutineInput(auth AuthorizationView, types regobj.TypeInput) (regobj.RoutineInput, error) {
 	path, err := lookupPath(auth, analyze.FunctionLookup)
 	if err != nil {
 		return regobj.RoutineInput{}, err
@@ -66,7 +66,7 @@ func (e *Engine) captureRoutineInput(auth AuthorizationView, types regobj.TypeIn
 	return regobj.NewRoutineInput(types, path), nil
 }
 
-func (e *Engine) captureRegTSInput(auth AuthorizationView) (regobj.TextSearchInput, error) {
+func captureRegTSInput(auth AuthorizationView) (regobj.TextSearchInput, error) {
 	path, err := lookupPath(auth, analyze.OperatorLookup) // Text search, like operators, excludes TEMP.
 	if err != nil {
 		return regobj.TextSearchInput{}, err
@@ -74,7 +74,7 @@ func (e *Engine) captureRegTSInput(auth AuthorizationView) (regobj.TextSearchInp
 	return regobj.NewTextSearchInput(inputCapture(auth, path)), nil
 }
 
-func (e *Engine) captureRegObjectInput(auth AuthorizationView) (regobj.ObjectInput, error) {
+func captureRegObjectInput(auth AuthorizationView) (regobj.ObjectInput, error) {
 	path, err := lookupPath(auth, analyze.CollationLookup)
 	if err != nil {
 		return regobj.ObjectInput{}, err
