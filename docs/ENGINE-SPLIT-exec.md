@@ -1,76 +1,74 @@
-# Engine split: `internal/engine/exec`, fifth round
+# Engine split: `internal/engine/exec`, sixth round
 
-Session prompt for linear item 163 of the
+Session prompt for linear item 174 of the
 [status page](ENGINE-SPLIT-STATUS.md). The rules are in
 [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §2, §3 and §5, and the package contract
-is in [the exec README](../internal/engine/exec/README.md). Sizes were
-measured at `fe0683b68`; re-run `reach` on the move set first.
+is in [the exec README](../internal/engine/exec/README.md).
 
-## Item 163 — SQL cursor positioning
+The PL/pgSQL query loops and the FTS `ts_rewrite(query, text)` path added
+row-owning wrappers to the root. Each wraps `exec` stages, sources and CTE
+invocations. None of them needs `StatementScope`, except one read of the
+scope's I/O environments. Sizes were measured at `ea8c445fe`; re-run `reach`
+with `-files '^(nested_query_rows|cte_owned_rows|fts_query_batch|fts_query_runtime)\.go$'`
+first.
 
-Needs —. About 0.2k lines move. Item 165 also edits `protocol_portal.go`,
-so whichever of the two lands second rebases over the other.
+## Item 174 — row owners
+
+Needs —. About 0.17k lines move.
 
 **Moves.**
-- All of `sql_cursor_motion.go` (`rewind`, `run`, `motion`).
-- The `cursorPosition` type and its constants, and
-  `forwardSQLCursorError` (`sql_cursor.go`).
+- `nestedQueryRows` with its methods, and `openNestedQueryRows`
+  (`nested_query_rows.go`), as `exec.OpenNestedQueryRows`. This is the
+  private all-row producer that PL/pgSQL query loops borrow
+  (`execute_bound.go`).
+- `cteOwnedRows` (`cte_owned_rows.go`), as `exec.CTEOwnedRows`, built in
+  `cte_mutation_execute.go`.
+- `fetchRewriteBatch`, `consumeRewriteRules` and `rewriteFetchSize`
+  (`fts_query_batch.go`). They read an `exec.RowCursor` into
+  `sqltype.FTSRewriteRules`. `fts` cannot own them, because it imports only
+  `sqlstate`.
+- `rewriteSQLDiagnostic` (`fts_query_runtime.go`), the SPI prepare/open
+  error mapping.
 
-**Cut.**
-- `*StatementScope` is used only for the context, `openProducer` and
-  `finishForeignOwner`. Replace it with an `exec.CursorProducer` capability
-  with `Open()` and `Exhausted()`; the root cursor implements it.
-- The position fields become an exported value embedded in `sqlCursor`.
-  That changes about 80 field uses in 6 files: `current_of.go`, `discard.go`,
-  `sql_cursor_hold.go`, `protocol_portal.go`, `statement_host_dml.go` and
-  `sql_cursor.go`.
+**Cut.** `openNestedQueryRows` reads the environments through
+`scopeOf(source.LiveHost())`. Replace that with the existing
+`exec.Host.Environments()` on `source.LiveHost()`, keeping the nil guard
+(§2.2 rule 7, no new method). Everything else is clean today.
 
-**Callers and locks.** FETCH, MOVE, portal Execute, COPY (query) rows and
-HOLD materialization all call with nothing held.
+**Stays root.**
+- `rewriteQuerySQL`, `prepareRewriteStatement` and
+  `statementHost.RewriteQuerySQL` (routine depth, binder, dispatch
+  re-entry);
+- `rewriteTupleStatement` and `rewriteReadOnlyViolation`, which use the
+  root's `routineCommandTag`;
+- the call sites in `execute_bound.go` and `cte_mutation_execute.go`.
 
-**Stays root.** The cursor registry, admission, HOLD materialization,
-disposal and the `sqlCursor` struct itself, which holds `AuthorizationView`s
-and row-security programs.
+**Callers and locks.** Nothing is held. The close order must stay the
+same, because the main stage closes before its CTE chain and captured
+sources. FOUND publication after producer cleanup depends on it.
 
-**Risks.**
-- The FETCH and MOVE row counts, the boundary positions, the error text and
-  the lock-timeout behaviour of a second fetch stay identical.
-- No allocation is added per fetched row.
+**Bench.** This is a per-row path. Run `make bench`, and compare
+`-gcflags=-m` heap diagnostics for the moved constructors against a master
+snapshot. Allow no new allocation per row or per loop.
 
 **Tests.**
-- Root units: grep `*_test.go` for the moved names; pure motion tests move to
-  `exec`.
-- Quick and `REFERENCE=1` selections: `TestReferenceSQLCursor`,
-  `TestReferenceDeleteCurrentOf` and `TestReferenceServerPortal`.
+- Root units that construct the moved types are rewritten to the `exec`
+  names or moved to `exec`:
+  - `plpgsql_query_loop_test.go`, `plpgsql_query_loop_failure_test.go` and
+    `plpgsql_query_loop_cte_test.go`;
+  - `fts_query_batch_test.go` and `fts_query_runtime_test.go`.
 
-**Docs.** The exec README lists "SQL cursors" among what stays in the
-engine; narrow that to the cursor registry, admission and HOLD, and add
-cursor positioning to what the package owns.
+  Item 170 also edits the two query-loop files. Whichever item merges second
+  rebases the other's renames.
+- Quick and `REFERENCE=1` selection:
+  `TestReferencePLpgSQLQueryLoops(Sources|Lifecycle|Empty)`,
+  `TestReferenceFTSQueryFunctions(SQLRules|SQLDemand|Cancellation|Diagnostics)`.
+  Use `RACE=1` for the cancellation selection.
+
+**Docs.** Add the nested producer and the CTE row owner to the exec README's
+row-result contracts. Move the "Static query loops borrow a private all-row
+producer" paragraph from the root README.
 
 ## Status
 
-- 163: done (`a172d7daf`, `36806a268`, then the docs commit).
-  - On `exec` (`cursor_motion.go`): `CursorPlace` with `CursorBefore`,
-    `CursorOn`, `CursorAfter` and `CursorFailed`; `CursorPosition` (`Place`,
-    `OrdinalPosition`, `AtEnd`, `CurrentSource`, `CurrentIndex`), embedded in
-    the root `sqlCursor`, with `Move` and `Rewind`; the `CursorProducer`
-    capability and the `CursorInput` value. The forward-only error is the
-    unexported `forwardCursorError`.
-  - The root implements the capability with `sqlCursorProducer` (the cursor
-    and its admitting scope) and builds the input in `motionInput`; FETCH,
-    MOVE and HOLD materialization call `Move` or `Rewind`.
-    `sql_cursor_motion.go` is gone.
-  - Deviations: the capability also has `Context()`, because motion read
-    `s.op.Context()` at each use and `Operation.Context` changes while COPY
-    input is held. The capability is a two-pointer value rather than
-    `*sqlCursor` reading the scope back from `authority.Host`, so the motion
-    never depends on the host field a nested statement could clear. Boxing it
-    costs one 16-byte allocation per live FETCH or MOVE statement, none per
-    row. `statement_host_dml.go` had no position-field uses.
-  - Root 401 → 400 files and 49.5k → 49.3k lines; `exec` gains 0.26k
-    production lines.
-  - Tests: `TestSQLCursorRetainedProducerReset` moved to `exec` as
-    `TestCursorRetainedProducerReset`; new `TestCursorStoreMotion` and
-    `TestCursorForwardProducerMotion` pin the seam. Root cursor, CURRENT OF,
-    `pg_cursors`, PL cursor and truncate units were adapted to the field
-    names only.
+- 174: not started.

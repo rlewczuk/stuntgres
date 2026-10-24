@@ -1,108 +1,263 @@
-# Engine split: `internal/engine/catalog`, fifth round
+# Engine split: catalog publication and the stores, sixth round
 
-Session prompt for linear item 153 of the
+Session prompt for linear items 176–179 of the
 [status page](ENGINE-SPLIT-STATUS.md). The rules are in
-[ENGINE-SPLIT.md](ENGINE-SPLIT.md) §2, §3 and §5, and the package contract
-is in [the catalog README](../internal/engine/catalog/README.md). Sizes were
-measured at `fe0683b68`; re-run `reach` on the move set first.
+[ENGINE-SPLIT.md](ENGINE-SPLIT.md) §2, §3 and §5. The package contracts are
+in the READMEs of [catalog](../internal/engine/catalog/README.md),
+[access](../internal/engine/access/README.md),
+[index](../internal/engine/index/README.md),
+[storage](../internal/engine/storage/README.md) and
+[session](../internal/engine/session/README.md).
 
-## Item 153 — Candidate publication helpers
+The root's catalog orchestration has three parts:
+- **Publication:** `publishCatalog`, `replaceCatalog`, `ValidateCatalogStage`
+  and the `CatalogStage` API.
+- **The catalog store:** `catalogStore` in `catalog_store.go`, which is
+  `Engine.catalog`, held by value.
+- **The role store:** `roleStore` in `role_store.go`, which is
+  `Engine.roles`, shared per cluster through `databaseCluster`.
 
-Needs —. About 0.38k lines move, and the root loses about 40 more.
+The publication skeletons stay in the root (§3 rules 3 and 4). Their pure
+sub-steps and the two stores can move.
 
-**Moves.** The receiver becomes `*catalog.Candidate`. `CatalogStage` embeds
-it, so the calls stay promoted and no wrappers are needed.
-- From `publishCatalog` (`catalog.go`):
-  - the domain-base fence (about L532-549, including the terminal TEMP
-    cleanup scan);
-  - the descriptor, namespace, removal and touched-name fences (about
-    L560-625), without the extension-materialized-view check (L588-598);
-  - the descriptor part of the apply step (about L690-734).
-- The stage index and subclass history markers
-  (`markStageIndexHistoryLocked`, `markStageSubclassHistoryLocked`).
-- Five `stageDefinitionReader` methods.
-- The sort in `catalogStageChanges` (`catalog_changes.go`) and
-  `accessMethodStageCurrent` (`access_method.go`).
-- `CatalogStage.creationACL`, `creationTypeACL`, `defaultPreflight` and
-  `removeSchemaDefaults` (`default_privileges_catalog.go`).
+The stores were rejected before because of thousands of field sites. Most
+of those are tests: about 3,950 catalog and 1,140 role test sites, which a
+type-checked rename rewrites for free (§2.3). Production sites are about 590
+for the catalog store and 137 for the role store.
 
-**Cut.**
-- The value inputs are the current `*catalog.State`, the domain, the
-  stage's `domainBases` and its `terminalCleanup` flag.
-- The history markers get two callbacks, `revision()` and `replace()`, because
-  `CatalogStage.Replace` also synchronizes the row type.
-- `stageDefinitionReader.IndexLayout` stays a root wrapper, because the stage
-  keeps its own index state.
+Sizes were measured at `1f5b91b57` and `ea8c445fe`, and these files did not
+change between the two. Re-run `reach` on each move set first.
 
-**Callers and locks.**
-- The fences, the history markers and the ACL helpers run under `Engine.mu`
-  and become `…Locked` or are documented as running under it.
-- The apply step and the reader run with nothing held, as today.
+## Item 176 — catalog publication sub-steps
+
+Needs —. About 0.3k lines move to three packages. Every sub-step is
+value code inside a root function that otherwise stays.
+
+**Moves to `index`** (`catalog.go` `publishCatalog`, `catalog_message.go`):
+- the staged index-store capture (`publishCatalog`, about L552–567), as
+  `index.CaptureStagedIndexStores(relations, current, staged)`;
+- the build stores, the rebuild set and the source roots (about
+  L605–654), as `index.PublicationBuildStores`;
+- the candidate-match fence. It appears twice: `publishCatalog` about
+  L531–551, and `captureCatalogStageLocked` about L134–157. It becomes one
+  `index.CandidatesMatch(candidates, indexOf, storeOf func…)`.
+- *Optional:* the overlay capture selection of
+  `prepareCatalogOverlayIndexes` (`catalog_overlay_indexes.go` about L37–96),
+  with `privateStorage` and `committedStorage` callbacks. Skip it if the
+  callbacks need more than two functions.
+
+**Moves to `storage`:**
+- `catalogRowShape` and its three checks (`catalog.go` L75 and the uses near
+  L383, L519 and L753), as `storage.RowShape` with `Matches` and
+  `MatchesWithEnds`. The L383 check skips `Ends`; keep that difference.
+- the relations-map construction in `publishCatalog` (about L580–601), as
+  `storage.CandidateRelations`;
+- the birth stamping in `publishCatalog` (about L863–907). It is written
+  twice; it becomes one `(*storage.Relation).StampPublishedBirth(frontier, fullXID)`.
+  The `visibility` calls stay in the root.
+- the body of `replacementCapacityLocked`, over value inputs.
+
+**Moves to `session`:**
+- `catalogAuthority` and the body of `catalogAuthorityPreflightLocked`
+  (`catalog_transaction_storage.go`). The committed state and the roles
+  revision come in as values.
+- the storage-shape recording in `stageCatalogChangesLocked`
+  (`catalog_overlay_stage.go` about L94–131).
+
+**Moves to `catalog`:** the namespace-changed scan as
+`Candidate.NamespaceChanged()`, and the revision frontier, used at four
+sites, as `catalog.RevisionFrontier`.
 
 **Stays root.**
-- the extension-materialized-view check, run right after the `catalog` fence
-  call (`catalog` cannot import `view`);
-- the post-apply validators (L809-855), which are a composition point like
-  `catalogDependencyPreflight`;
-- the relations map, so `catalog` needs no `storage` import;
-- publication itself.
+- the `publishCatalog` lock and retry loop, `authorizationLocked`, the
+  session-mutex revalidation, XID assignment and the install block;
+- `replaceCatalog` and `stageCatalogOverlay`;
+- `catalogFencesCurrentLocked` and the fence order of
+  `catalogPreflightLocked`;
+- `catalogDependencyPreflight` and the post-apply validators.
 
-**Root dedupe.** `replaceCatalog` repeats code:
-- its install tail matches `installForeignCatalogLocked`;
-- its capacity checks appear twice;
-- its ACL loop appears twice.
+**Callers and locks.** Everything runs under `Engine.mu` and takes no
+lock. Every fence still returns the same `Conflict{}` in the same order.
 
-Share one helper for each.
-
-**Risks.** Every fence returns `catalog.Conflict{}` and has no side effects,
-so splitting off the extension-MV check cannot change which error wins. Keep
-the fence order. DDL only: no hot path.
+**Bench.** Every DDL runs through publication: run `make bench` and the
+`reference/tables` timing before and after. Allow no new allocation per
+publication.
 
 **Tests.**
-- Root units: `access_method_test.go`, `default_privileges_helpers_test.go`,
-  and grep `*_test.go` for every moved name; tests of pure helpers move to
-  `catalog`.
-- Quick and `REFERENCE=1` selections: `TestReferenceAccessMethod`,
-  `TestReferenceRoleDefaultPrivileges`, `TestReferencePGDepend`,
-  `TestReferenceDatabaseCreate` and one concurrent DDL conflict selection
-  (`TestReferenceForeignActionsConcurrentDDL`).
+- Root units:
+  - `driver_batch_catalog_test.go`, `partition_attach_publication_test.go`
+    and the `CatalogFences` selector of the root README;
+  - the index publication units that call the moved code (rewrite them to
+    the package names).
+- New package units pin `RowShape.Matches` against `MatchesWithEnds`, and
+  `CandidatesMatch`.
+- Quick and `REFERENCE=1` selection:
+  - `TestReferenceAlterAddColumn(Transactions|Cancellation)`;
+  - `TestReferenceMaterializedRefreshConcurrentLifecycle`;
+  - `TestReferencePartialIndexConcurrent`;
+  - `TestReferenceTruncateBoundaries`;
+  - `TestReferenceForeignActionsConcurrentDDL`.
 
-**Docs.** The README's Candidate paragraph says reads "never merge, clone,
-scan the base or return writable maps". Keep that for reads, and document
-the moved functions separately: they are publication and validation helpers
-that the root calls under `Engine.mu`, and they scan the current state.
+  Use `RACE=1` on the concurrent selections.
+
+**Docs.** Update the index, storage and session READMEs. The root README's
+publication paragraph keeps only the skeleton.
+
+## Item 177 — `catalog.Store`
+
+Needs 168–176. The rename touches about 190 production files, so it waits
+until no other code item is in flight. About 0.29k lines move.
+
+**Commit 1: scripted in-place rename** (no move). Use a type-checked tool:
+`fieldrn` from `.cswd/tmp/PG18-ENGINE-SPLIT-PLAN-ALIASES/` and `movex`
+from `.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-EXPRESSION-CORE/` (the newest
+build), or a small `go/types` program. Do not use regex. The script must
+be re-runnable after a rebase, so regenerate the commit instead of
+resolving conflicts.
+- `catalogStore.state` becomes an exported field `State`. A
+  `PublishLocked(next)` method covers the 15 writes in 11 files, so
+  publication points stay greppable.
+- The `nextOID` and `nextRevision` frontiers are read and written back at
+  publication in five files: `catalog.go`, `transaction_publication.go`,
+  `temporary_session.go`, `generated_replacement.go` and
+  `database_cluster.go`. Give each frontier a reader and an
+  `Install…FrontierLocked` writer, and use them at all 17 sites.
+  `nextEnumMember` stays private behind `AllocateEnumMemberLocked`.
+- `owner()` becomes `&s.Owner`. The store embeds `catalog.Owner`, so a
+  method named `Owner` would clash. Use `gofmt -r`.
+- The 44 `e.catalog.read(e.catalog.state)` pairs become `e.catalog.Current()`.
+- Export the remaining methods: `RegisterProviderLocked`,
+  `AllocateOIDLocked`, `OIDReservationLocked`, `AllocateOIDFromLocked`,
+  `AllocateOIDAtLeastLocked`, `RevisionLocked`, `AllocateEnumMemberLocked`,
+  `ValidateObjectRefLocked`, `ValidateCatalogViewLocked` and `Read`.
+
+**Commit 2: move.**
+- `catalog_store.go` becomes `catalog/store.go`, and `catalogOIDReservation`
+  becomes `catalog.OIDReservation`.
+- Add `catalog.NewStore`. It removes the duplicated construction in
+  `newEngine` and `newDatabaseRuntime`.
+- Move the database projection helpers of `database_cluster.go`:
+  `retainDatabaseLocked`, `databaseProjectionLocked`,
+  `installDatabaseProjectionLocked` and `databaseOIDLocked`. They are keyed
+  by `*catalog.Store` instead of `*Engine`, as
+  `catalog.RetainDatabasesLocked`, `ProjectDatabasesLocked` and
+  `DatabaseOIDLocked(start, target, others []*Store)`.
+
+**Stays root.**
+- `Engine.catalog`, now a `catalog.Store` held by value.
+- The journal wrappers (`catalogChangeLocked`, `privateCatalogLocked`).
+- The `AuthorizationView`-taking wrappers.
+- Every acquisition of `Engine.mu`.
+
+Feature packages keep using the existing `AllocateOID` and `Revision` host
+methods. They never receive the store, so publication stays in the root.
+
+**Callers and locks.** No lock changes. The store has no mutex
+(§3 rule 3).
+
+**Tests.**
+- Commit 1 rewrites every root test site with the same script.
+- Store units (OID exhaustion, reserved OIDs, enum members, revision
+  overflow) move to `catalog`.
+- Quick and `REFERENCE=1` selection: `TestReferenceDatabaseCreate`,
+  `TestReferenceControlSnapshotSurvivesCatalogReplacement`,
+  `TestReferenceDriverBatchFeatureSmoke` and one Dump/Restore smoke
+  (`TestReferenceDateDumpRestoreAndPostgresReplay`).
+
+**Docs.** The catalog README gains `Store`. The root README's "the catalog
+store" becomes a pointer to it.
+
+## Item 178 — builtin catalog seed
+
+Needs 177. About 0.19k lines move.
+
+**Moves.**
+- These become `catalog.Store` methods, or `catalog` functions over a store
+  and value inputs:
+  - from `builtin_catalog.go`: `installBuiltinProcedures`,
+    `installBuiltinOperators`, `seedProcedureNames`, `finishSeed`,
+    `validateSeed` and `validateCatalogDescriptors`;
+  - `initializeTablespaces` (`tablespace_catalog.go`);
+  - the catalog half of `installBuiltinLanguages` (`plpgsql_bootstrap.go`);
+  - `registerCatalogSource` (`catalog_sources.go`).
+- The namespace, type, collation and conversion seeding loops of `newEngine`.
+
+**Stays root.**
+- the order of `newEngine` and `builtinCatalogCapacity`;
+- the builtin domain checks, which bind;
+- the `pgcatalog` sources and the extension registration.
+
+**Callers and locks.** Construction runs before the engine is shared. Keep
+the process-level memoized seed identity, so every fresh engine shares the
+same immutable builtin descriptors.
+
+**Bench.** This is the startup path. Run `make bench`, interleaving prebuilt
+before and after binaries, and compare against the 1 ms target. Allow no
+new allocation per engine.
+
+**Tests.**
+- Seed units move to `catalog`.
+- Root units that check seeded descriptors through an engine stay.
+- Quick and `REFERENCE=1` selection: one catalog smoke per seeded class:
+  - `TestReferencePGTypeLifecycle`;
+  - `TestReferenceRangeTypeProviders`;
+  - `TestReferencePLpgSQLCoreLanguageAuthority`.
+
+**Docs.** The catalog README gains the seed.
+
+## Item 179 — `access.RoleStore`
+
+Needs 177. About 0.19k lines move. 137 production sites in 45 files change.
+
+**Moves.**
+- `roleStore` (`role_store.go`) becomes `access.RoleStore`. `authorization`
+  cannot hold it, because the store needs `access.RoleRecord` and
+  `catalog.Owner`.
+- `PublishedRead(owner, view)` replaces the 24 copies of
+  `roles.read(catalog.owner(), view, roles.published)`.
+- The principal mapper and remap move as `access` functions over the store:
+  `replacementPrincipalMapper` and `replacementPrincipalRemap`
+  (`principal_remap.go`). `operatorSeeded` comes in as a value.
+- `aclItemImporter` (`aclitem_remap.go`) becomes
+  `ACLItemImporter(source *RoleStore, …)`.
+- The role half of `replacementACLsLocked` (`catalog.go`) becomes
+  `ReplacementACLsLocked`.
+- The body of `checkDatabaseConnectLocked` (`database_acl.go`) becomes
+  `access.CheckDatabaseConnect`.
+- The role part of `restoreStage` (`principal_remap.go`).
+
+**Cut.** State ownership in place first (§2.2 rule 1): turn the root
+helpers into `roleStore` methods. Then move the type in one commit, with
+the same re-runnable rename script as item 177.
+
+**Stays root.**
+- `Engine.roles`, a `*access.RoleStore`;
+- `databaseCluster`;
+- the session-level role code (`sessionRolesLocked`,
+  `installOperationRolesLocked`, `preparedActorLocked`);
+- `retainedRoutineProcedureRemapper`.
+
+**Callers and locks.** Cluster runtimes share one pointer-stable store.
+`catalog.Owner.Principals`, `catalog.Owner.ACLAuthority` and
+`Root.Reprovenance` keep pointers to its domain and ACL authority, so the
+store must never be copied: add a `noCopy` guard or document it.
+
+**Tests.**
+- Rewrite the root test sites with the script.
+- Role store units move to `access`.
+- Quick and `REFERENCE=1` selection:
+  - `TestReferenceRoleRestoreOwnerReset`;
+  - `TestReferenceRoleAttributesConnectionAdmission`;
+  - `TestReferenceRoleOwnershipAuthority`;
+  - `TestReferenceObjectACLDatabase`. It is order-dependent against the
+    oracle: rerun it alone if it fails.
+
+**Docs.** The access README gains `RoleStore`, and the root README's role
+store sentence becomes a pointer to it.
 
 ## Status
 
-- 153: done (`e65488cfd`, `37034b87f`, `9dd8665fb`, then the docs commit).
-  - On `*catalog.Candidate`: `DomainBasesCurrent`, `DescriptorsCurrent`,
-    `AccessMethodsCurrent` and `DefaultPreflight` (`candidate_fences.go`);
-    `ApplyTo` and `ChangedAddresses` (`candidate_apply.go`);
-    `MarkIndexHistoryLocked` and `MarkSubclassHistoryLocked`
-    (`relation_history.go`); `CreationACL`, `CreationTypeACL` and
-    `RemoveSchemaDefaults` (`default_privileges_catalog.go`). The root keeps
-    `extensionMaterializedViewsCurrent`, the relations map,
-    `catalogStageChanges` and the post-apply validators.
-  - Deviation: the five reader methods cannot be `Candidate` methods, because
-    `Candidate.Descriptors()` already returns overlay entries only. They are
-    `catalog.CandidateDefinitions` (from `Candidate.Definitions()`). The root
-    `stageDefinitionReader` embeds it, keeps `IndexLayout`, and is built by
-    `stageDefinitions(stage)` at every former literal.
-  - Root dedupe: `installReplacementLocked`, `replacementCapacityLocked` and
-    `replacementACLsLocked`. `installForeignCatalogLocked` keeps its signature,
-    because four tests call it.
-  - Tests: none moved, because all use engine fixtures. Calls were renamed in
-    `access_method_test.go`, `pg_class_history_test.go`,
-    `partition_constraints_test.go`, `table_view_summary_test.go`,
-    `object_acl_type_test.go`, `ownership_default_cleanup_test.go`,
-    `default_privileges_helpers_test.go` and `sql_routine_lookup_test.go`.
-  - For item 155: `captureCatalogStageLocked` now calls
-    `Candidate.DefaultPreflight`; root `default_privileges_catalog.go` keeps
-    only the three journal helpers.
-  - For item 158: its "Inputs" name `stageDefinitionReader{stage}`, which is
-    now `stageDefinitions(stage)`.
-  - For item 167: new root feature code `info_columns_runtime.go` (33 lines,
-    `4a833c0b2`), `fts_query_*.go` (0.31k, `6b6bdd404`) and the type
-    lifecycle (+0.17k net, including `prepared_type_identity.go`,
-    `042d34035`); the snapshot functions add 0.14k net to existing
-    transaction files (`95d4e7f92`).
+- 176: not started.
+- 177: not started.
+- 178: not started.
+- 179: not started.

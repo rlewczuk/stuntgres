@@ -38,7 +38,7 @@ stage; projecting parent rows onto a child does not rewrite routine signatures.
 
 ## Imports
 
-Layer L11 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture),
+Layer L11.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture),
 above `analyze` and `regobj`. It imports `analyze`, `authorization`, `catalog`,
 `dump`, `exec`, `expr`, `extension`, `functions`, `ids`, `lock` (row-lock
 modes), `plan`, `proc`, `regobj`, `routine`, `sequence`, `storage`, `typedef`,

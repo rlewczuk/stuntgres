@@ -8,11 +8,12 @@ implemented by the root engine.
 
 ## Imports
 
-Layer L7 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
+Layer L9.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`, `lock`,
 `access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate` and the
-standard library, never the engine, `analyze`, `session` or a feature package
-(`routine`, `extension`, ...).
+standard library. It imports `extension` only for `ValidateCubeSpatialCall`,
+the installed cube spatial call check. It never imports the engine,
+`analyze`, `session` or another feature package (`routine`, ...).
 
 The shared checked routine call/frame contract also admits PL definitions.
 Declaration equivalence includes real language/body identity; current validated
