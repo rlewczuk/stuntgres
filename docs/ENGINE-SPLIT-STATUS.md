@@ -10,15 +10,15 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `d76524cbe`.
+Last verified against `master` at `9e839cf02`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 158 (table, ALTER), 159 (view), 160 (session, 2PC), 163 (exec, cursors),
-  165 (session, protocol codec) and 166 (ddl, CREATE DATABASE).
+- 159 (view), 160 (session, 2PC), 163 (exec, cursors), 165 (session,
+  protocol codec) and 166 (ddl, CREATE DATABASE).
 
 ## Linear plan
 
@@ -76,9 +76,15 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      50.3k lines · targeted units, quickcheck and the quick and `REFERENCE=1`
      `TestReferencePartitionInfo` selections passed; bench skipped (no startup
      or hot path); racecheck/finalcheck skipped at user request
-158. [ ] Table: ALTER TABLE pass helpers and the IF EXISTS no-op —
+158. [x] Table: ALTER TABLE pass helpers and the IF EXISTS no-op —
      [table](ENGINE-SPLIT-table.md#item-158--alter-table-pass-helpers-and-the-if-exists-no-op)
-     · needs — · 0.16k moved, −0.12k
+     · needs — · 0.16k moved, −0.12k (`6e5d68df3`, `87059b4e9`, `484e930e7`,
+     then the docs commit) · `alter_table.go` 899 → 701 lines, root 398 → 400
+     files and 49.9k → 49.7k lines · targeted units, quickcheck, `make deps`
+     and the quick and `REFERENCE=1` ALTER nullability, ADD/DROP COLUMN,
+     identity, TYPE CHECK, generated, typed, RENAME/SET SCHEMA/view IF EXISTS
+     and ATTACH/DETACH diagnostics selections passed; bench skipped (DDL-only
+     path); racecheck/finalcheck skipped at user request
 159. [ ] View: RLS policy import and materialized snapshot rows —
      [view](ENGINE-SPLIT-view.md#item-159--rls-policy-import-and-materialized-snapshot-rows)
      · needs — · 0.22k

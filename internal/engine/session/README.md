@@ -24,8 +24,9 @@ implement its slots, so either import would form a cycle.
   `Check`; `ValidateOperation` and `TransactionAuthority` check liveness, domain
   and membership. `Operation` carries contexts, command budgets, lock timeouts,
   notices, the copy-input context, the statement lease and the replay and
-  analysis slots; `Session.AcquireCommand` admits commands. Notice levels and
-  emission are in `notices.go`.
+  analysis slots; `Session.AcquireCommand` admits commands. Notice levels,
+  emission and the relation skip notices (`ExistingRelation`,
+  `MissingRelation`) are in `notices.go`.
 - **Transaction owner** (`owner.go`, `savepoint_marks.go`, `protocol_cycle.go`):
   `TransactionOwner` with its state, characteristics, admission and journal;
   `TxState`, `Isolation`, `TxOptions`, `SavepointMark`, `ProtocolCycle`. Checked
@@ -77,6 +78,8 @@ implement its slots, so either import would form a cycle.
   `RecordCandidateDefaults` and `MergeCandidate` (a `catalog.Candidate`
   checked and recorded against the published base). The root's `…Locked`
   wrappers pass the published base under `Engine.mu`.
+  `StorageChange.MergeFills` merges added-column fills and drops those of
+  removed attributes, replacing the shared fill map instead of mutating it.
 - **Journal capture** (`journal_capture.go`): `JournalCapture` turns a
   validated stage's `catalog.Candidate` into the retained transaction's
   observations and fences, over the published and private catalog states:

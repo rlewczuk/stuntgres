@@ -54,7 +54,8 @@ builds a binder.
   `MaintenanceGrant` lock plan, SET CONSTRAINTS name selection and the
   `USING INDEX` records.
 - **Partitioned indexes** (`partition_*.go`, `row_history.go`): coverage,
-  ATTACH checks, drop actions, `MapPartitionIndex` and Dump replay predicates.
+  ATTACH checks, drop actions (`PartitionConstraintDropActions`,
+  `DroppedUniqueOIDs`), `MapPartitionIndex` and Dump replay predicates.
 
 ## The DDL host
 

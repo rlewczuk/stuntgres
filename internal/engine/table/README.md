@@ -41,7 +41,12 @@ call live here.
   `PrepareAlterTableActions`, ...), staging over `Host`, post-loop rebuilds
   over `ddl.Host`/`ddl.Stage` (`RebuildAlterNotNulls`,
   `RebuildAlterForeignKeys`) and the row passes `PlanAddedColumns`,
-  `RewriteTypeRows` and `ValidateAddedConstraintRows`. The row passes take no
+  `RewriteTypeRows` and `ValidateAddedConstraintRows`. The pass-loop helpers
+  (`alter_table_finish.go`) take values: `RelationOptionsOnlyCandidate`,
+  `AlterNotNullPass` (pass 4; a nil inheritance plan is allowed),
+  `FinishAlterCandidate` (the after-loop finish, with the inheritance finish
+  as a callback and the stage's emptiness as a `bool`), `BumpAlterRevision`,
+  `AlterRewrites` and `AlterStorageShape`. The row passes take no
   lock, but expressions may reach host methods that take `Engine.mu`, so
   callers hold nothing. `AlterCookingError` clones public diagnostics without
   mutating the source.
@@ -162,7 +167,9 @@ ALTER stage.
 ## What stays in the engine
 
 Orchestration: `createTableLocked`, `dropTableLocked`, `alterTableLocked` with
-its pass loop and the other statement handlers; the wrappers that take
+its pass loop, the lazy stage (`authorizedStage`), the stage-to-journal merge
+(`mergeStageJournalLocked`) and the IF EXISTS no-op
+(`skipMissingRelationLocked`), and the other statement handlers; the wrappers that take
 `Engine.mu` across a `table` call and build the host; the row evaluation
 template; lock admission and post-wait checks (`acquireDefinitionProviders`,
 `admitInheritanceAlter`, `acquireRelationTarget` around `AdmitTarget`, ...);

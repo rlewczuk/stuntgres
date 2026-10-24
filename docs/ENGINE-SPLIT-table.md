@@ -237,4 +237,30 @@ README (`MissingRelation`, `MergeFills`).
     small allocation per target that it did not make before; other users
     already paid it inside `Effective`. Startup and ordinary statements are
     unchanged.
-- 158: not started.
+- 158: done (`6e5d68df3`, `87059b4e9`, `484e930e7`, then the docs commit).
+  - Moved: `AlterNotNullPass`, `FinishAlterCandidate` (`AlterFinishInput`,
+    `AlterFinish`), `BumpAlterRevision`, `RelationOptionsOnlyCandidate`,
+    `AlterRewrites` and `AlterStorageShape` to `table`
+    (`alter_table_finish.go`); `DroppedUniqueOIDs` to `index`;
+    `StorageChange.MergeFills` and `MissingRelation` to `session`.
+    `alter_table.go` 899 → 701 lines.
+  - Root dedupes: `mergeStageJournalLocked` (both stage-to-journal loops),
+    `captureCheckSnapshots` (the three ALTER pairs and the one in
+    `typed_mutation.go`), `authorizedStage` (five lazy stage starts) and
+    `skipMissingRelationLocked` (`relation_if_exists.go`, six IF EXISTS
+    blocks). The free `dropColumnCandidate` folded into the method.
+  - Deviations: `FinishAlterCandidate` takes the inheritance finish as a
+    callback (`scope.finishInheritanceAlterCandidate`) instead of the plan,
+    because the root reads the inheritance stage only when the node
+    recurses. The `op.Definition` restore now precedes the hierarchy
+    relation-options error, which is equivalent because a deferred restore
+    covers every error. `ownership.go` and `sequence.go` reuse
+    `MissingRelation` but keep their own control flow.
+  - Finding for 167: the ADD UNIQUE and pass-6 CHECK lazy stages set only
+    the session, authorization and role revisions, not the database
+    authority of `authorizeLocked`, and the USING INDEX stage at pass 1 sets
+    none. Unifying them would add the database-compatibility fence, which is
+    a behaviour change, so they stay as they are.
+  - Tests: `pg_attribute_test.go` calls the method. New units:
+    `TestStorageChangeMergeFills*` (session) and
+    `TestDroppedUniqueOIDsFollowActionOrder` (index).
