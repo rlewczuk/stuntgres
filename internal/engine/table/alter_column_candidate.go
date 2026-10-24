@@ -77,7 +77,7 @@ func OrdinaryColumnDrop(provider DropDependencyReader, old *catalog.Relation, re
 		return nil, err
 	}
 	if old.RelationKind == catalog.CompositeRelation {
-		if err := provider.CompositeFieldDependencies(old, target.SubID, a.Mode); err != nil {
+		if err := CompositeFieldDependencies(provider, old, target.SubID, a.Mode); err != nil {
 			return nil, err
 		}
 	}
@@ -101,7 +101,7 @@ func OrdinaryColumnDrop(provider DropDependencyReader, old *catalog.Relation, re
 	if err := provider.Replace(next); err != nil {
 		return nil, err
 	}
-	if err := provider.OwnedExpressionDependencies([]ids.ObjectAddress{target}, a.Mode); err != nil {
+	if err := OwnedExpressionDependencies(provider, []ids.ObjectAddress{target}, a.Mode); err != nil {
 		return nil, err
 	}
 	return provider.Descriptor(ref.Address).(*catalog.Relation), nil

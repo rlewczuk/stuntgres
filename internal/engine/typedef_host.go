@@ -54,7 +54,7 @@ func (h ddlHost) AddDomainBase(d catalog.Descriptor) {
 }
 
 func (h ddlHost) RemoveDomainCheck(d *catalog.Type, oid ids.OID) error {
-	return removeDomainCheck(stageDropProvider(nil, h.stage, nil, nil, nil), d, oid)
+	return table.RemoveDomainCheck(stageDropProvider(nil, h.stage, nil, nil, nil), d, oid)
 }
 
 func (h ddlHost) NamedType(a ddl.Authority, name parser.ObjectName) (*catalog.Type, error) {

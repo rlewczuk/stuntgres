@@ -275,7 +275,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	if err := provider.owner.catalog.validateObjectRefLocked(provider.base, ref); err != nil {
 		return err
 	}
-	if err := checkRemovalLocked(provider.base, provider.path, ref, namespace); err != nil {
+	if err := table.CheckRemovalLocked(provider.base, provider.path, ref, namespace); err != nil {
 		return err
 	}
 	// Provider/ref validation above belongs to the authentic predecessor.

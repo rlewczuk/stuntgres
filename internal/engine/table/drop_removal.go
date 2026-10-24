@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -9,12 +9,12 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-// checkRemovalLocked reports whether a DROP may remove the whole object ref
+// CheckRemovalLocked reports whether a DROP may remove the whole object ref
 // from base. Objects the database system requires are refused, naming the
 // object as seen from path; registered class providers validate the rest. The
 // caller has validated ref against base and holds Engine.mu, which guards the
 // providers' state; it takes no lock.
-func checkRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.ObjectRef, namespace bool) error {
+func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.ObjectRef, namespace bool) error {
 	d := base.Get(ref.Address)
 	switch d.(type) {
 	case *catalog.Relation:
@@ -85,9 +85,9 @@ func checkRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 	return nil
 }
 
-// closureTargetClass reports whether a dependent of class that the drop
+// ClosureTargetClass reports whether a dependent of class that the drop
 // closure reaches becomes a drop target itself.
-func closureTargetClass(class ids.OID) bool {
+func ClosureTargetClass(class ids.OID) bool {
 	switch class {
 	case ids.AccessMethodClassID, ids.CastClassID, ids.OperatorClassCatalogID, ids.OperatorClassID, ids.OperatorFamilyClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TypeClassID, ids.ExtensionClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID:
 		return true
@@ -95,9 +95,9 @@ func closureTargetClass(class ids.OID) bool {
 	return ids.IsForeignCatalogClass(class)
 }
 
-// retiredProviderClass reports whether a drop target of class is removed
+// RetiredProviderClass reports whether a drop target of class is removed
 // after the surviving column candidates finished binding against it: the
 // closure target classes, collations and conversions.
-func retiredProviderClass(class ids.OID) bool {
-	return closureTargetClass(class) || class == ids.CollationClassID || class == ids.ConversionClassID
+func RetiredProviderClass(class ids.OID) bool {
+	return ClosureTargetClass(class) || class == ids.CollationClassID || class == ids.ConversionClassID
 }

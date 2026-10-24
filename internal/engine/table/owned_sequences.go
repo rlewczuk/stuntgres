@@ -3,6 +3,7 @@ package table
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 )
 
 // OwnedSequences calls prepare, then removes, each sequence that a target of
@@ -39,4 +40,45 @@ func OwnedSequences(provider DropDependencyReader, targets []ids.ObjectAddress, 
 		}
 	}
 	return nil
+}
+
+// OwnedExpressionDependencies removes the sequences that targets own, after
+// the expression dependencies of each sequence. Inheritance tables the drop
+// already removed count as targets too.
+func OwnedExpressionDependencies(provider DropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) error {
+	var closure []ids.ObjectAddress
+	extended := false
+	// Include removed hierarchy owners, not unrelated removals staged by an
+	// earlier pass. Ordinary column projection retains its existing ordering.
+	for address, descriptor := range provider.RemovalDescriptors() {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || relation.RelationKind != catalog.TableRelation || !catalog.InheritanceParticipant(provider.BaseRead(), relation) {
+			continue
+		}
+		present := false
+		for _, target := range targets {
+			present = present || target == address
+		}
+		if !present {
+			if !extended {
+				targets = append([]ids.ObjectAddress(nil), targets...)
+				extended = true
+			}
+			targets = append(targets, address)
+		}
+	}
+	return OwnedSequences(provider, targets, func(ref ids.ObjectRef) error {
+		if closure == nil {
+			closure = make([]ids.ObjectAddress, len(targets)+1)
+			copy(closure, targets)
+		}
+		closure[len(targets)] = ref.Address
+		if err := provider.ExpressionDependencies(closure, mode, ids.ObjectAddress{}); err != nil {
+			return err
+		}
+		if provider.StatementBound() {
+			return provider.Acquire(ref, false)
+		}
+		return nil
+	})
 }

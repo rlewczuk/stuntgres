@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"iter"
@@ -8,14 +8,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/view"
 )
 
-// dropRoots returns roots followed by the relations in removals that roots
+// DropRoots returns roots followed by the relations in removals that roots
 // lack, in OID order: whole relations an earlier pass of the drop already
 // removed are retirement roots too, so their dependents are discovered before
 // any surviving owner changes. It returns roots itself when nothing is added.
-func dropRoots(roots []ids.ObjectAddress, removals iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) []ids.ObjectAddress {
+func DropRoots(roots []ids.ObjectAddress, removals iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) []ids.ObjectAddress {
 	var retirementRoots []ids.ObjectAddress
 	for address, descriptor := range removals {
 		if _, relation := descriptor.(*catalog.Relation); relation && !slices.Contains(roots, address) {
@@ -29,9 +28,9 @@ func dropRoots(roots []ids.ObjectAddress, removals iter.Seq2[ids.ObjectAddress, 
 	return append(append([]ids.ObjectAddress(nil), roots...), retirementRoots...)
 }
 
-// dropPlan is what a CASCADE drop of roots does with the edges of their
+// DropPlan is what a CASCADE drop of roots does with the edges of their
 // dependency closure.
-type dropPlan struct {
+type DropPlan struct {
 	// Targets are the roots, then each edge's target and each dependent the
 	// drop removes or prunes, in edge order; an address may repeat.
 	Targets []ids.ObjectAddress
@@ -47,11 +46,11 @@ type dropPlan struct {
 	ObserveIdentities bool
 }
 
-// planDrop classifies the closure edges of roots. It reads r only to check
+// PlanDrop classifies the closure edges of roots. It reads r only to check
 // whether a reached procedure is a foreign handler, stopping at the first
 // fenced identity, and changes nothing.
-func planDrop(r view.DropReader, roots []ids.ObjectAddress, edges []table.DomainDependency) dropPlan {
-	plan := dropPlan{Targets: append([]ids.ObjectAddress(nil), roots...)}
+func PlanDrop(r DropReader, roots []ids.ObjectAddress, edges []table.DomainDependency) DropPlan {
+	plan := DropPlan{Targets: append([]ids.ObjectAddress(nil), roots...)}
 	seen := make(map[ids.ObjectAddress]bool)
 	for _, target := range plan.Targets {
 		if target.ClassID == ids.RelationClassID && target.SubID == 0 {
@@ -66,7 +65,7 @@ func planDrop(r view.DropReader, roots []ids.ObjectAddress, edges []table.Domain
 		if !slices.Contains(plan.Targets, edge.Target) {
 			plan.Targets = append(plan.Targets, edge.Target)
 		}
-		if closureTargetClass(edge.Address.ClassID) || edge.Column != "" || edge.Relation != nil && edge.Address == edge.Relation.Address() {
+		if table.ClosureTargetClass(edge.Address.ClassID) || edge.Column != "" || edge.Relation != nil && edge.Address == edge.Relation.Address() {
 			plan.Targets = append(plan.Targets, edge.Address)
 			if edge.Address.ClassID == ids.RelationClassID && edge.Address.SubID == 0 {
 				seen[edge.Address] = true
@@ -102,12 +101,12 @@ func planDrop(r view.DropReader, roots []ids.ObjectAddress, edges []table.Domain
 	return plan
 }
 
-// lockRelations are the relations a statement-bound drop locks, in OID
+// LockRelations are the relations a statement-bound drop locks, in OID
 // order: the plan's relations, plus each surviving policy owner and each
 // table or foreign table the closure removes. Lock owners are not deletion
 // or projection targets; a policy edge captures its surviving owner's
 // identity even without a column edge.
-func (plan dropPlan) lockRelations(edges []table.DomainDependency) []*catalog.Relation {
+func (plan DropPlan) LockRelations(edges []table.DomainDependency) []*catalog.Relation {
 	locks := make([]*catalog.Relation, 0, len(plan.Relations))
 	seen := make(map[ids.ObjectAddress]bool)
 	for _, r := range plan.Relations {
@@ -128,10 +127,10 @@ func (plan dropPlan) lockRelations(edges []table.DomainDependency) []*catalog.Re
 	return locks
 }
 
-// identityObservationTargets are the provider identities a drop of roots
+// IdentityObservationTargets are the provider identities a drop of roots
 // fences: every root when an extension retires, otherwise only the whole
 // SQL/MED wrappers, servers and foreign-handler procedures among roots.
-func identityObservationTargets(r view.DropReader, roots []ids.ObjectAddress) []ids.ObjectAddress {
+func IdentityObservationTargets(r DropReader, roots []ids.ObjectAddress) []ids.ObjectAddress {
 	if slices.ContainsFunc(roots, func(address ids.ObjectAddress) bool { return address.ClassID == ids.ExtensionClassID }) {
 		// Extension retirement retains its existing complete expression fence.
 		return slices.Clone(roots)

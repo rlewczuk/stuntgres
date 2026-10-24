@@ -11,13 +11,13 @@ import (
 )
 
 // DropDependencyReader is what the column, CHECK, DEFAULT, foreign-key,
-// constraint-index, owned-sequence and DROP IDENTITY decisions need from the
-// drop pipeline: the input catalog with this drop's replacements and
-// removals, staging of replaced descriptors and removals, and the passes that
-// stay with the pipeline. The engine's dropProvider implements it.
+// constraint-index, owned-sequence, composite-field and DROP IDENTITY
+// decisions need from the drop pipeline: the input catalog with this drop's
+// replacements and removals, staging of replaced descriptors and removals,
+// and the passes that stay with the pipeline. The engine's dropProvider
+// implements it.
 //
-// Callers hold nothing. Acquire, CaptureIdentitySequence,
-// CompositeFieldDependencies, OwnedExpressionDependencies and
+// Callers hold nothing. Acquire, CaptureIdentitySequence and
 // ExpressionDependencies wait for locks; Remove and ApplyViewDependents take
 // Engine.mu; the other methods do neither.
 type DropDependencyReader interface {
@@ -49,8 +49,6 @@ type DropDependencyReader interface {
 	DependencyClosure(targets []ids.ObjectAddress) ([]DomainDependency, error)
 	Acquire(ref ids.ObjectRef, reserveReplacement bool) error
 	ApplyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...DomainDependency) error
-	CompositeFieldDependencies(source *catalog.Relation, attribute int32, mode parser.DropMode) error
-	OwnedExpressionDependencies(targets []ids.ObjectAddress, mode parser.DropMode) error
 	// Remove removes ref with this drop.
 	Remove(ref ids.ObjectRef) error
 	// ExpressionDependencies drops or rejects what depends on roots on behalf

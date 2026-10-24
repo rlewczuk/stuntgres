@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"fmt"
@@ -9,21 +9,16 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relation, attribute int32, mode parser.DropMode) error {
-	return compositeFieldDependencies(provider, source, attribute, mode)
-}
-
-// compositeFieldDependencies drops or rejects the CHECK constraints of tables
+// CompositeFieldDependencies drops or rejects the CHECK constraints of tables
 // and domains that use attribute of composite type source. A domain DEFAULT
 // that uses it takes the whole expression-dependency path instead. Notices
 // for CASCADE go through provider.Notice in discovery order.
-func compositeFieldDependencies(provider table.DropDependencyReader, source *catalog.Relation, attribute int32, mode parser.DropMode) error {
+func CompositeFieldDependencies(provider DropDependencyReader, source *catalog.Relation, attribute int32, mode parser.DropMode) error {
 	var relations []*catalog.Relation
 	var domains []*catalog.Type
 	target := source.Address()
@@ -127,7 +122,7 @@ func compositeFieldDependencies(provider table.DropDependencyReader, source *cat
 			label := fmt.Sprintf("constraint %s", catalog.DependencyIdentifier(check.Name))
 			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, catalog.DependencyIdentifier(source.Columns[source.IndexForAttribute(attribute)].Name), catalog.DependencyIdentifier(source.Name())))
 			if mode == parser.DropCascade {
-				if err := removeDomainCheck(provider, domain, check.OID); err != nil {
+				if err := RemoveDomainCheck(provider, domain, check.OID); err != nil {
 					return err
 				}
 				compositeFieldNotice(provider, "drop cascades to "+label)
@@ -145,13 +140,13 @@ func compositeFieldDependencies(provider table.DropDependencyReader, source *cat
 
 // Ordinary composite ALTER owns these immediate notices rather than table/view
 // cascade publication. Preparation records the same notice for its real phase.
-func compositeFieldNotice(provider table.DropDependencyReader, message string) {
+func compositeFieldNotice(provider DropDependencyReader, message string) {
 	provider.Notice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
 }
 
-// removeDomainCheck replaces domain d, as the drop already changed it, with a
+// RemoveDomainCheck replaces domain d, as the drop already changed it, with a
 // copy without its CHECK constraint oid and a new revision.
-func removeDomainCheck(provider table.DropDependencyReader, d *catalog.Type, oid ids.OID) error {
+func RemoveDomainCheck(provider DropDependencyReader, d *catalog.Type, oid ids.OID) error {
 	if replacement, ok := provider.Replacement(d.Address()).(*catalog.Type); ok {
 		d = replacement
 	}

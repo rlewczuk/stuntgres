@@ -313,7 +313,7 @@ func (p *dropProvider) rewindNotices(position int) {
 }
 
 func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
-	targets := identityObservationTargets(p, roots)
+	targets := view.IdentityObservationTargets(p, roots)
 	if p.stage != nil {
 		p.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{p.stage.Base.State(), targets})
 		return

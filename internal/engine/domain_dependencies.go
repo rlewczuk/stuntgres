@@ -61,7 +61,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	// Previously staged whole removals are retirement roots too. Discover their
 	// complete dependent closure before classifying any surviving-owner mutation.
 	// In particular a schema can remove both a provider and an inheritance parent.
-	roots = dropRoots(roots, provider.RemovalDescriptors())
+	roots = view.DropRoots(roots, provider.RemovalDescriptors())
 	if err := provider.lockInheritanceClosure(roots); err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	if mode == parser.DropRestrict && visible {
 		return view.RestrictError(provider, roots, edges, originalRootCount, subject)
 	}
-	plan := planDrop(provider, roots, edges)
+	plan := view.PlanDrop(provider, roots, edges)
 	targets, relations := plan.Targets, plan.Relations
 	if plan.ObserveIdentities {
 		provider.observeIdentityDependencies(targets)
@@ -88,7 +88,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 				return err
 			}
 		}
-		for _, r := range plan.lockRelations(edges) {
+		for _, r := range plan.LockRelations(edges) {
 			ref := e.catalog.Domain.Ref(provider.base.Epoch(), r.Address())
 			if err := provider.Acquire(ref, true); err != nil {
 				return err
@@ -176,12 +176,12 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 		if provider.Removed(edge.Domain.Address()) {
 			continue
 		}
-		if err := removeDomainCheck(provider, edge.Domain, edge.Address.ObjectID); err != nil {
+		if err := table.RemoveDomainCheck(provider, edge.Domain, edge.Address.ObjectID); err != nil {
 			return err
 		}
 	}
 	for _, target := range targets {
-		if retiredProviderClass(target.ClassID) {
+		if table.RetiredProviderClass(target.ClassID) {
 			if err = provider.Remove(e.catalog.Domain.Ref(provider.base.Epoch(), target)); err != nil {
 				break
 			}
@@ -200,7 +200,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	// Stage their AUTO closure after removing them so recursive expression
 	// traversal cannot rediscover the same hierarchy during sequence preparation.
 	if len(plan.Hierarchy) != 0 {
-		return ownedExpressionDependencies(provider, plan.Hierarchy, mode)
+		return table.OwnedExpressionDependencies(provider, plan.Hierarchy, mode)
 	}
 	return nil
 }
