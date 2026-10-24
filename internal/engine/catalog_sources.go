@@ -38,7 +38,7 @@ func (e *Engine) initializeCatalogSources() error {
 			d.Index[column.Name], d.Attributes[i] = i, int32(i+1)
 		}
 		pgcatalog.InitializeAttributes(d)
-		installCatalogSource(e.catalog.State, d)
+		catalog.InstallCatalogSource(e.catalog.State, d)
 	}
 	return nil
 }

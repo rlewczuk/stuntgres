@@ -18,6 +18,13 @@ var BuiltinTablespaces = [...]struct {
 	Name string
 }{{DefaultTablespaceOID, "pg_default"}, {GlobalTablespaceOID, "pg_global"}}
 
+// InstallBuiltinTablespaces installs BuiltinTablespaces.
+func InstallBuiltinTablespaces(state *State, owner authorization.PrincipalRef) {
+	for _, builtin := range BuiltinTablespaces {
+		installSeedDescriptor(state, &Tablespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.OID}, ObjectRevision: 1, ObjectName: builtin.Name, Owner: owner})
+	}
+}
+
 type Tablespace struct {
 	ObjectAddress  ids.ObjectAddress
 	ObjectRevision ids.DefinitionRevision

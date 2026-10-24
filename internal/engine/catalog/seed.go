@@ -1,0 +1,152 @@
+package catalog
+
+import (
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
+
+// The builtin seed's install steps write a state still in its bulk load,
+// before the store is shared. Owners and the compiled tables of packages that
+// import catalog (routine, typedef) come in as values.
+
+// installSeedDescriptor sets d and binds its descriptor name.
+func installSeedDescriptor(state *State, d Descriptor) {
+	state.SetDescriptor(d.Address(), d)
+	state.BindName(DescriptorNameKey(d), d.Address())
+}
+
+// InstallBuiltinNamespaces installs pg_catalog, pg_toast, public and
+// information_schema. publicOwner owns public; owner owns the rest.
+func InstallBuiltinNamespaces(state *State, owner, publicOwner authorization.PrincipalRef) {
+	for _, ns := range []struct {
+		oid  ids.OID
+		name string
+	}{{ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {ids.PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
+		owner := owner
+		if ns.oid == ids.PublicNamespaceOID {
+			owner = publicOwner
+		}
+		d := &Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
+		if ns.oid != ids.PGToastNamespaceOID {
+			d.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
+				{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
+			}}
+		}
+		d.Comment = NamespaceCommentBaseline(ns.oid)
+		state.SetDescriptor(d.Address(), d)
+		state.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
+	}
+}
+
+// InstallBuiltinTypes installs a type descriptor for each builtin SQL type.
+func InstallBuiltinTypes(state *State, types []*sqltype.Descriptor, owner authorization.PrincipalRef) {
+	for _, typ := range types {
+		d := &Type{SQLType: typ, Comment: BuiltinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: owner}
+		if typ.IsDomain() && typ.Concrete() {
+			d.ObjectRevision = 1
+		}
+		if typ.NamespaceName() == "information_schema" {
+			d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
+		}
+		installSeedDescriptor(state, d)
+	}
+}
+
+// InstallBuiltinCollations installs copies of BuiltinCollations.
+func InstallBuiltinCollations(state *State, owner authorization.PrincipalRef) {
+	for i := range BuiltinCollations {
+		d := new(Collation)
+		*d = BuiltinCollations[i]
+		d.Owner = owner
+		installSeedDescriptor(state, d)
+	}
+}
+
+// InstallBuiltinConversions installs copies of BuiltinConversions in
+// pg_
+func InstallBuiltinConversions(state *State, owner authorization.PrincipalRef) {
+	for i := range BuiltinConversions {
+		d := new(Conversion)
+		*d = BuiltinConversions[i]
+		d.Owner = owner
+		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+		d.ObjectRevision = 1
+		installSeedDescriptor(state, d)
+	}
+}
+
+// InstallBuiltinProcedures installs each group of builtin routine descriptors
+// in order, then the native access methods.
+func InstallBuiltinProcedures(state *State, groups ...[]Procedure) {
+	for _, procedures := range groups {
+		for i := range procedures {
+			installSeedDescriptor(state, &procedures[i])
+		}
+	}
+	InstallBuiltinAccessMethods(state)
+}
+
+// InstallBuiltinOperators installs the shared operator-name index and the
+// seeded operator descriptors.
+func InstallBuiltinOperators(state *State, names *OperatorNameIndex, operators []Operator) {
+	state.SetOperatorNames(names)
+	for i := range operators {
+		installSeedDescriptor(state, &operators[i])
+	}
+}
+
+// InstallBuiltinLanguagesLocked installs internal, c and sql, then plpgsql
+// with its call, inline and validator handlers at OIDs allocated from s.
+func (s *Store) InstallBuiltinLanguagesLocked(owner authorization.PrincipalRef) error {
+	for _, seed := range []struct {
+		oid       ids.OID
+		name      string
+		validator ids.OID
+		trusted   bool
+	}{{12, "internal", 2246, false}, {13, "c", 2247, false}, {14, "sql", 2248, true}} {
+		installSeedDescriptor(s.State, &Language{ObjectAddress: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: seed.oid}, ObjectRevision: 1, ObjectName: seed.name, Owner: owner, Trusted: seed.trusted, Validator: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: seed.validator}})
+	}
+	languageOID, err := s.AllocateOIDLocked()
+	if err != nil {
+		return err
+	}
+	language := &Language{ObjectAddress: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: languageOID}, ObjectRevision: 1, ObjectName: "plpgsql", Owner: owner, Procedural: true, Trusted: true}
+	for _, kind := range []PLHandler{PLCallHandler, PLInlineHandler, PLValidator} {
+		oid, err := s.AllocateOIDLocked()
+		if err != nil {
+			return err
+		}
+		name, signature, result := kind.Declaration()
+		handler := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: name, Signature: signature, Result: result, Owner: owner, RoutineKind: FunctionRoutine, Volatility: expr.Volatile, PLHandler: kind}
+		installSeedDescriptor(s.State, handler)
+		switch kind {
+		case PLCallHandler:
+			language.Call = handler.Address()
+		case PLInlineHandler:
+			language.Inline = handler.Address()
+		case PLValidator:
+			language.Validator = handler.Address()
+		}
+	}
+	installSeedDescriptor(s.State, language)
+	return nil
+}
+
+// InstallCatalogSource installs a catalog relation. A same-named seeded row
+// type, and its array, become owned by the relation.
+func InstallCatalogSource(state *State, d *Relation) {
+	if address, ok := state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.Namespace(), Name: d.Name()}); ok {
+		row := state.MustType(address)
+		row.OwningRelation, row.Owner = d.Address(), d.Owner
+		d.RowType = row.SQLType.ID()
+		if row.Array != 0 {
+			array := state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
+			array.OwningRelation, array.Owner = d.Address(), d.Owner
+		}
+	}
+	state.SetDescriptor(d.Address(), d)
+	state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
+}

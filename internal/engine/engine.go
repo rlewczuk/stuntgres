@@ -192,19 +192,19 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.catalog.State.BeginBulkLoad(builtinCatalogCapacity(len(types)))
 	bootstrap := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
 	principals := e.roles.published.Root.Read(authorization.PrincipalRef{})
-	installBuiltinNamespaces(e.catalog.State, principals.LookupRef("postgres"), principals.LookupRef("pg_database_owner"))
-	installBuiltinTypes(e.catalog.State, types, bootstrap)
-	installBuiltinCollations(e.catalog.State, bootstrap)
-	installBuiltinProcedures(e.catalog.State, typedef.BuiltinConversionProcedures(bootstrap), routine.BuiltinProcedures(bootstrap), routine.NativeAccessMethodProcedures(bootstrap))
-	if err := installBuiltinLanguagesLocked(&e.catalog, bootstrap); err != nil {
+	catalog.InstallBuiltinNamespaces(e.catalog.State, principals.LookupRef("postgres"), principals.LookupRef("pg_database_owner"))
+	catalog.InstallBuiltinTypes(e.catalog.State, types, bootstrap)
+	catalog.InstallBuiltinCollations(e.catalog.State, bootstrap)
+	catalog.InstallBuiltinProcedures(e.catalog.State, typedef.BuiltinConversionProcedures(bootstrap), routine.BuiltinProcedures(bootstrap), routine.NativeAccessMethodProcedures(bootstrap))
+	if err := e.catalog.InstallBuiltinLanguagesLocked(bootstrap); err != nil {
 		return nil, err
 	}
-	installBuiltinTablespaces(e.catalog.State, bootstrap)
-	installBuiltinConversions(e.catalog.State, bootstrap)
-	installBuiltinOperators(e.catalog.State, routine.SeededOperatorNames(), routine.BuiltinOperatorDescriptors(bootstrap))
+	catalog.InstallBuiltinTablespaces(e.catalog.State, bootstrap)
+	catalog.InstallBuiltinConversions(e.catalog.State, bootstrap)
+	catalog.InstallBuiltinOperators(e.catalog.State, routine.SeededOperatorNames(), routine.BuiltinOperatorDescriptors(bootstrap))
 	catalog.InstallBuiltinFamilies(e.catalog.State, bootstrap)
 	catalog.InstallBuiltinClasses(e.catalog.State, bootstrap)
-	shareProcedureNamesLocked(&e.catalog, builtinSeed)
+	e.catalog.ShareProcedureNamesLocked(builtinSeed)
 	e.initializeDatabase(database)
 	if err := e.installBuiltinDomainChecks(); err != nil {
 		return nil, err
@@ -212,10 +212,10 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
 	}
-	if err := validateSeed(&e.catalog, builtinSeed); err != nil {
+	if err := e.catalog.ValidateSeed(builtinSeed); err != nil {
 		return nil, err
 	}
-	finishSeedLocked(&e.catalog, builtinSeed)
+	e.catalog.FinishSeedLocked(builtinSeed)
 	cluster.defaultTarget, cluster.targets, cluster.nextOID = e, map[string]*Engine{e.databaseName: e}, 16384
 	return e, nil
 }

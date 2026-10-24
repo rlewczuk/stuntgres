@@ -30,7 +30,7 @@ func TestBuiltinCatalogValidatesForEveryEngineConfiguration(t *testing.T) {
 		{nil, strings.Repeat("d", 80), false},
 	} {
 		e := NewWithSettings(config.definitions, config.database, config.commitTimes)
-		if err := validateCatalogDescriptors(&e.catalog, e.catalog.State.Descriptors()); err != nil {
+		if err := e.catalog.ValidateDescriptors(e.catalog.State.Descriptors()); err != nil {
 			t.Fatalf("database %q: %v", config.database, err)
 		}
 	}
@@ -139,7 +139,7 @@ func TestBuiltinSeedNamesMatchUnsharedSeed(t *testing.T) {
 	} {
 		shared := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).catalog.State.Names())
 		saved := builtinSeed
-		builtinSeed = &seedShare{}
+		builtinSeed = &catalog.SeedShare{}
 		own := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).catalog.State.Names())
 		builtinSeed = saved
 		if !maps.Equal(shared, own) {
