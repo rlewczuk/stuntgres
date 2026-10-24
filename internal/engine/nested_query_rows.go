@@ -29,8 +29,8 @@ func openNestedQueryRows(ctx context.Context, root plan.Node, source *exec.Sourc
 	}
 	r := &nestedQueryRows{schema: project.Schema(), ctx: ctx}
 	r.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
-	if scope := scopeOf(source.LiveHost()); scope != nil {
-		r.state.Input, r.state.Output = scope.input, scope.output
+	if host := source.LiveHost(); host != nil {
+		r.state.Input, r.state.Output = host.Environments()
 	}
 	stage, err := exec.OpenQueryProjectStage(ctx, &r.state, project)
 	if err != nil {
