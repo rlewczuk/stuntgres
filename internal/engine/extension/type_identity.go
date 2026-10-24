@@ -29,6 +29,9 @@ func InstalledType(v catalog.Read, ext *catalog.Extension) (string, *catalog.Typ
 	case "earthdistance":
 		name = "earth"
 		err = StockEarthdistance.ValidateExtension(v, ext)
+	case "lo":
+		name = "lo"
+		err = StockLo.ValidateExtension(v, ext)
 	default:
 		return "", nil, nil
 	}
@@ -51,7 +54,7 @@ func MemberTypeRole(v catalog.Read, ext *catalog.Extension, t *catalog.Type) (st
 		if t.Address() == base.Address() {
 			return name, nil
 		}
-		if ext.Name() == "earthdistance" && t.Address() == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}) {
+		if (ext.Name() == "earthdistance" || ext.Name() == "lo") && t.Address() == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}) {
 			return name + "[]", nil
 		}
 	}

@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for the eleven bundled extensions (citext, cube, earthdistance,
-fuzzystrmatch, intagg, intarray, isn, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
+and control data for the twelve bundled extensions (citext, cube, earthdistance,
+fuzzystrmatch, intagg, intarray, isn, lo, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
@@ -20,7 +20,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
 
 - **Providers** (`*_provider.go`): one provider type per extension, each with
   `Control`, `Versions`, `ValidateExtension` (`catalog.ExtensionImplementation`)
-  and, except unaccent, `ValidateProcedure`. The stock instances are
+  and, for providers with callable members, `ValidateProcedure`. The stock instances are
   `StockCitext` … `StockUUIDOssp`. The script contexts (`CitextTypeContext`,
   `CubeTypeContext`, `IntarrayInputContext`, `UnaccentTemplateContext`, …),
   signatures (`CubeSignature`, `CubeBinarySignature`, `QueryIntSignature`) and
@@ -87,6 +87,17 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   companion resolution uses the domain's actual Array identity, not `_earth`.
   Routine labels, namespaces and owners can vary independently; domain and
   companion retain matching namespace/owner. Legacy two-member records reject.
+- **lo** (`lo_provider.go`): the trusted, relocatable 1.2 provider stages a
+  constraint-free concrete domain over the catalog's builtin OID generation and
+  its lookup-only companion as two ordered extension members, each carrying a
+  nonzero allocated catalog revision rather than a bootstrap fallback. Ordinary domain
+  coercion, OID input/output and bind/result paths retain unsigned numeric
+  payloads and typed NULLs; logical lo identity has physical OID result metadata.
+  No large-object lookup or reference-management trigger is attached. Symbolic
+  owner roles `lo`/`lo[]` resolve the actual reciprocal companion, independent
+  of its current spelling. The codec and import require the two role-to-slot
+  assignments, empty signatures and a common domain/companion owner; the
+  extension installer may differ from its bootstrap-owned trusted members.
 - **Registry and update paths** (`extension_register.go`, `extension_paths.go`):
   `Register(registry, name, implementation)` checks one startup registration
   (name, control version, `ValidateActions`, duplicates, in that order) and
@@ -142,10 +153,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   that is also a source does not trigger another mapping step.
 
 Type identity is its validated manifest role, not its mutable name or namespace.
-`InstalledType`/`MemberTypeRole` resolve cube/query_int/citext/ean13/earth through the
+`InstalledType`/`MemberTypeRole` resolve cube/query_int/citext/ean13/earth/lo through the
 existing manifest/provider and reciprocal array checks. Member ALTER retains
-installation membership; direct DROP remains protected. The owners-v1 codec
-keeps canonical type role keys (including earth[]) across rename/move, preserving
+installation membership; direct DROP remains protected. The owner metadata codec
+keeps canonical type role keys (including earth[] and lo[]) across rename/move, preserving
 strict key/signature decoding and independent routine owners. Restore applies
 these roles to the actual destination descriptors, never a same-named loose type.
 
@@ -199,7 +210,7 @@ the extension, so provider identity, conflicts, forged manifests and owner impor
 are engine units. Public SQL lives in
 [reference/catalogs](../../../reference/catalogs/README.md#testing) (extension
 DDL and catalogs), [reference/types](../../../reference/types/README.md#testing)
-(citext, earth, cube values) and
+(citext, earth, cube and lo values) and
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.
 

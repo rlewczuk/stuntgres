@@ -8,7 +8,7 @@ nullability, CHECK and identity lifecycle); composite types (declarations, field
 expressions, ALTER TYPE attributes); enums (values, ALTER TYPE, support
 functions); integer, numeric, date, timestamp and timestamptz ranges, custom range
 definitions and their multiranges (operators, inspection, `multirange`/`unnest`); text search types and
-operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`); ACL values
+operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`, `lo`); ACL values
 (`aclitem`, `makeaclitem`, `acldefault`, `aclexplode`); TID; UUID (values,
 `gen_random_uuid`/`uuidv4`/`uuidv7`, extraction); BOOLEAN diagnostics and
 aggregates; the `information_schema` domains; and scalar comparison operators and
@@ -122,6 +122,18 @@ these are shared across families:
   is `RUN='^TestReferenceEan13'`; controls retain readers across replacement,
   validate whole-script diagnostic positions and rollback with identical failing
   SQL on PostgreSQL, and replay actual emitted SQL on PostgreSQL.
+- `lo_helpers_test.go`: shared installed-domain scenarios reuse the fixture's OID
+  raw-value adapter. Logical lo identity is independent of physical OID result
+  metadata, including NULL/empty results and declared nullability. Numeric
+  values, text canonicalization, direct/held binds, complete diagnostics and
+  statement atomicity have independent expectations. Native control phases
+  preserve values and retained metadata across same/fresh-engine replacement,
+  replay actual emitted SQL on PostgreSQL and exercise extension recreation.
+  Same-engine replacement, fresh-engine replacement, malformed owner-metadata
+  rejection and recreation run as serial subtests, each with its own bounded
+  scenario and independently seeded rows. Failed public Restore preserves the
+  incumbent identities, rows, metadata, retained reader and deterministic dump.
+  The reusable family selector is `RUN='^TestReferenceLo'`.
 
 Client quirks:
 

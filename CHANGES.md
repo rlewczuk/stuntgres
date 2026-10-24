@@ -18,6 +18,12 @@ for longitude-first great-circle distances in statute miles, including NULL and
 nonfinite inputs, prepared calls, complete installation-collision diagnostics
 and identity-preserving native controls.
 
+CREATE EXTENSION lo now installs an OID-backed domain for declared reference
+columns. Text input, direct/prepared binds, typed NULLs and physical OID result
+metadata preserve unsigned values exactly, including duplicate and dangling
+references. Dump/Reset/Restore retain logical type identity, owners and numeric
+payloads through replacement and extension recreation.
+
 Shipped function, aggregate and operator definitions and routine identity changes
 now share SQL BEGIN and Go BeginTx with autocommit and retained messages.
 Private callable programs, overload names, dependencies and rows publish or roll

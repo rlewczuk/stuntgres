@@ -53,6 +53,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='unaccent' AND installed=$1", true, want, pg, state))
 			}
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='unaccent' AND installed=$1", true, [][]any{}, pg, nil))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='lo'", false, [][]any{{"lo", "1.2", nil, "Large Object maintenance"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='lo' AND version='1.2'", true, [][]any{{"lo", "1.2", false, true, true, true, nil, nil, "Large Object maintenance"}}, pg))
 			if !pg {
 				// Native availability is its real embedded registry, not PostgreSQL's
 				// larger system package installation or bootstrap plpgsql descriptor.
@@ -60,6 +62,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions := append([][]any{{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}, {"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}, {"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}, {"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}, {"pgrowlocks", "1.2", false, true, false, true, nil, nil, "show row-level locking information"}}, availableVersionsRow(installed)...)
 				wantAvailable = append(wantAvailable[:3:3], append([][]any{{"isn", "1.3", nil, "data types for international product numbering standards"}}, wantAvailable[3:]...)...)
 				wantVersions = append(wantVersions[:3:3], append([][]any{{"isn", "1.3", false, true, true, true, nil, nil, "data types for international product numbering standards"}}, wantVersions[3:]...)...)
+				wantAvailable = append(wantAvailable[:4:4], append([][]any{{"lo", "1.2", nil, "Large Object maintenance"}}, wantAvailable[4:]...)...)
+				wantVersions = append(wantVersions[:4:4], append([][]any{{"lo", "1.2", false, true, true, true, nil, nil, "Large Object maintenance"}}, wantVersions[4:]...)...)
 				wantVersions = append([][]any{{"fuzzystrmatch", "1.1", false, true, true, true, nil, nil, "determine similarities and distance between strings"}}, wantVersions...)
 				wantAvailable = append([][]any{{"earthdistance", "1.2", nil, "calculate great-circle distances on the surface of the Earth"}}, wantAvailable...)
 				wantVersions = append([][]any{{"earthdistance", "1.2", false, true, false, true, nil, "{cube}", "calculate great-circle distances on the surface of the Earth"}}, wantVersions...)

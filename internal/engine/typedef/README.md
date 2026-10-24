@@ -113,7 +113,7 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
 ## Type identity lifecycle
 
 Identity ALTER preserves logical IDs and stored values for enums, domains,
-standalone composites and installed cube/query_int/citext/ean13/earth. Arrays follow
+standalone composites and installed cube/query_int/citext/ean13/earth/lo. Arrays follow
 the reciprocal descriptor, never a guessed underscore name; standalone composite
 backing relations remain reciprocal. Relation-owned rowtypes use their relation's
 DDL instead. Rename may displace a genuine generated array; namespace moves must

@@ -214,6 +214,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = 3
 	case record.Name == "earthdistance" && record.Version == "1.2":
 		expectedMembers = EarthMemberCount
+	case record.Name == "lo" && record.Version == "1.2":
+		expectedMembers = 2
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
 		expectedMembers = len(FuzzystrmatchMembers)
 	case record.Name == "fuzzystrmatch" && record.Version == "1.1":
@@ -261,7 +263,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		case "procedure":
 			// Mutable procedure labels are checked against the current installed
 			// slot by ImportOwners, not used as installation identity.
-			if record.Name == "earthdistance" && member.Slot < 2 || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "intarray" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
+			if record.Name == "lo" || record.Name == "earthdistance" && member.Slot < 2 || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "intarray" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
 				return invalid()
 			}
 			if signature, ok := ownerProcedureSignature(record.Name, record.Version, member.Slot); !ok || signature != member.Signature {
@@ -285,7 +287,10 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") || member.Signature != "" {
+			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
+				return invalid()
+			}
+			if record.Name == "lo" && member.Name != [...]string{"lo", "lo[]"}[member.Slot] {
 				return invalid()
 			}
 		default:
@@ -293,7 +298,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		}
 		record.Members = append(record.Members, member)
 	}
-	if record.Name == "earthdistance" && !validEarthOwnerRoles(record) {
+	if record.Name == "earthdistance" && !validEarthOwnerRoles(record) || record.Name == "lo" && record.Members[0].Owner != record.Members[1].Owner {
 		return invalid()
 	}
 	return record, true, nil

@@ -49,6 +49,11 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 			err = extension.StockIsn.ValidateExtension(view, parent)
 		case parent.Name() == "earthdistance" && (t.SQLType.IsDomain() || t.SQLType.IsArray()):
 			err = extension.StockEarthdistance.ValidateExtension(view, parent)
+		case parent.Name() == "lo" && (t.SQLType.IsDomain() || t.SQLType.IsArray()):
+			err = extension.StockLo.ValidateExtension(view, parent)
+			if err == nil && t.Address() != parent.Members[0] && t.Address() != parent.Members[1] {
+				return fmt.Errorf("stuntgres: invalid installed lo type membership")
+			}
 		default:
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}

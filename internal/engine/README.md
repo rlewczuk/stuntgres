@@ -655,6 +655,10 @@ description rules are in the [`settings` README](settings/README.md#testing).
 Add `RACE=1` for lifecycle, cancellation and contention selections.
 PL cursor compiler/provider/ownership units: `RUN='^TestPLpgSQLCursor'`.
 Internal producer lifetime/cancellation units use `RUN='^TestPLpgSQLQueryLoop(Lifetime|Cancellation)$'`.
+Lo provider units use `RUN='^TestLo(Provider|OwnerMetadata|ManifestAdmission)'`.
+They stage concrete domain/companion recipes through the shared extension host,
+validate immutable manifests and symbolic ownership, and exercise genuine
+collision/allocation and destination-role replacement fences without public SQL.
 
 - Fixtures never enter `Engine.Execute` while owning admission (that acquires
   its mutex recursively); create stored recipes before retaining admission.

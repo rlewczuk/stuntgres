@@ -375,7 +375,7 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		stock catalog.ExtensionImplementation
-	}{{"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"unaccent", extension.StockUnaccent}, {"intarray", extension.StockIntarray}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgcrypto", extension.StockPgcrypto}, {"pgrowlocks", extension.StockPgrowlocks}, {"uuid-ossp", extension.StockUUIDOssp}} {
+	}{{"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"lo", extension.StockLo}, {"unaccent", extension.StockUnaccent}, {"intarray", extension.StockIntarray}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgcrypto", extension.StockPgcrypto}, {"pgrowlocks", extension.StockPgrowlocks}, {"uuid-ossp", extension.StockUUIDOssp}} {
 		if registered, ok := e.catalog.Extensions[tc.name].(extension.Installer); !ok || registered != tc.stock {
 			t.Fatal("registered implementation is not the stock installer", tc.name)
 		}
@@ -388,6 +388,20 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 		extensionUnitPublish(t, e, op, stage)
 		view := e.CatalogRead()
 		ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: tc.name}))
+		if tc.stock == extension.StockLo {
+			// Lo carries authority in its immutable domain recipe and reciprocal,
+			// extension-owned companion, without implementation-bearing routines.
+			if err := tc.stock.ValidateExtension(view, ext); err != nil {
+				t.Fatal(err)
+			}
+			for _, a := range ext.Members {
+				d, ok := view.Get(a).(*catalog.Type)
+				if !ok || d.Extension != ext.Address() {
+					t.Fatal("invalid domain-only member", a)
+				}
+			}
+			continue
+		}
 		if tc.stock == extension.StockEarthdistance {
 			if err := tc.stock.ValidateExtension(view, ext); err != nil {
 				t.Fatal(err)

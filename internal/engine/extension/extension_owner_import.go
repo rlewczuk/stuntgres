@@ -44,6 +44,16 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 		if record.Name == "earthdistance" && (len(ext.Members) != EarthMemberCount || !validEarthOwnerRoles(record)) {
 			return false, fmt.Errorf("stuntgres: invalid earthdistance ownership roles")
 		}
+		if record.Name == "lo" {
+			if ext.Version != "1.2" || len(record.Members) != 2 || len(ext.Members) != 2 || record.Members[0].Owner != record.Members[1].Owner {
+				return false, fmt.Errorf("stuntgres: inconsistent lo ownership roles")
+			}
+			for _, member := range record.Members {
+				if member.Slot < 0 || member.Slot >= 2 || member.Kind != "type" || member.Signature != "" || member.Name != [...]string{"lo", "lo[]"}[member.Slot] {
+					return false, fmt.Errorf("stuntgres: invalid lo ownership role")
+				}
+			}
+		}
 		if record.Name == "cube" && (len(record.Members) != CubeMemberCount || len(ext.Members) != CubeMemberCount) {
 			return false, fmt.Errorf("stuntgres: incomplete cube ownership manifest")
 		}
@@ -56,7 +66,13 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 		}
 		memberSlots := make(map[int]bool, expected)
 		membersSeen := make(map[ids.ObjectAddress]bool, expected)
-		for _, member := range record.Members {
+		for i, member := range record.Members {
+			// Reown lo's domain/companion pair together before validating the
+			// companion slot, even when a decoded record lists that slot first.
+			// Do not reorder or mutate the caller's immutable metadata slice.
+			if record.Name == "lo" && record.Members[0].Slot == 1 {
+				member = record.Members[1-i]
+			}
 			owner, ok := roles.Lookup(member.Owner)
 			if !ok {
 				return false, fmt.Errorf("stuntgres: extension member owner %q does not exist", member.Owner)
@@ -155,10 +171,10 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if err != nil {
 					return false, err
 				}
-				if record.Name == "earthdistance" && selected.SQLType.IsArray() {
+				if (record.Name == "earthdistance" || record.Name == "lo") && selected.SQLType.IsArray() {
 					domain, ok := candidate.Type(ext.Members[0])
 					if !ok || !domain.SQLType.IsDomain() || a != ext.Members[1] || ids.OID(domain.Array) != a.ObjectID || selected.SQLType.Element() != domain.SQLType || selected.Namespace() != domain.Namespace() {
-						return false, fmt.Errorf("stuntgres: invalid earth ownership companion")
+						return false, fmt.Errorf("stuntgres: invalid installed domain ownership companion")
 					}
 				}
 			case *catalog.TSDictionary:
