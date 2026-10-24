@@ -60,6 +60,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		s.op.Session.Mu.Unlock()
 		if err != nil {
 			node.AbandonSafeSnapshotLocked()
+			e.visibility.DropSnapshotLocked(t.Ref)
 			t.Roots = nil
 			t.SequenceCatalog = nil
 			t.CurrentSnapshot = nil

@@ -170,7 +170,7 @@ func (m *Manager) retireMultiXactsLocked() {
 }
 
 func (m *Manager) validMultiTuple(owner *Ticket, key MultiTuple) bool {
-	return key.Kind == OrdinaryResource && key.Row != 0 && key.High == 0 && key.Low == 0 && key.Address.ClassID == ids.RelationClassID && key.Address.SubID == 0 && key.key == nil && key.completion == nil && key.Version != 0 && key.ObjectRef.Domain() == m.domain && key.Epoch == owner.ref.Epoch()
+	return key.Kind == OrdinaryResource && key.Name == (ids.NameKey{}) && key.Row != 0 && key.High == 0 && key.Low == 0 && key.Address.ClassID == ids.RelationClassID && key.Address.SubID == 0 && key.key == nil && key.completion == nil && key.Version != 0 && key.ObjectRef.Domain() == m.domain && key.Epoch == owner.ref.Epoch()
 }
 
 // No Engine/owner mutex is held. The whole batch is prepared privately before

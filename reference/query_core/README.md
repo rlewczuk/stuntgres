@@ -35,7 +35,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   RECORD/`_RECORD`, internal `"char"` and VOID with `ScanType` `interface {}`
   (native `string`), and RECORD/`_RECORD` cells as `[]byte` (native string; the
   fixture raw-array validator checks each backend's form).
-- Create permanent tables before BEGIN in transaction-failure scenarios.
+- Create committed predecessors before BEGIN when testing restoration; private
+  source/table chains construct their definitions inside the owner's block.
 - Parallel scans: matching rows do not prove that workers ran. Concurrent
   evaluation, exact-once ranges and cancellation joins are proven by
   `internal/engine` `TestQueryParallel*` units; reference tests assert occurrence
@@ -61,7 +62,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - FROM VALUES: `RUN='^TestReferenceQueryFromValues'`
 - Aliases: `RUN='^TestReferenceQueryAliases'`
 - Set operations: `RUN='^TestReferenceQuerySetOps'`
-- CREATE TABLE AS: `RUN='^TestReferenceQueryTableCreate'`
+- CREATE TABLE AS: `RUN='^TestReference(QueryTableCreate|TransactionalSchemaQueryCreate)'`
 - Expression indexes: `RUN='^TestReferenceExpressionIndex'`
 - Parallel SELECT scans: `RUN='^TestReferenceQueryParallel'`
 - Scalar expressions: `RUN='^TestReference(Between|Conditional|Logical|ExpressionCore|QueryCore|Smoke(Between|Compare|Conditional|ExpressionCore|Logical|QueryCore))'`

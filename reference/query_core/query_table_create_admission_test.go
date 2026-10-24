@@ -19,21 +19,12 @@ func TestReferenceQueryTableCreateReadOnlyPrepare(t *testing.T) {
 			defer tx.Rollback()
 			const q = "CREATE TABLE qc_ro_prepare AS SELECT $1::integer AS i"
 			stmt, err := tx.PrepareContext(p.Ctx, q)
-			if b.PG {
-				if err != nil || stmt == nil {
-					t.Fatal("read-only Prepare", stmt, err)
-				}
-				defer stmt.Close()
-				want := fixture.ControlsReferenceDiagnostic("25006", "cannot execute CREATE TABLE AS in a read-only transaction")
-				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: tx, Statement: stmt, SQL: q}, b.Recorder, fixture.ErrorDiagnostic(q, want, 7))
-			} else {
-				if stmt != nil {
-					stmt.Close()
-					t.Fatal("excluded Prepare exposed statement")
-				}
-				want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
-				fixture.AssertDiagnostic(t, err, &want)
+			if err != nil || stmt == nil {
+				t.Fatal("read-only Prepare", stmt, err)
 			}
+			defer stmt.Close()
+			want := fixture.ControlsReferenceDiagnostic("25006", "cannot execute CREATE TABLE AS in a read-only transaction")
+			fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: tx, Statement: stmt, SQL: q}, b.Recorder, fixture.ErrorDiagnostic(q, want, 7))
 			fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.ErrorDiagnostic("SELECT 1", fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block")))
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
@@ -70,12 +61,9 @@ func TestReferenceQueryTableCreateReadOnlyLocks(t *testing.T) {
 					run(c, fixture.Exec("SET lock_timeout='100ms'", 0))
 					run(c, fixture.Exec("BEGIN READ ONLY", 0))
 					defer c.ExecContext(context.Background(), "ROLLBACK")
-					want := fixture.ControlsReferenceDiagnostic("25006", "cannot execute CREATE TABLE AS in a read-only transaction")
-					if b.PG {
-						want = fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
-						if !held {
-							want.Position = "44"
-						}
+					want := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
+					if !held {
+						want.Position = "44"
 					}
 					x := fixture.Executor(c)
 					if held {
@@ -106,10 +94,8 @@ func TestReferenceQueryTableCreateSnapshotAdmission(t *testing.T) {
 						run(writer, fixture.Exec("CREATE TABLE qc_snapshot_source(i INT)", 0))
 						run(writer, fixture.Exec("INSERT INTO qc_snapshot_source VALUES(7)", 1))
 						q := "CREATE TABLE qc_snapshot_target AS SELECT 1 AS i"
-						tag := "CREATE TABLE AS"
 						if form == "into" {
 							q = "SELECT 1 AS i INTO qc_snapshot_target"
-							tag = "SELECT INTO"
 						}
 						var statement *sql.Stmt
 						if route == "held" {
@@ -136,15 +122,8 @@ func TestReferenceQueryTableCreateSnapshotAdmission(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer tx.Rollback()
-						want := fixture.ControlsReferenceDiagnostic("25006", "cannot execute "+tag+" in a read-only transaction")
-						if route != "direct" {
-							want = fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
-						}
-						if b.PG {
-							// PostgreSQL Parse/simple-query analysis requires the initial
-							// safe snapshot before utility execution or prepared analysis.
-							want = fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to statement timeout")
-						}
+						// Initial analysis requires a safe snapshot before read-only execution.
+						want := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to statement timeout")
 						step := fixture.ErrorDiagnostic(q, want)
 						step.ErrorStage = "execute"
 						if route == "held" {

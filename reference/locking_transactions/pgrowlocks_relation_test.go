@@ -124,13 +124,10 @@ func TestReferencePgrowlocksRelationWaitAndIdentity(t *testing.T) {
 		pgrowScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, a, observer *sql.Conn) {
 			pgrowTable(t, p, a)
 			if !b.PG {
-				// Explicit-transaction DROP is outside native capabilities.
-				// Assert its real boundary and unchanged table independently;
-				// Reset/Restore below supplies the native queued identity fence.
+				// A private DROP rolled back before queuing preserves the old
+				// table, data and subsequent native row-lock identity witness.
 				fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
-				_, err := a.ExecContext(p.Ctx, "DROP TABLE pgrow_t")
-				want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
-				fixture.AssertDiagnostic(t, err, &want)
+				fixture.LockExec(t, p.Ctx, a, "DROP TABLE pgrow_t", 0)
 				fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
 				identityBoth(t, p, b, observer, fixture.Select("SELECT id,v FROM pgrow_t", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(0)}}))
 				fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
@@ -138,7 +135,6 @@ func TestReferencePgrowlocksRelationWaitAndIdentity(t *testing.T) {
 				identityLock(t, p, a, "pgrow_t", 1, "UPDATE")
 				pgrowOne(t, pgrowGet(t, p, observer), false, owner)
 				fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
-				return
 			}
 			waiter, _ := fixture.LockConnections(t, p.Ctx, b.DB)
 			var oldOID, newOID int64
@@ -158,13 +154,20 @@ func TestReferencePgrowlocksRelationWaitAndIdentity(t *testing.T) {
 			fixture.LockExec(t, p.Ctx, a, "INSERT INTO pgrow_t VALUES(7,70)", 1)
 			fixture.LockExec(t, p.Ctx, a, "COMMIT", 0)
 			out := await()
-			// PostgreSQL RangeVar invalidation re-resolves the replacement.
-			// This is not a native no-retarget parity claim.
-			if out.Err != nil {
-				t.Fatalf("PG queued replacement outcome: %#v", fixture.ExtractDiagnostic(t, out.Err))
-			}
-			if got := pgrowRead(t, out.Rows); len(got) != 0 {
-				t.Fatal("replacement fabricated old owner", got)
+			if b.PG {
+				// PostgreSQL RangeVar invalidation re-resolves the replacement.
+				if out.Err != nil {
+					t.Fatalf("PG queued replacement outcome: %#v", fixture.ExtractDiagnostic(t, out.Err))
+				}
+				if got := pgrowRead(t, out.Rows); len(got) != 0 {
+					t.Fatal("replacement fabricated old owner", got)
+				}
+			} else {
+				if out.Rows != nil {
+					out.Rows.Close()
+					t.Fatal("stale captured identity returned rows")
+				}
+				fixture.TransactionOrdinary(t, out.Err, "stuntgres: catalog replaced before publication")
 			}
 			if err := observer.QueryRowContext(p.Ctx, "SELECT 'pgrow_t'::regclass::oid::bigint").Scan(&newOID); err != nil || newOID == oldOID {
 				t.Fatal("replacement identity", oldOID, newOID, err)

@@ -47,11 +47,7 @@ func TestReferenceTransactionOptionsAndExplicitUtilityBoundary(t *testing.T) {
 			}
 			defer tx.Rollback()
 			run(tx, fixture.Exec("INSERT INTO t VALUES(1)", 1))
-			if backend.PG {
-				run(tx, fixture.Exec("CREATE TABLE forbidden(v INT)", 0))
-			} else {
-				run(tx, fixture.ErrorDiagnostic("CREATE TABLE forbidden(v INT)", fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")))
-			}
+			run(tx, fixture.Exec("CREATE TABLE forbidden(v INT)", 0))
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}

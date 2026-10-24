@@ -3,10 +3,12 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqlstate"
 )
 
 func TestAlterRenamePublication(t *testing.T) {
@@ -43,7 +45,19 @@ func TestAlterRenamePublication(t *testing.T) {
 			_, err := testExecute(e, ctx, statement(t, "ALTER TABLE t RENAME TO winner"), nil)
 			switch kind {
 			case "collision":
-				renameWantError(t, err, "42P07", `relation "winner" already exists`)
+				// The destination was absent during capture; the provider
+				// publishes it before name admission, matching the pinned
+				// concurrent rename pg_class uniqueness diagnostic.
+				want := sqlstate.Error{
+					Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505",
+					Message: `duplicate key value violates unique constraint "pg_class_relname_nsp_index"`,
+					Detail:  fmt.Sprintf("Key (relname, relnamespace)=(winner, %d) already exists.", old.Namespace().ObjectID),
+					Schema:  "pg_catalog", Table: "pg_class", Constraint: "pg_class_relname_nsp_index",
+				}
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || *diagnostic != want {
+					t.Fatal(err, diagnostic, want)
+				}
 				run(t, e, "SELECT * FROM winner")
 			case "cancel":
 				if !errors.Is(err, context.Canceled) {

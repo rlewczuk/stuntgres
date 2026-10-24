@@ -114,6 +114,11 @@ func (m *Manager) PGLocks(epoch ids.CatalogEpoch) ([]Record, error) {
 	// process/object row, while detached prepared participants stay separate.
 	var advisoryRows map[RecordOwner]int
 	for resource, entry := range m.entries {
+		// Exact binding claims have no physical PostgreSQL lock tag. Their
+		// queued dependencies still participate in blocking/deadlock inquiry.
+		if resource.Name != (ids.NameKey{}) {
+			continue
+		}
 		if resource.Kind == OrdinaryResource && resource.completion == nil && resource.Epoch != epoch {
 			continue
 		}
@@ -253,8 +258,8 @@ func pgResourceRecord(resource Resource, owner RecordOwner, mode Mode) (Record, 
 		switch resource.Address.ClassID {
 		case ids.RelationClassID:
 			r.Kind = RelationRecord
-		case ids.TypeClassID:
-			r.Kind, r.Class = ObjectRecord, uint32(ids.TypeClassID)
+		case ids.TypeClassID, ids.NamespaceClassID:
+			r.Kind, r.Class = ObjectRecord, uint32(resource.Address.ClassID)
 		default:
 			return Record{}, fmt.Errorf("stuntgres: unknown lock object class")
 		}

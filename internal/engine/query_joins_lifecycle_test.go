@@ -240,7 +240,9 @@ func TestQueryJoinsSecondLeafGrantRebind(t *testing.T) {
 				}
 				tx := transactionBegin(t, holder)
 				sessionSQL(t, holder, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-				done := lockAsync(e, reader, context.Background(), "SELECT t.a FROM l JOIN t USING(a)", prepare)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				done := lockAsync(e, reader, ctx, "SELECT t.a FROM l JOIN t USING(a)", prepare)
 				lockPending(t, e, 1)
 				switch kind {
 				case "revision":
@@ -263,13 +265,13 @@ func TestQueryJoinsSecondLeafGrantRebind(t *testing.T) {
 						t.Fatal(err)
 					}
 				case "recreate":
-					run(t, e, "DROP TABLE t")
-					run(t, e, "CREATE TABLE t(a INT)")
+					sessionSQL(t, holder, "DROP TABLE t")
+					sessionSQL(t, holder, "CREATE TABLE t(a INT)")
 				}
 				if kind == "reset" || kind == "restore" {
 					lockAwait(t, done, ids.ErrCatalogReplaced)
 				}
-				transactionEnd(t, holder, tx, false)
+				transactionEnd(t, holder, tx, kind == "recreate")
 				if kind == "revision" {
 					lockAwait(t, done, nil)
 				} else if kind != "reset" && kind != "restore" {

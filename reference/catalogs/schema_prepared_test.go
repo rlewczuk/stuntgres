@@ -79,8 +79,8 @@ func TestReferenceSchemaPreparedFrozenContracts(t *testing.T) {
 }
 
 func TestReferenceSchemaTransactionBoundary(t *testing.T) {
-	p := fixture.NewScenario(t)
 	fixture.SchemaReferenceCleanup(t, "transaction_schema")
+	p := fixture.NewScenario(t)
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
 			for _, q := range []string{"CREATE SCHEMA transaction_schema", "ALTER SCHEMA public RENAME TO transaction_schema", "DROP SCHEMA public"} {
@@ -95,16 +95,7 @@ func TestReferenceSchemaTransactionBoundary(t *testing.T) {
 					} else {
 						result, err = tx.ExecContext(p.Ctx, q)
 					}
-					want := "0A000"
-					if backend.PG {
-						want = ""
-					}
-					fixture.State(t, err, want)
-					if backend.PG {
-						fixture.DeleteReferenceCount(t, result, err, 0)
-					} else if result != nil {
-						t.Fatal("rejected schema utility published result")
-					}
+					fixture.DeleteReferenceCount(t, result, err, 0)
 					if err := tx.Rollback(); err != nil {
 						t.Fatal(err)
 					}

@@ -90,7 +90,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Prepared-statement revalidation and rebind: `RUN='^TestReferencePrepared(Rebind|QueryRevalidates)'`
 - DISCARD: `RUN='^TestReferenceDiscard'`
 - SQL PREPARE/EXECUTE/DEALLOCATE: `RUN='^TestReferenceSQLPrepared'`
-- Wire server (all): `RUN='^TestReferenceServer'`
+- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol)'`
 - Wire extended protocol and portals: `RUN='^TestReferenceServer(Extended|Portal|Unnamed|FailedPortal|WrappedPortal)'`
 - Wire COPY: `RUN='^TestReferenceServer(Copy|PreparedCopy)'`
 - Wire comparison matrix: `RUN='^TestReferenceServerComparison'`

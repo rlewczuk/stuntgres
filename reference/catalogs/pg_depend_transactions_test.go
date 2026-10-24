@@ -17,11 +17,10 @@ func TestReferencePGDependTransactionsCreation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer tx.Rollback()
-		if !b.PG {
-			fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("SAVEPOINT unsupported_create", 0))
-			fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.ErrorDiagnostic("CREATE TABLE pgdep_tx_unsupported(a INT)", fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")))
-			fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("ROLLBACK TO unsupported_create", 0))
-		}
+		fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("SAVEPOINT before_create", 0))
+		fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("CREATE TABLE pgdep_tx_rollback(a INT)", 0))
+		fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("ROLLBACK TO before_create", 0))
+		fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Select("SELECT count(*) FROM pg_catalog.pg_class WHERE relname='pgdep_tx_rollback'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("CREATE SEQUENCE pgdep_private_tx_seq OWNED BY pgdep_private_tx.a", 0))
 		var table, seq int64
 		if err := tx.QueryRowContext(p.Ctx, "SELECT oid FROM pg_catalog.pg_class WHERE relname='pgdep_private_tx'").Scan(&table); err != nil {

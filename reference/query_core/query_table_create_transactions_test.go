@@ -38,20 +38,9 @@ func TestReferenceQueryTableCreateTransactions(t *testing.T) {
 							executor = fixture.HeldStatement{Executor: tx, Statement: stmt, SQL: form.query}
 						}
 						s := fixture.Exec(form.query, 1)
-						if !b.PG {
-							s = fixture.ErrorDiagnostic(form.query, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction"))
-							s.ErrorStage = "execute"
-							if route == "prepare" {
-								s.ErrorStage = "prepare"
-							}
-						}
 						s.Prepared = route == "prepare"
 						fixture.RunStep(t, p.Ctx, executor, b.Recorder, s)
-						if b.PG {
-							fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Select("SELECT i FROM qc_tx", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))
-						} else {
-							fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.ErrorDiagnostic("SELECT 1", fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block")))
-						}
+						fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Select("SELECT i FROM qc_tx", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))
 						if err := tx.Rollback(); err != nil {
 							t.Fatal(err)
 						}
@@ -95,19 +84,13 @@ func TestReferenceQueryTableCreateReadOnly(t *testing.T) {
 							}
 							defer tx.Rollback()
 							want := fixture.ControlsReferenceDiagnostic("25006", "cannot execute "+form.tag+" in a read-only transaction")
-							if b.PG && missing {
+							if missing {
 								want = fixture.ControlsReferenceDiagnostic("42P01", `relation "qc_ro_source" does not exist`)
 								if form.tag == "CREATE TABLE AS" {
 									want.Position = "37"
 								} else {
 									want.Position = "26"
 								}
-							}
-							if held && !b.PG {
-								// Conn-bound Stmt -> Tx.StmtContext reprepares inside the block.
-								// Its sticky native Prepare exclusion surfaces from held Exec;
-								// this route never reaches the earlier Execute read-only gate.
-								want = fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
 							}
 							x := fixture.Executor(tx)
 							if held {

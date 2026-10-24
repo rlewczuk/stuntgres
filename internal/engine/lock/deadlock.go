@@ -160,10 +160,14 @@ func (m *Manager) detectDeadlockSnapshot(newRequest *relationRequest, notify **r
 		}
 		if r.ref.completion != nil {
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for transaction completion", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch())
+		} else if r.ref.Name != (ids.NameKey{}) {
+			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on catalog name %q (class %d, namespace %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), r.ref.Name.Name, r.ref.Name.ClassID, r.ref.Name.Namespace.ObjectID)
 		} else {
 			kind := "relation"
 			if r.ref.Address.ClassID == ids.TypeClassID {
 				kind = "type"
+			} else if r.ref.Address.ClassID == ids.NamespaceClassID {
+				kind = "namespace"
 			}
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on %s %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), kind, r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)
 			if r.ref.Row != 0 {

@@ -1,9 +1,12 @@
 package engine
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
@@ -35,10 +38,6 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 			break
 		}
 	}
-	if !temporary && scope.owner.State == session.TxActive {
-		e.mu.Unlock()
-		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
-	}
 	if len(refs) == 0 {
 		e.mu.Unlock()
 		for _, notice := range notices {
@@ -46,6 +45,45 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 		}
 		return Result{}, nil
 	}
+	// Ordinary roots need AX too; the partition closure helper below cannot
+	// supply this hold for nonpartitioned tables. Readmit the captured group
+	// after all waits, before constructing its one private candidate.
+	e.mu.Unlock()
+	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	for _, ref := range refs {
+		if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+			return Result{}, err
+		}
+	}
+	e.mu.Lock()
+	auth, err = e.authorizationLocked(op)
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	for _, ref := range refs {
+		if auth.Catalog.Get(ref.Address) == nil {
+			e.mu.Unlock()
+			return Result{}, ids.ErrCatalogReplaced
+		}
+	}
+	fresh, freshNotices, err := table.DropTargets(ddlHost{e: e, op: op}, auth, s)
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	if len(fresh) != len(refs) {
+		e.mu.Unlock()
+		return Result{}, ids.ErrCatalogReplaced
+	}
+	slices.SortFunc(fresh, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	for i := range refs {
+		if fresh[i] != refs[i] {
+			e.mu.Unlock()
+			return Result{}, ids.ErrCatalogReplaced
+		}
+	}
+	notices = freshNotices
 	base := auth.Catalog
 	var changes *session.Journal
 	if temporary {

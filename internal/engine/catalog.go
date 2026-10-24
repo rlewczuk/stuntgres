@@ -24,6 +24,7 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -99,6 +100,8 @@ type CatalogStage struct {
 	roleRevision        uint64
 	extensionNamespace  ids.ObjectAddress
 	triggerReplacement  triggerReplacement
+	creationName        parser.ObjectName // Original destination position across namespace waits.
+	namesAdmitted       bool
 	databasePredecessor catalog.Descriptor
 	databaseAuthority   catalog.Descriptor
 	// Optional DROP OWNED membership deletions join this publication, not a
@@ -484,6 +487,20 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	return &PreparedCatalogPublication{stage: s, epoch: s.Base.Epoch(), ctx: ctx}, nil
 }
 func (e *Engine) publishCatalogOperation(op *session.Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+	if p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
+		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
+	}
+	if token.Epoch != p.epoch {
+		return ChangeSet{}, ids.ErrCatalogReplaced
+	}
+	if scope != nil {
+		if scope.op != op || op == nil {
+			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication scope")
+		}
+		if err := scope.acquireCatalogNames(p.stage); err != nil {
+			return ChangeSet{}, err
+		}
+	}
 	if op != nil && op.Session.Transactions.RetainsTransaction() {
 		return e.stageMessageCatalog(op, p, token)
 	}

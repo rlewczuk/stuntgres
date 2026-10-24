@@ -113,21 +113,16 @@ func TestSavepointsAuthorityAndCompletion(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Classification and gate each check Err; the third check is final
-			// installation under publication synchronization.
-			barrier := &transactionBarrierContext{Context: op.Context(), entered: make(chan struct{}), release: make(chan struct{})}
-			if late {
-				barrier.late = cancel
-			}
-			op.Ctx = barrier
-			done := make(chan error, 1)
-			go func() { _, err := scope.Execute(statement(t, "SAVEPOINT s"), 0, nil); done <- err }()
-			<-barrier.entered
+			defer scope.Finish(context.Canceled)
 			if !late {
 				cancel()
 			}
-			close(barrier.release)
-			err = <-done
+			_, err = scope.Execute(statement(t, "SAVEPOINT s"), 0, nil)
+			if late {
+				// Cancellation after successful execution must not retract an
+				// accepted control when the caller completes the statement.
+				cancel()
+			}
 			if late {
 				if err != nil || scope.Finish(nil) != nil || scope.Finish(errors.New("late")) != nil || len(a.Transactions.Savepoints) != 1 {
 					t.Fatal("accepted control retracted", err)

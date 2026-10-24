@@ -97,11 +97,7 @@ func TestReferenceDeparseConstraintsCancellationAndRollbackSourceConsumerRoutes(
 			run(fixture.Exec("CREATE TABLE t(a INT DEFAULT 7,CONSTRAINT c CHECK(a>0))", 0))
 			id := fixture.DeparseSourceDefinitionID(t, conn, "SELECT oid FROM pg_catalog.pg_attrdef")
 			run(fixture.Exec("BEGIN", 0))
-			if b.PG {
-				run(fixture.Exec("ALTER TABLE t ALTER a SET DEFAULT 3", 0))
-			} else {
-				run(fixture.ImplicitError("ALTER TABLE t ALTER a SET DEFAULT 3", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
-			}
+			run(fixture.Exec("ALTER TABLE t ALTER a SET DEFAULT 3", 0))
 			run(fixture.Exec("ROLLBACK", 0))
 			if fixture.DeparseSourceDefinitionID(t, conn, "SELECT oid FROM pg_catalog.pg_attrdef") != id {
 				t.Fatal("rollback lost original identity")

@@ -120,35 +120,17 @@ func TestReferenceRelationOptionsLocksCancellation(t *testing.T) {
 			} else {
 				relationOptionsNativeWait(t, ctx, done)
 			}
-			if b.PG {
-				fixture.LockExec(t, p.Ctx, holder, "ALTER TABLE ro RENAME TO ro_renamed", 0)
-				fixture.LockExec(t, p.Ctx, holder, "COMMIT", 0)
-			} else {
-				// Native transactional RENAME is an existing capability boundary,
-				// not an identity change exercised by this queued SQL witness.
-				fixture.RunStep(t, p.Ctx, holder, b.Recorder, relationOptionsError("ALTER TABLE ro RENAME TO ro_renamed", "0A000", "statement is unsupported in an explicit transaction", ""))
-				fixture.LockExec(t, p.Ctx, holder, "ROLLBACK", 0)
-			}
+			fixture.LockExec(t, p.Ctx, holder, "ALTER TABLE ro RENAME TO ro_renamed", 0)
+			fixture.LockExec(t, p.Ctx, holder, "COMMIT", 0)
 			outcome := fixture.LockResult(t, done)
 			joined = true
-			target := "ro"
-			if b.PG {
-				want := relationOptionsDiagnostic("42P01", `relation "ro" does not exist`, "")
-				fixture.AssertDiagnostic(t, outcome.Err, &want)
-				if outcome.Result != nil {
-					t.Fatal("stale-name ALTER produced result")
-				}
-				target = "ro_renamed"
-				run(relationOptionsState(target, "fillfactor=70"))
-			} else {
-				if outcome.Err != nil || outcome.Result == nil {
-					t.Fatal("queued ALTER after unsupported rename rollback", outcome.Err)
-				}
-				if count, err := outcome.Result.RowsAffected(); err != nil || count != 0 {
-					t.Fatal(count, err)
-				}
-				run(relationOptionsState(target, "fillfactor=80"))
+			want := relationOptionsDiagnostic("42P01", `relation "ro" does not exist`, "")
+			fixture.AssertDiagnostic(t, outcome.Err, &want)
+			if outcome.Result != nil {
+				t.Fatal("stale-name ALTER produced result")
 			}
+			target := "ro_renamed"
+			run(relationOptionsState(target, "fillfactor=70"))
 			run(relationOptionsRows(target))
 			run(fixture.Select("SELECT oid=$1::oid AS same_oid,reltype=$2::oid AS same_type FROM pg_class WHERE oid='"+target+"'::regclass", []string{"same_oid", "same_type"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}, oid, rowType))
 		})

@@ -47,7 +47,7 @@ func TestReferenceTransactionIsolationUtilityUnsupportedBoundary(t *testing.T) {
 					for _, mode := range []string{"READ ONLY", "READ WRITE"} {
 						run(a, fixture.Exec("BEGIN "+mode, 0))
 						stmt, err := a.PrepareContext(p.Ctx, query)
-						if !backend.PG {
+						if !backend.PG && query != "ALTER TABLE t RENAME TO renamed" {
 							if stmt != nil {
 								stmt.Close()
 								t.Fatal("unsupported transaction Prepare returned a handle")
@@ -55,7 +55,7 @@ func TestReferenceTransactionIsolationUtilityUnsupportedBoundary(t *testing.T) {
 							fixture.AssertDiagnostic(t, err, &want)
 						} else {
 							if err != nil || stmt == nil {
-								t.Fatal("PG inside utility Prepare", stmt, err)
+								t.Fatal("inside utility Prepare", stmt, err)
 							}
 							result, err := stmt.ExecContext(p.Ctx)
 							stmt.Close()
@@ -77,7 +77,7 @@ func TestReferenceTransactionIsolationUtilityUnsupportedBoundary(t *testing.T) {
 							}
 						}
 						run(a, fixture.Exec("ROLLBACK", 0))
-						if backend.PG {
+						if backend.PG || query == "ALTER TABLE t RENAME TO renamed" {
 							run(a, fixture.TransactionRows(false, "SELECT v FROM t", 1))
 							catalog()
 						}
@@ -95,7 +95,7 @@ func TestReferenceTransactionIsolationUtilityUnsupportedBoundary(t *testing.T) {
 						} else {
 							result, err = a.ExecContext(p.Ctx, query)
 						}
-						if backend.PG {
+						if backend.PG || query == "ALTER TABLE t RENAME TO renamed" {
 							if err != nil || result == nil {
 								t.Fatal(result, err)
 							}
@@ -110,9 +110,7 @@ func TestReferenceTransactionIsolationUtilityUnsupportedBoundary(t *testing.T) {
 						}
 						run(a, fixture.Exec("ROLLBACK", 0))
 						run(a, fixture.TransactionRows(false, "SELECT v FROM t", 1))
-						if backend.PG {
-							catalog()
-						}
+						catalog()
 					}
 				})
 			}

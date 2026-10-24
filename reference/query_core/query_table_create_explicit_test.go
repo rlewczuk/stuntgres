@@ -46,15 +46,11 @@ func TestReferenceQueryTableCreateExplicitAdmission(t *testing.T) {
 						}
 						defer tx.Rollback()
 						fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("SET LOCAL lock_timeout='100ms'", 0))
-						want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
-						if b.PG {
-							if sourceState == "missing" {
-								want = fixture.ControlsReferenceDiagnostic("42P01", `relation "qc_explicit_source" does not exist`)
-							} else {
-								want = fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
-							}
-							want.Position = fixture.Position(strings.Index(q, "qc_explicit_source") + 1)
+						want := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
+						if sourceState == "missing" {
+							want = fixture.ControlsReferenceDiagnostic("42P01", `relation "qc_explicit_source" does not exist`)
 						}
+						want.Position = fixture.Position(strings.Index(q, "qc_explicit_source") + 1)
 						step := fixture.ErrorDiagnostic(q, want)
 						if route == "held" {
 							held := tx.StmtContext(p.Ctx, statement)

@@ -46,14 +46,14 @@ func batchUtilityComposition(t *testing.T) {
 		batchExec(t, p, b, a, "DROP TABLE recreate; CREATE TABLE recreate(i INT); INSERT INTO recreate VALUES(8)", 1)
 		batchValues(t, p, b, peer, "SELECT i FROM recreate", 8)
 	})
-	// Keep the native genuine-explicit exclusions; PostgreSQL accepts these DDLs.
+	// Keep unrelated native exclusions; table/schema utilities are transactional.
 	for _, utility := range []string{"CREATE SCHEMA excluded", "CREATE INDEX excluded ON batch_t(i)", "COMMENT ON TABLE batch_t IS 'excluded'", "GRANT SELECT ON batch_t TO PUBLIC"} {
 		t.Run("explicit/"+utility, func(t *testing.T) {
 			batchScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, a, peer *sql.Conn) {
 				batchSeed(t, p, b, a)
 				batchExec(t, p, b, a, "BEGIN", 0)
 				q := "INSERT INTO batch_t VALUES(1); " + utility
-				if b.PG {
+				if b.PG || utility == "CREATE SCHEMA excluded" {
 					if _, err := a.ExecContext(p.Ctx, q); err != nil {
 						t.Fatal(err)
 					}

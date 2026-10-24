@@ -77,7 +77,11 @@ const (
 // Row zero is the relation resource; logical rows use their stable RowID.
 type Resource struct {
 	ids.ObjectRef
-	Kind       ResourceKind
+	Kind ResourceKind
+	// Name is an exact catalog binding claim. ObjectRef carries its real
+	// domain/epoch and namespace (zero address for database-wide schema names).
+	// It is not a relation lock or a fabricated catalog object identity.
+	Name       ids.NameKey
 	High, Low  uint32
 	Row        ids.RowID
 	key        *UniqueKey
@@ -497,7 +501,7 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 	}
 	advisory := ref.Kind == AdvisoryBigintResource || ref.Kind == AdvisoryPairResource
 	if advisory {
-		if ref.ObjectRef != (ids.ObjectRef{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil ||
+		if ref.ObjectRef != (ids.ObjectRef{}) || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil ||
 			mode != AdvisoryShare && mode != AdvisoryExclusive || t.detached {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid advisory lock request")
@@ -515,6 +519,16 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 	}
 	if advisory {
 		// Advisory tags have no catalog ObjectRef, for either lifetime.
+	} else if ref.Name != (ids.NameKey{}) {
+		key := ref.Name
+		validNamespace := key.Namespace.ClassID == ids.NamespaceClassID && key.Namespace.ObjectID != 0 && key.Namespace.SubID == 0
+		validClass := (key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID) && validNamespace ||
+			key.ClassID == ids.NamespaceClassID && key.Namespace == (ids.ObjectAddress{})
+		if !validClass || key.Name == "" || key.Signature != "" || ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() ||
+			ref.Address != key.Namespace || ref.Row != 0 || ref.key != nil || ref.completion != nil || mode != AccessExclusive {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid catalog name lock request")
+		}
 	} else if ref.completion != nil {
 		owner := ref.completion
 		if mode != TransactionCompletion || owner == t || owner.manager != m || owner.ref.Epoch() != t.ref.Epoch() {
@@ -524,6 +538,12 @@ func (m *Manager) StartAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		if !m.valid(owner) {
 			m.mu.Unlock()
 			return nil, nil
+		}
+	} else if ref.Address.ClassID == ids.NamespaceClassID {
+		if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 ||
+			ref.Row != 0 || ref.key != nil || mode != AccessShare && mode != AccessExclusive {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid namespace lock request")
 		}
 	} else if ref.Address.ClassID == ids.TypeClassID {
 		if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.Row != 0 || ref.key != nil || mode != TypeExclusive {

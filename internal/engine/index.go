@@ -1,12 +1,14 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex, count int) (Result, error) {
@@ -74,7 +76,16 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 		e.DiscardCatalogStage(stage)
-		if _, conflict := err.(catalog.Conflict); conflict {
+		_, conflict := err.(catalog.Conflict)
+		if err != nil && !conflict && (s.Name.Text == "" || s.IfNotExists) {
+			// Name scheduling must preserve this feature's existing generated
+			// name / conditional-publication recovery, not retry table DDL.
+			var diagnostic *sqlstate.Error
+			conflict = errors.As(err, &diagnostic) && diagnostic.Code == "23505" &&
+				diagnostic.Schema == "pg_catalog" && diagnostic.Table == "pg_class" &&
+				diagnostic.Constraint == "pg_class_relname_nsp_index"
+		}
+		if conflict {
 			if contextErr := scope.op.Context().Err(); contextErr != nil {
 				return Result{}, contextErr
 			}

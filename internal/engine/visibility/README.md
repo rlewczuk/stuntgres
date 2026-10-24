@@ -141,11 +141,12 @@ standard library. It never imports the root engine. Layering is in
   node the overlapping read-write writers it must wait out. Resolution closes
   the node's ready channel exactly once: when the last writer commits or
   aborts, on `EndTransactionLocked`, on `FenceLocked`, or on
-  `AbandonSafeSnapshotLocked`. The engine's wait loop
-  (`acquireSerializableSnapshot`) calls `SafeSnapshotWait` and
-  `SafeSnapshotOutcome` and waits with `Engine.mu` released. That loop also
-  drops and retakes `replacementMu` while its caller holds
-  `session.TransactionOwner.Mu`; this package takes no part in that ordering.
+  `AbandonSafeSnapshotLocked`. Abandonment also clears capture/ready evidence;
+  the engine withdraws registry advertisement and the owner's retained roots
+  and public snapshot. The engine's wait loop (`acquireSerializableSnapshot`)
+  calls `SafeSnapshotWait` and `SafeSnapshotOutcome` and waits with `Engine.mu`
+  released. That loop also drops and retakes `replacementMu` while its caller
+  holds `session.TransactionOwner.Mu`; this package takes no part in that ordering.
 
 - **Public snapshots.** `CurrentSnapshotLocked` captures full transaction IDs
   under `Engine.mu`, with a latest-completed frontier distinct from writer

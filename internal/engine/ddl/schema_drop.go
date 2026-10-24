@@ -11,30 +11,79 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// StageDropSchema stages DROP SCHEMA with its dependents. It returns false
-// without error when there is nothing to publish (IF EXISTS with no schema
-// left).
-func StageDropSchema(h SchemaHost, auth Authority, s *parser.DropSchema) (bool, error) {
+// SchemaDropTarget preserves each original name occurrence. A zero Ref is a
+// conditional absence, not permission to resolve a newly appeared namespace.
+type SchemaDropTarget struct {
+	Name string
+	Ref  ids.ObjectRef
+}
+
+// SchemaDropManifest binds even an all-absent target list to its catalog domain
+// and epoch. It survives lock waits without retaining stale authorization.
+type SchemaDropManifest struct {
+	Domain  *ids.Domain
+	Epoch   ids.CatalogEpoch
+	Targets []SchemaDropTarget
+}
+
+// CaptureSchemaDrop resolves targets and initial ownership without staging or
+// emitting notices. The caller retains the entire ordered manifest across waits.
+func CaptureSchemaDrop(h Host, auth Authority, s *parser.DropSchema) (SchemaDropManifest, error) {
 	view := h.AccessView(auth)
-	seen := make(map[ids.ObjectAddress]bool)
-	var schemas []*catalog.Namespace
+	manifest := SchemaDropManifest{Domain: view.Catalog.Domain(), Epoch: view.Catalog.Epoch(), Targets: make([]SchemaDropTarget, 0, len(s.Names))}
 	for _, name := range s.Names {
+		target := SchemaDropTarget{Name: name}
 		d, err := lookupSchema(view.Catalog, name)
 		if err != nil {
-			if s.IfExists {
-				Notice(h, "00000", fmt.Sprintf(`schema "%s" does not exist, skipping`, name))
-				continue
+			if !s.IfExists {
+				return SchemaDropManifest{}, err
 			}
-			return false, err
+		} else {
+			if err := checkSchemaOwner(h, auth, d); err != nil {
+				return SchemaDropManifest{}, err
+			}
+			target.Ref = ObjectRef(h, auth, d.Address())
 		}
-		if seen[d.Address()] {
+		manifest.Targets = append(manifest.Targets, target)
+	}
+	return manifest, nil
+}
+
+// StageDropSchema validates the complete captured binding set before notices or
+// removals, then constructs the dependency closure from exact captured refs.
+// The caller holds the same catalog/authorization critical section throughout.
+func StageDropSchema(h SchemaHost, auth Authority, s *parser.DropSchema, manifest SchemaDropManifest) (bool, error) {
+	view := h.AccessView(auth)
+	if manifest.Domain != view.Catalog.Domain() || manifest.Epoch != view.Catalog.Epoch() {
+		return false, ids.ErrCatalogReplaced
+	}
+	for _, target := range manifest.Targets {
+		address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: target.Name})
+		if target.Ref == (ids.ObjectRef{}) {
+			if address != (ids.ObjectAddress{}) {
+				return false, ids.ErrCatalogReplaced
+			}
+		} else if target.Ref.Domain() != manifest.Domain || target.Ref.Epoch != manifest.Epoch || address != target.Ref.Address || view.Catalog.Get(target.Ref.Address) == nil {
+			return false, ids.ErrCatalogReplaced
+		}
+	}
+	seen := make(map[ids.ObjectAddress]bool)
+	var schemas []*catalog.Namespace
+	for _, target := range manifest.Targets {
+		if target.Ref == (ids.ObjectRef{}) || seen[target.Ref.Address] {
 			continue
 		}
-		seen[d.Address()] = true
-		if err = checkSchemaOwner(h, auth, d); err != nil {
+		d := view.Catalog.MustNamespace(target.Ref.Address)
+		if err := checkSchemaOwner(h, auth, d); err != nil {
 			return false, err
 		}
+		seen[d.Address()] = true
 		schemas = append(schemas, d)
+	}
+	for _, target := range manifest.Targets {
+		if target.Ref == (ids.ObjectRef{}) {
+			Notice(h, "00000", fmt.Sprintf(`schema "%s" does not exist, skipping`, target.Name))
+		}
 	}
 	children, err := catalog.NamespaceChildren(view.Catalog, seen)
 	if err != nil {

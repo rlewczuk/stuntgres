@@ -89,6 +89,22 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		}
 		return Result{}, sqlError("25P01", word+" can only be used in transaction blocks")
 	}
+	// A replaced incarnation cannot recover through a discarded savepoint.
+	// Fence before inspecting marks or invoking foreign savepoint callbacks.
+	e.mu.Lock()
+	s.op.Session.Mu.Lock()
+	err := publicationOperationLocked(e, s.op)
+	if err == nil {
+		err = t.Validate(t.Ref)
+	}
+	if err == nil && t.Ref.Epoch() != e.catalog.state.Epoch() {
+		err = ids.ErrCatalogReplaced
+	}
+	s.op.Session.Mu.Unlock()
+	e.mu.Unlock()
+	if err != nil {
+		return Result{}, err
+	}
 	position := -1
 	var mark session.SavepointMark
 	var settings session.SettingsMark

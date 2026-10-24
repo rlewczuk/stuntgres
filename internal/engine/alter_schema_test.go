@@ -3,10 +3,12 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqlstate"
 	"sync"
 	"testing"
 )
@@ -97,6 +99,7 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
 			source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+			dest := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 			original := make(map[ids.ObjectAddress]catalog.Descriptor)
 			for _, name := range []string{"t", "q1", "q2", "free"} {
 				a := NameAddressForTempMove(t, e, source, name)
@@ -128,10 +131,25 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 			}}
 			_, err := testExecute(e, ctx, statement(t, "ALTER TABLE s1.t SET SCHEMA s2"), nil)
 			switch kind {
-			case "table_collision":
-				renameWantError(t, err, "42P07", `relation "t" already exists in schema "s2"`)
-			case "later_sequence_collision":
-				renameWantError(t, err, "42P07", `relation "q2" already exists in schema "s2"`)
+			case "table_collision", "later_sequence_collision":
+				// Both destination bindings were absent when the move was
+				// captured. A publisher committing before name admission
+				// produces the pinned pg_class uniqueness diagnostic, not
+				// the feature's initial already-present-name error.
+				name := "t"
+				if kind == "later_sequence_collision" {
+					name = "q2"
+				}
+				want := sqlstate.Error{
+					Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505",
+					Message: `duplicate key value violates unique constraint "pg_class_relname_nsp_index"`,
+					Detail:  fmt.Sprintf("Key (relname, relnamespace)=(%s, %d) already exists.", name, dest.ObjectID),
+					Schema:  "pg_catalog", Table: "pg_class", Constraint: "pg_class_relname_nsp_index",
+				}
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || *diagnostic != want {
+					t.Fatal(err, diagnostic, want)
+				}
 			case "cancel":
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)

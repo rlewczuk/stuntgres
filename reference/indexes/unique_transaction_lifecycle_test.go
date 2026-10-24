@@ -128,17 +128,11 @@ func TestReferenceUniqueCreateTransactionBoundary(t *testing.T) {
 					run(fixture.Exec("BEGIN", 0))
 					query := "CREATE TABLE explicit_t(k INT CONSTRAINT explicit_u UNIQUE)"
 					s := fixture.Exec(query, 0)
-					if !b.PG {
-						s = fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-						s.ErrorStage = "execute"
-					}
 					if prepared {
 						s = fixture.Prepared(s)
 					}
 					run(s)
-					if b.PG {
-						run(fixture.Exec("INSERT INTO explicit_t VALUES(1)", 1))
-					}
+					run(fixture.Exec("INSERT INTO explicit_t VALUES(1)", 1))
 					run(fixture.Exec("ROLLBACK", 0))
 					run(fixture.Select("SELECT relname FROM pg_class WHERE relname='explicit_t' OR relname='explicit_u'", []string{"relname"}, []string{"NAME"}, nil))
 				})

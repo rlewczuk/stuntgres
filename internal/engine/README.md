@@ -208,13 +208,41 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
 
 ## Read-only utility execution
 
-- `readOnlyUtilityEligibility` (`transaction_isolation.go`) rejects supported
-  modifying utility tags before object resolution, authorization or relation
-  locks. DML keeps its analysis-before-read-only diagnostics. Prepare never
-  applies this execution rejection.
-- `executionEligibility` admits explicit-transaction utilities only within its
-  bounded exceptions: selected ALTER TABLE nullability, named NOT NULL and DROP
-  COLUMN lists, and sequence DDL. Do not enable unrelated utilities.
+- Ordinary modifying utilities reject read-only execution before object
+  resolution, authorization or relation locks; Prepare remains effect-free.
+  CTAS/SELECT INTO retain source analysis, source locking and snapshot admission
+  before their read-only execution check. WITH NO DATA resolves source names and
+  output types but does not demand the skipped SELECT executor's privileges.
+- `transactionalSchemaUtility` is the shared bounded Describe/Execute admission
+  policy: permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA
+  and shipped ALTER TABLE forms use the existing transaction journal. Generic
+  OWNER admits only tables; materialized and standalone utility policies remain
+  independent, including nontransactional concurrent variants.
+
+Table/schema candidates resolve against current committed state plus the owner's
+private catalog and storage in both explicit and retained-message transactions.
+`publishCatalogOperation` claims only changed namespace,
+relation and type destination names through the existing lock ticket, then
+retains the normal authority/provider/touched-predecessor preflight. Namespace
+existence uses real AS resources and DROP uses AX; rename/owner changes do not
+serialize all namespace members. Ordinary table DROP acquires AX on every
+captured root before building its one dependency stage from grant-time
+authority. Waiting never adopts a same-named replacement.
+Schema DROP carries an ordered namespace/name manifest, including conditional
+absences, across admission. Current bindings and ownership are validated in the
+same Engine.mu section that constructs its identity-bound stage; any changed
+binding fences the whole statement instead of adding or retargeting a victim.
+Conditional skip re-resolves the original creation namespace with current
+USAGE/CREATE and source position; a changed destination cannot authorize a skip.
+Shared claims preserve existing standalone index generated-name/conditional
+conflict recovery, not retries of selected table/schema commands.
+
+Descriptors, rowtypes, indexes, constraints, owned definitions and rows publish
+through the same journal/Finish/combined commit path. Savepoints restore its
+roots and lock checkpoint; no DDL undo journal or global catalog epoch is added.
+Native replacement fences recovery before savepoint lookup or participant
+callbacks; disposed old marks cannot resurrect replaced definitions.
+Query-derived creation claims its destination before producer evaluation.
 
 ## Immutable settings registry
 
@@ -470,6 +498,11 @@ make check RUN='^TestNotification'                     # immutable session/clust
 make check RUN='^TestIsnProvider'                      # installed identifier authority and import
 make check RUN='^Test(Advisory|BlockingPids|DeadlockResultScheduling|RelationDeadlock|RelationLockWaits|PGLocks)'  # advisory, waits, deadlocks
 make check RUN='^Test(UpdateCore|TransactionIdentity|CommitTime)'  # MultiXact, transaction identity
+make check RUN='^TestTransactionalSchema(Admission|PrivateProviders|Publication|DropManifest)$'  # utility policy and private catalog stages
+make check RUN='^(TestAlterDefaultGrantTimeDescriptor|TestNotNullAXGrantTimeDescriptorAndRetargetFence|TestAlterRenameLockGrantTime|TestQueryJoinsSecondLeafGrantRebind)$'  # captured identity after actual AX waits
+make check RUN='^(TestAlterSchemaPublicationFences|TestAlterSchemaDependentGrantTimeName|TestCommentLocks)$'  # late destination collisions and queued comment identity
+make check RUN='^(TestErrorFieldsExecutePublicationConflict|TestAlterRenamePublication|TestBtreeIndexConcurrentOrdinaryBuilds|TestRoleNoticesConflictSkipRechecksCreateAuthorization|TestSavepointsAuthorityAndCompletion)$'  # shared claim compatibility, diagnostics and completion
+make check RUN='^(TestQueryTableCreateSnapshotAdmission|TestSafeSnapshotAbandon)$'  # failed acquisition discards snapshot ownership
 make check RUN='^TestSnapshot'                        # binding, retained command/transaction pairs and physical frontier filters
 make check RUN='^Test(Serial|SourceProtocol|ViewLiteralProtocol)'  # sequences, sources, stored capture
 make check RUN='^Test([A-Za-z]+RoutineOriginalAuthority|SQLRoutine|UnavailableFunctionIdentityBoundary)'  # routines

@@ -12,13 +12,11 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // Observe the actual tracker candidate, not goroutine arrival or elapsed time.
-// If the utility enters safe-snapshot admission, cancel only after its real
-// unresolved-writer dependency is registered, join it, and assert the original
-// utility contract rather than accepting the cancellation as success.
+// Cancel only after the utility registers its real unresolved-writer dependency,
+// then join it and ensure cancellation leaves no snapshot or publication behind.
 func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 	for _, form := range []parser.QueryTableForm{parser.CreateTableAs, parser.SelectInto} {
 		for _, describe := range []bool{false, true} {
@@ -118,19 +116,12 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 					}
 					runtime.Gosched()
 				}
-				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "25006", Message: "cannot execute CREATE TABLE AS in a read-only transaction"}
-				if form == parser.SelectInto {
-					want.Message = "cannot execute SELECT INTO in a read-only transaction"
+				if !waiting || !errors.Is(outcome, context.Canceled) {
+					t.Errorf("utility safe-snapshot wait=%t: got %v, want cancellation after admission", waiting, outcome)
 				}
-				if describe {
-					want.Code, want.Message = "0A000", "statement is unsupported in an explicit transaction"
-				}
-				var diagnostic *sqlstate.Error
-				if !errors.As(outcome, &diagnostic) || *diagnostic != want {
-					t.Errorf("utility admitted to safe-snapshot wait=%t: got %v, want %+v", waiting, outcome, want)
-				}
-				if waiting || node.Captured || node.Ready != nil || len(node.Possible) != 0 || reader.owner.SnapshotSet || len(reader.owner.Roots) != 0 {
-					t.Error("rejected utility acquired candidate/root/snapshot evidence")
+				snapshot := e.visibility.Entries[node.Ref]
+				if node.Captured || node.Ready != nil || len(node.Possible) != 0 || reader.owner.SnapshotSet || len(reader.owner.Roots) != 0 || reader.owner.CurrentSnapshot != nil || reader.owner.SequenceCatalog != nil || reader.owner.Frontier != 0 || snapshot.Snapshot || snapshot.Xmin != 0 || snapshot.SafeBuilder {
+					t.Error("canceled utility retained candidate/root/snapshot evidence")
 				}
 				if reader.owner.State != session.TxAborted || writerNode.Ended || writerNode.Committed || !reflect.DeepEqual(beforeWrites, writer.Transactions.Writes[relation.Address]) || e.catalog.state != beforeCatalog || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.CommitSeq() != beforeFrontier || e.storage.RowFrontier() != beforeRows || e.storage.VersionFrontier() != beforeVersions {
 					t.Error("utility changed writer/source/publication state or did not abort its owner")
@@ -138,12 +129,11 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				reader.op.Done()
 				transactionEnd(t, reader.op.Session, node.Ref, false)
 				if reader.owner.State != session.TxIdle || len(reader.owner.Roots) != 0 || !node.Ended {
-					t.Fatal("rollback did not retire the rejected owner")
+					t.Fatal("rollback did not retire the canceled owner")
 				}
 				preparedUnitStatement(t, e, reader.op.Session, &parser.Select{Targets: []parser.Expr{literal(1)}})
-				// A real ordinary SELECT still waits on exactly this writer and
-				// resumes only after its actual rollback. Utility rejection must
-				// not disable the existing safe-snapshot owner generally.
+				// Ordinary SELECT still waits on this exact writer and resumes only
+				// after its rollback; canceled utility admission cannot disable it.
 				controlContext, controlCancel := context.WithCancel(context.Background())
 				t.Cleanup(controlCancel)
 				control, controlNode := serializableUnitAcquisition(t, e, controlContext, true, true)

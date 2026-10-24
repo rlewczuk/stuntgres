@@ -39,11 +39,6 @@ func TestReferencePartitionDetachTransactions(t *testing.T) {
 					own(referenceRangeRows("SELECT k FROM pd_tx_a ORDER BY k", 1, 2, 4))
 					if finish == "dependent_abort" {
 						drop := fixture.Diagnostic{Code: "2BP01", Message: "cannot drop table pd_tx_a because other objects depend on it", Detail: "view pd_tx_view depends on table pd_tx_a", Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
-						if !b.PG {
-							// DROP in an explicit native transaction remains outside
-							// its admitted utility set; do not enable it for DETACH.
-							drop = fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}
-						}
 						dropStep := fixture.ImplicitError("DROP TABLE pd_tx_a RESTRICT", drop)
 						dropStep.ErrorStage = "execute"
 						own(dropStep)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
@@ -33,36 +34,32 @@ func TestReferenceRangePartitionProviderRetirement(t *testing.T) {
 				peerRun(fixture.Exec("INSERT INTO rp_retire_peer VALUES(91)", 1))
 				peerRun(fixture.Exec("CREATE TABLE rp_retire_sentinel(v INT)", 0))
 				peerRun(fixture.Exec("INSERT INTO rp_retire_sentinel VALUES(71)", 1))
-				if !physical {
-					run(fixture.Exec("BEGIN", 0))
-				}
 				provider := "CREATE TEMP TABLE rp_retire_provider(v INT)"
 				if !physical {
 					provider += " ON COMMIT DROP"
 				}
-				run(fixture.Exec(provider, 0))
-				run(fixture.Exec("CREATE SEQUENCE rp_retire_seq", 0))
 				rootDDL := "CREATE TABLE rp_retire_root(k REGCLASS,v INT DEFAULT nextval('rp_retire_seq')) PARTITION BY RANGE(COALESCE(k,'rp_retire_provider'::REGCLASS))"
-				// Native permanent CREATE in an explicit transaction remains
-				// an existing capability boundary. PostgreSQL exercises the
-				// full outer-COMMIT lifecycle below; private units exercise
-				// native Commit against validated, already-owned descriptors.
-				if !physical && !b.PG {
-					run(referenceRangeError(rootDDL, "0A000", "statement is unsupported in an explicit transaction", fixture.Diagnostic{}))
-					run(fixture.Exec("ROLLBACK", 0))
-					run(fixture.Select("SELECT COUNT(*) FROM pg_class WHERE relname='rp_retire_provider' OR relname='rp_retire_seq' OR relname='rp_retire_root' OR relname='rp_retire_mid' OR relname='rp_retire_leaf' OR relname='rp_retire_other' OR relname='rp_retire_index' OR relname='rp_retire_other_index' OR relname='rp_retire_view'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-					peerRun(fixture.Select("SELECT v FROM rp_retire_peer", []string{"v"}, []string{"INT4"}, [][]any{{int64(91)}}))
-					peerRun(fixture.Select("SELECT v FROM rp_retire_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(71)}}))
-					return
+				setup := []string{
+					provider,
+					"CREATE SEQUENCE rp_retire_seq",
+					rootDDL,
+					"ALTER SEQUENCE rp_retire_seq OWNED BY rp_retire_root.v",
+					"CREATE TABLE rp_retire_mid PARTITION OF rp_retire_root DEFAULT PARTITION BY RANGE(v)",
+					"CREATE TABLE rp_retire_leaf PARTITION OF rp_retire_mid(v UNIQUE) FOR VALUES FROM(MINVALUE) TO(2)",
+					"CREATE TABLE rp_retire_other PARTITION OF rp_retire_mid(v UNIQUE) DEFAULT",
+					"CREATE INDEX rp_retire_index ON rp_retire_leaf(v)",
+					"CREATE INDEX rp_retire_other_index ON rp_retire_other(v)",
+					"CREATE VIEW rp_retire_view AS SELECT v FROM rp_retire_root",
 				}
-				run(fixture.Exec(rootDDL, 0))
-				run(fixture.Exec("ALTER SEQUENCE rp_retire_seq OWNED BY rp_retire_root.v", 0))
-				run(fixture.Exec("CREATE TABLE rp_retire_mid PARTITION OF rp_retire_root DEFAULT PARTITION BY RANGE(v)", 0))
-				run(fixture.Exec("CREATE TABLE rp_retire_leaf PARTITION OF rp_retire_mid(v UNIQUE) FOR VALUES FROM(MINVALUE) TO(2)", 0))
-				run(fixture.Exec("CREATE TABLE rp_retire_other PARTITION OF rp_retire_mid(v UNIQUE) DEFAULT", 0))
-				run(fixture.Exec("CREATE INDEX rp_retire_index ON rp_retire_leaf(v)", 0))
-				run(fixture.Exec("CREATE INDEX rp_retire_other_index ON rp_retire_other(v)", 0))
-				run(fixture.Exec("CREATE VIEW rp_retire_view AS SELECT v FROM rp_retire_root", 0))
+				if physical {
+					for _, q := range setup {
+						run(fixture.Exec(q, 0))
+					}
+				} else {
+					// Promote the private setup message into an explicit transaction.
+					// Standalone indexes/view precede BEGIN without publishing the graph.
+					run(fixture.Exec(strings.Join(append(setup, "BEGIN"), "; "), 0))
+				}
 				run(fixture.Exec("INSERT INTO rp_retire_root(k) VALUES(NULL)", 1))
 				run(fixture.Prepared(fixture.Exec("INSERT INTO rp_retire_root(k,v) VALUES(NULL,$1)", 1, 2)))
 				values := fixture.Select("SELECT v FROM rp_retire_root ORDER BY v", []string{"v"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})

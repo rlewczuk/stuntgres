@@ -32,6 +32,9 @@ call live here.
   generations, CHECKs, LIKE checks, constraint OIDs, UNIQUE, EXCLUDE, LIKE
   indexes, FOREIGN KEYs); `CheckCreateShape` reports shape errors in order;
   `NewRelation`/`AssignDefinitionOIDs` work over a `ddl.Allocator`.
+  The same stage serves permanent and TEMP creation in explicit transactions;
+  transaction admission and shared catalog/storage publication belong to the
+  engine, not `CheckCreateShape`.
 - **ALTER TABLE** (`alter_*.go`, `rename.go`): `AlterActionPhase` (the
   nine-pass order), `AlterTableLockMode`, `AlterTablePreparation`, candidates
   over `AlterHost` (`AddColumnCandidate`, `AlterTypeCandidate`,
@@ -155,6 +158,11 @@ identity sequence waits; the prepare host and prepared-drop consumers; Finish;
 VACUUM's lock loop, `Engine.mu` windows, retry, install and progress map;
 the binder bodies; and the Restore hook bodies (authorization, the `Engine.mu`
 window, trust checks, `publishRestoreRepairLocked`, `restore_replay.go`).
+
+Permanent CREATE/DROP and the shipped ALTER forms consume the owner's private
+catalog/storage and the ordinary journal. The engine claims actual destination
+and companion names, holds ordinary DROP roots through transaction end, and
+recaptures exact identities after waits before publishing their candidates.
 
 ## Invariants
 

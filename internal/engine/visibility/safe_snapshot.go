@@ -63,6 +63,8 @@ func (n *SerializableTx) AbandonSafeSnapshotLocked() {
 		n.Resolved = true
 		close(n.Ready)
 	}
+	n.Captured = false
+	n.Ready = nil
 }
 
 // SafeSnapshotBlocker is a live read-write transaction that a DEFERRABLE

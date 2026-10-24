@@ -156,7 +156,7 @@ func TestReferenceRoleOwnershipTransactions(t *testing.T) {
 			}
 			ownershipOwner(s, "own_tx_table", "own_source")
 			s.exec("BEGIN READ ONLY")
-			if !s.backend.PG && s.prepared {
+			if !s.backend.PG && s.prepared && tc.tag != "ALTER TABLE" {
 				predefinedFailure(s, tc.q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}, true, "prepare")
 			} else {
 				ownershipFailure(s, tc.q, fixture.Diagnostic{Code: "25006", Message: "cannot execute " + tc.tag + " in a read-only transaction"})
@@ -165,7 +165,7 @@ func TestReferenceRoleOwnershipTransactions(t *testing.T) {
 			s.exec("ROLLBACK")
 			ownershipOwner(s, "own_tx_table", "own_source")
 			s.exec("BEGIN")
-			if s.backend.PG {
+			if s.backend.PG || tc.tag == "ALTER TABLE" {
 				s.exec(tc.q)
 			} else {
 				stage := "execute"
@@ -178,7 +178,7 @@ func TestReferenceRoleOwnershipTransactions(t *testing.T) {
 			s.exec("ROLLBACK")
 			ownershipOwner(s, "own_tx_table", "own_source")
 			ownershipRows(s, "own_tx_table")
-			if s.backend.PG {
+			if s.backend.PG || tc.tag == "ALTER TABLE" {
 				s.exec("BEGIN")
 				s.exec(tc.q)
 				s.exec("COMMIT")

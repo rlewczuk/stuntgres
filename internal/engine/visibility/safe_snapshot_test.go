@@ -65,7 +65,7 @@ func TestSafeSnapshotAbandon(t *testing.T) {
 	node := f.reg.CaptureSerializableLocked(reader, true, true)
 	ready, _ := node.SafeSnapshotWait()
 	node.AbandonSafeSnapshotLocked()
-	if !readyClosed(ready) || !node.Resolved || node.Possible != nil {
+	if !readyClosed(ready) || !node.Resolved || node.Possible != nil || node.Captured || node.Ready != nil {
 		t.Fatal("abandon did not resolve the acquisition")
 	}
 	node.AbandonSafeSnapshotLocked()

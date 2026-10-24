@@ -182,6 +182,22 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		changes.Generators[d.Address()] = sequence.InitialGenerator(*d.Sequence, restart, rev)
 		scope.catalog = changes
 		e.mu.Unlock()
+		if persistence != "temporary" {
+			if err := scope.acquireCatalogNamespace(auth.Catalog, ns.Address, s.Name); err != nil {
+				return Result{}, err
+			}
+			if err := scope.acquireCatalogBinding(auth.Catalog, catalogBindingClaim{key: key, address: d.Address(), priority: 1}); err != nil {
+				if s.IfNotExists {
+					skipped, failure := scope.skipConcurrentRelation(auth.Catalog, key, s.Name, err)
+					if skipped {
+						scope.catalog = nil
+						return Result{}, nil
+					}
+					return Result{}, failure
+				}
+				return Result{}, err
+			}
+		}
 		return Result{}, nil
 	case *parser.AlterSequence:
 		e.mu.Lock()

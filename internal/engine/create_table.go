@@ -21,7 +21,6 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	changes := scope.owner.Catalog.Clone()
-	originalCatalog := auth.Catalog
 	persistence := s.Persistence
 	if persistence == "" {
 		persistence = "logged"
@@ -53,15 +52,9 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 		return Result{}, ddl.CreationError(err, s.Name)
 	}
 	temporary := persistence == "temporary"
-	if !temporary {
-		// Permanent CREATE does not need the TEMP namespace overlay. Preserve
-		// its admitted catalog identity for the existing importer/publication fences.
-		auth.Catalog = originalCatalog
-		auth.Recapture(auth.Catalog)
-	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	_, exists := auth.Catalog.LookupName(key)
-	if existing, err := table.CheckCreateShape(s, temporary, scope.owner.State == session.TxActive, exists); existing || err != nil {
+	if existing, err := table.CheckCreateShape(s, temporary, exists); existing || err != nil {
 		e.mu.Unlock()
 		if existing {
 			op.ExistingRelationNotice(key.Name)
@@ -70,6 +63,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 	}
 	base := auth.Catalog
 	stage := e.BeginCatalogStage(base)
+	stage.creationName = s.Name
 	defer e.DiscardCatalogStage(stage)
 	stage.authorizeLocked(auth, op.Session)
 	var partition *pendingPartitionDefinition
@@ -124,6 +118,13 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 	if err == nil {
 		scope.completed = true
 	}
+	if err != nil && s.IfNotExists {
+		skipped, failure := scope.skipConcurrentRelation(base, key, s.Name, err)
+		if skipped {
+			return Result{}, nil
+		}
+		err = failure
+	}
 	if _, conflict := err.(catalog.Conflict); conflict {
 		if err := op.Context().Err(); err != nil {
 			return Result{}, err
@@ -136,8 +137,8 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 				return Result{}, authErr
 			}
 			resolved, resolveErr := e.creationNamespace(currentAuth, s.Name)
-			_, exists := e.catalog.state.LookupName(key)
-			same := resolveErr == nil && resolved.Address == ns.Address && e.catalog.state.Epoch() == base.Epoch()
+			_, exists := currentAuth.Catalog.LookupName(key)
+			same := resolveErr == nil && resolved.Address == ns.Address && currentAuth.Catalog.Epoch() == base.Epoch()
 			var accessErr error
 			if same && exists {
 				accessErr = currentAuth.CheckCreate(resolved)

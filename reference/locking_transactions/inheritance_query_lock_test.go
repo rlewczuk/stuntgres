@@ -227,15 +227,13 @@ func TestReferenceInheritanceQueryRelationWait(t *testing.T) {
 	})
 	inheritanceQueryLocks(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, a, c *sql.Conn, prepared bool) {
 		if !b.PG {
-			// Permanent transactional CREATE is a separate incumbent capability.
-			// The actual admitted-descendant identity wait/replacement path is
-			// independently exercised by TestInheritanceQueryAdmissionReplacement.
+			// A rolled-back private inherited table leaves the original child intact.
 			var before, after int64
 			if err := a.QueryRowContext(p.Ctx, "SELECT 'child'::regclass::oid").Scan(&before); err != nil {
 				t.Fatal(err)
 			}
 			tx := fixture.QueryLockBegin(t, p.Ctx, a)
-			step := fixture.ImplicitError("CREATE TABLE native_unpublished() INHERITS(p)", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
+			step := fixture.Exec("CREATE TABLE native_unpublished() INHERITS(p)", 0)
 			step.Prepared = prepared
 			fixture.RunStep(t, p.Ctx, tx, b.Recorder, step)
 			if err := tx.Rollback(); err != nil {
@@ -246,11 +244,10 @@ func TestReferenceInheritanceQueryRelationWait(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
 			}, "native_unpublished", prepared)
 			if err := a.QueryRowContext(p.Ctx, "SELECT 'child'::regclass::oid").Scan(&after); err != nil || before != after {
-				t.Fatal("failed CREATE changed original child identity", before, after, err)
+				t.Fatal("rolled-back CREATE changed original child identity", before, after, err)
 			}
 			fixture.QueryLockRows(t, p, b, c, "SELECT v FROM p ORDER BY id", prepared, "v", 10, 20)
 			fixture.QueryLockRows(t, p, b, c, "SELECT v FROM ONLY p", prepared, "v", 10)
-			return
 		}
 		holder := fixture.QueryLockBegin(t, p.Ctx, a)
 		fixture.RunStep(t, p.Ctx, holder, b.Recorder, fixture.Exec("LOCK TABLE ONLY child IN ACCESS EXCLUSIVE MODE", 0))
@@ -299,10 +296,16 @@ func TestReferenceInheritanceQueryRelationWait(t *testing.T) {
 			err = out.Rows.Err()
 			out.Rows.Close()
 		}
-		// Pinned PG18.0 observation: the original admitted child disappears;
-		// the in-flight scanner returns only the physical parent row.
-		if err != nil || len(values) != 1 || values[0] != 10 {
-			t.Fatalf("replacement scan got rows=%v error=%v, want [10] with no error", values, err)
+		if b.PG {
+			// PostgreSQL keeps the parent row but skips the removed child.
+			if err != nil || len(values) != 1 || values[0] != 10 {
+				t.Fatalf("replacement scan got rows=%v error=%v, want [10] with no error", values, err)
+			}
+		} else {
+			fixture.TransactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
+			if len(values) != 0 {
+				t.Fatalf("captured descendant returned rows after replacement: %v", values)
+			}
 		}
 		fixture.QueryLockRows(t, p, b, c, "SELECT v FROM p ORDER BY id", prepared, "v", 10, 9)
 		fixture.QueryLockRows(t, p, b, c, "SELECT v FROM ONLY p", prepared, "v", 10)

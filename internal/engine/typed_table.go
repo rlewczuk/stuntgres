@@ -76,6 +76,9 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation
 }
 
 func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool) error {
+	if stage == nil || stage.owner != scope.engine() || stage.Base.Domain() != scope.engine().catalog.Domain || stage.Base.Epoch() != scope.txRef.Epoch() {
+		return ids.ErrCatalogReplaced
+	}
 	addresses := table.TypedSources(drop, stage.domainTargets, stage.Descriptors())
 	if len(addresses) == 0 {
 		return nil
@@ -97,7 +100,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 			}
 			e := stage.owner
 			e.mu.Lock()
-			valid := e.catalog.state.Get(source) == typ
+			valid := e.privateCatalogLocked(scope.owner.Catalog).Get(source) == typ
 			e.mu.Unlock()
 			if !valid {
 				return catalog.Conflict{}
@@ -116,7 +119,8 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		// neither a new generation nor a same-name source can be adopted.
 		e := stage.owner
 		e.mu.Lock()
-		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(resource) == stage.Base.Get(resource)
+		current := e.privateCatalogLocked(scope.owner.Catalog)
+		valid := current.Get(source) == typ && current.Get(resource) == stage.Base.Get(resource)
 		e.mu.Unlock()
 		if !valid {
 			return catalog.Conflict{}

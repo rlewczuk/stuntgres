@@ -590,6 +590,28 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	var creationStage *CatalogStage
 	var creationDescriptor *catalog.Relation
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
+		// Source names, expressions and types have gone through the canonical
+		// binder. Read-only utility execution follows that analysis, but precedes
+		// destination construction and every planner/producer demand.
+		captured := auth.Catalog
+		e.mu.Unlock()
+		if err := scope.readOnlyUtilityEligibility(creation); err != nil {
+			return Result{}, err
+		}
+		e.mu.Lock()
+		if err := e.visibilityWriteLocked(scope.txRef); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		auth, err = e.statementAuthorizationLocked(op, stmt)
+		if err == nil {
+			err = typedef.ValidateCapturedInputBinding(captured, auth.Catalog, b.Dependencies)
+		}
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		evaluation.Catalog, scope.routineAuth = auth.Catalog, auth
 		// CTAS is a utility after canonical analysis/import. NoData and an
 		// existing destination skip the internal SELECT planner entirely.
 		if scope.protocolOrZero().simple && !scope.protocolOrZero().simpleCreated {
@@ -609,6 +631,23 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		defer e.DiscardCatalogStage(creationStage)
+		e.mu.Unlock()
+		if err := scope.acquireCatalogNames(creationStage); err != nil {
+			if creation.IfNotExists {
+				key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: creationDescriptor.Namespace(), Name: creationDescriptor.Name()}
+				skipped, failure := scope.skipConcurrentRelation(creationStage.Base, key, creation.Name, err)
+				if skipped {
+					return Result{CommandTag: session.QueryCreationUtilityTag(creation.Form)}, nil
+				}
+				return Result{}, failure
+			}
+			return Result{}, err
+		}
+		e.mu.Lock()
+		if e.catalog.state.Epoch() != scope.txRef.Epoch() {
+			e.mu.Unlock()
+			return Result{}, ids.ErrCatalogReplaced
+		}
 		if creation.NoData {
 			e.mu.Unlock()
 			err = e.publishQueryTable(scope, creationStage)

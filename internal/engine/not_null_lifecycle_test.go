@@ -115,7 +115,9 @@ func TestNotNullAXGrantTimeDescriptorAndRetargetFence(t *testing.T) {
 			ref := roleTableRef(t, e, "t")
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-			done := lockAsync(e, b, context.Background(), "ALTER TABLE t ADD NOT NULL a", false)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := lockAsync(e, b, ctx, "ALTER TABLE t ADD NOT NULL a", false)
 			lockPending(t, e, 1)
 			switch kind {
 			case "revision":
@@ -138,14 +140,14 @@ func TestNotNullAXGrantTimeDescriptorAndRetargetFence(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "recreate":
-				run(t, e, "DROP TABLE t")
-				run(t, e, "CREATE TABLE t(a INT)")
+				sessionSQL(t, a, "DROP TABLE t")
+				sessionSQL(t, a, "CREATE TABLE t(a INT)")
 			}
 			if kind == "reset" || kind == "restore" {
 				lockAwait(t, done, ids.ErrCatalogReplaced)
 				transactionEnd(t, a, tx, false)
 			} else {
-				transactionEnd(t, a, tx, false)
+				transactionEnd(t, a, tx, kind == "recreate")
 				if kind == "revision" {
 					lockAwait(t, done, nil)
 					d := e.catalog.state.MustRelation(ref.Address)

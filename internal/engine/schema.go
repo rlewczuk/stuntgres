@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
@@ -31,9 +32,22 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 			}
 		}
 	}
-	e.mu.Lock()
-	stage, err := e.stageSchemaLocked(op, stmt, input, scope.output)
-	e.mu.Unlock()
+	var stage *CatalogStage
+	var err error
+	if drop, ok := stmt.(*parser.DropSchema); ok {
+		var manifest ddl.SchemaDropManifest
+		manifest, err = scope.acquireSchemaDrop(drop)
+		if err != nil {
+			return Result{}, err
+		}
+		e.mu.Lock()
+		stage, err = e.stageSchemaDropLocked(op, drop, manifest)
+		e.mu.Unlock()
+	} else {
+		e.mu.Lock()
+		stage, err = e.stageSchemaLocked(op, stmt, input, scope.output)
+		e.mu.Unlock()
+	}
 	if err != nil || stage == nil {
 		return Result{}, err
 	}
@@ -94,6 +108,21 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 			removedRelations = append(removedRelations, address)
 		}
 	}
+	slices.SortFunc(removedRelations, func(a, b ids.ObjectAddress) int {
+		if a.ObjectID < b.ObjectID {
+			return -1
+		}
+		if a.ObjectID > b.ObjectID {
+			return 1
+		}
+		return 0
+	})
+	for _, address := range removedRelations {
+		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), address)
+		if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+			return Result{}, err
+		}
+	}
 	if err := scope.stageExpressionDependents(stage, removedRelations, parser.DropCascade, nil); err != nil {
 		return Result{}, err
 	}
@@ -125,6 +154,13 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		return Result{}, err
 	}
 	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	if creation, ok := stmt.(*parser.CreateSchema); ok && creation.IfNotExists && err != nil {
+		skipped, failure := scope.skipConcurrentSchema(stage, creation, err)
+		if skipped {
+			return Result{}, nil
+		}
+		err = failure
+	}
 	if err == nil {
 		for _, descriptor := range stage.Descriptors() {
 			if ns, ok := descriptor.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == op.Session.SessionToken {
@@ -149,17 +185,41 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	}
 	return Result{created: created}, nil
 }
-func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*CatalogStage, error) {
+
+// schemaAuthorizationLocked supplies the same current authority and early
+// context/actor gates to both ordinary schema staging and admitted schema DROP.
+func (e *Engine) schemaAuthorizationLocked(op *session.Operation) (AuthorizationView, error) {
 	auth, err := e.authorizationLocked(op)
+	if err != nil {
+		return AuthorizationView{}, err
+	}
+	if err := op.Context().Err(); err != nil {
+		return AuthorizationView{}, err
+	}
+	if _, err := auth.Roles.Descriptor(auth.State.CurrentUser); err != nil {
+		return AuthorizationView{}, err
+	}
+	return auth, nil
+}
+
+// stageSchemaDropLocked recaptures authority, validates the whole admitted
+// manifest and constructs its exact target stage without an unlocked handoff.
+func (e *Engine) stageSchemaDropLocked(op *session.Operation, stmt *parser.DropSchema, manifest ddl.SchemaDropManifest) (*CatalogStage, error) {
+	auth, err := e.schemaAuthorizationLocked(op)
 	if err != nil {
 		return nil, err
 	}
-	if err = op.Context().Err(); err != nil {
+	stage := e.BeginCatalogStage(auth.Catalog)
+	stage.authorizeLocked(auth, op.Session)
+	if staged, err := ddl.StageDropSchema(ddlHost{e: e, op: op, stage: stage}, auth, stmt, manifest); err != nil || !staged {
 		return nil, err
 	}
-	// The actor's role descriptor gates every staged statement, not only the
-	// schema ones.
-	if _, err = auth.Roles.Descriptor(auth.State.CurrentUser); err != nil {
+	return stage, nil
+}
+
+func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*CatalogStage, error) {
+	auth, err := e.schemaAuthorizationLocked(op)
+	if err != nil {
 		return nil, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
@@ -293,7 +353,11 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 			return nil, err
 		}
 	case *parser.DropSchema:
-		if staged, err := ddl.StageDropSchema(host, auth, s); err != nil || !staged {
+		manifest, err := ddl.CaptureSchemaDrop(host, auth, s)
+		if err != nil {
+			return nil, err
+		}
+		if staged, err := ddl.StageDropSchema(host, auth, s, manifest); err != nil || !staged {
 			return nil, err
 		}
 	default:

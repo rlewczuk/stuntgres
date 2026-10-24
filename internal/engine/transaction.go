@@ -516,6 +516,11 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		// retains read-only-first rejection and the non-database utility boundary.
 		return s.engine().describeOperation(s, stmt)
 	}
+	if transactionalSchemaUtility(stmt) {
+		if _, queryCreation := stmt.(*parser.CreateQueryTable); !queryCreation {
+			return s.engine().describeOperation(s, stmt)
+		}
+	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
 	if queryCreation {
 		if err := s.executionEligibility(stmt); err != nil {
@@ -694,7 +699,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		return s.engine().executeStatement(s, stmt, count, importFrame)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
-	if queryCreation {
+	if queryCreation && !transactionalSchemaUtility(stmt) {
 		// Rejected creation utilities must not enter a deferrable safe-snapshot wait.
 		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
 			return Result{}, err
@@ -764,7 +769,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, err
 		}
 	}
-	if session.ModifyingTag(stmt) != "" {
+	if !queryCreation && session.ModifyingTag(stmt) != "" {
 		index, concurrent := stmt.(*parser.CreateIndex)
 		if !concurrent || index.Concurrent.Character == 0 {
 			e := s.engine()

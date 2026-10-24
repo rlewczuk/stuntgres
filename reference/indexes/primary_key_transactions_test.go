@@ -53,13 +53,7 @@ func TestReferencePrimaryKeyCreateTransactionBoundary(t *testing.T) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, a, b.Recorder, s) }
 		run(fixture.Exec("BEGIN", 0))
 		q := "CREATE TABLE explicit_t(a INT PRIMARY KEY)"
-		if b.PG {
-			run(fixture.Prepared(fixture.Exec(q, 0)))
-		} else {
-			s := fixture.Prepared(fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
-			s.ErrorStage = "execute"
-			run(s)
-		}
+		run(fixture.Prepared(fixture.Exec(q, 0)))
 		run(fixture.Exec("ROLLBACK", 0))
 		run(fixture.Select("SELECT relname FROM pg_class WHERE relname='explicit_t' OR relname='explicit_t_pkey'", []string{"relname"}, []string{"NAME"}, nil))
 	})

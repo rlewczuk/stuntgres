@@ -9,8 +9,8 @@ import (
 )
 
 func TestReferenceAlterSchemaTransactionBoundary(t *testing.T) {
-	p := fixture.NewScenario(t)
 	fixture.SchemaReferenceCleanup(t, "s1", "s2")
+	p := fixture.NewScenario(t)
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
 			c, err := backend.DB.Conn(p.Ctx)
@@ -54,18 +54,13 @@ func TestReferenceAlterSchemaTransactionBoundary(t *testing.T) {
 						if route == "held_prepared" {
 							x = fixture.HeldStatement{c, held, utility}
 						}
-						if backend.PG && !readOnly {
+						if !readOnly {
 							s := fixture.Exec(utility, 0)
 							s.Prepared = prepared
 							fixture.RunStep(t, p.Ctx, x, r, s)
 							fixture.RunStep(t, p.Ctx, tx, r, referenceAlterSchemaRows("SELECT id,note FROM s2.t ORDER BY id"))
 						} else {
-							code, message, stage := "0A000", "statement is unsupported in an explicit transaction", "execute"
-							if prepared && !backend.PG {
-								stage = "prepare"
-							} else if readOnly {
-								code, message = "25006", "cannot execute ALTER TABLE in a read-only transaction"
-							}
+							code, message, stage := "25006", "cannot execute ALTER TABLE in a read-only transaction", "execute"
 							fixture.RunStep(t, p.Ctx, x, r, fixture.RoleReferenceError(utility, code, message, "", prepared, stage))
 							follow := fixture.RoleReferenceError("SELECT id FROM s1.t", "25P02", "current transaction is aborted, commands ignored until end of transaction block", "", false, "execute")
 							follow.SelectRows = true
@@ -85,7 +80,7 @@ func TestReferenceAlterSchemaTransactionBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !backend.PG && referenceDDLNativeDump(t, p) != before {
-				t.Fatal("rejected or canceled schema utility changed persistent closure")
+				t.Fatal("rolled-back or canceled schema utility changed persistent closure")
 			}
 		})
 	}

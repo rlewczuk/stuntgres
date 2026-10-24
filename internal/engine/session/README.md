@@ -118,6 +118,9 @@ implement its slots, so either import would form a cycle.
 - **Copy-on-write.** A statement writes a `Clone` and installs it; savepoint
   marks keep older journals. `Clone` copies the maps, clones each non-nil slot
   and shares fences (immutable once recorded) in recording order.
+  Permanent table/schema descriptors, companions and row storage share these
+  roots. Their namespace/name holds use the transaction ticket's same checkpoint;
+  sequence counter effects remain outside rollback of owned definitions.
 - **Unnamed procedural marks.** The chronological owner savepoint stack includes
   internal exception marks for participant replay; SQL name lookup skips them.
   Statement-local stage/effect restoration remains engine orchestration.

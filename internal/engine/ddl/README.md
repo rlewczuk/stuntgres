@@ -53,6 +53,14 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   descriptor and ACL, element checks, dependent classification, the 2BP01
   diagnostic, cascade notices and removals. Each returns `(staged, err)`;
   `false, nil` means there is nothing to publish.
+  `ResolveSchemaCreation` shares effect-free owner/database authority checks with
+  conditional creation readmission. Schema and embedded-table candidates use the
+  same owner-private stage; later elements see earlier elements without changing
+  the caller's role or path.
+  `CaptureSchemaDrop` records every ordered name/ref or conditional absence with
+  its domain/epoch. `StageDropSchema` consumes that manifest under one coherent
+  current-authority/catalog lock window, validating all bindings before notices
+  or removals; it never re-resolves a replacement from the original names.
 - **Tablespaces**: `CreateTablespace(ctx, view, s)` validates CREATE
   TABLESPACE over the `access.View` and, once valid, fails with 0A000
   (`TablespacePhysicalUnsupported`); it never stages. `TablespaceRef(view,
@@ -111,6 +119,9 @@ pre-checks, locks, publication and the cascade notice), `stageSchemaLocked`
 (capture, the early actor read that gates every staged statement, one call
 per statement), `schemaTableLocked` (a forwarder to `table.StageCreateTable`),
 `stageSchemaDomainsLocked` and `relationDiagnosticName`.
+The engine owns transaction admission, namespace existence/removal locks and
+exact staged destination-name claims. It publishes schema/table/dependency
+candidates through the ordinary journal, with no separate schema undo path.
 `executeCreateTablespace` keeps the argument count
 check, the lock and the authority capture; `alterAllTablespaceLocked` keeps
 the argument count check and the deferred `Engine.mu` unlock, and

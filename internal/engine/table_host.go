@@ -22,8 +22,8 @@ func (h ddlHost) TableStage() *table.Stage { return h.stage.table() }
 
 func (h ddlHost) SequenceStage() *sequence.Stage { return h.stage.sequenceState() }
 
-// SequenceColumns types the columns from the live catalog, as identity and
-// serial staging always have.
+// SequenceColumns reads the fixed INT8/BOOL builtin shape, not a sequence
+// definition or dependency. Transaction-private definitions use stage authority.
 func (h ddlHost) SequenceColumns() []catalog.Column {
 	return sequence.Columns(h.e.catalog.read(h.e.catalog.state))
 }

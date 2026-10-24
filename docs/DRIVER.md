@@ -82,6 +82,12 @@ ordinary SQL errors leave the connection reusable.
 - `BeginTx` supports `sql.LevelReadCommitted`, `LevelReadUncommitted`,
   `LevelRepeatableRead` and `LevelSerializable`; `ReadOnly` maps to the access mode.
   Deferrability uses the session default (`sql.TxOptions` has no field for it).
+- SQL transaction controls and `BeginTx` share transactional table/schema DDL:
+  permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA and
+  supported ALTER TABLE forms see earlier successful own changes. Peers see
+  the complete definitions and rows only after commit. Rollback/savepoints
+  restore definitions, dependencies and data together; sequence counters are
+  not rewound.
 - A Go transaction handle outlived by a SQL `COMMIT`/`ROLLBACK`/`AND CHAIN` boundary
   returns `stuntgres: stale transaction reference` instead of ending newer work.
 - Under `SERIALIZABLE`, retry the whole transaction on SQLSTATE 40001.
@@ -96,6 +102,9 @@ ordinary SQL errors leave the connection reusable.
   42P18. Prepared statements keep their parameter and result signatures: an
   incompatible catalog change fails with 0A000 `cached plan must not change result
   type` rather than changing shape.
+- Table/schema utility Prepare/Describe is effect-free; execution performs
+  current authority and identity checks. CTAS/SELECT INTO still analyze their
+  query source during preparation. Actual held statements use these same paths.
 - **Results are eager.** A statement finishes executing before `Query` returns, so
   `Rows.Next` never runs SQL and late errors never expose a partial result.
   Rows stay valid across later writes, commits and Reset/Restore. Returned byte

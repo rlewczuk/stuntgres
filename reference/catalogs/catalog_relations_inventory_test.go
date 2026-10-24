@@ -275,19 +275,12 @@ func TestReferenceCatalogRelationsInventory(t *testing.T) {
 		runConn(fixture.Exec("BEGIN", 0))
 		defer conn.ExecContext(p.Ctx, "ROLLBACK")
 		query := "CREATE TABLE cr_inventory_rollback (id integer REFERENCES cr_inventory_parent(id))"
-		if b.PG {
-			runConn(fixture.Exec(query, 0))
-			fixture.PgDescriptionExecutorRows(t, p, b, conn, catalogRelationsInventoryStep("pg_get_catalog_foreign_keys()"))
-		} else {
-			s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-			s.ErrorStage = "execute"
-			runConn(s)
-		}
+		runConn(fixture.Exec(query, 0))
+		fixture.PgDescriptionExecutorRows(t, p, b, conn, catalogRelationsInventoryStep("pg_get_catalog_foreign_keys()"))
 		runConn(fixture.Exec("ROLLBACK", 0))
 		catalogRelationsInventory(t, p, b)
 		runConn(fixture.Select("SELECT count(*) AS n FROM pg_catalog.pg_class WHERE relname='cr_inventory_rollback'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		// Shared supported DML rollback also leaves the complete linkage bag
-		// unchanged; it does not require adjacent transactional CREATE support.
+		// DML rollback also leaves the complete linkage bag unchanged.
 		runConn(fixture.Exec("BEGIN", 0))
 		runConn(fixture.Exec("INSERT INTO cr_inventory_parent VALUES (1)", 1))
 		runConn(fixture.Exec("INSERT INTO cr_inventory_child VALUES (1)", 1))

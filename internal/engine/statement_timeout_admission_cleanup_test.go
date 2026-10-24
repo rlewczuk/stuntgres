@@ -13,8 +13,8 @@ import (
 
 func TestStatementTimeoutAdmissionFullCleanup(t *testing.T) {
 	e, sess, ref := statementTimeoutAdmissionOwner(t, session.Serializable)
-	// Permanent CREATE is deliberately unsupported in explicit blocks. TEMP
-	// creation uses the real validated owner catalog/storage overlay instead.
+	// TEMP exercises both the shared catalog/storage journal and session-owned
+	// namespace cleanup when admission times out.
 	private := sessionSQL(t, sess, "CREATE TEMP TABLE timeout_admission_private(v INT)").created
 	sess.Transactions.Mu.Lock()
 	journal := sess.Transactions.Catalog

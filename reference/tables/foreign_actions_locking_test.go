@@ -21,30 +21,22 @@ func TestReferenceForeignActionsConcurrentDDL(t *testing.T) {
 		run(fixture.Exec("INSERT INTO c VALUES(1,'first'),(2,'second')", 2))
 		a, z := fixture.LockConnections(t, p.Ctx, b.DB)
 		holderPID, waiterPID := foreignActionsPIDs(t, p, b, a, z)
-		var ddl *sql.Conn
-		if b.PG {
-			var err error
-			ddl, err = b.DB.Conn(p.Ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer ddl.Close()
-			fixture.LockExec(t, p.Ctx, ddl, "SET lock_timeout='100ms'", 0)
+		ddl, err := b.DB.Conn(p.Ctx)
+		if err != nil {
+			t.Fatal(err)
 		}
+		defer ddl.Close()
+		fixture.LockExec(t, p.Ctx, ddl, "SET lock_timeout='100ms'", 0)
 		holder, err := a.BeginTx(p.Ctx, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer holder.Rollback()
 		fixture.RowAffected(t, p.Ctx, holder, "UPDATE c SET note='latest' WHERE pid=1", false, 1)
-		if !b.PG {
-			// Ordinary native DROP has no AX admission; explicit-transaction
-			// DROP retains its real capability boundary. A savepoint preserves
-			// the genuine child holder and its private payload for the action.
-			fixture.LockExec(t, p.Ctx, holder, "SAVEPOINT drop_boundary", 0)
-			fixture.RunStep(t, p.Ctx, holder, b.Recorder, foreignKeyFail("DROP TABLE c", foreignKeyError("0A000", "statement is unsupported in an explicit transaction", "", "", ""), false))
-			fixture.LockExec(t, p.Ctx, holder, "ROLLBACK TO drop_boundary", 0)
-		}
+		// Rollback-to restores the child and preserves the earlier row holder.
+		fixture.LockExec(t, p.Ctx, holder, "SAVEPOINT drop_boundary", 0)
+		fixture.LockExec(t, p.Ctx, holder, "DROP TABLE c", 0)
+		fixture.LockExec(t, p.Ctx, holder, "ROLLBACK TO drop_boundary", 0)
 		q := "DELETE FROM p WHERE id=$1"
 		stmt, err := z.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -59,13 +51,9 @@ func TestReferenceForeignActionsConcurrentDDL(t *testing.T) {
 		})
 		<-started
 		foreignActionsWait(t, p, b, waiterPID, holderPID)
-		if b.PG {
-			// Real PostgreSQL AX cannot bypass the admitted child RX owners.
-			fixture.RunStep(t, p.Ctx, ddl, b.Recorder, foreignKeyFail("DROP TABLE c", foreignKeyError("55P03", "canceling statement due to lock timeout", "", "", ""), false))
-			fixture.LockExec(t, p.Ctx, ddl, "SET lock_timeout=0", 0)
-		}
-		// Native child RX/row requests and cancel/replacement fences have
-		// deterministic private/public complements, not fabricated DROP AX.
+		// DROP cannot bypass the admitted child RX owners on either backend.
+		fixture.RunStep(t, p.Ctx, ddl, b.Recorder, foreignKeyFail("DROP TABLE c", foreignKeyError("55P03", "canceling statement due to lock timeout", "", "", ""), false))
+		fixture.LockExec(t, p.Ctx, ddl, "SET lock_timeout=0", 0)
 		if err = holder.Commit(); err != nil {
 			t.Fatal(err)
 		}

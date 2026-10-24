@@ -171,13 +171,9 @@ func TestReferenceTimestampInvalidDeclarationNeverPublishesAndAbortsTransaction(
 				t.Fatal(err)
 			}
 			_, err = utilityTx.ExecContext(ctx, q)
-			if backend.PG {
-				fixture.TemporalDiagnostic(t, err, want)
-				_, err = utilityTx.ExecContext(ctx, "SELECT v FROM bad")
-				fixture.TemporalDiagnostic(t, err, stuntgres.Error{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
-			} else {
-				fixture.TemporalDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-			}
+			fixture.TemporalDiagnostic(t, err, want)
+			_, err = utilityTx.ExecContext(ctx, "SELECT v FROM bad")
+			fixture.TemporalDiagnostic(t, err, stuntgres.Error{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
 			if err = utilityTx.Rollback(); err != nil {
 				t.Fatal(err)
 			}

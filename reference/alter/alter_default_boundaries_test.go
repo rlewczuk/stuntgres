@@ -86,13 +86,10 @@ func TestReferenceAlterDefaultEligibility(t *testing.T) {
 						}
 						defer tx.Rollback()
 						q := "ALTER TABLE t ALTER i " + action
-						if backend.PG && !readonly {
+						if !readonly {
 							fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Exec(q, 0))
 						} else {
-							want := fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}
-							if readonly {
-								want = fixture.Diagnostic{Code: "25006", Message: "cannot execute ALTER TABLE in a read-only transaction"}
-							}
+							want := fixture.Diagnostic{Code: "25006", Message: "cannot execute ALTER TABLE in a read-only transaction"}
 							s := fixture.ImplicitError(q, want)
 							s.ErrorStage = "execute"
 							fixture.RunStep(t, p.Ctx, tx, backend.Recorder, s)

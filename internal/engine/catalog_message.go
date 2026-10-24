@@ -14,13 +14,13 @@ import (
 )
 
 func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalog.State {
-	if s.authSession != nil && s.authSession.Transactions.RetainsTransaction() {
+	if s.authSession != nil && (s.authSession.Transactions.State == session.TxActive || s.authSession.Transactions.RetainsTransaction()) {
 		return e.privateCatalogLocked(s.authSession.Transactions.Catalog).State()
 	}
 	return e.catalog.state
 }
 func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *storage.Relation {
-	if s.authSession != nil && s.authSession.Transactions.RetainsTransaction() {
+	if s.authSession != nil && (s.authSession.Transactions.State == session.TxActive || s.authSession.Transactions.RetainsTransaction()) {
 		return e.privateStorageLocked(s.authSession.Transactions.Catalog, a)
 	}
 	return e.storage.Relations[a]

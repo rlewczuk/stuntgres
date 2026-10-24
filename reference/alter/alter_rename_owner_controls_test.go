@@ -82,22 +82,18 @@ func TestReferenceAlterRenameTransactionBoundary(t *testing.T) {
 	p.Step(t, fixture.Exec("CREATE TABLE t(a INT)", 0))
 	p.Step(t, fixture.Exec("INSERT INTO t VALUES(7)", 1))
 	for _, backend := range p.Backends() {
-		func() {
+		t.Run(backend.Name, func(t *testing.T) {
 			tx, err := backend.DB.BeginTx(p.Ctx, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer tx.Rollback()
-			if backend.PG {
-				fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Exec("ALTER TABLE t RENAME TO blocked", 0))
-				fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Select("SELECT * FROM blocked", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
-			} else {
-				fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.RoleReferenceError("ALTER TABLE t RENAME TO blocked", "0A000", "statement is unsupported in an explicit transaction", "", false, "execute"))
-			}
+			fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Exec("ALTER TABLE t RENAME TO blocked", 0))
+			fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Select("SELECT * FROM blocked", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			if err = tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}
 			fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Select("SELECT * FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
-		}()
+		})
 	}
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -57,6 +58,7 @@ func (p *publicationConflictProvider) Validate(view catalog.Read, d catalog.Desc
 
 func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	e := New()
+	namespace := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 	var loser ids.ObjectAddress
 	var winnerView catalog.Read
 	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
@@ -73,8 +75,10 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	result, err := testExecute(e, context.Background(), statement(t, "CREATE TABLE conflict_rows (lost INT)"), nil)
 	var got *sqlstate.Error
 	want := sqlstate.Error{
-		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P07",
-		Message: `relation "conflict_rows" already exists`,
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505",
+		Message: `duplicate key value violates unique constraint "pg_type_typname_nsp_index"`,
+		Detail:  fmt.Sprintf("Key (typname, typnamespace)=(conflict_rows, %d) already exists.", namespace.ObjectID),
+		Schema:  "pg_catalog", Table: "pg_type", Constraint: "pg_type_typname_nsp_index",
 	}
 	if !errors.As(err, &got) || *got != want {
 		t.Fatalf("losing Execute diagnostic = %#v (%v), want %#v", got, err, want)
@@ -89,7 +93,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	if _, ok := after.Descriptor(loser); ok || e.storage.Relations[loser] != nil {
 		t.Fatal("losing Execute installed its descriptor or storage")
 	}
-	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "conflict_rows"}
+	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "conflict_rows"}
 	refs := after.Lookup(key)
 	if len(refs) != 1 || refs[0] == loser {
 		t.Fatalf("winning name binding = %#v", refs)

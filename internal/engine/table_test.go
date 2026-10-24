@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -120,12 +121,13 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 }
 
 func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
-	for _, tc := range []struct{ identifier, message string }{
-		{`"a""b"`, `relation "a"b" already exists`},
-		{`"a\b"`, `relation "a\b" already exists`},
+	for _, tc := range []struct{ identifier, name string }{
+		{`"a""b"`, `a"b`},
+		{`"a\b"`, `a\b`},
 	} {
 		t.Run(tc.identifier, func(t *testing.T) {
 			e := New()
+			namespace := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 			var winner catalog.Read
 			var winnerRef ids.ObjectRef
 			var loser ids.ObjectAddress
@@ -141,7 +143,12 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 			}
 			result, err := testExecute(e, context.Background(), statement(t, "CREATE TABLE "+tc.identifier+"(lost TEXT)"), nil)
 			var got *sqlstate.Error
-			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P07", Message: tc.message}
+			want := sqlstate.Error{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505",
+				Message: `duplicate key value violates unique constraint "pg_type_typname_nsp_index"`,
+				Detail:  fmt.Sprintf("Key (typname, typnamespace)=(%s, %d) already exists.", tc.name, namespace.ObjectID),
+				Schema:  "pg_catalog", Table: "pg_type", Constraint: "pg_type_typname_nsp_index",
+			}
 			if !errors.As(err, &got) || *got != want {
 				t.Errorf("conflict diagnostic %#v (%v), want %#v", got, err, want)
 			}

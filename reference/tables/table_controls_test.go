@@ -278,12 +278,7 @@ func TestReferenceTableCoreHeldCursorAndPreparedRebinding(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer tx.Rollback()
-			if backend.PG {
-				fixture.RunStep(t, ctx, tx, record, fixture.Exec("DROP TABLE held", 0))
-			} else {
-				_, err = tx.ExecContext(ctx, "DROP TABLE held")
-				fixture.State(t, err, "0A000")
-			}
+			fixture.RunStep(t, ctx, tx, record, fixture.Exec("DROP TABLE held", 0))
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}

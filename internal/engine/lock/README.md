@@ -15,13 +15,16 @@ engine.
   Its transaction ID, phase and completion state are atomic mirrors that the
   engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
   detached from its session (`DetachPrepared`).
-- **Resources and modes.** A `Resource` is a relation or type (embedded
-  `ids.ObjectRef`), a logical row (`Row`), an interned unique key
-  (`PinUniqueKey`), a transaction's completion (`CompletionOf`) or an advisory
-  key (`Kind`, `High`, `Low`). `Mode` uses PostgreSQL's table and row lock
-  names; `Conflicts` is the conflict table. A ticket's modes accumulate as bits,
-  not a strongest-mode ranking, and an owner never conflicts with itself. Advisory
-  grants are counted (`Hold.Shared`, `Hold.Exclusive`).
+- **Resources and modes.** A `Resource` is a real relation, type or namespace
+  (`ids.ObjectRef`), an exact namespace/relation/type destination binding
+  (`Name`, with its real domain/epoch and namespace), a logical row (`Row`),
+  an interned unique key (`PinUniqueKey`), transaction completion
+  (`CompletionOf`) or an advisory key (`Kind`, `High`, `Low`). Schema-name
+  bindings use the database-wide zero namespace address, never a synthetic OID.
+  Names share ordinary ticket queues/checkpoints/end/fence; distinct keys remain
+  independent. `Mode` uses PostgreSQL's table and row names; modes accumulate as
+  bits and owners never conflict with themselves. Advisory grants are counted
+  (`Hold.Shared`, `Hold.Exclusive`).
 - **Queues and waits.** `StartAcquire` grants at once or returns the queued
   `Request`, which the caller waits on (`Wait`) after releasing its own
   locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,
@@ -67,6 +70,9 @@ engine.
   manager's half of `pg_locks`, as owned `Record` values) and the grant queries
   the engine uses to validate its own admission (`Holds`, `MissingRowGrant`,
   `ReplacementGrants`, `ValidSession`, `TransactionTicket`, `IndexWriters`).
+  Namespace existence/removal holds project as real object tags. Exact catalog
+  binding claims are internal, not physical relation/object tags; their real
+  queues remain visible to blocking inquiry and deadlock arbitration.
 - **pgrowlocks capture.** `Pgrowlocks` accepts only an MVCC-selected prefix of
   exact ObjectRef/RowID/VersionID identities. It applies current HTSU-style
   eligibility separately from raw membership, preserves full aligned bags,
@@ -169,5 +175,6 @@ lock state only through the diagnostic seam.
 
 ```sh
 make check RACE=1 RUN='^Test(RelationDeadlock|RelationLockWaits(DelayedDeadlines|TimeoutPerAcquisition)|TypeLock|Advisory(Counted|Expired)|BlockingPids(AdvisoryAuthority|Lifecycle)|MultiXact|PGLocks(ResourceRecords|ConcurrentAssignment)|UniqueJournal)'
+make check RACE=1 RUN='^TestTransactionalSchemaLockResources$'
 make check RUN='^TestPgrowlocks'   # pgrowlocks capture through a real engine
 ```

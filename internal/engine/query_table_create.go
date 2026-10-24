@@ -50,6 +50,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		return nil, nil, false, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
+	stage.creationName = s.Name
 	stage.authorizeLocked(auth, op.Session)
 	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
 	if err != nil {

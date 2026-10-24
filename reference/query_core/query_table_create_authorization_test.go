@@ -87,7 +87,7 @@ func TestReferenceQueryTableCreateAuthorization(t *testing.T) {
 					}
 					defer tx.Rollback()
 					want := fixture.ControlsReferenceDiagnostic("25006", "cannot execute CREATE TABLE AS in a read-only transaction")
-					if b.PG && q == "CREATE TABLE qc_namespace_denied AS SELECT i FROM qc_private.qc_owned" {
+					if q == "CREATE TABLE qc_namespace_denied AS SELECT i FROM qc_private.qc_owned" {
 						want = fixture.ControlsReferenceDiagnostic("42501", "permission denied for schema qc_private")
 						want.Position = "51"
 					}

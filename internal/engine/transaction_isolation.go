@@ -286,16 +286,7 @@ func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error
 	return nil
 }
 func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
-	if !session.ExplicitUtility(stmt) || s.partitionIndexTransaction(stmt) {
-		return nil
-	}
-	switch stmt.(type) {
-	case *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition:
-		// Partition edge changes use the canonical catalog overlay in every owner mode.
-		return nil
-	case *parser.CreateTable, *parser.DropTable, *parser.AlterTableRenameConstraint:
-		// Resolved destinations are checked by the existing table executor,
-		// after read-only utility admission and before any catalog mutation.
+	if !session.ExplicitUtility(stmt) || transactionalSchemaUtility(stmt) || s.partitionIndexTransaction(stmt) {
 		return nil
 	}
 	t := s.owner
@@ -315,6 +306,9 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	}
 	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character != 0 && t.InBlock() {
 		return sqlError("25001", "CREATE INDEX CONCURRENTLY cannot run inside a transaction block")
+	}
+	if index, ok := stmt.(*parser.DropIndex); ok && index.Concurrent.Character != 0 && t.InBlock() {
+		return sqlError("25001", "DROP INDEX CONCURRENTLY cannot run inside a transaction block")
 	}
 	if t.State == session.TxActive {
 		return sqlError("0A000", "statement is unsupported in an explicit transaction")
