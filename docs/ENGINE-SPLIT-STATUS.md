@@ -10,15 +10,15 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `f83d170e8`.
+Last verified against `master` at `aab80720d`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 162 (session, statement data views). Item 167 (closing review 3) is ready
-  once 162 lands.
+- 167 (closing review 3, docs only). Every item of the fifth round is
+  done.
 
 ## Linear plan
 
@@ -112,9 +112,16 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      `make deps` and the quick and `REFERENCE=1` transaction-control,
      aborted-describe, read-only query-table, prepared-transaction and
      savepoint selections passed; racecheck/finalcheck skipped at user request
-162. [ ] Session: statement data views —
+162. [x] Session: statement data views —
      [session](ENGINE-SPLIT-session.md#item-162--statement-data-views) ·
-     needs 161 · 0.17k
+     needs 161 · 0.18k (`f60ab5f2e`, `d1ef52aa9`, then the docs commit) ·
+     root 402 files and 49.0k → 48.9k lines · no startup allocation change ·
+     session units, targeted root units (also `RACE=1`), quickcheck,
+     `make deps` and the quick and `REFERENCE=1` native-isolation, MERGE RR
+     and materialized-refresh snapshot selections passed (`REFERENCE=1`
+     MERGE RR `/postgres` subtests hit the known PostgreSQL-side 40001 drift;
+     every `/stuntgres` subtest passed); racecheck/finalcheck skipped at user
+     request
 163. [x] Exec: SQL cursor positioning —
      [exec](ENGINE-SPLIT-exec.md#item-163--sql-cursor-positioning)
      · needs — · 0.20k (`a172d7daf`, `36806a268`, then the docs commit) · root

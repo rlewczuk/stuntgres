@@ -137,6 +137,16 @@ implement its slots, so either import would form a cycle.
   order and the first error.
 - **Storage projections** (`storage_projection.go`): column-shape and private
   snapshot projections that read only catalog, storage and visibility records.
+- **Statement data views** (`data_view.go`, `snapshot_roots.go`):
+  `DataViewInput` with `ValidateView` (an already captured view still covers
+  the refs) and `Capture` (a new immutable `visibility.View`: RC target roots,
+  stable owner roots with materialized and TRUNCATE lineage, projected
+  snapshots, dynamic pgrowlocks roots, own writes and deletes);
+  `PrivateStorage`, `CommittedRoots` and
+  `TransactionOwner.NeedsSnapshotProjection`. The root fills the input under
+  `Engine.mu` after its epoch checks and snapshot step and passes it by
+  pointer; `SameLineage` and `SameRowShape` are static func fields because
+  `session` imports neither `view` nor `index`.
 - **Fences** (`fence.go`, `journal_fences.go`): `Fence` with `Kind()`, and
   three session kinds with their fences: `FenceStorageRead`
   (`StorageReadFence`), `FenceIndexSet` (`IndexSetFence`) and `FenceNamespace`
@@ -201,7 +211,9 @@ SSI and lock-manager calls (`transaction_prepared.go`), and of savepoints
 failed-statement or PL/pgSQL rollback), publication and preflight, session start,
 the `Engine.mu` → `Settings.Mu` → `Session.Mu` windows of settings application,
 setting calls and DISCARD (`setting_apply.go`, `setting_calls.go`,
-`discard.go`), the protocol Parse,
+`discard.go`), the data-view shell (`transaction_visibility.go`: epoch
+checks, `visibilitySnapshotLocked`, the pgrowlocks dependency flag and storing
+the view), the protocol Parse,
 Bind, Describe, Execute and fastpath steps (`protocol_*.go`, with
 `ProtocolStatement`, `ProtocolPortalDescription` and `ProtocolExecution`,
 which carry `StatementDescription`), the `Engine.mu`
@@ -217,13 +229,15 @@ PREPARE refusals, the notification
 queue, registry and publication, characteristic modes and session
 characteristic settings, serializable write
 survival, the `lc_messages` access callback, the UUID v1 allocator, the
-protocol codec and statement classification. Engine
+protocol codec, statement classification and statement data views. Engine
 tests (in `internal/engine`) cover the host and root slots, catalog fences,
-column-shape projections and settings provider capture.
+column-shape projections, data-view and snapshot capture, and settings
+provider capture.
 
 ```sh
-make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|StatementPhases|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'
+make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|StatementPhases|DataView|PrivateStorage|CommittedRoots|NeedsSnapshotProjection|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'
 make check RACE=1 RUN='^Test(SessionHost|SessionPayload|OwnerExtension|ExclusionMark|Operation(AnalysisSlot|ReplaySlot)|UUIDOsspTimeConcurrent$$)'
 make check RUN='^Test(CatalogFences|EnumProvenanceSavepoints|AlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection)$$)'
+make check RACE=1 RUN='^Test(PgrowlocksEligibility|SnapshotStatement(Retention|RootConsistency)|SnapshotBinding|SerializableSafeSnapshot)'
 make check RUN='^Test(PGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)|RowSecurity(SettingProvenance|ProviderLifecycle))$$'
 ```

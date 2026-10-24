@@ -347,7 +347,39 @@ run `make bench` before and after.
     return to the root prefix of `executionEligibility`; it stays in the root
     because it must return before `t.Mu` and before the 0A000 refusal. No new
     root feature files since 165.
-- 162: not started.
+- 162: done (`f60ab5f2e`, `d1ef52aa9`, then the docs commit; started at
+  master `249501c80`, rebased onto `f83d170e8`, `d542e772d`,
+  `a23fe82e6` and `aab80720d`).
+  - On `session`: `DataViewInput` with `ValidateView` and `Capture`
+    (`data_view.go`); `PrivateStorage`, `CommittedRoots` and
+    `TransactionOwner.NeedsSnapshotProjection` (`snapshot_roots.go`). The
+    root's `privateStorage` and `snapshotTargetRoot` are gone,
+    `privateStorageLocked` is a one-line wrapper, `captureDataViewsLocked` is
+    inlined into its two callers, and `retainTransactionSnapshotLocked` calls
+    `CommittedRoots`.
+  - The root keeps the epoch, domain and missing-storage checks, the choice
+    of the existing view, `visibilitySnapshotLocked` and
+    `captureStatementSnapshotLocked`, the frontier choice, the private read,
+    the pgrowlocks dependency flag and storing `s.view` or the validation
+    view. It fills the capture fields after the snapshot step, which sets the
+    RC target roots.
+  - Deviations: the existing-view check reads the private catalog lazily
+    through `Journal.PrivateRead(Owner, Published)` instead of a `Read`
+    input, so a reused view never builds a read it did not build before.
+    `DataViewInput` does not escape; startup allocations are unchanged.
+  - Root 402 files and 49.0k → 48.9k lines (−0.18k); `session` gains 0.31k
+    production lines.
+  - Tests: none moved or rewritten (the root tests call root methods that
+    stay). New session units: `snapshot_roots_test.go`
+    (`TestPrivateStorage`, `TestCommittedRoots`,
+    `TestNeedsSnapshotProjection`) and `data_view_test.go`
+    (`TestDataView*`).
+  - For item 167: the prompt's `TestReferenceMergeDeleteRepeatableRead` does
+    not exist; `TestReferenceMergeDeleteRepeatableReadFollowup` was used.
+    Under `REFERENCE=1` its `/postgres` subtests fail with PostgreSQL's own
+    40001 (oracle drift seen on master before); its `/stuntgres` subtests
+    pass. New root feature code since 164: `plpgsql_query_loop.go` and
+    `cte_owned_rows.go` (0.19k, `aab80720d`).
 - 164: done (`02525be60`, `5bd350fee`, then the docs commit; started at
   master `249501c80`, rebased onto `f83d170e8`).
   - On `session`: `SettingsStore.AdmitLocked`, `ApplyLocked`,
