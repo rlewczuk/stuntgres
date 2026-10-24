@@ -283,6 +283,20 @@ schema admission and retained authorization without widening SQL ACL admission.
 
 - SQL implementation metadata: `RUN='^TestReferenceInfoSQLImplementationInfo'`
 
+### SQL part metadata
+
+`info_sql_parts_helpers_test.go` owns an independent eleven-row literal matrix.
+Shared scenarios assert the five nullable domains, physical table/type identity,
+NULL verification versus empty comments, complete bags, direct/fresh/held reads,
+cursor metadata and diagnostics. Default owner/superuser admission and ordinary
+reader denial, including empty predicates, run on both backends. Explicit
+PostgreSQL catalog GRANT/REVOKE phases are rollback-contained; engine units
+exercise real native ACL publication, schema USAGE and immutable captured roots
+without expanding SQL ACL admission.
+
+- SQL part metadata: `RUN='^TestReferenceInfoSQLParts'`
+
+
 
 ### Column grant metadata
 

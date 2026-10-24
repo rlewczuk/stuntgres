@@ -3,6 +3,13 @@ bound string/byte input, canonical long ISBN output and ISBN13 result metadata.
 ISBN10 expansion, corrected check digits, retained invalid markers and NULLs
 survive prepared execution, extension recreation and native Reset/Dump/Restore.
 
+information_schema.sql_parts now supports direct and prepared reads of eleven
+fixed SQL-standard part records through five nullable domain-typed columns.
+All parts remain NO because no entire standard part is fully implemented;
+verification is NULL and comments are non-NULL empty strings matching PostgreSQL.
+The physical table preserves default owner/superuser access without PUBLIC
+SELECT, with normal schema/relation admission and current-identity rechecks.
+
 information_schema.sql_sizing now supports direct and prepared reads through four
 nullable domain-typed columns. Its standardized inventory reports enforced
 native limits, zero for unlimited or undetermined sizes, and NULL for unsupported

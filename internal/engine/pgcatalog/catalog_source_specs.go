@@ -891,4 +891,11 @@ var Specs = [...]Spec{
 		{"character_value", 13246, true, 950, 0, -1},
 		{"comments", 13246, true, 950, 0, -1},
 	}, false, false, false, false, "stuntgres: missing SQL implementation info domain"},
+	{InfoSQLPartsOID, 13229, "sql_parts", []ColumnSpec{
+		{"feature_id", 13246, true, 950, 0, -1},
+		{"feature_name", 13246, true, 950, 0, -1},
+		{"is_supported", 13256, true, 950, 0, -1},
+		{"is_verified_by", 13246, true, 950, 0, -1},
+		{"comments", 13246, true, 950, 0, -1},
+	}, false, false, false, true, "stuntgres: missing SQL parts domain"},
 }

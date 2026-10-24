@@ -2,7 +2,7 @@
 
 Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
-`sql_sizing`, `sql_implementation_info`, `table_privileges`,
+`sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
@@ -134,6 +134,18 @@ identifier byte bounds. The physical catalog table uses ordinary schema/relation
 admission and PUBLIC SELECT, without per-item identity or object filtering.
 Captures validate both domains against the current base descriptor generations
 and allocate detached rows; cancellation publishes no prefix.
+
+`info_sql_parts.go` owns eleven fixed full-part conformance records, independently
+of individual feature support and user objects. All support values are `NO`:
+no entire SQL-standard part is fully implemented, including SQL/Foundation and
+SQL/Schemata. Reading this table does not itself establish full-part support.
+The physical table has five nullable `character_data`/`yes_or_no` domain columns,
+typed NULL verification and non-NULL empty comments matching the release data.
+Unlike the other conformance tables, its default ACL has no PUBLIC SELECT.
+Ordinary schema USAGE and relation SELECT admission expose the complete matrix
+to authorized identities, not an identity-filtered subset. Each capture validates
+paired catalog/role authority and current domain/base identities, owns detached
+row buffers and returns no prefix on cancellation or invalid authority.
 
 ## SQL implementation metadata
 
@@ -466,6 +478,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - Usage grant public scenarios: `RUN='^TestReferenceInfoRoleUsageGrants'`
 - SQL-sizing producer/authority units: `RUN='^TestInfoSQLSizing'`
 - SQL-sizing public scenarios: `RUN='^TestReferenceInfoSQLSizing'`
+- SQL-part producer/authority units: `RUN='^TestInfoSQLParts'`
+- SQL-part public scenarios: `RUN='^TestReferenceInfoSQLParts'`
 
 ### Domain constraints
 

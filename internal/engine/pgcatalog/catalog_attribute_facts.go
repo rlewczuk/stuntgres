@@ -83,7 +83,7 @@ func InitializeAttributes(d *catalog.Relation) {
 				fact.Collation = 950
 			}
 			switch d.Address().ObjectID {
-			case InfoSQLFeaturesOID, InfoSQLSizingOID, InfoSQLImplementationInfoOID:
+			case InfoSQLFeaturesOID, InfoSQLSizingOID, InfoSQLImplementationInfoOID, InfoSQLPartsOID:
 				fact.NotNull = !column.Nullable
 			case TypeOID:
 				fact.NotNull = i < 29

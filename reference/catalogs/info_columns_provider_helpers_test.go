@@ -82,6 +82,7 @@ func icProviderInventory(c *icCase) {
 		"information_schema.sql_features":            sfColumns,
 		"information_schema.sql_sizing":              szColumns,
 		"information_schema.sql_implementation_info": siiColumns,
+		"information_schema.sql_parts":               spColumns,
 		"information_schema.tables":                  itColumns,
 		"information_schema.user_mappings":           iumColumns,
 		"information_schema.view_table_usage":        vtuColumns,
@@ -141,7 +142,7 @@ func icProviderInventory(c *icCase) {
 					kind = "v"
 				}
 			}
-			if schema == "information_schema" && table != "sql_features" && table != "sql_sizing" && table != "sql_implementation_info" {
+			if schema == "information_schema" && table != "sql_features" && table != "sql_sizing" && table != "sql_implementation_info" && table != "sql_parts" {
 				kind = "v"
 			}
 			child.run(child.conn, fixture.Select("SELECT relkind FROM pg_catalog.pg_class WHERE oid=$1::regclass::oid", []string{"relkind"}, []string{"CHAR"}, [][]any{{kind}}, schema+"."+table))

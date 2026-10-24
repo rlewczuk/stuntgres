@@ -102,6 +102,7 @@ var producers = [...]Registration{
 	{InfoRoleUsageGrantsOID, captureInfoRoleUsageGrants},
 	{InfoSQLSizingOID, captureInfoSQLSizing},
 	{InfoSQLImplementationInfoOID, captureInfoSQLImplementationInfo},
+	{InfoSQLPartsOID, captureInfoSQLParts},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.
