@@ -1,3 +1,8 @@
+information_schema.role_usage_grants now exposes eight domain-typed columns over
+real domain, sequence, collation, foreign-wrapper and foreign-server USAGE
+origins. Enabled-role visibility and named-grantee grantability refresh across
+direct and held prepared reads, preserving raw-NULL versus empty ACL semantics.
+
 information_schema.role_udt_grants now exposes seven domain-typed columns over
 actual composite type USAGE grant origins, including represented catalog row
 types. Named grantors, grant options and inherited enabled-role visibility

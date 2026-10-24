@@ -28,6 +28,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"information_schema", "role_table_grants"},
 	{"information_schema", "role_routine_grants"},
 	{"information_schema", "role_udt_grants"},
+	{"information_schema", "role_usage_grants"},
 	{"information_schema", "domains"}, {"information_schema", "views"},
 	{"information_schema", "tables"}, {"information_schema", "routines"},
 }
@@ -113,7 +114,7 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 			} {
 				run(fixture.Exec("SET search_path="+mode.path, 0))
 				run(fixture.Exec("SET quote_all_identifiers="+mode.quote, 0))
-				for _, candidate := range []struct{ schema, name string }{{"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "role_table_grants"}, {"information_schema", "role_routine_grants"}, {"information_schema", "role_udt_grants"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}, {"information_schema", "routines"}} {
+				for _, candidate := range []struct{ schema, name string }{{"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "role_table_grants"}, {"information_schema", "role_routine_grants"}, {"information_schema", "role_udt_grants"}, {"information_schema", "role_usage_grants"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}, {"information_schema", "routines"}} {
 					update, insert := "NO", "NO"
 					if candidate.name == "pg_group" {
 						update, insert = "YES", "YES"

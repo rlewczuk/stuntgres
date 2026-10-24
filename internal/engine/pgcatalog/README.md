@@ -6,7 +6,7 @@ the producer-backed `information_schema` tables and views (`sql_features`, `tabl
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`,
-`role_udt_grants`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
+`role_udt_grants`, `role_usage_grants`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
 capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -54,7 +54,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
   absent ACL and `{}` for an empty one.
 - Information-schema producers emit genuine source-owned domains, not bare
   primitive carriers. `role_column_grants`, `role_table_grants`,
-  `role_routine_grants` and `role_udt_grants` use `sql_identifier`,
+  `role_routine_grants`, `role_udt_grants` and `role_usage_grants` use `sql_identifier`,
   `character_data` and `yes_or_no` from the captured type catalog.
   Numeric metadata likewise retains genuine `cardinal_number` domain values.
 - `role_column_grants` captures one catalog/role frontier and projects actual
@@ -85,6 +85,17 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Enabled grantor or named grantee determines visibility, without schema or
   relation access filters. Grantability belongs to the named grantee, using
   captured grant options and immediately usable ownership authority.
+- `role_usage_grants` projects eight nullable domain-typed columns from real
+  domains, sequences, collations, foreign wrappers and foreign servers. It
+  preserves USAGE origins and multiplicities, applying enabled grantor-or-named
+  grantee visibility without schema, data-readability, TEMP or identity filters.
+  Named-grantee grant options or immediately usable ownership determine
+  grantability, never observer ownership. Raw-NULL domains supply owner/PUBLIC
+  origins; wrappers and servers supply the owner origin. Raw-NULL sequences
+  supply none, following the released table-default fallback; explicit-empty
+  ACLs never create origins. Compatible collations supply owner-to-PUBLIC only.
+  Foreign objects have empty schema names. Captured catalog, roles and domain
+  authorities remain stable, with cancellation discarding the entire result.
 - `pg_type` composes user-domain facts through exact captured immediate-base
   providers, including nominal-only domains and reciprocal arrays. Metadata
   admission does not grant executable codec or storage authority; foreign
@@ -370,7 +381,7 @@ three trigger flags are NO.
 Represented catalog relations classified as ordinary tables supply ordinary
 base-table structural events; this does not change catalog write admission.
 
-`builtin_views*.go` owns one closed inventory of 40 builtin view definitions,
+`builtin_views*.go` owns one closed inventory of builtin view definitions,
 including `information_schema.columns`, `information_schema.domains`,
 `information_schema.tables` and `pg_catalog.pg_rules`, with classification and
 per-output capability facts.
@@ -423,6 +434,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - UDT grant public scenarios: `RUN='^TestReferenceInfoRoleUdtGrants'`
 - SQL-feature producer/authority units: `RUN='^TestInfoSQLFeatures'`
 - SQL-feature public scenarios: `RUN='^TestReferenceInfoSQLFeatures'`
+- Usage grant producer/authority units: `RUN='^TestInfoRoleUsageGrants'`
+- Usage grant public scenarios: `RUN='^TestReferenceInfoRoleUsageGrants'`
 
 ### Domain constraints
 

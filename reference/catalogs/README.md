@@ -310,6 +310,16 @@ ACL/membership publication, lifecycle frontiers and complete diagnostics.
 
 - UDT grants: `RUN='^TestReferenceInfoRoleUdtGrants'`
 
+### Usage grants
+
+`info_role_usage_grants_helpers_test.go` owns exact eight-column origin bags,
+domain/adapter metadata and direct/fresh/held reads across domains, sequences,
+collations, foreign wrappers and foreign servers. Scenarios distinguish raw
+absent, materialized and empty ACLs, enabled endpoints, named-grantee
+grantability, lifecycle frontiers, NULL extension and complete diagnostics.
+
+- Usage grants: `RUN='^TestReferenceInfoRoleUsageGrants'`
+
 
 ### View definition metadata
 

@@ -814,6 +814,16 @@ var Specs = [...]Spec{
 		{"privilege_type", 13246, true, 950, 0, -1},
 		{"is_grantable", 13256, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing role udt grant domain"},
+	{InfoRoleUsageGrantsOID, 13229, "role_usage_grants", []ColumnSpec{
+		{"grantor", 13248, true, 950, 0, -1},
+		{"grantee", 13248, true, 950, 0, -1},
+		{"object_catalog", 13248, true, 950, 0, -1},
+		{"object_schema", 13248, true, 950, 0, -1},
+		{"object_name", 13248, true, 950, 0, -1},
+		{"object_type", 13246, true, 950, 0, -1},
+		{"privilege_type", 13246, true, 950, 0, -1},
+		{"is_grantable", 13256, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing role usage grant domain"},
 	{InfoColumnsOID, 13229, "columns", infoColumnsColumns, true, false, false, false, "stuntgres: missing columns domain"},
 	{InfoDomainsOID, 13229, "domains", []ColumnSpec{
 		{"domain_catalog", 13248, true, 950, 0, -1},

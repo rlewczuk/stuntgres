@@ -362,6 +362,21 @@ var infoBuiltinViews = [...]builtinView{
 		viewText("           FROM "), viewClass("information_schema.enabled_roles"), viewText(")) OR (("), viewIdentifier("grantee"), viewText(")::"), viewType("name"), viewText(" IN ( SELECT "), viewIdentifier("enabled_roles"), viewText("."), viewIdentifier("role_name"), viewText("\n"),
 		viewText("           FROM "), viewClass("information_schema.enabled_roles"), viewText(")));"),
 	}},
+	// information_schema.role_usage_grants — REL_18_6 information_schema.sql.
+	{oid: InfoRoleUsageGrantsOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("grantor"), viewText(",\n"),
+		viewText("    "), viewIdentifier("grantee"), viewText(",\n"),
+		viewText("    "), viewIdentifier("object_catalog"), viewText(",\n"),
+		viewText("    "), viewIdentifier("object_schema"), viewText(",\n"),
+		viewText("    "), viewIdentifier("object_name"), viewText(",\n"),
+		viewText("    "), viewIdentifier("object_type"), viewText(",\n"),
+		viewText("    "), viewIdentifier("privilege_type"), viewText(",\n"),
+		viewText("    "), viewIdentifier("is_grantable"), viewText("\n"),
+		viewText("   FROM "), viewClass("information_schema.usage_privileges"), viewText("\n"),
+		viewText("  WHERE ((("), viewIdentifier("grantor"), viewText(")::"), viewType("name"), viewText(" IN ( SELECT "), viewIdentifier("enabled_roles"), viewText("."), viewIdentifier("role_name"), viewText("\n"),
+		viewText("           FROM "), viewClass("information_schema.enabled_roles"), viewText(")) OR (("), viewIdentifier("grantee"), viewText(")::"), viewType("name"), viewText(" IN ( SELECT "), viewIdentifier("enabled_roles"), viewText("."), viewIdentifier("role_name"), viewText("\n"),
+		viewText("           FROM "), viewClass("information_schema.enabled_roles"), viewText(")));"),
+	}},
 	// information_schema.columns — REL_18_6 information_schema.sql; pinned 18.6 display.
 	{oid: InfoColumnsOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_catalog"), viewText(",\n"),
