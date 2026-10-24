@@ -10,7 +10,7 @@ privilege and lock walks over view definitions and the read side of DROP.
 An upper feature in [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 `access`, `analyze` (types and pure functions only), `authorization`, `catalog`,
 `ddl`, `exec`, `expr`, `functions`, `ids`, `index`, `lock`, `pgcatalog`, `plan`,
-`routine`, `sequence`, `session`, `storage`, `stored`, `table`, `typedef`,
+`regobj`, `routine`, `sequence`, `session`, `storage`, `stored`, `table`, `typedef`,
 `visibility`, `parser`, `sqlstate`, `sqltype` and the standard library. It never
 imports the engine, `fdw`, `partition`, `role`, `dml` or `control`, and it never
 builds a binder.
@@ -104,11 +104,20 @@ imports `view`.
   concurrent-refresh row matching and index eligibility, the replacement cores
   and the snapshot codec (`EmitMaterializedSnapshot`,
   `DecodeMaterializedSnapshot`, the `stuntgres-matview-v1` comment) with its
-  import checks.
+  import checks. For each bound snapshot row INSERT,
+  `MaterializedSnapshotEnvironment` checks the binding shape and the builtin
+  `array_fill`/`array_cat` providers and returns the input environment with
+  the statement resolvers; `EvaluateMaterializedSnapshotRows` evaluates the
+  rows into the column types and checks constructor array bounds.
 - **Policies and RLS** (`policy*.go`, `rls_base.go`, `row_security*.go`): policy
   validation and dependencies, `RowSecurityLayers`, the `row_security` setting
   walkers and the command state `RowSecurity`, which borrows OLD/NEW
-  `exec.RLSProgram`s.
+  `exec.RLSProgram`s. `ImportPolicyClause` (`policy_import.go`) grafts a
+  selected policy clause onto its consumer and returns a `PolicyClauseImport`:
+  the expression, its binding (sources run as the policy's user, without
+  storage), the nested-view `SourceClosure` and the relations to acquire.
+  `CheckPolicyAuthority` rechecks the policy's sources against the view's
+  current catalog and rights, as its current user.
 - **Target admission** (`target_admission.go`): `TargetAdmission`, the
   `table.TargetEntry` of RULE, POLICY and VIEW DDL.
 
@@ -120,8 +129,9 @@ The handler skeletons (`executeCreateView`, `executeAlterView`,
 the IF EXISTS NOTICEs, the stage lifecycle, the waits and publication. Also the
 host bodies (`view_host.go`), rule program execution (it runs DML), view source
 opening (`view_source.go`), refresh row production and staging,
-`importMaterializedSnapshots`, the row-security authority wrappers and
-`dropProvider`.
+`importMaterializedSnapshots` and the per-row statement scope and binder, the
+policy import's storage, lock waits, authority refresh, snapshots and source
+preparation, the row-security authority wrappers and `dropProvider`.
 
 ## Invariants
 

@@ -53,4 +53,24 @@ access README (`SameRLSSelection`).
 
 ## Status
 
-- 159: not started.
+- 159: done (`b6a2a87a0`, `b4873d3c2`, then the docs commit).
+  - Moved: `access.SameRLSSelection`; `view.CheckPolicyAuthority` and
+    `view.ImportPolicyClause` (`PolicyClauseImport`) in `policy_import.go`;
+    `view.MaterializedSnapshotEnvironment`,
+    `view.EvaluateMaterializedSnapshotRows` and the constructor-provider check
+    in `materialized_snapshot_rows.go`. `rowSecurityInputLocked` is inlined.
+  - Deviations: `CheckPolicyAuthority` takes `(a, env, consumer, policy)`
+    with the policy's user already set as `a`'s current user; the root
+    callers set it and keep returning the switched `AuthorizationView`. It
+    inlines `AuthorizationView.CheckViewRowMarks` as `CheckRowMarks` behind
+    `stored.ViewHasRowMarks`. `ImportPolicyClause` also sets each source's
+    principal; the root fills source storage after the closure walk, which
+    never reads it. `MaterializedSnapshotEnvironment` includes the binding
+    shape check. `view` now imports `regobj`.
+  - Escape analysis: the import's heap move changed from `binding` to the
+    returned struct (one each); the authority view converts to
+    `access.Environment` once per policy check instead of per column check.
+  - Tests: none moved or rewritten; the root units still call
+    `importMaterializedSnapshotRow`.
+  - For item 167: `6d78b74d5` (trigger rename and dependency DDL) added
+    `trigger_lifecycle.go` (0.15k) to the root.

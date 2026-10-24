@@ -10,15 +10,15 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `9e839cf02`.
+Last verified against `master` at `6d78b74d5`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 159 (view), 160 (session, 2PC), 163 (exec, cursors), 165 (session,
-  protocol codec) and 166 (ddl, CREATE DATABASE).
+- 160 (session, 2PC), 163 (exec, cursors), 165 (session, protocol codec)
+  and 166 (ddl, CREATE DATABASE).
 
 ## Linear plan
 
@@ -85,9 +85,15 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      identity, TYPE CHECK, generated, typed, RENAME/SET SCHEMA/view IF EXISTS
      and ATTACH/DETACH diagnostics selections passed; bench skipped (DDL-only
      path); racecheck/finalcheck skipped at user request
-159. [ ] View: RLS policy import and materialized snapshot rows —
+159. [x] View: RLS policy import and materialized snapshot rows —
      [view](ENGINE-SPLIT-view.md#item-159--rls-policy-import-and-materialized-snapshot-rows)
-     · needs — · 0.22k
+     · needs — · 0.22k (`b6a2a87a0`, `b4873d3c2`, then the docs commit) · the
+     four root files 815 → 593 lines, root 400 files and 49.7k → 49.5k lines
+     · no startup allocation change · targeted units, quickcheck, `make deps`,
+     the quick and `REFERENCE=1` row security, driver batch policy and
+     materialized view Restore/snapshot selections, and `RACE=1`
+     `TestReferenceRowSecurityTransactions` passed; racecheck/finalcheck
+     skipped at user request
 160. [ ] Session: owner transitions and the 2PC registry —
      [session](ENGINE-SPLIT-session.md#item-160--owner-transitions-and-the-2pc-registry)
      · needs — · 0.20k

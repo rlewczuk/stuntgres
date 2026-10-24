@@ -64,8 +64,9 @@ No parallel language-permission table or cached grant decision exists.
   in a namespace, which reads the `Environment` only for a TEMP namespace.
 - **Row security** (`rls.go`, `rls_selection.go`): metadata-only
   `RowSecurityApplies`/setting guard, role-aware `SelectRowSecurity` returning
-  immutable payload groups (`RLSSelection`, `RLSGroup`, `RLSClause`), and
-  `RowSecurityPrincipal` over view layers. `AdjacentRowSecurityGroups`,
+  immutable payload groups (`RLSSelection`, `RLSGroup`, `RLSClause`),
+  `SameRLSSelection`, which the engine's fence uses to detect a changed
+  selection after role changes, and `RowSecurityPrincipal` over view layers. `AdjacentRowSecurityGroups`,
   `AdjacentRowSecurityProposal` and `AdjacentRLSDisposition` are exclusively
   MERGE/ON CONFLICT action capability gates, never ordinary row evaluators.
 - **Row-security actions** (`rls_actions.go`): `RowSecurityActions`,
