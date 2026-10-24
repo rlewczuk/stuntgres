@@ -125,18 +125,13 @@ func (s *StatementScope) snapshotExecutionAdmission(stmt parser.Statement) error
 }
 
 func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
-	switch stmt.(type) {
-	case *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable, *parser.RefreshMaterializedView, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.SettingCall:
-		previous := s.snapshotTargetAdmission
-		s.snapshotTargetAdmission = parser.ModifyingStatement(stmt)
-		if copy, ok := stmt.(*parser.Copy); ok {
-			s.snapshotTargetAdmission = copy.From
-		}
-		defer func() { s.snapshotTargetAdmission = previous }()
-		return s.snapshotDataPhase()
-	default:
+	if !session.SnapshotStatement(stmt) {
 		return nil
 	}
+	previous := s.snapshotTargetAdmission
+	s.snapshotTargetAdmission = session.SnapshotTargetAdmission(stmt)
+	defer func() { s.snapshotTargetAdmission = previous }()
+	return s.snapshotDataPhase()
 }
 
 // Fastpath has no SQL AST but obtains the same transaction snapshot before
@@ -273,17 +268,13 @@ func (e *Engine) retainTransactionSnapshotLocked(t *session.TransactionOwner) er
 }
 
 func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error {
-	t := s.owner
-	switch stmt.(type) {
-	case *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
+	if session.ReadOnlyExempt(stmt) {
 		return nil
 	}
+	t := s.owner
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
-	if tag := session.ModifyingTag(stmt); t.ReadOnly && tag != "" {
-		return sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
-	}
-	return nil
+	return session.ReadOnlyRefusal(stmt, t.ReadOnly)
 }
 func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	if !session.ExplicitUtility(stmt) || transactionalSchemaUtility(stmt) || s.partitionIndexTransaction(stmt) {
@@ -295,26 +286,5 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	t := s.owner
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
-	if _, ok := stmt.(*parser.CreateDatabaseStmt); ok {
-		if t.InBlock() {
-			return sqlError("25001", "CREATE DATABASE cannot run inside a transaction block")
-		}
-		return nil
-	}
-	if _, ok := stmt.(*parser.CreateTablespace); ok {
-		if t.InBlock() {
-			return sqlError("25001", "CREATE TABLESPACE cannot run inside a transaction block")
-		}
-		return nil
-	}
-	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character != 0 && t.InBlock() {
-		return sqlError("25001", "CREATE INDEX CONCURRENTLY cannot run inside a transaction block")
-	}
-	if index, ok := stmt.(*parser.DropIndex); ok && index.Concurrent.Character != 0 && t.InBlock() {
-		return sqlError("25001", "DROP INDEX CONCURRENTLY cannot run inside a transaction block")
-	}
-	if t.State == session.TxActive {
-		return sqlError("0A000", "statement is unsupported in an explicit transaction")
-	}
-	return nil
+	return session.ExplicitUtilityRefusal(stmt, t.State, t.InBlock())
 }

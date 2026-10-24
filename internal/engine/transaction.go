@@ -349,18 +349,9 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	t.Mu.Lock()
 	idle := t.State == session.TxIdle
 	t.Mu.Unlock()
-	if idle {
-		switch stmt.(type) {
-		case *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard, *parser.Truncate:
-			e.replacementMu.RLock()
-			s.replacementRead = true
-		case *parser.Comment:
-			c := stmt.(*parser.Comment)
-			if c.Kind == parser.CommentTable || c.Kind == parser.CommentForeignTable || c.Kind == parser.CommentColumn {
-				e.replacementMu.RLock()
-				s.replacementRead = true
-			}
-		}
+	if idle && session.ReplacementRead(stmt) {
+		e.replacementMu.RLock()
+		s.replacementRead = true
 	}
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
@@ -439,50 +430,10 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		s.controlOutcome = controlDescribed
 		return StatementDescription{}, nil
 	}
-	if _, ok := stmt.(*parser.TransactionCharacteristics); ok {
+	switch session.DescribeBeforeSnapshot(stmt) {
+	case session.DescribeEmpty:
 		return StatementDescription{}, nil
-	}
-	if _, ok := stmt.(*parser.SetConstraints); ok {
-		return StatementDescription{}, nil
-	}
-	if _, ok := stmt.(*parser.AlterTableRenameConstraint); ok {
-		return StatementDescription{}, nil
-	}
-	switch stmt.(type) {
-	case *parser.Do:
-		return s.engine().describeOperation(s, stmt)
-	case *parser.Listen, *parser.Unlisten, *parser.Notify:
-		return StatementDescription{}, nil
-	case *parser.AlterTableAllInTablespace:
-		return s.engine().describeOperation(s, stmt)
-	case *parser.ForeignDDL:
-		return s.engine().describeOperation(s, stmt)
-	case *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.Load, *parser.Vacuum:
-		return s.engine().describeOperation(s, stmt)
-	case *parser.Truncate:
-		return s.engine().describeOperation(s, stmt)
-	case *parser.RefreshMaterializedView:
-		return s.engine().describeOperation(s, stmt)
-	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:
-		return s.engine().describeOperation(s, stmt)
-	case *parser.AlterDomain, *parser.DropDomain:
-		// This narrow utility has no parameter/result signature. Preparation
-		// must remain quiet; Execute owns read-only-first and explicit-block
-		// rejection, without resolving or changing a domain during analysis.
-		return s.engine().describeOperation(s, stmt)
-	case *parser.AlterOwner:
-		if stmt.(*parser.AlterOwner).Kind == "domain" {
-			return s.engine().describeOperation(s, stmt)
-		}
-	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
-		return s.engine().describeOperation(s, stmt)
-	case *parser.CreateCast, *parser.DropCast, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
-		// These utilities have no result signature. Admission, read-only
-		// precedence and the explicit-transaction boundary belong to Execute.
-		return s.engine().describeOperation(s, stmt)
-	case *parser.ObjectGrant:
-		// Analysis is effect-free even inside an explicit transaction. Execute
-		// retains read-only-first rejection and the non-database utility boundary.
+	case session.DescribeOperation:
 		return s.engine().describeOperation(s, stmt)
 	}
 	if transactionalSchemaUtility(stmt) {
@@ -499,17 +450,14 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if err := s.snapshotAnalysisPhase(stmt); err != nil {
 		return StatementDescription{}, err
 	}
-	switch stmt.(type) {
-	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
-		return s.engine().describeOperation(s, stmt)
-	case *parser.CreateTable, *parser.DropTable, *parser.CreateView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterComposite, *parser.AlterType, *parser.DropType:
+	if session.DescribeAfterSnapshot(stmt) {
 		// Definition utilities have no result signature. Resolve ownership, read-only
 		// precedence and persistent-DDL exclusions only when actually executing.
 		return s.engine().describeOperation(s, stmt)
 	}
 	indexBuild := session.EarlyIndexUtility(stmt)
 	if !queryCreation && s.owner.State == session.TxActive && session.ExplicitUtility(stmt) && !indexBuild {
-		return StatementDescription{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
+		return StatementDescription{}, session.UnsupportedInBlockError()
 	}
 	if err := s.selectPreparedAnalysis(stmt); err != nil {
 		return StatementDescription{}, err

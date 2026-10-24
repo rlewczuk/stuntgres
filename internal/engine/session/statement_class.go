@@ -272,3 +272,57 @@ func EarlyIndexUtility(stmt parser.Statement) bool {
 	}
 	return false
 }
+
+// ReadOnlyExempt reports whether a read-only transaction skips the utility
+// refusal for stmt; data statements check their own targets.
+func ReadOnlyExempt(stmt parser.Statement) bool {
+	switch stmt.(type) {
+	case *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
+		return true
+	}
+	return false
+}
+
+// ReadOnlyRefusal refuses a modifying utility in a read-only transaction.
+func ReadOnlyRefusal(stmt parser.Statement, readOnly bool) error {
+	if !readOnly || ReadOnlyExempt(stmt) {
+		return nil
+	}
+	if tag := ModifyingTag(stmt); tag != "" {
+		return sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
+	}
+	return nil
+}
+
+// ExplicitUtilityRefusal refuses an ExplicitUtility that the root did not
+// exempt: block-only utilities inside a block, and any other in an explicit
+// transaction. inBlock is TransactionOwner.InBlock.
+func ExplicitUtilityRefusal(stmt parser.Statement, state TxState, inBlock bool) error {
+	command := ""
+	switch s := stmt.(type) {
+	case *parser.CreateDatabaseStmt:
+		command = "CREATE DATABASE"
+	case *parser.CreateTablespace:
+		command = "CREATE TABLESPACE"
+	case *parser.CreateIndex:
+		if s.Concurrent.Character != 0 {
+			command = "CREATE INDEX CONCURRENTLY"
+		}
+	case *parser.DropIndex:
+		if s.Concurrent.Character != 0 {
+			command = "DROP INDEX CONCURRENTLY"
+		}
+	}
+	if command != "" && inBlock {
+		return sqlError("25001", command+" cannot run inside a transaction block")
+	}
+	if command == "CREATE DATABASE" || command == "CREATE TABLESPACE" || state != TxActive {
+		return nil
+	}
+	return UnsupportedInBlockError()
+}
+
+// UnsupportedInBlockError refuses a utility in an explicit transaction.
+func UnsupportedInBlockError() error {
+	return sqlError("0A000", "statement is unsupported in an explicit transaction")
+}
