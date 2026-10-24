@@ -67,7 +67,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	providerOverride := b.hasProviderProcedureOverride(name)
-	if !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !b.BindingCatalog().HasCasts() {
+	if !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -98,6 +98,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			}
 			if (cubeFamily || extension.CubeComparisonName(name)) && (extension.CubeProviderOf(d) == extension.StockCube || extension.EarthdistanceProviderOf(d) == extension.StockEarthdistance) {
 				hasCube = true
+			}
+			if extension.CitextProviderOf(d) == extension.StockCitext {
+				hasSQL = true
 			}
 			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil {
 				continue
@@ -456,6 +459,24 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			return nil, err
 		}
 		return node, nil
+	}
+	if d != nil && extension.CitextProviderOf(d) == extension.StockCitext {
+		symbol, err := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+		if err != nil {
+			return nil, err
+		}
+		if extension.CitextComparisonName(symbol) {
+			node, err := b.bindSelectedCitextComparison(raw, selected, symbol)
+			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+				frozen := raw
+				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
+				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+			}
+			return node, err
+		}
 	}
 	if d != nil && extension.CubeProviderOf(d) == extension.StockCube {
 		symbol, err := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)

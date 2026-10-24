@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -52,6 +53,22 @@ func (b *Binder) resolveComparisonCandidates(raw parser.OperatorExpr, lt, rt *sq
 		return b.comparisonInputType(sqltype.ID(selected.Left), lt, rt), b.comparisonInputType(sqltype.ID(selected.Right), rt, lt), nil
 	}
 	signature, err := sqltype.ResolveComparison(operator, lt, rt)
+	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" && set.available {
+		// The seed-only shortcut cannot rank installed implicit conversions.
+		// Resolve against visible signatures before rejecting the operands.
+		full, lookupErr := b.lookupOperatorCandidates(raw.Name, false, true)
+		if lookupErr != nil {
+			return nil, nil, lookupErr
+		}
+		selected, selectErr := b.selectCatalogOperator(full, raw, lt, rt, false)
+		if selectErr != nil {
+			return nil, nil, selectErr
+		}
+		if err := b.requireBuiltinComparison(selected, raw.Pos); err != nil {
+			return nil, nil, err
+		}
+		return b.comparisonInputType(sqltype.ID(selected.Left), lt, rt), b.comparisonInputType(sqltype.ID(selected.Right), rt, lt), nil
+	}
 	if !set.available {
 		err = sqlError("42883", "operator does not exist")
 	}

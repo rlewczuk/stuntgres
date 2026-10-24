@@ -79,13 +79,13 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 	}
 	if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() {
 		ext, ok := catalog.Extension(d.Extension)
-		if !ok || len(ext.Members) < 3 || !d.SQLType.IsCube() && len(ext.Members) != 3 {
+		if !ok || len(ext.Members) < 3 || !d.SQLType.IsCube() && !d.SQLType.IsCitext() && len(ext.Members) != 3 {
 			return f, fmt.Errorf("stuntgres: missing installed type routines")
 		}
-		if d.SQLType.IsCube() {
+		if d.SQLType.IsCube() || d.SQLType.IsCitext() {
 			input, exists := catalog.Procedure(ext.Members[1])
 			if !exists || input.Implementation == nil {
-				return f, fmt.Errorf("stuntgres: missing installed cube provider")
+				return f, fmt.Errorf("stuntgres: missing installed type provider")
 			}
 			if err := input.Implementation.ValidateExtension(catalog, ext); err != nil {
 				return f, err

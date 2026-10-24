@@ -65,15 +65,12 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if IntarrayProviderOf(d) != nil && symbol == "bqarr_out" {
 				member.Signature = "query_int"
 			}
-			if CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil {
+			if CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil {
 				var valid bool
 				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
 				if !valid {
 					return "", fmt.Errorf("stuntgres: invalid cube ownership signature")
 				}
-			}
-			if CitextProviderOf(d) != nil && symbol == "citextout" {
-				member.Signature = "citext"
 			}
 			if IsnProviderOf(d) != nil && symbol == "ean13_out" {
 				member.Signature = "ean13"
@@ -209,7 +206,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	case record.Name == "cube" && record.Version == "1.5":
 		expectedMembers = CubeMemberCount
 	case record.Name == "citext" && record.Version == "1.8":
-		expectedMembers = 3
+		expectedMembers = CitextMemberCount
 	case record.Name == "isn" && record.Version == "1.3":
 		expectedMembers = 3
 	case record.Name == "earthdistance" && record.Version == "1.2":
@@ -290,6 +287,9 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
 				return invalid()
 			}
+			if record.Name == "citext" && member.Slot != 0 {
+				return invalid()
+			}
 			if record.Name == "lo" && member.Name != [...]string{"lo", "lo[]"}[member.Slot] {
 				return invalid()
 			}
@@ -360,6 +360,9 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			return "cube,cube", true
 		}
 	case "intarray", "citext", "isn":
+		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
+			return "citext,citext", true
+		}
 		if slot == 1 {
 			return "2275", true
 		}
@@ -393,6 +396,10 @@ func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 	switch extension {
 	case "cube":
 		return cubeOwnerOperatorIdentity(slot)
+	case "citext":
+		if slot >= CitextComparisonOperatorStart && slot < CitextMemberCount {
+			return citextOperatorNames[slot-CitextComparisonOperatorStart], "citext,citext", true
+		}
 	case "earthdistance":
 		if slot == EarthPointOperatorSlot {
 			return "<@>", "600,600", true

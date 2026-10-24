@@ -158,7 +158,10 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		}
 	case StockIntarray, StockCitext, StockIsn:
 		count = 3
-		if slot < 1 || slot > 2 {
+		if p.Implementation == StockCitext {
+			count = CitextMemberCount
+		}
+		if slot < 1 || slot > 2 && (p.Implementation != StockCitext || slot >= CitextComparisonOperatorStart) {
 			return invalid()
 		}
 		base, ok := v.Type(ext.Members[0])
@@ -191,6 +194,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		}
 		if slot == 2 {
 			signature, result = QueryIntSignature(base.SQLType.ID()), 2275
+		} else if p.Implementation == StockCitext && slot >= CitextComparisonProcedureStart {
+			name = CitextComparisonNames[slot-CitextComparisonProcedureStart]
+			signature, result = CitextComparisonSignature(base.SQLType.ID()), ids.OID(sqltype.Bool)
 		}
 	case StockPgrowlocks:
 		count = 1

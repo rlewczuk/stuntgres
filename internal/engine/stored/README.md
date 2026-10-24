@@ -74,6 +74,11 @@ host methods.
   through `extension.ProcedureSymbol`; labels never select executable capability.
   Scalar serialization and deparse validate the original carrier, then format
   checked current labels without refreshing its pointer or dependency revision.
+  Citext comparison captures retain the original procedure declaration, revision,
+  operation and input collation independently of their selected-operator wrapper.
+  Import validates the mapped original against the destination's exact installed
+  member, remaps registered collations, and rebuilds the scalar predicate.
+  Replay renders checked current labels without refreshing captured authority.
   Mutation-rule VALUES expressions use the same checked current-label projection
   while preserving their original OLD/NEW bindings and callable input assembly.
   `RetagTypes` is a structural generation rewrite, not a presentation refresh.

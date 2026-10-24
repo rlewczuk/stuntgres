@@ -88,6 +88,10 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 		ext = d.Extension
 		switch {
+		case CitextProviderOf(proc) == StockCitext:
+			if err := StockCitext.ValidateProcedure(v, proc); err != nil {
+				return err
+			}
 		case CubeProviderOf(proc) == StockCube:
 			if err := StockCube.ValidateProcedure(v, proc); err != nil {
 				return err

@@ -12,8 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Stage installs the citext type, its array and its two I/O functions into
-// stage, owned by owner, allocating identities in member order.
+// Stage allocates the scalar, codecs and six scalar comparison pairs atomically.
 func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "citext")
 	if err != nil {
@@ -22,8 +21,14 @@ func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "citext") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "citext" already exists`, Context: CitextTypeContext}
 	}
-	ext.Members = make([]ids.ObjectAddress, 3)
-	for i, class := range [3]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
+	ext.Members = make([]ids.ObjectAddress, CitextMemberCount)
+	for i := range ext.Members {
+		class := ids.ProcedureClassID
+		if i == 0 {
+			class = ids.TypeClassID
+		} else if i >= CitextComparisonOperatorStart {
+			class = ids.OperatorClassID
+		}
 		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
@@ -90,5 +95,5 @@ func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helpers[i].Name, args), Context: "SQL statement \"CREATE TYPE citext (\n    INPUT          = citextin,\n    OUTPUT         = citextout,\n    RECEIVE        = citextrecv,\n    SEND           = citextsend,\n    INTERNALLENGTH = VARIABLE,\n    STORAGE        = extended,\n    -- make it a non-preferred member of string type category\n    CATEGORY       = 'S',\n    PREFERRED      = false,\n    COLLATABLE     = true\n)\"\nextension script file \"citext--1.4.sql\", near line 46"}
 		}
 	}
-	return nil
+	return p.stageComparisons(stage, ext, owner, typ)
 }

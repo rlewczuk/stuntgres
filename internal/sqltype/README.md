@@ -45,6 +45,11 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
   diagnostic; nothing falls back to text while claiming binary format.
+- `CitextComparison` binds only genuine same-generation citext operands to the
+  six strict Boolean predicates. It folds lazily with database C ctype, preserves
+  spelling, compares folded bytes directly for equality without an input
+  collation provider, and demands ordering collation only for reached nonnull
+  ordering. It grants no generic ordering, hash, grouping or index capability.
 - Text-array input checks declared dimensions early, but child conversion and
   domain CHECK errors precede an extent mismatch, and storage grows only with
   parsed children (shared `ownedArray` guards).

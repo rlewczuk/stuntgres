@@ -64,6 +64,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.SQLRoutineExpr:
 		r.Add(n.Ref.Address)
+	case plan.CitextComparisonExpr:
+		r.Add(n.Ref.Address)
 	case plan.CubeComparisonExpr:
 		r.Add(n.Ref.Address)
 	case plan.ComparisonExpr:

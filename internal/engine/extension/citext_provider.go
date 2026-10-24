@@ -31,7 +31,7 @@ func (p *CitextProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 	if !currentManifest(v, ext) {
 		return invalid()
 	}
-	if p != StockCitext || ext.Name() != "citext" || ext.Version != p.control.Version || len(ext.Members) != 3 {
+	if p != StockCitext || ext.Name() != "citext" || ext.Version != p.control.Version || len(ext.Members) != CitextMemberCount {
 		return invalid()
 	}
 	if ext.Members[0].ClassID != ids.TypeClassID || ext.Members[1].ClassID != ids.ProcedureClassID || ext.Members[2].ClassID != ids.ProcedureClassID {
@@ -48,12 +48,17 @@ func (p *CitextProvider) ValidateExtension(v catalog.Read, ext *catalog.Extensio
 	if err := validateRegisteredType(v, array); err != nil {
 		return err
 	}
-	for _, address := range ext.Members[1:] {
+	for _, address := range ext.Members[1:CitextComparisonOperatorStart] {
 		proc, ok := v.Procedure(address)
 		if !ok {
 			return invalid()
 		}
 		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
+		}
+	}
+	for i := range CitextComparisonNames {
+		if err := validateCitextOperator(v, ext, base, i); err != nil {
 			return err
 		}
 	}

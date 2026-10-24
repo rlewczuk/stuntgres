@@ -102,20 +102,29 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if IntarrayProviderOf(selected) != nil && symbol == "bqarr_out" {
 					signature = "query_int"
 				}
-				if CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil {
+				if CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil {
 					var valid bool
 					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
 					if !valid {
 						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
 					}
 				}
-				if CitextProviderOf(selected) != nil && symbol == "citextout" {
-					signature = "citext"
-				}
 				if IsnProviderOf(selected) != nil && symbol == "ean13_out" {
 					signature = "ean13"
 				}
 			case *catalog.Operator:
+				if record.Name == "citext" {
+					i := member.Slot - CitextComparisonOperatorStart
+					base, ok := candidate.Type(ext.Members[0])
+					if !ok || i < 0 || i >= len(CitextComparisonNames) {
+						return false, fmt.Errorf("stuntgres: invalid citext ownership slot")
+					}
+					if err := validateCitextOperator(candidateView, ext, base, i); err != nil {
+						return false, err
+					}
+					kind, signature = "operator", "citext,citext"
+					break
+				}
 				if record.Name == "earthdistance" {
 					if member.Slot != EarthPointOperatorSlot || selected.Address() != ext.Members[EarthPointOperatorSlot] {
 						return false, fmt.Errorf("stuntgres: invalid earth operator ownership slot")

@@ -290,4 +290,6 @@ See [producer ownership](../../internal/engine/pgcatalog/README.md#information-s
 - View definitions: `RUN='^TestReferenceInfoViews'`
 - Routine metadata: `RUN='^TestReferenceInfoRoutines'`. Full-row witnesses are
   supplemented by test-owned released builtin identity/source/language/security
-  facts, queried in serial batches under the ordinary scenario deadline.
+  facts, queried in serial batches under the ordinary scenario deadline. Extension
+  witnesses include citext's INTERNAL I/O and C comparison declarations with
+  independently specified source symbols.

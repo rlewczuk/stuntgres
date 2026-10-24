@@ -3,6 +3,14 @@ live table ACL origins, including grant options, inherited enabled roles and
 enabled-grantor PUBLIC grants. Direct and prepared reads refresh after grant,
 membership and identity changes without exposing unrelated origins.
 
+Installed citext now provides its six case-insensitive scalar comparison operators
+and backing routines. Comparisons preserve original spelling, fold with database
+C ctype independently of input collation, and retain installed identities through
+stored expressions and native Dump/Reset/Restore. Equality needs no input collation;
+hidden extension operators use ordinary visible text comparisons through implicit casts.
+The six backing routines expose their C-language declarations and original source
+symbols through information_schema.routines alongside the INTERNAL I/O routines.
+
 Native Restore now rejects indirect foreign scans, writes and schema imports
 before provider invocation, including calls reached through stored defaults and
 CHECK expressions. Dependency-ordered table, view, SQL-function and data replay retains

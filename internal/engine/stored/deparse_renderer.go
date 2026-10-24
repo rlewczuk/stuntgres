@@ -849,6 +849,23 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing crypto function namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
+	case plan.CitextComparisonExpr:
+		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
+			return "", fmt.Errorf("stuntgres: invalid stored citext comparison reference")
+		}
+		procedure, err := currentCitextComparison(n, r.View)
+		if err != nil {
+			return "", err
+		}
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing citext comparison namespace")
+		}
+		spec, err := citextComparisonRendering(n, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()))
+		if err != nil {
+			return "", err
+		}
+		return r.rendering(ctx, n, spec, parent)
 	case plan.CubeComparisonExpr:
 		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
 			return "", fmt.Errorf("stuntgres: invalid stored cube comparison reference")

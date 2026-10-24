@@ -103,6 +103,10 @@ type operatorCandidateSet struct {
 }
 
 func (b *Binder) operatorCandidates(name parser.ObjectName, unary bool) (operatorCandidateSet, error) {
+	return b.lookupOperatorCandidates(name, unary, false)
+}
+
+func (b *Binder) lookupOperatorCandidates(name parser.ObjectName, unary, materialize bool) (operatorCandidateSet, error) {
 	auth, err := b.BindingAuthorization()
 	if err != nil {
 		return operatorCandidateSet{}, err
@@ -113,7 +117,7 @@ func (b *Binder) operatorCandidates(name parser.ObjectName, unary bool) (operato
 	}
 	view := auth.ReadCatalog()
 	spelling := name.Parts[len(name.Parts)-1].Text
-	if _, comparison := ComparisonOperator(spelling); !unary && comparison {
+	if _, comparison := ComparisonOperator(spelling); !materialize && !unary && comparison {
 		available, custom := false, false
 		for i := 0; i < path.Count() && !custom; i++ {
 			for _, address := range view.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.At(i), spelling}] {

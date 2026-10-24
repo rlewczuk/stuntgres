@@ -53,7 +53,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.8" || len(ext.Members) != 3 || base.Extension != ext.Address() || !base.SQLType.IsCitext() || base.Owner != ext.Owner {
+	if ext.Version != "1.8" || len(ext.Members) != extension.CitextMemberCount || base.Extension != ext.Address() || !base.SQLType.IsCitext() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	array, ok := view.LookupArray(base.SQLType)
@@ -80,7 +80,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 			if err := (stored.TypeProvider{}).Validate(view, member); err != nil {
 				t.Fatal(err)
 			}
-		} else if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
+		} else if err := (extension.CatalogProvider{address.ClassID}).Validate(view, member); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -98,7 +98,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 3 || !arrayInternal {
+	if len(members) != extension.CitextMemberCount || !arrayInternal {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -127,7 +127,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 		t.Fatal("owner metadata comments", records, err)
 	}
 	record := records[0]
-	if record.Name != "citext" || record.Schema != "public" || record.Version != "1.8" || record.Owner != "postgres" || len(record.Members) != 3 {
+	if record.Name != "citext" || record.Schema != "public" || record.Version != "1.8" || record.Owner != "postgres" || len(record.Members) != extension.CitextMemberCount {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {

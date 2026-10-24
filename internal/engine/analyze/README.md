@@ -150,6 +150,10 @@ library, and never the root engine or `session`. The engine, the root driver
   callable/operator probes: it binds no routine, checks no EXECUTE and captures
   no losing-candidate dependency. Catalog-free callers pass nil. Prepared
   captures record pair identity or absence for invalidation.
+  Seed-only comparison resolution retains its allocation-free shortcut for
+  ordinary inputs. A missing signature is resolved against visible catalog
+  operators and implicit coercions before reporting a missing operator; hidden
+  installed operators supply no signature or execution authority.
 - **Bound operands** keep their position, usage and properties through
   conversion instead of being rebound.
 - **PL assignment** keeps the reached lexical frame and full destination Usage.

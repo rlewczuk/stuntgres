@@ -298,7 +298,11 @@ Actual simple/extended protocol coverage belongs in
 - Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
 - `cube` (scalar/codecs, coordinate extraction and spatial predicates/distances): `RUN='^TestReferenceCube'`
 - <a id="earth-domain-contract"></a>`earth` domain, coordinates and conversions: `RUN='^TestReferenceEarth'`
-- <a id="citext-storage-and-value-round-trips"></a>`citext`: `RUN='^TestReferenceCitext'`
+- <a id="citext-storage-and-value-round-trips"></a>`citext` storage, six scalar
+  comparisons, binding, collation demand, diagnostics, catalogs and controls:
+  `RUN='^TestReferenceCitext'`. Comparison scenarios specify fixed Boolean vectors
+  and original spelling independently, reuse held statements, and replay emitted
+  stored view/CHECK SQL through native controls and the pinned oracle.
 - `query_int`: `RUN='^TestReferenceQueryInt'`
 - `aclitem`: `RUN='^TestReferenceACLItem'`
 - ACL construction and expansion: `RUN='^TestReferenceACLValues'`

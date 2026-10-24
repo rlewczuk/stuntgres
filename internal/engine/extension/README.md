@@ -75,10 +75,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `ean13_in(cstring)`/`ean13_out(ean13)` immutable strict I/O members. Owner
   metadata records the output argument symbolically and remaps it to the
   destination descriptor during catalog replacement.
-- **citext and earthdistance.** Citext stages the scalar and its two text-I/O
-  members, resolving I/O helper names through `ScriptFunctions`; its owner
-  metadata serializes the output signature symbolically and resolves it to the
-  destination's installed descriptor on import, never copying a source OID.
+- **citext and earthdistance.** Citext stages 15 direct members: scalar, two I/O
+  routines, six strict immutable comparison routines and their six operators.
+  Incumbent slots remain fixed; the associated array is lookup-only. Operator
+  links and procedure authority come from exact manifest slots and signatures.
+  Comparison routine display declarations retain C language and their original
+  source symbols; the I/O routines retain INTERNAL language and text codec symbols.
+  I/O helper names resolve through `ScriptFunctions`; owner metadata serializes
+  every citext input symbolically and resolves destination descriptors on import.
   Earthdistance requires installed cube and atomically stages the `earth` domain,
   its actual companion and six coordinate/conversion routines, followed by
   `geo_distance(point,point)` and its self-commuting `<@>` operator. Incumbent slots
@@ -224,7 +228,7 @@ the retained TEMP descriptor; incidental prerequisite-member counts are not
 collision evidence.
 
 ```sh
-make check RUN='^Test(Extension|CitextProvider|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
+make check RUN='^Test(Extension|Citext(Provider|Comparison)|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
 make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```
 
