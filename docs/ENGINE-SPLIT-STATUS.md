@@ -16,15 +16,15 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `a7a7c4165` (no root production change
-since `ea8c445fe`).
+Last verified against `master` at `64243569a` (item 168 merged; two
+feature commits added about 45 root production lines since `ea8c445fe`).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 168, 169, 171, 173, 174, 175 and 176. Item 174 and item 170 both edit the
+- 169, 171, 173, 174, 175 and 176. Item 174 and item 170 both edit the
   PL/pgSQL query-loop unit tests, so whichever merges second rebases.
 
 ## Linear plan
@@ -39,9 +39,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      link and linear-plan checks and quickcheck passed;
      `REFERENCE=1`, bench, racecheck and finalcheck skipped (docs only, and
      racecheck/finalcheck at user request)
-168. [ ] Root cleanup and clean-now moves —
+168. [x] Root cleanup and clean-now moves —
      [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-168--cleanup-and-clean-now-moves)
-     · needs — · 0.2k
+     · needs — · 0.2k (`ae0d9246e`, `abb1bb4ce`, `35ed552c8`, `a88e1c321`,
+     `82477bd05`, docs commit) · clean helpers moved to `catalog`, `fdw`,
+     `routine` and `session`, eight capture/identity methods freed,
+     `access.WithObjectACL` moved into the root fixture; quickcheck, quick and
+     `REFERENCE=1` selections and bench (allocations unchanged) passed;
+     racecheck and finalcheck skipped (user decision)
 169. [ ] Proc: PL/pgSQL diagnostics, error phases and flow —
      [proc](ENGINE-SPLIT-proc.md#item-169--plpgsql-diagnostics-error-phases-and-flow)
      · needs — · 0.29k

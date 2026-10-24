@@ -312,6 +312,20 @@ keeps its one or two root callers.
     `TestReferenceRangeTypeRestoreRecipeCollisions`,
     `TestReferenceRangeTypeConstructors` and
     `TestReferenceTransactionalSchemaLocks`.
+- **Status:** done (`ae0d9246e`, `abb1bb4ce`, `35ed552c8`, `a88e1c321`,
+  `82477bd05`, then the docs commit).
+  - New names: `catalog.SamePreparedTypeDefinition`,
+    `catalog.RestoreRangeConstructorEligible`, `catalog.BindingClaim` and
+    `catalog.BindingCurrent`, `fdw.RebindReplacementProviders`,
+    `routine.RangeTypeRebinder`, `session.TransactionalSchemaUtility`.
+  - Deviation: `captureOperatorInput` was freed too; its only receiver use
+    was the `captureRegtypeInput` call. `WithObjectACL` became the fixture
+    helper `withObjectACL` in `object_acl_fixture_test.go`, with its tests.
+  - For item 180: new root feature code since `ea8c445fe` is small (about
+    45 lines): `transactionalIndexMaintenance` in `transaction_isolation.go`
+    (`b84026244`) and the REFRESH admission (`64243569a`).
+    `transactionalIndexMaintenance` is a pure AST predicate that could join
+    `session.TransactionalSchemaUtility`.
 
 ### Item 180 — closing review 4
 
