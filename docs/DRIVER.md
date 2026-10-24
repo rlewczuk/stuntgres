@@ -87,11 +87,13 @@ ordinary SQL errors leave the connection reusable.
   supported ALTER TABLE forms, ALTER/DROP TRIGGER, ordinary DROP INDEX and
   ALTER INDEX rename/SET/RESET, CREATE/OR REPLACE/ALTER/DROP VIEW,
   CREATE/ALTER/DROP MATERIALIZED VIEW, CREATE DOMAIN/composite TYPE, domain
-  rule changes, composite attribute evolution and type/domain rename, schema move
-  and DROP see earlier successful own changes. Ordinary and concurrent REFRESH
-  consume earlier own source writes and keep stored rows, indexes and population
-  private until commit. Peers see complete definitions, constraints, consuming rows
-  and logical keys only after commit.
+  rule changes, composite attribute evolution, type/domain rename, schema move
+  and DROP, and CREATE/OR REPLACE, ALTER RENAME and DROP RULE see earlier
+  successful own changes. Direct and held prepared rule commands use the same
+  transaction; subsequent owner DML uses the private rules.
+  Ordinary and concurrent REFRESH consume earlier own source writes and keep
+  stored rows, indexes and population private until commit. Peers see complete
+  definitions, constraints, consuming rows and logical keys only after commit.
   Rollback/savepoints restore definitions, dependencies, row layouts and data
   together; sequence counters are not rewound. Autocommit and retained simple-query
   messages use the same supported forms. Feature-specific view/materialized OWNER

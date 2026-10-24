@@ -8,6 +8,11 @@ rename, DROP and extension dependencies, including private firing, savepoint
 recovery and atomic definition/row publication. CREATE/REPLACE retains
 ShareRowExclusive locks on partition descendants through transaction end.
 
+CREATE/OR REPLACE RULE, ALTER RULE RENAME and DROP RULE now participate in SQL
+and Go transactions as well as autocommit. Private definitions govern owner DML
+immediately; rule changes, dependencies and action rows commit or roll back
+together, including savepoints and held prepared execution.
+
 Ordinary and concurrent REFRESH MATERIALIZED VIEW now participate in SQL BEGIN
 and Go BeginTx as well as autocommit. Source writes, stored rows, indexes and
 population commit or roll back together, including savepoint recovery, with

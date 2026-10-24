@@ -256,7 +256,7 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   locking and snapshot admission before their read-only execution check. WITH
   NO DATA resolves source names and output types but does not demand the skipped
   SELECT executor's privileges.
-- `session.TransactionalSchemaUtility` selects the table, schema, trigger,
+- `session.TransactionalSchemaUtility` selects the table, schema, rule, trigger,
   view and materialized-view DDL (including ordinary/concurrent REFRESH), policy
   definitions, domain/composite creation and alterations, and type/domain
   identity/drop that Describe and Execute run on the existing transaction journal
@@ -286,6 +286,13 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   is retained through transaction end, so fresh peer table reads wait for release.
   Subsequent direct and held executions select existing RLS programs from current
   private definitions and authority; already-returned results stay immutable.
+
+Rule definitions and original/action rows share the transaction journal and
+combined publication. CREATE/REPLACE, RENAME and DROP preserve exact rule identity
+and dependency authority across private changes, savepoints and held execution.
+Event AX and action target/source locks retain their canonical transaction
+lifetime; peer DML waits for publication or rollback. Stored recipes and prepared
+consumers select the owner's current private definition, never a cached authority.
 
 View and materialized definitions resolve against the owner's private catalog,
 including private source relations and providers. Materialized producers consume

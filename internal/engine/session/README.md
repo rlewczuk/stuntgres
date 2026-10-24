@@ -91,8 +91,9 @@ implement its slots, so either import would form a cycle.
   utility exclusions remain intact. `TransactionalSchemaUtility` in
   `statement_class.go` is the shared bounded Describe/Execute admission policy:
   permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA, shipped
-  ALTER TABLE forms, trigger CREATE/OR REPLACE/ALTER/DROP, CREATE/OR REPLACE/ALTER/
-  DROP VIEW, CREATE/ALTER/DROP MATERIALIZED VIEW plus ordinary/concurrent REFRESH,
+  ALTER TABLE forms, CREATE/OR REPLACE/ALTER/DROP RULE, trigger
+  CREATE/OR REPLACE/ALTER/DROP, CREATE/OR REPLACE/ALTER/DROP VIEW,
+  CREATE/ALTER/DROP MATERIALIZED VIEW plus ordinary/concurrent REFRESH,
   CREATE/ALTER/DROP POLICY (including rename), CREATE DOMAIN/composite TYPE,
   ALTER DOMAIN/composite attributes, and type/domain rename, schema move and DROP
   use the existing transaction journal. Generic OWNER admits only tables, not types

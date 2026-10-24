@@ -57,20 +57,30 @@ func TestReferenceRuleBoundaries(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer conn.Close()
+		q := "CREATE RULE r AS ON INSERT TO src DO INSTEAD NOTHING"
+		var x fixture.Executor = conn
+		if held {
+			stmt, err := conn.PrepareContext(p.Ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stmt.Close()
+			x = fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}
+		}
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }
 		run(fixture.Exec("BEGIN READ ONLY", 0))
-		run(fixture.ImplicitError("CREATE RULE r AS ON INSERT TO src DO NOTHING", fixture.Diagnostic{Code: "25006", Message: "cannot execute CREATE RULE in a read-only transaction"}))
+		fixture.RunStep(t, p.Ctx, x, b.Recorder, fixture.ImplicitError(q, fixture.Diagnostic{Code: "25006", Message: "cannot execute CREATE RULE in a read-only transaction"}))
 		run(fixture.Exec("ROLLBACK", 0))
 		run(fixture.Exec("BEGIN", 0))
 		run(fixture.Exec("SAVEPOINT before_rule", 0))
-		if b.PG {
-			run(fixture.Exec("CREATE RULE r AS ON INSERT TO src DO INSTEAD NOTHING", 0))
-			run(fixture.Exec("ROLLBACK TO before_rule", 0))
-		} else {
-			run(fixture.ImplicitError("CREATE RULE r AS ON INSERT TO src DO NOTHING", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
-			run(fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
-			run(fixture.Exec("ROLLBACK TO before_rule", 0))
-		}
+		fixture.RunStep(t, p.Ctx, x, b.Recorder, fixture.Exec(q, 0))
+		run(fixture.Exec("INSERT INTO src VALUES(1,10)", 0))
+		run(ruleInts("SELECT id,v FROM src"))
+		run(fixture.ImplicitError("SELECT 1/0", fixture.Diagnostic{Code: "22012", Message: "division by zero"}))
+		run(fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
+		run(fixture.Exec("ROLLBACK TO before_rule", 0))
+		run(fixture.Exec("INSERT INTO src VALUES(2,20)", 1))
+		run(ruleInts("SELECT id,v FROM src", []any{int64(2), int64(20)}))
 		run(fixture.Exec("COMMIT", 0))
 		ruleRun(t, p, b, held, ruleRows("SELECT rulename FROM pg_rewrite WHERE ev_class='src'::regclass::oid", []string{"rulename"}, []string{"NAME"}))
 		if !b.PG {

@@ -39,6 +39,14 @@ allowing peers to read the old committed result.
   `held` flag: direct Query and a held prepared Query can expose different result
   descriptions for rule actions, so keep both routes and never relabel a
   repeated direct Query as prepared.
+- `transactionalRulesRoutes` gives each autocommit/SQL BEGIN/Go BeginTx and
+  direct/held cell its own fixture. `transactionalRulesHandles` prepares actual
+  Conn-owned utility and DML handles before BEGIN, including utility targets
+  created later. Keep those handles across definition changes and recovery;
+  `fixture.Prepared` alone does not prove prepared consumer freshness.
+- Transactional rule lock scenarios observe real pending requests before release
+  or cancellation. Event DDL holds AX: peer catalog inspection remains committed,
+  while subsequent peer DML waits for transaction end before applying its rules.
 - `*ConsumerRoutes` tests exercise the plain (non-Context) `database/sql` methods
   (`Step.NonContext`, `fixture.DeleteReferenceConsume`) for behavior that a
   Context test also covers; change both together.
@@ -66,6 +74,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Temporary views: `RUN='^TestReferenceTemporaryView'`
 - DROP VIEW/INDEX wrong kind: `RUN='^TestReferenceDropView'`
 - <a id="rewrite-rules"></a>Rewrite rules: `RUN='^TestReferenceRule'`
+- Transactional rewrite-rule definitions: `RUN='^TestReferenceTransactionalRules'`
+  (wire coverage lives in [sessions](../sessions/README.md#testing)).
 - Materialized views (create, refresh, ALTER, extensions): `RUN='^TestReferenceMaterialized'`
 - Deparse (`pg_get_constraintdef`, `pg_get_viewdef`, ...): `RUN='^TestReferenceDeparse'`
 

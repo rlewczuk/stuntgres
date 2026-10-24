@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
@@ -180,6 +181,11 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 				case *catalog.Relation:
 					if view.ViewDepends(owner, target) || view.MaterializedExtensionDepends(owner, target) || table.CheckDepends(owner, target) || table.DefaultDepends(owner, target) || table.GenerationDepends(owner, target) || index.ExpressionDepends(owner, target) {
 						return catalog.Conflict{}
+					}
+					for _, rule := range stored.RulesOf(owner) {
+						if view.RuleDepends(catalog.NewRead(nil, candidate), rule, target) {
+							return catalog.Conflict{}
+						}
 					}
 					if err := owner.VisitTriggers(func(trigger catalog.TriggerFact) error {
 						for _, address := range trigger.AutoExtensions {

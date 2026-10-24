@@ -29,9 +29,13 @@ imports `view`.
   policy binders) and `StageHost` (`Host` plus `ddl.Host` with row-type staging),
   both implemented by the root's `ddlHost`. CREATE OR REPLACE VIEW is
   `CreateTarget`, `CheckCreate` and `StageCreate`; ALTER VIEW is `AlterChange`;
-  DROP VIEW is `DropTargets`, then `RecheckDropTargets` after the waits. RULE and
-  POLICY DDL is `PlanRule` and `PlanPolicy`, which return a `RelationChange` that
-  the root stages and publishes. `FreezeDefinition` freezes view queries.
+  DROP VIEW is `DropTargets`, then `RecheckDropTargets` after the waits. RULE DDL
+  uses `BeginRule` and `RulePlan.BindCondition`, `BindAction`, `Finish`; POLICY
+  uses `PlanPolicy`. They produce a `RelationChange` for root staging/publication.
+  Each rule phase holds Engine.mu and never waits. The root admits event AX
+  first, binds the qualification, then interleaves unlocked provider admission
+  with each action's canonical binding in order. `FreezeDefinition` freezes
+  view queries.
 - **Query preflight and join legality** (`query_preflight.go`,
   `query_set_preflight.go`, `query_join_legality.go`): `PreflightQuery` copies
   the plan paths that hold folded coercions for one execution;
@@ -143,6 +147,15 @@ preparation, the row-security authority wrappers and `dropProvider`.
   checked against its actual live rule slot before composition. NEW substitution
   does not promote fresh producer calls into stored authority. Current generic
   rule-reference revisions serve invalidation, not historical call admission.
+  Definition planning and rewriting use the owner's current private catalog and
+  storage. Replacements retain exact typed action-provider dependencies; ordinary
+  rules and the implicit view `_RETURN` payload remain separate. Savepoint
+  restoration selects the restored live slot without borrowing recipe authority.
+  Across unlocked definition admission, the root retains the initial authorization
+  epoch and event-name observation separately from the granted event identity.
+  Later phases validate both through the existing publication and admission
+  fences; refreshed private provider views cannot restamp earlier authority or
+  retarget an event whose lexical resolution changed.
   Query-owned grouping and window peer-equality keys keep their own original
   declaration/reference/recipe even when NEW replaces the key's expression.
   Admission selects that exact occurrence's recipe on a local context copy and

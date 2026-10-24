@@ -85,7 +85,8 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	}
 	if !stmt.NoData {
 		s.materialized().Refresh = true
-		return s.acquireViewSources()
+		_, err := s.acquireViewSources(false)
+		return err
 	}
 	return nil
 }

@@ -74,7 +74,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 	}
 	defer func() {
 		if err == nil {
-			err = s.acquireViewSources()
+			_, err = s.acquireViewSources(false)
 		}
 		if err == nil && s.admissionWaited {
 			e := s.engine()
@@ -149,6 +149,14 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 			return err
 		}
 		return s.acquireQueryRelations(stmt, stmt, execute)
+	}
+	if _, ok := stmt.(*parser.CreateRule); ok {
+		if !execute {
+			return nil
+		}
+		// Only the event precedes qualification analysis. executeRule admits
+		// each action after the preceding canonical binding completes.
+		return s.acquireRelationTarget(stmt, stmt, true, false)
 	}
 	switch stmt.(type) {
 	case *parser.CreatePolicy, *parser.AlterPolicy:

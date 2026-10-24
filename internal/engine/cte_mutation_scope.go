@@ -110,7 +110,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 		}
 		s.queryLockAdmission.MutationTargets = append(s.queryLockAdmission.MutationTargets, analyze.MutationTarget{Statement: mutation.statement, Ref: mutation.lockedRef})
 	}
-	if err := s.acquireViewSources(); err != nil {
+	if _, err := s.acquireViewSources(false); err != nil {
 		return err
 	}
 	e := s.engine()

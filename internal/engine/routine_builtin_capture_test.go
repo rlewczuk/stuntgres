@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 )
 
@@ -166,6 +167,68 @@ func TestRoutineRuleRecipeOriginalAuthority(t *testing.T) {
 	if err := exec.AdmitRoutineReference(&conditionContext, ref, captured, "function"); err != nil {
 		t.Fatal("condition lost original declaration lifetime", err)
 	}
+	t.Run("private-current-slot-and-savepoint-authority", func(t *testing.T) {
+		committed := catalog.CloneState(state)
+		committed.SetDescriptor(table.Address(), table)
+		before := session.NewJournal()
+		created := before.Clone()
+		created.RecordDescriptor(committed, owner.Address(), &owner)
+		check := func(j *session.Journal, probe *catalog.RuleRoutineRecipe, want bool) {
+			t.Helper()
+			private := j.PrivateRead(e.catalog.owner(), committed)
+			authority := catalogAuthorization(e, private)
+			local := exec.Context{EvalAdmission: exec.EvalAdmission{RoutineAuthority: &authority}}
+			err := exec.SelectExpressionRecipe(&local, probe)
+			if !want {
+				if err == nil {
+					t.Fatal("obsolete private slot borrowed current authority")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal("genuine private slot rejected", err)
+			}
+			if err := exec.AdmitRoutineReference(&local, ref, captured, "function"); err != nil {
+				t.Fatal("private original declaration rejected", err)
+			}
+			if err := exec.AdmitRoutineDescriptor(authority.AdmissionAccess(), dependencies, captured, nil); err == nil {
+				t.Fatal("fresh producer borrowed private recipe authority")
+			}
+		}
+		check(created, recipe, true)
+		check(before, recipe, false) // rolled-back CREATE is not live authority
+		renamed := owner
+		renamedRule := rule.With(func(p *stored.RuleParts) { p.Name = "renamed_private" })
+		renamed.Rules = stored.RulesPayload([]stored.Rule{renamedRule})
+		renaming := created.Clone()
+		renaming.RecordDescriptor(committed, owner.Address(), &renamed)
+		renamedRecipe := *recipe
+		renamedRecipe.Owner = &renamed
+		check(renaming, &renamedRecipe, true)
+		replacement := presentation.With(func(p *stored.ViewParts) {
+			p.Dependencies = append([]catalog.ExpressionDependency(nil), dependencies...)
+		})
+		replaced := owner
+		replaced.Rules = stored.RulesPayload([]stored.Rule{rule.With(func(p *stored.RuleParts) {
+			p.Actions = []stored.RuleAction{stored.NewRuleAction(stored.RuleActionParts{Presentation: replacement})}
+		})})
+		replacing := created.Clone()
+		replacing.RecordDescriptor(committed, owner.Address(), &replaced)
+		newRecipe := *recipe
+		newRecipe.Owner = &replaced
+		newRecipe.Presentation = replacement
+		check(replacing, &newRecipe, true)
+		stale := *recipe
+		stale.Owner = &replaced
+		check(replacing, &stale, false)
+		check(created, &newRecipe, false) // rollback-to restores the old exact slot
+		check(created, recipe, true)
+		removed := owner
+		removed.Rules = nil
+		dropping := created.Clone()
+		dropping.RecordDescriptor(committed, owner.Address(), &removed)
+		check(dropping, recipe, false)
+	})
 	standalone := exec.Context{}
 	if err := exec.SelectExpressionRecipe(&standalone, recipe); err == nil {
 		t.Fatal("rule manifest borrowed without actual live container authority")

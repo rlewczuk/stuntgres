@@ -17,7 +17,7 @@ func PolicyOwnerNoun(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.CreatePolicy, *parser.AlterPolicy:
 		return "table"
-	case *parser.DropPolicy:
+	case *parser.DropPolicy, *parser.DropRule:
 		return "relation"
 	default:
 		return ""

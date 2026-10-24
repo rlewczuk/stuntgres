@@ -263,7 +263,7 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 		ref := refs[tc.name]
 		scope.lockedRef = ref
 		scope.querySources = []exec.Leaf{{Ref: ref, Relation: e.catalog.state.MustRelation(ref.Address), Mark: plan.RowMark{Mode: lock.ForUpdate}}}
-		err = scope.acquireViewSources()
+		_, err = scope.acquireViewSources(false)
 		if err == nil {
 			for _, want := range []struct {
 				ref  ids.ObjectRef

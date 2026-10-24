@@ -176,7 +176,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				result := make(chan error, 1)
 				joined := false
-				go func() { result <- scope.acquireViewSources() }()
+				go func() { _, err := scope.acquireViewSources(false); result <- err }()
 				defer func() {
 					cancelScan()
 					holder.Finish(nil)
@@ -205,7 +205,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					t.Fatal("stored-base admission did not resume")
 				}
 			} else {
-				err = scope.acquireViewSources()
+				_, err = scope.acquireViewSources(false)
 			}
 			if err != nil {
 				t.Fatal(err)

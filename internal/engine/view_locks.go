@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -14,7 +15,9 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-func (s *StatementScope) acquireViewSources() (err error) {
+// retainProviders captures the exact closure before waits for phased definition
+// consumers. Other callers need only the grants and avoid that allocation.
+func (s *StatementScope) acquireViewSources(retainProviders bool) (providers []exec.Leaf, err error) {
 	var grants map[ids.ObjectRef]lock.Mode
 	defer func() {
 		if err == nil {
@@ -34,13 +37,19 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	}
 	if !hasView {
 		e.mu.Unlock()
-		return nil
+		return nil, nil
 	}
 	closure, err := view.SourceWalk{Catalog: catalogView, Domain: e.catalog.Domain, Epoch: e.catalog.state.Epoch(), Locked: s.lockedRef, Leaves: s.querySources, Refresh: s.materializedOrZero().Refresh}.Closure()
 	if s.materializedOrZero().Refresh {
 		s.materialized().Sources = append(s.materializedOrZero().Sources, closure.Sources...)
 	}
 	seen, refs, retainedViews := closure.Modes, closure.Refs, closure.Retained
+	if err == nil && retainProviders {
+		for ref := range seen {
+			d := catalogView.MustRelation(ref.Address)
+			providers = append(providers, exec.Leaf{Ref: ref, Relation: d, Storage: e.privateStorageLocked(s.owner.Catalog, ref.Address)})
+		}
+	}
 	if err == nil && s.materializedOrZero().Refresh && closure.MaterializedSource {
 		leaves := closure.StoredLeaves(catalogView, s.lockedRef)
 		var physical []ids.ObjectRef
@@ -59,10 +68,10 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	}
 	e.mu.Unlock()
 	if err != nil {
-		return err
+		return providers, err
 	}
 	if err := s.acquireBoundViewRelationModes(refs, seen); err != nil {
-		return err
+		return providers, err
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -70,21 +79,21 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	if s.materializedOrZero().Refresh {
 		for _, observed := range s.materializedOrZero().Sources {
 			if !view.MaterializedSourceCurrent(s.materializedOrZero().SourceView, observed, catalogView.State(), e.privateStorageLocked(s.owner.Catalog, observed.Address())) {
-				return ids.ErrCatalogReplaced
+				return providers, ids.ErrCatalogReplaced
 			}
 		}
 	}
 	for _, view := range retainedViews {
 		for ref := range stored.ViewOf(view).References() {
 			if !stored.ViewReferenceValid(catalogView, view, ref) {
-				return ids.ErrCatalogReplaced
+				return providers, ids.ErrCatalogReplaced
 			}
 		}
 	}
 	// Membership records an acquired AccessShare grant even when the effective
 	// query rowmark is zero. Reuse this accounting only after view validation.
 	grants = seen
-	return nil
+	return providers, nil
 }
 
 func (s *StatementScope) acquireBoundViewRelations(refs []ids.ObjectRef) error {
