@@ -150,7 +150,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		return fmt.Errorf("stuntgres: entries in absent ACL")
 	}
 	acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
-	next, err := access.WithObjectACL(d, ref.Address.SubID, acl)
+	next, err := withObjectACL(d, ref.Address.SubID, acl)
 	if err != nil {
 		return err
 	}

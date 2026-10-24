@@ -28,8 +28,7 @@ No parallel language-permission table or cached grant decision exists.
   - Identity: `Ref` mints a reference in the view's epoch, `Stamp` names the
     captured publication, `Recapture` binds a substituted catalog to the same
     role root.
-  - Helpers: `DescriptorACL`, `WithObjectACL` (a copy of a descriptor with
-    a new object or column ACL), `ClassPrivileges`, `ValidateACL`. Global
+  - Helpers: `DescriptorACL`, `ClassPrivileges`, `ValidateACL`. Global
     access methods have no owner or ACL: `ValidateACL` classifies them with
     the other ownerless descriptors, while their catalog provider validates
     structural and handler authority. Owning descriptors reject every
@@ -137,7 +136,7 @@ ownerless ACL validation of access methods and casts. Engine unit tests
 exercise the checks through `AuthorizationView`.
 
 ```sh
-make check RUN='^Test(AccessMethodOwnerlessACLValidation|AdjustRelationCreationPersistence|CastDefinitionOwnerlessACL|DropOwnedPolicyTargets|OperatorFamilyMemberOwnershipValidation|OwnTemporaryNamespace|RoleReadRequiresOwnerDomainAndRoot|RowSecurity(KindDelegates|PrincipalFollows|SettingGuard)|View(RejectsForeign|TemporaryNamespaceOnly)|WithObjectACL)'
+make check RUN='^Test(AccessMethodOwnerlessACLValidation|AdjustRelationCreationPersistence|CastDefinitionOwnerlessACL|DropOwnedPolicyTargets|OperatorFamilyMemberOwnershipValidation|OwnTemporaryNamespace|RoleReadRequiresOwnerDomainAndRoot|RowSecurity(KindDelegates|PrincipalFollows|SettingGuard)|View(RejectsForeign|TemporaryNamespaceOnly))'
 make check RUN='^Test(AccessView|RoleStore|DatabaseTemporaryCapturedRights|DataTypePrivilegesCapture|ObjectACLAddressLookup|RLS|Ownership|RoleOwnership|DropOwned|ReassignOwned)'
 make check RUN='^TestReference(AccessRole|ForeignActionsAuthorization|SchemaAuthorization$$|TypedTableAuthorization$$)'
 ```
