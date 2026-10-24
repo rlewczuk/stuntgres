@@ -29,7 +29,16 @@ implement its slots, so either import would form a cycle.
   `MissingRelation`) are in `notices.go`.
 - **Transaction owner** (`owner.go`, `savepoint_marks.go`, `protocol_cycle.go`):
   `TransactionOwner` with its state, characteristics, admission and journal;
-  `TxState`, `Isolation`, `TxOptions`, `SavepointMark`, `ProtocolCycle`. Checked
+  `TxState`, `Isolation`, `TxOptions`, `SavepointMark`, `ProtocolCycle`.
+  Owner transitions (`owner_transitions.go`) edit only owner fields and the
+  settings store's characteristic projections: `BeginLocked` (begin defaults),
+  `Clear`, `Abort`, `ChainModes` and `InstallChain` (AND CHAIN),
+  `PrepareRefusal` and `PreparedEntry`. Savepoint marks: `CaptureSavepoint`
+  completes a mark the root seeded with its lock checkpoint, cursor ordinal and
+  exclusion slot; `FindSavepoint` skips internal marks; `RollbackToLocked`
+  restores owner state and settings (`SettingsStore.RestoreSavepointLocked`).
+  The root runs its cursor, portal, extension, exclusion and SSI work around
+  them, payload first. Checked
   handles (`owner_handles.go`) recover owners from the `ids` interfaces;
   `AssignModes` and `CharacteristicMode` decide transaction modes
   (`transaction_characteristics.go`); `SerializableWriteSurvives` tells rollback
@@ -43,6 +52,13 @@ implement its slots, so either import would form a cycle.
   admissions. Root lifecycle cleanup releases the owner pair at transaction end.
   `SnapshotSet` also records that RC execution has acquired a snapshot, closing
   the transaction-characteristics window without retaining a transaction pair.
+- **2PC registry** (`prepared_registry.go`): `PreparedRegistry` of
+  `PreparedTransaction` entries by GID, under `Engine.mu`, with `Lookup`,
+  `Len`, `All`, `ReserveLocked` (before the callback-free install),
+  `InstallLocked`, `RemoveLocked`, `ClaimLocked`/`ReleaseLocked` and
+  `PublicationPreflightLocked` over a `PreparedPublication`.
+  `PreparedTransaction.CheckActor` takes the roles as an `authorization.Read`
+  value; the claim shares its permission check.
 - **Settings store** (`settings_store.go`): `SettingsStore` (values, defaults,
   provider provenance, SET LOCAL and role setting actions, characteristic
   projections) and `SettingsMark`. Default providers run once at physical
@@ -146,8 +162,11 @@ implement its slots, so either import would form a cycle.
 ## What stays in the engine
 
 The statement scope and dispatch, and all orchestration across catalog, storage
-and visibility: begin, commit, rollback and CHAIN (`transaction*.go`),
-publication, preflight and 2PC, savepoints (`savepoints.go`), session start,
+and visibility: the `Engine.mu` windows of begin, commit, rollback and CHAIN
+(`transaction*.go`), of PREPARE and COMMIT/ROLLBACK PREPARED with the role read,
+SSI and lock-manager calls (`transaction_prepared.go`), and of savepoints
+(`savepoints.go`, with `restoreSavepointLocked` shared by ROLLBACK TO and
+failed-statement or PL/pgSQL rollback), publication and preflight, session start,
 settings application (`setting_apply.go`, `discard.go`), the `Engine.mu`
 windows of notification publication and polling, the `…Locked` journal
 wrappers, the root fence types and the fence check order, and the root slot
@@ -156,14 +175,15 @@ types.
 ## Testing
 
 Package units cover the journal with its fences, capture and merge, notices,
-SET LOCAL actions, the notification
+SET LOCAL actions, the 2PC registry's claim and preflight, CHAIN modes and
+PREPARE refusals, the notification
 queue, registry and publication, characteristic modes, serializable write
 survival, the `lc_messages` access callback and the UUID v1 allocator. Engine
 tests (in `internal/engine`) cover the host and root slots, catalog fences,
 column-shape projections and settings provider capture.
 
 ```sh
-make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|SerializableWriteSurvives|SettingAccessAllowedCallback|SettingsLocal|UUIDOsspTime)'
+make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|SerializableWriteSurvives|SettingAccessAllowedCallback|SettingsLocal|UUIDOsspTime)'
 make check RACE=1 RUN='^Test(SessionHost|SessionPayload|OwnerExtension|ExclusionMark|Operation(AnalysisSlot|ReplaySlot)|UUIDOsspTimeConcurrent$$)'
 make check RUN='^Test(CatalogFences|EnumProvenanceSavepoints|AlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection)$$)'
 make check RUN='^Test(PGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)|RowSecurity(SettingProvenance|ProviderLifecycle))$$'

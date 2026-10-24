@@ -10,15 +10,15 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `6d78b74d5`.
+Last verified against `master` at `cadb6dba6`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 160 (session, 2PC), 163 (exec, cursors), 165 (session, protocol codec)
-  and 166 (ddl, CREATE DATABASE).
+- 161 (session, statement classification), 163 (exec, cursors), 165
+  (session, protocol codec) and 166 (ddl, CREATE DATABASE).
 
 ## Linear plan
 
@@ -94,9 +94,16 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      materialized view Restore/snapshot selections, and `RACE=1`
      `TestReferenceRowSecurityTransactions` passed; racecheck/finalcheck
      skipped at user request
-160. [ ] Session: owner transitions and the 2PC registry —
+160. [x] Session: owner transitions and the 2PC registry —
      [session](ENGINE-SPLIT-session.md#item-160--owner-transitions-and-the-2pc-registry)
-     · needs — · 0.20k
+     · needs — · 0.20k (`af02a443f`, `ac427b956`, `225857607`, then the docs
+     commit) · `transaction_prepared.go` 221 → 145 lines, root 402 files and
+     49.8k → 49.7k lines · no startup allocation change · targeted units (also
+     `RACE=1`), quickcheck, `make deps` and the quick and `REFERENCE=1`
+     prepared-transaction, transaction-control, advisory-xact and savepoint
+     selections passed (`REFERENCE=1` hit a load-dependent PostgreSQL-side race
+     in `TestReferenceAdvisoryXactPreparedTransactions`, then passed);
+     racecheck/finalcheck skipped at user request
 161. [ ] Session: statement classification —
      [session](ENGINE-SPLIT-session.md#item-161--statement-classification) ·
      needs 160 · 0.17k

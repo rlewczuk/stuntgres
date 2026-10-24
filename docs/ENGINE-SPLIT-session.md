@@ -274,7 +274,46 @@ run `make bench` before and after.
     `8ee510460`, `9b91b59d0`, `c0fa3a453`) and `restore_provider.go`
     (59 lines, `7ab862ceb`). Root production code grew about 1.3k net from
     `9942278d2` to `c0fa3a453`.
-- 160: not started.
+- 160: done (`af02a443f`, `ac427b956`, `225857607`, then the docs commit).
+  - On `session`: `PreparedRegistry` (`Lookup`, `Len`, `All`, `ReserveLocked`,
+    `InstallLocked`, `RemoveLocked`, `ClaimLocked`, `ReleaseLocked`,
+    `PublicationPreflightLocked`), `PreparedTransaction` with `CheckActor`,
+    and `PreparedPublication` (`prepared_registry.go`); owner methods
+    `BeginLocked`, `Clear`, `Abort`, `ChainModes`, `InstallChain`,
+    `PrepareRefusal`, `PreparedEntry` (`owner_transitions.go`),
+    `CaptureSavepoint`, `FindSavepoint`, `RollbackToLocked`; and
+    `SettingsStore.RestoreSavepointLocked`, which replaces `RestoreSavepoint`.
+  - The root keeps the role read in `preparedActorLocked`, the
+    visibility/SSI/lock calls, `clearTransaction` (cursors, portals, foreign,
+    exclusions, then `Clear`) and a new `restoreSavepointLocked` (cursors,
+    portals, `RollbackToLocked`, exclusions) shared by ROLLBACK TO and
+    `restoreSavepoint`; each keeps its own SSI calls and order.
+  - Deviations: `PrepareRefusal` and `PreparedEntry` are owner methods, not
+    registry ones, because they run under `t.Mu` without `Engine.mu`.
+    `PreparedEntry` takes the statement's `ref`, so the stale-preparing check
+    keeps its meaning. `restoreSavepoint` now takes Engine.mu → Settings.Mu →
+    Session.Mu once instead of three separate windows (same order).
+  - Root 402 files and 49.8k → 49.7k lines (−0.15k); `session` gains 0.31k
+    production lines.
+  - Tests: none moved (all use engine fixtures). Adapted to the new names:
+    `transaction_prepared_test.go`, `transaction_prepared_boundary_test.go`,
+    `transaction_prepared_snapshot_test.go`, `transaction_identity_test.go`,
+    `pg_locks_test.go`, `notification_publication_test.go`,
+    `commit_timestamp_test.go`, `advisory_xact_snapshot_test.go`,
+    `driver_batch_{role_retirement,detached_identity,prepared_admission}_test.go`,
+    `foreign_actions_locks_test.go`, `exclusion_lifecycle_test.go`,
+    `vacuum_{review_regressions,visibility}_test.go`,
+    `catalog_source_contract_test.go` and
+    `row_security_provider_lifecycle_test.go`. New session units:
+    `prepared_registry_test.go`, `owner_transitions_test.go`.
+  - For item 167: new root feature code since 155: the trigger DDL family
+    (`trigger_ddl.go`, `trigger_stage.go`, `trigger_lifecycle.go`,
+    `statement_host_trigger.go`, `plpgsql_trigger.go`,
+    `trigger_authorization.go`, 0.78k, `8d86f11c0`, `6d78b74d5`),
+    `plpgsql_cursor.go` (0.45k, `3a9e5f701`), `plpgsql_loop.go` (85 lines,
+    `cadb6dba6`), `catalog_name_locks.go` and `transactional_schema.go`
+    (0.33k, `b1787a044`), and `range_reown.go` and
+    `restore_range_constructor.go` (86 lines, `212c92013`).
 - 161: not started.
 - 162: not started.
 - 164: not started.
