@@ -2,6 +2,12 @@ information_schema.role_routine_grants now exposes ten domain-typed columns over
 real routine EXECUTE grant origins, preserving named grantors, grant options and
 enabled-role visibility across direct and prepared metadata reads.
 
+PL/pgSQL integer FOR supports private integer counters, ascending and REVERSE
+ranges, entry-time bounds and positive BY steps, labelled control transfers and
+overflow-safe endpoints through direct/prepared calls and native round trips.
+Invalid target lists retain declaration-sensitive unknown-variable, constant and
+whole-row diagnostics rather than a blanket single-target error.
+
 information_schema.role_table_grants now exposes eight domain-typed columns and
 live table ACL origins, including grant options, inherited enabled roles and
 enabled-grantor PUBLIC grants. Direct and prepared reads refresh after grant,

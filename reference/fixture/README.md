@@ -134,8 +134,11 @@ production dependency is involved.
   - `SleepActiveCancelWithContext` and `PLpgSQLLoopActiveCancel` accept an
     independently observed PostgreSQL diagnostic Context. The loop wrapper admits
     the actual `executePLLoop` worker, including an empty body, without a sleep wait
-    event. Other helpers require empty Context. Native cancellation returns
-    `context.Canceled`.
+    event. Helpers without a Context argument require empty Context. Native
+    cancellation returns `context.Canceled`.
+  - `PLpgSQLIntegerForActiveCancel` uses the same admission/cancel/join contract
+    with the live `executePLIntegerFor` frame and caller-specified PostgreSQL
+    Context. Finite integer ranges need no sleep statement or wait event.
   - `BinaryConversionActiveCancelAfter` runs a progress callback after admission
     and before cancellation, on the supplied context and a different connection;
     consumers assert a real progress transition, not a timer.

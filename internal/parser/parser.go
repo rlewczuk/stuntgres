@@ -148,6 +148,7 @@ type lexeme struct {
 	text           string
 	raw            string
 	pos            Position
+	plOperandEnd   Position // Snapshot on an emitted procedural operand delimiter.
 	keyword        *keyword
 	numeric        bool
 	generic        bool
@@ -406,6 +407,9 @@ func (l *lexer) syntax(tok lexeme) {
 
 func (l *lexer) Error(_ string) {
 	if l.err == nil && l.plMode {
+		if l.plUnknownStatementDiagnostic() {
+			return
+		}
 		if l.plForeachDiagnostic() {
 			return
 		}

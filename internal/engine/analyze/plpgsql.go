@@ -59,11 +59,13 @@ func (b *Binder) plLocal(names []string, pos parser.Position) (expr.Expr, bool, 
 }
 
 func (b *Binder) plParameter(raw parser.ParameterExpr) (expr.Expr, error) {
-	if raw.Number <= 0 || raw.Number > b.PL.Program.FormalCount {
-		return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", raw.Number), raw.Pos)
+	if raw.Number > 0 {
+		node, found, err := b.plLocal([]string{"$" + strconv.Itoa(raw.Number)}, raw.Pos)
+		if found || err != nil {
+			return node, err
+		}
 	}
-	node, _, err := b.plLocal([]string{"$" + strconv.Itoa(raw.Number)}, raw.Pos)
-	return node, err
+	return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", raw.Number), raw.Pos)
 }
 
 func (b *Binder) Column(raw parser.ColumnExpr) (expr.Expr, error) {

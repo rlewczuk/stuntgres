@@ -74,20 +74,21 @@ type PLTarget struct {
 	Steps []parser.TargetStep
 }
 type PLInstruction struct {
-	Syntax    *parser.PLStatement
-	Query     *parser.Select
-	Block     *PLBlock
-	Target    PLTarget
-	If        *PLConditional
-	Case      *PLConditional
-	Cursor    *PLCursorInstruction
-	Loop      *PLBlock
-	Transfer  *PLControl
-	QueryLoop *PLQueryLoop
-	Foreach   *PLForeach
-	Raise     *PLRaise
-	Assert    *PLAssert
-	Into      *PLInto
+	Syntax     *parser.PLStatement
+	Query      *parser.Select
+	Block      *PLBlock
+	Target     PLTarget
+	If         *PLConditional
+	Case       *PLConditional
+	Cursor     *PLCursorInstruction
+	Loop       *PLBlock
+	Transfer   *PLControl
+	QueryLoop  *PLQueryLoop
+	Foreach    *PLForeach
+	IntegerFor *PLIntegerFor
+	Raise      *PLRaise
+	Assert     *PLAssert
+	Into       *PLInto
 }
 type PLQueryLoop struct {
 	Target PLTarget
@@ -106,6 +107,13 @@ type PLInto struct {
 	Query   parser.Statement
 	Targets []PLTarget
 	Strict  bool
+}
+type PLIntegerFor struct {
+	Lower, Upper, Step *parser.Select
+	Counter            int
+	Name               string
+	Reverse            bool
+	Body               *PLBlock
 }
 type PLConditional struct {
 	Search     *parser.Select
@@ -213,7 +221,7 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 	p.FoundSlot = len(p.Variables)
 	p.Variables = append(p.Variables, PLVariable{Name: "found", Usage: found, Role: PLFoundSlot})
 	nextControl := 2
-	var compile func(*parser.PLBlock, []*PLBlock) (*PLBlock, error)
+	var compile func(*parser.PLBlock, []*PLBlock, ...map[string]int) (*PLBlock, error)
 	var compileStatements func([]parser.PLStatement, []*PLBlock) ([]PLInstruction, error)
 	var compileConditional func(*parser.PLConditional, bool, []*PLBlock) (*PLConditional, error)
 	compileConditional = func(raw *parser.PLConditional, simple bool, scopes []*PLBlock) (*PLConditional, error) {
@@ -317,6 +325,29 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 				if err == nil {
 					err = diagnostics.expression(p, definition.Source, rawAssert.Message.Start, rawAssert.Message.End, scopes)
 				}
+			case statement.IntegerFor != nil:
+				rawLoop := statement.IntegerFor
+				name, nameErr := p.integerForTarget(rawLoop, scopes)
+				if nameErr != nil {
+					return nil, nameErr
+				}
+				if err := diagnostics.integerFor(p, definition.Source, rawLoop, scopes); err != nil {
+					return nil, err
+				}
+				usage, record, typeErr := resolve(parser.PLType{Type: parser.TypeName{Name: "int4", Schema: &parser.Identifier{Text: "pg_catalog"}}})
+				if typeErr != nil {
+					return nil, typeErr
+				}
+				if record || !usage.Valid() || usage.Type.ID() != sqltype.Int4 {
+					return nil, fmt.Errorf("stuntgres: missing integer FOR type")
+				}
+				slot := len(p.Variables)
+				p.Variables = append(p.Variables, PLVariable{Name: name, Usage: usage, Role: PLIntegerForSlot})
+				body, bodyErr := compile(rawLoop.Body, scopes, map[string]int{name: slot})
+				if bodyErr != nil {
+					return nil, bodyErr
+				}
+				instruction.IntegerFor = &PLIntegerFor{Lower: plOperandQuery(rawLoop.Lower), Upper: plOperandQuery(rawLoop.Upper), Step: plOperandQuery(rawLoop.Step), Counter: slot, Name: name, Reverse: rawLoop.Reverse, Body: body}
 			case statement.Foreach != nil:
 				rawLoop := statement.Foreach
 				targets, targetErr := p.foreachTargets(rawLoop, scopes)
@@ -414,8 +445,11 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 		}
 		return instructions, nil
 	}
-	compile = func(raw *parser.PLBlock, scopes []*PLBlock) (*PLBlock, error) {
+	compile = func(raw *parser.PLBlock, scopes []*PLBlock, initial ...map[string]int) (*PLBlock, error) {
 		block := &PLBlock{Syntax: raw, Label: raw.Label.Text, Bindings: make(map[string]int), Control: &PLControl{ID: nextControl, Loop: raw.IsLoop}}
+		if len(initial) != 0 {
+			maps.Copy(block.Bindings, initial[0])
+		}
 		nextControl++
 		scopes = append(scopes, block)
 		for _, decl := range raw.Declarations {

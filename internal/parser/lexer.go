@@ -22,6 +22,7 @@ type lexer struct {
 	current                                          lexeme
 	// Scanner/lookahead reuse current; this records only tokens returned to yacc.
 	previousToken int
+	plClosingLoop bool // Immediately after END LOOP, not an opening LOOP.
 	// Contextual role payload words are not global SQL keywords.
 	roleHead int
 	// Operator definition options share type syntax, including SETOF, without
@@ -45,31 +46,35 @@ type lexer struct {
 	ruleDefinition    bool // Rule actions use ordinary query expressions, not standalone VALUES replay.
 	insertScalarEnd   int
 	// Selected calls are arguments only beneath an admitted call/operator.
-	selectedInputDepth int
-	typeInputEntry     bool
-	typeInputMode      bool
-	typeInputResult    TypeName
-	typeInputNotice    func(sqlstate.Error)
-	options            Options
-	routineBodyDepth   int // SQL-standard body input syntax; never changes outer prewalk policy.
-	plEntry, plMode    bool
-	plResult           *PLBlock
-	plExpression       bool
-	plThen             bool
-	plReturnPolicy     PLReturnPolicy
-	plReturnPending    bool
-	plBoundary         plExpressionBoundary
-	plBoundaryDepth    int
-	plBoundaryTokens   int
-	plBoundaryHit      int
-	plLastTokenEnd     Position
-	plPriorTokenEnd    Position
-	plForeachSource    Position // Failure-only delimiter provenance; never executable syntax.
-	plAfterForeach     bool
-	plAssignmentHead   lexeme
-	plCapture          *PLIntoStatement
-	plTargetsEntry     bool
-	plTargetsResult    []Expr
+	selectedInputDepth         int
+	typeInputEntry             bool
+	typeInputMode              bool
+	typeInputResult            TypeName
+	typeInputNotice            func(sqlstate.Error)
+	options                    Options
+	routineBodyDepth           int // SQL-standard body input syntax; never changes outer prewalk policy.
+	plEntry, plMode            bool
+	plResult                   *PLBlock
+	plExpression               bool
+	plThen                     bool
+	plReturnPolicy             PLReturnPolicy
+	plReturnPending            bool
+	plBoundary                 plExpressionBoundary
+	plBoundaryDepth            int
+	plBoundaryTokens           int
+	plBoundaryHit              int
+	plLastTokenEnd             Position
+	plPriorTokenEnd            Position
+	plForeachSource            Position // Failure-only delimiter provenance; never executable syntax.
+	plAfterForeach             bool
+	plAssignmentHead           lexeme
+	plCapture                  *PLIntoStatement
+	plTargetsEntry             bool
+	plTargetsResult            []Expr
+	plStatementBoundaryPending bool
+	plUnknownHead              lexeme // Failure-only SQL-statement terminator provenance.
+	plIntegerHeader            bool
+	plIntegerReversePending    bool
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool
@@ -870,6 +875,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 	}
 	if l.plMode {
+		if l.plIntegerReversePending {
+			l.plIntegerReversePending = false
+			if !quotedIdentifierLexeme(token.lexeme) && token.lexeme.text == "reverse" {
+				token.code = PL_REVERSE
+			}
+		}
+		if l.plIntegerHeader && token.code == IN && l.previousToken != '.' {
+			l.plIntegerHeader = false
+			l.plIntegerReversePending = true
+		}
 		if l.plAssignmentHead.pos.Character != 0 && (token.code == '=' || token.lexeme.text == ":=" || token.code == ';') {
 			l.plAssignmentHead = lexeme{}
 		}
@@ -887,7 +902,20 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	if l.plMode && !l.plExpression {
 		quoted := quotedIdentifierLexeme(token.lexeme)
-		if !quoted && (token.lexeme.keyword != nil || token.code == IDENT) {
+		if token.code == FOR {
+			integer, reverse := l.plIntegerForAhead()
+			if l.err != nil {
+				return 0
+			}
+			if integer {
+				token.code = PL_INTEGER_FOR
+				l.plIntegerHeader = true
+			} else if reverse.Character != 0 {
+				l.failAt("42601", "cannot specify REVERSE in query FOR loop", reverse.Offset)
+				return 0
+			}
+		}
+		if !quoted && !l.plClosingLoop && (token.lexeme.keyword != nil || token.code == IDENT) {
 			switch token.lexeme.text {
 			case "return":
 				if l.previousToken != END {
@@ -1763,6 +1791,18 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			l.plAssignmentHead = token.lexeme
 		}
 	}
+	if l.plMode {
+		if token.code == '=' || token.lexeme.text == ":=" {
+			l.plUnknownHead = lexeme{}
+		}
+		if l.plStatementBoundaryPending {
+			l.plStatementBoundaryPending = false
+			l.plUnknownHead = lexeme{}
+			if token.code == IDENT || token.code == KW_U || token.code == KW_C || token.code == KW_T {
+				l.plUnknownHead = token.lexeme
+			}
+		}
+	}
 	l.current = token.lexeme
 	v.tok = token.lexeme
 	if l.plMode {
@@ -1781,6 +1821,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 	}
 	l.temporalLead = token.code == TIMESTAMP || token.code == TIME || token.code == IDENT && columnType(token.lexeme).Quoted && (token.lexeme.text == "timestamp" || token.lexeme.text == "time")
+	l.plClosingLoop = token.code == PL_LOOP && l.previousToken == END
 	l.previousToken = token.code
 	return token.code
 }

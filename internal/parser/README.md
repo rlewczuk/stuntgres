@@ -128,6 +128,14 @@ Static query FOR retains an existing positioned target, an ordinary SQL statemen
 and its own query/LOOP boundary. SELECT/WITH and DML use the same SQL grammar;
 the procedural delimiter is recognized only outside parentheses/brackets and
 only from an unquoted identifier/keyword token, never a string's decoded payload.
+Integer FOR retains ordered target expressions/comma positions, REVERSE position
+and separate lower/upper/optional-BY scalar projection spans. A bounded raw-token header probe
+selects the range production without consuming live state or changing cursor/query
+FOR. Only depth-zero `..`, BY and LOOP delimit operands; scalar grammar owns the
+expressions and aliases. Consumed delimiter terminals carry emission-time operand
+ends, so alias reductions and later lookahead cannot change their spans. REVERSE
+is a one-shot header introducer after IN. Counter-name admission belongs to checked
+compilation; integer-loop closing labels are checked after the required semicolon.
 FOREACH retains existing name/field targets, target-comma positions,
 explicit-versus-omitted SLICE and a positioned scalar array expression. Its
 target grammar excludes subscripts without restricting ordinary assignments
@@ -151,6 +159,12 @@ the broader assignment/FETCH target grammar. The bounded targets use the
 generated PL target-list entry; SQL table-creation INTO remains a separate AST.
 An isolated procedural target without an assignment operator is rejected at its
 original head token, not at the following statement delimiter.
+
+Statement-list boundaries also retain an unknown identifier head until a real
+assignment operator clears it. On grammar failure only, a bounded scanner checks
+whether the required statement semicolon is absent at EOF; it never interprets
+unknown SQL or changes accepted syntax. Closing END LOOP labels have their own
+lexical context, distinct from statements following an opening LOOP.
 Diagnostic compound-name accounting scans bounded original expression and
 assignment-target tokens, not SQL AST node kinds. It shares identifier/Unicode
 decoding with the lexer and applies PL's reserved-word list and greedy,

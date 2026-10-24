@@ -15,6 +15,7 @@ const (
 	PLFoundSlot
 	PLCursorArgumentSlot
 	PLLoopRecordSlot
+	PLIntegerForSlot
 )
 
 // Recipes contain immutable syntax and lexical slot references only. All typed

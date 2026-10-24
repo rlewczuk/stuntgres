@@ -9,7 +9,9 @@ Rule rewriting, view-write lowering and RLS walkers are in
 [`dml`](../dml/README.md).
 
 Reached PL expressions use the ordinary binder with private lexical slots and
-current RECORD shapes; PL `$n` counts all formals, while SQL stays input-only.
+current RECORD shapes. PL `$n` resolves the current lexical name first, including
+an integer-FOR private counter; outside that scope it identifies all formals.
+Unbound positional names remain errors, while SQL stays input-only.
 Assignment tries declared/ordinary assignment casts before descriptor I/O fallback.
 Simple CASE private search bindings bypass catalog ambiguity lookup and capture
 the activation's complete scalar Usage in the ordinary PL-local expression.

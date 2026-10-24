@@ -143,8 +143,8 @@ scalar lists stage every candidate, including repeated roots, before publication
 The higher root owns reached SQL binding, conversion, handler admission and
 execution. PL VOID uses non-NULL `VoidValue`; procedure completion is separate.
 PL nesting borrows the same balanced SQL-body/root guard, not a second counter.
-Conditional statement lists reuse their enclosing lexical scopes; only BEGIN
-introduces declarations. Loop scopes retain label identity without new local slots.
+Conditional statement lists reuse their enclosing lexical scopes; BEGIN owns
+declarations. Loop scopes retain label identity and any loop-owned private slots.
 Immutable acyclic control tokens identify each executable block/loop and the
 hidden function namespace; transfers retain the exact enclosing target token.
 Validation reconstructs owner order, kind, ancestry and condition queries, including
@@ -154,6 +154,20 @@ the enclosing namespace, without cursor recipes, implicit records or extra Usage
 Their ordinary statement syntax, source spans, target and loop body are checked
 together. Query and body compound names participate in the diagnostic ledger in
 lexical order without a cursor-private ROW datum.
+Integer FOR compiles its target-derived private name and operand queries in the
+outer namespace before publishing an unconstrained INT4 slot on the labelled body.
+The single typed authority is Variables; qualified and parameter-shaped targets
+name new datums, not field/formal writes. The walker evaluates and converts bounds
+and optional positive step once per entry, uses independent overflow-safe machine
+progression, and clears the counter on every exit. Context fences include empty
+and CONTINUE-only bodies. Successful completion publishes intrinsic FOUND;
+errors preserve its previous value. Validation reconstructs slot, query, scope,
+source and control ownership; replacement reuses generic Variables remapping.
+Comma-list targets use existing outer lexical datums and assignability first,
+with declaration-sensitive unknown/constant/whole-row diagnostics in written
+order, before integer-FOR's single-target rejection. A single target never
+inherits those destination constraints. Only exactly one target can appear in
+an accepted checked program; parser comma metadata remains syntax-only.
 FOREACH instructions resolve ordered existing targets in the enclosing scope
 and retain one source query, slice syntax and a loop owner, with no extra typed
 captures. Compiler and validator share FOREACH-only admission: no subscript

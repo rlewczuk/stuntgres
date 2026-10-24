@@ -161,6 +161,8 @@ func (r *PLRun) Statements(statements []PLInstruction) (sqltype.Value, PLFlow, e
 			value, flow, err = r.Block(instruction.Block)
 		case instruction.If != nil || instruction.Case != nil:
 			value, flow, err = r.conditional(instruction)
+		case instruction.IntegerFor != nil:
+			value, flow, err = r.executePLIntegerFor(instruction)
 		case instruction.Foreach != nil:
 			value, flow, err = r.foreach(instruction)
 		case instruction.Into != nil:

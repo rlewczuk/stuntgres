@@ -136,6 +136,9 @@ after fatal cleanup failure.
 Loop scenarios reuse the same direct/prepared, held and replay helpers for bounded
 iteration, nested label transfers, reached WHEN evaluation, complete diagnostics,
 protected effects and actively admitted cancellation.
+Integer-range scenarios additionally cover private INT4 names, entry-time bounds,
+positive steps, inclusive overflow-safe traversal, labels/FOUND and retained
+handles/native replay. Family selector: `RUN='^TestReferencePLpgSQLIntegerFor'`.
 RAISE/ASSERT scenarios reuse the PL value/complete-diagnostic helpers and the
 shared notice-enabled fixture. They cover ordered operands, lazy assertions,
 effective settings, held calls and stored callers through unchanged replay.

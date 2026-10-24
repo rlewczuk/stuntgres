@@ -53,6 +53,7 @@ type PLStatement struct {
 	Cursor              *PLCursorStatement
 	QueryLoop           *PLQueryLoop
 	Foreach             *PLForeach
+	IntegerFor          *PLIntegerFor
 	Raise               *PLRaise
 	Assert              *PLAssert
 	Into                *PLIntoStatement
@@ -77,6 +78,17 @@ type PLForeach struct {
 	SlicePos       Position
 	Source         PLExpression
 	Body           *PLBlock
+}
+
+// PLIntegerFor retains target/comma syntax for declaration-sensitive admission.
+// A single target supplies a private name, not a destination assignment.
+type PLIntegerFor struct {
+	Targets            []Expr
+	TargetCommas       []Position
+	Reverse            bool
+	ReversePos         Position
+	Lower, Upper, Step PLExpression
+	Body               *PLBlock
 }
 
 // ValidPLForeachSlice is the nonnegative signed-32-bit ICONST invariant shared
@@ -156,6 +168,8 @@ const (
 	plLoopBoundary
 	plMessageBoundary
 	plOptionBoundary
+	plRangeLowerBoundary
+	plRangeUpperBoundary
 )
 
 func (l *lexer) plBeginExpression(boundary plExpressionBoundary) {
@@ -175,6 +189,10 @@ func (l *lexer) plExpressionToken(token rawToken) rawToken {
 	if l.plBoundaryDepth == 0 {
 		code := 0
 		switch {
+		case l.plBoundary == plRangeLowerBoundary && token.code == DOT_DOT:
+			code = DOT_DOT
+		case l.plBoundary == plRangeUpperBoundary && l.previousToken != '.' && token.lexeme.keyword != nil && token.lexeme.text == "by":
+			code = PL_BY
 		case token.code == THEN && (l.plBoundary == plThenBoundary || l.plBoundary == plWhenItemBoundary):
 			code = PL_THEN
 		case token.code == WHEN && l.plBoundary == plWhenBoundary:
@@ -189,11 +207,12 @@ func (l *lexer) plExpressionToken(token rawToken) rawToken {
 			code = ';'
 		case token.code == ';' && l.plBoundary == plSemicolonBoundary:
 			code = ';'
-		case l.plBoundary == plLoopBoundary && (token.lexeme.keyword != nil || token.code == IDENT) && !quotedIdentifierLexeme(token.lexeme) && token.lexeme.text == "loop":
+		case (l.plBoundary == plLoopBoundary || l.plBoundary == plRangeUpperBoundary) && l.previousToken != '.' && (token.lexeme.keyword != nil || token.code == IDENT) && !quotedIdentifierLexeme(token.lexeme) && token.lexeme.text == "loop":
 			code = PL_LOOP
 		}
 		if code != 0 {
 			token.code = code
+			token.lexeme.plOperandEnd = l.plLastTokenEnd
 			if code == PL_LOOP {
 				l.plForeachSource = Position{}
 			}
@@ -267,6 +286,11 @@ func (l *lexer) plBoundExpression(raw PLExpression, predecessor lexeme) PLExpres
 	return raw
 }
 
+func (l *lexer) plDelimitedExpression(raw PLExpression, predecessor, delimiter lexeme) PLExpression {
+	raw.End, raw.Delimiter = delimiter.plOperandEnd, delimiter.pos
+	return l.plBoundExpression(raw, predecessor)
+}
+
 // Expressions and cursor queries share the same grammar-supplied boundary.
 func (l *lexer) plSourceStart(end, delimiter Position, predecessor lexeme) Position {
 	probe := lexer{
@@ -330,6 +354,11 @@ func ParsePLpgSQL(source string, returns PLReturnPolicy) (*PLBlock, error) {
 }
 
 func (l *lexer) plBlock(label Identifier, declarations []PLDeclaration, statements []PLStatement, end Identifier, pos Position) *PLBlock {
+	l.plCheckEndLabel(label, end)
+	return &PLBlock{Label: label, EndLabel: end, Declarations: declarations, Statements: statements, Pos: pos}
+}
+
+func (l *lexer) plCheckEndLabel(label, end Identifier) {
 	if end.Text != "" && end.Text != label.Text {
 		message := fmt.Sprintf(`end label "%s" differs from block's label "%s"`, end.Text, label.Text)
 		if label.Text == "" {
@@ -337,7 +366,6 @@ func (l *lexer) plBlock(label Identifier, declarations []PLDeclaration, statemen
 		}
 		l.failAt("42601", message, end.Pos.Offset)
 	}
-	return &PLBlock{Label: label, EndLabel: end, Declarations: declarations, Statements: statements, Pos: pos}
 }
 
 func (l *lexer) plLoop(label Identifier, statements []PLStatement, end Identifier, pos Position) *PLBlock {
@@ -346,9 +374,12 @@ func (l *lexer) plLoop(label Identifier, statements []PLStatement, end Identifie
 	return block
 }
 
-// A bare target is not a statement. Diagnose its original head token rather
-// than the delimiter that made the missing assignment operator apparent.
+// A bare target is not a statement. Preserve a statement-owned missing
+// terminator before diagnosing the original head of a terminated bare target.
 func (l *lexer) plBareTarget(target Expr) {
+	if l.err == nil && l.plUnknownStatementDiagnostic() {
+		return
+	}
 	position := target.SourcePosition()
 	probe := lexer{input: l.input, offset: position.Offset, positionOffset: position.Offset, positionCharacters: position.Character - 1}
 	l.syntax(probe.nextRaw().lexeme)

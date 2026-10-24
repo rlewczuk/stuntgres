@@ -72,6 +72,7 @@ package parser
  plQuery plCursorQuery
  plQueryLoop *PLQueryLoop
  plForeach *PLForeach
+ plIntegerFor *PLIntegerFor
  plMotion PLCursorMotion
  plActual PLCursorActual
  plActuals []PLCursorActual
@@ -248,6 +249,7 @@ package parser
 %token <tok> TRIGGER
 %token <tok> PL_OPEN PL_LOOP PL_NEXT PL_PRIOR PL_LAST PL_EXIT PL_CONTINUE
 %token <tok> PL_FOREACH PL_SLICE
+%token <tok> PL_INTEGER_FOR PL_REVERSE PL_BY
 %token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
@@ -539,6 +541,9 @@ package parser
 %type <plQueryLoop> pl_query_loop_source
 %type <plForeach> pl_foreach_slice
 %type <plForeach> pl_foreach_targets
+%type <plIntegerFor> pl_integer_targets pl_integer_lower pl_integer_upper pl_integer_step pl_integer_range
+%type <plExpression> pl_integer_operand
+%type <tok> pl_integer_in pl_integer_reverse
 %type <expr> pl_foreach_target
 %type <tok> pl_foreach_array
 %type <stmt> pl_query_loop_statement
@@ -1732,8 +1737,8 @@ pl_type: declared_type {$$=PLType{Type:$1}}
  | declared_type '.' name '%' PL_TYPE_COPY {$$=plCopiedType($1,false);$$.Copy.Parts=append($$.Copy.Parts,Identifier{Text:$3.text,Pos:$3.pos})}
  | declared_type '%' PL_ROW_COPY {$$=plCopiedType($1,true)} ;
 pl_default: /* empty */ {$$=PLExpression{}} | DEFAULT pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | PL_ASSIGN pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} | '=' pl_expression {$$=sqllex.(*lexer).plBoundExpression($2,$1)} ;
-pl_statements: /* empty */ {$$=nil}
- | pl_statements pl_statement ';' {$$=append($1,$2)} ;
+pl_statements: /* empty */ {sqllex.(*lexer).plStatementBoundaryPending=true;$$=nil}
+ | pl_statements pl_statement ';' {l:=sqllex.(*lexer);if loop:=$2.IntegerFor;loop!=nil{l.plCheckEndLabel(loop.Body.Label,loop.Body.EndLabel);if l.err!=nil{return 1}};l.plStatementBoundaryPending=true;$$=append($1,$2)} ;
 pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_capture_statement {l:=sqllex.(*lexer);raw:=l.plCapture;if raw==nil {l.failAt("42601","INTO used with a command that cannot return data",l.current.pos.Offset);return 1};raw.Query=$1;l.plCapture=nil;l.plExpression=false;$$=PLStatement{Into:raw,Pos:raw.Start}}
  | PL_RAISE {$$=PLStatement{Rethrow:true,Pos:$1.pos}}
@@ -1749,6 +1754,7 @@ pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | FETCH pl_cursor_motion pl_cursor_from pl_target INTO pl_cursor_targets {cursor:=sqllex.(*lexer).plCursorTargets(&PLCursorStatement{Action:PLFetchCursor,Variable:$4,Motion:$2,Targets:$6},$5);$$=PLStatement{Cursor:cursor,Pos:$1.pos}}
  | MOVE pl_cursor_motion pl_cursor_from pl_target {$$=PLStatement{Cursor:&PLCursorStatement{Action:PLMoveCursor,Variable:$4,Motion:$2},Pos:$1.pos}}
  | CLOSE pl_target {$$=PLStatement{Cursor:&PLCursorStatement{Action:PLCloseCursor,Variable:$2},Pos:$1.pos}}
+ | pl_label PL_INTEGER_FOR pl_integer_targets pl_integer_range pl_statements END PL_LOOP pl_end_label {$4.Targets=$3.Targets;$4.TargetCommas=$3.TargetCommas;at:=$4.Upper.Delimiter;if $4.Step.Expression!=nil{at=$4.Step.Delimiter};$4.Body=&PLBlock{Label:$1,EndLabel:$8,IsLoop:true,Statements:$5,Pos:at};$$=PLStatement{IntegerFor:$4,Pos:$2.pos}}
  | pl_label FOR pl_target IN pl_target pl_cursor_actuals PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);name,ok:=$3.(ColumnExpr);if !ok||len(name.Name.Parts)!=1{l.failAt("42601","invalid cursor FOR loop variable",$3.SourcePosition().Offset);return 1};$6.Action=PLForCursor;$6.Variable=$5;$6.LoopName=name.Name.Parts[0];$6.Loop=l.plLoop($1,$8,$11,$7.pos);$$=PLStatement{Cursor:$6,Pos:$2.pos};if l.err!=nil{return 1}}
  | pl_label FOR pl_target IN pl_query_loop_source PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);$5.Target=$3;$5.Start=l.plSourceStart($5.End,$5.Delimiter,$4);$5.Body=l.plLoop($1,$7,$10,$6.pos);$$=PLStatement{QueryLoop:$5,Pos:$2.pos};if l.err!=nil{return 1}}
  | pl_label PL_FOREACH pl_foreach_targets pl_foreach_slice IN pl_foreach_array pl_expression PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);loop:=$4;loop.Targets=$3.Targets;loop.TargetCommas=$3.TargetCommas;loop.Source=l.plBoundExpression($7,$6);loop.Body=l.plLoop($1,$9,$12,$8.pos);l.plAfterForeach=true;$$=PLStatement{Foreach:loop,Pos:$2.pos};if l.err!=nil{return 1}}
@@ -1803,7 +1809,7 @@ pl_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.te
  | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
  | pl_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}}
  | pl_target array_subscript {if base,ok:=$1.(SubscriptExpr);ok {base.Subscripts=append(base.Subscripts,$2);$$=base} else {$$=SubscriptExpr{Base:$1,Subscripts:[]ArraySubscript{$2},Pos:$1.SourcePosition()}}} ;
-pl_name: IDENT | KW_U | KW_C | KW_T | RETURN_BODY | PL_SLICE ;
+pl_name: IDENT | SELECTED_FUNC | KW_U | KW_C | KW_T | RETURN_BODY | PL_SLICE ;
 pl_foreach_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos}}
  | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
  | pl_foreach_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}} ;
@@ -1821,6 +1827,16 @@ pl_query_loop_source: pl_query_loop_start pl_query_loop_statement {l:=sqllex.(*l
 pl_query_loop_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | merge {$$=$1} | with_mutation {$$=$1} ;
 pl_capture_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | with_rule_mutation {$$=$1} ;
 pl_query_loop_start: /* empty */ {sqllex.(*lexer).plBeginExpression(plLoopBoundary)} ;
+pl_integer_targets: pl_target {$$=&PLIntegerFor{Targets:[]Expr{$1}}}
+ | pl_integer_targets ',' pl_target {$$=$1;$$.Targets=append($$.Targets,$3);$$.TargetCommas=append($$.TargetCommas,$2.pos)} ;
+pl_integer_in: IN {sqllex.(*lexer).plBeginExpression(plRangeLowerBoundary);$$=$1} ;
+pl_integer_reverse: /* empty */ {$$=lexeme{}} | PL_REVERSE {$$=$1} ;
+pl_integer_operand: pl_expression_start projection_item {sqllex.(*lexer).plExpression=false;$$=PLExpression{Expression:$2.Targets[0],Alias:$2.Labels[0]}} ;
+pl_integer_lower: pl_integer_in pl_integer_reverse pl_integer_operand DOT_DOT {l:=sqllex.(*lexer);predecessor:=$1;if $2.pos.Character!=0{predecessor=$2};$$=&PLIntegerFor{Lower:l.plDelimitedExpression($3,predecessor,$4),Reverse:$2.pos.Character!=0,ReversePos:$2.pos};l.plBeginExpression(plRangeUpperBoundary)} ;
+pl_integer_upper: pl_integer_lower pl_integer_operand {$1.Upper=$2;$$=$1} ;
+pl_integer_step: pl_integer_upper PL_BY {l:=sqllex.(*lexer);$1.Upper=l.plDelimitedExpression($1.Upper,lexeme{pos:$1.Lower.Delimiter},$2);l.plBeginExpression(plLoopBoundary);$$=$1} ;
+pl_integer_range: pl_integer_upper PL_LOOP {$1.Upper=sqllex.(*lexer).plDelimitedExpression($1.Upper,lexeme{pos:$1.Lower.Delimiter},$2);$$=$1}
+ | pl_integer_step pl_integer_operand PL_LOOP {$1.Step=sqllex.(*lexer).plDelimitedExpression($2,lexeme{pos:$1.Upper.Delimiter},$3);$$=$1} ;
 pl_foreach_slice: /* empty */ {$$=&PLForeach{}}
  | PL_SLICE NUMBER {$$=sqllex.(*lexer).plForeachSlice($1,$2);if sqllex.(*lexer).err!=nil{return 1}} ;
 pl_foreach_array: ARRAY {l:=sqllex.(*lexer);l.plForeachSource=$1.pos;l.plBeginExpression(plLoopBoundary);$$=$1} ;

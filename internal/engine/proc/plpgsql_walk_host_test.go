@@ -101,6 +101,8 @@ func (h *walkHost) eval(f *PLFrame, e parser.Expr) (sqltype.Value, error) {
 			return sqltype.Integer(h.integer, a+b)
 		case "-":
 			return sqltype.Integer(h.integer, a-b)
+		case "*":
+			return sqltype.Integer(h.integer, a*b)
 		case "/":
 			if b == 0 {
 				return sqltype.Value{}, plError("22012", "division by zero")
