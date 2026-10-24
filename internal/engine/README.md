@@ -257,9 +257,9 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   NO DATA resolves source names and output types but does not demand the skipped
   SELECT executor's privileges.
 - `session.TransactionalSchemaUtility` selects the table, schema, trigger,
-  view and materialized-view DDL (including ordinary/concurrent REFRESH), domain/
-  composite creation and alterations, and type/domain identity/drop that Describe
-  and Execute run on the existing transaction journal
+  view and materialized-view DDL (including ordinary/concurrent REFRESH), policy
+  definitions, domain/composite creation and alterations, and type/domain
+  identity/drop that Describe and Execute run on the existing transaction journal
   ([policy](session/README.md#what-it-owns)). Generic OWNER admits only tables;
   feature-specific view/materialized OWNER is AlterView. Concurrent index variants
   keep their independent restrictions.
@@ -278,6 +278,14 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   on parent and index. Partition DROP/ATTACH rules remain unchanged. Describe
   stays syntax-only and held Execute refreshes authority. REINDEX keeps its
   writable-explicit refusal; no blanket utility exemption is introduced.
+- CREATE/ALTER/DROP POLICY, including rename, use `view.PlanPolicy` and the shared
+  CatalogStage/Journal/Finish/combined publication path in autocommit, explicit
+  SQL/Go transactions and retained messages. Definitions, table-local identities,
+  role bindings and dependencies resolve against the owner's private catalog;
+  savepoints and rollback restore them with rows. AccessExclusive on the target
+  is retained through transaction end, so fresh peer table reads wait for release.
+  Subsequent direct and held executions select existing RLS programs from current
+  private definitions and authority; already-returned results stay immutable.
 
 View and materialized definitions resolve against the owner's private catalog,
 including private source relations and providers. Materialized producers consume

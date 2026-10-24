@@ -119,6 +119,7 @@ func TestReferenceDriverBatchPolicyPreparedParameters(t *testing.T) {
 }
 
 func TestReferenceDriverBatchPolicyExplicitBoundary(t *testing.T) {
+	fixture.RoleReferenceCleanup(t, []string{"batch_explicit_reader"})
 	batchScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, a, peer *sql.Conn) {
 		batchPolicySeed(t, p, b, a)
 		batchExec(t, p, b, a, "CREATE POLICY p ON policy_t USING(TRUE)", 0)
@@ -127,17 +128,29 @@ func TestReferenceDriverBatchPolicyExplicitBoundary(t *testing.T) {
 			before = batchPolicyDump(t, p)
 		}
 		batchExec(t, p, b, a, "BEGIN", 0)
-		if b.PG {
-			batchExec(t, p, b, a, "ALTER POLICY p ON policy_t USING(FALSE)", 0)
-		} else {
-			batchError(t, p, a, "ALTER POLICY p ON policy_t USING(FALSE)", batchDiag("0A000", "statement is unsupported in an explicit transaction"))
+		batchExec(t, p, b, a, "ALTER POLICY p ON policy_t USING(FALSE)", 0)
+		if !b.PG && batchPolicyDump(t, p) != before {
+			t.Fatal("private explicit mutation changed committed export")
 		}
+		batchExec(t, p, b, a, "ROLLBACK", 0)
+		if !b.PG && batchPolicyDump(t, p) != before {
+			t.Fatal("rolled-back explicit mutation changed committed export")
+		}
+		for _, q := range []string{"CREATE ROLE batch_explicit_reader", "GRANT USAGE ON SCHEMA public TO batch_explicit_reader", "GRANT SELECT ON policy_t TO batch_explicit_reader", "ALTER TABLE policy_t ENABLE ROW LEVEL SECURITY"} {
+			batchExec(t, p, b, a, q, 0)
+		}
+		batchExec(t, p, b, a, "BEGIN", 0)
+		batchExec(t, p, b, a, "ALTER POLICY p ON policy_t USING(FALSE)", 0)
+		batchExec(t, p, b, a, "SET ROLE batch_explicit_reader", 0)
+		fixture.RunStep(t, p.Ctx, a, b.Recorder, fixture.Select("SELECT id FROM policy_t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{}))
+		batchExec(t, p, b, a, "RESET ROLE", 0)
 		batchExec(t, p, b, a, "ROLLBACK", 0)
 		if b.PG {
 			fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT qual FROM pg_policies WHERE tablename='policy_t' AND policyname='p'", []string{"qual"}, []string{"TEXT"}, [][]any{{"true"}}))
-		} else if batchPolicyDump(t, p) != before {
-			t.Fatal("excluded explicit mutation changed committed policy")
 		}
+		batchExec(t, p, b, peer, "SET ROLE batch_explicit_reader", 0)
+		fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT id FROM policy_t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
+		batchExec(t, p, b, peer, "RESET ROLE", 0)
 		batchPolicyRows(t, p, b, peer)
 	})
 }

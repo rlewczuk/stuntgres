@@ -105,12 +105,13 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Prepared-statement revalidation and rebind: `RUN='^TestReferencePrepared(Rebind|QueryRevalidates)'`
 - DISCARD: `RUN='^TestReferenceDiscard'`
 - SQL PREPARE/EXECUTE/DEALLOCATE: `RUN='^TestReferenceSQLPrepared'`
-- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol|TransactionalMaterializedRefreshProtocol|TransactionalTypesProtocol)'`
+- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol|TransactionalMaterializedRefreshProtocol|TransactionalTypesProtocol|TransactionalPoliciesProtocol)'`
 - Wire extended protocol and portals: `RUN='^TestReferenceServer(Extended|Portal|Unnamed|FailedPortal|WrappedPortal)'`
 - Wire transactional comments: `RUN='^TestReferenceTransactionalCommentProtocol$'`
 - Wire transactional view/materialized definitions: `RUN='^TestReferenceTransactionalViewsProtocol$'`
 - Wire transactional materialized refresh: `RUN='^TestReferenceTransactionalMaterializedRefreshProtocol$'`
 - Wire transactional domain/composite/type lifecycle: `RUN='^TestReferenceTransactionalTypesProtocol$'`
+- Wire transactional policy definitions: `RUN='^TestReferenceTransactionalPoliciesProtocol$'`
 - Wire COPY: `RUN='^TestReferenceServer(Copy|PreparedCopy)'`
 - Wire comparison matrix: `RUN='^TestReferenceServerComparison'`
 - Wire notifications: `RUN='^TestReferenceServerNotifications'`

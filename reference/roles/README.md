@@ -80,6 +80,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - `pg_has_role`, `row_security_active`: `RUN='^TestReferenceAccessRole'`
 - `row_security` setting: `RUN='^TestReferenceRowSecurity'`
 - Policy DDL: `RUN='^TestReferenceRLSPolicy'`
+- Transactional policy definitions and existing RLS consumers: `RUN='^TestReferenceTransactionalPolicies(Routes|Retention|Savepoints|Diagnostics|Prepared|Dependencies|Locks|Controls)$'`
 - Table RLS flags, default deny, BYPASSRLS: `RUN='^TestReferenceRLSBase'`
 - Policy applicability and combination: `RUN='^TestReferenceRLSCombination'`
 

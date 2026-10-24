@@ -193,7 +193,6 @@ func TestReferenceDriverBatchPolicyAlterDrop(t *testing.T) {
 					}
 					if strings.HasPrefix(disposition, "promote_") {
 						// Mutations reached before BEGIN are private consumers.
-						// Genuine explicit policy utility exclusions stay unchanged.
 						if b.PG && operation == "alter" && batchPolicyOID(t, p, a, "renamed", "batch_policy_new") != oid {
 							t.Fatal("private ALTER changed OID")
 						}

@@ -15,7 +15,7 @@ func policyTransactionWitnesses(t *testing.T) {
 		t.Run(map[bool]string{false: "transactional_ddl", true: "read_only"}[readOnly], func(t *testing.T) {
 			membershipCases(t, nil, func(s *membershipScenario) {
 				policySetup(s)
-				queries := []struct{ q, tag string }{{"CREATE POLICY p ON t", "CREATE POLICY"}, {"ALTER POLICY p ON t USING(TRUE)", "ALTER POLICY"}, {"DROP POLICY p ON t", "DROP POLICY"}}
+				queries := []struct{ q, tag string }{{"CREATE POLICY p ON t", "CREATE POLICY"}, {"ALTER POLICY p ON t USING(TRUE)", "ALTER POLICY"}, {"ALTER POLICY p ON t RENAME TO renamed", "ALTER POLICY"}, {"DROP POLICY p ON t", "DROP POLICY"}}
 				for _, tc := range queries {
 					if tc.tag != "CREATE POLICY" {
 						s.exec("CREATE POLICY p ON t")
@@ -42,11 +42,35 @@ func policyTransactionWitnesses(t *testing.T) {
 						}
 						if readOnly {
 							fixture.AssertDiagnostic(s.t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "25006", Message: "cannot execute " + tc.tag + " in a read-only transaction"})
-						} else if s.backend.PG {
+						} else {
 							fixture.State(s.t, err, "")
 							fixture.LockAffected(s.t, result, 0)
-						} else {
-							fixture.AssertDiagnostic(s.t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
+							name := "p"
+							if strings.Contains(tc.q, "RENAME") {
+								name = "renamed"
+							}
+							want := int64(1)
+							if tc.tag == "DROP POLICY" {
+								want = 0
+							}
+							fixture.RunStep(s.t, s.p.Ctx, tx, s.record, fixture.Select("SELECT count(*) FROM pg_depend WHERE classid=3256 AND refobjid='t'::regclass AND deptype='a'", []string{"count"}, []string{"INT8"}, [][]any{{want}}))
+							if want == 1 {
+								rows, inquiryErr := tx.QueryContext(s.p.Ctx, "SELECT objid FROM pg_get_object_address('policy',ARRAY['public','t',$1],ARRAY[]::text[])", name)
+								if inquiryErr != nil {
+									s.t.Fatal(inquiryErr)
+								}
+								if !rows.Next() {
+									s.t.Fatal("missing private identity", rows.Err())
+								}
+								var oid int64
+								if inquiryErr = rows.Scan(&oid); inquiryErr != nil || oid <= 0 {
+									s.t.Fatal(oid, inquiryErr)
+								}
+								if rows.Next() || rows.Err() != nil {
+									s.t.Fatal("private identity tail", rows.Err())
+								}
+								rows.Close()
+							}
 						}
 						if err != nil && result != nil {
 							s.t.Fatal("error published result", result)

@@ -278,7 +278,7 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.AlterTableRenameConstraint, *parser.AlterTableSetSchema, *parser.AlterTableDefault,
 		*parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition,
 		*parser.AlterTableAllInTablespace, *parser.CreateView, *parser.AlterView, *parser.DropView,
-		*parser.RefreshMaterializedView,
+		*parser.RefreshMaterializedView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy,
 		*parser.CreateDomain, *parser.CreateComposite, *parser.AlterDomain, *parser.AlterComposite,
 		*parser.AlterType, *parser.DropDomain, *parser.DropType:
 		return true

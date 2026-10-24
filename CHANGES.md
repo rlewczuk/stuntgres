@@ -1,3 +1,8 @@
+CREATE, ALTER (including rename) and DROP POLICY now participate in SQL BEGIN
+and Go BeginTx as well as autocommit and retained messages. Private definitions,
+role bindings, dependencies and rows commit or roll back together, with savepoint
+recovery, transaction-lifetime table locking and fresh existing RLS consumers.
+
 BEFORE row trigger CREATE/REPLACE now shares SQL and Go transactions with existing
 rename, DROP and extension dependencies, including private firing, savepoint
 recovery and atomic definition/row publication. CREATE/REPLACE retains

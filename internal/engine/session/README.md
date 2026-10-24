@@ -93,10 +93,10 @@ implement its slots, so either import would form a cycle.
   permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA, shipped
   ALTER TABLE forms, trigger CREATE/OR REPLACE/ALTER/DROP, CREATE/OR REPLACE/ALTER/
   DROP VIEW, CREATE/ALTER/DROP MATERIALIZED VIEW plus ordinary/concurrent REFRESH,
-  CREATE DOMAIN/composite TYPE, ALTER DOMAIN/composite attributes, and type/domain
-  rename, schema move and DROP use the existing transaction journal. Generic OWNER
-  admits only tables, not types or domains; feature-specific view/materialized
-  OWNER is AlterView. The root reads
+  CREATE/ALTER/DROP POLICY (including rename), CREATE DOMAIN/composite TYPE,
+  ALTER DOMAIN/composite attributes, and type/domain rename, schema move and DROP
+  use the existing transaction journal. Generic OWNER admits only tables, not types
+  or domains; feature-specific view/materialized OWNER is AlterView. The root reads
   state, InBlock and ReadOnly under `t.Mu` and keeps its locks, preflights,
   short-circuits (`partitionIndexTransaction`, `transactionalIndexMaintenance`)
   and call order.
