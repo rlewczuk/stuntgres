@@ -31,4 +31,14 @@ now share one helper.
 
 ## Status
 
-- 157: not started.
+- 157: done (`cc1e5d46c`, then the docs commit). `partition/inquiry.go` holds
+  `TreeValues`, `AncestorValues` and `RootValue`; root
+  `partition_info_runtime.go` is 234 → 53 lines, its three methods sharing
+  `statementHost.partitionInquiry`.
+  - Deviation: `inquiryRelation`, `inquiryResult` and `regclassValue` stay
+    unexported, because only the package calls them.
+  - Tests: `TestPartitionInfoTraversal` and `TestPartitionInfoCancellation`
+    moved to `partition/inquiry_test.go` over a fresh builtin type generation;
+    the foreign-descriptor check became `TestPartitionInfoForeignResult`
+    (also covering the tree shape checks). `TestPartitionInfoCaptureOwnership`
+    stays in the root: it needs the engine-owned retained catalog.

@@ -36,6 +36,11 @@ it. It never builds a binder.
   SQL builders, `DumpEvents` (over the root's `dump.Resolver`), hash-remap
   repair (`RepairRemappedHash` returns moves without changing storage) and the
   Restore replay records the root leases on its `restoreReplay` slot.
+- **Inquiry values** (`inquiry.go`): `TreeValues`, `AncestorValues` and
+  `RootValue` build the `pg_partition_tree`, `pg_partition_ancestors` and
+  `pg_partition_root` results from the statement's captured `catalog.Read`.
+  The result descriptor must belong to that catalog. Index trees follow only
+  index attachment edges; a childless partitioned relation is not a leaf.
 
 ## Host and lock contract
 
@@ -53,8 +58,9 @@ waits and publication.
 - With nothing held: `EvaluateBounds`, `ValidateBounds`, `CheckOverlap`,
   `CheckCoverage`, `CheckDefaultRows`, `CheckAttachTarget`,
   `ValidateAttachRows`, `AttachDescriptors`, `StageDetach`,
-  `StageConstraintDrop` and the Restore replay cores (`CheckReplayTarget`,
-  `Capture*Replay`, `Matches`).
+  `StageConstraintDrop`, the Restore replay cores (`CheckReplayTarget`,
+  `Capture*Replay`, `Matches`) and the inquiry values, which check the
+  context between steps.
 - `AttachFrontier` waits only in the caller's `lockChild` callback, which runs
   with nothing held and locks and rereads each DEFAULT descendant.
 
@@ -83,7 +89,8 @@ Orchestration and everything that holds `Engine`, `StatementScope` or
 lock admission (`partition_locks.go`), authorization and Restore trust checks
 (`partition*ReplayAllowed`), the Restore executors, storage-read fences and
 shared DML routing capture. `partition_host.go` holds `ddlHost.BindKeyExpression`
-and the `partitionBoundBinder` adapter.
+and the `partitionBoundBinder` adapter; `partition_info_runtime.go` holds the
+`statementHost` inquiry methods, which check the retained catalog's owner.
 
 ## Invariants
 
@@ -123,7 +130,8 @@ and the `partitionBoundBinder` adapter.
 
 ## Testing
 
-Package units cover pruning proofs and the shared search budget. Units that
+Package units cover pruning proofs, the shared search budget and the inquiry
+values. Units that
 build an engine stay in `internal/engine`, naming the code as `partition.X`,
 and assert branch selection and unlocked provider callbacks without timing
 thresholds. Run attach/detach overlay, lock-fence and LIST cancellation units
@@ -133,6 +141,7 @@ with `RACE=1`. Public SQL lives in
 
 ```sh
 make check RUN='^TestPartitionPruning'
+make check RUN='^TestPartitionInfo'
 make check RUN='^Test(Partition|RangePartition|HashPartition|ListPartition)'
 make check RUN='^TestReference(Range|Hash|List)?Partition'
 ```

@@ -10,16 +10,16 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `8d86f11c0`.
+Last verified against `master` at `b1787a044`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 154 (table, DROP), 157 (partition), 158 (table, ALTER), 159 (view), 160
-  (session, 2PC), 163 (exec, cursors), 165 (session, protocol codec) and 166
-  (ddl, CREATE DATABASE).
+- 154 (table, DROP), 158 (table, ALTER), 159 (view), 160 (session, 2PC),
+  163 (exec, cursors), 165 (session, protocol codec) and 166 (ddl, CREATE
+  DATABASE).
 
 ## Linear plan
 
@@ -64,9 +64,13 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      earlier quickcheck hit
      `TestReferenceUpdateCurrentOfVersionsAndArbitration`, which fails on
      master too); racecheck/finalcheck skipped at user request
-157. [ ] Partition: `pg_partition_*` values —
+157. [x] Partition: `pg_partition_*` values —
      [partition](ENGINE-SPLIT-partition.md#item-157--pg_partition_-values) ·
-     needs — · 0.18k
+     needs — · 0.18k (`cc1e5d46c`, then the docs commit) · root
+     `partition_info_runtime.go` 234 → 53 lines, root 399 files and 50.5k →
+     50.3k lines · targeted units, quickcheck and the quick and `REFERENCE=1`
+     `TestReferencePartitionInfo` selections passed; bench skipped (no startup
+     or hot path); racecheck/finalcheck skipped at user request
 158. [ ] Table: ALTER TABLE pass helpers and the IF EXISTS no-op —
      [table](ENGINE-SPLIT-table.md#item-158--alter-table-pass-helpers-and-the-if-exists-no-op)
      · needs — · 0.16k moved, −0.12k
