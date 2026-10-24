@@ -10,16 +10,15 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `b1787a044`.
+Last verified against `master` at `d76524cbe`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 154 (table, DROP), 158 (table, ALTER), 159 (view), 160 (session, 2PC),
-  163 (exec, cursors), 165 (session, protocol codec) and 166 (ddl, CREATE
-  DATABASE).
+- 158 (table, ALTER), 159 (view), 160 (session, 2PC), 163 (exec, cursors),
+  165 (session, protocol codec) and 166 (ddl, CREATE DATABASE).
 
 ## Linear plan
 
@@ -44,9 +43,15 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      access-method, default-privilege, pg_depend, CREATE DATABASE,
      concurrent foreign DDL, extension matview and Restore selections
      passed; racecheck/finalcheck skipped at user request
-154. [ ] Table: DROP dependency decisions —
+154. [x] Table: DROP dependency decisions —
      [table](ENGINE-SPLIT-table.md#item-154--drop-dependency-decisions) ·
-     needs 153 · 0.37k
+     needs 153 · 0.37k (`c0aea647f`, `b8912be99`, `ecd030b6e`, then the docs
+     commit) · root 399 → 398 files and 50.5k → 50.1k lines · targeted units,
+     quickcheck, `make deps`, the quick and `REFERENCE=1` pg_depend, typed
+     table, DROP COLUMN, extension domain-check and CHECK sequence-drop
+     selections, and `RACE=1` DROP COLUMN and sequence-drop selections
+     passed; bench skipped (DDL-only path); racecheck/finalcheck skipped at
+     user request
 155. [x] Session: journal observation and state fences —
      [session](ENGINE-SPLIT-session.md#item-155--journal-observation-and-state-fences)
      · needs 153 · 0.21k (`3bc20a6ca`, `ea5eb4842`, then the docs commit) ·

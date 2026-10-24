@@ -59,8 +59,9 @@ driver import it.
   later failure. `EndStatements` ends the statement in each open participant;
   a failed release closes and rolls back that participant once.
 - **DDL helpers** (`ddl.go`, `import.go`, `table.go`, `scan.go`): object
-  lookup (`Find`, `Class`, `IsCatalogClass`, `ObjectRef`; the command tag and
-  grant-kind test are `session.ForeignDDLTag` and `session.ForeignGrantKind`),
+  lookup (`Find`, `Class`, `ObjectRef`; the class test is
+  `ids.IsForeignCatalogClass`, and the command tag and grant-kind test are
+  `session.ForeignDDLTag` and `session.ForeignGrantKind`),
   mapping and ownership authority over an `access.View` (`MappedRole`,
   `MappingAuthority`, `MappingDiagnostic`, `MappingFor`; the owner change rule
   is `access.ForeignOwnershipEligibility`, shared with REASSIGN OWNED),

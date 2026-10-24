@@ -1,7 +1,7 @@
 # internal/engine/ids
 
 Identity values shared by every engine subsystem. The package has no behavior
-and imports only the standard library. It sits at layer L1 of
+beyond one class predicate and imports only the standard library. It sits at layer L1 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture), so
 any engine subpackage may import it.
 
@@ -9,7 +9,8 @@ any engine subpackage may import it.
 
 - **Catalog identity:** `OID`, `CatalogEpoch`, `DefinitionRevision`,
   `ObjectAddress`, `ObjectRef`, `NameKey`, `ObjectKind` and its constants, the
-  catalog class IDs (`*ClassID`) and the builtin namespace OIDs.
+  catalog class IDs (`*ClassID`), `IsForeignCatalogClass` (the SQL/MED
+  wrapper, server and user-mapping classes) and the builtin namespace OIDs.
 - **Runtime identity:** `SessionID`, `SessionToken`, `TxID`, `TxRef`,
   `CommandID`, `CommandIdentity` (a transaction's command: the phase that
   prepared domain checks and partition routines record), `CommitSeq`,

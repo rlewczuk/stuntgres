@@ -49,6 +49,8 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   `RestoreDomainReplayNode` walks the replayed `SELECT` shapes over a
   `DomainReplayEnv` whose `Scalar` callback binds and evaluates the leaf, and
   `DomainReplayCells` checks each captured cell against its insert slot.
+  `WithoutDomainCheck` is the pure CHECK removal behind DROP CONSTRAINT and
+  the DROP dependency passes.
 - **Enums** (`enum_order.go`: sort-order insertion, `EnumSafety`) and
   **composites and typed tables** (`row_type.go`, `typed_shape.go`: row-type
   membership and metadata, array names, typed-table shape and inheritance plans).
@@ -68,7 +70,8 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   from the caller's `dump.Presenter`, so the package never names the stored-SQL
   renderer or `regobj`.
 - **Slot structs**: `DomainAlterStage` and `TypedStage` (the type state of a
-  `CatalogStage`), `DomainJournal` and `EnumJournal` (`journal_slots.go`, the type
+  `CatalogStage`; `TypedFieldCheckOwner` says whether its admitted typed-table
+  closure owns a table's inherited CHECKs), `DomainJournal` and `EnumJournal` (`journal_slots.go`, the type
   state of the catalog journal, implementing `session.DomainSlot` and
   `session.EnumSlot`), with `DomainWritable`/`EnumWritable` and
   `DomainJournalOf`/`EnumJournalOf`/`EnumSlotOf`.

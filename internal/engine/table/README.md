@@ -50,8 +50,20 @@ call live here.
   `row_constraints.go`): `NotNullCandidate`, the physical NOT NULL transitions,
   `BindChecks`, `ValidateChecks`, `PhysicalRowViolation` (first NOT NULL or
   CHECK violation of a row), `EvaluateGenerations`,
-  `PrepareGenerationProgram`, `ValidateGenerationPlan` and the dependency
-  passes over `DropDependencyReader`.
+  `PrepareGenerationProgram` and `ValidateGenerationPlan`.
+- **DROP dependency decisions** (`composite_field_dependency.go`,
+  `owned_sequences.go`, `drop_removal.go`, the CHECK, DEFAULT, foreign-key and
+  identity drop files): passes over `DropDependencyReader`, the drop stage the
+  root `dropProvider` implements. `OrdinaryColumnDrop`, `CheckDependents`,
+  `DefaultDependents`, `ForeignKeyDependents`, `DropIdentity`,
+  `CompositeFieldDependencies` (CHECKs that use a dropped composite field),
+  `RemoveDomainCheck`, `OwnedSequences` and `OwnedExpressionDependencies` (the
+  AUTO sequences of the targets, including removed inheritance owners) keep
+  the reader's call order, so prepared-drop effects and notices keep theirs.
+  `CheckRemovalLocked` admits a whole-object removal under `Engine.mu`
+  (objects the system requires, then the registered class provider);
+  `ClosureTargetClass` and `RetiredProviderClass` are the class lists of the
+  root's expression-dependency pass.
 - **Relation options** (`relation_options.go`): the storage-parameter registry
   and `RelationOptionsCandidate`, which transforms each option namespace
   independently, base first.
@@ -154,7 +166,9 @@ its pass loop and the other statement handlers; the wrappers that take
 `Engine.mu` across a `table` call and build the host; the row evaluation
 template; lock admission and post-wait checks (`acquireDefinitionProviders`,
 `admitInheritanceAlter`, `acquireRelationTarget` around `AdmitTarget`, ...);
-identity sequence waits; the prepare host and prepared-drop consumers; Finish;
+identity sequence waits; the prepare host and prepared-drop consumers; the
+DROP pipeline (`dropProvider`, its prepared-drop effect log, and the lock
+waits and projection of `ExpressionDependencies`); Finish;
 VACUUM's lock loop, `Engine.mu` windows, retry, install and progress map;
 the binder bodies; and the Restore hook bodies (authorization, the `Engine.mu`
 window, trust checks, `publishRestoreRepairLocked`, `restore_replay.go`).

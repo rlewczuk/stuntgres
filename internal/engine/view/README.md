@@ -93,7 +93,13 @@ imports `view`.
   stage that the root's `dropProvider` implements. `DropClosure` is the
   dependency closure (edges are `table.DomainDependency`); `DependentViews`,
   `KeepRules`, `KeepPolicies` and the `Drop*Dependents` helpers find dependents;
-  `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view.
+  `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view. For the
+  root's expression-dependency pass, `DropRoots` adds the relations the drop
+  already removed, `PlanDrop` classifies the closure into targets, surviving
+  relations and inheritance owners (`DropPlan.LockRelations` are the ones a
+  statement locks) and `IdentityObservationTargets` picks the provider
+  identities the drop fences. They read only `RetirementDescriptor` and change
+  nothing; the root keeps the lock waits and effects in today's order.
 - **Materialized views** (`materialized_*.go`): refresh scope and stage records,
   concurrent-refresh row matching and index eligibility, the replacement cores
   and the snapshot codec (`EmitMaterializedSnapshot`,

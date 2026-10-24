@@ -191,7 +191,30 @@ README (`MissingRelation`, `MergeFills`).
 
 ## Status
 
-- 154: not started.
+- 154: done (`c0aea647f`, `b8912be99`, `ecd030b6e`, then the docs commit).
+  - Moved: `CompositeFieldDependencies`, `RemoveDomainCheck`,
+    `OwnedExpressionDependencies`, `CheckRemovalLocked` and the
+    `ClosureTargetClass`/`RetiredProviderClass` predicates to `table`;
+    `DropRoots`, `PlanDrop` (`DropPlan.LockRelations`) and
+    `IdentityObservationTargets` to `view`; `WithoutDomainCheck` and
+    `TypedFieldCheckOwner` to `typedef`; the SQL/MED class predicate to `ids`.
+  - Deviations: the predicate is `ids.IsForeignCatalogClass`, not
+    `IsCatalogClass` (every class ID is a catalog class); `fdw` had no other
+    callers. `table.RemoveDomainCheck` (Replacement, `WithoutDomainCheck`,
+    Revision, Replace over the reader) is new: the composite pass, the root
+    expression pass and `ddlHost.RemoveDomainCheck` share it. The retirement
+    roots of `ExpressionDependencies` moved too (`view.DropRoots`), and the
+    partition-drop lock loop iterates `DropPlan.Hierarchy`, which holds the
+    same edges in the same order. The Parameter case uses the registered
+    provider of `ids.ParameterClassID`.
+  - `dropProvider.Notice` now drops a notice when the provider has neither a
+    preparation nor a scope, as `compositeFieldNotice` did; that path
+    panicked before.
+  - Tests: the four root units that named `removeDomainCheck` call
+    `ddlHost.RemoveDomainCheck`; `composite_review_remedy_test.go` calls
+    `table.CompositeFieldDependencies` instead of the deleted
+    `stageCompositeFieldDependencies`. New `typedef` unit
+    `TestWithoutDomainCheck`.
 - 156: done (`990a57741`, `c37b29f2a`, `afda91bc2`, then the docs commit).
   - Moved: the options, entry checks, target selection (`VacuumSelection`),
     work gates and the detached work pass to `table`; `VacuumCutoffLocked`,
