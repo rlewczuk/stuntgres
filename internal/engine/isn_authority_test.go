@@ -11,7 +11,7 @@ import (
 )
 
 func TestIsnProviderAuthority(t *testing.T) {
-	for _, family := range []string{"ean13", "isbn", "isbn13"} {
+	for _, family := range []string{"ean13", "isbn", "isbn13", "ismn"} {
 		t.Run(family, func(t *testing.T) { testIsnProviderAuthority(t, family) })
 	}
 }
@@ -21,6 +21,7 @@ func testIsnProviderAuthority(t *testing.T, family string) {
 	slot, constructor := 0, sqltype.Ean13
 	if family == "isbn" { slot, constructor = 3, sqltype.Isbn }
 	if family == "isbn13" { slot, constructor = 6, sqltype.Isbn13 }
+	if family == "ismn" { slot, constructor = 9, sqltype.Ismn }
 	base := e.CatalogRead().MustType(ext.Members[slot])
 	unowned := *base
 	unowned.Extension = ids.ObjectAddress{}

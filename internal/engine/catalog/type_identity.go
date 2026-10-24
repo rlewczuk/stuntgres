@@ -62,6 +62,8 @@ func SamePreparedTypeDefinition(old, current *Type) bool {
 		return b.IsIsbn()
 	case a.IsIsbn13():
 		return b.IsIsbn13()
+	case a.IsIsmn():
+		return b.IsIsmn()
 	}
 	return false
 }

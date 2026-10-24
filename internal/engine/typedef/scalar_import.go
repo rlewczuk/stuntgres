@@ -17,7 +17,7 @@ import (
 func ImportScalarTypesLocked(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, allocateEnumMember func() (int64, error)) error {
 	for address, descriptor := range next.Descriptors() {
 		d, ok := descriptor.(*catalog.Type)
-		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsQueryInt() && !d.SQLType.IsCube() && !d.SQLType.IsCitext() && !d.SQLType.IsEan13() && !d.SQLType.IsIsbn() && !d.SQLType.IsIsbn13() {
+		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsQueryInt() && !d.SQLType.IsCube() && !d.SQLType.IsCitext() && !d.SQLType.IsEan13() && !d.SQLType.IsIsbn() && !d.SQLType.IsIsbn13() && !d.SQLType.IsIsmn() {
 			continue
 		}
 		source := d.SQLType
@@ -47,6 +47,8 @@ func ImportScalarTypesLocked(next *catalog.State, mapping map[ids.ObjectAddress]
 			typ, err = sqltype.Isbn(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		} else if source.IsIsbn13() {
 			typ, err = sqltype.Isbn13(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
+		} else if source.IsIsmn() {
+			typ, err = sqltype.Ismn(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		} else {
 			typ, err = sqltype.QueryInt(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		}

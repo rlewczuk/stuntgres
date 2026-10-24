@@ -8,7 +8,7 @@ nullability, CHECK and identity lifecycle); composite types (declarations, field
 expressions, ALTER TYPE attributes); enums (values, ALTER TYPE, support
 functions); integer, numeric, date, timestamp and timestamptz ranges, custom range
 definitions and their multiranges (operators, inspection, `multirange`/`unnest`); text search types and
-operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`, `isbn`, `isbn13`, `lo`); ACL values
+operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`, `isbn`, `isbn13`, `ismn`, `lo`); ACL values
 (`aclitem`, `makeaclitem`, `acldefault`, `aclexplode`); TID; UUID (values,
 `gen_random_uuid`/`uuidv4`/`uuidv7`, extraction); BOOLEAN diagnostics and
 aggregates; the `information_schema` domains; and scalar comparison operators and
@@ -118,10 +118,10 @@ these are shared across families:
   GeometryMeasurePath families share these helpers; path-specific helpers live in
   `geometry_measure_path_helpers_test.go`.
 - `ean13_helpers_test.go`: shared installed-ISN scenario, raw string/byte
-  transport, exact diagnostics and metadata checks for EAN13, ISBN and ISBN13.
+  transport, exact diagnostics and metadata checks for EAN13, ISBN, ISBN13 and ISMN.
   ISBN helpers share relational manifest identity and owner-record mutation
-  checks across all three roles. The reusable family selector is
-  `RUN='^TestReference(Ean13|Isbn)'`; controls retain readers across replacement,
+  checks across all four roles. The reusable family selector is
+  `RUN='^TestReference(Ean13|Isbn|Ismn)'`; controls retain readers across replacement,
   validate whole-script diagnostic positions and rollback with identical failing
   SQL on PostgreSQL, and replay actual emitted SQL on PostgreSQL.
   Relational identity witnesses filter catalog inputs to the installed

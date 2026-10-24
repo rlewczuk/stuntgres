@@ -5,6 +5,13 @@ pg_ts_parser exposes the stock parser and internal handler identities; pg_proc
 also exposes truthful set-returning flags. Parser inputs and materialized rows
 use ordinary native Dump/Reset/Restore without serializing builtin state.
 
+Installed isn now provides independently identified ismn columns, literal and
+bound string/byte input, canonical short M output and ISMN result metadata.
+Check digits, retained invalid markers and NULLs survive prepared execution,
+extension recreation and native Reset/Dump/Restore.
+The pg_proc source projection exposes stored routine source declarations,
+including immutable installed codec symbols.
+
 Installed isn now provides independently identified isbn13 columns, literal and
 bound string/byte input, canonical long ISBN output and ISBN13 result metadata.
 ISBN10 expansion, corrected check digits, retained invalid markers and NULLs

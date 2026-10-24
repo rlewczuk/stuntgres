@@ -48,6 +48,7 @@ func (p *IsnProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 			e := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, recipe.name)}
 			if recipe.name == "isbn" { e.Context = "SQL statement \"CREATE TYPE isbn (\n\tINPUT = isbn_in,\n\tOUTPUT = isn_out,\n\tLIKE = pg_catalog.int8\n)\"\nextension script file \"isn--1.1.sql\", near line 112" }
 			if recipe.name == "isbn13" { e.Context = "SQL statement \"CREATE TYPE isbn13 (\n\tINPUT = isbn13_in,\n\tOUTPUT = ean13_out,\n\tLIKE = pg_catalog.int8\n)\"\nextension script file \"isn--1.1.sql\", near line 50" }
+			if recipe.name == "ismn" { e.Context = "SQL statement \"CREATE TYPE ismn (\n\tINPUT = ismn_in,\n\tOUTPUT = isn_out,\n\tLIKE = pg_catalog.int8\n)\"\nextension script file \"isn--1.1.sql\", near line 132" }
 			return e
 		}
 		typ, err := recipe.construct(sqltype.ID(ext.Members[recipe.slot].ObjectID), recipe.name, catalog.DependencyIdentifier(ns)+"."+recipe.name)
@@ -58,6 +59,7 @@ func (p *IsnProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 		acl, synthetic := stage.CreationTypeACL(owner, ext.TargetNamespace)
 		comment := ""
 		if recipe.name == "isbn13" { comment = "International Standard Book Number 13 (ISBN13)" }
+		if recipe.name == "ismn" { comment = "International Standard Music Number (ISMN)" }
 		if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID(), Comment: comment}); err != nil { return err }
 		if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil { return err }
 		for i := range 2 {
@@ -77,10 +79,11 @@ func isnCodecConflict(recipe isnRecipe, codec int) error {
 		name = recipe.output
 	}
 	e := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
-	if recipe.name == "isbn" {
+	if recipe.name == "isbn" || recipe.name == "ismn" {
 		argument, result, line := "cstring", recipe.name, 100
+		if recipe.name == "ismn" { line = 120 }
 		if codec == 1 {
-			argument, result, line = recipe.name, "cstring", 106
+			argument, result, line = recipe.name, "cstring", line+6
 		}
 		e.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS '$libdir/isn'\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line %d", name, argument, result, line)
 	}

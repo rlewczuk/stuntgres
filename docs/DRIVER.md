@@ -202,21 +202,23 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | `json` | `string` (exact input text) |
 | `jsonb`, `uuid`, network, geometric, bit strings, text search | canonical `string` |
 | arrays, composites, ranges, multiranges, enums | canonical `string` |
-| installed `ean13`, `isbn`, `isbn13` | canonical `string`, including retained invalid marker |
+| installed `ean13`, `isbn`, `isbn13`, `ismn` | canonical `string`, including retained invalid marker |
 | `reg*` types | symbolic `string` |
 
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
 empty `[]byte` is an empty value. `bytea` string and `[]byte` arguments are raw
 octets. Time zone and Unicode data are embedded; no host locale is consulted.
 
-After `CREATE EXTENSION isn`, ISBN and ISBN13 columns accept textual literals and
-bound strings or bytes, including NULL. Results expose `ISBN` or `ISBN13`
-database type metadata and string scan types. ISBN13 always formats the long
+After `CREATE EXTENSION isn`, ISBN, ISBN13 and ISMN columns accept textual literals
+and bound strings or bytes, including NULL. Results expose `ISBN`, `ISBN13` or
+`ISMN` database type metadata and string scan types. ISBN13 always formats the long
 thirteen-digit value, including expanded ISBN10 input and any retained `!` marker;
-ISBN retains its short-output convention. An already-typed text expression
-requires an explicit `::isbn` or `::isbn13` conversion; the driver does not add
-implicit conversions between installed scalar families. Native Reset/Dump/Restore
-preserves canonical values, validity flags, NULLs and independent type identities.
+ISBN retains its short-output convention. ISMN accepts M-prefixed or modern 9790
+input and returns the short, hyphenated M form with any retained `!` marker.
+An already-typed text expression requires an explicit `::isbn`, `::isbn13` or
+`::ismn` conversion; the driver does not add implicit conversions between installed
+scalar families. Native Reset/Dump/Restore preserves canonical values, validity
+flags, NULLs and independent type identities.
 
 ## Errors
 

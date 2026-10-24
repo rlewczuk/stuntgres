@@ -13,7 +13,7 @@ import (
 // projection. Alias lookup remains lookup-only and never populates pg_proc.
 // No Procedure descriptor, executable provider or callback datum is installed.
 func appendParserHandlerProcedures(in Input, rows [][]sqltype.Value) ([][]sqltype.Value,error) {
-	if len(in.Source.Columns)!=14 { return nil,fmt.Errorf("stuntgres: invalid procedure source shape") }
+	if len(in.Source.Columns)!=15 { return nil,fmt.Errorf("stuntgres: invalid procedure source shape") }
 	p:=catalog.DefaultTextParser()
 	language:=in.Catalog.NameAddress(ids.NameKey{ClassID:ids.LanguageClassID,Name:"internal"})
 	if language==(ids.ObjectAddress{}) { return nil,fmt.Errorf("stuntgres: missing parser handler language") }
@@ -23,7 +23,7 @@ func appendParserHandlerProcedures(in Input, rows [][]sqltype.Value) ([][]sqltyp
 		identity,ok:=catalog.BuiltinRoutineIdentityByOID(oid)
 		result,resultOK:=catalog.BuiltinRoutineResultByOID(oid)
 		if !ok || !resultOK { return nil,fmt.Errorf("stuntgres: missing parser handler identity %d",oid) }
-		row:=make([]sqltype.Value,14)
+		row:=make([]sqltype.Value,15)
 		fields:=[5]struct { index int; oid uint32 }{{0,uint32(oid)},{2,uint32(identity.Namespace)},{3,uint32(in.Source.Owner.ID())},{5,uint32(result)},{11,uint32(language.ObjectID)}}
 		for _,field:=range fields {
 			i:=field.index
@@ -44,6 +44,7 @@ func appendParserHandlerProcedures(in Input, rows [][]sqltype.Value) ([][]sqltyp
 		row[12]=sqltype.Boolean(in.Source.Columns[12].Usage.Type,false)
 		row[13],err=sqltype.Float(in.Source.Columns[13].Usage.Type,0)
 		if err!=nil { return nil,err }
+		row[14]=sqltype.String(in.Source.Columns[14].Usage.Type,identity.Name)
 		rows=append(rows,row)
 	}
 	return rows,nil

@@ -109,7 +109,7 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   ordinary ALTERs under bootstrap authority. Deterministic free temporary names
   break cross-member cycles; moves preserve companion spelling and renames use
   the shared generated-array predictor. This predictor seeds mixed domain/composite
-  rendering, including domains over installed arrays. Both ISN scalars' captured
+  rendering, including domains over installed arrays. All four ISN scalars' captured
   owners are then restored with ordinary TYPE OWNER SQL, which transfers each
   companion without changing independent extension or I/O owners. Separate ordinary
   FUNCTION OWNER replay preserves independent codec owners in native Restore and

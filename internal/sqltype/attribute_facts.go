@@ -45,7 +45,7 @@ func (d *Descriptor) AttributeFacts() PostgreSQLAttributeFacts {
 		f.Storage = "x"
 		return f
 	}
-	if d.IsEan13() || d.IsIsbn() || d.IsIsbn13() {
+	if d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() {
 		f.ByValue, f.Alignment = true, "d"
 		return f
 	}
@@ -105,5 +105,5 @@ func ResultNull(u Usage) Value {
 // ValidResult preserves exact captured descriptor identity, including the
 // narrowly nullable catalog carrier. No nonnull pseudo value can escape.
 func (v Value) ValidResult(u Usage) bool {
-	return v.typ != nil && v.typ == u.Type && (v.typ.Concrete() || v.null && u.CatalogNullUsage()) && (v.null || (!v.typ.BaseType().IsEan13() || v.validEan13()) && (!v.typ.BaseType().IsIsbn() || v.validIsbn()) && (!v.typ.BaseType().IsIsbn13() || v.validIsbn13()))
+	return v.typ != nil && v.typ == u.Type && (v.typ.Concrete() || v.null && u.CatalogNullUsage()) && (v.null || (!v.typ.BaseType().IsEan13() || v.validEan13()) && (!v.typ.BaseType().IsIsbn() || v.validIsbn()) && (!v.typ.BaseType().IsIsbn13() || v.validIsbn13()) && (!v.typ.BaseType().IsIsmn() || v.validIsmn()))
 }

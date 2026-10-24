@@ -81,7 +81,7 @@ func castUnitUniverse(t *testing.T) []castUnitFact {
 		}
 		return d
 	}
-	for _, name := range []string{"cube", "query_int", "citext", "ean13", "isbn", "isbn13"} {
+	for _, name := range []string{"cube", "query_int", "citext", "ean13", "isbn", "isbn13", "ismn"} {
 		var d *Descriptor
 		var e error
 		switch name {
@@ -97,6 +97,8 @@ func castUnitUniverse(t *testing.T) []castUnitFact {
 			d, e = Isbn(next, name, name)
 		case "isbn13":
 			d, e = Isbn13(next, name, name)
+		case "ismn":
+			d, e = Ismn(next, name, name)
 		}
 		next++
 		cat := "U"

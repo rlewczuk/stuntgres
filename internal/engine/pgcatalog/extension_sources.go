@@ -110,6 +110,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			if d.Installed.Parallel != 0 { parallel = string(d.Installed.Parallel) }
 			text(8, parallel)
 			text(9, string(d.RoutineKind))
+			text(14, d.Display.Source)
 			row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 			if d.SQL != nil {
 				named := false

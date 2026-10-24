@@ -46,18 +46,22 @@ func isnUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type)
 func TestIsnProviderIdentity(t *testing.T) {
 	e, ext, base := isnUnitInstalled(t)
 	view := e.CatalogRead()
-	if roles, err := extension.InstalledTypes(view, ext); err != nil || len(roles) != 3 || roles[0].Name != "ean13" || roles[0].Type != base || roles[1].Name != "isbn" || !roles[1].Type.SQLType.IsIsbn() || roles[2].Name != "isbn13" || !roles[2].Type.SQLType.IsIsbn13() {
+	if roles, err := extension.InstalledTypes(view, ext); err != nil || len(roles) != 4 || roles[0].Name != "ean13" || roles[0].Type != base || roles[1].Name != "isbn" || !roles[1].Type.SQLType.IsIsbn() || roles[2].Name != "isbn13" || !roles[2].Type.SQLType.IsIsbn13() || roles[3].Name != "ismn" || !roles[3].Type.SQLType.IsIsmn() {
 		t.Fatal("installed ownership roles", roles, err)
 	}
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.3" || len(ext.Members) != 9 || base.Extension != ext.Address() || !base.SQLType.IsEan13() || base.Owner != ext.Owner {
+	if ext.Version != "1.3" || len(ext.Members) != 12 || base.Extension != ext.Address() || !base.SQLType.IsEan13() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	long := view.MustType(ext.Members[6])
 	if long.Comment != "International Standard Book Number 13 (ISBN13)" || view.MustProcedure(ext.Members[7]).Display.Source != "isbn_in" || view.MustProcedure(ext.Members[8]).Name() != "ean13_out" {
 		t.Fatal("ISBN13 declaration facts", long)
+	}
+	music := view.MustType(ext.Members[9])
+	if music.Comment != "International Standard Music Number (ISMN)" || !music.SQLType.IsIsmn() || view.MustProcedure(ext.Members[10]).Display.Source != "ismn_in" || view.MustProcedure(ext.Members[11]).Name() != "isn_out" {
+		t.Fatal("ISMN declaration facts", music)
 	}
 	array, ok := view.LookupArray(base.SQLType)
 	if !ok || array.Concrete() || array.Element() != base.SQLType || array.ID() == base.SQLType.ID() {
@@ -101,7 +105,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 9 || !arrayInternal {
+	if len(members) != 12 || !arrayInternal {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -130,7 +134,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 		t.Fatal("owner metadata comments", records, err)
 	}
 	record := records[0]
-	if record.Name != "isn" || record.Schema != "public" || record.Version != "1.3" || record.Owner != "postgres" || len(record.Members) != 9 {
+	if record.Name != "isn" || record.Schema != "public" || record.Version != "1.3" || record.Owner != "postgres" || len(record.Members) != 12 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {
@@ -156,7 +160,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 	}
 	current := e.CatalogRead()
 	moved := current.MustType(base.Address())
-	if roles, err := extension.InstalledTypes(current, ext); err != nil || len(roles) != 3 || roles[0].Name != "ean13" || roles[0].Type != moved {
+	if roles, err := extension.InstalledTypes(current, ext); err != nil || len(roles) != 4 || roles[0].Name != "ean13" || roles[0].Type != moved {
 		t.Fatal("renamed ownership roles", roles, err)
 	}
 	if role, err := extension.MemberTypeRole(current, ext, moved); err != nil || role != "ean13" {
@@ -183,15 +187,51 @@ func TestIsnProviderIdentity(t *testing.T) {
 }
 
 func TestIsnProviderImport(t *testing.T) {
-	for _, family := range []string{"ean13", "isbn", "isbn13"} {
+	for _, family := range []string{"ean13", "isbn", "isbn13", "ismn"} {
 	t.Run(family, func(t *testing.T) {
-		source, installed, _ := isnUnitInstalled(t)
 		slot, input, output, constructor := 0, "1234567890120!", "123-456789012-8!", sqltype.Ean13
 		if family == "isbn" { slot, input, output, constructor = 3, "9780123456780!", "0-12-345678-9!", sqltype.Isbn }
 		if family == "isbn13" { slot, input, output, constructor = 6, "9780123456780!", "978-0-12-345678-6!", sqltype.Isbn13 }
-		base := source.CatalogRead().MustType(installed.Members[slot])
+		if family == "ismn" { slot, input, output, constructor = 9, "M123456780!", "M-1234-5678-5!", sqltype.Ismn }
+		target := New()
+		owner, closeOwner := extensionTemporaryOperation(t, target, "postgres")
+		namespace := intarrayUnitTemporaryNamespace(t, target, owner)
+		installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
+		extensionUnitPublish(t, target, installer, isnUnitStage(t, target, installer, "pgcrypto", namespace.Name()))
+		retainedExtension := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"}))
+		collisionAddress := retainedExtension.Members[len(retainedExtension.Members)-1]
+		collision := target.catalog.State.Get(collisionAddress)
+		if collision == nil || retainedExtension.TargetNamespace != namespace.Address() {
+			t.Fatal("missing genuine retained TEMP provider member")
+		}
+		source := New()
 		op, done := roleOperation(t, source, "postgres")
 		defer done()
+		// CREATE EXTENSION allocates its own OID, then the append-only ISN
+		// recipe slots. Pad through the real allocator so this family's
+		// scalar lands on one known, live TEMP member, not an assumed span.
+		if collisionAddress.ObjectID <= ids.OID(slot)+1 {
+			t.Fatal("retained member cannot accommodate the source recipe prefix")
+		}
+		extensionOID := collisionAddress.ObjectID-ids.OID(slot)-1
+		source.mu.Lock()
+		for source.catalog.NextOID() != 0 && source.catalog.NextOID() < extensionOID {
+			if _, err := source.catalog.AllocateOIDLocked(); err != nil {
+				source.mu.Unlock()
+				t.Fatal(err)
+			}
+		}
+		frontier := source.catalog.NextOID()
+		source.mu.Unlock()
+		if frontier != extensionOID {
+			t.Fatal("cannot align source recipe to retained member", frontier, extensionOID)
+		}
+		extensionUnitPublish(t, source, op, isnUnitStage(t, source, op, "isn", ""))
+		installed := source.catalog.State.MustExtension(source.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
+		base := source.CatalogRead().MustType(installed.Members[slot])
+		if base.Address().ObjectID != collisionAddress.ObjectID {
+			t.Fatal("source scalar did not occupy the genuine retained TEMP member OID", base.Address(), collisionAddress)
+		}
 		for _, q := range []string{"CREATE SCHEMA isn_import_dst", "ALTER TYPE public."+family+" RENAME TO moved", "ALTER TYPE public.moved SET SCHEMA isn_import_dst"} {
 			domainUnitPublish(t, source, domainUnitStage(t, source, op, q))
 		}
@@ -200,12 +240,6 @@ func TestIsnProviderImport(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		target := New()
-		owner, closeOwner := extensionTemporaryOperation(t, target, "postgres")
-		namespace := intarrayUnitTemporaryNamespace(t, target, owner)
-		installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
-		extensionUnitPublish(t, target, installer, isnUnitStage(t, target, installer, "unaccent", namespace.Name()))
-		unaccent := target.catalog.State.Get(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 		closeInstaller()
 		if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 			t.Fatal(err)
@@ -218,10 +252,10 @@ func TestIsnProviderImport(t *testing.T) {
 		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
-		if roles, err := extension.InstalledTypes(target.CatalogRead(), ext); err != nil || len(roles) != 3 || roles[slot/3].Name != family || roles[slot/3].Type != imported || imported.Name() != "moved" || imported.SQLType.SQLName() != "isn_import_dst.moved" {
+		if roles, err := extension.InstalledTypes(target.CatalogRead(), ext); err != nil || len(roles) != 4 || roles[slot/3].Name != family || roles[slot/3].Type != imported || imported.Name() != "moved" || imported.SQLType.SQLName() != "isn_import_dst.moved" {
 			t.Fatal("imported mutable identity lost canonical role", roles, err)
 		}
-		if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(unaccent.Address()) != unaccent {
+		if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(retainedExtension.Address()) != retainedExtension || target.catalog.State.Get(collision.Address()) != collision {
 			t.Fatal("import changed live TEMP provider authority")
 		}
 		mapped, err := typedef.ReownDomainDatum(value, imported.SQLType, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{base.SQLType: imported.SQLType}, nil)
@@ -230,6 +264,7 @@ func TestIsnProviderImport(t *testing.T) {
 		}
 		validInput := "9780123456786"
 		if family == "ean13" { validInput = "1234567890128" }
+		if family == "ismn" { validInput = "9790123456785" }
 		valid, err := base.SQLType.Input(context.Background(), validInput, -1)
 		if err != nil { t.Fatal(err) }
 		for _, datum := range []sqltype.Value{value, valid, sqltype.Null(base.SQLType)} {
@@ -268,7 +303,7 @@ func TestIsnProviderImport(t *testing.T) {
 		}
 		closeOwner()
 		assertTemporaryNamespacePair(t, target, namespace.Temporary, namespace.Address())
-		if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(unaccent.Address()) != nil {
+		if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(retainedExtension.Address()) != nil || target.catalog.State.Get(collision.Address()) != nil {
 			t.Fatal("original TEMP provider failed retirement after import")
 		}
 		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {

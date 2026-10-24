@@ -37,7 +37,7 @@ func TestReferenceIsbnIdentityControls(t *testing.T) {
 				boundQuery := "SELECT ($1::isbn_src.ean13)::text AS e,($2::isbn_src.isbn)::text AS v"
 				boundHeld := ean13Held(t, p, c, boundQuery)
 				stamps := map[string][4]int64{}
-				for _, typ := range []string{"ean13", "isbn"} {
+				for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn"} {
 					stamps[typ] = isbnIdentityStamp(t, p, c, "isbn_src."+typ)
 				}
 				// Save descriptors before any mutable name, namespace or owner
@@ -132,7 +132,7 @@ func TestReferenceIsbnIdentityControls(t *testing.T) {
 				for _, q := range []string{"CREATE ROLE isbn_role_spacer", "CREATE ROLE isbn_e_owner", "CREATE ROLE isbn_v_owner", "CREATE ROLE isbn_io_owner", "CREATE TABLE isbn_oid_spacer(v integer)", "CREATE EXTENSION isn"} {
 					fixture.RunStep(t, target.Ctx, tc, tb.Recorder, fixture.Exec(q, 0))
 				}
-				for _, typ := range []string{"ean13", "isbn"} {
+				for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn"} {
 					destination := isbnIdentityStamp(t, target, tc, "public."+typ)
 					for i, source := range stamps[typ] {
 						if source == destination[i] {

@@ -29,6 +29,7 @@ var isnRecipes = [...]isnRecipe{
 	{0, "ean13", "ean13_in", "ean13_out", "ean13_in", sqltype.Ean13, (*sqltype.Descriptor).IsEan13},
 	{3, "isbn", "isbn_in", "isn_out", "isbn_in", sqltype.Isbn, (*sqltype.Descriptor).IsIsbn},
 	{6, "isbn13", "isbn13_in", "ean13_out", "isbn_in", sqltype.Isbn13, (*sqltype.Descriptor).IsIsbn13},
+	{9, "ismn", "ismn_in", "isn_out", "ismn_in", sqltype.Ismn, (*sqltype.Descriptor).IsIsmn},
 }
 
 const isnMemberCount = len(isnRecipes)*3

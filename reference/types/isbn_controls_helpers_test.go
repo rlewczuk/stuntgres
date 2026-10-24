@@ -72,6 +72,15 @@ func isbnRetain(t *testing.T, p *fixture.Pair, c *sql.Conn, query string) (*sql.
 	if err != nil {
 		t.Fatal(err)
 	}
+	names, err := rows.Columns()
+	if err != nil || len(names) != 3 {
+		t.Fatalf("retained Columns = %v, %v", names, err)
+	}
+	names[0] = "caller mutation"
+	again, err := rows.Columns()
+	if err != nil || len(again) != 3 || again[0] != "id" {
+		t.Fatalf("Columns did not detach caller slice: %v, %v", again, err)
+	}
 	return rows, metadata
 }
 

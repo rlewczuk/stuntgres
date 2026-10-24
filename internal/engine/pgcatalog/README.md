@@ -55,10 +55,12 @@ type Producer func(Input) ([][]sqltype.Value, error)
   internal handler references with installed OID/NAME/REGPROC descriptors.
   These rows are builtin metadata, not mutable parser definitions or ACLs.
   `pg_proc.proretset` comes from actual routine declaration metadata.
-  Its condensed fourteen-column row shape includes FLOAT4 `prorows`; the five
+  Its condensed fifteen-column row shape includes FLOAT4 `prorows`; the five
   identity-only scalar parser-handler supplements populate that field with zero
   while retaining `proretset=false`. Supplement rows do not install executable
   providers, and represented descriptors still take precedence.
+  `pg_proc.prosrc` projects the routine's stored source declaration; installed
+  codec source symbols remain independent of mutable public routine names.
 - Absent and explicit-empty ACLs stay distinct: `ClassACL` returns NULL for an
   absent ACL and `{}` for an empty one.
 - Information-schema producers emit genuine source-owned domains, not bare

@@ -130,5 +130,5 @@ func isbnInstallUnpublished(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 	if preexistingRoutine != "" {
 		expected = [][]any{{preexistingRoutine}}
 	}
-	run(fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('ean13_in','ean13_out','isbn_in','isn_out','isbn13_in') ORDER BY proname", []string{"proname"}, []string{"NAME"}, expected))
+	run(fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('ean13_in','ean13_out','isbn_in','isn_out','isbn13_in','ismn_in') ORDER BY proname", []string{"proname"}, []string{"NAME"}, expected))
 }
