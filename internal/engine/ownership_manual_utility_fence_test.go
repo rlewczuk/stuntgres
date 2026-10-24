@@ -33,7 +33,7 @@ func ownershipManualCreationFixture(t *testing.T, e *Engine, actor authorization
 	table := roleTableRef(t, e, "ownership_fence_creation.owned_table")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	namespace := *stage.Base.MustNamespace(ns)
-	namespace.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	namespace.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(namespace.Owner, namespace.Owner, authorization.UsagePrivilege|authorization.CreatePrivilege, 0)}}
 	namespace.ObjectRevision++
 	if err := stage.Replace(&namespace); err != nil {
@@ -72,7 +72,7 @@ type ownershipManualSnapshot struct {
 
 func ownershipManualCapture(e *Engine, session *session.Session, sequence ids.ObjectRef) ownershipManualSnapshot {
 	snapshot := ownershipManualSnapshot{
-		roots: indexMaintenanceCapture(e), roles: e.roles.published, revision: session.Authorization.Revision,
+		roots: indexMaintenanceCapture(e), roles: e.roles.Published, revision: session.Authorization.Revision,
 		generators: make(map[ids.ObjectAddress]*storage.SequenceGenerator), generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
 		memory: payloadOf(session).sequences.Memory(sequence.Address), last: payloadOf(session).sequences.Last(),
 		rows: make(map[ids.ObjectAddress][]storage.RowVersion),
@@ -132,7 +132,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *session.Se
 	if private {
 		database.Owner = session.Authorization.State.CurrentUser
 	} else {
-		database.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		database.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
 	database.ObjectRevision++
 	if err := stage.Replace(&database); err != nil {
@@ -140,7 +140,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *session.Se
 	}
 	ownershipUnitPublish(t, e, stage)
 	e.DiscardCatalogStage(stage)
-	if e.roles.published != before.roles || session.Authorization.Revision != before.revision || e.catalog.State.Epoch() != before.roots.catalog.Epoch() {
+	if e.roles.Published != before.roles || session.Authorization.Revision != before.revision || e.catalog.State.Epoch() != before.roots.catalog.Epoch() {
 		t.Fatal("database replacement changed role/session/epoch authority")
 	}
 	for address, descriptor := range before.roots.catalog.Descriptors() {
@@ -168,7 +168,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *session.Se
 
 func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *session.Session, sequence ids.ObjectRef, auth AuthorizationView, committed catalog.Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
 	t.Helper()
-	if e.roles.published != before.roles || session.Authorization.Revision != before.revision || e.catalog.State.Epoch() != auth.Catalog.Epoch() || auth.DatabasePredecessor != committed || auth.Catalog.Get(sequence.Address) != old || old.Owner != auth.Roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
+	if e.roles.Published != before.roles || session.Authorization.Revision != before.revision || e.catalog.State.Epoch() != auth.Catalog.Epoch() || auth.DatabasePredecessor != committed || auth.Catalog.Get(sequence.Address) != old || old.Owner != auth.Roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
 	}
 	if payloadOf(session).sequences.Memory(sequence.Address) != before.memory || *before.memory != before.memoryValue || payloadOf(session).sequences.Last() != before.last {

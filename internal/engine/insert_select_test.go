@@ -301,7 +301,7 @@ func TestInsertSelectIndependentACL(t *testing.T) {
 	target := roleTableRef(t, e, "t")
 	source := roleTableRef(t, e, "s")
 	worker, _ := e.Roles().Lookup("worker")
-	grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {

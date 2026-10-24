@@ -22,14 +22,14 @@ func commentWant(t *testing.T, e *Engine, read catalog.Read, ref ids.ObjectRef, 
 func commentFailure(t *testing.T, e *Engine, op *session.Operation, q, code, message, detail string) {
 	t.Helper()
 	before := e.CatalogRead()
-	rolesPublication := e.roles.published
+	rolesPublication := e.roles.Published
 	_, err := e.Execute(op, statement(t, q), 0, nil)
 	var d *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
 	if !errors.As(err, &d) || *d != want {
 		t.Fatalf("%s: full diagnostic %#v want %#v", q, d, want)
 	}
-	if before.State() != e.CatalogRead().State() || rolesPublication != e.roles.published {
+	if before.State() != e.CatalogRead().State() || rolesPublication != e.roles.Published {
 		t.Fatal("failed COMMENT published metadata")
 	}
 }

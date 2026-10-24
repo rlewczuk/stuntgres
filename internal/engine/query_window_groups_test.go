@@ -369,11 +369,11 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.groups_acl(id INT,k INT)")
 	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), table.Address())
-	reader := e.roles.domain.Principal(1000000)
-	roles := cloneRoleFixture(e.roles.published)
+	reader := e.roles.Domain.Principal(1000000)
+	roles := cloneRoleFixture(e.roles.Published)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "groups_unit_reader"})
 
-	e.roles.published = roles
+	e.roles.PublishLocked(roles)
 	column := func(index int) ids.ObjectRef {
 		object := ref
 		object.Address.SubID = table.Attributes[index]

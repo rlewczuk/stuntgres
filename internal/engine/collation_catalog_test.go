@@ -65,7 +65,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 		}
 	}
 	foreignOwner := *d
-	foreignOwner.Owner = New().roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	foreignOwner.Owner = New().roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	foreignOwner.ObjectRevision++
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Replace(&foreignOwner); err != nil {

@@ -204,7 +204,7 @@ func TestInfoDomainConstraintsCapture(t *testing.T) {
 	for _, mutate := range []func(*pgcatalog.Input){
 		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = New().CatalogRead() },
-		func(in *pgcatalog.Input) { in.Roles = New().roles.published.Root.Read(authorization.PrincipalRef{}) },
+		func(in *pgcatalog.Input) { in.Roles = New().roles.Published.Root.Read(authorization.PrincipalRef{}) },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Epoch = 0 },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },

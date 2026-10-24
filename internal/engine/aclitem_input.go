@@ -6,5 +6,5 @@ import (
 )
 
 func (e *Engine) captureACLItemInput(auth AuthorizationView, op *session.Operation) regobj.ACLItemInput {
-	return regobj.ACLItemInput{Roles: auth.Roles, Authority: &e.roles.aclAuthority, Op: op}
+	return regobj.ACLItemInput{Roles: auth.Roles, Authority: &e.roles.ACLAuthority, Op: op}
 }

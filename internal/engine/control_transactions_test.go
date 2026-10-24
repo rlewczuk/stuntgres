@@ -163,7 +163,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				}
 				nextRevision := target.catalog.NextRevision()
 				for _, descriptor := range next.Descriptors() {
-					if err := access.ValidateACL(target.roles.read(&target.catalog.Owner, target.catalog.Read(next), target.roles.published), descriptor); err != nil {
+					if err := access.ValidateACL(target.roles.PublishedRead(&target.catalog.Owner, target.catalog.Read(next)), descriptor); err != nil {
 						return err
 					}
 					nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)

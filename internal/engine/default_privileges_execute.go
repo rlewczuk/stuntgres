@@ -18,7 +18,7 @@ func (e *Engine) executeDefaultPrivileges(scope *StatementScope, statement *pars
 	claims := scratch[:0]
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(scope.op)
-	publishedRoles := e.roles.published
+	publishedRoles := e.roles.Published
 	var updates map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	if err == nil {
 		updates, err = role.DefaultPrivilegesPlan(scope.op.Context(), auth.View, statement)
@@ -46,7 +46,7 @@ func (e *Engine) executeDefaultPrivileges(scope *StatementScope, statement *pars
 	if err != nil {
 		return Result{}, err
 	}
-	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.published.SameAuthority(publishedRoles) {
+	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.Published.SameAuthority(publishedRoles) {
 		return Result{}, catalog.Conflict{}
 	}
 	for _, claim := range claims {
@@ -82,14 +82,14 @@ func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth Author
 	candidate := *auth.Catalog.State()
 	candidate.OverlayDefaultACLs(auth.Catalog.State(), updates)
 	candidateCatalog := e.catalog.Read(&candidate)
-	candidateRoles := e.roles.read(&e.catalog.Owner, candidateCatalog, auth.RoleRecord)
+	candidateRoles := e.roles.Read(&e.catalog.Owner, candidateCatalog, auth.RoleRecord)
 	if err := catalog.ValidateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err
 	}
 	if auth.RoleRecord.Revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	if _, err := e.roles.revisionCandidateLocked(); err != nil {
+	if _, err := e.roles.RevisionCandidateLocked(); err != nil {
 		return Result{}, err
 	}
 	changes := scope.owner.Catalog.Clone()
@@ -97,7 +97,7 @@ func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth Author
 		e.defaultACLChangeLocked(changes, key, record)
 	}
 	if changes.RolesBase == nil {
-		changes.RolesBase = e.roles.published
+		changes.RolesBase = e.roles.Published
 	}
 	changes.Roles = auth.RoleRecord.Advance()
 	if err := scope.acquireJournalRoleDependenciesLocked(changes); err != nil {
@@ -107,7 +107,7 @@ func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth Author
 	if err != nil {
 		return Result{}, err
 	}
-	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.published.SameAuthority(publishedRoles) {
+	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.Published.SameAuthority(publishedRoles) {
 		return Result{}, catalog.Conflict{}
 	}
 	if err := e.catalogPreflightLocked(changes); err != nil {

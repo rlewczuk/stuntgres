@@ -59,7 +59,7 @@ type catalogRoleReadFence struct {
 func (catalogRoleReadFence) Kind() session.FenceKind { return fenceCatalogRoleRead }
 
 func (f catalogRoleReadFence) currentLocked(e *Engine, _ *session.Journal) error {
-	if e.roles.published != f.roles {
+	if e.roles.Published != f.roles {
 		return catalog.Conflict{}
 	}
 	return nil
@@ -182,10 +182,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	// Detached producer rows are still pending publication after statement
 	// Finish. Keep their role read separate from actual private role writes.
 	if s.initialTx != (ids.TxRef{}) || s.materializedOrZero().Replacement != nil {
-		c.AddFence(catalogRoleReadFence{roles: e.roles.published})
+		c.AddFence(catalogRoleReadFence{roles: e.roles.Published})
 	}
 	if s.roleCandidate != nil && c.RolesBase == nil {
-		c.RolesBase = e.roles.published
+		c.RolesBase = e.roles.Published
 	}
 	c.DomainChanged = c.DomainChanged || len(s.domainTargets) != 0
 	for _, d := range s.Descriptors() {

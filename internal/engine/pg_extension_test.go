@@ -29,7 +29,7 @@ func pgExtensionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Obje
 func pgExtensionUnitShape(t *testing.T, e *Engine) *catalog.Relation {
 	t.Helper()
 	d, _ := pgExtensionUnitSource(t, e)
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if d.Name() != "pg_extension" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 8 || len(d.Columns) != 8 || d.Owner != owner || owner.ID() != 10 {
 		t.Fatal("relation identity", d, owner)
 	}
@@ -72,7 +72,7 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 		t.Fatal("foreign generation accepted")
 	}
 	class := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ids.ObjectRef{}, class)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	e := New()
 	d, ref := pgExtensionUnitSource(t, e)
 	before, names := maps.Collect(e.catalog.State.Descriptors()), maps.Collect(e.catalog.State.Names())
-	old, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ref, d)
+	old, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), ref, d)
 	if err != nil || old == nil {
 		t.Fatal("capture", old, err)
 	}
@@ -152,7 +152,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		}
 	}
 	view := e.catalog.Read(&state)
-	if rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, d); err != nil || rows == nil || rows.Count() != 0 {
+	if rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, d); err != nil || rows == nil || rows.Count() != 0 {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1028})
@@ -201,7 +201,7 @@ func TestPGExtensionCapture(t *testing.T) {
 func TestPGExtensionCaptureInstalled(t *testing.T) {
 	e := New()
 	d, ref := pgExtensionUnitSource(t, e)
-	empty, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ref, d)
+	empty, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), ref, d)
 	if err != nil || empty == nil || empty.Count() != 0 {
 		t.Fatal("fresh installed catalog", empty, err)
 	}
@@ -212,7 +212,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	ext := e.catalog.State.MustExtension(address)
 	d = pgExtensionUnitShape(t, e)
-	captured, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ref, d)
+	captured, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), ref, d)
 	if err != nil || captured == nil || captured.Count() != 1 {
 		t.Fatal("installed descriptor not projected", captured, err)
 	}

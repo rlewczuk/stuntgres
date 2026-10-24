@@ -76,11 +76,11 @@ func TestLoadExecutorNoPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		state, roles, oid, revision, principal := e.catalog.State, e.roles.published, e.catalog.NextOID(), e.catalog.NextRevision(), e.roles.nextPrincipal
+		state, roles, oid, revision, principal := e.catalog.State, e.roles.Published, e.catalog.NextOID(), e.catalog.NextRevision(), e.roles.NextPrincipal()
 		identity, authorizationRevision := op.RoleState(), op.Session.Authorization.Revision
 		unchanged := func() {
 			t.Helper()
-			if e.catalog.State != state || e.catalog.State.Epoch() != state.Epoch() || e.roles.published != roles || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.roles.nextPrincipal != principal || op.RoleState() != identity || op.Session.Authorization.Revision != authorizationRevision {
+			if e.catalog.State != state || e.catalog.State.Epoch() != state.Epoch() || e.roles.Published != roles || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.roles.NextPrincipal() != principal || op.RoleState() != identity || op.Session.Authorization.Revision != authorizationRevision {
 				t.Fatal("LOAD published catalog/role/allocator/identity changes")
 			}
 		}

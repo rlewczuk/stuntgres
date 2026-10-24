@@ -22,7 +22,7 @@ func inheritanceControlsTemporary(e *Engine, id ids.OID, name string, parents ..
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}
 	if e.catalog.State.Get(ns) == nil {
 		e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-		d := &catalog.Namespace{ObjectAddress: ns, ObjectName: "pg_temp_inheritance_unit", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: e.catalog.Domain.Session(99)}
+		d := &catalog.Namespace{ObjectAddress: ns, ObjectName: "pg_temp_inheritance_unit", ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: e.catalog.Domain.Session(99)}
 		e.catalog.State.SetDescriptor(ns, d)
 		e.catalog.State.BindName(catalog.DescriptorNameKey(d), ns)
 	}

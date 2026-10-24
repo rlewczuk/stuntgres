@@ -52,7 +52,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					e.catalog.PublishLocked(next)
 					auth.Catalog = e.catalog.Read(next)
 					auth.PairedCatalog = auth.Catalog
-					auth.Roles = e.roles.read(&e.catalog.Owner, auth.Catalog, auth.RoleRecord)
+					auth.Roles = e.roles.Read(&e.catalog.Owner, auth.Catalog, auth.RoleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
 					original := ruleUnitInsert(e, src, 1, 10).Binding()
 					original.QuerySources = []exec.Leaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}

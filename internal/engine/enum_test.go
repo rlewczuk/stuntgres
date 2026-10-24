@@ -61,12 +61,12 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 		t.Fatal("canceled publication", err)
 	}
 	e.mu.Lock()
-	reader := e.roles.domain.Principal(e.roles.nextPrincipal)
-	e.roles.nextPrincipal++
-	roles := cloneRoleFixture(e.roles.published)
+	reader := e.roles.Domain.Principal(e.roles.NextPrincipal())
+	e.roles.InstallPrincipalFrontierLocked(e.roles.NextPrincipal() + 1)
+	roles := cloneRoleFixture(e.roles.Published)
 
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader"})
-	e.roles.published = roles
+	e.roles.PublishLocked(roles)
 	e.mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	auth.State.CurrentUser = reader

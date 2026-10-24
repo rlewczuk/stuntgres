@@ -147,7 +147,7 @@ func cubeComparisonProviderRemap(t *testing.T) {
 			t.Fatal("both-argument remap/source immutability", mapped, original)
 		}
 	}
-	metadata, err := extension.OwnerMetadata(e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.CatalogRead()), ext)
 	if err != nil || metadata == "" {
 		t.Fatal("portable owners", err)
 	}
@@ -175,7 +175,7 @@ func cubeComparisonProviderRemap(t *testing.T) {
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 		corrupt(&bad)
 		candidate := catalog.CloneState(e.catalog.State)
-		roles := e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published)
+		roles := e.roles.PublishedRead(&e.catalog.Owner, e.CatalogRead())
 		if _, err := extension.ImportOwners(context.Background(), e.CatalogRead().WithState(candidate), roles, []extension.OwnerRecord{bad}); err == nil {
 			t.Fatal("corrupt owner record admitted", bad)
 		}

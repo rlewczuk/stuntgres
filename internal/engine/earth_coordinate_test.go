@@ -70,7 +70,7 @@ func TestEarthCoordinateOwners(t *testing.T) {
 	earthOwnerCodecUnits(t)
 	e, ext, _ := earthUnitInstalled(t)
 	view := e.CatalogRead()
-	roles := e.roles.read(&e.catalog.Owner, view, e.roles.published)
+	roles := e.roles.PublishedRead(&e.catalog.Owner, view)
 	text, err := extension.OwnerMetadata(view, roles, ext)
 	if err != nil {
 		t.Fatal(err)

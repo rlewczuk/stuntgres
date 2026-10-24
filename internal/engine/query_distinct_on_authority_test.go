@@ -20,7 +20,7 @@ func TestQueryDistinctOnPhysicalACLAndHeldRebind(t *testing.T) {
 			}
 			roleExecute(t, e, op, "CREATE VIEW invoker_on WITH(security_invoker=true) AS SELECT DISTINCT ON(secret) id FROM acl_t ORDER BY secret,id DESC")
 			reader, _ := e.Roles().Lookup("distinct_on_reader")
-			grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+			grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			table := roleTableRef(t, e, "acl_t")
 			id := table
 			id.Address.SubID = 1

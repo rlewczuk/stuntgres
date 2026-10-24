@@ -30,7 +30,7 @@ func (e *Engine) initialRole(ctx context.Context, authenticated authorization.Pr
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	roles := e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published)
+	roles := e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current())
 	target, ok := roles.Lookup(name)
 	if !ok {
 		return authorization.PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", name))

@@ -99,10 +99,10 @@ func (e *Engine) publishDatabaseTargetLocked(ctx context.Context, name string, t
 	if e.cluster.targets[name] != nil {
 		return Result{}, sqlError("42P04", fmt.Sprintf(`database "%s" already exists`, name))
 	}
-	if target == nil || target.mu != e.mu || target.roles != e.roles || target.cluster != nil || target.databaseName != name || target.catalog.Domain == e.catalog.Domain || target.catalog.Principals != &e.roles.domain || target.catalog.ACLAuthority != &e.roles.aclAuthority {
+	if target == nil || target.mu != e.mu || target.roles != e.roles || target.cluster != nil || target.databaseName != name || target.catalog.Domain == e.catalog.Domain || target.catalog.Principals != &e.roles.Domain || target.catalog.ACLAuthority != &e.roles.ACLAuthority {
 		return Result{}, fmt.Errorf("stuntgres: foreign or already registered database target")
 	}
-	if _, err := e.roles.published.Root.Read(authorization.PrincipalRef{}).Descriptor(owner); err != nil {
+	if _, err := e.roles.Published.Root.Read(authorization.PrincipalRef{}).Descriptor(owner); err != nil {
 		return Result{}, err
 	}
 	oid, err := catalog.DatabaseOIDLocked(e.cluster.nextOID, &target.catalog, e.cluster.catalogs)

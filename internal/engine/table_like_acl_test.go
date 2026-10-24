@@ -19,7 +19,7 @@ func TestTableLikeSourceACL(t *testing.T) {
 	run(t, e, "CREATE TABLE private_source.src(a INT)")
 	source := roleTableRef(t, e, "src")
 	reader, _ := e.Roles().Lookup("like_reader")
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	op, done := roleOperation(t, e, "like_reader")
 	defer done()
 	for _, tc := range []struct {

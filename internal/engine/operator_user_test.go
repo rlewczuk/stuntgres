@@ -99,7 +99,7 @@ func TestUserOperatorCatalogValidation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	stage := e.BeginCatalogStage(view)
-	d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Owner: e.roles.domain.Principal(10), Function: 177, Result: 23}
+	d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Owner: e.roles.Domain.Principal(10), Function: 177, Result: 23}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +357,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		t.Fatal(id, err)
 	}
 	stage := e.BeginCatalogStage(view)
-	source := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Result: 23, Function: 177, Owner: e.roles.domain.Principal(10)}
+	source := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Result: 23, Function: 177, Owner: e.roles.Domain.Principal(10)}
 	destination := *source
 	destination.ObjectAddress.ObjectID = 90001
 	destination.ObjectName = "#/#"
@@ -513,7 +513,7 @@ func TestUserOperatorCatalogPublicationFences(t *testing.T) {
 	e.DiscardCatalogStage(stage)
 	stage = e.BeginCatalogStage(before)
 	foreign := *unowned
-	foreign.Owner = New().roles.domain.Principal(10)
+	foreign.Owner = New().roles.Domain.Principal(10)
 	if err = stage.Create(&foreign); err != nil {
 		t.Fatal(err)
 	}

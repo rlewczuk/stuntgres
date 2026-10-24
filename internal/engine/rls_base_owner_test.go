@@ -13,7 +13,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE ROLE rls_publication_reader")
 	roleExecute(t, e, op, "CREATE ROLE rls_publication_bypass BYPASSRLS")
-	reader, bypass := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_reader"), e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_bypass")
+	reader, bypass := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_reader"), e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_bypass")
 	publish := func(next *catalog.Relation) {
 		t.Helper()
 		base := e.CatalogRead()

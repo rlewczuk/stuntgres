@@ -196,7 +196,7 @@ func TestQueryDistinctPhysicalACL(t *testing.T) {
 				roleExecute(t, e, op, "INSERT INTO acl_t VALUES(1,9),(1,8),(2,8)")
 			}
 			reader, _ := e.Roles().Lookup("distinct_reader")
-			grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+			grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			table := roleTableRef(t, e, "acl_t")
 			id := table
 			id.Address.SubID = 1

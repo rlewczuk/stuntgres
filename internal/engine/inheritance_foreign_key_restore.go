@@ -47,7 +47,7 @@ func validateRestoredInheritedForeignKey(e *Engine, receipt *table.RestoredInher
 	auth := ddlAuthorityOf(declaration.Auth)
 	auth.Catalog = view
 	auth.Recapture(view)
-	if receipt.Source != declaration.Child || receipt.Source.Domain() != e.catalog.Domain || receipt.Target.Domain() != e.catalog.Domain || receipt.Source.Epoch != view.Epoch() || receipt.Target.Epoch != view.Epoch() || auth.RoleRecord != e.roles.published || !partitionConstraintReplayImport(e, op, auth) {
+	if receipt.Source != declaration.Child || receipt.Source.Domain() != e.catalog.Domain || receipt.Target.Domain() != e.catalog.Domain || receipt.Source.Epoch != view.Epoch() || receipt.Target.Epoch != view.Epoch() || auth.RoleRecord != e.roles.Published || !partitionConstraintReplayImport(e, op, auth) {
 		return ids.ErrCatalogReplaced
 	}
 	if !receipt.Unchanged(view) {

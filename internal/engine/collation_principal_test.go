@@ -33,7 +33,7 @@ func collationRenameBootstrapFixture(e *Engine, op *session.Operation, name stri
 	if !actor.Superuser {
 		return fmt.Errorf("bootstrap rename fixture requires actual superuser authority")
 	}
-	ref := e.roles.domain.Principal(10)
+	ref := e.roles.Domain.Principal(10)
 	d, err := auth.Roles.Descriptor(ref)
 	if err != nil {
 		return err
@@ -44,10 +44,10 @@ func collationRenameBootstrapFixture(e *Engine, op *session.Operation, name stri
 	if _, exists := auth.Roles.Lookup(name); exists {
 		return fmt.Errorf("fixture role name already exists")
 	}
-	if e.roles.published.Revision == ^uint64(0) {
+	if e.roles.Published.Revision == ^uint64(0) {
 		return fmt.Errorf("authorization revision exhausted")
 	}
-	n := cloneRoleFixture(e.roles.published)
+	n := cloneRoleFixture(e.roles.Published)
 	d.Name = name
 	putFixtureRole(n, d)
 
@@ -56,7 +56,7 @@ func collationRenameBootstrapFixture(e *Engine, op *session.Operation, name stri
 	if err = publicationOperationLocked(e, op); err != nil {
 		return err
 	}
-	e.roles.published = n
+	e.roles.PublishLocked(n)
 	return nil
 }
 
@@ -64,8 +64,8 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	e := New()
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
-	bootstrap := e.roles.domain.Principal(10)
-	beforeRolesPublication := e.roles.published
+	bootstrap := e.roles.Domain.Principal(10)
+	beforeRolesPublication := e.roles.Published
 	beforeRoles := e.Roles()
 	beforeDescriptor, err := beforeRoles.Descriptor(bootstrap)
 	if err != nil {
@@ -82,7 +82,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	}
 	want := beforeDescriptor
 	want.Name = "original_bootstrap"
-	if actual != want || e.roles.published.Revision != beforeRolesPublication.Revision+1 || !reflect.DeepEqual(fixtureEdges(e.roles.published), fixtureEdges(beforeRolesPublication)) {
+	if actual != want || e.roles.Published.Revision != beforeRolesPublication.Revision+1 || !reflect.DeepEqual(fixtureEdges(e.roles.Published), fixtureEdges(beforeRolesPublication)) {
 		t.Fatal("rename changed genuine role identity", actual, want)
 	}
 	old, err := beforeRoles.Descriptor(bootstrap)

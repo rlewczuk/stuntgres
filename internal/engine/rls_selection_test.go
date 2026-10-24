@@ -14,7 +14,7 @@ func TestRLSSelection(t *testing.T) {
 	for _, q := range []string{"CREATE ROLE selection_actor", "CREATE ROLE selection_group", "CREATE ROLE selection_other", "GRANT selection_group TO selection_actor WITH INHERIT TRUE"} {
 		roleExecute(t, e, op, q)
 	}
-	roles := e.roles.published.Root.Read(authorization.PrincipalRef{})
+	roles := e.roles.Published.Root.Read(authorization.PrincipalRef{})
 	actor, group, other := roles.LookupRef("selection_actor"), roles.LookupRef("selection_group"), roles.LookupRef("selection_other")
 	using, err := policyUnitBind(t, e, op, d, "FALSE")
 	if err != nil {

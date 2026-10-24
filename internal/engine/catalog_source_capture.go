@@ -102,7 +102,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		if oid == ids.ParameterClassID {
 			in.Roles = scope.inquiry.commentRoles
 		} else {
-			in.Roles = e.roles.read(&e.catalog.Owner, in.Catalog, scope.inquiry.deparseAuth.RoleRecord)
+			in.Roles = e.roles.Read(&e.catalog.Owner, in.Catalog, scope.inquiry.deparseAuth.RoleRecord)
 		}
 		if oid == 12002 {
 			auth, err := e.authorizationLocked(scope.op)

@@ -14,7 +14,7 @@ func cloneRoleFixture(r *access.RoleRecord) *access.RoleRecord {
 	return &access.RoleRecord{Root: r.Root, Revision: r.Revision + 1}
 }
 func emptyRoleFixture(e *Engine) *access.RoleRecord {
-	root := authorization.Seed(&e.roles.domain)
+	root := authorization.Seed(&e.roles.Domain)
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor)
 	for ref, d := range root.Read(authorization.PrincipalRef{}).RoleEntries() {
 		targets[ref] = d
@@ -154,10 +154,10 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	if err != nil {
 		return err
 	}
-	if err := access.ValidateACL(e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), next); err != nil {
+	if err := access.ValidateACL(e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), next); err != nil {
 		return err
 	}
-	if e.roles.published.Revision == ^uint64(0) {
+	if e.roles.Published.Revision == ^uint64(0) {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	state := catalog.CloneState(e.catalog.State)
@@ -166,7 +166,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	} else {
 		state.SetDescriptor(addr, next)
 	}
-	roles := e.roles.published.Advance()
+	roles := e.roles.Published.Advance()
 	databaseRoots := e.catalog.ProjectDatabasesLocked(state, e.cluster.catalogs)
 	if err := ctx.Err(); err != nil {
 		return err
@@ -185,6 +185,6 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	}
 	e.catalog.PublishLocked(state)
 	databaseRoots.InstallLocked()
-	e.roles.published = roles
+	e.roles.PublishLocked(roles)
 	return nil
 }

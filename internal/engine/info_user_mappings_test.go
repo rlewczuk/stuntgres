@@ -186,7 +186,7 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 			if malformed == "server" {
 				mapping.Server.ObjectID++
 			} else {
-				mapping.MappedRole = f.e.roles.domain.Principal(99999)
+				mapping.MappedRole = f.e.roles.Domain.Principal(99999)
 			}
 			bad.SetDescriptor(mapping.Address(), &mapping)
 		}

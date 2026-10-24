@@ -14,7 +14,7 @@ import (
 // Provider-only fixture: this does not enable CREATE TYPE in a TEMP schema.
 func typedControlsTemporary(e *Engine, tables ...*catalog.Relation) {
 	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}, ObjectName: "pg_temp_typed_unit", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: e.catalog.Domain.Session(99)}
+	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}, ObjectName: "pg_temp_typed_unit", ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: e.catalog.Domain.Session(99)}
 	e.catalog.State.SetDescriptor(namespace.Address(), namespace)
 	e.catalog.State.BindName(catalog.DescriptorNameKey(namespace), namespace.Address())
 	for _, old := range tables {

@@ -39,7 +39,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			var carried *catalog.Namespace
 			if prior {
 				scope.catalog = session.NewJournal()
-				carried = &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, ObjectName: "private_carried", Owner: e.roles.domain.Principal(10), ObjectRevision: 1}
+				carried = &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, ObjectName: "private_carried", Owner: e.roles.Domain.Principal(10), ObjectRevision: 1}
 				e.catalogChangeLocked(scope.catalog, carried.Address(), carried)
 			}
 			auth, path, err := scope.schemaInquiryPathLocked(e)

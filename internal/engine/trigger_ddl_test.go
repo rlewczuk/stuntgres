@@ -175,7 +175,7 @@ func TestTriggerDDLStageAtomicity(t *testing.T) {
 			stage.querySources = []catalog.Descriptor{ext}
 			stage.authSession = s.op.Session
 			stage.authRevision = s.op.Session.Authorization.Revision
-			stage.roleRevision = e.roles.published.Revision
+			stage.roleRevision = e.roles.Published.Revision
 			if err := stage.Replace(&copy); err != nil {
 				t.Fatal(err)
 			}
@@ -195,7 +195,7 @@ func TestTriggerDDLStageAtomicity(t *testing.T) {
 			case "authorization":
 				s.op.Session.Authorization.Revision++
 			case "role":
-				e.roles.published.Revision++
+				e.roles.Published.Revision++
 			}
 			token := PublicationToken{Epoch: stage.Base.Epoch()}
 			if reason == "epoch" {

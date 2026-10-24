@@ -40,7 +40,7 @@ func (s *StatementScope) acquireRoleResource(resource lock.Resource, mode lock.M
 
 func (s *StatementScope) acquireRolePrincipal(ref authorization.PrincipalRef, mode lock.Mode, tuple bool) error {
 	e := s.engine()
-	if ref.ID() == 0 || ref.ID() > math.MaxUint32 || ref != e.roles.domain.Principal(ref.ID()) {
+	if ref.ID() == 0 || ref.ID() > math.MaxUint32 || ref != e.roles.Domain.Principal(ref.ID()) {
 		return fmt.Errorf("stuntgres: foreign role lock principal")
 	}
 	resource := lock.Resource{ObjectRef: e.cluster.roleDomain.Ref(1, ids.ObjectAddress{ClassID: ids.RoleClassID, ObjectID: ids.OID(ref.ID())}), RoleTuple: tuple}

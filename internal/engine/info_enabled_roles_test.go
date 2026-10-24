@@ -84,7 +84,7 @@ func TestInfoEnabledRolesProducer(t *testing.T) {
 
 func TestInfoEnabledRolesSemantics(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	original := f.e.roles.published
+	original := f.e.roles.Published
 	bootstrap := fixtureRole(original, f.e.Roles().LookupRef("postgres"))
 	dbOwner := fixtureRole(original, f.e.Roles().LookupRef("pg_database_owner"))
 	roles := emptyRoleFixture(f.e)
@@ -92,9 +92,9 @@ func TestInfoEnabledRolesSemantics(t *testing.T) {
 	for _, role := range []authorization.RoleDescriptor{bootstrap, dbOwner, fixtureRole(original, f.owner), fixtureRole(original, f.reader), fixtureRole(original, f.member)} {
 		putFixtureRole(roles, role)
 	}
-	wheel := f.e.roles.domain.Principal(21001)
-	bridge := f.e.roles.domain.Principal(21002)
-	adminOnly := f.e.roles.domain.Principal(21003)
+	wheel := f.e.roles.Domain.Principal(21001)
+	bridge := f.e.roles.Domain.Principal(21002)
+	adminOnly := f.e.roles.Domain.Principal(21003)
 	for ref, name := range map[authorization.PrincipalRef]string{wheel: "wheel", bridge: "bridge", adminOnly: "adminonly"} {
 		putFixtureRole(roles, authorization.RoleDescriptor{Ref: ref, Name: name, Inherit: true})
 	}
@@ -104,7 +104,7 @@ func TestInfoEnabledRolesSemantics(t *testing.T) {
 		{Role: adminOnly, Member: f.reader, Grantor: bootstrap.Ref, Admin: true},
 	}
 	setFixtureEdges(roles, edges)
-	f.e.roles.published = roles
+	f.e.roles.PublishLocked(roles)
 	view := f.e.CatalogRead()
 	input := func(actor authorization.PrincipalRef) pgcatalog.Input {
 		return enabledRolesUnitInput(t, f, view, actor)
@@ -124,29 +124,29 @@ func TestInfoEnabledRolesSemantics(t *testing.T) {
 	reader := fixtureRole(changed, f.reader)
 	reader.Inherit = false
 	putFixtureRole(changed, reader)
-	f.e.roles.published = changed
+	f.e.roles.PublishLocked(changed)
 	enabledRolesUnitRows(t, input(f.reader), "default_reader", "default_owner", "bridge", "wheel")
 	// Distinct grantors and diamond paths still produce just one target row.
 	edges = append(edges, authorization.Membership{Role: wheel, Member: f.reader, Grantor: f.owner, Inherit: true})
 	changed = cloneRoleFixture(changed)
 	setFixtureEdges(changed, edges)
-	f.e.roles.published = changed
+	f.e.roles.PublishLocked(changed)
 	enabledRolesUnitRows(t, input(f.reader), "default_reader", "default_owner", "bridge", "wheel")
 
 	changed = cloneRoleFixture(changed)
 	power := fixtureRole(changed, f.owner)
 	power.Superuser = true
 	putFixtureRole(changed, power)
-	f.e.roles.published = changed
+	f.e.roles.PublishLocked(changed)
 	enabledRolesUnitRows(t, input(f.reader), "default_reader", "default_owner", "bridge", "wheel")
 	// Rename/drop/create publish a new graph without rewriting old captured names.
 	renamed := cloneRoleFixture(changed)
 	power.Name = "renamed_owner"
 	putFixtureRole(renamed, power)
 	retireFixtureRole(renamed, adminOnly)
-	newRef := f.e.roles.domain.Principal(21004)
+	newRef := f.e.roles.Domain.Principal(21004)
 	putFixtureRole(renamed, authorization.RoleDescriptor{Ref: newRef, Name: "new_role"})
-	f.e.roles.published = renamed
+	f.e.roles.PublishLocked(renamed)
 	enabledRolesUnitRows(t, input(f.reader), "default_reader", "renamed_owner", "bridge", "wheel")
 	enabledRolesUnitRows(t, input(bootstrap.Ref), "postgres", "pg_database_owner", "renamed_owner", "default_reader", "default_member", "wheel", "bridge", "new_role")
 	oldBag := map[string]int{}
@@ -202,7 +202,7 @@ func TestInfoEnabledRolesCaptureOwnership(t *testing.T) {
 		},
 		func(in *pgcatalog.Input) {
 			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.State.CurrentUser = f.e.roles.domain.Principal(999999)
+			runtime.auth.State.CurrentUser = f.e.roles.Domain.Principal(999999)
 			in.Runtime = runtime
 		},
 	} {

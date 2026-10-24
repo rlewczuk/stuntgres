@@ -37,7 +37,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	base := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ns, ObjectName: "base", ObjectRevision: 1, Owner: owner, RelationKind: catalog.TableRelation, Attributes: []int32{7, 11, 19}, Columns: []catalog.Column{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"id": 0, "a": 1, "hidden": 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 19}}
 	baseRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), base.Address())
 	column := func(slot int) expr.Expr {

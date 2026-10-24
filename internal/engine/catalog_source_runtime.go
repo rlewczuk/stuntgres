@@ -92,7 +92,7 @@ func (r engineCatalogRuntime) VisitPreparedTransactions(ctx context.Context, vis
 			return err
 		}
 		fact := pgcatalog.PreparedFact{XID: r.engine.visibility.AssignedXIDLocked(entry.Ref), GID: entry.GID, Prepared: entry.Prepared, Database: entry.Database}
-		if role, ok := r.engine.roles.published.Root.Read(authorization.PrincipalRef{}).Find(entry.Owner); ok {
+		if role, ok := r.engine.roles.Published.Root.Read(authorization.PrincipalRef{}).Find(entry.Owner); ok {
 			fact.Owner, fact.OwnerPresent = role.Name, true
 		}
 		if err := visit(fact); err != nil {

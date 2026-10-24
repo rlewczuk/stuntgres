@@ -24,7 +24,7 @@ import (
 func TestObjectACLAddressLookup(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	whole := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, owner, authorization.SelectPrivilege, 0)}}
 	column := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, Security: catalog.RelationSecurity{ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}}
@@ -74,7 +74,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	for _, subid := range []int32{2, 3, 4, -1, 65536, -65536} {
 		check(ids.ObjectAddress{ClassID: 1259, ObjectID: 48001, SubID: subid}, authorization.ACLValue{})
 	}
-	roles := e.roles.published.Root.Read(authorization.PrincipalRef{})
+	roles := e.roles.Published.Root.Read(authorization.PrincipalRef{})
 	array, _ := view.LookupType(sqltype.ACLItemArray)
 	for _, acl := range []authorization.ACLValue{{}, {Explicit: true}, column} {
 		value, err := pgcatalog.ClassACL(&e.catalog.Owner, roles, array, acl)
@@ -92,7 +92,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		// no sequence GRANT SQL or new producer is introduced by this inquiry.
 		engine := New()
 		catalogView := engine.CatalogRead()
-		principal := engine.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		principal := engine.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		stage := engine.BeginCatalogStage(catalogView)
 		options, _, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, nil)
 		if err != nil {

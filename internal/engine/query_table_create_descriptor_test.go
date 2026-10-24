@@ -30,7 +30,7 @@ func queryCreateDomain(t *testing.T, e *Engine) *catalog.Type {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor := &catalog.Type{SQLType: typ, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	descriptor := &catalog.Type{SQLType: typ, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Create(descriptor); err != nil {
 		t.Fatal(err)

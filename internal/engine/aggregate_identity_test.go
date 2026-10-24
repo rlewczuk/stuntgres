@@ -219,7 +219,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 	e := New()
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
-	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "intagg", Version: "1.1", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.domain.Principal(10)}
+	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "intagg", Version: "1.1", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.Domain.Principal(10)}
 	e.catalog.InstallOIDFrontierLocked(^ids.OID(0) - 1) // aggregate and state can allocate; final helper cannot.
 	if err := extension.StockIntagg.Stage(&extensionHost{engine: e, stage: stage}, ext, ext.Owner); err == nil {
 		t.Fatal("helper allocation exhaustion accepted")
@@ -242,7 +242,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	target.catalog.PublishLocked(catalog.CloneState(target.catalog.State))
 	namespace := &catalog.Namespace{
 		ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: original.Helpers[0].ID},
-		ObjectName:    "pg_temp_pga_collision", ObjectRevision: 1, Owner: target.roles.domain.Principal(10),
+		ObjectName:    "pg_temp_pga_collision", ObjectRevision: 1, Owner: target.roles.Domain.Principal(10),
 		Temporary: target.catalog.Domain.Session(99),
 	}
 	target.catalog.State.SetDescriptor(namespace.Address(), namespace)

@@ -38,12 +38,12 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	if !needed {
 		return installedStage, ctx.Err()
 	}
-	catalogSnapshot, roles, frontier := e.catalog.State, e.roles.published, e.visibility.CommitSeq()
+	catalogSnapshot, roles, frontier := e.catalog.State, e.roles.Published, e.visibility.CommitSeq()
 	oidFrontier := e.catalog.NextOID()
 	e.mu.Unlock()
 	defer func() {
 		e.mu.Lock()
-		if result == nil && (e.catalog.State != catalogSnapshot || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.catalog.NextOID() != oidFrontier) {
+		if result == nil && (e.catalog.State != catalogSnapshot || e.roles.Published != roles || e.visibility.CommitSeq() != frontier || e.catalog.NextOID() != oidFrontier) {
 			result = ids.ErrCatalogReplaced
 		}
 	}()
@@ -55,7 +55,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	candidate := catalog.CloneState(next)
 	stage.mu.Lock()
-	_, procedure, err := stage.remapPreparedCatalog(candidate, e.roles.read(&e.catalog.Owner, e.catalog.Read(next), roles), stage.roles.read(&stage.catalog.Owner, stage.catalog.Current(), stage.roles.published), nil)
+	_, procedure, err := stage.remapPreparedCatalog(candidate, e.roles.Read(&e.catalog.Owner, e.catalog.Read(next), roles), stage.roles.PublishedRead(&stage.catalog.Owner, stage.catalog.Current()), nil)
 	if err == nil {
 		// ReownExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
@@ -89,7 +89,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		return installedStage, err
 	}
 	if op == nil {
-		sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
+		sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.roles.Domain.Principal(10)})
 		if err != nil {
 			return installedStage, err
 		}

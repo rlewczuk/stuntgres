@@ -25,7 +25,7 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 		op.ObjectRevision = 1
 		op.Left = 23
 		op.Right = 23
-		op.Owner = e.roles.domain.Principal(10)
+		op.Owner = e.roles.Domain.Principal(10)
 		op.Function = 65
 		op.Result = 16
 		if err := stage.Create(op); err != nil {

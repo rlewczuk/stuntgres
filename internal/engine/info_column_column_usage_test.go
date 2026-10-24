@@ -229,9 +229,9 @@ func TestInfoColumnColumnUsageCapture(t *testing.T) {
 	}
 	member := f.input(t, f.state, f.f.member)
 	f.f.e.mu.Lock()
-	roles := cloneRoleFixture(f.f.e.roles.published)
+	roles := cloneRoleFixture(f.f.e.roles.Published)
 	setFixtureEdges(roles, nil)
-	f.f.e.roles.published = roles
+	f.f.e.roles.PublishLocked(roles)
 	f.f.e.mu.Unlock()
 	if rows := colcuUnitRows(t, f.input(t, f.state, f.f.member)); len(rows) != 0 {
 		t.Fatal("revoked membership", rows)

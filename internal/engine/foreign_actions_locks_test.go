@@ -296,7 +296,7 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 			// public ALTER TABLE OWNER syntax or an authorization bypass callback.
 			view := e.CatalogRead()
 			next := *view.MustRelation(childRef.Address)
-			next.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("fa_owner")
+			next.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("fa_owner")
 			next.ObjectRevision++
 			stage := e.BeginCatalogStage(view)
 			if err := stage.Replace(&next); err != nil {

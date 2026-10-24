@@ -47,7 +47,7 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 					if err := e.installOperationRolesLocked(actor, next); err != nil {
 						t.Fatal(err)
 					}
-					e.roles.nextPrincipal = d.Ref.ID() + 1
+					e.roles.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
 					return d
 				}
 				modify := func(actor *session.Operation, limit int32) {
@@ -59,7 +59,7 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 						t.Fatal("missing fixture principal")
 					}
 					d.ConnectionLimit = limit
-					d.AuthIDVersion = e.roles.nextRevision
+					d.AuthIDVersion = e.roles.NextRevision()
 					root, err := record.Root.PutDescriptor(d)
 					if err != nil {
 						t.Fatal(err)
@@ -100,7 +100,7 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 					request.Grantees = []parser.GrantGrantee{{Role: parser.RoleSpec{Name: granteeName}}}
 					statement = request
 				}
-				frontier := e.roles.nextRevision
+				frontier := e.roles.NextRevision()
 				if _, err := e.Execute(op, statement, 0, nil); err != nil {
 					t.Fatal("selected ACL stage", err)
 				}
@@ -118,7 +118,7 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 				if !dependency {
 					t.Fatal("selected ACL omitted its exact shared principal dependency")
 				}
-				if mode == "role-first" && e.roles.nextRevision <= journal.Roles.Revision {
+				if mode == "role-first" && e.roles.NextRevision() <= journal.Roles.Revision {
 					t.Fatal("mixed ACL tail did not reserve its unique revision")
 				}
 				if mode == "acl-first" {
@@ -126,10 +126,10 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 				}
 				if mode == "conflicting-principal" {
 					modify(peer, 2)
-					before := e.roles.published
+					before := e.roles.Published
 					_, err := e.Commit(op, ref)
 					var conflict catalog.Conflict
-					if !errors.As(err, &conflict) || e.roles.published != before {
+					if !errors.As(err, &conflict) || e.roles.Published != before {
 						t.Fatal("mixed conflicting principal update was accepted", err)
 					}
 					if defaults {
@@ -147,15 +147,15 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 				if mode != "frontier-ahead" {
 					other = create(peer, "acl_mixed_peer")
 				}
-				peerRoles := e.roles.published
-				expectedRevision := max(e.roles.nextRevision, peerRoles.Revision+delta)
+				peerRoles := e.roles.Published
+				expectedRevision := max(e.roles.NextRevision(), peerRoles.Revision+delta)
 				if mode == "acl-only-peer-role-refresh" {
 					e.mu.Lock()
-					before := e.roles.nextRevision
+					before := e.roles.NextRevision()
 					_, refreshErr := e.authorizationLocked(op)
 					e.mu.Unlock()
 					current := op.Session.Transactions.Catalog
-					if refreshErr != nil || current == journal || current.RolesBase != peerRoles || !current.Roles.SameAuthority(peerRoles) || current.Roles.Revision-current.RolesBase.Revision != delta || e.roles.nextRevision != before {
+					if refreshErr != nil || current == journal || current.RolesBase != peerRoles || !current.Roles.SameAuthority(peerRoles) || current.Roles.Revision-current.RolesBase.Revision != delta || e.roles.NextRevision() != before {
 						t.Fatal("completed ACL refresh lost its delta or reserved a revision", refreshErr)
 					}
 					if journal.Roles.Revision-journal.RolesBase.Revision != delta || journal.Roles.SameAuthority(peerRoles) {
@@ -165,10 +165,10 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 				if _, err := e.Commit(op, ref); err != nil {
 					t.Fatal("mixed/independent publication", err)
 				}
-				if aclOnly && (e.roles.published.Revision != expectedRevision || !e.roles.published.SameAuthority(peerRoles)) {
+				if aclOnly && (e.roles.Published.Revision != expectedRevision || !e.roles.Published.SameAuthority(peerRoles)) {
 					t.Fatal("completed ACL publication lost the original delta or current authority")
 				}
-				if e.roles.published.Revision < frontier || e.roles.nextRevision <= e.roles.published.Revision {
+				if e.roles.Published.Revision < frontier || e.roles.NextRevision() <= e.roles.Published.Revision {
 					t.Fatal("publication reused or lowered canonical revision frontier")
 				}
 				if mode == "frontier-ahead" {
@@ -217,21 +217,21 @@ func TestTransactionalPrivilegesAllocatorRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.mu.Lock()
-	before := f.e.roles.nextRevision
+	before := f.e.roles.NextRevision()
 	err = f.e.refreshOperationRolesLocked(f.op)
 	prepared, prepareErr := f.e.publicationRolesLocked(context.Background(), journal)
-	unchanged := f.op.Session.Transactions.Catalog == journal && prepared == journal && f.e.roles.nextRevision == before
+	unchanged := f.op.Session.Transactions.Catalog == journal && prepared == journal && f.e.roles.NextRevision() == before
 	f.e.mu.Unlock()
 	if err != nil || prepareErr != nil || !unchanged {
 		t.Fatal("same-authority refresh/preparation changed logical delta or reserved a revision", err, prepareErr)
 	}
-	for _, frontier := range []uint64{f.e.roles.published.Revision + 10, ^uint64(0)} {
+	for _, frontier := range []uint64{f.e.roles.Published.Revision + 10, ^uint64(0)} {
 		f.e.mu.Lock()
-		f.e.roles.nextRevision = frontier
-		state, roles := f.e.catalog.State, f.e.roles.published
+		f.e.roles.InstallRevisionFrontierLocked(frontier)
+		state, roles := f.e.catalog.State, f.e.roles.Published
 		_, validationErr := f.e.journalRolePublicationLocked(journal, false)
 		publication, materializeErr := f.e.journalRolePublicationLocked(journal, true)
-		unpublished := f.e.catalog.State == state && f.e.roles.published == roles && f.e.roles.nextRevision == frontier
+		unpublished := f.e.catalog.State == state && f.e.roles.Published == roles && f.e.roles.NextRevision() == frontier
 		f.e.mu.Unlock()
 		if !unpublished {
 			t.Fatal("validation/materialization installed roots or reserved a revision")

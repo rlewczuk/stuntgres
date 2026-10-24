@@ -39,12 +39,12 @@ func TestCommentPublicationFailures(t *testing.T) {
 	e.catalog.InstallRevisionFrontierLocked(original)
 	commentWant(t, e, e.CatalogRead(), ref, "old")
 	roleExecute(t, e, op, "CREATE ROLE free")
-	roles := e.roles.published
-	e.roles.published = &access.RoleRecord{Revision: ^uint64(0), Root: roles.Root}
+	roles := e.roles.Published
+	e.roles.PublishLocked(&access.RoleRecord{Revision: ^uint64(0), Root: roles.Root})
 	if _, err := e.Execute(op, statement(t, "COMMENT ON ROLE free IS 'bad'"), 0, nil); err == nil {
 		t.Fatal("role exhaustion accepted")
 	}
-	e.roles.published = roles
+	e.roles.PublishLocked(roles)
 	if d, _ := e.Roles().Lookup("free"); d.Comment != "" {
 		t.Fatal(d)
 	}

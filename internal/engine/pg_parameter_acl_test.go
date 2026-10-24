@@ -66,7 +66,7 @@ func pgParameterACLUnitEntries(t *testing.T, e *Engine, value sqltype.Value, wan
 	for i := range value.ArrayLen() {
 		authority, grantee, grantor, privileges, options, err := value.ArrayElement(i).ACLItem()
 		expected, exists := want[grantee]
-		if err != nil || authority != &e.roles.aclAuthority || !exists || seen[grantee] || expected != ([3]uint32{grantor, privileges, options}) {
+		if err != nil || authority != &e.roles.ACLAuthority || !exists || seen[grantee] || expected != ([3]uint32{grantor, privileges, options}) {
 			t.Fatal("ACL provenance/masks", grantee, grantor, privileges, options, err)
 		}
 		seen[grantee] = true
@@ -77,7 +77,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d, _ := pgParameterACLUnitSource(t, e, view)
-	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
+	owner := e.roles.Domain.Principal(authorization.BootstrapPrincipalID)
 	if d.Name() != "pg_parameter_acl" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || len(d.Columns) != 3 || d.ColumnMeta.HighWater != 3 || !d.History.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
@@ -189,9 +189,9 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.catalog.Read(broken), Roles: roles, Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)
 	}
-	corrupt.Owner = e.roles.domain.Principal(10)
+	corrupt.Owner = e.roles.Domain.Principal(10)
 	corrupt.ACL.Entries = append([]authorization.ACLEntry(nil), corrupt.ACL.Entries...)
-	corrupt.ACL.Entries[0].Grantor = New().roles.domain.Principal(10)
+	corrupt.ACL.Entries[0].Grantor = New().roles.Domain.Principal(10)
 	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.catalog.Read(broken), Roles: roles, Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("foreign grantor accepted", err)
 	}
@@ -279,7 +279,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err := applyObjectGrantUnit(e, writer, request); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.State == before.State() || e.roles.published == scope.inquiry.deparseAuth.RoleRecord {
+	if e.catalog.State == before.State() || e.roles.Published == scope.inquiry.deparseAuth.RoleRecord {
 		t.Fatal("distinguishing live publication missing")
 	}
 	e.mu.Lock()
@@ -319,7 +319,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if name, err := retained.FormatACLRole(&e.roles.aclAuthority, uint32(reader.ID())); err != nil || name != "grant_reader" {
+	if name, err := retained.FormatACLRole(&e.roles.ACLAuthority, uint32(reader.ID())); err != nil || name != "grant_reader" {
 		t.Fatal("retained display authority", name, err)
 	}
 	pgParameterACLUnitEntries(t, e, captured.Anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 4096, 0}})

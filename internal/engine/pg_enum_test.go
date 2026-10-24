@@ -138,7 +138,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	captured, err = e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published), ref, d)
+	captured, err = e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.CatalogRead()), ref, d)
 	if err != nil || len(captured.Anonymous) != 2 {
 		t.Fatal("enum-only capture", captured, err)
 	}

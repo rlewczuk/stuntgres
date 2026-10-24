@@ -105,7 +105,7 @@ func TestPGDescriptionShape(t *testing.T) {
 		})
 	}
 	class := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ids.ObjectRef{}, class)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	defer done()
 	scope := &StatementScope{op: op, owner: op.Session.Transactions, inquiry: inquirySnapshot{commentCatalog: old}}
 	e.mu.Lock()
-	frozen, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+	frozen, err := e.openRelationSourceLocked(scope, ref, e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err != nil || pgDescriptionUnitBag(t, frozen)[relation] != "whole" {
 		t.Fatal("nested frontier", err)
 	}

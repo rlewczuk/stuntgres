@@ -207,21 +207,21 @@ func TestInfoRoleTableGrantsOriginsAndVisibility(t *testing.T) {
 		f.check(t, f.state, f.f.reader, a, b)
 		f.check(t, f.state, f.f.owner, a)
 		f.check(t, f.state, f.f.member, a, b)
-		roles := cloneRoleFixture(f.f.e.roles.published)
+		roles := cloneRoleFixture(f.f.e.roles.Published)
 		setFixtureEdges(roles, []authorization.Membership{{Role: f.f.owner, Member: f.f.reader, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}})
-		f.f.e.roles.published = roles
+		f.f.e.roles.PublishLocked(roles)
 		a[6], b[6] = "YES", "YES"
 		f.check(t, f.state, f.f.reader, a, b)
 		setOnly := cloneRoleFixture(roles)
 		setFixtureEdges(setOnly, []authorization.Membership{{Role: f.f.owner, Member: f.f.reader, Grantor: f.f.e.Roles().LookupRef("postgres"), Set: true, Admin: true}})
-		f.f.e.roles.published = setOnly
+		f.f.e.roles.PublishLocked(setOnly)
 		a[6], b[6] = "NO", "NO"
 		f.check(t, f.state, f.f.reader, a, b)
 		power := cloneRoleFixture(setOnly)
 		reader := fixtureRole(power, f.f.reader)
 		reader.Superuser = true
 		putFixtureRole(power, reader)
-		f.f.e.roles.published = power
+		f.f.e.roles.PublishLocked(power)
 		a[6], b[6] = "YES", "YES"
 		f.check(t, f.state, f.f.reader, a, b)
 	})
@@ -235,12 +235,12 @@ func TestInfoRoleTableGrantsOriginsAndVisibility(t *testing.T) {
 		f.check(t, f.state, f.f.owner, public)
 		f.check(t, f.state, f.f.member, public)
 		f.check(t, f.state, f.f.e.Roles().LookupRef("postgres"), public)
-		roles := cloneRoleFixture(f.f.e.roles.published)
+		roles := cloneRoleFixture(f.f.e.roles.Published)
 		power := fixtureRole(roles, f.f.reader)
 		power.Superuser = true
 		putFixtureRole(roles, power)
 		setFixtureEdges(roles, []authorization.Membership{{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}})
-		f.f.e.roles.published = roles
+		f.f.e.roles.PublishLocked(roles)
 		f.check(t, f.state, f.f.member)
 		f.check(t, f.state, f.f.reader, public)
 	})

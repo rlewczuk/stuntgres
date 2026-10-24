@@ -17,7 +17,7 @@ func (e *Engine) initializeDatabase(name string) {
 	if err == nil {
 		e.databaseName, _ = value.Text()
 	}
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	db := &catalog.Database{ObjectAddress: e.catalog.DatabaseAddress(), ObjectRevision: 1, ObjectName: e.databaseName, Owner: owner, FrozenXID: 3}
 	e.catalog.State.SetDescriptor(db.Address(), db)
 	e.catalog.State.BindName(catalog.DescriptorNameKey(db), db.Address())

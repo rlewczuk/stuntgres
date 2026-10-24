@@ -119,7 +119,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 	}
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) { p.Implementation = extension.StockUnaccent },
-		func(p *catalog.Procedure) { p.Owner = New().roles.domain.Principal(10) },
+		func(p *catalog.Procedure) { p.Owner = New().roles.Domain.Principal(10) },
 		func(p *catalog.Procedure) { p.Owner = authorization.PrincipalRef{} },
 		func(p *catalog.Procedure) { p.Signature = "23" },
 	} {

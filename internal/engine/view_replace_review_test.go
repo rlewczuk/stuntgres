@@ -23,7 +23,7 @@ func TestViewReplaceCreationNamespaceAuthority(t *testing.T) {
 				}
 				creator, _ := e.Roles().Lookup("creator")
 				otherOwner, _ := e.Roles().Lookup("other_owner")
-				admin := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+				admin := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				source := roleTableRef(t, e, "public.t")
 				if err := e.SetObjectACL(context.Background(), source, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin, Grantee: authorization.ACLGrantee{Role: creator.Ref}, Privileges: authorization.SelectPrivilege}, {Grantor: admin, Grantee: authorization.ACLGrantee{Role: otherOwner.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 					t.Fatal(err)

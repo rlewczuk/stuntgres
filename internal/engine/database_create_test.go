@@ -34,7 +34,7 @@ func databaseCreateUnitTarget(t *testing.T, e, seed *Engine, name string) *Engin
 func databaseCreateUnitPublish(e *Engine, ctx context.Context, name string, target *Engine) (Result, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.publishDatabaseTargetLocked(ctx, name, target, e.roles.domain.Principal(authorization.BootstrapPrincipalID))
+	return e.publishDatabaseTargetLocked(ctx, name, target, e.roles.Domain.Principal(authorization.BootstrapPrincipalID))
 }
 
 func databaseCreateUnitInstall(t *testing.T, e, seed *Engine, name string) *Engine {
@@ -75,7 +75,7 @@ func databaseCreateUnitRows(t *testing.T, e *Engine) map[string]ids.OID {
 	view := e.CatalogRead()
 	descriptor, ref := pgDatabaseUnitSource(t, e, view)
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, descriptor)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, descriptor)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

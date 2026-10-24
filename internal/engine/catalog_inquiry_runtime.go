@@ -17,10 +17,10 @@ func (h *statementHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) 
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
 	}
 	engine := scope.engine()
-	if !scope.inquiry.commentRoles.BelongsTo(&engine.roles.domain) {
+	if !scope.inquiry.commentRoles.BelongsTo(&engine.roles.Domain) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: foreign catalog role-name snapshot")
 	}
-	role, found := scope.inquiry.commentRoles.Find(engine.roles.domain.Principal(uint64(oid)))
+	role, found := scope.inquiry.commentRoles.Find(engine.roles.Domain.Principal(uint64(oid)))
 	if found {
 		return sqltype.String(result, role.Name), nil
 	}
@@ -36,7 +36,7 @@ func (h *statementHost) catalogInquiryCatalog() (catalog.Read, error) {
 		return catalog.Read{}, fmt.Errorf("stuntgres: missing catalog inquiry snapshot")
 	}
 	engine := scope.engine()
-	if view.Owner() != &engine.catalog.Owner || !scope.inquiry.commentRoles.BelongsTo(&engine.roles.domain) {
+	if view.Owner() != &engine.catalog.Owner || !scope.inquiry.commentRoles.BelongsTo(&engine.roles.Domain) {
 		return catalog.Read{}, fmt.Errorf("stuntgres: foreign catalog inquiry snapshot")
 	}
 	return view, nil

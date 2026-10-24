@@ -158,7 +158,7 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 	address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: "t"})
 	query := fmt.Sprintf("SELECT pg_table_is_visible(%d::oid)", address.ObjectID)
 	for _, rights := range []authorization.Privileges{authorization.UsagePrivilege, 0, authorization.UsagePrivilege} {
-		if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 			t.Fatal(err)
 		}
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION visibility_reader")

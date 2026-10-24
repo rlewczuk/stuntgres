@@ -21,11 +21,11 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.aa_column_acl(id INT,v INT,a INT[])")
 	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), table.Address())
-	reader := e.roles.domain.Principal(1000000)
-	roles := cloneRoleFixture(e.roles.published)
+	reader := e.roles.Domain.Principal(1000000)
+	roles := cloneRoleFixture(e.roles.Published)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "aa_unit_reader"})
 
-	e.roles.published = roles
+	e.roles.PublishLocked(roles)
 	grant := func(object ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}

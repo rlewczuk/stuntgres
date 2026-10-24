@@ -85,13 +85,13 @@ func TestRoleTransactionalProtocolIdentityStatus(t *testing.T) {
 	check := func(name string, superuser, retired bool) {
 		t.Helper()
 		identity, revision := s.Authorization.State, s.Authorization.Revision
-		journal, published := s.Transactions.Catalog, e.roles.published
-		principal, version := e.roles.nextPrincipal, e.roles.nextRevision
+		journal, published := s.Transactions.Catalog, e.roles.Published
+		principal, version := e.roles.NextPrincipal(), e.roles.NextRevision()
 		got, privileged, missing, err := e.ProtocolAuthorizationStatus(s)
 		if err != nil || missing != retired || !retired && (got != name || privileged != superuser) {
 			t.Fatal("identity status", got, privileged, missing, err)
 		}
-		if s.Authorization.State != identity || s.Authorization.Revision != revision || s.Transactions.Catalog != journal || e.roles.published != published || e.roles.nextPrincipal != principal || e.roles.nextRevision != version {
+		if s.Authorization.State != identity || s.Authorization.Revision != revision || s.Transactions.Catalog != journal || e.roles.Published != published || e.roles.NextPrincipal() != principal || e.roles.NextRevision() != version {
 			t.Fatal("transport snapshot changed identity, roots or allocation")
 		}
 	}

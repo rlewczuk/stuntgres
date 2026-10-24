@@ -237,7 +237,7 @@ func TestDomainAlterDefaultNullabilityPublication(t *testing.T) {
 					copy.ObjectRevision++
 					if kind == "owner" {
 						aclUnitRoles(e, "domain_nn_owner")
-						copy.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("domain_nn_owner")
+						copy.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("domain_nn_owner")
 					}
 					state.SetDescriptor(old.Address(), &copy)
 					e.catalog.PublishLocked(state)

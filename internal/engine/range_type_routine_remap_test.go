@@ -21,7 +21,7 @@ func rangeTypeUnitRemappedConstructor(t *testing.T) (*Engine,*catalog.Procedure,
  target:=New()
  roles:=authorization.Seed(source.Owner().Principals)
  sourceRoles:=roles.Read(source.Owner().Principals.Principal(authorization.BootstrapPrincipalID))
- targetRoles:=target.roles.read(&target.catalog.Owner,target.CatalogRead(),target.roles.published)
+ targetRoles:=target.roles.PublishedRead(&target.catalog.Owner,target.CatalogRead())
  next,principal,err:=func()(*catalog.State,catalog.ProcedureRemapper,error){target.mu.Lock();defer target.mu.Unlock();return target.remapPreparedCatalog(next,sourceRoles,targetRoles,nil)}()
  if err!=nil {t.Fatal(err)}
  if _,err:=typedef.ReownDomainTypes(next,nil,true,routine.RangeTypeRebinder(next,nil));err!=nil {t.Fatal(err)}

@@ -172,9 +172,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				next.SetDescriptor(target.Address, &copy)
 				e.catalog.PublishLocked(next)
 			case "roles":
-				copy := *e.roles.published
+				copy := *e.roles.Published
 				copy.Revision++
-				e.roles.published = &copy
+				e.roles.PublishLocked(&copy)
 			case "source_index_generation":
 				e.storage.Relations[source.Address].Generation++
 			}
@@ -259,7 +259,7 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
 					sessionSQL(t, s, q)
 				}
-				base, roles, frontier := e.catalog.State, e.roles.published, e.visibility.CommitSeq()
+				base, roles, frontier := e.catalog.State, e.roles.Published, e.visibility.CommitSeq()
 				target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
 				original := e.storage.Relations[target.Address]
 				m := batchUnitStart(t, s, context.Background())
@@ -292,11 +292,11 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 					}
 				} else {
 					sessionSQL(t, peer, "CREATE ROLE producer_peer")
-					roles, frontier = e.roles.published, e.visibility.CommitSeq()
+					roles, frontier = e.roles.Published, e.visibility.CommitSeq()
 				}
 				err := m.end(nil)
 				if !own && tc.producer {
-					if err == nil || e.catalog.State != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original {
+					if err == nil || e.catalog.State != base || e.roles.Published != roles || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original {
 						t.Fatal("stale producer role read published or overwrote peer", err)
 					}
 					if _, ok := e.Roles().Lookup("producer_peer"); !ok {

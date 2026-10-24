@@ -17,7 +17,7 @@ func TestTransactionalIndexAuthorityFences(t *testing.T) {
 				sessionSQL(t, root, q)
 			}
 			ns := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-			roles := e.roles.published.Root.Read(authorization.PrincipalRef{})
+			roles := e.roles.Published.Root.Read(authorization.PrincipalRef{})
 			grantor, grantee := roles.LookupRef("postgres"), roles.LookupRef("actor")
 			set := func(rights authorization.Privileges) {
 				t.Helper()

@@ -303,7 +303,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
 				e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
 			case "roles":
-				e.roles.published = e.roles.published.Advance()
+				e.roles.PublishLocked(e.roles.Published.Advance())
 			case "database":
 				next := *e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
 				next.ObjectRevision++

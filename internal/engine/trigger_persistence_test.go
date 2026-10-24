@@ -104,7 +104,7 @@ func TestTriggerCorePersistence(t *testing.T) {
 	}
 	mappedOwner := reordered
 	mappedOwner.Triggers = relation.Triggers
-	principal := catalog.NewProcedureRemapper(destination.roles.principalRemap(&destination.catalog, source.Roles(), destination.Roles(), nil, routine.OperatorSeeded))
+	principal := catalog.NewProcedureRemapper(destination.roles.PrincipalRemap(&destination.catalog, source.Roles(), destination.Roles(), nil, routine.OperatorSeeded))
 	remap := stored.NewRoutineRemap(targetRead, nil, mapType, principal, false)
 	mapped, err := stored.RemapTriggers(targetRead, &mappedOwner, nil, mapRef, remap.Type, remap.Collation, remap.Procedure)
 	if err == nil {

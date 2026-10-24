@@ -87,7 +87,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 	view := e.CatalogRead()
 	source, ref := pgAMUnitSource(t, e)
 	capture := func(ctx context.Context, v catalog.Read) [][]sqltype.Value {
-		rows, err := e.captureCatalogSourceLocked(ctx, v, e.roles.read(&e.catalog.Owner, v, e.roles.published), ref, source)
+		rows, err := e.captureCatalogSourceLocked(ctx, v, e.roles.PublishedRead(&e.catalog.Owner, v), ref, source)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +115,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := e.captureCatalogSourceLocked(ctx, view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, source); !errors.Is(err, context.Canceled) {
+	if _, err := e.captureCatalogSourceLocked(ctx, view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, source); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", err)
 	}
 	selected, ok := view.IndexClass(class.Address().ObjectID)

@@ -54,7 +54,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				if previous != source.Ref {
 					t.Fatal("old member generation mutated")
 				}
-				committed, roles := e.catalog.State, e.roles.published
+				committed, roles := e.catalog.State, e.roles.Published
 				dropMode := parser.DropRestrict
 				if mode == "CASCADE" {
 					dropMode = parser.DropCascade
@@ -82,7 +82,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 					t.Fatal("unexpected owned member", member)
 				}
 				expected := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + noun + " because extension unaccent requires it", Hint: "You can drop extension unaccent instead."}
-				if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, expected) || result.Count != 0 || result.Rows != nil || e.catalog.State != committed || e.roles.published != roles {
+				if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, expected) || result.Count != 0 || result.Rows != nil || e.catalog.State != committed || e.roles.Published != roles {
 					t.Fatal("foreign member refusal/atomicity", result, err, diagnostic)
 				}
 				// Include the extension owner as an actual second source. Its canonical

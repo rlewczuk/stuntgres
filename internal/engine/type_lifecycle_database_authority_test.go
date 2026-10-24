@@ -73,7 +73,7 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 					database.ObjectRevision++
 					switch change {
 					case "owner":
-						database.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")
+						database.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")
 						if database.Owner == (authorization.PrincipalRef{}) || database.Owner == oldDatabase.Owner {
 							t.Fatal("missing distinct genuine owner")
 						}
@@ -132,7 +132,7 @@ func TestTypeLifecycleDatabaseAuthorityMetadata(t *testing.T) {
 	original := e.CatalogRead().MustDatabase(e.catalog.DatabaseAddress())
 	foreign := New()
 	foreignOwner := foreign.CatalogRead().MustDatabase(foreign.catalog.DatabaseAddress()).Owner
-	otherOwner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")
+	otherOwner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")
 	for _, tc := range []struct {
 		name   string
 		change func(*catalog.Database)

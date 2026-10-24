@@ -19,8 +19,8 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 		roleExecute(t, e, op, "CREATE INDEX idx ON t(n)")
 	})
 	ref := roleTableRef(t, e, "t")
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("owner")
-	reader := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("reader")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("owner")
+	reader := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("reader")
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 	})
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	ns := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")

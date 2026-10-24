@@ -53,14 +53,14 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	e.mu.Lock()
-	reader := e.roles.domain.Principal(e.roles.nextPrincipal)
-	e.roles.nextPrincipal++
-	roles := cloneRoleFixture(e.roles.published)
+	reader := e.roles.Domain.Principal(e.roles.NextPrincipal())
+	e.roles.InstallPrincipalFrontierLocked(e.roles.NextPrincipal() + 1)
+	roles := cloneRoleFixture(e.roles.Published)
 
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader", Login: true, Inherit: true, ConnectionLimit: -1})
-	e.roles.published = roles
+	e.roles.PublishLocked(roles)
 	e.mu.Unlock()
-	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.bounded(id pg_catalog._name)")

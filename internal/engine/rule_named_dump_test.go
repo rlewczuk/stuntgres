@@ -116,7 +116,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						t.Fatal("rename mutated the borrowed parent snapshot")
 					}
 					e.mu.Lock()
-					roles := e.roles.read(&e.catalog.Owner, current, e.roles.published)
+					roles := e.roles.PublishedRead(&e.catalog.Owner, current)
 					e.mu.Unlock()
 					groups, err := stored.RuleDumpGroups(context.Background(), current, roles)
 					if err != nil {

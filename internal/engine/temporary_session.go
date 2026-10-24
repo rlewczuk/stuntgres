@@ -104,7 +104,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *sessi
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	owner := e.roles.domain.Principal(10)
+	owner := e.roles.Domain.Principal(10)
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.SessionToken.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.SessionToken}
 	toast := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.SessionToken.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.SessionToken, TemporaryToast: true}
 	if c.Originals == nil {

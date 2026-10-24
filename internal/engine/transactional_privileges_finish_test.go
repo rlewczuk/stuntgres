@@ -64,7 +64,7 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				oldRoles := e.roles.published
+				oldRoles := e.roles.Published
 				if scope.catalog == nil || scope.catalogAuthority == nil || scope.catalogAuthority.ACLRoles != oldRoles || op.Session.Transactions.Catalog != nil {
 					t.Fatal("selected candidate escaped its statement or lost captured authority")
 				}
@@ -73,7 +73,7 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				} else if _, err := e.Execute(peer, second, 0, nil); err != nil {
 					t.Fatal("independent peer publication", err)
 				}
-				peerRoles := e.roles.published
+				peerRoles := e.roles.Published
 				if peerRoles == oldRoles || peerRoles.Revision != oldRoles.Revision+1 || peerRoles.SameAuthority(oldRoles) == roleMutation {
 					t.Fatal("peer did not establish the distinguishing authority change")
 				}
@@ -88,7 +88,7 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				}
 				err = scope.Finish(nil)
 				if roleMutation {
-					if !errors.As(err, &conflict) || e.roles.published != peerRoles || op.Session.Transactions.Catalog != nil {
+					if !errors.As(err, &conflict) || e.roles.Published != peerRoles || op.Session.Transactions.Catalog != nil {
 						t.Fatal("actual peer role-root mutation was accepted", err)
 					}
 					return
@@ -96,7 +96,7 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				if err != nil {
 					t.Fatal("independent ACL publication invalidated selected Finish", err)
 				}
-				if e.roles.published != peerRoles || op.Session.Transactions.Catalog == nil {
+				if e.roles.Published != peerRoles || op.Session.Transactions.Catalog == nil {
 					t.Fatal("Finish installed private ACLs early or lost the owner journal")
 				}
 				if defaults && e.catalog.State.DefaultACL(firstKey) != nil {
@@ -105,7 +105,7 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				if _, err := e.Commit(op, ref); err != nil {
 					t.Fatal("independent private ACL commit", err)
 				}
-				if e.roles.published.Revision != peerRoles.Revision+1 || !e.roles.published.SameAuthority(peerRoles) || e.catalog.State.DefaultACL(peerKey) == nil {
+				if e.roles.Published.Revision != peerRoles.Revision+1 || !e.roles.Published.SameAuthority(peerRoles) || e.catalog.State.DefaultACL(peerKey) == nil {
 					t.Fatal("combined commit lost peer policy or either revision delta")
 				}
 				if defaults {
@@ -165,7 +165,7 @@ func TestTransactionalPrivilegesPendingPrivateAuthority(t *testing.T) {
 				if _, err := e.Execute(op, initial, 0, nil); err != nil {
 					t.Fatal("initial completed private ACL", err)
 				}
-				private, published := op.Session.Transactions.Catalog, e.roles.published
+				private, published := op.Session.Transactions.Catalog, e.roles.Published
 				if private == nil || private.Roles == nil {
 					t.Fatal("initial ACL has no private authority")
 				}
@@ -187,25 +187,25 @@ func TestTransactionalPrivilegesPendingPrivateAuthority(t *testing.T) {
 				} else if _, err := e.Execute(peer, second, 0, nil); err != nil {
 					t.Fatal("independent peer ACL", err)
 				}
-				peerRoles, committed := e.roles.published, e.catalog.State
+				peerRoles, committed := e.roles.Published, e.catalog.State
 				err = scope.Finish(nil)
 				if private.Roles.Revision != privateRevision {
 					t.Fatal("pending Finish mutated the original completed private record")
 				}
 				if roleMutation {
 					var conflict catalog.Conflict
-					if !errors.As(err, &conflict) || e.roles.published != peerRoles || e.catalog.State != committed {
+					if !errors.As(err, &conflict) || e.roles.Published != peerRoles || e.catalog.State != committed {
 						t.Fatal("private snapshot hid a pending actual-role authority change", err)
 					}
 					return
 				}
-				if err != nil || e.roles.published != peerRoles || e.catalog.State != committed {
+				if err != nil || e.roles.Published != peerRoles || e.catalog.State != committed {
 					t.Fatal("revision-only peer work rejected Finish or published early", err)
 				}
 				if _, err := e.Commit(op, ref); err != nil {
 					t.Fatal("completed private grant-option commit", err)
 				}
-				if e.roles.published.Revision != peerRoles.Revision+delta || !e.roles.published.SameAuthority(peerRoles) {
+				if e.roles.Published.Revision != peerRoles.Revision+delta || !e.roles.Published.SameAuthority(peerRoles) {
 					t.Fatal("completed private revision delta was lost")
 				}
 				if defaults {

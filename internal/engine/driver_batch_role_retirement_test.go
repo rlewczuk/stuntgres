@@ -84,7 +84,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 						t.Fatal("peer policy lost its actual identity or selector", policies)
 					}
 				}
-				base, roles, frontier := e.catalog.State, e.roles.published, e.visibility.CommitSeq()
+				base, roles, frontier := e.catalog.State, e.roles.Published, e.visibility.CommitSeq()
 				var err error
 				if carrier == "ordinary" || carrier == "clone" {
 					err = m.end(nil)
@@ -117,7 +117,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("invalid retirement candidate published", err)
 				}
-				if e.catalog.State != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.catalog.State.Get(address) != descriptor {
+				if e.catalog.State != base || e.roles.Published != roles || e.visibility.CommitSeq() != frontier || e.catalog.State.Get(address) != descriptor {
 					t.Fatal("rejected retirement changed committed peer roots or publication frontier")
 				}
 				if current, ok := e.Roles().Lookup("retired"); !ok || current.Ref != role.Ref {
@@ -192,13 +192,13 @@ func TestDriverBatchRoleRetirementMembership(t *testing.T) {
 			if err := grantMembership(t, e, edge); err != nil {
 				t.Fatal(err)
 			}
-			base := e.roles.published
+			base := e.roles.Published
 			before := e.Roles().Memberships()
 			rejected := batchUnitStart(t, a, context.Background())
 			_, err := rejected.step(statement(t, "DROP ROLE grantor"))
 			state(t, err, "2BP01")
 			_ = rejected.end(err)
-			if e.roles.published != base {
+			if e.roles.Published != base {
 				t.Fatal("admission grantor rejection changed committed membership authority")
 			}
 			accepted := batchUnitStart(t, a, context.Background())
@@ -206,7 +206,7 @@ func TestDriverBatchRoleRetirementMembership(t *testing.T) {
 			if _, err := accepted.step(statement(t, "DROP ROLE grantor,"+endpoint)); err != nil {
 				t.Fatal(err)
 			}
-			if e.roles.published != base {
+			if e.roles.Published != base {
 				t.Fatal("endpoint cleanup published before true end")
 			}
 			if err := accepted.end(nil); err != nil {
@@ -215,7 +215,7 @@ func TestDriverBatchRoleRetirementMembership(t *testing.T) {
 			if _, ok := e.Roles().Lookup("grantor"); ok {
 				t.Fatal("completed endpoint cleanup did not retire the principal")
 			}
-			for _, retained := range fixtureEdges(e.roles.published) {
+			for _, retained := range fixtureEdges(e.roles.Published) {
 				if retained == edge {
 					t.Fatal("retired endpoint retained its membership dependency")
 				}

@@ -165,7 +165,7 @@ func (s *StatementScope) commentEngine() *Engine {
 func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 	if scope.inquiry.commentCatalog.State() == nil {
 		scope.inquiry.commentCatalog = e.privateCatalogLocked(scope.owner.Catalog)
-		scope.inquiry.commentRoles = e.roles.read(&e.catalog.Owner, scope.inquiry.commentCatalog, e.operationRolesLocked(scope.op))
+		scope.inquiry.commentRoles = e.roles.Read(&e.catalog.Owner, scope.inquiry.commentCatalog, e.operationRolesLocked(scope.op))
 	}
 	scope.output.ACLItem = scope
 	scope.output.Regrole = scope

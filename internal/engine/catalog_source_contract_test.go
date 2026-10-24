@@ -519,7 +519,7 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 	// Bootstrap grantor policy must retain principal identity, not a role name.
 	for _, oid := range []ids.OID{1213, 6243} {
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-		if d.Owner != e.roles.domain.Principal(authorization.BootstrapPrincipalID) || d.Security.ACL.Entries[0].Grantor != d.Owner {
+		if d.Owner != e.roles.Domain.Principal(authorization.BootstrapPrincipalID) || d.Security.ACL.Entries[0].Grantor != d.Owner {
 			t.Fatal("bootstrap owner/grantor", d.Name())
 		}
 	}

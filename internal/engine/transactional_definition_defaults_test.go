@@ -82,7 +82,7 @@ func definitionDefaultPublication(t *testing.T) {
 	// TEMP exclusion belongs to replay only. Build a valid immutable catalog
 	// fixture with the second class in its owner's real temporary namespace.
 	temporary := catalog.CloneState(committed.State())
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 98080}, ObjectName: "pg_temp_default_guard", ObjectRevision: 1, Temporary: b.SessionToken, Owner: e.roles.domain.Principal(10)}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 98080}, ObjectName: "pg_temp_default_guard", ObjectRevision: 1, Temporary: b.SessionToken, Owner: e.roles.Domain.Principal(10)}
 	if temporary.Get(ns.Address()) != nil {
 		t.Fatal("temporary fixture address collision")
 	}

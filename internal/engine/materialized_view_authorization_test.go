@@ -20,9 +20,9 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	e := New()
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	reader := e.roles.domain.Principal(99)
+	reader := e.roles.Domain.Principal(99)
 	e.mu.Lock()
-	putFixtureRole(e.roles.published, authorization.RoleDescriptor{Ref: reader, Name: "mv_unit_reader"})
+	putFixtureRole(e.roles.Published, authorization.RoleDescriptor{Ref: reader, Name: "mv_unit_reader"})
 
 	auth, err := e.authorizationLocked(op)
 	if err != nil {

@@ -19,7 +19,7 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(scope.op)
-	publishedRoles := e.roles.published
+	publishedRoles := e.roles.Published
 	var request role.GrantRequest
 	if err == nil {
 		request, err = role.ObjectGrantRequest(ddlHost{e: e, op: scope.op}, auth, statement)
@@ -37,7 +37,7 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 	if err != nil {
 		return Result{}, err
 	}
-	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.published.SameAuthority(publishedRoles) {
+	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.Published.SameAuthority(publishedRoles) {
 		return Result{}, catalog.Conflict{}
 	}
 	for _, target := range request.Targets() {
@@ -75,7 +75,7 @@ func (e *Engine) stageObjectGrantLocked(scope *StatementScope, auth Authorizatio
 	if auth.RoleRecord.Revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	if _, err := e.roles.revisionCandidateLocked(); err != nil {
+	if _, err := e.roles.RevisionCandidateLocked(); err != nil {
 		return Result{}, err
 	}
 	changes := scope.owner.Catalog.Clone()
@@ -83,7 +83,7 @@ func (e *Engine) stageObjectGrantLocked(scope *StatementScope, auth Authorizatio
 		e.catalogChangeLocked(changes, address, change.Descriptor)
 	}
 	if changes.RolesBase == nil {
-		changes.RolesBase = e.roles.published
+		changes.RolesBase = e.roles.Published
 	}
 	changes.Roles = auth.RoleRecord.Advance()
 	if err := scope.acquireJournalRoleDependenciesLocked(changes); err != nil {
@@ -93,7 +93,7 @@ func (e *Engine) stageObjectGrantLocked(scope *StatementScope, auth Authorizatio
 	if err != nil {
 		return Result{}, err
 	}
-	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.published.SameAuthority(publishedRoles) {
+	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.Published.SameAuthority(publishedRoles) {
 		return Result{}, catalog.Conflict{}
 	}
 	if err := e.catalogPreflightLocked(changes); err != nil {

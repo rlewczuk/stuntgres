@@ -146,7 +146,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	}
 	// The symbolic codec rejects incomplete old one-member records, as well as
 	// duplicate/foreign members in a complete ten-member manifest.
-	metadata, err := extension.OwnerMetadata(e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.CatalogRead()), ext)
 	if err != nil {
 		t.Fatal(err)
 	}

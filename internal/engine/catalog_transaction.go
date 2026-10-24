@@ -86,14 +86,14 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 	if err := e.catalogFencesCurrentLocked(c, fenceCatalogRoleRead); err != nil {
 		return err
 	}
-	roles := e.roles.published
+	roles := e.roles.Published
 	if c.Roles != nil {
 		if c.Roles.SameAuthority(c.RolesBase) {
 			// A completed ACL-only journal contributes no actual role delta.
 			// Validate its catalog/default principal refs in current authority,
 			// not in the completed statement's stale private snapshot.
-			roles = e.roles.published
-		} else if c.RolesBase != e.roles.published {
+			roles = e.roles.Published
+		} else if c.RolesBase != e.roles.Published {
 			var err error
 			roles, err = e.mergedJournalRolesLocked(context.Background(), c)
 			if err != nil {
@@ -107,7 +107,7 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 		return catalog.Conflict{}
 	}
 	view := e.privateCatalogLocked(c)
-	read := e.roles.read(&e.catalog.Owner, view, roles)
+	read := e.roles.Read(&e.catalog.Owner, view, roles)
 	if err := catalog.ValidateDefaultACLs(read, view); err != nil {
 		return err
 	}

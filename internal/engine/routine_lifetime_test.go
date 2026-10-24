@@ -39,7 +39,7 @@ func TestRoutineDirectStrictNullLifetime(t *testing.T) {
 	}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	target := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
+	target := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
 	if err := role.StageOwnership(stage, base.MustProcedure(captured.Address()), target); err != nil {
 		t.Fatal(err)
 	}

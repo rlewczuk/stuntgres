@@ -704,17 +704,17 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			err = catalogDependencyPreflight(e.catalog.State, next, s.sequence.IdentityDependencyList(), s.sequence.IdentityOriginalMap())
 		}
 		if err == nil {
-			err = s.validateRoleCandidate(e.roles.published)
+			err = s.validateRoleCandidate(e.roles.Published)
 		}
 		if err == nil && op != nil {
 			err = publicationOperationLocked(e, op)
 		}
 		if err == nil {
-			err = catalog.ValidateDefaultACLs(s.roleRead(e.roles.published, e.catalog.Read(next)), e.catalog.Read(next))
+			err = catalog.ValidateDefaultACLs(s.roleRead(e.roles.Published, e.catalog.Read(next)), e.catalog.Read(next))
 		}
 		if err == nil {
 			for _, d := range s.Descriptors() {
-				if err = access.ValidateACL(s.roleRead(e.roles.published, e.catalog.Read(next)), d); err != nil {
+				if err = access.ValidateACL(s.roleRead(e.roles.Published, e.catalog.Read(next)), d); err != nil {
 					break
 				}
 			}
@@ -725,7 +725,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				s.authSession.Mu.Lock()
 			}
 			auth := s.authSession.Authorization
-			valid := auth != nil && auth.Revision == s.authRevision && e.roles.published.Revision == s.roleRevision
+			valid := auth != nil && auth.Revision == s.authRevision && e.roles.Published.Revision == s.roleRevision
 			if op == nil || s.authSession != op.Session {
 				s.authSession.Mu.Unlock()
 			}
@@ -737,7 +737,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			if op == nil || s.authSession != op.Session {
 				s.authSession.Mu.Lock()
 			}
-			auth := e.authorityView(access.View{Owner: &e.catalog.Owner, PairedCatalog: e.catalog.Current(), RoleRecord: e.roles.published, Catalog: e.catalog.Current(), Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), State: s.authSession.Authorization.State})
+			auth := e.authorityView(access.View{Owner: &e.catalog.Owner, PairedCatalog: e.catalog.Current(), RoleRecord: e.roles.Published, Catalog: e.catalog.Current(), Roles: e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), State: s.authSession.Authorization.State})
 			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(e.catalog.State.Epoch(), s.materializedOrZero().Replacement.Original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.Session {
 				s.authSession.Mu.Unlock()
@@ -766,7 +766,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		}
 		var roleRevision uint64
 		if err == nil && s.roleCandidate != nil {
-			roleRevision, err = e.roles.revisionCandidateLocked()
+			roleRevision, err = e.roles.RevisionCandidateLocked()
 		}
 		var databaseRoots catalog.DatabaseProjection
 		if err == nil {
@@ -825,8 +825,8 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			e.catalog.InstallRevisionFrontierLocked(nextRevision)
 			if s.roleCandidate != nil {
 				s.roleCandidate.Revision = roleRevision
-				e.roles.published = s.roleCandidate
-				e.roles.nextRevision = roleRevision + 1
+				e.roles.PublishLocked(s.roleCandidate)
+				e.roles.InstallRevisionFrontierLocked(roleRevision + 1)
 			}
 			if commitRef != (ids.TxRef{}) {
 				e.visibility.RecordCommitTimestampLocked(commitRef)
@@ -1024,7 +1024,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err == nil {
 		sequences, err = sequence.CopyGenerators(replacement, source.storage.Sequences)
 	}
-	sourceRoles := source.roles.read(&source.catalog.Owner, replacement, source.roles.published)
+	sourceRoles := source.roles.PublishedRead(&source.catalog.Owner, replacement)
 	sourceForeign := source.foreign
 	source.mu.Unlock()
 	if err != nil {
@@ -1047,7 +1047,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err := e.storage.ReplacementCapacityLocked(relations, e.catalog.State.Epoch(), e.visibility.CommitSeq()); err != nil {
 		return ChangeSet{}, err
 	}
-	replacement.State().SetACLItemImport(e.roles.aclItemImporter(source.roles, &e.catalog, sourceRoles, targetRoles, source.importTargets))
+	replacement.State().SetACLItemImport(e.roles.ACLItemImporter(source.roles, &e.catalog, sourceRoles, targetRoles, source.importTargets))
 	defer func() { replacement.State().SetACLItemImport(nil) }()
 	var procedure catalog.ProcedureRemapper
 	next, procedure, err = e.remapPreparedCatalog(replacement.State(), sourceRoles, targetRoles, source.importTargets)
@@ -1092,7 +1092,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 // replacementACLsLocked validates the default ACLs and every descriptor ACL of
 // a replacement catalog and returns the revision frontier it needs.
 func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevision, error) {
-	if err := e.roles.validateReplacementACLsLocked(&e.catalog.Owner, e.catalog.Read(next), next); err != nil {
+	if err := e.roles.ValidateReplacementACLsLocked(&e.catalog.Owner, e.catalog.Read(next), next); err != nil {
 		return 0, err
 	}
 	return catalog.RevisionFrontier(e.catalog.NextRevision(), next.Descriptors()), nil

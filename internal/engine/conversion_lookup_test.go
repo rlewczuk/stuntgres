@@ -26,7 +26,7 @@ import (
 func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	earlier := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "earlier", ObjectRevision: 1, Owner: e.roles.domain.Principal(10)}
+	earlier := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "earlier", ObjectRevision: 1, Owner: e.roles.Domain.Principal(10)}
 	low := conversionUnitDefinition(e, 90000, "z_low_oid", true)
 	high := conversionUnitDefinition(e, 90001, "a_high_oid", true)
 	first := conversionUnitDefinition(e, 90002, "first_namespace", true)
@@ -178,7 +178,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.State.CurrentUser = actor
-	private := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "private", ObjectRevision: 1, Owner: e.roles.domain.Principal(10)}
+	private := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "private", ObjectRevision: 1, Owner: e.roles.Domain.Principal(10)}
 	stage = e.BeginCatalogStage(auth.Catalog)
 	if err = stage.Create(private); err != nil {
 		t.Fatal(err)
@@ -216,7 +216,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	catalogAddress := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.roles.domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: extension.StockUnaccent}
+	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.roles.Domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: extension.StockUnaccent}
 	second := *first
 	second.ObjectAddress.ObjectID, second.ObjectNamespace = 90001, catalogAddress
 	stage := e.BeginCatalogStage(view)

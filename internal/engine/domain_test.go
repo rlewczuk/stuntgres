@@ -181,12 +181,12 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.a AS integer"))
 	a := domainUnitType(t, e.CatalogRead(), "a")
 	e.mu.Lock()
-	reader := e.roles.domain.Principal(e.roles.nextPrincipal)
-	e.roles.nextPrincipal++
-	roles := cloneRoleFixture(e.roles.published)
+	reader := e.roles.Domain.Principal(e.roles.NextPrincipal())
+	e.roles.InstallPrincipalFrontierLocked(e.roles.NextPrincipal() + 1)
+	roles := cloneRoleFixture(e.roles.Published)
 
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader"})
-	e.roles.published = roles
+	e.roles.PublishLocked(roles)
 	e.mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	auth.State.CurrentUser = reader

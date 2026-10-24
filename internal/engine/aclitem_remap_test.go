@@ -40,7 +40,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	importer := target.roles.aclItemImporter(source.roles, &target.catalog, source.Roles(), target.Roles(), nil)
+	importer := target.roles.ACLItemImporter(source.roles, &target.catalog, source.Roles(), target.Roles(), nil)
 	mapped, err := typedef.ReownDomainDatum(cv, toComposite, nil, nil, importer)
 	if err != nil {
 		t.Fatal(err)
@@ -130,21 +130,21 @@ func TestACLItemRestoreFence(t *testing.T) {
 	value := aclUnitValue(t, source, "acl_fence_a=r*/acl_fence_b")
 	captured := target.Roles()
 	old, _ := captured.Lookup("acl_fence_a")
-	importer := target.roles.aclItemImporter(source.roles, &target.catalog, source.Roles(), captured, nil)
+	importer := target.roles.ACLItemImporter(source.roles, &target.catalog, source.Roles(), captured, nil)
 	target.mu.Lock()
-	next := cloneRoleFixture(target.roles.published)
+	next := cloneRoleFixture(target.roles.Published)
 	retireFixtureRole(next, old.Ref)
-	old.Ref = target.roles.domain.Principal(30000)
+	old.Ref = target.roles.Domain.Principal(30000)
 	putFixtureRole(next, old)
-	target.roles.published = next
+	target.roles.PublishLocked(next)
 	target.mu.Unlock()
 	if _, err := typedef.ReownDomainDatum(value, aclUnitType(t, target, sqltype.ACLItem), nil, nil, importer); err == nil {
 		t.Fatal("drop/recreate crossed captured target fence")
 	}
 	// Expected importTargets rejects a different captured incarnation as well.
 	original, _ := source.Roles().Lookup("acl_fence_a")
-	expected := map[authorization.PrincipalRef]authorization.PrincipalRef{original.Ref: target.roles.domain.Principal(20000)}
-	importer = target.roles.aclItemImporter(source.roles, &target.catalog, source.Roles(), target.Roles(), expected)
+	expected := map[authorization.PrincipalRef]authorization.PrincipalRef{original.Ref: target.roles.Domain.Principal(20000)}
+	importer = target.roles.ACLItemImporter(source.roles, &target.catalog, source.Roles(), target.Roles(), expected)
 	if _, err := typedef.ReownDomainDatum(value, aclUnitType(t, target, sqltype.ACLItem), nil, nil, importer); err == nil {
 		t.Fatal("expected target incarnation ignored")
 	}
@@ -159,7 +159,7 @@ func TestACLItemRestoreFence(t *testing.T) {
 	freshSource.mu.Lock()
 	public := freshSource.catalog.State.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	copy := *public
-	role, _ := freshSource.roles.read(&freshSource.catalog.Owner, freshSource.catalog.Current(), freshSource.roles.published).Lookup("acl_missing_target")
+	role, _ := freshSource.roles.PublishedRead(&freshSource.catalog.Owner, freshSource.catalog.Current()).Lookup("acl_missing_target")
 	copy.Owner = role.Ref
 	freshSource.catalog.PublishLocked(catalog.CloneState(freshSource.catalog.State))
 	freshSource.catalog.State.SetDescriptor(copy.Address(), &copy)
@@ -188,9 +188,9 @@ func TestACLItemStaleDump(t *testing.T) {
 	}
 	a, _ := e.Roles().Lookup("acl_dump_a")
 	e.mu.Lock()
-	next := cloneRoleFixture(e.roles.published)
+	next := cloneRoleFixture(e.roles.Published)
 	retireFixtureRole(next, a.Ref)
-	e.roles.published = next
+	e.roles.PublishLocked(next)
 	e.mu.Unlock()
 	ordinary := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
 	text, err := value.Type().OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: ordinary})

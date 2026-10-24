@@ -300,7 +300,7 @@ func TestInfoSequencesCapture(t *testing.T) {
 	relation.Sequence = &options
 	relation.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)}}
 	next.SetDescriptor(relation.Address(), &relation)
-	roles := cloneRoleFixture(f.f.e.roles.published)
+	roles := cloneRoleFixture(f.f.e.roles.Published)
 	var edges []authorization.Membership
 	for _, edge := range fixtureEdges(roles) {
 		if edge.Member != f.f.member || edge.Role != f.f.owner {
@@ -309,7 +309,7 @@ func TestInfoSequencesCapture(t *testing.T) {
 	}
 	setFixtureEdges(roles, edges)
 	f.f.e.catalog.PublishLocked(next)
-	f.f.e.roles.published = roles
+	f.f.e.roles.PublishLocked(roles)
 	f.f.e.mu.Lock()
 	captured, err := f.f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {

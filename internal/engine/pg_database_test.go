@@ -29,7 +29,7 @@ func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *exec.
 	t.Helper()
 	source, ref := pgDatabaseUnitSource(t, e, catalog)
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.read(&e.catalog.Owner, catalog, e.roles.published), ref, source)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.PublishedRead(&e.catalog.Owner, catalog), ref, source)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref || rows.Count() != 1 || len(rows.Anonymous[0]) != 18 {
 		t.Fatal("one captured database", rows, err)
@@ -160,17 +160,17 @@ func TestPGDatabaseCapture(t *testing.T) {
 		}
 	}
 	isolated := e.catalog.Read(private)
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(&e.catalog.Owner, isolated, e.roles.published), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got == nil || err != nil || got.Count() != 1 {
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.PublishedRead(&e.catalog.Owner, isolated), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got == nil || err != nil || got.Count() != 1 {
 		t.Fatal("unrelated relations affect current row", got, err)
 	}
 	invalidDB := *database
-	invalidDB.Owner = foreign.roles.domain.Principal(10)
+	invalidDB.Owner = foreign.roles.Domain.Principal(10)
 	private.SetDescriptor(catalog.CurrentDatabaseAddress, &invalidDB)
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(&e.catalog.Owner, isolated, e.roles.published), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.PublishedRead(&e.catalog.Owner, isolated), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
 		t.Fatal("foreign owner admitted", got, err)
 	}
-	invalidDB.Owner = e.roles.domain.Principal(999999)
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(&e.catalog.Owner, isolated, e.roles.published), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+	invalidDB.Owner = e.roles.Domain.Principal(999999)
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.PublishedRead(&e.catalog.Owner, isolated), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
 		t.Fatal("stale owner admitted", got, err)
 	}
 	unchanged()

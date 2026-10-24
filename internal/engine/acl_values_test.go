@@ -25,12 +25,12 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 	e, c := aclValuesUnitContext(t)
 	view := e.CatalogRead()
 	d, _ := view.LookupType(sqltype.ACLItem)
-	value, err := sqltype.ACLItemValue(d, &e.roles.aclAuthority, 0, 0, 2, 2)
+	value, err := sqltype.ACLItemValue(d, &e.roles.ACLAuthority, 0, 0, 2, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a, g, r, p, o, err := value.ACLItem()
-	if err != nil || a != &e.roles.aclAuthority || g != 0 || r != 0 || p != 2 || o != 2 {
+	if err != nil || a != &e.roles.ACLAuthority || g != 0 || r != 0 || p != 2 || o != 2 {
 		t.Fatal("zero identity datum", err)
 	}
 	output := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
@@ -50,12 +50,12 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 		t.Fatal("zero grantor dump accepted")
 	}
 	target := New()
-	mapped, err := target.roles.aclItemImporter(e.roles, &target.catalog, e.Roles(), target.Roles(), nil)(value)
+	mapped, err := target.roles.ACLItemImporter(e.roles, &target.catalog, e.Roles(), target.Roles(), nil)(value)
 	if err != nil {
 		t.Fatal(err)
 	}
 	aa, gg, rr, _, _, err := mapped.ACLItem()
-	if err != nil || aa != &target.roles.aclAuthority || gg != 0 || rr != 0 {
+	if err != nil || aa != &target.roles.ACLAuthority || gg != 0 || rr != 0 {
 		t.Fatal("zero remap", err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)

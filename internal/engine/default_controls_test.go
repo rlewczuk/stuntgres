@@ -24,7 +24,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	next := *old
 	next.ObjectRevision++
 	next.Comment = "eligible default descriptor"
-	next.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("default_owner")
+	next.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("default_owner")
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}

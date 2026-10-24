@@ -20,7 +20,7 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 	}
 	e.mu.Lock()
 	base := catalog.CloneState(e.catalog.State)
-	object := &catalog.LargeObject{ObjectAddress: address, ObjectName: "910091", ObjectRevision: 2, Owner: e.roles.domain.Principal(10), Content: content}
+	object := &catalog.LargeObject{ObjectAddress: address, ObjectName: "910091", ObjectRevision: 2, Owner: e.roles.Domain.Principal(10), Content: content}
 	base.SetDescriptor(address, object)
 	base.BindName(catalog.DescriptorNameKey(object), address)
 	e.catalog.PublishLocked(base)

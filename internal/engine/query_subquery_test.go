@@ -587,7 +587,7 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 		roleExecute(t, e, op, sql)
 	}
 	reader, _ := e.Roles().Lookup("subquery_reader")
-	grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	outer, child := roleTableRef(t, e, "o"), roleTableRef(t, e, "c")
 	grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()

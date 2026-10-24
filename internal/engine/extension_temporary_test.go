@@ -217,7 +217,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 	})
 	t.Run("private_authority", func(t *testing.T) {
 		e, _, _, ext, _ := extensionTemporaryInstalled(t)
-		private, err := e.startSession(context.Background(), session.SessionStart{Authenticated: e.roles.domain.Principal(10)}, true)
+		private, err := e.startSession(context.Background(), session.SessionStart{Authenticated: e.roles.Domain.Principal(10)}, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -450,9 +450,9 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		if target.catalog.State.Get(installed.Address()) != installed || installed.Owner != actor.Ref {
 			t.Fatal("replacement substituted named TEMP owner authority")
 		}
-		before := target.roles.published
+		before := target.roles.Published
 		roleError(t, target, admin, "DROP ROLE "+actor.Name, "2BP01", `role "retained_ext_owner" cannot be dropped because some objects depend on it`, "owner of extension unaccent")
-		if target.roles.published != before {
+		if target.roles.Published != before {
 			t.Fatal("retained owner dependency changed roles")
 		}
 		if err := target.endTemporarySession(owner.Session); err != nil {

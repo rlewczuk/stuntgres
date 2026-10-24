@@ -235,7 +235,7 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	for _, q := range []string{"CREATE USER reader", "CREATE USER reader2", "CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE SCHEMA reader", "CREATE SCHEMA reader2", "CREATE SEQUENCE a.s START 100", "CREATE SEQUENCE b.s START 10", "CREATE SEQUENCE reader.s START 30", "CREATE SEQUENCE reader2.s START 300"} {
 		sessionSQL(t, s, q)
 	}
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		var ref ids.ObjectRef
@@ -353,8 +353,8 @@ func TestSequencePreparedRevokedMemory(t *testing.T) {
 	sessionSQL(t, s, "CREATE USER reader")
 	sessionSQL(t, s, "CREATE SEQUENCE s CACHE 10")
 	ref := roleTableRef(t, e, "s")
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	reader := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("reader")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	reader := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("reader")
 	grant := func(rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
@@ -440,21 +440,21 @@ func TestSequencePreparedACLPublicationFailure(t *testing.T) {
 	_, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 	ref := d.sequences.Constants[0].Ref
 	original := e.catalog.State
-	roles := e.roles.published
+	roles := e.roles.Published
 	frontier := e.catalog.NextRevision()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := e.SetObjectACL(ctx, ref, authorization.ACLValue{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.catalog.State != original || e.roles.published != roles || e.catalog.NextRevision() != frontier {
+	if e.catalog.State != original || e.roles.Published != roles || e.catalog.NextRevision() != frontier {
 		t.Fatal("canceled ACL update published authority")
 	}
 	e.catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{}); err == nil {
 		t.Fatal("exhausted stamp allocator accepted ACL publication")
 	}
-	if e.catalog.State != original || e.roles.published != roles {
+	if e.catalog.State != original || e.roles.Published != roles {
 		t.Fatal("exhausted ACL update published descriptor/stamp/roles")
 	}
 }
@@ -474,7 +474,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		state := catalog.CloneState(e.catalog.State)
 		state.SetNamespaceGeneration(^uint64(0))
 		e.catalog.PublishLocked(state)
-		roles := e.roles.published
+		roles := e.roles.Published
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if err := e.SetObjectACL(ctx, ref, authorization.ACLValue{}); !errors.Is(err, context.Canceled) {
@@ -484,7 +484,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		if err == nil || err.Error() != "stuntgres: namespace invalidation generation exhausted" {
 			t.Fatal("namespace exhaustion accepted ACL publication", err)
 		}
-		if e.catalog.State != state || e.roles.published != roles {
+		if e.catalog.State != state || e.roles.Published != roles {
 			t.Fatal("failed namespace ACL published catalog or authorization")
 		}
 		d, _ := e.CatalogRead().Descriptor(ref.Address)

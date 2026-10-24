@@ -19,13 +19,13 @@ import (
 func aclUnitRoles(e *Engine, names ...string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	next := cloneRoleFixture(e.roles.published)
+	next := cloneRoleFixture(e.roles.Published)
 	for i, name := range names {
-		putFixtureRole(next, authorization.RoleDescriptor{Ref: e.roles.domain.Principal(uint64(20000 + i)), Name: name, Inherit: true, ConnectionLimit: -1})
+		putFixtureRole(next, authorization.RoleDescriptor{Ref: e.roles.Domain.Principal(uint64(20000 + i)), Name: name, Inherit: true, ConnectionLimit: -1})
 	}
-	e.roles.published = next
-	if nextID := uint64(20000 + len(names)); e.roles.nextPrincipal < nextID {
-		e.roles.nextPrincipal = nextID
+	e.roles.PublishLocked(next)
+	if nextID := uint64(20000 + len(names)); e.roles.NextPrincipal() < nextID {
+		e.roles.InstallPrincipalFrontierLocked(nextID)
 	}
 }
 func aclUnitType(t *testing.T, e *Engine, id sqltype.ID) *sqltype.Descriptor {
@@ -73,10 +73,10 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	}
 	a, _ := oldRoles.Lookup("acl_unit_a")
 	e.mu.Lock()
-	next := cloneRoleFixture(e.roles.published)
+	next := cloneRoleFixture(e.roles.Published)
 	a.Name = "acl_unit_renamed"
 	putFixtureRole(next, a)
-	e.roles.published = next
+	e.roles.PublishLocked(next)
 	e.mu.Unlock()
 	fresh := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
 	text, err := d.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: fresh})
@@ -124,15 +124,15 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		role, err := old.Descriptor(bootstrapEngine.roles.domain.Principal(10))
+		role, err := old.Descriptor(bootstrapEngine.roles.Domain.Principal(10))
 		if err != nil {
 			t.Fatal(err)
 		}
 		bootstrapEngine.mu.Lock()
-		next := cloneRoleFixture(bootstrapEngine.roles.published)
+		next := cloneRoleFixture(bootstrapEngine.roles.Published)
 		role.Name = "acl_unit_bootstrap"
 		putFixtureRole(next, role)
-		bootstrapEngine.roles.published = next
+		bootstrapEngine.roles.PublishLocked(next)
 		bootstrapEngine.mu.Unlock()
 		output := regobj.ACLItemOutput{Owner: &bootstrapEngine.catalog.Owner, Roles: bootstrapEngine.Roles()}
 		text, err := typeACL.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: output})

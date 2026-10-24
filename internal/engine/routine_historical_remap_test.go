@@ -47,8 +47,8 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 		current.ObjectRevision++
 		candidate.SetDescriptor(current.Address(), &current)
 	}
-	sourceRoles := source.roles.read(&source.catalog.Owner, source.CatalogRead(), source.roles.published)
-	targetRoles := target.roles.read(&target.catalog.Owner, target.CatalogRead(), target.roles.published)
+	sourceRoles := source.roles.PublishedRead(&source.catalog.Owner, source.CatalogRead())
+	targetRoles := target.roles.PublishedRead(&target.catalog.Owner, target.CatalogRead())
 	structural, err := stored.RemapViewQuery(target.CatalogRead(), aggregate, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 	if err != nil {
 		t.Fatal(err)
@@ -79,10 +79,10 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	for i, name := range []string{"bool_and", "every", "row_number"} {
 		old, got := originals[name], captured[i]
 		current, _ := view.Procedure(old.Address())
-		if got == old || got == current || got.Name() != old.Name() || got.Revision() != old.Revision() || got.Owner != target.roles.domain.Principal(old.Owner.ID()) || current.Revision() == got.Revision() {
+		if got == old || got == current || got.Name() != old.Name() || got.Revision() != old.Revision() || got.Owner != target.roles.Domain.Principal(old.Owner.ID()) || current.Revision() == got.Revision() {
 			t.Fatal("historical carrier replaced rather than reprovenanced", name, got, current)
 		}
-		if old.Owner != source.roles.domain.Principal(old.Owner.ID()) || old.Name() != name {
+		if old.Owner != source.roles.Domain.Principal(old.Owner.ID()) || old.Name() != name {
 			t.Fatal("source original mutated", name)
 		}
 	}
@@ -104,7 +104,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 		t.Fatal("alias/window references separated from their original proofs")
 	}
 	forged := *originals["every"]
-	forged.Owner = target.roles.domain.Principal(forged.Owner.ID())
+	forged.Owner = target.roles.Domain.Principal(forged.Owner.ID())
 	if _, err := procedure(&forged); err == nil {
 		t.Fatal("target-domain owner rescued an imported-source carrier")
 	}
@@ -126,11 +126,11 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 		t.Fatal("missing seeded window declaration")
 	}
 	// Retired owners/grantees are provenance, not the current EXECUTE policy.
-	owner := e.roles.domain.Principal(900001)
-	grantee := e.roles.domain.Principal(900002)
+	owner := e.roles.Domain.Principal(900001)
+	grantee := e.roles.Domain.Principal(900002)
 	oldOwner := authorization.RoleDescriptor{Ref: owner, Name: "historical_owner"}
 	oldGrantee := authorization.RoleDescriptor{Ref: grantee, Name: "historical_reader"}
-	roleRoot, err := e.roles.published.Root.PutDescriptor(oldOwner)
+	roleRoot, err := e.roles.Published.Root.PutDescriptor(oldOwner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,14 +139,14 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleRoot = roleRoot.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{owner: oldOwner, grantee: oldGrantee})
-	e.roles.published = &access.RoleRecord{Root: roleRoot, Revision: e.roles.published.Revision + 1}
+	e.roles.PublishLocked(&access.RoleRecord{Root: roleRoot, Revision: e.roles.Published.Revision + 1})
 	historical := *original
 	historical.Owner = owner
 	historical.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: authorization.ExecutePrivilege}}}
 	current := *original
 	current.ObjectRevision++
 	e.catalog.State.SetDescriptor(current.Address(), &current)
-	roles := e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published)
+	roles := e.roles.PublishedRead(&e.catalog.Owner, e.CatalogRead())
 	if _, err := roles.Descriptor(owner); err == nil {
 		t.Fatal("historical-owner control unexpectedly live")
 	}
@@ -175,7 +175,7 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 // replacementProcedurePolicyFixture supplies the real host policy for private
 // address/type remap fixtures; it does not manufacture numeric principal links.
 func replacementProcedurePolicyFixture(source, target *Engine) catalog.ProcedureRemapper {
-	sourceRoles := source.roles.read(&source.catalog.Owner, source.catalog.Current(), source.roles.published)
-	targetRoles := target.roles.read(&target.catalog.Owner, target.catalog.Current(), target.roles.published)
-	return catalog.NewProcedureRemapper(target.roles.principalRemap(&target.catalog, sourceRoles, targetRoles, nil, routine.OperatorSeeded))
+	sourceRoles := source.roles.PublishedRead(&source.catalog.Owner, source.catalog.Current())
+	targetRoles := target.roles.PublishedRead(&target.catalog.Owner, target.catalog.Current())
+	return catalog.NewProcedureRemapper(target.roles.PrincipalRemap(&target.catalog, sourceRoles, targetRoles, nil, routine.OperatorSeeded))
 }

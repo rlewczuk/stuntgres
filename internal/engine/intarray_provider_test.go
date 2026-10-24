@@ -105,7 +105,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 			t.Fatal("missing extension edge", address)
 		}
 	}
-	metadata, err := extension.OwnerMetadata(view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(view, e.roles.PublishedRead(&e.catalog.Owner, view), ext)
 	if err != nil {
 		t.Fatal(err)
 	}

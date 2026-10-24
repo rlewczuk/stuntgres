@@ -20,7 +20,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			a := sessionStart(t, e, nil)
-			beforeCatalog, beforeRoles, frontier := e.catalog.State, e.roles.published, e.visibility.CommitSeq()
+			beforeCatalog, beforeRoles, frontier := e.catalog.State, e.roles.Published, e.visibility.CommitSeq()
 			original, revision := a.Authorization.State, a.Authorization.Revision
 			m := batchUnitStart(t, a, context.Background())
 			defer m.end(context.Canceled)
@@ -59,7 +59,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			if changes.Storage[table].Original != nil || len(index.JournalIndexesOrZero(changes).UniqueRoots[idx].Entries) != 0 || len(a.Transactions.Writes[table]) != 2 {
 				t.Fatal("baseline and own writes conflated")
 			}
-			if e.catalog.State != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[idx] != nil {
+			if e.catalog.State != beforeCatalog || e.roles.Published != beforeRoles || e.visibility.CommitSeq() != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[idx] != nil {
 				t.Fatal("candidate escaped before message end")
 			}
 			if _, ok := e.Roles().Lookup("batch_member"); ok {
@@ -72,7 +72,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if _, ok := e.Roles().Lookup("batch_member"); !ok {
 					t.Fatal("role root not installed with catalog")
 				}
-				if e.catalog.State == beforeCatalog || e.roles.published == beforeRoles || len(e.storage.Relations[table].Versions) != 2 || len(e.storage.IndexRoots[idx].Entries) != 2 {
+				if e.catalog.State == beforeCatalog || e.roles.Published == beforeRoles || len(e.storage.Relations[table].Versions) != 2 || len(e.storage.IndexRoots[idx].Entries) != 2 {
 					t.Fatal("incomplete atomic installation")
 				}
 				sessionSQL(t, a, "RESET ROLE")
@@ -86,7 +86,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal("primary error replaced", end, err)
 				}
-				if e.catalog.State != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || a.Authorization.State != original || a.Authorization.Revision <= revision || a.Transactions.IdentityCaptured {
+				if e.catalog.State != beforeCatalog || e.roles.Published != beforeRoles || e.visibility.CommitSeq() != frontier || a.Authorization.State != original || a.Authorization.Revision <= revision || a.Transactions.IdentityCaptured {
 					t.Fatal("joint rollback or identity revision")
 				}
 			}

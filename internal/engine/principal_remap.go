@@ -37,7 +37,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 			foreignTokens[destination] = destination
 		}
 	}
-	policy := e.roles.principalRemap(&e.catalog, source, targetSnapshot, expected, routine.OperatorSeeded)
+	policy := e.roles.PrincipalRemap(&e.catalog, source, targetSnapshot, expected, routine.OperatorSeeded)
 	var graph catalog.ProcedureRemapper
 	policy.Procedure = func(original *catalog.Procedure) (*catalog.Procedure, error) {
 		mapped, err := graph(original)
@@ -58,7 +58,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 	if err := catalog.RemapPrincipals(state, policy); err != nil {
 		return nil, nil, err
 	}
-	if err := catalog.ValidateDefaultACLs(e.roles.read(&e.catalog.Owner, e.catalog.Read(state), e.roles.published), e.catalog.Read(state)); err != nil {
+	if err := catalog.ValidateDefaultACLs(e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Read(state)), e.catalog.Read(state)); err != nil {
 		return nil, nil, err
 	}
 	return state, policy.Procedure, nil
@@ -68,14 +68,14 @@ func (e *Engine) restoreStage() *Engine {
 	// Capture before reading: dropping and recreating an owner while a reader
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
-	sourceRoles := e.roles.captureLocked()
+	sourceRoles := e.roles.CaptureLocked()
 	database := e.catalog.State.MustDatabase(e.catalog.DatabaseAddress())
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
 	if err := stage.InstallForeignDefinitions(e.foreign.Definitions()); err != nil {
 		panic(err)
 	}
-	stage.importTargets = stage.roles.installCapture(sourceRoles)
+	stage.importTargets = stage.roles.InstallCapture(sourceRoles)
 	retainedDatabase := *database
 	// The private staging engine has its own principal authority, but retains
 	// the selected database address rather than silently reverting to default.
@@ -83,13 +83,13 @@ func (e *Engine) restoreStage() *Engine {
 	stage.catalog.State.UnbindName(catalog.DescriptorNameKey(initial))
 	stage.catalog.State.RemoveDescriptor(initial.Address())
 	stage.catalog.Database = database.Address()
-	retainedDatabase.Owner = stage.roles.domain.Principal(database.Owner.ID())
+	retainedDatabase.Owner = stage.roles.Domain.Principal(database.Owner.ID())
 	retainedDatabase.ACL.Entries = append([]authorization.ACLEntry(nil), database.ACL.Entries...)
 	for i := range retainedDatabase.ACL.Entries {
 		entry := &retainedDatabase.ACL.Entries[i]
-		entry.Grantor = stage.roles.domain.Principal(entry.Grantor.ID())
+		entry.Grantor = stage.roles.Domain.Principal(entry.Grantor.ID())
 		if !entry.Grantee.Public {
-			entry.Grantee.Role = stage.roles.domain.Principal(entry.Grantee.Role.ID())
+			entry.Grantee.Role = stage.roles.Domain.Principal(entry.Grantee.Role.ID())
 		}
 	}
 	stage.catalog.State.SetDescriptor(database.Address(), &retainedDatabase)
@@ -100,7 +100,7 @@ func (e *Engine) restoreStage() *Engine {
 // retainedRoutineProcedureRemapper is only for destination TEMP consumers
 // selected by replacement preflight, never imported-source containers.
 func (e *Engine) retainedRoutineProcedureRemapper(current catalog.Read) catalog.ProcedureRemapper {
-	roles := e.roles.read(&e.catalog.Owner, current, e.roles.published)
+	roles := e.roles.PublishedRead(&e.catalog.Owner, current)
 	identity := func(ref authorization.PrincipalRef) (authorization.PrincipalRef, error) {
 		if err := roles.ValidatePrincipal(ref); err != nil {
 			return authorization.PrincipalRef{}, err

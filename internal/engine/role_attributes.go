@@ -22,7 +22,7 @@ func (e *Engine) validateRoleAttributesLocked(op *session.Operation, stmt parser
 		return v, actor, target, o, err
 	}
 	if _, creating := stmt.(*parser.CreateRole); creating {
-		if _, err := e.roles.principalCandidateLocked(); err != nil {
+		if _, err := e.roles.PrincipalCandidateLocked(); err != nil {
 			return v, actor, target, o, err
 		}
 	}
@@ -78,7 +78,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 			return Result{}, err
 		}
 		d := authorization.ApplyRoleOptions(target, o)
-		d.AuthIDVersion, err = e.roles.revisionCandidateLocked()
+		d.AuthIDVersion, err = e.roles.RevisionCandidateLocked()
 		if err != nil {
 			return Result{}, err
 		}
@@ -92,7 +92,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		var create *parser.CreateRole
 		if c, creating := stmt.(*parser.CreateRole); creating {
 			create = c
-			d.Ref, err = e.roles.principalCandidateLocked()
+			d.Ref, err = e.roles.PrincipalCandidateLocked()
 			if err != nil {
 				return Result{}, err
 			}
@@ -116,11 +116,11 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 			if err != nil {
 				return Result{}, err
 			}
-			revision, err := e.roles.revisionCandidateLocked()
+			revision, err := e.roles.RevisionCandidateLocked()
 			if err != nil {
 				return Result{}, err
 			}
-			if fresh.RoleRecord != v.RoleRecord || e.roles.nextPrincipal != d.Ref.ID() || revision != d.AuthIDVersion {
+			if fresh.RoleRecord != v.RoleRecord || e.roles.NextPrincipal() != d.Ref.ID() || revision != d.AuthIDVersion {
 				continue
 			}
 		}
@@ -131,7 +131,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 			return Result{}, err
 		}
 		if _, creating := stmt.(*parser.CreateRole); creating {
-			e.roles.nextPrincipal = d.Ref.ID() + 1
+			e.roles.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
 		}
 		if err := e.installOperationRolesLocked(op, &access.RoleRecord{Root: n}); err != nil {
 			return Result{}, err

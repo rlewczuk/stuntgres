@@ -170,7 +170,7 @@ func preparedBoundaryCapture(e *Engine, entry *session.PreparedTransaction) prep
 	lockState := e.locks.Inspect(entry.Ticket)
 	s := preparedBoundarySnapshot{
 		catalog: e.catalog.State, descriptors: maps.Collect(e.catalog.State.Descriptors()), names: maps.Collect(e.catalog.State.Names()),
-		counters:        [10]uint64{uint64(e.catalog.State.Epoch()), e.catalog.State.NamespaceGeneration(), uint64(e.catalog.NextOID()), uint64(e.catalog.NextRevision()), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.visibility.CommitSeq()), uint64(e.visibility.DiagnosticTx()), e.visibility.SerializableOrder(), e.roles.nextPrincipal},
+		counters:        [10]uint64{uint64(e.catalog.State.Epoch()), e.catalog.State.NamespaceGeneration(), uint64(e.catalog.NextOID()), uint64(e.catalog.NextRevision()), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.visibility.CommitSeq()), uint64(e.visibility.DiagnosticTx()), e.visibility.SerializableOrder(), e.roles.NextPrincipal()},
 		storagePointers: maps.Clone(e.storage.Relations), storage: map[ids.ObjectAddress]storage.Relation{},
 		generators: maps.Clone(e.storage.Sequences), generatorValues: map[ids.ObjectAddress]storage.SequenceGenerator{},
 		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},

@@ -30,7 +30,7 @@ func TestPgClassProjection(t *testing.T) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.roles.domain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, History: catalog.PublicationHistory{HasIndexes: true, HasSubclasses: true}, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}, Constraints: catalog.RelationConstraints{Check: make([]catalog.CheckConstraint, 2)}}
+	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.roles.Domain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, History: catalog.PublicationHistory{HasIndexes: true, HasSubclasses: true}, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}, Constraints: catalog.RelationConstraints{Check: make([]catalog.CheckConstraint, 2)}}
 	row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.catalog.Owner, Source: source, Runtime: engineCatalogRuntime{engine: e}}, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)
@@ -122,13 +122,13 @@ func TestPgClassKinds(t *testing.T) {
 
 func TestPgClassACLTranslation(t *testing.T) {
 	e := New()
-	e.roles.nextPrincipal = 100001
+	e.roles.InstallPrincipalFrontierLocked(100001)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE ROLE acl_translation_grantor")
 	roles := e.Roles()
 	array := pgClassUnitSource(t, e).Columns[31].Usage.Type
-	owner := e.roles.domain.Principal(10)
+	owner := e.roles.Domain.Principal(10)
 	for _, tc := range []struct {
 		privilege authorization.Privileges
 		mask      uint32
@@ -142,7 +142,7 @@ func TestPgClassACLTranslation(t *testing.T) {
 			t.Fatal(err)
 		}
 		authority, grantee, grantor, mask, options, err := value.ArrayElement(0).ACLItem()
-		if err != nil || authority != &e.roles.aclAuthority || grantee != 0 || grantor != 10 || mask != tc.mask || options != tc.mask || !reflect.DeepEqual(acl.Entries, retained) {
+		if err != nil || authority != &e.roles.ACLAuthority || grantee != 0 || grantor != 10 || mask != tc.mask || options != tc.mask || !reflect.DeepEqual(acl.Entries, retained) {
 			t.Fatal(tc, grantee, grantor, mask, options, err)
 		}
 	}
@@ -190,7 +190,7 @@ func TestPgClassACLTranslation(t *testing.T) {
 	}
 	for i, want := range []struct{ grantee, grantor, options uint32 }{{10, 10, 4}, {0, 100001, 17407}} {
 		authority, grantee, grantor, mask, options, err := value.ArrayElement(i).ACLItem()
-		if err != nil || authority != &e.roles.aclAuthority || grantee != want.grantee || grantor != want.grantor || mask != 17407 || options != want.options {
+		if err != nil || authority != &e.roles.ACLAuthority || grantee != want.grantee || grantor != want.grantor || mask != 17407 || options != want.options {
 			t.Fatal("combined masks/order/principals", i, grantee, grantor, mask, options, err)
 		}
 	}

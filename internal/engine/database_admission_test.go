@@ -29,12 +29,12 @@ func (p *databaseAdmissionDefaults) SessionDefault(_ context.Context, d settings
 
 func databaseAdmissionFixture() (*Engine, authorization.PrincipalRef) {
 	e, _, _, _, reader := ownershipUnitRoles()
-	roles := cloneRoleFixture(e.roles.published)
+	roles := cloneRoleFixture(e.roles.Published)
 	login := fixtureRole(roles, reader)
 	login.Login = true
 	login.ConnectionLimit = 1
 	putFixtureRole(roles, login)
-	e.roles.published = roles
+	e.roles.PublishLocked(roles)
 	return e, reader
 }
 
@@ -145,13 +145,13 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 	for _, allowLogin := range []bool{false, true} {
 		e, owner, reset, _, login := ownershipUnitRoles()
-		roles := cloneRoleFixture(e.roles.published)
+		roles := cloneRoleFixture(e.roles.Published)
 		actor := fixtureRole(roles, login)
 		actor.Login = true
 		actor.ConnectionLimit = -1
 		putFixtureRole(roles, actor)
 		setFixtureEdges(roles, []authorization.Membership{{Role: reset, Member: login, Grantor: owner, Set: true}})
-		e.roles.published = roles
+		e.roles.PublishLocked(roles)
 		grantee := reset
 		if allowLogin {
 			grantee = login

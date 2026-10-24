@@ -62,7 +62,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 
 func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	committedCatalog, committedRoles := f.e.catalog.State, f.e.roles.published
+	committedCatalog, committedRoles := f.e.catalog.State, f.e.roles.Published
 	scope, err := f.e.StartStatement(f.op)
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	private := f.e.privateCatalogLocked(changes)
 	f.e.mu.Unlock()
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
-	if f.e.catalog.State != committedCatalog || f.e.roles.published != committedRoles || private.State().DefaultACL(key) == nil || changes.Roles == nil || changes.RolesBase != committedRoles {
+	if f.e.catalog.State != committedCatalog || f.e.roles.Published != committedRoles || private.State().DefaultACL(key) == nil || changes.Roles == nil || changes.RolesBase != committedRoles {
 		t.Fatal("retained utility leaked or lost private state")
 	}
 	stage := f.e.BeginCatalogStage(private)
@@ -107,20 +107,20 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	// Reject through the actual owning message admission; detached reads retain
 	// their earlier private result without installing either committed root.
 	defaultUnitDiagnostic(t, message.scope.FinishMessage(err), "42704", `role "missing" does not exist`)
-	if f.op.Session.Transactions.Catalog != nil || f.op.Session.Transactions.RetainedMessage || f.e.catalog.State != committedCatalog || f.e.roles.published != committedRoles || combined.Get(table.Address()) != table || private.State().DefaultACL(key) == nil {
+	if f.op.Session.Transactions.Catalog != nil || f.op.Session.Transactions.RetainedMessage || f.e.catalog.State != committedCatalog || f.e.roles.Published != committedRoles || combined.Get(table.Address()) != table || private.State().DefaultACL(key) == nil {
 		t.Fatal("retained failure changed committed or retained snapshots")
 	}
 }
 
 func TestTransactionalPrivilegesCreation(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	committed, roles := f.e.catalog.State, f.e.roles.published
+	committed, roles := f.e.catalog.State, f.e.roles.Published
 	if _, err := f.e.Begin(f.op, session.TxOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	f.grant(t, "tables", "select", nil)
 	changes := f.op.Session.Transactions.Catalog
-	if changes == nil || changes.Roles == nil || changes.RolesBase != roles || f.e.catalog.State != committed || f.e.roles.published != roles {
+	if changes == nil || changes.Roles == nil || changes.RolesBase != roles || f.e.catalog.State != committed || f.e.roles.Published != roles {
 		t.Fatal("private default directive leaked or lost its paired roles")
 	}
 	f.e.mu.Lock()
@@ -149,7 +149,7 @@ func TestTransactionalPrivilegesCreation(t *testing.T) {
 	if err := f.apply(revoke); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(saved, own.Security.ACL) || f.e.catalog.State != committed || f.e.roles.published != roles {
+	if !reflect.DeepEqual(saved, own.Security.ACL) || f.e.catalog.State != committed || f.e.roles.Published != roles {
 		t.Fatal("later private directive rewrote an earlier object or committed root")
 	}
 }
@@ -184,7 +184,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 			t.Fatal("creator not owner dependency", dep)
 		}
 	}
-	removed := cloneRoleFixture(f.e.roles.published)
+	removed := cloneRoleFixture(f.e.roles.Published)
 	retireFixtureRole(removed, f.reader)
 	changes := session.NewJournal()
 	changes.Roles = removed

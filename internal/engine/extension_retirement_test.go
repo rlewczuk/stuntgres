@@ -86,7 +86,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 		namespace := e.catalog.State.Get(ext.TargetNamespace).Name()
 		stmt := statement(t, "CREATE VIEW public.ext_stale_late AS SELECT "+namespace+".unaccent('Hôtel'::text) AS v")
 		peerCtx, cancelPeer := context.WithTimeout(context.Background(), 5*time.Second)
-		peer, err := e.StartSession(peerCtx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.domain.Principal(10)})
+		peer, err := e.StartSession(peerCtx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.Domain.Principal(10)})
 		if err != nil {
 			t.Error("bounded independent peer start", err)
 		} else {
@@ -273,7 +273,7 @@ func extensionRetirementRowsUnit(t *testing.T, e *Engine, op *session.Operation)
 func extensionTemporaryStructuralEnd(t *testing.T, mixed bool) {
 	t.Helper()
 	e := New()
-	ownerSession, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.domain.Principal(10)})
+	ownerSession, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.Domain.Principal(10)})
 	if err != nil {
 		t.Fatal(err)
 	}

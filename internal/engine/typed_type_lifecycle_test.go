@@ -159,9 +159,9 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 				op.Session.Mu.Unlock()
 			} else {
 				e.mu.Lock()
-				next := *e.roles.published
+				next := *e.roles.Published
 				next.Revision++
-				e.roles.published = &next
+				e.roles.PublishLocked(&next)
 				e.mu.Unlock()
 			}
 			before := e.CatalogRead()

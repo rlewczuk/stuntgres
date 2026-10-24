@@ -37,7 +37,7 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				grant := func(attribute int32, privileges authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
 						t.Fatal(err)
 					}
 				}

@@ -156,9 +156,9 @@ func TestInfoRoleColumnGrantsSemantics(t *testing.T) {
 		yes := a
 		yes[7] = "YES"
 		f.check(t, f.state, f.f.reader, a, yes, b)
-		roles := cloneRoleFixture(f.f.e.roles.published)
+		roles := cloneRoleFixture(f.f.e.roles.Published)
 		setFixtureEdges(roles, append(fixtureEdges(roles), authorization.Membership{Role: f.f.owner, Member: f.f.reader, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}))
-		f.f.e.roles.published = roles
+		f.f.e.roles.PublishLocked(roles)
 		b[7] = "YES"
 		f.check(t, f.state, f.f.reader, yes, yes, b)
 		// The owner sees its reader grants through the enabled-grantor side.
@@ -235,13 +235,13 @@ func TestInfoRoleColumnGrantsSemantics(t *testing.T) {
 		f.check(t, f.state, f.f.reader, a, b)
 		f.check(t, f.state, f.f.owner, a)
 		f.check(t, f.state, f.f.member, a, b)
-		roles := cloneRoleFixture(f.f.e.roles.published)
+		roles := cloneRoleFixture(f.f.e.roles.Published)
 		setFixtureEdges(roles, []authorization.Membership{{Role: f.f.owner, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Set: true, Admin: true}})
-		f.f.e.roles.published = roles
+		f.f.e.roles.PublishLocked(roles)
 		f.check(t, f.state, f.f.member, b)
 		setOnly := cloneRoleFixture(roles)
 		setFixtureEdges(setOnly, []authorization.Membership{{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Set: true, Admin: true}})
-		f.f.e.roles.published = setOnly
+		f.f.e.roles.PublishLocked(setOnly)
 		f.check(t, f.state, f.f.member, b)
 	})
 	t.Run("public_and_superuser_attribute", func(t *testing.T) {
@@ -254,12 +254,12 @@ func TestInfoRoleColumnGrantsSemantics(t *testing.T) {
 		f.check(t, f.state, f.f.owner, public)
 		f.check(t, f.state, f.f.member, public)
 		f.check(t, f.state, f.f.e.Roles().LookupRef("postgres"), public)
-		roles := cloneRoleFixture(f.f.e.roles.published)
+		roles := cloneRoleFixture(f.f.e.roles.Published)
 		power := fixtureRole(roles, f.f.reader)
 		power.Superuser = true
 		putFixtureRole(roles, power)
 		setFixtureEdges(roles, []authorization.Membership{{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}})
-		f.f.e.roles.published = roles
+		f.f.e.roles.PublishLocked(roles)
 		f.check(t, f.state, f.f.member)
 		f.check(t, f.state, f.f.reader, public)
 	})

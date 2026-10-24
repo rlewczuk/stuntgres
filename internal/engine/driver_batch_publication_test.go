@@ -209,7 +209,7 @@ func TestDriverBatchRoleACLPublicationKeepsPeerRoot(t *testing.T) {
 			}
 			transactionRows(t, peer, "SELECT v FROM t")
 			sessionSQL(t, peer, "CREATE ROLE peer LOGIN")
-			roles, frontier := e.roles.published, e.visibility.CommitSeq()
+			roles, frontier := e.roles.Published, e.visibility.CommitSeq()
 			peerRole, exists := e.Roles().Lookup("peer")
 			if !exists {
 				t.Fatal("committed peer role missing")

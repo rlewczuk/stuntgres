@@ -15,17 +15,17 @@ import (
 // revision cache can supply the expected authority.
 func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	e := New()
-	roles := cloneRoleFixture(e.roles.published)
+	roles := cloneRoleFixture(e.roles.Published)
 	previous := roles.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	next := e.roles.domain.Principal(100001)
-	member := e.roles.domain.Principal(100002)
+	next := e.roles.Domain.Principal(100001)
+	member := e.roles.Domain.Principal(100002)
 	bootstrap := fixtureRole(roles, previous)
 	bootstrap.Superuser = false
 	putFixtureRole(roles, bootstrap)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: next, Name: "successor", Inherit: true})
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: member, Name: "member", Inherit: true})
 	implicit := roles.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	published, revision, root := e.roles.published, roles.Revision, roles.Root
+	published, revision, root := e.roles.Published, roles.Revision, roles.Root
 	memberships := append([]authorization.Membership(nil), fixtureEdges(roles)...)
 	before := e.catalog.Current()
 	candidate := catalog.CloneState(e.catalog.State)
@@ -33,7 +33,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	database.Owner = next
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	after := e.catalog.Read(candidate)
-	oldRead, newRead := e.roles.read(&e.catalog.Owner, before, roles), e.roles.read(&e.catalog.Owner, after, roles)
+	oldRead, newRead := e.roles.Read(&e.catalog.Owner, before, roles), e.roles.Read(&e.catalog.Owner, after, roles)
 	oldView, newView := catalogAuthorization(e, before), catalogAuthorization(e, after)
 	oldView.RoleRecord, oldView.Roles = roles, oldRead
 	newView.RoleRecord, newView.Roles = roles, newRead
@@ -62,7 +62,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 		graph := cloneRoleFixture(roles)
 		setFixtureEdges(graph, []authorization.Membership{{Role: next, Member: member, Grantor: previous, Inherit: flags[0], Set: flags[1]}})
 		exactEdges := append([]authorization.Membership(nil), fixtureEdges(graph)...)
-		read := e.roles.read(&e.catalog.Owner, after, graph)
+		read := e.roles.Read(&e.catalog.Owner, after, graph)
 		closure, err := read.RoleClosure(context.Background(), member, false)
 		if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{member, next, implicit}) {
 			t.Fatal("MEMBER owner hop", flags, closure, err)
@@ -85,7 +85,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 			}
 		}
 	}
-	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(catalog.CurrentDatabaseAddress).Owner != previous || e.roles.published != published || roles.Revision != revision || !reflect.DeepEqual(roles.Root, root) || !reflect.DeepEqual(fixtureEdges(roles), memberships) {
+	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(catalog.CurrentDatabaseAddress).Owner != previous || e.roles.Published != published || roles.Revision != revision || !reflect.DeepEqual(roles.Root, root) || !reflect.DeepEqual(fixtureEdges(roles), memberships) {
 		t.Fatal("source pair mutated")
 	}
 }

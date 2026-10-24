@@ -143,7 +143,7 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 	oldIndex := base.State().OperatorNames()
 	for _, update := range []func(*catalog.Operator){
 		func(d *catalog.Operator) { d.ObjectRevision++ },
-		func(d *catalog.Operator) { d.Owner = e.roles.domain.Principal(10) },
+		func(d *catalog.Operator) { d.Owner = e.roles.Domain.Principal(10) },
 		func(d *catalog.Operator) { d.Left, d.Right = 0, 20 },
 		func(d *catalog.Operator) { d.Result, d.Function = 20, 463 },
 		func(d *catalog.Operator) { d.Hash, d.Merge, d.Negator = true, true, 90002 },
@@ -184,7 +184,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	e := New()
 	before := e.CatalogRead()
 	d := indexUnitOperator(90001, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "#~#")
-	d.Owner, d.Result, d.Function = e.roles.domain.Principal(10), 23, 177
+	d.Owner, d.Result, d.Function = e.roles.Domain.Principal(10), 23, 177
 	stage := e.BeginCatalogStage(before)
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -294,7 +294,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 
 func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	source, target := New(), New()
-	owner := source.roles.domain.Principal(authorization.BootstrapPrincipalID)
+	owner := source.roles.Domain.Principal(authorization.BootstrapPrincipalID)
 	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "imported_operators", ObjectRevision: 1, Owner: owner}
 	operator := indexUnitOperator(90001, namespace.Address(), "#~#")
 	operator.Owner = owner
@@ -307,7 +307,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	// Synthetic descriptor-only fixture: TEMP operators have no SQL creation
 	// route, but replacement's whole-catalog projection must remain exact.
 	source.catalog.PublishLocked(source.stageRead(stage).State())
-	tempNamespace := &catalog.Namespace{ObjectAddress: namespace.Address(), ObjectName: "pg_temp_operator_index", ObjectRevision: 1, Owner: target.roles.domain.Principal(10), Temporary: target.catalog.Domain.Session(99)}
+	tempNamespace := &catalog.Namespace{ObjectAddress: namespace.Address(), ObjectName: "pg_temp_operator_index", ObjectRevision: 1, Owner: target.roles.Domain.Principal(10), Temporary: target.catalog.Domain.Session(99)}
 	temp := indexUnitOperator(operator.Address().ObjectID, tempNamespace.Address(), "#?#")
 	temp.Owner = tempNamespace.Owner
 	stage = target.BeginCatalogStage(target.CatalogRead())

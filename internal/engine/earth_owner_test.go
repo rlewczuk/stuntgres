@@ -62,7 +62,7 @@ func earthOwnerCodecUnits(t *testing.T) {
 	if array.Name() == "_earth" || ids.OID(domain.Array) != array.Address().ObjectID {
 		t.Fatal("missing actual companion collision")
 	}
-	roles := e.roles.read(&e.catalog.Owner, view, e.roles.published)
+	roles := e.roles.PublishedRead(&e.catalog.Owner, view)
 	metadata, err := extension.OwnerMetadata(view, roles, ext)
 	if err != nil {
 		t.Fatal(err)

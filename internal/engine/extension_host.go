@@ -51,7 +51,7 @@ func (h *extensionHost) ReplayingTableDestination() bool {
 	return operationReplayOrZero(h.op).tableDestination
 }
 func (h *extensionHost) BootstrapSuperuser() authorization.PrincipalRef {
-	return h.engine.roles.domain.Principal(10)
+	return h.engine.roles.Domain.Principal(10)
 }
 func (h *extensionHost) BeginStage(namespace ids.ObjectAddress) extension.Stage {
 	stage := h.engine.BeginCatalogStage(h.auth.Catalog)

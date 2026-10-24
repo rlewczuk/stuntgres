@@ -13,7 +13,7 @@ func (e *Engine) initializeCatalogSources() error {
 		d := e.catalogSourceDescriptor(spec.OID, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: spec.Namespace}, spec.Name, len(spec.Columns))
 		d.History.HasIndexes, d.VirtualView = spec.Indexes, spec.Virtual
 		if spec.BootstrapOwner {
-			d.Owner = e.roles.domain.Principal(authorization.BootstrapPrincipalID)
+			d.Owner = e.roles.Domain.Principal(authorization.BootstrapPrincipalID)
 			d.Security.ACL.Entries[0].Grantor = d.Owner
 		}
 		if spec.NoPublic {
@@ -44,6 +44,6 @@ func (e *Engine) initializeCatalogSources() error {
 }
 
 func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *catalog.Relation {
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), ColumnMeta: catalog.ColumnMetadata{HighWater: int32(count)}, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}}
 }

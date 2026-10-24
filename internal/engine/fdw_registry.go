@@ -20,7 +20,7 @@ func RegistrationError(message string) error { return errors.New("stuntgres: " +
 // immutable procedure tokens, not a mutable name-to-callback fallback.
 func (e *Engine) InstallForeignDefinitions(wrappers []fdw.WrapperDefinition, validators []fdw.ValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter) error {
 	e.foreign.Install(wrappers, validators, importer, exporter)
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	install := func(name catalog.ForeignFunctionName, p *catalog.ForeignProcedure, result ids.OID, signature catalog.ProcedureSignature) error {
 		namespace := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema})
 		if namespace == (ids.ObjectAddress{}) {

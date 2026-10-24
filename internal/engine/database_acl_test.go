@@ -42,7 +42,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		next.ACL = tc.acl
 		candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 		catalog := e.catalog.Read(candidate)
-		roles := cloneRoleFixture(e.roles.published)
+		roles := cloneRoleFixture(e.roles.Published)
 		bootstrap := fixtureRole(roles, owner)
 		bootstrap.Superuser = false
 		putFixtureRole(roles, bootstrap)
@@ -50,7 +50,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 			ref  authorization.PrincipalRef
 			want authorization.Privileges
 		}{{owner, tc.ownerRights}, {reader, tc.readerRights}} {
-			rights, err := access.DatabaseRights(context.Background(), catalog, e.roles.read(&e.catalog.Owner, catalog, roles), item.ref)
+			rights, err := access.DatabaseRights(context.Background(), catalog, e.roles.Read(&e.catalog.Owner, catalog, roles), item.ref)
 			if err != nil || rights != item.want {
 				t.Fatal("NULL/empty/legacy policy", item.ref, rights, item.want, err)
 			}
@@ -65,7 +65,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rights, err := access.DatabaseRights(ctx, base, e.roles.read(&e.catalog.Owner, base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
+	if rights, err := access.DatabaseRights(ctx, base, e.roles.PublishedRead(&e.catalog.Owner, base), owner); rights != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatal("superuser must not bypass cancellation", rights, err)
 	}
 }
@@ -74,7 +74,7 @@ func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
 	db := e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
-	roles := e.roles.read(&e.catalog.Owner, e.CatalogRead(), e.roles.published)
+	roles := e.roles.PublishedRead(&e.catalog.Owner, e.CatalogRead())
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +132,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	if _, err := access.DatabaseRights(ctx, fresh.Catalog, fresh.Roles, reader); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	foreign := New().roles.domain.Principal(reader.ID())
+	foreign := New().roles.Domain.Principal(reader.ID())
 	if _, err := access.DatabaseRights(context.Background(), fresh.Catalog, fresh.Roles, foreign); err == nil {
 		t.Fatal("foreign principal accepted")
 	}

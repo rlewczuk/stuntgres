@@ -177,7 +177,7 @@ func TestRoleSessionAuthorizationAndStaleIdentity(t *testing.T) {
 	if _, err := e.Execute(a, statement(t, "SELECT current_user"), 0, nil); err == nil {
 		t.Fatal("stale session adopted recreated role")
 	}
-	if _, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: New().roles.domain.Principal(10)}); err == nil {
+	if _, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: New().roles.Domain.Principal(10)}); err == nil {
 		t.Fatal("foreign initialization")
 	}
 	nolog, _ := e.Roles().Lookup("nolog")
@@ -205,27 +205,27 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			before := e.roles.published
+			before := e.roles.Published
 			read := e.Roles()
 			roleError(t, e, op, "DROP ROLE endpoint,missing", "42704", `role "missing" does not exist`, "")
-			if e.roles.published != before {
+			if e.roles.Published != before {
 				t.Fatal("partial drop")
 			}
 			roleError(t, e, op, "DROP ROLE grantor", "2BP01", `role "grantor" cannot be dropped because some objects depend on it`, "privileges for membership of role member in role endpoint")
-			if e.roles.published != before {
+			if e.roles.Published != before {
 				t.Fatal("hypothetical endpoint cleanup escaped failed drop")
 			}
 			roleExecute(t, e, op, "DROP ROLE "+order)
 			if strings.Contains(order, "member") {
-				if len(fixtureEdges(e.roles.published)) != 3 {
-					t.Fatal("member batch retained edges", fixtureEdges(e.roles.published))
+				if len(fixtureEdges(e.roles.Published)) != 3 {
+					t.Fatal("member batch retained edges", fixtureEdges(e.roles.Published))
 				}
 			} else {
-				if len(fixtureEdges(e.roles.published)) != 4 || !reflect.DeepEqual(fixtureEdges(e.roles.published)[:3], seed) || fixtureEdges(e.roles.published)[3] != unrelated {
-					t.Fatal("unrelated edge removed", fixtureEdges(e.roles.published))
+				if len(fixtureEdges(e.roles.Published)) != 4 || !reflect.DeepEqual(fixtureEdges(e.roles.Published)[:3], seed) || fixtureEdges(e.roles.Published)[3] != unrelated {
+					t.Fatal("unrelated edge removed", fixtureEdges(e.roles.Published))
 				}
 				roleExecute(t, e, op, "DROP ROLE member")
-				if len(fixtureEdges(e.roles.published)) != 3 {
+				if len(fixtureEdges(e.roles.Published)) != 3 {
 					t.Fatal("member endpoint retained")
 				}
 			}
@@ -248,9 +248,9 @@ func TestRoleDropIdentityGuards(t *testing.T) {
 	roleExecute(t, e, op, "CREATE ROLE dependent")
 	d, _ := e.Roles().Lookup("dependent")
 	roleExecute(t, e, op, "CREATE SCHEMA held AUTHORIZATION dependent")
-	before := e.roles.published
+	before := e.roles.Published
 	roleError(t, e, op, "DROP ROLE dependent", "2BP01", `role "dependent" cannot be dropped because some objects depend on it`, "owner of schema held")
-	if e.roles.published != before {
+	if e.roles.Published != before {
 		t.Fatal("dependency failure mutated roles")
 	}
 	roleExecute(t, e, op, "DROP SCHEMA held")
@@ -292,14 +292,14 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err != nil {
 		t.Fatal(err)
 	}
-	roles := e.roles.published
+	roles := e.roles.Published
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
-	if admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer || e.roles.published != roles {
+	if admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer || e.roles.Published != roles {
 		t.Fatal("controls changed cluster/session identity")
 	}
 	roleIdentity(t, e, admin, "a'quote")
@@ -321,11 +321,11 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 		if err := e.Restore(context.Background(), strings.NewReader(dump.String()+query+"; CREATE TABLE reset_owner_marker(id INT);")); err != nil {
 			t.Fatal("restore administrative reset", query, err)
 		}
-		if admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer || e.roles.published != roles {
+		if admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer || e.roles.Published != roles {
 			t.Fatal("isolated reset changed live role authority", query)
 		}
 		marker := roleTableRef(t, e, "reset_owner_marker")
-		if e.catalog.State.MustRelation(marker.Address).Owner != e.roles.domain.Principal(10) {
+		if e.catalog.State.MustRelation(marker.Address).Owner != e.roles.Domain.Principal(10) {
 			t.Fatal("reset did not restore isolated authenticated owner", query)
 		}
 		for name, owner := range owners {
@@ -343,7 +343,7 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 			t.Fatal("restore accepted forbidden owner mutation", query, err)
 		}
-		if e.catalog.State != before || e.roles.published != roles || admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer {
+		if e.catalog.State != before || e.roles.Published != roles || admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer {
 			t.Fatal("rejected directive changed catalog or role authority")
 		}
 	}

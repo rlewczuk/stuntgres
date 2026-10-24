@@ -312,7 +312,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			stage.querySources = []catalog.Descriptor{ext}
 			stage.authSession = op.Session
 			stage.authRevision = op.Session.Authorization.Revision
-			stage.roleRevision = e.roles.published.Revision
+			stage.roleRevision = e.roles.Published.Revision
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}
@@ -330,7 +330,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "role":
-				e.roles.published.Revision++
+				e.roles.Published.Revision++
 			case "authorization":
 				op.Session.Authorization.Revision++
 			}
@@ -497,7 +497,7 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 		}()
 		lockPending(t, e, 1)
 		changed := *d
-		changed.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		changed.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		changed.ObjectRevision++
 		stage = e.BeginCatalogStage(e.CatalogRead())
 		if err := stage.Replace(&changed); err != nil {

@@ -14,7 +14,7 @@ func TestExtensionHostRefusesDiscardedStage(t *testing.T) {
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
 	host := &extensionHost{engine: e, stage: stage}
-	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "probe", Version: "1.0", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.domain.Principal(10)}
+	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "probe", Version: "1.0", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.Domain.Principal(10)}
 	if host.Read().State() != before.State() {
 		t.Fatal("host does not read the stage base")
 	}

@@ -45,7 +45,7 @@ func TestMathBinding(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE m(n NUMERIC,unused NUMERIC)")
 	roleExecute(t, e, op, "INSERT INTO m VALUES(1.25,9)")
 	reader, _ := e.Roles().Lookup("math_reader")
-	grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	ref := roleTableRef(t, e, "m")
 	grant := func(subID int32) {
 		t.Helper()

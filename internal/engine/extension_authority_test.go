@@ -51,7 +51,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "ext_acl_actor", true, parser.RoleOptions{})
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "ext_acl", Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "ext_acl", Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	for _, a := range ext.Members {
 		if a.ClassID != ids.TSTemplateClassID {
 			owner, _, _ := access.DescriptorACL(e.catalog.State.Get(a))
-			if owner != e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+			if owner != e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 				t.Fatal("trusted member owner")
 			}
 		}

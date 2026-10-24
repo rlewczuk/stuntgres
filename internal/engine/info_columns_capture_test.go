@@ -40,7 +40,7 @@ func columnsUnitPairedCapture(t *testing.T) {
 	table.ColumnMeta.Defaults = nil
 	table.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.dc.f, authorization.SelectPrivilege, 0)}}
 	next.SetDescriptor(table.Address(), &table)
-	roles := cloneRoleFixture(e.roles.published)
+	roles := cloneRoleFixture(e.roles.Published)
 	var edges []authorization.Membership
 	for _, edge := range fixtureEdges(roles) {
 		if edge.Member != f.dc.f.member || edge.Role != f.dc.f.owner {
@@ -49,7 +49,7 @@ func columnsUnitPairedCapture(t *testing.T) {
 	}
 	setFixtureEdges(roles, edges)
 	e.catalog.PublishLocked(next)
-	e.roles.published = roles
+	e.roles.PublishLocked(roles)
 	e.mu.Lock()
 	captured, err := e.openRelationSourceLocked(scope, old.Owner().Domain.Ref(old.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {

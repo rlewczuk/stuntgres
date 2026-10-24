@@ -49,7 +49,7 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 						state.BindName(catalog.DescriptorNameKey(&p), p.Address())
 					}
 					before := e.catalog.Read(state)
-					roles := e.roles.read(&e.catalog.Owner, before, e.roles.published)
+					roles := e.roles.PublishedRead(&e.catalog.Owner, before)
 					metadata, err := extension.OwnerMetadata(before, roles, ext)
 					if err != nil {
 						t.Fatal("live independent provider owners", err)

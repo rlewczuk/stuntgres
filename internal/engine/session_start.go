@@ -38,9 +38,9 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	e.mu.Lock()
 	authenticated := start.Authenticated
 	if authenticated == (authorization.PrincipalRef{}) {
-		authenticated = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		authenticated = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
-	roleDescriptor, authErr := (e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published)).Descriptor(authenticated)
+	roleDescriptor, authErr := e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()).Descriptor(authenticated)
 	e.mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
@@ -126,16 +126,16 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	}
 	e.mu.Lock()
 	if err == nil {
-		roleDescriptor, err = (e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published)).Descriptor(authenticated)
+		roleDescriptor, err = e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()).Descriptor(authenticated)
 		if err == nil && !roleDescriptor.Login {
 			err = role.LoginError(roleDescriptor.Name)
 		}
 		if err == nil && resetRole != (authorization.PrincipalRef{}) {
-			err = authorization.ValidateInitialRole(e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), authenticated, resetRole)
+			err = authorization.ValidateInitialRole(e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), authenticated, resetRole)
 		}
 		if err == nil && !private {
 			view := e.catalog.Current()
-			err = checkDatabaseConnect(ctx, view, e.roles.read(&e.catalog.Owner, view, e.roles.published), authenticated)
+			err = checkDatabaseConnect(ctx, view, e.roles.PublishedRead(&e.catalog.Owner, view), authenticated)
 		}
 	}
 	s.Mu.Lock()

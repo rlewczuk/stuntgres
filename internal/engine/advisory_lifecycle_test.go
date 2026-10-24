@@ -98,7 +98,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	if err == nil {
 		nextRevision := e.catalog.NextRevision()
 		for _, descriptor := range next.Descriptors() {
-			if err = access.ValidateACL(e.roles.read(&e.catalog.Owner, e.catalog.Read(next), e.roles.published), descriptor); err != nil {
+			if err = access.ValidateACL(e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Read(next)), descriptor); err != nil {
 				break
 			}
 			nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)

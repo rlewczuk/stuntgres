@@ -72,7 +72,7 @@ func TestRLSPolicyFreshness(t *testing.T) {
 			target := roleTableRef(t, e, "t")
 			e.mu.Lock()
 			descriptor := e.privateCatalogLocked(scope.owner.Catalog).MustRelation(target.Address)
-			actor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("freshness_actor")
+			actor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("freshness_actor")
 			e.mu.Unlock()
 			type outcome struct {
 				program *exec.RLSProgram

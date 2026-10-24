@@ -22,7 +22,7 @@ func TestRowLockViewSequenceDiagnostics(t *testing.T) {
 		lockEmpty(t, e)
 	}
 	reader, _ := e.Roles().Lookup("sequence_reader")
-	grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	entry := authorization.ACLEntry{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}
 	for _, name := range []string{"s", "v"} {
 		rights := entry

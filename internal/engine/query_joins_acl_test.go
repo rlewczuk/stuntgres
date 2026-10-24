@@ -44,7 +44,7 @@ func TestQueryJoinsEverySourceACL(t *testing.T) {
 					roleExecute(t, e, op, q)
 				}
 				reader, _ := e.Roles().Lookup("join_reader")
-				grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+				grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 					t.Helper()
 					if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
@@ -124,7 +124,7 @@ func TestQueryJoinsWideAliasAndSelfSourceACL(t *testing.T) {
 		roleExecute(t, e, op, "CREATE TABLE a(k INT)")
 		roleExecute(t, e, op, "CREATE TABLE b("+strings.Join(columns, ",")+")")
 		reader, _ := e.Roles().Lookup("wide_join_reader")
-		grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 			t.Helper()
 			if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
@@ -190,7 +190,7 @@ func TestQueryJoinsInsertDestinationPriority(t *testing.T) {
 		t.Fatal(diagnostic, err)
 	}
 	reader, _ := e.Roles().Lookup("insert_join_reader")
-	grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, name := range []string{"dst", "a", "b"} {
 		if err = e.SetObjectACL(context.Background(), roleTableRef(t, e, name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: 0}}}); err != nil {
 			t.Fatal(err)

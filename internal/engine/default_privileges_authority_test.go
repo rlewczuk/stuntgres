@@ -155,7 +155,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		t.Fatal("physical namespace authority admitted foreign object")
 	}
 	staleActor := auth
-	staleActor.State.CurrentUser = f.e.roles.domain.Principal(999999)
+	staleActor.State.CurrentUser = f.e.roles.Domain.Principal(999999)
 	if err := staleActor.CanUse(ref); err == nil {
 		t.Fatal("physical namespace authority admitted stale actor")
 	}

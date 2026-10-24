@@ -18,7 +18,7 @@ func TestViewOriginalInvokerAuthority(t *testing.T) {
 		roleExecute(t, e, admin, q)
 	}
 	reader, _ := e.Roles().Lookup("view_reader")
-	grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		ref := roleTableRef(t, e, name)
@@ -65,7 +65,7 @@ func TestViewPreparedOriginalInvokerAuthority(t *testing.T) {
 		roleExecute(t, e, admin, query)
 	}
 	reader, _ := e.Roles().Lookup("prepared_view_reader")
-	grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {

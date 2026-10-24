@@ -186,7 +186,7 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 		func(in *pgcatalog.Input) { a := auth; a.RoleRecord = nil; in.Runtime = engineCatalogRuntime{auth: a} },
 		func(in *pgcatalog.Input) {
 			a := auth
-			a.State.CurrentUser = f.e.roles.domain.Principal(99999)
+			a.State.CurrentUser = f.e.roles.Domain.Principal(99999)
 			in.Runtime = engineCatalogRuntime{auth: a}
 		},
 	} {

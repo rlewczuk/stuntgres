@@ -58,7 +58,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	class := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ids.ObjectRef{}, class)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestPGCastProjection(t *testing.T) {
 	d, ref := pgCastUnitSource(t, e)
 	before := maps.Collect(e.catalog.State.Descriptors())
 	names := maps.Collect(e.catalog.State.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestPGCastProjection(t *testing.T) {
 		}
 	}
 	view := e.catalog.Read(&state)
-	projected, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, d)
+	projected, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, d)
 	if err != nil || !reflect.DeepEqual(pgCastUnitBag(t, projected, d), bag) {
 		t.Fatal("unrelated relation enumeration", err)
 	}

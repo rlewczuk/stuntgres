@@ -151,7 +151,7 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 func TestEarthPointOwners(t *testing.T) {
 	e, ext, _ := earthUnitInstalled(t)
 	view := e.CatalogRead()
-	roles := e.roles.read(&e.catalog.Owner, view, e.roles.published)
+	roles := e.roles.PublishedRead(&e.catalog.Owner, view)
 	metadata, err := extension.OwnerMetadata(view, roles, ext)
 	if err != nil {
 		t.Fatal(err)

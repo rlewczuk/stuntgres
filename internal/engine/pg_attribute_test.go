@@ -35,7 +35,7 @@ func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *exec
 	t.Helper()
 	d, ref := pgAttributeUnitSource(t, e, catalog)
 	e.mu.Lock()
-	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(&e.catalog.Owner, catalog, e.roles.published), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute)
+	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.PublishedRead(&e.catalog.Owner, catalog), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal(rows, err)
@@ -224,7 +224,7 @@ func TestPGAttributePublication(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	u := testUsage(e, sqltype.Int4)
-	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "attribute_unit", ObjectRevision: 1, Owner: e.roles.domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
+	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "attribute_unit", ObjectRevision: 1, Owner: e.roles.Domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
 	if err := stage.Create(table); err != nil {
 		t.Fatal(err)
 	}
@@ -369,7 +369,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 		t.Fatal("foreign carrier descriptor admitted")
 	}
 	// Ordinary storage validation must not admit this pseudo type elsewhere.
-	ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", Owner: e.roles.domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
+	ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", Owner: e.roles.Domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
 	if err := (relationProvider).Validate(view, ordinary); err == nil {
 		t.Fatal("ANYARRAY stored column admitted")
 	}

@@ -23,7 +23,7 @@ func (h ddlHost) DescriptorStage() index.DescriptorStage { return h.stage }
 
 func (h ddlHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
 	owner := &h.e.catalog.Owner
-	return regobj.ACLItemOutput{Owner: owner, Roles: h.e.roles.read(owner, view, h.e.operationRolesLocked(h.op))}
+	return regobj.ACLItemOutput{Owner: owner, Roles: h.e.roles.Read(owner, view, h.e.operationRolesLocked(h.op))}
 }
 
 func (h ddlHost) DefinitionReader() catalog.DefinitionReader { return stageDefinitions(h.stage) }

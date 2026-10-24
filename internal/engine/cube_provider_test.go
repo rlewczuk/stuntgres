@@ -140,7 +140,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 			t.Fatal("missing extension edge", address)
 		}
 	}
-	metadata, err := extension.OwnerMetadata(view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(view, e.roles.PublishedRead(&e.catalog.Owner, view), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 	if len(wantSignatures) != 0 {
 		t.Fatal("missing cube ownership signatures", wantSignatures)
 	}
-	roles := e.roles.read(&e.catalog.Owner, view, e.roles.published)
+	roles := e.roles.PublishedRead(&e.catalog.Owner, view)
 	if _, err := extension.ImportOwners(context.Background(), view.WithState(catalog.CloneState(view.State())), roles, records); err != nil {
 		t.Fatal("canonical cube ownership import", err)
 	}

@@ -54,8 +54,8 @@ func (e *Engine) installBuiltinDomainChecks() error {
 func (e *Engine) bootstrapAuthorization(user authorization.PrincipalRef) AuthorizationView {
 	view := e.catalog.Current()
 	return e.authorityView(access.View{
-		Owner: &e.catalog.Owner, PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
-		Roles: e.roles.read(&e.catalog.Owner, view, e.roles.published), State: authorization.RoleState{CurrentUser: user},
+		Owner: &e.catalog.Owner, PairedCatalog: view, RoleRecord: e.roles.Published, Catalog: view,
+		Roles: e.roles.PublishedRead(&e.catalog.Owner, view), State: authorization.RoleState{CurrentUser: user},
 	})
 }
 

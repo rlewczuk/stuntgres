@@ -15,7 +15,7 @@ import (
 
 func (h *statementHost) ACLAuthority() *sqltype.ACLAuthority {
 	scope := h.scope()
-	return &scope.engine().roles.aclAuthority
+	return &scope.engine().roles.ACLAuthority
 }
 
 func (h *statementHost) ObjectACL(c *exec.Context, address ids.ObjectAddress, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -57,7 +57,7 @@ func (h *statementHost) RoleMembership(c *exec.Context, actor *functions.AccessR
 	if err != nil {
 		return false, err
 	}
-	return authorization.HasRole(c.Context, auth.Roles, &e.roles.domain, actorID, targetID, mask)
+	return authorization.HasRole(c.Context, auth.Roles, &e.roles.Domain, actorID, targetID, mask)
 }
 
 func (h *statementHost) RowSecurityActive(c *exec.Context, relation functions.AccessRelation) (bool, error) {

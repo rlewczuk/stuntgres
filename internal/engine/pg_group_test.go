@@ -109,7 +109,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 			t.Fatal("exact group metadata", i, c)
 		}
 	}
-	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("PUBLIC SELECT/owner")
 	}
 	if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
@@ -151,7 +151,7 @@ func TestPGGroupProjection(t *testing.T) {
 	putFixtureRole(state, role)
 	capture := func(root *access.RoleRecord) map[uint32][]sqltype.Value {
 		t.Helper()
-		source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), root), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGGroup)
+		source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.Read(&e.catalog.Owner, e.catalog.Current(), root), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGGroup)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -188,7 +188,7 @@ func TestPGGroupProjection(t *testing.T) {
 		invalid := *d
 		invalid.Columns = slices.Clone(d.Columns)
 		invalid.Columns[slot].Usage.Type = testUsage(e, sqltype.Int4).Type
-		if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: engineCatalogRuntime{}}, capturePGGroup); err == nil || source != nil {
+		if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.Read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: engineCatalogRuntime{}}, capturePGGroup); err == nil || source != nil {
 			t.Fatal("constructor failure published partial source", slot)
 		}
 	}
@@ -196,7 +196,7 @@ func TestPGGroupProjection(t *testing.T) {
 	invalid := *d
 	invalid.Columns = slices.Clone(d.Columns)
 	invalid.Columns[2].Usage.Type = testUsage(e, sqltype.ID(1007)).Type
-	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: engineCatalogRuntime{}}, capturePGGroup); err == nil || source != nil {
+	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.Read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: engineCatalogRuntime{}}, capturePGGroup); err == nil || source != nil {
 		t.Fatal("wrong element descriptor accepted")
 	}
 }
@@ -204,11 +204,11 @@ func TestPGGroupProjection(t *testing.T) {
 func TestPGGroupRoleRoot(t *testing.T) {
 	e := New()
 	d, ref := pgGroupUnitSource(t, e)
-	old := cloneRoleFixture(e.roles.published)
+	old := cloneRoleFixture(e.roles.Published)
 	group := pgGroupUnitRole(e, old, 20000, "snapshot", false)
 	member := pgGroupUnitRole(e, old, 20001, "member", true)
 	setFixtureEdges(old, append(fixtureEdges(old), authorization.Membership{Role: group, Member: member, Grantor: group}))
-	e.roles.published = old
+	e.roles.PublishLocked(old)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.Session.Transactions}
@@ -224,7 +224,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	open := func(s *StatementScope, r ids.ObjectRef) *exec.Source {
 		t.Helper()
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(s, r, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+		source, err := e.openRelationSourceLocked(s, r, e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,7 +234,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	first := open(scope, ref)
 	updated := cloneRoleFixture(old)
 	setFixtureEdges(updated, nil)
-	e.roles.published = updated
+	e.roles.PublishLocked(updated)
 	second := open(scope, ref)
 	for _, source := range []*exec.Source{first, second} {
 		pgGroupUnitMembers(t, pgGroupUnitRows(t, source, d)[20000], 20001)
@@ -260,7 +260,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	fresh := &StatementScope{op: op, owner: op.Session.Transactions}
 	capture(fresh)
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, open(fresh, ref), d)[20000])
-	if scope.inquiry.commentRoles != e.roles.read(&e.catalog.Owner, scope.inquiry.commentCatalog, old) || fresh.inquiry.commentRoles != e.roles.read(&e.catalog.Owner, fresh.inquiry.commentCatalog, updated) {
+	if scope.inquiry.commentRoles != e.roles.Read(&e.catalog.Owner, scope.inquiry.commentCatalog, old) || fresh.inquiry.commentRoles != e.roles.Read(&e.catalog.Owner, fresh.inquiry.commentCatalog, updated) {
 		t.Fatal("role capture owner changed")
 	}
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, first, d)[20000], 20001)
@@ -279,7 +279,7 @@ func TestPGGroupCancellation(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, root := range []*access.RoleRecord{state, emptyRoleFixture(e)} {
-		if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: canceled, Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), root), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGGroup); source != nil || !errors.Is(err, context.Canceled) {
+		if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: canceled, Roles: e.roles.Read(&e.catalog.Owner, e.catalog.Current(), root), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGGroup); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("precancellation published source", err)
 		}
 	}
@@ -287,14 +287,14 @@ func TestPGGroupCancellation(t *testing.T) {
 	// emission, final. Cancel deterministically within each meaningful pass.
 	for _, at := range []int{2, 12, 20, 21, 29, 30} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGGroup); source != nil || !errors.Is(err, context.Canceled) {
+		if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: e.roles.Read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGGroup); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("mid-pass cancellation published partial source", at, err)
 		}
 		if len(fixtureEdges(state)) != 8 || state.Root.Read(authorization.PrincipalRef{}).RoleCount() != 10 {
 			t.Fatal("cancellation mutated role root")
 		}
 	}
-	source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGGroup)
+	source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.roles.Read(&e.catalog.Owner, e.catalog.Current(), state), Ref: ref, Source: d, Runtime: engineCatalogRuntime{}}, capturePGGroup)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,7 +15,7 @@ func TestSerialSequenceAuthority(t *testing.T) {
 	table := roleTableRef(t, e, "t")
 	sequence := roleTableRef(t, e, "t_id_seq")
 	writer, _ := e.Roles().Lookup("serial_writer")
-	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), table, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: writer.Ref}, Privileges: authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}

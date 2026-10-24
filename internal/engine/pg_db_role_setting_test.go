@@ -32,7 +32,7 @@ func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) {
 	t.Helper()
 	d, ref := pgDBRoleSettingUnitSource(t, e, catalog)
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.read(&e.catalog.Owner, catalog, e.roles.published), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.PublishedRead(&e.catalog.Owner, catalog), ref, d)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref || rows.Count() != 0 || rows.Anonymous == nil || len(rows.Anonymous) != 0 {
 		t.Fatal("empty owned capture", rows, err)
@@ -122,7 +122,7 @@ func TestPGDBRoleSettingCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(ctx, catalog, e.roles.read(&e.catalog.Owner, catalog, e.roles.published), ref, d)
+	rows, err := e.captureCatalogSourceLocked(ctx, catalog, e.roles.PublishedRead(&e.catalog.Owner, catalog), ref, d)
 	e.mu.Unlock()
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", rows, err)

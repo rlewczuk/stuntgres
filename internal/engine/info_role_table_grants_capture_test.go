@@ -64,7 +64,7 @@ func TestInfoRoleTableGrantsCaptureOwnershipAndCancellation(t *testing.T) {
 		},
 		func(in *pgcatalog.Input) {
 			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.RoleRecord = foreign.roles.published
+			runtime.auth.RoleRecord = foreign.roles.Published
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
@@ -79,7 +79,7 @@ func TestInfoRoleTableGrantsCaptureOwnershipAndCancellation(t *testing.T) {
 		},
 		func(in *pgcatalog.Input) {
 			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.State.CurrentUser = f.f.e.roles.domain.Principal(999999)
+			runtime.auth.State.CurrentUser = f.f.e.roles.Domain.Principal(999999)
 			in.Runtime = runtime
 		},
 	} {
@@ -120,7 +120,7 @@ func TestInfoRoleTableGrantsCaptureOwnershipAndCancellation(t *testing.T) {
 		state := catalog.CloneState(f.state)
 		broken := relation
 		entry := defaultUnitReaderEntry(f.f, authorization.SelectPrivilege, 0)
-		missing := f.f.e.roles.domain.Principal(999999)
+		missing := f.f.e.roles.Domain.Principal(999999)
 		switch fault {
 		case "owner":
 			broken.Owner = missing
@@ -153,7 +153,7 @@ func TestInfoRoleTableGrantsFrontier(t *testing.T) {
 	changed.ObjectName = "rtg_renamed"
 	changed.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.SelectPrivilege, authorization.SelectPrivilege)}}
 	next.SetDescriptor(changed.Address(), &changed)
-	roles := cloneRoleFixture(f.f.e.roles.published)
+	roles := cloneRoleFixture(f.f.e.roles.Published)
 	reader := fixtureRole(roles, f.f.reader)
 	reader.Name = "renamed_reader"
 	putFixtureRole(roles, reader)
@@ -161,7 +161,7 @@ func TestInfoRoleTableGrantsFrontier(t *testing.T) {
 	owner.Name = "renamed_owner"
 	putFixtureRole(roles, owner)
 	setFixtureEdges(roles, append(fixtureEdges(roles), authorization.Membership{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}))
-	f.f.e.roles.published = roles
+	f.f.e.roles.PublishLocked(roles)
 	f.f.e.catalog.PublishLocked(next)
 	fresh := f.input(t, next, f.f.member)
 	var matched int

@@ -28,7 +28,7 @@ func TestTypeLifecycleOwnerImportACL(t *testing.T) {
 			installed := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: tc.extension}))
 			base := view.MustType(installed.Members[0])
 			array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
-			roles := e.roles.read(&e.catalog.Owner, view, e.roles.published)
+			roles := e.roles.PublishedRead(&e.catalog.Owner, view)
 			target, ok := roles.Lookup("pg_signal_backend")
 			if !ok {
 				t.Fatal("missing released role fixture")

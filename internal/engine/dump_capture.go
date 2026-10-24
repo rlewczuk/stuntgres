@@ -24,7 +24,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 	}
 	catalogView := e.catalog.Read(state)
 	originalCatalog := catalogView
-	originalRoles := e.roles.read(&e.catalog.Owner, originalCatalog, e.roles.published)
+	originalRoles := e.roles.PublishedRead(&e.catalog.Owner, originalCatalog)
 	recipePlan, err := table.CapturedGenerationReplayPlan(originalCatalog)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
 	catalogView, constraintReplay := partition.ConstraintDumpCatalog(control.Resolver{}, catalogView)
-	domainRoles := e.roles.read(&e.catalog.Owner, catalogView, e.roles.published)
+	domainRoles := e.roles.PublishedRead(&e.catalog.Owner, catalogView)
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 		Relations:        e.storage.Relations,
 		Sequences:        e.storage.Sequences,
 		Frontier:         e.visibility.CommitSeq(),
-		Bootstrap:        e.roles.domain.Principal(authorization.BootstrapPrincipalID),
+		Bootstrap:        e.roles.Domain.Principal(authorization.BootstrapPrincipalID),
 		Foreign:          e.foreign,
 	})
 }

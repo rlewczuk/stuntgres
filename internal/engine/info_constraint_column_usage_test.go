@@ -248,9 +248,9 @@ func TestInfoConstraintColumnUsageCapture(t *testing.T) {
 	// Replacing the published role root cannot mutate an already captured read.
 	memberInput := f.input(t, f.state, f.f.member)
 	f.f.e.mu.Lock()
-	nextRoles := cloneRoleFixture(f.f.e.roles.published)
+	nextRoles := cloneRoleFixture(f.f.e.roles.Published)
 	setFixtureEdges(nextRoles, nil)
-	f.f.e.roles.published = nextRoles
+	f.f.e.roles.PublishLocked(nextRoles)
 	f.f.e.mu.Unlock()
 	if rows := ccuUnitRows(t, f.input(t, f.state, f.f.member)); len(rows) != 0 {
 		t.Fatal("fresh revoked inheritance", rows)

@@ -66,7 +66,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err := e.captureCatalogStageLocked(stage, session.NewJournal(), auth.Catalog.State(), nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("Finish accepted changed committed predecessor", err)
 			}
-			if auth.Catalog.Get(catalog.CurrentDatabaseAddress) != stage.databaseAuthority || auth.RoleRecord.Revision != e.roles.published.Revision {
+			if auth.Catalog.Get(catalog.CurrentDatabaseAddress) != stage.databaseAuthority || auth.RoleRecord.Revision != e.roles.Published.Revision {
 				t.Fatal("retained authority mutated or artificial role revision")
 			}
 			implicit := auth.Roles.LookupRef("pg_database_owner")
@@ -111,7 +111,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			defer cancel()
 			message := batchUnitStart(t, sess, ctx)
 			defer message.end(context.Canceled)
-			oldCatalog, oldRoles := f.e.catalog.State, f.e.roles.published
+			oldCatalog, oldRoles := f.e.catalog.State, f.e.roles.Published
 			relations := make(map[ids.ObjectAddress]*storage.Relation, len(f.e.storage.Relations))
 			for address, root := range f.e.storage.Relations {
 				relations[address] = root
@@ -145,7 +145,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			if policy == nil || pendingRoles == oldRoles || retained.Catalog.State() == oldCatalog || retained.PairedCatalog.State() != retained.Catalog.State() || retained.Catalog.Get(catalog.CurrentDatabaseAddress) != &database {
 				t.Fatal("missing paired private default/role/DB authority")
 			}
-			if f.e.catalog.State != oldCatalog || f.e.roles.published != oldRoles || oldCatalog.DefaultACLCount() != 0 {
+			if f.e.catalog.State != oldCatalog || f.e.roles.Published != oldRoles || oldCatalog.DefaultACLCount() != 0 {
 				t.Fatal("utility published a prefix before message completion")
 			}
 			if veto == "database" {
@@ -164,7 +164,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				cancel()
 			}
 			current := f.e.catalog.State
-			if f.e.roles.published != oldRoles || current.Epoch() != oldCatalog.Epoch() || sess.Authorization.Revision != sessionRevision {
+			if f.e.roles.Published != oldRoles || current.Epoch() != oldCatalog.Epoch() || sess.Authorization.Revision != sessionRevision {
 				t.Fatal("intervening DB change altered unrelated authority")
 			}
 			finishErr := message.scope.Finish(nil)
@@ -179,7 +179,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 					t.Fatal("missing final DB predecessor veto", err)
 				}
 			}
-			if f.e.catalog.State != current || f.e.roles.published != oldRoles || current.DefaultACLCount() != 0 || len(f.e.storage.Relations) != len(relations) {
+			if f.e.catalog.State != current || f.e.roles.Published != oldRoles || current.DefaultACLCount() != 0 || len(f.e.storage.Relations) != len(relations) {
 				t.Fatal("veto published catalog, role or default-policy prefix")
 			}
 			for address, root := range relations {

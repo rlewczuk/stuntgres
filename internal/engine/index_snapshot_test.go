@@ -151,7 +151,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	importer := target.roles.aclItemImporter(source.roles, &target.catalog, source.Roles(), target.Roles(), nil)
+	importer := target.roles.ACLItemImporter(source.roles, &target.catalog, source.Roles(), target.Roles(), nil)
 	snapshot := &index.Snapshot{}
 	mapped, err := snapshot.Datum(composite, toComposite, nil, importer)
 	if err != nil {
@@ -164,7 +164,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 	authority, grantee, grantor, privileges, options, err := nested.ArrayElement(0).ACLItem()
 	reader, _ := target.Roles().Lookup("snapshot_reader")
 	writer, _ := target.Roles().Lookup("snapshot_grantor")
-	if err != nil || authority != &target.roles.aclAuthority || grantee != uint32(reader.Ref.ID()) || grantor != uint32(writer.Ref.ID()) || privileges != 2 || options != 2 {
+	if err != nil || authority != &target.roles.ACLAuthority || grantee != uint32(reader.Ref.ID()) || grantor != uint32(writer.Ref.ID()) || privileges != 2 || options != 2 {
 		t.Fatal("snapshot lost ACL principal authority/options", err)
 	}
 	if mapped.Type() != toComposite || mapped.CompositeField(0).Type() != toDomain || nested.Type() != toArray || !nested.ArrayElement(1).IsNull() {

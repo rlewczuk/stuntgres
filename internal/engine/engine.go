@@ -103,7 +103,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.mu.Lock()
 	e.storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{})
 	e.mu.Unlock()
-	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.domain, &e.roles.aclAuthority
+	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.Domain, &e.roles.ACLAuthority
 	e.visibility = visibility.NewRegistry(trackCommitTimestamp)
 	e.databaseFrozenXID = 3
 	cluster.locks = lock.New(e.catalog.Domain)
@@ -114,7 +114,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.mu.Lock()
 	e.storage.ReplaceSequencesLocked(make(map[ids.ObjectAddress]*storage.SequenceGenerator))
 	e.mu.Unlock()
-	e.roles.initialize()
+	e.roles.Initialize()
 	e.settings = settings.NewRegistry(definitions, e.visibility.TracksCommitTimestamps())
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
@@ -190,8 +190,8 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	// The seed sets thousands of entries, so it is one bulk load.
 	e.catalog.PublishLocked(catalog.NewState(1))
 	e.catalog.State.BeginBulkLoad(builtinCatalogCapacity(len(types)))
-	bootstrap := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
-	principals := e.roles.published.Root.Read(authorization.PrincipalRef{})
+	bootstrap := e.roles.Domain.Principal(authorization.BootstrapPrincipalID)
+	principals := e.roles.Published.Root.Read(authorization.PrincipalRef{})
 	catalog.InstallBuiltinNamespaces(e.catalog.State, principals.LookupRef("postgres"), principals.LookupRef("pg_database_owner"))
 	catalog.InstallBuiltinTypes(e.catalog.State, types, bootstrap)
 	catalog.InstallBuiltinCollations(e.catalog.State, bootstrap)

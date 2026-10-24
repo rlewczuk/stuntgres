@@ -116,7 +116,7 @@ func TestPGSequenceShape(t *testing.T) {
 		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	class := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published), ids.ObjectRef{}, class)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	owner.Catalog = own
 	scope := &StatementScope{op: op, owner: owner}
 	e.mu.Lock()
-	captured, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+	captured, err := e.openRelationSourceLocked(scope, ref, e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err != nil || !reflect.DeepEqual(pgSequenceUnitBag(t, captured), want) {
 		t.Fatal("retained base plus own overlay", err)
 	}

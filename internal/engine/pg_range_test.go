@@ -103,7 +103,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	}
 	checkDescriptor(view, d)
 	descriptors, names := maps.Collect(e.catalog.State.Descriptors()), maps.Collect(e.catalog.State.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(&e.catalog.Owner, view, e.roles.published), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}

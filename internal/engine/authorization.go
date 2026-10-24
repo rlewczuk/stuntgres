@@ -21,7 +21,7 @@ import (
 func (e *Engine) Roles() authorization.Read {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.roles.read(&e.catalog.Owner, e.catalog.Current(), e.roles.published)
+	return e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current())
 }
 
 // ProtocolAuthorizationStatus reads the restored identity and its owner-private
@@ -267,7 +267,7 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 	if s.Transactions != nil {
 		view = e.privateCatalogLocked(s.Transactions.Catalog)
 	}
-	r := e.roles.read(&e.catalog.Owner, view, e.operationRolesLocked(op))
+	r := e.roles.Read(&e.catalog.Owner, view, e.operationRolesLocked(op))
 	bootstrap, err := r.Descriptor(a.State.Authenticated)
 	if err != nil {
 		return AuthorizationView{}, err
