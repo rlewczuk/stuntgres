@@ -192,5 +192,26 @@ host does both. Move the walk paragraphs of the root README there.
 
 ## Status
 
-- 169: not started.
+- 169: done (`df6ca810d`, `6e0834bde`, `6b0a2f092`, `4b9cf5736`, docs commit). Deviations:
+  - The phase errors export their fields (`Err`, `Simple`, `Primary`,
+    `Cleanup`): a literal in the root cannot set an unexported embedded `error`.
+  - `NewPLTriggerFrame` takes a `proc.PLTriggerRelation{Shape, OID, Name,
+    Namespace}`, resolved by the root `plTriggerRelation`. The row-type and
+    namespace lookups now run before the program check; only internal
+    invariant errors can change order.
+  - `plAssignmentError` keeps no root wrapper: its one caller calls
+    `proc.PLAssignmentError` with `plIdentity(read, d)`.
+  - Tests: `TestPLpgSQLCursorCurrentDiagnosticPhase` and the three pure
+    `TestPLpgSQLConditionalFrame` diagnostic subtests (now
+    `TestPLCaseExpressionError`) moved to `proc`; new
+    `TestPLFormatErrorPositionMapping` and `TestPLAssignmentErrorPhaseMarkers`.
+
+  Notes for 170: the walk uses the root wrappers `plRuntimeError`,
+  `plRuntimeQueryError` and `plIdentity`; once it moves it can call
+  `proc.PLRuntimeError` with `Host.Identity` directly, and the wrappers stay
+  only for the root cursor and query-loop code. Its reference selection names
+  test families: use `TestReferencePLpgSQL(Core|Loop|QueryLoops|Exception)`
+  as prefixes, without `$`. Finding for 180: the feature commit `f3a050354`
+  (transactional role DDL) added root production code, for example
+  `transaction_roles.go`.
 - 170: not started.

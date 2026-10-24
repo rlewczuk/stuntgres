@@ -36,18 +36,6 @@ propagating outward flow, restoring initially NULL cursor variables. Loop iterat
 checks the admitted operation context even for an empty body, without allocating a
 control signal per iteration. The hidden function namespace is not a block-exit
 consumer; an escaping EXIT reaches the routine's missing-RETURN diagnostic.
-PL and SQL context decoration uses `sqlstate.WithDiagnostic`: the decorated
-primary diagnostic is visible through `errors.As`, while the original cause,
-fatal cleanup classification and secondary failure remain traversable across calls.
-Simple CASE, cursor and assignment query/position mapping share one formatter
-and classification-preserving seam. Actual current-owner planning/simple/SPI
-markers survive scope restoration; an inner callee's simple route cannot suppress
-an outer ordinary query callback. Simple direct execution omits that callback.
-Diagnostic requests retain exact parsed spans or a synthesized query with explicit
-character-coordinate mapping. The original positive Position chooses translation
-before any rewrite; otherwise eligible expression, SQL or assignment callbacks
-append their frame even when an inner diagnostic already has Context/InternalQuery.
-The PL action line comes independently from the statement keyword.
 Static query loops borrow a private all-row producer under a live lexical
 activation. Pure SELECT CTE resources transfer to the returned row owner, whose
 main stage closes before its CTE chain and captured sources. Borrowed CTE scope

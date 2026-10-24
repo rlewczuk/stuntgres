@@ -16,15 +16,15 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `64243569a` (item 168 merged; two
-feature commits added about 45 root production lines since `ea8c445fe`).
+Last verified against `master` at `f3a050354` (item 169 rebased; one feature
+commit, `f3a050354`, added root production code since item 168).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 169, 171, 173, 174, 175 and 176. Item 174 and item 170 both edit the
+- 170, 171, 173, 174, 175 and 176. Item 174 and item 170 both edit the
   PL/pgSQL query-loop unit tests, so whichever merges second rebases.
 
 ## Linear plan
@@ -47,9 +47,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      `access.WithObjectACL` moved into the root fixture; quickcheck, quick and
      `REFERENCE=1` selections and bench (allocations unchanged) passed;
      racecheck and finalcheck skipped (user decision)
-169. [ ] Proc: PL/pgSQL diagnostics, error phases and flow —
+169. [x] Proc: PL/pgSQL diagnostics, error phases and flow —
      [proc](ENGINE-SPLIT-proc.md#item-169--plpgsql-diagnostics-error-phases-and-flow)
-     · needs — · 0.29k
+     · needs — · 0.29k (`df6ca810d`, `6e0834bde`, `6b0a2f092`,
+     `4b9cf5736`, docs commit) · diagnostic formatter, phase errors, flow,
+     cursor name and trigger frame moved to `proc`, two assignment helpers
+     to `plan`; quickcheck, quick and `REFERENCE=1`
+     selections and deps passed; bench skipped (error paths and a value
+     type only); racecheck and finalcheck skipped (user decision)
 170. [ ] Proc: PL/pgSQL statement walk —
      [proc](ENGINE-SPLIT-proc.md#item-170--plpgsql-statement-walk) · needs
      169 · 0.45k

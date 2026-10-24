@@ -197,6 +197,33 @@ and remains part of checked Variables Usage for provider validation and remappin
 Cursor argument syntax does not gain a COLLATE clause.
 
 
+PL runtime diagnostics live here as value code (`plpgsql_runtime_errors.go`).
+`PLFormatError` is the single formatter; `PLRuntimeError`, `PLRuntimeQueryError`
+and `PLAssignmentError` add the PL action line and take the routine identity as
+a callback, called only when a SQL diagnostic is formatted (the root renders it
+with `regobj`). Phase markers (`PLExpressionBindingError`, `...PlanningError`,
+`...ExecutionError` with `Simple`, `PLCardinalityError`) record the producer
+phase; `PLExceptionCleanupError` is fatal to handler matching. Assignment phases
+from `plan` are matched by marker methods (`PLAssignmentDomain`,
+`PLAssignmentPlanning`, `PLAssignmentProjection`), so proc never imports `plan`.
+PL and SQL context decoration uses `sqlstate.WithDiagnostic`: the decorated
+primary diagnostic is visible through `errors.As`, while the original cause,
+fatal cleanup classification and secondary failure remain traversable across calls.
+Simple CASE, cursor and assignment query/position mapping share one formatter
+and classification-preserving seam. Actual current-owner planning/simple/SPI
+markers survive scope restoration; an inner callee's simple route cannot suppress
+an outer ordinary query callback. Simple direct execution omits that callback.
+Diagnostic requests retain exact parsed spans or a synthesized query with explicit
+character-coordinate mapping. The original positive Position chooses translation
+before any rewrite; otherwise eligible expression, SQL or assignment callbacks
+append their frame even when an inner diagnostic already has Context/InternalQuery.
+The PL action line comes independently from the statement keyword.
+`PLFlow` carries RETURN/EXIT/CONTINUE as a non-error value addressed to a
+`PLControl` token. `NewPLTriggerFrame` builds a trigger invocation frame from a
+caller-resolved `PLTriggerRelation`; `(*PLFrame).CursorName` reads a cursor slot.
+The statement walk, checkpoints and every lookup that needs the catalog stay in
+the root.
+
 ## Testing
 
 Package units cover frames and parameter layout; engine-level routine units live
@@ -207,6 +234,7 @@ SQL bodies, review) and [reference/operators](../../../reference/operators/READM
 PL cursor units use `RUN='^TestPLpgSQLCursor'`; public scenarios live in
 [reference/cursors](../../../reference/cursors/README.md#testing).
 Static query-loop validation units use `RUN='^TestPLpgSQLQueryLoopValidation$'`.
+Runtime diagnostic units use `RUN='^TestPL(FormatError|AssignmentErrorPhase|CaseExpressionError|pgSQLCursorCurrentDiagnostic)'`.
 
 ```sh
 make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'
