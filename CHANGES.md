@@ -1,3 +1,8 @@
+information_schema.sql_sizing now supports direct and prepared reads through four
+nullable domain-typed columns. Its standardized inventory reports enforced
+native limits, zero for unlimited or undetermined sizes, and NULL for unsupported
+sizing items, with PUBLIC readability and ordinary schema/relation admission.
+
 information_schema.role_usage_grants now exposes eight domain-typed columns over
 real domain, sequence, collation, foreign-wrapper and foreign-server USAGE
 origins. Enabled-role visibility and named-grantee grantability refresh across

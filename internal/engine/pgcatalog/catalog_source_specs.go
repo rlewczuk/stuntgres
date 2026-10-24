@@ -877,4 +877,10 @@ var Specs = [...]Spec{
 		{"is_verified_by", 13246, true, 950, 0, -1},
 		{"comments", 13246, true, 950, 0, -1},
 	}, false, false, false, false, "stuntgres: missing SQL features domain"},
+	{InfoSQLSizingOID, 13229, "sql_sizing", []ColumnSpec{
+		{"sizing_id", 13243, true, 0, 0, -1},
+		{"sizing_name", 13246, true, 950, 0, -1},
+		{"supported_value", 13243, true, 0, 0, -1},
+		{"comments", 13246, true, 950, 0, -1},
+	}, false, false, false, false, "stuntgres: missing SQL sizing domain"},
 }

@@ -1,7 +1,7 @@
 # internal/engine/pgcatalog
 
 Row producers for the system relations: the `pg_catalog` tables and views and
-the producer-backed `information_schema` tables and views (`sql_features`, `table_privileges`,
+the producer-backed `information_schema` tables and views (`sql_features`, `sql_sizing`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
@@ -122,6 +122,15 @@ still applies; there is no per-feature identity or object visibility filter.
 Each capture owns its output buffers and captured domain descriptors; process
 data contains only strings. Cancellation or invalid capture authority returns
 no partial matrix.
+
+`info_sql_sizing.go` owns a small standardized sizing inventory and captures four
+nullable `cardinal_number`/`character_data` columns. Positive values describe
+enforced native bounds; zero is unlimited or undetermined, while typed NULL
+marks unsupported sizing items. Character-set comments accompany only actual
+identifier byte bounds. The physical catalog table uses ordinary schema/relation
+admission and PUBLIC SELECT, without per-item identity or object filtering.
+Captures validate both domains against the current base descriptor generations
+and allocate detached rows; cancellation publishes no prefix.
 
 ## Registry
 
@@ -436,6 +445,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - SQL-feature public scenarios: `RUN='^TestReferenceInfoSQLFeatures'`
 - Usage grant producer/authority units: `RUN='^TestInfoRoleUsageGrants'`
 - Usage grant public scenarios: `RUN='^TestReferenceInfoRoleUsageGrants'`
+- SQL-sizing producer/authority units: `RUN='^TestInfoSQLSizing'`
+- SQL-sizing public scenarios: `RUN='^TestReferenceInfoSQLSizing'`
 
 ### Domain constraints
 

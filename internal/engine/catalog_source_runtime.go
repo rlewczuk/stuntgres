@@ -133,6 +133,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.InfoRoleUdtGrantsOID:        "role_udt_grants",
 	pgcatalog.InfoSQLFeaturesOID:          "sql_features",
 	pgcatalog.InfoRoleUsageGrantsOID:      "role_usage_grants",
+	pgcatalog.InfoSQLSizingOID:            "sql_sizing",
 }
 
 func (r engineCatalogRuntime) ValidateCapture(view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, oid ids.OID) error {

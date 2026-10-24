@@ -258,6 +258,19 @@ publication, retained authorization, denial and restoration.
 
 - SQL feature metadata: `RUN='^TestReferenceInfoSQLFeatures'`
 
+### SQL sizing metadata
+
+`info_sql_sizing_helpers_test.go` carries independently prescribed complete
+native and PostgreSQL sizing inventories. The family checks all four nullable
+domain columns, bag multiplicities, direct/fresh/held reads, empty and all-NULL
+metadata, role independence and complete diagnostics. Independent table-column,
+identifier-byte and SELECT-target witnesses ground reported bounds rather than
+deriving test sizes from the metadata. PostgreSQL catalog ACL phases roll back
+all changes; native units exercise real ACL publication. Native Reset/Restore
+checks reinitialized sizing authority and detached retained descriptors.
+
+- SQL sizing metadata: `RUN='^TestReferenceInfoSQLSizing'`
+
 ### Column grant metadata
 
 `info_role_column_grants_helpers_test.go` owns the shared scenario, exact
