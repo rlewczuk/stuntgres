@@ -2,40 +2,17 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 func (h *statementHost) RewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	return h.scope().rewriteQuerySQL(query, text, result)
-}
-
-// rewriteSQLDiagnostic mirrors the SPI prepare/open boundary, not FETCH. Copy
-// before enrichment: errors from stored expressions may be shared immutable data.
-func rewriteSQLDiagnostic(err error, text string) error {
-	if err == nil {
-		return nil
-	}
-	var original *sqlstate.Error
-	if !errors.As(err, &original) {
-		return err
-	}
-	d := *original
-	if d.InternalQuery != "" {
-		return err
-	}
-	if d.Position != "" {
-		d.InternalPosition, d.InternalQuery, d.Position = d.Position, text, ""
-	} else if d.Context == "" {
-		d.Context = "SQL statement \"" + text + "\""
-	}
-	return &d
 }
 
 func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (value sqltype.Value, err error) {
@@ -60,13 +37,13 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 	s.op.Session.Settings.Mu.Unlock()
 	statements, err := parser.ParseWithOptions(text, parser.Options{Context: s.op.Context(), StandardConformingStrings: standard, Notice: s.op.ParseNotice, ClosedRoutineFormals: true})
 	if err != nil {
-		return value, rewriteSQLDiagnostic(err, text)
+		return value, exec.RewriteSQLDiagnostic(err, text)
 	}
 	if len(statements) != 1 {
 		// SPI prepares every statement before checking cursor plan count.
 		for _, statement := range statements {
 			if err := s.prepareRewriteStatement(statement, read); err != nil {
-				return value, rewriteSQLDiagnostic(err, text)
+				return value, exec.RewriteSQLDiagnostic(err, text)
 			}
 		}
 		return value, sqlError("42P11", "cannot open multi-query plan as cursor")
@@ -78,18 +55,18 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 	s.view, s.rlsDataRefs = view, refs
 	s.sqlRoutine.scalar, s.sqlRoutine.rewrite = false, true
 	if err := s.acquireRelation(statement, true); err != nil {
-		return value, rewriteSQLDiagnostic(err, text)
+		return value, exec.RewriteSQLDiagnostic(err, text)
 	}
 	description, err := e.describeOperation(s, statement)
 	if err != nil {
-		return value, rewriteSQLDiagnostic(err, text)
+		return value, exec.RewriteSQLDiagnostic(err, text)
 	}
 	s.Expected = &description
 	if !rewriteTupleStatement(statement) {
 		return value, sqlError("42P11", "cannot open "+routineCommandTag(statement)+" query as cursor")
 	}
 	if tag := rewriteReadOnlyViolation(statement); tag != "" {
-		return value, rewriteSQLDiagnostic(sqlError("0A000", tag+" is not allowed in a non-volatile function"), text)
+		return value, exec.RewriteSQLDiagnostic(sqlError("0A000", tag+" is not allowed in a non-volatile function"), text)
 	}
 	rowsResult, err := e.executeStatement(s, statement, 0, func(_ context.Context, info analyze.ParameterInfo, _ []sqltype.Value, _ sqltype.InputEnvironment) error {
 		if info.Count != 0 {
@@ -98,7 +75,7 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 		return nil
 	})
 	if err != nil {
-		return value, rewriteSQLDiagnostic(err, text)
+		return value, exec.RewriteSQLDiagnostic(err, text)
 	}
 	defer func() {
 		for _, rows := range rowsResult.RowSets {
@@ -110,7 +87,7 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 	if rowsResult.Rows == nil {
 		return value, fmt.Errorf("stuntgres: tuple-producing rewrite SQL returned no row cursor")
 	}
-	return consumeRewriteRules(s.op.Context(), rowsResult.Rows, accumulator)
+	return exec.ConsumeRewriteRules(s.op.Context(), rowsResult.Rows, accumulator)
 }
 
 func (s *StatementScope) prepareRewriteStatement(statement parser.Statement, read catalog.Read) (err error) {

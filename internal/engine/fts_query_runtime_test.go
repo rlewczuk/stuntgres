@@ -20,20 +20,20 @@ import (
 func TestFTSQueryFunctionsDiagnosticPhases(t *testing.T) {
 	prepare := &sqlstate.Error{Code: "42703", Message: `column "missing" does not exist`, Position: "15"}
 	before := *prepare
-	got := rewriteSQLDiagnostic(prepare, "/*é猫*/ SELECT missing").(*sqlstate.Error)
+	got := exec.RewriteSQLDiagnostic(prepare, "/*é猫*/ SELECT missing").(*sqlstate.Error)
 	if got == prepare || *prepare != before || got.Position != "" || got.InternalPosition != "15" || got.InternalQuery != "/*é猫*/ SELECT missing" || got.Context != "" {
 		t.Fatal("prepare location ownership", got)
 	}
 	open := &sqlstate.Error{Code: "22012", Message: "division by zero"}
-	got = rewriteSQLDiagnostic(open, "SELECT 1/0").(*sqlstate.Error)
+	got = exec.RewriteSQLDiagnostic(open, "SELECT 1/0").(*sqlstate.Error)
 	if got.Context != `SQL statement "SELECT 1/0"` || open.Context != "" {
 		t.Fatal("open error context", got)
 	}
 	inner := &sqlstate.Error{Code: "42601", Message: "inner", InternalPosition: "8", InternalQuery: "nested", Context: "prior"}
-	if rewriteSQLDiagnostic(inner, "outer") != inner {
+	if exec.RewriteSQLDiagnostic(inner, "outer") != inner {
 		t.Fatal("nested diagnostic overwritten")
 	}
-	if rewriteSQLDiagnostic(context.Canceled, "outer") != context.Canceled {
+	if exec.RewriteSQLDiagnostic(context.Canceled, "outer") != context.Canceled {
 		t.Fatal("ordinary cancellation wrapped")
 	}
 	for _, tc := range []struct {

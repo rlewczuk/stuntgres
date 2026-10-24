@@ -1,4 +1,4 @@
-package engine
+package exec
 
 import (
 	"context"
@@ -90,7 +90,7 @@ func TestFTSQueryFunctionsBatchDemand(t *testing.T) {
 			ctx := context.Background()
 			rows, accumulator, _ := rewriteBatchUnit(t, tc.total, ctx)
 			rows.deleteAt, rows.poisonAt = tc.deletion, tc.poison
-			value, err := consumeRewriteRules(ctx, rows, accumulator)
+			value, err := ConsumeRewriteRules(ctx, rows, accumulator)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -107,7 +107,7 @@ func TestFTSQueryFunctionsBatchDemand(t *testing.T) {
 	}
 	ctx := context.Background()
 	rows, accumulator, _ := rewriteBatchUnit(t, 201, ctx)
-	value, err := consumeRewriteRules(ctx, rows, accumulator)
+	value, err := ConsumeRewriteRules(ctx, rows, accumulator)
 	if err != nil || rows.produced != 201 || rows.closes != 1 {
 		t.Fatal("all nondeleting rule batches", rows.produced, err)
 	}
@@ -137,7 +137,7 @@ func TestFTSQueryFunctionsBatchShapePrecedence(t *testing.T) {
 			failure := sqlError("22012", "division by zero")
 			rows.failAt, rows.failure = tc.failureAt, failure
 			rows.closeFailure = errors.New("shape cleanup")
-			value, err := consumeRewriteRules(ctx, rows, accumulator)
+			value, err := ConsumeRewriteRules(ctx, rows, accumulator)
 			var state interface{ SQLState() string }
 			if !errors.As(err, &state) || state.SQLState() != tc.code || value.Type() != nil {
 				t.Fatal("shape/fetch precedence", value, err)
@@ -163,7 +163,7 @@ func TestFTSQueryFunctionsBatchFailureOwnership(t *testing.T) {
 			rows.deleteAt, rows.failAt = 1, failAt
 			failure, closeFailure := errors.New("fetch"), errors.New("close")
 			rows.failure, rows.closeFailure = failure, closeFailure
-			value, err := consumeRewriteRules(ctx, rows, accumulator)
+			value, err := ConsumeRewriteRules(ctx, rows, accumulator)
 			if failAt <= 200 {
 				if err != failure || value.Type() != nil {
 					t.Fatal("primary fetch error lost", value, err)
@@ -180,7 +180,7 @@ func TestFTSQueryFunctionsBatchFailureOwnership(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		rows, accumulator, _ := rewriteBatchUnit(t, 201, ctx)
 		rows.deleteAt, rows.cancelAt, rows.cancel = 1, cancelAt, cancel
-		value, err := consumeRewriteRules(ctx, rows, accumulator)
+		value, err := ConsumeRewriteRules(ctx, rows, accumulator)
 		cancel()
 		if !errors.Is(err, context.Canceled) || value.Type() != nil || rows.closes != 1 {
 			t.Fatal("fill cancellation ownership", cancelAt, value, rows.closes, err)

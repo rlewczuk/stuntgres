@@ -1,9 +1,10 @@
-package engine
+package exec
 
 import (
 	"context"
+	"errors"
 
-	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -13,7 +14,7 @@ const rewriteFetchSize = 100
 // row 101 to discover EOF. Valid rule rows retain their immutable typed cells;
 // invalid result shapes reuse one exact-width scratch row for their initial
 // fetch, so a competing row error still precedes the shape diagnostic.
-func fetchRewriteBatch(ctx context.Context, rows exec.RowCursor, buffer []sqltype.Value, width int, retain bool) (int, error) {
+func fetchRewriteBatch(ctx context.Context, rows RowCursor, buffer []sqltype.Value, width int, retain bool) (int, error) {
 	for i := range rewriteFetchSize {
 		if err := ctx.Err(); err != nil {
 			return i, err
@@ -33,10 +34,10 @@ func fetchRewriteBatch(ctx context.Context, rows exec.RowCursor, buffer []sqltyp
 	return rewriteFetchSize, nil
 }
 
-// consumeRewriteRules owns and closes the cursor before the caller restores
+// ConsumeRewriteRules owns and closes the cursor before the caller restores
 // lexical scratch. Fetch errors retain their original diagnostics. A deletion
 // ends rule application, but not the unconditional fetch at the loop bottom.
-func consumeRewriteRules(ctx context.Context, rows exec.RowCursor, accumulator *sqltype.FTSRewriteRules) (value sqltype.Value, err error) {
+func ConsumeRewriteRules(ctx context.Context, rows RowCursor, accumulator *sqltype.FTSRewriteRules) (value sqltype.Value, err error) {
 	defer func() {
 		if closeErr := rows.Close(); err == nil {
 			err = closeErr
@@ -86,4 +87,26 @@ func consumeRewriteRules(ctx context.Context, rows exec.RowCursor, accumulator *
 		}
 	}
 	return accumulator.Finish()
+}
+
+// RewriteSQLDiagnostic mirrors the SPI prepare/open boundary, not FETCH. Copy
+// before enrichment: errors from stored expressions may be shared immutable data.
+func RewriteSQLDiagnostic(err error, text string) error {
+	if err == nil {
+		return nil
+	}
+	var original *sqlstate.Error
+	if !errors.As(err, &original) {
+		return err
+	}
+	d := *original
+	if d.InternalQuery != "" {
+		return err
+	}
+	if d.Position != "" {
+		d.InternalPosition, d.InternalQuery, d.Position = d.Position, text, ""
+	} else if d.Context == "" {
+		d.Context = "SQL statement \"" + text + "\""
+	}
+	return &d
 }
