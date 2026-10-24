@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -121,7 +122,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	if call, ok := node.(plan.SQLRoutineExpr); !ok || call.Procedure != added {
 		t.Fatal("selected wrong staged provider")
 	}
-	prepared := &preparedDrop{Base: base, Discovery: base, Input: reader}
+	prepared := &table.DropPreparation{Base: base, Discovery: base, Input: reader}
 	identity := &preparedIdentityDrop{drop: prepared}
 	for _, projected := range []catalog.DefinitionReader{prepared, identity} {
 		if !projected.HasDynamicProcedureName(added.Name()) {

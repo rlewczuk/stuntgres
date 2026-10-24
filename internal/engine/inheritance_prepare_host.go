@@ -59,7 +59,7 @@ func (h inheritancePrepareHost) PrepareAddedChecks(definition catalog.Definition
 }
 
 // preparedDropValue boxes a prepared drop; nil stays a nil interface.
-func preparedDropValue(drop *preparedDrop) table.PreparedDrop {
+func preparedDropValue(drop *table.DropPreparation) table.PreparedDrop {
 	if drop == nil {
 		return nil
 	}
@@ -68,8 +68,8 @@ func preparedDropValue(drop *preparedDrop) table.PreparedDrop {
 
 // preparedDropOf recovers the engine's prepared drop; nil for nil or a
 // foreign value, which every consumer rejects as a replaced catalog.
-func preparedDropOf(drop table.PreparedDrop) *preparedDrop {
-	prepared, _ := drop.(*preparedDrop)
+func preparedDropOf(drop table.PreparedDrop) *table.DropPreparation {
+	prepared, _ := drop.(*table.DropPreparation)
 	return prepared
 }
 

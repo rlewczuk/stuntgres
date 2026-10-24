@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"iter"
@@ -9,9 +9,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// dropEffect is one ordered effect of a prepared drop. Exactly one kind is
+// DropEffect is one ordered effect of a prepared drop. Exactly one kind is
 // set; the consumer replays them into the statement's stage in order.
-type dropEffect struct {
+type DropEffect struct {
 	Descriptor    catalog.Descriptor // replaced descriptor
 	Remove        ids.ObjectRef      // removed object
 	Before, After *catalog.Relation  // column projection of a relation
@@ -31,13 +31,13 @@ type dropEffectSlot struct {
 	removed            bool
 }
 
-// preparedDrop is the ordered effect log of one drop prepared before the
+// DropPreparation is the ordered effect log of one drop prepared before the
 // statement's stage exists. The preparing statement owns it; it is used by
 // one goroutine and holds no lock.
-type preparedDrop struct {
+type DropPreparation struct {
 	Old   *catalog.Relation
 	Ref   ids.ObjectRef
-	Prior *preparedDrop
+	Prior *DropPreparation
 	// Statement is the preparing statement's identity: compared with the
 	// consuming statement, never used to reach it.
 	Statement any
@@ -50,18 +50,18 @@ type preparedDrop struct {
 	Grants    []ids.ObjectRef
 
 	next     *catalog.Relation
-	effects  []dropEffect
+	effects  []DropEffect
 	observed map[ids.ObjectAddress]catalog.Descriptor
 	slots    map[ids.ObjectAddress]dropEffectSlot
 }
 
 // RecordEffect appends effect and indexes it by address.
-func (prepared *preparedDrop) RecordEffect(effect dropEffect) {
+func (prepared *DropPreparation) RecordEffect(effect DropEffect) {
 	prepared.effects = append(prepared.effects, effect)
 	prepared.indexEffect(len(prepared.effects), effect)
 }
 
-func (prepared *preparedDrop) indexEffect(index int, effect dropEffect) {
+func (prepared *DropPreparation) indexEffect(index int, effect DropEffect) {
 	var address ids.ObjectAddress
 	switch {
 	case effect.Descriptor != nil:
@@ -89,13 +89,13 @@ func (prepared *preparedDrop) indexEffect(index int, effect dropEffect) {
 }
 
 // Effects are the recorded effects in order.
-func (prepared *preparedDrop) Effects() []dropEffect { return prepared.effects }
+func (prepared *DropPreparation) Effects() []DropEffect { return prepared.effects }
 
 // NoticePosition is the position RewindNotices rewinds to.
-func (prepared *preparedDrop) NoticePosition() int { return len(prepared.effects) }
+func (prepared *DropPreparation) NoticePosition() int { return len(prepared.effects) }
 
 // RewindNotices drops the cascade notices recorded after position.
-func (prepared *preparedDrop) RewindNotices(position int) {
+func (prepared *DropPreparation) RewindNotices(position int) {
 	// The position indexes effects, not notices. Keep preceding notices and
 	// every non-notice effect in the actual provider order.
 	kept := prepared.effects[:position]
@@ -113,7 +113,7 @@ func (prepared *preparedDrop) RewindNotices(position int) {
 
 // Observe captures address's original descriptor once, before any read
 // returns it: the Base descriptor, else the one in current.
-func (prepared *preparedDrop) Observe(address ids.ObjectAddress, current catalog.Read) {
+func (prepared *DropPreparation) Observe(address ids.ObjectAddress, current catalog.Read) {
 	if prepared.observed == nil {
 		prepared.observed = make(map[ids.ObjectAddress]catalog.Descriptor)
 	}
@@ -129,7 +129,7 @@ func (prepared *preparedDrop) Observe(address ids.ObjectAddress, current catalog
 
 // CaptureObservation records descriptor as address's observation. An
 // earlier, different observation is never overwritten: it reports false.
-func (prepared *preparedDrop) CaptureObservation(address ids.ObjectAddress, descriptor catalog.Descriptor) bool {
+func (prepared *DropPreparation) CaptureObservation(address ids.ObjectAddress, descriptor catalog.Descriptor) bool {
 	if prior, captured := prepared.observed[address]; captured && prior != descriptor {
 		return false
 	}
@@ -143,7 +143,7 @@ func (prepared *preparedDrop) CaptureObservation(address ids.ObjectAddress, desc
 // ValidateObservations fences the preparation against r: the same statement,
 // transaction, domain and epoch, and every observed descriptor unchanged. An
 // additive catalog member is never treated as a replacement.
-func (prepared *preparedDrop) ValidateObservations(statement any, txRef ids.TxRef, r catalog.Read) error {
+func (prepared *DropPreparation) ValidateObservations(statement any, txRef ids.TxRef, r catalog.Read) error {
 	if prepared.Statement != statement || prepared.TxRef != txRef || prepared.Ref.Domain() != r.Owner().Domain || prepared.Ref.Epoch != r.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
@@ -156,13 +156,13 @@ func (prepared *preparedDrop) ValidateObservations(statement any, txRef ids.TxRe
 }
 
 // Finish records the relation the prepared drop leaves.
-func (prepared *preparedDrop) Finish(next *catalog.Relation) { prepared.next = next }
+func (prepared *DropPreparation) Finish(next *catalog.Relation) { prepared.next = next }
 
 // Next is the relation the prepared drop leaves.
-func (prepared *preparedDrop) Next() *catalog.Relation { return prepared.next }
+func (prepared *DropPreparation) Next() *catalog.Relation { return prepared.next }
 
 // DefinitionDelta reports only the prepared drop's own descriptor effects.
-func (prepared *preparedDrop) DefinitionDelta(address ids.ObjectAddress) (catalog.Descriptor, bool, bool) {
+func (prepared *DropPreparation) DefinitionDelta(address ids.ObjectAddress) (catalog.Descriptor, bool, bool) {
 	if slot := prepared.slots[address]; slot.descriptor != 0 {
 		if slot.removed {
 			return nil, false, true
@@ -177,7 +177,7 @@ func (prepared *preparedDrop) DefinitionDelta(address ids.ObjectAddress) (catalo
 }
 
 // LayoutDelta reports only the prepared drop's own index layout effects.
-func (prepared *preparedDrop) LayoutDelta(address ids.ObjectAddress) (index.LayoutLineage, bool) {
+func (prepared *DropPreparation) LayoutDelta(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	if slot := prepared.slots[address]; slot.layout != 0 {
 		return *prepared.effects[slot.layout-1].Layout, true
 	}
@@ -188,8 +188,8 @@ func (prepared *preparedDrop) LayoutDelta(address ids.ObjectAddress) (index.Layo
 // preparation's actual input and ordered effects. Consumers retain their normal
 // resolution/dependency observations; these methods do not recertify or mutate
 // them and do not construct a catalog generation.
-func (prepared *preparedDrop) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
-	view := dropPreparationView{Base: prepared.Discovery, Preparation: prepared}
+func (prepared *DropPreparation) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
+	view := DropPreparationView{Base: prepared.Discovery, Preparation: prepared}
 	if view.Removed(address) {
 		return nil, false
 	}
@@ -200,7 +200,7 @@ func (prepared *preparedDrop) Descriptor(address ids.ObjectAddress) (catalog.Des
 	return descriptor, descriptor != nil
 }
 
-func (prepared *preparedDrop) Lookup(key ids.NameKey) ids.ObjectAddress {
+func (prepared *DropPreparation) Lookup(key ids.NameKey) ids.ObjectAddress {
 	address := prepared.Base.NameAddress(key)
 	if prepared.Input != nil {
 		address = prepared.Input.Lookup(key)
@@ -214,9 +214,9 @@ func (prepared *preparedDrop) Lookup(key ids.NameKey) ids.ObjectAddress {
 	return ids.ObjectAddress{}
 }
 
-func (prepared *preparedDrop) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (prepared *DropPreparation) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
-		view := dropPreparationView{Base: prepared.Discovery, Preparation: prepared}
+		view := DropPreparationView{Base: prepared.Discovery, Preparation: prepared}
 		for address := range view.Descriptors() {
 			if descriptor, present := prepared.Descriptor(address); present && !yield(address, descriptor) {
 				return
@@ -225,7 +225,7 @@ func (prepared *preparedDrop) Descriptors() iter.Seq2[ids.ObjectAddress, catalog
 	}
 }
 
-func (prepared *preparedDrop) ProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+func (prepared *DropPreparation) ProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return func(yield func(*catalog.Procedure) bool) {
 		for d := range catalog.IndexedDefinitionProcedures(prepared.Discovery, prepared, namespace, name) {
 			if !yield(d) {
@@ -249,15 +249,15 @@ func (prepared *preparedDrop) ProceduresNamed(namespace ids.ObjectAddress, name 
 	}
 }
 
-func (prepared *preparedDrop) HasDynamicProcedureName(name string) bool {
+func (prepared *DropPreparation) HasDynamicProcedureName(name string) bool {
 	return prepared.Discovery.State().HasDynamicProcedureName(name) || prepared.Input != nil && prepared.Input.HasDynamicProcedureName(name)
 }
 
-func (prepared *preparedDrop) HasProviderProcedureOverride(name string) bool {
+func (prepared *DropPreparation) HasProviderProcedureOverride(name string) bool {
 	return prepared.Discovery.State().HasProviderProcedureOverride(name) || prepared.Input != nil && prepared.Input.HasProviderProcedureOverride(name)
 }
 
 // IndexLayout is the index layout the preparation leaves at address.
-func (prepared *preparedDrop) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
-	return dropPreparationView{Base: prepared.Base, Preparation: prepared}.IndexLayout(address)
+func (prepared *DropPreparation) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
+	return DropPreparationView{Base: prepared.Base, Preparation: prepared}.IndexLayout(address)
 }

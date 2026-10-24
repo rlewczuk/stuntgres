@@ -1,20 +1,19 @@
-package engine
+package table
 
 import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-// cascadeColumnDrops runs the column, domain-CHECK and retired-provider steps
+// CascadeColumnDrops runs the column, domain-CHECK and retired-provider steps
 // of a cascading drop, in r's order. Each surviving relation of relations
 // loses the columns edges name, and project projects its new shape. Then each
 // edge's domain CHECK goes, and the retired providers among targets are
 // removed.
-func cascadeColumnDrops(r table.DropDependencyReader, relations []*catalog.Relation, edges []table.DomainDependency, targets []ids.ObjectAddress, project func(old, next *catalog.Relation) error) error {
+func CascadeColumnDrops(r DropDependencyReader, relations []*catalog.Relation, edges []DomainDependency, targets []ids.ObjectAddress, project func(old, next *catalog.Relation) error) error {
 	var err error
 	for _, old := range relations {
 		if r.Removed(old.Address()) {
@@ -47,7 +46,7 @@ func cascadeColumnDrops(r table.DropDependencyReader, relations []*catalog.Relat
 			if err = r.InheritanceAlterGuard(next); err != nil {
 				return err
 			}
-			next, err = table.OrdinaryColumnDrop(r, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.Columns[slot].Name}, Mode: parser.DropCascade})
+			next, err = OrdinaryColumnDrop(r, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.Columns[slot].Name}, Mode: parser.DropCascade})
 			if err != nil {
 				return err
 			}
@@ -75,12 +74,12 @@ func cascadeColumnDrops(r table.DropDependencyReader, relations []*catalog.Relat
 		if r.Removed(edge.Domain.Address()) {
 			continue
 		}
-		if err := table.RemoveDomainCheck(r, edge.Domain, edge.Address.ObjectID); err != nil {
+		if err := RemoveDomainCheck(r, edge.Domain, edge.Address.ObjectID); err != nil {
 			return err
 		}
 	}
 	for _, target := range targets {
-		if table.RetiredProviderClass(target.ClassID) {
+		if RetiredProviderClass(target.ClassID) {
 			if err = r.Remove(r.BaseRef(target)); err != nil {
 				break
 			}

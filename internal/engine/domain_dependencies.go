@@ -136,7 +136,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	if err := provider.applyForeignKeyDependents(edges); err != nil {
 		return err
 	}
-	if err := cascadeColumnDrops(provider, relations, edges, targets, provider.projectColumn); err != nil {
+	if err := table.CascadeColumnDrops(provider, relations, edges, targets, provider.projectColumn); err != nil {
 		return err
 	}
 	provider.rewindNotices(noticeStart)

@@ -24,7 +24,7 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 	return next, stage, err
 }
 
-func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, old, next *catalog.Relation, actions []parser.AlterTableAction, prior *preparedDrop) (*preparedDrop, error) {
+func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, old, next *catalog.Relation, actions []parser.AlterTableAction, prior *table.DropPreparation) (*table.DropPreparation, error) {
 	if !table.HasDroppedConstraintIndexes(old, actions) {
 		return nil, nil
 	}

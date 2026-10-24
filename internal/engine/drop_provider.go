@@ -27,7 +27,7 @@ type dropProvider struct {
 	owner          *Engine
 	path           []ids.ObjectAddress
 	stage          *CatalogStage
-	prepared       *preparedDrop
+	prepared       *table.DropPreparation
 	ctx            context.Context
 	scope          *StatementScope
 	changes        *session.Journal
@@ -56,8 +56,8 @@ func (p *dropProvider) Replacement(address ids.ObjectAddress) catalog.Descriptor
 }
 
 // preparedView reads through the prepared drop; a bare provider has none.
-func (p *dropProvider) preparedView() dropPreparationView {
-	return dropPreparationView{Base: p.base, Preparation: p.prepared, IdentitySource: p.identitySource}
+func (p *dropProvider) preparedView() table.DropPreparationView {
+	return table.DropPreparationView{Base: p.base, Preparation: p.prepared, IdentitySource: p.identitySource}
 }
 
 func (p *dropProvider) Descriptor(address ids.ObjectAddress) catalog.Descriptor {
@@ -102,7 +102,7 @@ func (p *dropProvider) Replace(d catalog.Descriptor) error {
 	if p.prepared == nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
-	p.prepared.RecordEffect(dropEffect{Descriptor: d})
+	p.prepared.RecordEffect(table.DropEffect{Descriptor: d})
 	if relation, ok := d.(*catalog.Relation); ok {
 		return p.synchronizeRowType(relation)
 	}
@@ -176,7 +176,7 @@ func (p *dropProvider) applyForeignKeyDependents(edges []table.DomainDependency)
 
 func (p *dropProvider) Notice(notice sqlstate.Error) {
 	if p.prepared != nil {
-		p.prepared.RecordEffect(dropEffect{Missing: &notice})
+		p.prepared.RecordEffect(table.DropEffect{Missing: &notice})
 	} else if p.scope != nil {
 		p.scope.op.EmitNotice(session.LevelNotice, notice)
 	}
@@ -187,7 +187,7 @@ func (p *dropProvider) cascadeNotice(notice string) {
 		p.stage.dropCascadeNames = append(p.stage.dropCascadeNames, notice)
 		return
 	}
-	p.prepared.RecordEffect(dropEffect{Notice: notice})
+	p.prepared.RecordEffect(table.DropEffect{Notice: notice})
 }
 
 func (p *dropProvider) noticePosition() int {
@@ -211,7 +211,7 @@ func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 		p.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{p.stage.Base.State(), targets})
 		return
 	}
-	p.prepared.RecordEffect(dropEffect{IdentityRoots: targets})
+	p.prepared.RecordEffect(table.DropEffect{IdentityRoots: targets})
 }
 
 func (p *dropProvider) removedRowType(address ids.ObjectAddress) {
@@ -219,7 +219,7 @@ func (p *dropProvider) removedRowType(address ids.ObjectAddress) {
 		p.stage.domainTargets = append(p.stage.domainTargets, address)
 		return
 	}
-	p.prepared.RecordEffect(dropEffect{RowType: address})
+	p.prepared.RecordEffect(table.DropEffect{RowType: address})
 }
 
 func (p *dropProvider) Remove(ref ids.ObjectRef) error {
@@ -242,7 +242,7 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 	}
 	p.observe(ref.Address)
 	if p.stage == nil {
-		p.prepared.RecordEffect(dropEffect{Remove: ref})
+		p.prepared.RecordEffect(table.DropEffect{Remove: ref})
 		return nil
 	}
 	stage := p.stage
@@ -271,7 +271,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 				return err
 			}
 		}
-		p.prepared.RecordEffect(dropEffect{Before: old, After: next})
+		p.prepared.RecordEffect(table.DropEffect{Before: old, After: next})
 		return nil
 	}
 	stage, e, ctx := p.stage, p.owner, p.ctx
@@ -347,13 +347,13 @@ func (scope *StatementScope) holdsColumnDropGrant(ref ids.ObjectRef) bool {
 
 // prepareColumnDrop records the actual ordinary provider effects without owning
 // a catalog stage, visibility view, expression evaluation or physical rewrite.
-func (scope *StatementScope) prepareColumnDrop(auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction) (*preparedDrop, error) {
+func (scope *StatementScope) prepareColumnDrop(auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction) (*table.DropPreparation, error) {
 	return scope.prepareColumnDropAfter(auth, old, ref, action, nil)
 }
 
 // prior is the immediately preceding successful DROP preparation. Its ordered
 // real effects remain visible to dependency discovery, not just its root shape.
-func (scope *StatementScope) prepareColumnDropAfter(auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, prior *preparedDrop) (*preparedDrop, error) {
+func (scope *StatementScope) prepareColumnDropAfter(auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, prior *table.DropPreparation) (*table.DropPreparation, error) {
 	provider, err := scope.prepareDropDefinitionProvider(auth, old, ref, prior)
 	if err != nil {
 		return nil, err
@@ -365,7 +365,7 @@ func (scope *StatementScope) prepareColumnDropAfter(auth AuthorizationView, old 
 	return scope.finishDropDefinition(provider, next)
 }
 
-func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, prior *preparedDrop) (*dropProvider, error) {
+func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, prior *table.DropPreparation) (*dropProvider, error) {
 	if err := scope.active(); err != nil {
 		return nil, err
 	}
@@ -388,13 +388,13 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err != nil {
 		return nil, err
 	}
-	prepared := &preparedDrop{Old: old, Ref: ref, Prior: prior, Statement: scope, TxRef: scope.txRef, Base: auth.Catalog, Discovery: auth.Catalog, Input: dropDiscoveryInput(auth.definition)}
+	prepared := &table.DropPreparation{Old: old, Ref: ref, Prior: prior, Statement: scope, TxRef: scope.txRef, Base: auth.Catalog, Discovery: auth.Catalog, Input: dropDiscoveryInput(auth.definition)}
 	provider := &dropProvider{base: auth.Catalog, owner: e, path: path, prepared: prepared, ctx: scope.op.Context(), scope: scope}
 	provider.observe(ref.Address)
 	return provider, nil
 }
 
-func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *catalog.Relation) (*preparedDrop, error) {
+func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *catalog.Relation) (*table.DropPreparation, error) {
 	prepared := provider.prepared
 	prepared.Finish(next)
 	e := provider.owner
@@ -409,7 +409,7 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 
 // validateColumnDropObservationsLocked never treats an additive catalog member
 // as replacement. Only captured provider identities and the operation are fenced.
-func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *preparedDrop, catalog catalog.Read) error {
+func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *table.DropPreparation, catalog catalog.Read) error {
 	if prepared == nil || scope.finished {
 		return ids.ErrCatalogReplaced
 	}
@@ -418,7 +418,7 @@ func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *prep
 
 // consumePreparedDrop applies the exact immutable provider effects to the sole
 // command stage. Neither dependency analysis nor metadata cooking runs again.
-func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *preparedDrop, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, error) {
+func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *table.DropPreparation, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, error) {
 	if err := scope.active(); err != nil {
 		return nil, err
 	}
@@ -452,7 +452,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 		return nil, err
 	}
 	if scope.dropsOrZero().consumedColumns == nil {
-		scope.drops().consumedColumns = make(map[*preparedDrop]struct{})
+		scope.drops().consumedColumns = make(map[*table.DropPreparation]struct{})
 	}
 	scope.drops().consumedColumns[prepared] = struct{}{}
 	provider := stageDropProvider(scope.op.Context(), stage, scope, changes, nil)
@@ -542,7 +542,7 @@ func (p *dropProvider) RecordIndexLayout(address ids.ObjectAddress, lineage inde
 		return
 	}
 	p.observe(address)
-	p.prepared.RecordEffect(dropEffect{Index: address, Layout: &lineage})
+	p.prepared.RecordEffect(table.DropEffect{Index: address, Layout: &lineage})
 }
 
 func (p *dropProvider) projectPreparedColumn(old, next *catalog.Relation) error {
@@ -626,7 +626,7 @@ func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.De
 // dropScope is the statement's DROP slot: prepared column drops already
 // consumed by this statement.
 type dropScope struct {
-	consumedColumns map[*preparedDrop]struct{}
+	consumedColumns map[*table.DropPreparation]struct{}
 }
 
 // drops returns the statement's drops slot, allocating it on first use.

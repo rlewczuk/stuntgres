@@ -19,7 +19,7 @@ type preparedIdentityDrop struct {
 	old      *catalog.Relation
 	ref      ids.ObjectRef
 	next     *catalog.Relation
-	drop     *preparedDrop
+	drop     *table.DropPreparation
 	sequence ids.ObjectRef
 	original catalog.Descriptor
 }
@@ -63,7 +63,7 @@ func (p *dropProvider) TombstoneIdentity(address ids.ObjectAddress) {
 
 // The caller holds Engine.mu after the exact sequence's AX grant. This captures
 // existing immutable definitions only: no generator, scalar or stage is touched.
-func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, table *catalog.Relation, attribute int32, ref ids.ObjectRef) (identityDropCapture, error) {
+func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, relation *catalog.Relation, attribute int32, ref ids.ObjectRef) (identityDropCapture, error) {
 	var capture identityDropCapture
 	fresh, err := e.authorizationLocked(provider.scope.op)
 	if err != nil {
@@ -76,7 +76,7 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 	if staged := provider.Replacement(ref.Address); staged != nil {
 		descriptor = staged
 	}
-	sequence, err := sequence.IdentityDefinition(descriptor, table, attribute)
+	sequence, err := sequence.IdentityDefinition(descriptor, relation, attribute)
 	if err != nil {
 		return capture, err
 	}
@@ -89,7 +89,7 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 	provider.base = fresh.Catalog
 	provider.prepared.Discovery = fresh.Catalog
 	provider.identitySource = sequence
-	provider.prepared.RecordEffect(dropEffect{IdentityRoots: []ids.ObjectAddress{ref.Address}, IdentityState: e.catalog.state})
+	provider.prepared.RecordEffect(table.DropEffect{IdentityRoots: []ids.ObjectAddress{ref.Address}, IdentityState: e.catalog.state})
 	return identityDropCapture{sequence: ref, original: e.catalog.state.Get(ref.Address)}, nil
 }
 

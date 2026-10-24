@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 )
 
@@ -45,9 +46,9 @@ func TestDropReaderSeam(t *testing.T) {
 		t.Fatal("RetirementDescriptor must still read the removed relation")
 	}
 
-	prepared := &preparedDrop{Base: read, Discovery: read}
+	prepared := &table.DropPreparation{Base: read, Discovery: read}
 	var preparedReader view.DropReader = &dropProvider{base: read, prepared: prepared}
-	if input, ok := preparedReader.DefinitionInput().(*preparedDrop); !ok || input != prepared {
+	if input, ok := preparedReader.DefinitionInput().(*table.DropPreparation); !ok || input != prepared {
 		t.Fatalf("prepared DefinitionInput = %T, want the preparation", preparedReader.DefinitionInput())
 	}
 }
