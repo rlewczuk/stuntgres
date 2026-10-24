@@ -28,7 +28,7 @@ func (e *Engine) sessionRolesLocked(session *session.Session) *access.RoleRecord
 // The operation/session publication preflight has passed before this call.
 func (e *Engine) installOperationRolesLocked(op *session.Operation, next *access.RoleRecord) {
 	t := op.Session.Transactions
-	if !t.RetainsTransaction() {
+	if !t.RetainsTransaction() && t.State != session.TxActive {
 		e.roles.published = next
 		return
 	}

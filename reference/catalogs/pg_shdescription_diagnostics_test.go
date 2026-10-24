@@ -165,22 +165,15 @@ func TestReferencePGShDescriptionDiagnosticsAndTransactions(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Exec("INSERT INTO pgsd_tx.sentinel VALUES(8)", 1))
 					s := fixture.Exec("COMMENT ON ROLE pgsd_tx_role IS 'transactional'", 0)
 					s.Prepared = prepared
-					if !backend.PG {
-						s = fixture.RoleReferenceError(s.Query, "0A000", "statement is unsupported in an explicit transaction", "", prepared, "prepare")
-					}
 					fixture.RunStep(t, p.Ctx, tx, backend.Recorder, s)
-					if backend.PG {
-						pgShDescriptionCheck(t, p, backend, tx, id, new("transactional"))
-					} else {
-						fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.RoleReferenceError("SELECT * FROM pgsd_tx.sentinel", "25P02", "current transaction is aborted, commands ignored until end of transaction block", "", false, "execute"))
-					}
+					pgShDescriptionCheck(t, p, backend, tx, id, new("transactional"))
 					if err := tx.Rollback(); err != nil {
 						t.Fatal(err)
 					}
 				}()
 				pgShDescriptionCheck(t, p, backend, backend.DB, id, new("original"))
 			}
-			if backend.PG {
+			{
 				run("COMMENT ON ROLE pgsd_tx_role IS NULL")
 				tx, err := backend.DB.BeginTx(p.Ctx, nil)
 				if err != nil {
@@ -213,21 +206,18 @@ func TestReferencePGShDescriptionDiagnosticsAndTransactions(t *testing.T) {
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}
-			if !backend.PG {
+			{
 				tx, err = backend.DB.BeginTx(p.Ctx, &sql.TxOptions{ReadOnly: true})
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer tx.Rollback()
-				fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.RoleReferenceError("COMMENT ON ROLE pgsd_tx_role IS 'readonly'", "0A000", "statement is unsupported in an explicit transaction", "", true, "prepare"))
+				fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.RoleReferenceError("COMMENT ON ROLE pgsd_tx_role IS 'readonly'", "25006", "cannot execute COMMENT in a read-only transaction", "", true, "execute"))
 				if err := tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}
 			}
-			text := "original"
-			if backend.PG {
-				text = "committed"
-			}
+			text := "committed"
 			pgShDescriptionCheck(t, p, backend, backend.DB, id, new(text))
 			fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Select("SELECT a FROM pgsd_tx.sentinel", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			run("DROP ROLE pgsd_tx_role")

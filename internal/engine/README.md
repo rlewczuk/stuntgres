@@ -244,6 +244,23 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   owner-authorized Share grant is retained through transaction end; savepoints
   restore only postmark contributions and locks. CONCURRENTLY and standalone
   index maintenance keep their existing independent boundaries.
+- `session.ExplicitUtility` admits the shipped COMMENT kinds (TABLE, COLUMN,
+  FOREIGN TABLE, SCHEMA, ROLE and SEQUENCE) in SQL BEGIN and Go BeginTx.
+  Describe remains effect-free; Execute preserves read-only and aborted-state
+  precedence and refreshes authorization for held statements.
+
+Object comments use `CatalogStage` and the existing private journal; shared role
+comments use its immutable role root. Owners see private text, while peers,
+including other databases for role comments, see committed text until combined
+commit. Rollback and savepoints restore the same roots. Relation COMMENT keeps
+its SUE ticket contribution until transaction end or rollback to an earlier
+savepoint; RELEASE retains it. Waits validate the captured object identity,
+never a same-name replacement.
+
+Internal resolution pairs the owner's private catalog and role authority.
+Catalog inquiry rows capture their statement's metadata values; retained results
+remain immutable after later changes or rollback. Those row snapshots are not
+permission to reuse stale internal identity or authorization.
 
 Table/schema candidates resolve against current committed state plus the owner's
 private catalog and storage in both explicit and retained-message transactions.

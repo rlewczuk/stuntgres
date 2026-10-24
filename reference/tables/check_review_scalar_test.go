@@ -149,13 +149,9 @@ func TestReferenceCheckReviewScalarPrivateCommentBoundary(t *testing.T) {
 					defer stmt.Close()
 					held := fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}
 					run(fixture.Exec("BEGIN", 0))
-					if b.PG {
-						run(fixture.Exec("COMMENT ON "+target+" IS 'new'", 0))
-						fixture.CheckRun(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, "new"))
-						run(fixture.Prepared(fixture.Exec("UPDATE t SET a=$1", 1, "new")))
-					} else {
-						run(fixture.ImplicitError("COMMENT ON "+target+" IS 'new'", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
-					}
+					run(fixture.Exec("COMMENT ON "+target+" IS 'new'", 0))
+					fixture.CheckRun(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, "new"))
+					run(fixture.Prepared(fixture.Exec("UPDATE t SET a=$1", 1, "new")))
 					run(fixture.Exec("ROLLBACK", 0))
 					run(fixture.ImplicitError("INSERT INTO t VALUES('new')", fixture.CheckViolation("t", "c", "new")))
 					fixture.CheckRun(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, "old"))

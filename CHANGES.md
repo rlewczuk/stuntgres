@@ -2,6 +2,10 @@ PL/pgSQL supports unconditional LOOP, labeled EXIT/CONTINUE and WHEN conditions,
 including nested block/cursor transfers, cancellation and stored-definition replay.
 Quoted label diagnostics preserve literal identifier contents.
 
+Existing table, column, foreign-table, schema and role comments now participate
+in SQL and Go transactions, with private visibility, savepoints and atomic commit
+or rollback. Sequence comment and counter behavior is preserved.
+
 Trigger rename, extension dependencies and table-qualified DROP preserve installed
 definitions and partition clone identities, participate in transactions, and
 survive native Dump/Restore.

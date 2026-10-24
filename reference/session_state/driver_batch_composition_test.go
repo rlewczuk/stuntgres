@@ -53,12 +53,16 @@ func batchUtilityComposition(t *testing.T) {
 				batchSeed(t, p, b, a)
 				batchExec(t, p, b, a, "BEGIN", 0)
 				q := "INSERT INTO batch_t VALUES(1); " + utility
-				if b.PG || utility == "CREATE SCHEMA excluded" || utility == "CREATE INDEX excluded ON batch_t(i)" {
+				if b.PG || utility == "CREATE SCHEMA excluded" || utility == "CREATE INDEX excluded ON batch_t(i)" || utility == "COMMENT ON TABLE batch_t IS 'excluded'" {
 					batchExec(t, p, b, a, q, 0)
 					batchValues(t, p, b, a, "SELECT i FROM batch_t ORDER BY i", 1, 7)
 					if utility == "CREATE INDEX excluded ON batch_t(i)" {
 						fixture.RunStep(t, p.Ctx, a, b.Recorder, fixture.Select("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname='excluded'", []string{"indexname"}, []string{"NAME"}, [][]any{{"excluded"}}))
 						fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname='excluded'", []string{"indexname"}, []string{"NAME"}, nil))
+					}
+					if utility == "COMMENT ON TABLE batch_t IS 'excluded'" {
+						fixture.RunStep(t, p.Ctx, a, b.Recorder, fixture.Select("SELECT obj_description('batch_t'::regclass,'pg_class') AS text", []string{"text"}, []string{"TEXT"}, [][]any{{"excluded"}}))
+						fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT obj_description('batch_t'::regclass,'pg_class') AS text", []string{"text"}, []string{"TEXT"}, [][]any{{nil}}))
 					}
 				} else {
 					batchError(t, p, a, q, batchDiag("0A000", "statement is unsupported in an explicit transaction"))
@@ -66,6 +70,9 @@ func batchUtilityComposition(t *testing.T) {
 				batchExec(t, p, b, a, "ROLLBACK", 0)
 				batchValues(t, p, b, peer, "SELECT i FROM batch_t", 7)
 				fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname='excluded'", []string{"indexname"}, []string{"NAME"}, nil))
+				if utility == "COMMENT ON TABLE batch_t IS 'excluded'" {
+					fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT obj_description('batch_t'::regclass,'pg_class') AS text", []string{"text"}, []string{"TEXT"}, [][]any{{nil}}))
+				}
 				batchExec(t, p, b, a, "BEGIN; ALTER TABLE batch_t ADD COLUMN j INT; CREATE SEQUENCE supported; ROLLBACK", 0)
 				batchValues(t, p, b, a, "SELECT i FROM batch_t", 7)
 			})

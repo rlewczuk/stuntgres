@@ -222,8 +222,11 @@ func ModifyingTag(stmt parser.Statement) string {
 // ExplicitUtility reports whether stmt is a utility that the root dispatch
 // gates in explicit transactions; the root keeps the exceptions and errors.
 func ExplicitUtility(stmt parser.Statement) bool {
-	if c, ok := stmt.(*parser.Comment); ok && c.Kind == parser.CommentSequence {
-		return false
+	if c, ok := stmt.(*parser.Comment); ok {
+		switch c.Kind {
+		case parser.CommentTable, parser.CommentColumn, parser.CommentForeignTable, parser.CommentSchema, parser.CommentRole, parser.CommentSequence:
+			return false
+		}
 	}
 	if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
 		return false

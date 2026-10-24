@@ -94,6 +94,13 @@ exercise owner-authorized type removal.
 - Native Dump rejects explicit relation, column, routine and parameter ACLs
   before writing: run Dump/Reset/Restore phases before explicit GRANT/REVOKE
   phases, or assert the rejection.
+- Transactional comments share the seven-kind inventory and setup in
+  `transactional_comment_helpers_test.go`, with direct/held SQL BEGIN and Go
+  BeginTx routes. Keep literal, diagnostic and lifecycle assertions together
+  when changing this family. Captured identity never retargets after a wait:
+  replacement is fenced without changing the recreated object's text.
+  Role DROP/recreate must not inherit text; this family does not add
+  role-renaming SQL.
 - PostgreSQL cumulative statistics: flush the writer's pending statistics with
   `pg_stat_force_next_flush()` before taking a baseline, then read with bounded
   fresh-read polling and exact equality (`vacuumStatistic`). PostgreSQL VERBOSE
@@ -128,6 +135,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Database creation, selection and targeted controls: `RUN='^TestReferenceDatabaseCreate'`
 - ACL catalogs and `pg_get_acl`: `RUN='^TestReferencePGDefaultACL'`, `RUN='^TestReferencePGParameterACL'`, `RUN='^TestReferenceObjectACL'`
 - Comments: `RUN='^TestReferencePGDescription'`, `RUN='^TestReferencePGShDescription'`, `RUN='^TestReferenceComment'`
+- Comment transactions: `RUN='^TestReferenceTransactionalComment'`
 - Dependencies: `RUN='^TestReferencePGDepend'`
 - Constraints, inheritance, partition navigation: `RUN='^TestReferencePGConstraint'`, `RUN='^TestReferencePGInherits'`, `RUN='^TestReferencePartitionInfo'`
 - Table, view and index summaries: `RUN='^TestReferencePGTableViews'`, `RUN='^TestReferencePGIndexes'`

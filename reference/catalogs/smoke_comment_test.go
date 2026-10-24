@@ -11,7 +11,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceSmokeCommentSmoke(t *testing.T) {
@@ -264,7 +263,7 @@ func TestReferenceSmokeCommentSmoke(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer tx.Rollback()
+				defer func() { _ = tx.Rollback() }()
 				if _, err := tx.ExecContext(ctx, "LOCK TABLE locked IN ACCESS EXCLUSIVE MODE"); err != nil {
 					t.Fatal(err)
 				}
@@ -273,26 +272,11 @@ func TestReferenceSmokeCommentSmoke(t *testing.T) {
 					if err != nil {
 						t.Fatal("utility Prepare waited", err)
 					}
-					if backend.PG {
-						exec(b, "SET statement_timeout TO '30ms'", false)
-						_, err = stmt.ExecContext(ctx)
-						if err == nil {
-							t.Fatalf("%s: expected AX-blocked statement timeout", q)
-						}
-						diagnostic(t, err, "57014", "canceling statement due to statement timeout", "")
-						exec(b, "SET statement_timeout TO '0'", false)
-					} else {
-						bounded, cancel := context.WithTimeout(ctx, 30*time.Millisecond)
-						_, err = stmt.ExecContext(bounded)
-						cancel()
-						if !errors.Is(err, context.DeadlineExceeded) {
-							t.Fatal("AX did not block", err)
-						}
-						var state interface{ SQLState() string }
-						if errors.As(err, &state) {
-							t.Fatal("ordinary deadline acquired SQLSTATE", err)
-						}
-					}
+					defer stmt.Close()
+					fixture.RelationLockActiveCancel(t, p, backend, b, q, func(ctx context.Context) fixture.RelationOutcome {
+						result, err := stmt.ExecContext(ctx)
+						return fixture.RelationOutcome{Result: result, Err: err}
+					})
 					stmt.Close()
 				}
 				if !backend.PG && !strings.Contains(dump(), `COMMENT ON TABLE "public"."locked" IS E'old';`) {
@@ -308,31 +292,32 @@ func TestReferenceSmokeCommentSmoke(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = tx.ExecContext(ctx, "COMMENT ON TABLE locked IS NULL")
-				if !backend.PG {
-					diagnostic(t, err, "0A000", "statement is unsupported in an explicit transaction", "")
-				} else if err != nil {
+				if _, err := tx.ExecContext(ctx, "COMMENT ON TABLE locked IS NULL"); err != nil {
 					t.Fatal(err)
 				}
+				fixture.RunStep(t, ctx, tx, backend.Recorder, fixture.Select("SELECT obj_description('locked'::regclass,'pg_class') AS text", []string{"text"}, []string{"TEXT"}, [][]any{{nil}}))
+				fixture.RunStep(t, ctx, b, backend.Recorder, fixture.Select("SELECT obj_description('locked'::regclass,'pg_class') AS text", []string{"text"}, []string{"TEXT"}, [][]any{{"new"}}))
 				tx.Rollback()
 				tx, err = a.BeginTx(ctx, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
 				prepared, err := tx.PrepareContext(ctx, "COMMENT ON TABLE locked IS NULL")
-				if prepared != nil {
-					prepared.Close()
-				}
-				if !backend.PG {
-					diagnostic(t, err, "0A000", "statement is unsupported in an explicit transaction", "")
-				} else if err != nil {
+				if err != nil {
 					t.Fatal(err)
 				}
+				defer prepared.Close()
+				if _, err := prepared.ExecContext(ctx); err != nil {
+					prepared.Close()
+					t.Fatal(err)
+				}
+				prepared.Close()
+				fixture.RunStep(t, ctx, tx, backend.Recorder, fixture.Select("SELECT obj_description('locked'::regclass,'pg_class') AS text", []string{"text"}, []string{"TEXT"}, [][]any{{nil}}))
 				if err := tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}
 				if !backend.PG && !strings.Contains(dump(), `COMMENT ON TABLE "public"."locked" IS E'new';`) {
-					t.Fatal("explicit transaction rejection changed comment")
+					t.Fatal("rolled-back private comment changed committed text")
 				}
 				comment("SELECT obj_description('locked'::regclass,'pg_class')", "obj_description", "new")
 				for _, q := range []string{"COMMENT ON TYPE integer IS 'x'", "COMMENT ON DATABASE d IS 'x'"} {

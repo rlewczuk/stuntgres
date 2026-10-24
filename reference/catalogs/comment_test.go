@@ -1,12 +1,11 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"database/sql"
 	"fmt"
-	"stuntgres/reference/fixture"
 	"testing"
+
+	"stuntgres/reference/fixture"
 )
 
 func TestReferenceCommentRoundtrip(t *testing.T) {
@@ -14,111 +13,85 @@ func TestReferenceCommentRoundtrip(t *testing.T) {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
 			role := "comment_roundtrip_" + fmt.Sprint(prepared)
 			fixture.RoleReferenceCleanup(t, []string{role})
-			p := fixture.NewPair(t)
-			step := func(q string) { s := fixture.Exec(q, 0); s.Prepared = prepared; p.Step(t, s) }
-			step("CREATE ROLE " + role)
-			step(`CREATE TABLE "t.dot"(a INT,b TEXT)`)
-			var nativeSchemaOID, oracleSchemaOID, oracleRoleOID, oracleBootstrapOID int64
-			for _, backend := range []struct {
-				db  *sql.DB
-				oid *int64
-			}{
-				{p.Memory, &nativeSchemaOID}, {p.Postgres, &oracleSchemaOID},
-			} {
-				if err := backend.db.QueryRowContext(p.Ctx, "SELECT relnamespace FROM pg_class WHERE relname='t.dot'").Scan(backend.oid); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if err := p.Postgres.QueryRowContext(p.Ctx, "SELECT oid FROM pg_roles WHERE rolname=$1", role).Scan(&oracleRoleOID); err != nil {
-				t.Fatal(err)
-			}
-			if err := p.Postgres.QueryRowContext(p.Ctx, "SELECT oid FROM pg_roles WHERE rolname='postgres'").Scan(&oracleBootstrapOID); err != nil {
-				t.Fatal(err)
-			}
-			// Only bootstrap10 is a fixed native role address. Named role
-			// identity and reuse are witnessed through actual RoleRead internally.
-			targets := []struct{ target, native, oracle string }{
-				{`TABLE "t.dot"`, `SELECT obj_description('public."t.dot"'::regclass,'pg_class')`, `SELECT obj_description('public."t.dot"'::regclass,'pg_class')`},
-				{`COLUMN "t.dot".a`, `SELECT col_description('public."t.dot"'::regclass,1)`, `SELECT col_description('public."t.dot"'::regclass,1)`},
-				{`COLUMN "t.dot".b`, `SELECT col_description('public."t.dot"'::regclass,2)`, `SELECT col_description('public."t.dot"'::regclass,2)`},
-				{`SCHEMA public`, fmt.Sprintf("SELECT obj_description(%d,'pg_namespace')", nativeSchemaOID), fmt.Sprintf("SELECT obj_description(%d,'pg_namespace')", oracleSchemaOID)},
-				{`ROLE postgres`, `SELECT shobj_description(10,'pg_authid')`, fmt.Sprintf("SELECT shobj_description(%d,'pg_authid')", oracleBootstrapOID)},
-			}
-			// Values are release expectations, not derived from the other backend.
-			values := []struct {
-				sql      string
-				expected sql.NullString
-			}{{`E'quote\' slash\\\n雪'`, sql.NullString{String: "quote' slash\\\n雪", Valid: true}}, {`'replacement'`, sql.NullString{String: "replacement", Valid: true}}, {`NULL`, sql.NullString{}}, {`''`, sql.NullString{}}, {`' '`, sql.NullString{String: " ", Valid: true}}}
-			for _, target := range targets {
-				for _, value := range values {
-					step("COMMENT ON " + target.target + " IS " + value.sql)
-					for _, backend := range []struct {
-						name, query string
-						db          *sql.DB
-					}{
-						{"native", target.native, p.Memory}, {"oracle", target.oracle, p.Postgres},
-					} {
-						var observed sql.NullString
-						if err := backend.db.QueryRowContext(p.Ctx, backend.query).Scan(&observed); err != nil || observed != value.expected {
-							t.Fatalf("%s metadata %s: %#v want %#v: %v", backend.name, target.target, observed, value.expected, err)
+			fixture.SchemaReferenceCleanup(t, "comment_scope")
+			fixture.SchemaReferenceCleanup(t, "comment_renamed")
+			p := fixture.NewScenario(t)
+			for _, b := range p.Backends() {
+				t.Run(b.Name, func(t *testing.T) {
+					pgDescriptionPreserveSharedRole(t, p, b)
+					c, _ := fixture.LockConnections(t, p.Ctx, b.DB)
+					run := func(q string) {
+						s := fixture.Exec(q, 0)
+						s.Prepared = prepared
+						fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
+					}
+					probe := func(q string, want any) {
+						fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select(q+" AS text", []string{"text"}, []string{"TEXT"}, [][]any{{want}}))
+					}
+					run("CREATE ROLE " + role)
+					run(`CREATE TABLE "t.dot"(a INT,b TEXT)`)
+					targets := []struct{ target, query string }{
+						{`TABLE "t.dot"`, `SELECT obj_description('public."t.dot"'::regclass,'pg_class')`},
+						{`COLUMN "t.dot".a`, `SELECT col_description('public."t.dot"'::regclass,1)`},
+						{`COLUMN "t.dot".b`, `SELECT col_description('public."t.dot"'::regclass,2)`},
+						{`SCHEMA public`, `SELECT obj_description('public'::regnamespace,'pg_namespace')`},
+						{`ROLE postgres`, `SELECT shobj_description(oid,'pg_authid') FROM pg_roles WHERE rolname='postgres'`},
+						{`ROLE ` + role, `SELECT shobj_description(oid,'pg_authid') FROM pg_roles WHERE rolname='` + role + `'`},
+					}
+					values := []struct {
+						literal string
+						want    any
+					}{{`E'quote\' slash\\\n雪'`, "quote' slash\\\n雪"}, {`'replacement'`, "replacement"}, {`NULL`, nil}, {`''`, nil}, {`' '`, " "}}
+					for _, target := range targets {
+						for _, value := range values {
+							run("COMMENT ON " + target.target + " IS " + value.literal)
+							// A FROM clause needs the alias on the expression, not after WHERE.
+							var got sql.NullString
+							if err := c.QueryRowContext(p.Ctx, target.query).Scan(&got); err != nil {
+								t.Fatal(err)
+							}
+							want, valid := value.want.(string)
+							if got.Valid != valid || got.String != want {
+								t.Fatalf("%s: %#v want %#v", target.target, got, value.want)
+							}
 						}
 					}
-				}
+					var oldID, newID int64
+					if err := c.QueryRowContext(p.Ctx, "SELECT oid FROM pg_roles WHERE rolname=$1", role).Scan(&oldID); err != nil {
+						t.Fatal(err)
+					}
+					run("COMMENT ON ROLE " + role + " IS 'drop dependency must not exist'")
+					run("DROP ROLE " + role)
+					run("CREATE ROLE " + role)
+					if err := c.QueryRowContext(p.Ctx, "SELECT oid FROM pg_roles WHERE rolname=$1", role).Scan(&newID); err != nil || newID <= 0 || newID == oldID {
+						t.Fatal("role identity", oldID, newID, err)
+					}
+					probe(fmt.Sprintf("SELECT shobj_description(%d,'pg_authid')", newID), nil)
+					run("COMMENT ON ROLE " + role + " IS 'new identity'")
+					probe(fmt.Sprintf("SELECT shobj_description(%d,'pg_authid')", newID), "new identity")
+					probe(fmt.Sprintf("SELECT shobj_description(%d,'pg_authid')", oldID), nil)
+					run(`CREATE TABLE comment_copy(LIKE "t.dot")`)
+					probe(`SELECT obj_description('comment_copy'::regclass,'pg_class')`, nil)
+					probe(`SELECT col_description('comment_copy'::regclass,1)`, nil)
+					probe(`SELECT col_description('comment_copy'::regclass,2)`, nil)
+					run(`DROP TABLE "t.dot"`)
+					run(`CREATE TABLE "t.dot"(a INT,b TEXT)`)
+					probe(targets[0].query, nil)
+					run("CREATE SCHEMA comment_scope CREATE TABLE t(v INT)")
+					run("COMMENT ON SCHEMA comment_scope IS 'schema lifecycle'")
+					run("COMMENT ON TABLE comment_scope.t IS 'table lifecycle'")
+					run("COMMENT ON COLUMN comment_scope.t.v IS 'column lifecycle'")
+					run("ALTER SCHEMA comment_scope RENAME TO comment_renamed")
+					run("ALTER SCHEMA comment_renamed OWNER TO " + role)
+					probe(`SELECT obj_description('comment_renamed'::regnamespace,'pg_namespace')`, "schema lifecycle")
+					probe(`SELECT obj_description('comment_renamed.t'::regclass,'pg_class')`, "table lifecycle")
+					probe(`SELECT col_description('comment_renamed.t'::regclass,1)`, "column lifecycle")
+					run("DROP SCHEMA comment_renamed CASCADE")
+					run("CREATE SCHEMA comment_renamed CREATE TABLE t(v INT)")
+					probe(`SELECT obj_description('comment_renamed'::regnamespace,'pg_namespace')`, nil)
+					run("DROP SCHEMA comment_renamed CASCADE")
+				})
 			}
-			for _, value := range values {
-				step("COMMENT ON ROLE " + role + " IS " + value.sql)
-				var observed sql.NullString
-				if err := p.Postgres.QueryRowContext(p.Ctx, "SELECT shobj_description($1,'pg_authid')", oracleRoleOID).Scan(&observed); err != nil || observed != value.expected {
-					t.Fatal("named oracle role lifecycle", observed, value.expected, err)
-				}
-			}
-			step("COMMENT ON ROLE " + role + " IS 'drop dependency must not exist'")
-			step("DROP ROLE " + role)
-			step("CREATE ROLE " + role)
-			var absent sql.NullString
-			if err := p.Postgres.QueryRowContext(p.Ctx, `SELECT shobj_description(oid,'pg_authid') FROM pg_roles WHERE rolname='`+role+`'`).Scan(&absent); err != nil || absent.Valid {
-				t.Fatal("shared name reuse leaked metadata", absent, err)
-			}
-			var recreatedRoleOID int64
-			if err := p.Postgres.QueryRowContext(p.Ctx, "SELECT oid FROM pg_roles WHERE rolname=$1", role).Scan(&recreatedRoleOID); err != nil || recreatedRoleOID == oracleRoleOID {
-				t.Fatal("oracle role identity reused", recreatedRoleOID, oracleRoleOID, err)
-			}
-			step("COMMENT ON ROLE " + role + " IS 'new identity'")
-			if err := p.Postgres.QueryRowContext(p.Ctx, "SELECT shobj_description($1,'pg_authid')", recreatedRoleOID).Scan(&absent); err != nil || !absent.Valid || absent.String != "new identity" {
-				t.Fatal("recreated oracle role positive witness", absent, err)
-			}
-			if err := p.Postgres.QueryRowContext(p.Ctx, "SELECT shobj_description($1,'pg_authid')", oracleRoleOID).Scan(&absent); err != nil || absent.Valid {
-				t.Fatal("dropped oracle role retained comment", absent, err)
-			}
-			step(`DROP TABLE "t.dot"`)
-			step(`CREATE TABLE "t.dot"(a INT,b TEXT)`)
-			if err := p.Postgres.QueryRowContext(p.Ctx, targets[0].oracle).Scan(&absent); err != nil || absent.Valid {
-				t.Fatal("local name reuse leaked metadata", absent, err)
-			}
-			if err := p.Memory.QueryRowContext(p.Ctx, targets[0].native).Scan(&absent); err != nil || absent.Valid {
-				t.Fatal("native local name reuse leaked metadata", absent, err)
-			}
-			step("CREATE SCHEMA comment_scope CREATE TABLE t(v INT)")
-			step("COMMENT ON SCHEMA comment_scope IS 'schema lifecycle'")
-			step("COMMENT ON TABLE comment_scope.t IS 'table lifecycle'")
-			step("COMMENT ON COLUMN comment_scope.t.v IS 'column lifecycle'")
-			step("ALTER SCHEMA comment_scope RENAME TO comment_renamed")
-			for _, probe := range []struct{ q, want string }{
-				{`SELECT obj_description('comment_renamed'::regnamespace,'pg_namespace')`, "schema lifecycle"},
-				{`SELECT obj_description('comment_renamed.t'::regclass,'pg_class')`, "table lifecycle"},
-				{`SELECT col_description('comment_renamed.t'::regclass,1)`, "column lifecycle"},
-			} {
-				var got string
-				if err := p.Postgres.QueryRowContext(p.Ctx, probe.q).Scan(&got); err != nil || got != probe.want {
-					t.Fatal("rename lost comment", got, probe.want, err)
-				}
-			}
-			step("DROP SCHEMA comment_renamed CASCADE")
-			step("CREATE SCHEMA comment_renamed CREATE TABLE t(v INT)")
-			if err := p.Postgres.QueryRowContext(p.Ctx, `SELECT obj_description('comment_renamed'::regnamespace,'pg_namespace')`).Scan(&absent); err != nil || absent.Valid {
-				t.Fatal("schema name reuse leaked metadata", absent, err)
-			}
-			step("DROP SCHEMA comment_renamed CASCADE")
 		})
 	}
 }
@@ -126,7 +99,7 @@ func TestReferenceCommentRoundtrip(t *testing.T) {
 func TestReferenceCommentLookup(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := fixture.NewPair(t)
+			p := fixture.NewScenario(t)
 			p.Step(t, fixture.Exec("CREATE TABLE t(a INT)", 0))
 			for _, tc := range []struct{ q, code, message string }{
 				{"COMMENT ON TABLE missing IS NULL", "42P01", `relation "missing" does not exist`},

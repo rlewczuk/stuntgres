@@ -50,6 +50,8 @@ implement its slots, so either import would form a cycle.
   does not retain execution authority. Command-local pairs belong to
   `StatementScope`; cursors retain their producer's pair across fresh FETCH
   admissions. Root lifecycle cleanup releases the owner pair at transaction end.
+  `RetainsTransaction` identifies message/protocol retention, not `TxActive`;
+  root installers must account for ordinary explicit owners separately.
   `SnapshotSet` also records that RC execution has acquired a snapshot, closing
   the transaction-characteristics window without retaining a transaction pair.
 - **2PC registry** (`prepared_registry.go`): `PreparedRegistry` of
@@ -69,8 +71,9 @@ implement its slots, so either import would form a cycle.
   callback.
 - **Statement classification** (pure AST functions): command tags
   (`command_tag.go`) and admission predicates (`statement_class.go`:
-  `ModifyingTag`, `ExplicitUtility`, ...). The root keeps the checks, their
-  exceptions and errors.
+  `ModifyingTag`, `ExplicitUtility`, ...). For COMMENT, `ExplicitUtility` admits
+  only the enumerated shipped kinds; unknown kinds and unrelated utility
+  exclusions remain intact. The root keeps execution checks and diagnostics.
 - **Protocol codec** (`protocol_values.go`, `protocol_statement.go`): the wire
   value types `ProtocolInput`, `ProtocolLogParameter`, `ProtocolContext` and
   `ProtocolField`; format decoding (`ProtocolFormats`,
@@ -104,6 +107,8 @@ implement its slots, so either import would form a cycle.
   `RecordCandidateDefaults` and `MergeCandidate` (a `catalog.Candidate`
   checked and recorded against the published base). The root's `…Locked`
   wrappers pass the published base under `Engine.mu`.
+  Role comments use the same immutable role overlay and committed `RolesBase`;
+  savepoint marks restore that authority along with descriptors and locks.
   `StorageChange.MergeFills` merges added-column fills and drops those of
   removed attributes, replacing the shared fill map instead of mutating it.
 - **Journal capture** (`journal_capture.go`): `JournalCapture` turns a

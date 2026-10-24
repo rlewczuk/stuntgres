@@ -75,6 +75,11 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   `PlanObjectComment` resolves a schema, table, foreign table or column (the
   relation through the engine's locked ref), checks kind, schema USAGE and
   ownership and returns the commented descriptor with a new revision.
+  These existing kinds work in autocommit and explicit transactions. Object
+  metadata is database-local; role text is cluster-shared, with private changes
+  visible only to the transaction owner until commit. This does not extend
+  COMMENT authorization, admit role-renaming SQL or enable transactional role
+  creation.
 - **Role retirement** (`retirement.go`): `RetirementPreflightLocked`, the
   final-publication check that no default ACL, descriptor or membership edge
   still references a retired role.
@@ -115,7 +120,7 @@ adapter (`role_host.go`) and the
 `*CatalogStage` adapters (`owned_stage.go`), the `ParameterProvider`
 registration, the `roleRetirementPreflightLocked` adapter, and the
 orchestration: `stageCommentLocked` (the locked-relation check, capture, the
-role record publication and the stage), `initialRole`,
+private role record installation or object stage), `initialRole`,
 `executeRole` (dispatch, the SET LOCAL warning, session mutation,
 `publishDroppedRolesLocked`),
 `executeRoleAttributes`, `membershipLocked`, `objectGrantLocked`,
@@ -125,6 +130,12 @@ materialized view authority, `ownershipStage`, lock waits,
 `publishOwnership`) and `executeOwned` (the stage, lock waits,
 `StageOwnedCleanup`, the scope dependents, publication and the cascade
 notice).
+
+`installOperationRolesLocked` publishes ordinary autocommit changes but installs
+an immutable journal role root for active explicit or retained-message/protocol
+transactions. It captures `RolesBase` once; Finish, savepoints and combined commit
+own failure disposal, restoration and final shared publication. Dump omits role
+comments, and Reset/Restore preserve committed role text rather than importing it.
 
 ## Testing
 

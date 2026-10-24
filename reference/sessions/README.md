@@ -39,6 +39,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   through `regtype`; never copy them into byte goldens.
 - Change the effective `search_path` in wire scenarios with named extended SET
   traffic: a simple-Query SET destroys PostgreSQL's unnamed statement.
+- Transactional COMMENT uses the raw named-statement Parse/Describe/Bind/Execute
+  helpers for every shipped kind, not adapter Prepare as a Describe substitute.
+  Assert quiet analysis, exact COMMENT completion and Ready states, private
+  owner/committed peer text, savepoint recovery, held reuse and simple-message
+  rollback. Shared metadata/lifecycle coverage lives in
+  [catalogs](../catalogs/README.md#testing).
 - Keep the comparison wire matrix pipelined: one server fixture, a fresh session
   per left source, and each pair's cells sent as one pipeline of Sync-terminated
   groups whose responses are checked in order.
@@ -90,8 +96,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Prepared-statement revalidation and rebind: `RUN='^TestReferencePrepared(Rebind|QueryRevalidates)'`
 - DISCARD: `RUN='^TestReferenceDiscard'`
 - SQL PREPARE/EXECUTE/DEALLOCATE: `RUN='^TestReferenceSQLPrepared'`
-- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol)'`
+- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol)'`
 - Wire extended protocol and portals: `RUN='^TestReferenceServer(Extended|Portal|Unnamed|FailedPortal|WrappedPortal)'`
+- Wire transactional comments: `RUN='^TestReferenceTransactionalCommentProtocol$'`
 - Wire COPY: `RUN='^TestReferenceServer(Copy|PreparedCopy)'`
 - Wire comparison matrix: `RUN='^TestReferenceServerComparison'`
 - Wire notifications: `RUN='^TestReferenceServerNotifications'`

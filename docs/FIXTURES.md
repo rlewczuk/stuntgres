@@ -28,6 +28,9 @@ if err := stuntgres.Restore(ctx, db, bytes.NewReader(seed.Bytes())); err != nil 
   any borrowed connection.
 - No engine lock is held during reader or writer I/O. Rows already returned to
   callers stay valid after Reset or Restore.
+- Dump never includes private transaction comments. Successful Reset/Restore
+  fence stale transaction commit and savepoint recovery, so private local or
+  role text cannot reappear over the replacement.
 - The controls refuse to run while prepared transactions (`PREPARE TRANSACTION`)
   exist; finish them first.
 - These are logical snapshots of one in-memory database, not `pg_dump` archives,
@@ -37,20 +40,20 @@ if err := stuntgres.Restore(ctx, db, bytes.NewReader(seed.Bytes())); err != nil 
 
 Atomically replaces the catalog with a freshly initialized one: user objects and
 data are removed and the built-in `pg_catalog`, `pg_toast`, `public` and
-`information_schema` namespaces are recreated. Database identity, roles, live
-sessions and their settings, existing pools and non-reusable counters (such as
-transaction IDs) are kept.
+`information_schema` namespaces are recreated. Database identity, roles and their
+committed shared comments, live sessions and their settings, existing pools and
+non-reusable counters (such as transaction IDs) are kept.
 
 ## Dump
 
 Captures a consistent committed snapshot before writing, then emits PostgreSQL SQL:
 owner-switching `SET SESSION AUTHORIZATION` directives, `CREATE` statements in
-dependency order, `INSERT`s with canonical literals, and sequence state. The output
-can also be replayed on PostgreSQL.
+dependency order, `INSERT`s with canonical literals, represented database-local
+comments, and sequence state. The output can also be replayed on PostgreSQL.
 
-- Not dumped: roles, passwords, memberships, settings, TEMP objects, uncommitted
-  or prepared work, sequence `currval`/`lastval` session state, and commit
-  timestamp history.
+- Not dumped: roles or their shared comments, passwords, memberships, settings,
+  TEMP objects, uncommitted or prepared work, sequence `currval`/`lastval` session
+  state, and commit timestamp history.
 - Dump fails before writing anything when it cannot serialize faithfully, for
   example explicit relation or column ACLs, invalid indexes, or cyclic view
   dependencies (`stuntgres: cyclic view dump dependencies`).
@@ -112,9 +115,9 @@ can also be replayed on PostgreSQL.
 Replays a Dump stream into a private catalog, then atomically **replaces** the
 target's contents; it never merges. Empty input clears all user relations.
 
-- It accepts only the statements Dump produces (declarations, data, owner
-  directives, sequence state); it is not a general SQL script runner, and
-  parameters are rejected.
+- It accepts only the statements Dump produces (declarations, data, represented
+  database-local comments, owner directives, sequence state); it is not a general
+  SQL script runner, and parameters are rejected.
 - Roles referenced by owner directives and `regrole` values must already exist in
   the target engine (`regrole` is dumped by name). Provision them before restoring
   into another Driver.

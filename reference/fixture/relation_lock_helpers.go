@@ -148,3 +148,10 @@ func RelationLockPending(t *testing.T, p *Pair, b Backend, waiter, holder int, r
 		}
 	}
 }
+
+// NativeRelationLockWait observes the actual managed worker parked in relation
+// admission, rather than inferring a wait from worker launch or elapsed time.
+func NativeRelationLockWait(t *testing.T, ctx context.Context, completed <-chan struct{}) {
+	t.Helper()
+	nativeMutationRowWait(t, ctx, completed, "(*StatementScope).acquireRelationTarget")
+}
