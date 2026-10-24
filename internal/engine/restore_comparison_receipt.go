@@ -14,16 +14,23 @@ import (
 
 // Only checked roots published by this exact parsed statement can satisfy a
 // window. An unchanged earlier capture on the same relation is not a receipt.
-func (e *Engine) validateComparisonBindingStatement(op *session.Operation, stmt parser.Statement, before catalog.Read, namespace ids.ObjectAddress, position int) error {
+func (e *Engine) validateComparisonBindingStatement(op *session.Operation, stmt parser.Statement, check comparisonCheck) error {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	if err := auth.Check(access.Requirement{Object: auth.Owner.Domain.Ref(auth.Catalog.Epoch(), namespace), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err := auth.Check(access.Requirement{Object: auth.Owner.Domain.Ref(auth.Catalog.Epoch(), check.Namespace), Privileges: authorization.UsagePrivilege}); err != nil {
 		return err
 	}
+	return validateComparisonBinding(auth.Catalog, check.Before, stmt, check.Namespace, check.Position)
+}
+
+// validateComparisonBinding checks that stmt published, in current, a
+// definition whose expressions at or after position bind comparisons only
+// through namespace.
+func validateComparisonBinding(current, before catalog.Read, stmt parser.Statement, namespace ids.ObjectAddress, position int) error {
 	var target parser.ObjectName
 	var kind uint8
 	switch s := stmt.(type) {
@@ -78,7 +85,7 @@ func (e *Engine) validateComparisonBindingStatement(op *session.Operation, stmt 
 		return control.InvalidComparisonContext()
 	}
 	found := false
-	for address, d := range auth.Catalog.Descriptors() {
+	for address, d := range current.Descriptors() {
 		previous := before.Get(address)
 		if previous == d {
 			continue
@@ -86,7 +93,7 @@ func (e *Engine) validateComparisonBindingStatement(op *session.Operation, stmt 
 		if d.Name() != target.Parts[1].Text {
 			continue
 		}
-		ns, ok := auth.Catalog.Namespace(d.Namespace())
+		ns, ok := current.Namespace(d.Namespace())
 		if !ok || ns.Name() != target.Parts[0].Text {
 			continue
 		}
@@ -114,7 +121,7 @@ func (e *Engine) validateComparisonBindingStatement(op *session.Operation, stmt 
 			if node.SourcePosition().Offset < position {
 				return
 			}
-			required, err := stored.ComparisonBindingNamespace(auth.Catalog, node)
+			required, err := stored.ComparisonBindingNamespace(current, node)
 			if err != nil {
 				failure = err
 				return
