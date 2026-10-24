@@ -92,8 +92,8 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   aggregate ACLs, default privileges, invalid indexes, non-canonical retained
   bootstrap ACLs) is rejected before any output, never silently reset.
 - **Default deferral** breaks table → routine → table cycles as CREATE TABLE,
-  CREATE FUNCTION, then ALTER TABLE SET DEFAULT. Neither deferral nor Restore
-  evaluates a default.
+  CREATE FUNCTION, then ALTER TABLE SET DEFAULT. Replaying a default definition
+  does not evaluate it; staged DML uses ordinary default evaluation.
 - **Cast replay windows** (`cast.go`, `cast_replay.go`, `cast_consumer.go`):
   ordinary-SQL cast windows are derived only after default deferral and CHECK
   phases are settled, one per emitted consumer statement; the final conflicting
@@ -160,6 +160,13 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   starts the private stage's session as the bootstrap superuser and acquires
   its operation; `end` clears replay flags, releases the operation and ends the
   session, in that order. A failed `Start` cleans up and returns no `end`.
+  The root holds its non-retractable-effect policy for that entire operation,
+  including nested routine/default/CHECK/index evaluation, not just one admitted
+  statement. Actual foreign acquisition, modification and schema import enforce
+  it before provider invocation. Advisory ownership and setting changes stay on
+  the private stage's manager/session, disposed at session end, never published.
+  Definition-only FDW validation still invokes authentic trusted destination
+  validators; this is not a sandbox for arbitrary registered Go callbacks.
 - `Statement(index)` resets per-statement state; `Execute(op, stmt)` runs one
   admitted statement on the stage, clears per-statement replay flags, closes
   its rows and detaches its notices.

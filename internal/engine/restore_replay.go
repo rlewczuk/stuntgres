@@ -13,6 +13,7 @@ import (
 // population state. Only Restore and materialized population write it, so
 // ordinary statements keep a nil slot.
 type restoreReplay struct {
+	stagingEffects         bool // Entire private Restore operation, including nested execution.
 	tableDestination       bool
 	insertAuthority        bool
 	commentAuthority       bool
@@ -47,6 +48,15 @@ func operationReplayOrZero(op *session.Operation) restoreReplay {
 		return *r
 	}
 	return restoreReplay{}
+}
+
+// checkRestoreEffect guards an actual non-retractable capability, not function
+// names, volatility or statement-local reconstruction authority.
+func checkRestoreEffect(op *session.Operation) error {
+	if op != nil && operationReplayOrZero(op).stagingEffects {
+		return sqlError("0A000", "restore cannot stage non-retractable effects")
+	}
+	return nil
 }
 
 // prepareRestoreReplayFlags sets the operation's replay flags for one

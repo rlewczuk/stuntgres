@@ -128,7 +128,9 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 		endSession()
 		return nil, nil, err
 	}
+	operationReplay(op).stagingEffects = true
 	end := func() {
+		operationReplay(op).stagingEffects = false
 		operationReplay(op).sqlBodies = false
 		operationReplay(op).defaultReplay = false
 		operationReplay(op).largeObjectAuthority = false

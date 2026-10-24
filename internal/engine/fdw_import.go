@@ -7,6 +7,9 @@ import (
 )
 
 func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
+	if err := checkRestoreEffect(scope.op); err != nil {
+		return Result{}, err
+	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {

@@ -1,3 +1,9 @@
+Native Restore now rejects indirect foreign scans, writes and schema imports
+before provider invocation, including calls reached through stored defaults and
+CHECK expressions. Dependency-ordered table, view, SQL-function and data replay retains
+local staged effects and trusted FDW definition validation; private-stage
+advisory ownership and settings never replace live target-session state.
+
 JSONPath datetime, date, time, time_tz, timestamp and timestamp_tz methods now
 execute typed temporal conversions, strict templates and precision rounding
 through existing JSONB and SQL/JSON consumers, retaining parsed offsets,

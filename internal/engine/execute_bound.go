@@ -441,6 +441,10 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			modifying = false
 		}
 		if modifying {
+			if err := checkRestoreEffect(op); err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
 			if err := fdw.ModifyAdmission(auth.Catalog, b.Relation, operation); err != nil {
 				e.mu.Unlock()
 				return Result{}, err

@@ -122,6 +122,21 @@ target's contents; it never merges. Empty input clears all user relations.
   the target engine (`regrole` is dumped by name). Provision them before restoring
   into another Driver.
 - Any read, parse, execution or cancellation error leaves the target unchanged.
+- Stored expressions and routines execute through the ordinary staged engine.
+  Foreign scans, writes and schema imports are rejected before capability
+  invocation with SQLSTATE `0A000`,
+  `restore cannot stage non-retractable effects` (existing more-specific
+  admission errors remain intact). Database-local staged effects, including
+  routine writes, sequences and large objects, remain allowed. Advisory operations
+  and settings changes use the private stage's manager/session and are discarded
+  with it; they neither import nor release target-session state.
+- This boundary is not a sandbox for registered Go code. Authentic destination
+  FDW option validators remain trusted declaration callbacks: they run normally,
+  and their original errors abort publication. Their own external effects cannot
+  be rolled back. Foreign definitions carry no remote rows or callback state.
+- Live target sessions and their settings survive replacement; session settings
+  are not imported. Routine-body validation deferral and authenticated comparison
+  replay windows are operation-local exceptions, not general SET admission.
 - Foreign data wrappers referenced by the dump need matching registrations on the
   target Driver (see [DRIVER.md](DRIVER.md#foreign-data-wrappers)).
 - Commit timestamp history is cleared by Reset and Restore; the startup
