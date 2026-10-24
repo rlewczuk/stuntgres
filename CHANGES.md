@@ -40,6 +40,15 @@ indexes retain their actual class. Exact ambiguity names the domain's base type
 using current catalog/search-path visibility; missing-default diagnostics retain
 the original requested type.
 
+PL/pgSQL FOREACH now iterates array elements and trailing-dimension slices,
+preserving storage order, NULL elements and slice bounds. Existing scalar,
+row, record, field and list destinations retain ordinary assignment behavior,
+loop control and FOUND semantics through stored calls and native replay.
+SLICE remains usable as an identifier; FOREACH rejects subscript destinations
+and whole row/record members in scalar target lists at definition admission.
+SLICE integer constants support radix prefixes and digit separators within the
+nonnegative signed-32-bit range, including unreachable clauses.
+
 Shipped function, aggregate and operator definitions and routine identity changes
 now share SQL BEGIN and Go BeginTx with autocommit and retained messages.
 Private callable programs, overload names, dependencies and rows publish or roll

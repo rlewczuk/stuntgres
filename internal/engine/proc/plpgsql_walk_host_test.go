@@ -37,6 +37,8 @@ func (h *walkHost) Context() context.Context { return h.ctx }
 
 func (h *walkHost) Identity() string { return "walk_unit()" }
 
+func (h *walkHost) TypeName(typ *sqltype.Descriptor) string { return typ.DiagnosticName() }
+
 func (h *walkHost) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	switch id {
 	case sqltype.Bool:
@@ -133,6 +135,16 @@ func (h *walkHost) Convert(v sqltype.Value, target sqltype.Usage, at PLOrigin) (
 
 func (h *walkHost) AssignTarget(*PLFrame, PLTarget, parser.Expr, *parser.Select, PLOrigin) error {
 	h.t.Fatal("walk unit has no field targets")
+	return nil
+}
+
+func (h *walkHost) TargetUsage(*PLFrame, PLTarget) (sqltype.Usage, error) {
+	h.t.Fatal("walk unit has no partial target usages")
+	return sqltype.Usage{}, nil
+}
+
+func (h *walkHost) AssignValue(*PLFrame, PLTarget, sqltype.Value, PLOrigin) error {
+	h.t.Fatal("walk unit has no partial value targets")
 	return nil
 }
 

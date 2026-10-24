@@ -71,6 +71,7 @@ package parser
  plCursor *PLCursorStatement
  plQuery plCursorQuery
  plQueryLoop *PLQueryLoop
+ plForeach *PLForeach
  plMotion PLCursorMotion
  plActual PLCursorActual
  plActuals []PLCursorActual
@@ -245,6 +246,7 @@ package parser
 %token <tok> PL_ASSERT PL_RAISE_LEVEL PL_MESSAGE_COMMA PL_RAISE_USING
 %token <tok> TRIGGER
 %token <tok> PL_OPEN PL_LOOP PL_NEXT PL_PRIOR PL_LAST PL_EXIT PL_CONTINUE
+%token <tok> PL_FOREACH PL_SLICE
 %token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
@@ -534,6 +536,10 @@ package parser
 %type <plDeclaration> pl_cursor_argument
 %type <plQuery> pl_cursor_query
 %type <plQueryLoop> pl_query_loop_source
+%type <plForeach> pl_foreach_slice
+%type <plForeach> pl_foreach_targets
+%type <expr> pl_foreach_target
+%type <tok> pl_foreach_array
 %type <stmt> pl_query_loop_statement
 %type <tok> pl_cursor_for pl_cursor_from
 %type <row> pl_cursor_targets
@@ -1740,6 +1746,7 @@ pl_statement: pl_block {$$=PLStatement{Block:$1,Pos:$1.Pos}}
  | CLOSE pl_target {$$=PLStatement{Cursor:&PLCursorStatement{Action:PLCloseCursor,Variable:$2},Pos:$1.pos}}
  | pl_label FOR pl_target IN pl_target pl_cursor_actuals PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);name,ok:=$3.(ColumnExpr);if !ok||len(name.Name.Parts)!=1{l.failAt("42601","invalid cursor FOR loop variable",$3.SourcePosition().Offset);return 1};$6.Action=PLForCursor;$6.Variable=$5;$6.LoopName=name.Name.Parts[0];$6.Loop=l.plLoop($1,$8,$11,$7.pos);$$=PLStatement{Cursor:$6,Pos:$2.pos};if l.err!=nil{return 1}}
  | pl_label FOR pl_target IN pl_query_loop_source PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);$5.Target=$3;$5.Start=l.plSourceStart($5.End,$5.Delimiter,$4);$5.Body=l.plLoop($1,$7,$10,$6.pos);$$=PLStatement{QueryLoop:$5,Pos:$2.pos};if l.err!=nil{return 1}}
+ | pl_label PL_FOREACH pl_foreach_targets pl_foreach_slice IN pl_foreach_array pl_expression PL_LOOP pl_statements END PL_LOOP pl_end_label {l:=sqllex.(*lexer);loop:=$4;loop.Targets=$3.Targets;loop.TargetCommas=$3.TargetCommas;loop.Source=l.plBoundExpression($7,$6);loop.Body=l.plLoop($1,$9,$12,$8.pos);l.plAfterForeach=true;$$=PLStatement{Foreach:loop,Pos:$2.pos};if l.err!=nil{return 1}}
  | pl_label PL_LOOP pl_statements END PL_LOOP pl_end_label {$$=PLStatement{Loop:sqllex.(*lexer).plLoop($1,$3,$6,$2.pos),Pos:$2.pos};if sqllex.(*lexer).err!=nil{return 1}}
  | pl_transfer_kind pl_end_label pl_transfer_when {value:=$3;$$=PLStatement{Transfer:&PLTransfer{Continue:$1.text=="continue",Label:$2,Alias:value.Alias},Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
  | pl_case_head pl_search pl_case_arms pl_else END CASE {l:=sqllex.(*lexer);search:=l.plBoundExpression($2,$1);if search.Expression==nil {for _,arm:=range $3 {if len(arm.Conditions)!=1 {l.failAt("42601","syntax error at or near \",\"",arm.Conditions[0].Delimiter.Offset);return 1}}};$$=PLStatement{Case:&PLConditional{Search:search,Arms:$3,HasElse:$4.HasElse,Else:$4.Else},Pos:$1.pos}} ;
@@ -1791,7 +1798,12 @@ pl_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.te
  | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
  | pl_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}}
  | pl_target array_subscript {if base,ok:=$1.(SubscriptExpr);ok {base.Subscripts=append(base.Subscripts,$2);$$=base} else {$$=SubscriptExpr{Base:$1,Subscripts:[]ArraySubscript{$2},Pos:$1.SourcePosition()}}} ;
-pl_name: IDENT | KW_U | KW_C | KW_T | RETURN_BODY ;
+pl_name: IDENT | KW_U | KW_C | KW_T | RETURN_BODY | PL_SLICE ;
+pl_foreach_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos}}
+ | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
+ | pl_foreach_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}} ;
+pl_foreach_targets: pl_foreach_target {$$=&PLForeach{Targets:[]Expr{$1}}}
+ | pl_foreach_targets ',' pl_foreach_target {$$=$1;$$.Targets=append($$.Targets,$3);$$.TargetCommas=append($$.TargetCommas,$2.pos)} ;
 pl_declaration_name: pl_name | PL_ELSIF ;
 pl_cursor_arguments: /* empty */ {$$=nil}
  | '(' pl_cursor_argument_list ')' {$$=$2} ;
@@ -1803,6 +1815,9 @@ pl_cursor_query: pl_expression_start query_select {l:=sqllex.(*lexer);l.plExpres
 pl_query_loop_source: pl_query_loop_start pl_query_loop_statement {l:=sqllex.(*lexer);l.plExpression=false;$$=&PLQueryLoop{Query:$2,End:l.plPriorTokenEnd,Delimiter:l.current.pos}} ;
 pl_query_loop_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | merge {$$=$1} | with_mutation {$$=$1} ;
 pl_query_loop_start: /* empty */ {sqllex.(*lexer).plBeginExpression(plLoopBoundary)} ;
+pl_foreach_slice: /* empty */ {$$=&PLForeach{}}
+ | PL_SLICE NUMBER {$$=sqllex.(*lexer).plForeachSlice($1,$2);if sqllex.(*lexer).err!=nil{return 1}} ;
+pl_foreach_array: ARRAY {l:=sqllex.(*lexer);l.plForeachSource=$1.pos;l.plBeginExpression(plLoopBoundary);$$=$1} ;
 pl_open_tail: pl_cursor_actuals {$$=$1}
  | cursor_scroll FOR pl_cursor_query {query:=sqllex.(*lexer).plBoundCursorQuery($3,$2);$$=&PLCursorStatement{Scroll:CursorScroll($1),Query:query.Query,QueryStart:query.Start,QueryEnd:query.End,QueryDelimiter:query.Delimiter}}
  | cursor_scroll FOR EXECUTE pl_expression pl_using {command:=sqllex.(*lexer).plBoundExpression($4,$3);$$=&PLCursorStatement{Scroll:CursorScroll($1),Command:command.Expression,CommandStart:command.Start,CommandEnd:command.End,CommandDelimiter:command.Delimiter,Using:$5}} ;
@@ -3282,9 +3297,10 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | SQLJSON_QUERY_FUNC %prec NAME_LIST { $$=$1 }
  | JSON_TABLE_FUNC %prec NAME_LIST {$$=$1}
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
-name: non_between_name | BETWEEN ;
+name: non_between_name | BETWEEN | PL_SLICE ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
+ | PL_SLICE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | TRIGGER
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE

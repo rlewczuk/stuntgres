@@ -44,6 +44,8 @@ type PLHost interface {
 	// Identity renders the routine for diagnostics; it is called only on error paths.
 	Identity() string
 	LookupType(id sqltype.ID) (*sqltype.Descriptor, bool)
+	// TypeName uses the current catalog visibility for an error-only type name.
+	TypeName(typ *sqltype.Descriptor) string
 	// Evaluate runs a single-target expression query and returns its value and
 	// usage; no row yields a typed NULL.
 	Evaluate(f *PLFrame, q *parser.Select, at PLOrigin) (sqltype.Value, sqltype.Usage, error)
@@ -51,6 +53,11 @@ type PLHost interface {
 	Convert(v sqltype.Value, target sqltype.Usage, at PLOrigin) (sqltype.Value, error)
 	// AssignTarget evaluates and publishes a field or subscript assignment.
 	AssignTarget(f *PLFrame, t PLTarget, raw parser.Expr, q *parser.Select, at PLOrigin) error
+	// TargetUsage resolves a reached partial destination without evaluating bounds.
+	TargetUsage(f *PLFrame, t PLTarget) (sqltype.Usage, error)
+	// AssignValue publishes one already-evaluated partial destination. Whole
+	// slots use AssignVariable directly; lists call this sequentially.
+	AssignValue(f *PLFrame, t PLTarget, value sqltype.Value, at PLOrigin) error
 	BeginException() (PLCheckpoint, error)
 	// EndException releases (rollback false) or rolls back the boundary.
 	EndException(c PLCheckpoint, rollback bool, primary error) error

@@ -508,6 +508,7 @@ reject, while healthy fresh current manifests remain usable.
 - Payload API and stored row marks: `RUN='^Test(ViewPartsRoundTrip|RulePartsRoundTrip|QuerySetStoredInheritedMarks)$'`
 - Rule display and replay separation: `RUN='^TestRuleDefinition(Presentation|ReplaySeparation|ReturningLabels)$'`
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`
+- PL array-loop usage remap and immutable controls: `RUN='^TestPLpgSQLForeachRemap$'`
 - Aggregate recipes: `RUN='^TestCreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)$'`
 - Engine renderer and `pg_depend` units: `RUN='^Test(Deparse|PGDepend|ViewCheck)'`
 - Geometric captured-source and literal serialization: `RUN='^TestGeometryRelationLiteral'`

@@ -404,7 +404,18 @@ func (l *lexer) syntax(tok lexeme) {
 	l.failAt("42601", message, tok.pos.Offset)
 }
 
-func (l *lexer) Error(_ string) { l.syntax(l.current) }
+func (l *lexer) Error(_ string) {
+	if l.err == nil && l.plMode {
+		if l.plForeachDiagnostic() {
+			return
+		}
+		if l.plAssignmentHead.pos.Character != 0 {
+			l.syntax(l.plAssignmentHead)
+			return
+		}
+	}
+	l.syntax(l.current)
+}
 
 func (l *lexer) deferUnsupported(tok lexeme, message string) {
 	if l.pendingMessage == "" {

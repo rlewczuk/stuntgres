@@ -84,6 +84,7 @@ type PLInstruction struct {
 	Loop      *PLBlock
 	Transfer  *PLControl
 	QueryLoop *PLQueryLoop
+	Foreach   *PLForeach
 	Raise     *PLRaise
 	Assert    *PLAssert
 }
@@ -91,6 +92,14 @@ type PLQueryLoop struct {
 	Target PLTarget
 	Query  parser.Statement
 	Body   *PLBlock
+}
+type PLForeach struct {
+	Targets        []PLTarget
+	Query          *parser.Select
+	Slice          int
+	SliceSpecified bool
+	SlicePos       parser.Position
+	Body           *PLBlock
 }
 type PLConditional struct {
 	Search     *parser.Select
@@ -278,12 +287,16 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 				instruction.Raise, err = p.compileRaise(statement.Raise, statement.Pos)
 				if err == nil {
 					for _, operand := range statement.Raise.Arguments {
-						if err = diagnostics.expression(p, definition.Source, operand.Start, operand.End, scopes); err != nil { break }
+						if err = diagnostics.expression(p, definition.Source, operand.Start, operand.End, scopes); err != nil {
+							break
+						}
 					}
 				}
 				if err == nil {
 					for _, option := range statement.Raise.Options {
-						if err = diagnostics.expression(p, definition.Source, option.Value.Start, option.Value.End, scopes); err != nil { break }
+						if err = diagnostics.expression(p, definition.Source, option.Value.Start, option.Value.End, scopes); err != nil {
+							break
+						}
 					}
 				}
 			case statement.Assert != nil:
@@ -293,6 +306,20 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 				if err == nil {
 					err = diagnostics.expression(p, definition.Source, rawAssert.Message.Start, rawAssert.Message.End, scopes)
 				}
+			case statement.Foreach != nil:
+				rawLoop := statement.Foreach
+				targets, targetErr := p.foreachTargets(rawLoop, scopes)
+				if targetErr != nil {
+					return nil, targetErr
+				}
+				if err := diagnostics.foreach(p, rawLoop, scopes); err != nil {
+					return nil, err
+				}
+				body, bodyErr := compile(rawLoop.Body, scopes)
+				if bodyErr != nil {
+					return nil, bodyErr
+				}
+				instruction.Foreach = &PLForeach{Targets: targets, Query: plExpressionQuery(rawLoop.Source.Expression), Slice: rawLoop.Slice, SliceSpecified: rawLoop.SliceSpecified, SlicePos: rawLoop.SlicePos, Body: body}
 			case statement.QueryLoop != nil:
 				rawLoop := statement.QueryLoop
 				target, targetErr := p.queryLoopTarget(rawLoop.Target, scopes)

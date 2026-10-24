@@ -163,6 +163,11 @@ make check RUN='^TestReferencePLpgSQLQueryLoops(Ordered|Targets|Empty|Control|Di
 make check REFERENCE=1 RUN='^TestReferencePLpgSQLQueryLoops(Ordered|Targets|Empty|Control|Diagnostics|Lifecycle|Sources)$'
 ```
 
+Array-loop scenarios share the same fixture and exact value/diagnostic helpers,
+with ordered elements, bounded trailing slices, sequential list assignments,
+domain identity, private control/FOUND and original-held/replay witnesses.
+Family selector: `RUN='^TestReferencePLpgSQLForeach'`; add `REFERENCE=1` for the oracle.
+
 ### PL/pgSQL exception blocks
 
 The exception family reuses `plpgsqlScenario`, value/complete-diagnostic helpers

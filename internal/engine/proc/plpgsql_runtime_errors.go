@@ -132,6 +132,14 @@ func (e *PLExpressionPlanningError) Error() string  { return e.Err.Error() }
 func (e *PLExpressionPlanningError) Unwrap() error  { return e.Err }
 func (*PLExpressionPlanningError) plCallback() bool { return true }
 
+// PLDatumAccessError identifies failed lexical-datum access during binding.
+// Expression and assignment owners select their distinct callback policies.
+type PLDatumAccessError struct{ Err error }
+
+func (e *PLDatumAccessError) Error() string  { return e.Err.Error() }
+func (e *PLDatumAccessError) Unwrap() error  { return e.Err }
+func (*PLDatumAccessError) plCallback() bool { return true }
+
 // PLExpressionExecutionError records the CURRENT route of every real handoff,
 // including complex execution. An outer SPI/planning marker therefore shadows
 // an inner callee's simple route instead of inheriting it through errors.As.
@@ -165,6 +173,32 @@ func (e *PLExceptionCleanupError) Unwrap() []error { return []error{e.Primary, e
 func PLExpressionCallback(err error) bool {
 	var phase interface{ plCallback() bool }
 	return !errors.As(err, &phase) || phase.plCallback()
+}
+
+// Assignment planning has a distinct query callback from ordinary expressions.
+// Datum access can fail before that assignment query exists. Inspect only the
+// current binding/planning owner, never an executed callee's nested datum error.
+func plAssignmentExpressionCallback(err error) bool {
+	var phase interface{ plCallback() bool }
+	if !errors.As(err, &phase) {
+		return true
+	}
+	var binding error
+	switch current := phase.(type) {
+	case *PLDatumAccessError:
+		return false
+	case *PLExpressionBindingError:
+		binding = current.Err
+	case *PLExpressionPlanningError:
+		binding = current.Err
+	default:
+		return phase.plCallback()
+	}
+	if current, ok := binding.(*PLExpressionBindingError); ok {
+		binding = current.Err
+	}
+	_, datum := binding.(*PLDatumAccessError)
+	return !datum
 }
 
 // PLTriggerExpressionBinding grants the trigger traceback only at the current

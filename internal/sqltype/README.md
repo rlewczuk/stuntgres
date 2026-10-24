@@ -48,6 +48,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
 - Text-array input checks declared dimensions early, but child conversion and
   domain CHECK errors precede an extent mismatch, and storage grows only with
   parsed children (shared `ownedArray` guards).
+- `ArrayForeachSlice` exposes immutable trailing dimensions with their original
+  bounds, not SQL subscripting's rank-preserving/rebased slice. Callers admit
+  rank and aligned offsets once and precompute block size. Full-rank delivery
+  shares the original value; proper subslices own independent buffers.
 - `pg_snapshot` owns an immutable full-XID bounds/member payload. Text input
   validates nondecreasing membership and canonicalizes duplicates; constructors
   copy caller-owned members and indexed access never exposes mutable backing.
@@ -375,3 +379,4 @@ match engine tests of the same mechanism):
 - Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
 - Refcursor scalar codecs and admission: `RUN='^TestPLpgSQLCursorCodec$'`
 - Composite descriptors, expression shapes and payload ownership: `RUN='^TestComposite'`
+- Trailing array slices and payload ownership: `RUN='^TestArrayForeachSlice$'`

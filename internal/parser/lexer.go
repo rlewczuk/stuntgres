@@ -64,6 +64,9 @@ type lexer struct {
 	plBoundaryHit      int
 	plLastTokenEnd     Position
 	plPriorTokenEnd    Position
+	plForeachSource    Position // Failure-only delimiter provenance; never executable syntax.
+	plAfterForeach     bool
+	plAssignmentHead   lexeme
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool
@@ -810,6 +813,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	token := l.nextRaw()
 	if l.plMode {
+		if l.plAssignmentHead.pos.Character != 0 && (token.code == '=' || token.lexeme.text == ":=" || token.code == ';') {
+			l.plAssignmentHead = lexeme{}
+		}
 		token = l.plExpressionToken(token)
 	}
 	if l.plReturnPending {
@@ -865,6 +871,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				}
 			case "open":
 				token.code = PL_OPEN
+			case "foreach":
+				token.code = PL_FOREACH
+			case "slice":
+				token.code = PL_SLICE
 			case "loop":
 				token.code = PL_LOOP
 			case "exit":
@@ -1696,6 +1706,12 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	if l.previousToken == OPERATOR && token.lexeme.keyword != nil && token.lexeme.text == "class" {
 		token.code = OPCLASS
+	}
+	if l.plMode && l.plAfterForeach && token.code != ';' {
+		l.plAfterForeach = false
+		if token.code == IDENT || token.code == KW_U || token.code == KW_C || token.code == KW_T {
+			l.plAssignmentHead = token.lexeme
+		}
 	}
 	l.current = token.lexeme
 	v.tok = token.lexeme

@@ -123,6 +123,17 @@ Static query FOR retains an existing positioned target, an ordinary SQL statemen
 and its own query/LOOP boundary. SELECT/WITH and DML use the same SQL grammar;
 the procedural delimiter is recognized only outside parentheses/brackets and
 only from an unquoted identifier/keyword token, never a string's decoded payload.
+FOREACH retains existing name/field targets, target-comma positions,
+explicit-versus-omitted SLICE and a positioned scalar array expression. Its
+target grammar excludes subscripts without restricting ordinary assignments
+or FETCH. The LOOP delimiter uses the same depth-aware boundary. SLICE remains
+unreserved in procedural identifiers, labels, field names and type names;
+checked lexical resolution determines whether a datum shadows its clause use.
+SLICE accepts nonnegative signed-32-bit integer constants, including radix
+prefixes and digit separators; leading-zero decimal spelling stays decimal.
+Failed FOREACH syntax retains scanner-owned source/delimiter and following
+assignment-head provenance for diagnostics only. Failure probes never return
+tokens or syntax to executable parsing and cannot turn rejected input into success.
 Diagnostic compound-name accounting scans bounded original expression and
 assignment-target tokens, not SQL AST node kinds. It shares identifier/Unicode
 decoding with the lexer and applies PL's reserved-word list and greedy,
@@ -163,6 +174,7 @@ feature prefix.
 - PL block/conditional/control syntax and full consumption: `RUN='^TestPLpgSQL(ConditionalParser|LoopParser|QueryLoopParser|ParserFullConsumption)$'`
 - Exception syntax and handler full consumption: `RUN='^TestPLExceptionParsing$'`
 - Message and assertion syntax: `RUN='^TestPLpgSQL(Raise|Assert)Parser$'`
+- Array-loop syntax, integer bounds, spans and cursor-keyword reachability: `RUN='^TestPLpgSQLForeach(Parser|SliceConstants|CursorKeyword)$'`
 
 **Benchmarks.** Compare scratch-receiver changes with the unchanged
 `parser_scratch_bench_test.go` harness before and after:

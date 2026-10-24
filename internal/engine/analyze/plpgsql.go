@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -25,7 +26,7 @@ func (b *Binder) plLocal(names []string, pos parser.Position) (expr.Expr, bool, 
 		if value.Type() == nil {
 			d := sqlError("55000", fmt.Sprintf("record %q is not assigned yet", variable.Name)).(*sqlstate.Error)
 			d.Detail = "The tuple structure of a not-yet-assigned record is indeterminate."
-			return nil, true, d
+			return nil, true, &proc.PLDatumAccessError{Err: d}
 		}
 		usage := f.Usage(slot)
 		if variable.Record {

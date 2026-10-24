@@ -38,6 +38,9 @@ while preserving the originating diagnostic and secondary failure.
 The statement walk is `proc.PLRun` ([proc README](proc/README.md)); `plpgsql_host.go`
 adapts it per invocation (`plHost`, allocated once with its run) and keeps
 expression execution, conversion, checkpoints, cursors and RAISE/ASSERT here.
+FOREACH supplies already-evaluated partial destinations through that host:
+ordinary target binding/conversion reconstructs one detached ancestor and
+publishes immediately, so subsequent list destinations see prior writes.
 Cursor-FOR re-enters `PLRun.Block`, publishes FOUND and retires its owned portal
 before propagating outward flow, restoring initially NULL cursor variables.
 PL diagnostic signatures belong to the existing per-session routine-analysis

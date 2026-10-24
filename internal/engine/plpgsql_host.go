@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
@@ -52,6 +53,14 @@ func (h *plHost) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return h.read.LookupType(id)
 }
 
+func (h *plHost) TypeName(typ *sqltype.Descriptor) string {
+	e := h.s.engine()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	binder := newExpressionBinder(h.s.op.Context(), e, h.s.input, h.s.op, nil)
+	return binder.DiagnosticTypeName(typ)
+}
+
 func (h *plHost) Evaluate(f *proc.PLFrame, q *parser.Select, at proc.PLOrigin) (sqltype.Value, sqltype.Usage, error) {
 	value, usage, _, err := h.s.evaluatePLExpression(f, q, h.read, nil, h.s.plNoticeOrigin(f, at.Position, at.Action))
 	return value, usage, err
@@ -68,6 +77,46 @@ func (h *plHost) Convert(v sqltype.Value, target sqltype.Usage, at proc.PLOrigin
 
 func (h *plHost) AssignTarget(f *proc.PLFrame, t proc.PLTarget, raw parser.Expr, q *parser.Select, at proc.PLOrigin) error {
 	_, err := h.s.assignPLTarget(f, t, raw, q, h.read, h.s.plNoticeOrigin(f, at.Position, at.Action))
+	return err
+}
+
+func (h *plHost) TargetUsage(f *proc.PLFrame, target proc.PLTarget) (sqltype.Usage, error) {
+	usage := f.Usage(target.Slot)
+	if f.Program.Variables[target.Slot].Record {
+		current := f.Values[target.Slot]
+		if current.Type() == nil {
+			// Use the ordinary semantic-target binder's indeterminate-record error.
+			_, err := h.s.preparePLTargetDatum(f, target, current, nil, nil)
+			return sqltype.Usage{}, err
+		}
+		usage = current.Type().Usage()
+	}
+	e := h.s.engine()
+	if leaf := analyze.TargetUsage(usage, target.Steps); leaf.Valid() {
+		return leaf, nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	auth, err := e.authorizationLocked(h.s.op)
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	binder := newExpressionBinder(h.s.op.Context(), e, h.s.input, h.s.op, nil)
+	binder.PL, binder.Query.Auth = f, &auth
+	bound, err := binder.BindAssignmentTarget(catalog.Column{Name: f.Program.Variables[target.Slot].Name, Usage: usage}, target.Steps, parser.Position{})
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	return bound.Destination, nil
+}
+
+func (h *plHost) AssignValue(f *proc.PLFrame, target proc.PLTarget, value sqltype.Value, at proc.PLOrigin) (err error) {
+	noticeStart := len(h.s.op.Notices)
+	defer func() { h.s.appendPLNoticeContext(noticeStart, h.s.plNoticeOrigin(f, at.Position, at.Action)) }()
+	candidate, err := h.s.preparePLTargetValue(h.run, f, target, value, f.Values[target.Slot], h.read)
+	if err == nil {
+		f.Values[target.Slot] = candidate
+	}
 	return err
 }
 

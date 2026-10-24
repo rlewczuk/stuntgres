@@ -52,6 +52,7 @@ type PLStatement struct {
 	Pos                 Position
 	Cursor              *PLCursorStatement
 	QueryLoop           *PLQueryLoop
+	Foreach             *PLForeach
 	Raise               *PLRaise
 	Assert              *PLAssert
 }
@@ -64,6 +65,43 @@ type PLQueryLoop struct {
 	Start, End, Delimiter Position
 	Body                  *PLBlock
 }
+
+// PLForeach retains the ordered enclosing targets and one scalar array source.
+// SliceSpecified distinguishes omitted SLICE from an explicit zero.
+type PLForeach struct {
+	Targets        []Expr
+	TargetCommas   []Position
+	Slice          int
+	SliceSpecified bool
+	SlicePos       Position
+	Source         PLExpression
+	Body           *PLBlock
+}
+
+// ValidPLForeachSlice is the nonnegative signed-32-bit ICONST invariant shared
+// by syntax admission and checked-program validation.
+func ValidPLForeachSlice(level int64) bool { return level >= 0 && level <= 2147483647 }
+
+func (l *lexer) plForeachSlice(keyword, token lexeme) *PLForeach {
+	if token.numeric {
+		l.syntax(token)
+		return nil
+	}
+	// Match the existing bounded integer-literal convention: decimal leading
+	// zeroes stay decimal; only explicit radix prefixes select base zero.
+	text := strings.ReplaceAll(token.text, "_", "")
+	base := 10
+	if len(text) > 2 && text[0] == '0' && strings.ContainsRune("xXoObB", rune(text[1])) {
+		base = 0
+	}
+	level, err := strconv.ParseInt(text, base, 32)
+	if err != nil || !ValidPLForeachSlice(level) {
+		l.syntax(token)
+		return nil
+	}
+	return &PLForeach{Slice: int(level), SliceSpecified: true, SlicePos: keyword.pos}
+}
+
 type PLBlock struct {
 	Label        Identifier
 	EndLabel     Identifier
@@ -145,6 +183,9 @@ func (l *lexer) plExpressionToken(token rawToken) rawToken {
 		}
 		if code != 0 {
 			token.code = code
+			if code == PL_LOOP {
+				l.plForeachSource = Position{}
+			}
 			l.plBoundaryHit, l.plBoundary = code, plNoBoundary
 			l.plExpression = false
 			return token

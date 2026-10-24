@@ -14,6 +14,8 @@ bound arguments, FETCH targets and motion, FOUND, cursor FOR, physical-session
 identity, transaction lifetime and native definition replay. Omitted SCROLL follows
 query implementation capability; explicit option witnesses cover guaranteed
 backward behavior independently of cost-selected PostgreSQL strategies.
+The contextual SLICE token remains an ordinary count-variable name in
+FORWARD/BACKWARD MOVE, preserving ordered scroll-cursor positions.
 Ownership scenarios exercise promoted FETCH/MOVE inside enclosing writes, retained
 FOR identity under variable reassignment, and pinned-portal CLOSE errors with
 cleanup. User drop protection is distinct from terminal transaction/session cleanup.
@@ -79,3 +81,4 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - PL source/phase, count precedence and nested identities: `RUN='^TestReferencePLpgSQLCursor(ErrorProvenance|CountPrecedence|NestedOpenNames)$'`
 - PL cursor/CASE diagnostic ledger: `RUN='^TestReferencePLpgSQLCursorDiagnosticLedger$'`
 - PL FOUND/name publication: `RUN='^TestReferencePLpgSQLCursor(FoundPublication|ConstantOpen)$'`
+- Contextual FOREACH keyword in counted MOVE: `RUN='^TestReferencePLpgSQLForeachCursorKeyword$'`

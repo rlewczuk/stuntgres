@@ -174,7 +174,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			if instruction.Syntax != raw || raw.Pos.Offset < 0 || raw.Pos.Offset >= len(d.Source) || raw.Pos.Character <= 0 || !plSourceSpan(d.Source, raw.Expression, raw.ExpressionStart, raw.ExpressionEnd, raw.ExpressionDelimiter) {
 				return invalid()
 			}
-			if (instruction.QueryLoop != nil) != (raw.QueryLoop != nil) || (instruction.Loop != nil) != (raw.Loop != nil) || (instruction.Transfer != nil) != (raw.Transfer != nil) {
+			if (instruction.Foreach != nil) != (raw.Foreach != nil) || (instruction.QueryLoop != nil) != (raw.QueryLoop != nil) || (instruction.Loop != nil) != (raw.Loop != nil) || (instruction.Transfer != nil) != (raw.Transfer != nil) {
 				return invalid()
 			}
 			if (instruction.Raise != nil) != (raw.Raise != nil) || (instruction.Assert != nil) != (raw.Assert != nil) {
@@ -187,7 +187,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			variants := 0
-			for _, present := range []bool{raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
+			for _, present := range []bool{raw.Foreach != nil, raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
 				if present {
 					variants++
 				}
@@ -214,12 +214,32 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 						return invalid()
 					}
 					for i, value := range raw.Raise.Arguments {
-						if !operand(value, instruction.Raise.Arguments[i], true) { return invalid() }
+						if !operand(value, instruction.Raise.Arguments[i], true) {
+							return invalid()
+						}
 					}
 					for i, option := range raw.Raise.Options {
-						if !operand(option.Value, instruction.Raise.Options[i].Query, true) { return invalid() }
+						if !operand(option.Value, instruction.Raise.Options[i].Query, true) {
+							return invalid()
+						}
 					}
 				} else if !operand(raw.Assert.Condition, instruction.Assert.Condition, true) || !operand(raw.Assert.Message, instruction.Assert.Message, false) {
+					return invalid()
+				}
+			case raw.Foreach != nil:
+				q, checked := raw.Foreach, instruction.Foreach
+				empty := instruction
+				empty.Foreach = nil
+				if checked == nil || instruction.Block != nil || !emptyPLInstructionPayload(empty) || raw.Expression != nil ||
+					len(q.Targets) == 0 || q.Source.Expression == nil || q.Source.Alias != (parser.Identifier{}) ||
+					!plSourceSpan(d.Source, q.Source.Expression, q.Source.Start, q.Source.End, q.Source.Delimiter) ||
+					q.Source.Delimiter.Offset+4 > len(d.Source) || !strings.EqualFold(d.Source[q.Source.Delimiter.Offset:q.Source.Delimiter.Offset+4], "loop") ||
+					q.Body == nil || !q.Body.IsLoop || checked.Slice != q.Slice || checked.SliceSpecified != q.SliceSpecified || checked.SlicePos != q.SlicePos ||
+					!q.SliceSpecified && (q.Slice != 0 || q.SlicePos != (parser.Position{})) || !query(checked.Query, q.Source.Expression) {
+					return invalid()
+				}
+				targets, err := p.foreachTargets(q, scopes)
+				if err != nil || !reflect.DeepEqual(targets, checked.Targets) || diagnostics.foreach(p, q, scopes) != nil || walk(checked.Body, q.Body, scopes) != nil {
 					return invalid()
 				}
 			case raw.QueryLoop != nil:
@@ -674,5 +694,5 @@ func (p *PLProgram) validCursorInstruction(raw *parser.PLCursorStatement, in *PL
 }
 
 func emptyPLInstructionPayload(in PLInstruction) bool {
-	return in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
+	return in.Foreach == nil && in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
 }

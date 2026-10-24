@@ -154,6 +154,20 @@ the enclosing namespace, without cursor recipes, implicit records or extra Usage
 Their ordinary statement syntax, source spans, target and loop body are checked
 together. Query and body compound names participate in the diagnostic ledger in
 lexical order without a cursor-private ROW datum.
+FOREACH instructions resolve ordered existing targets in the enclosing scope
+and retain one source query, slice syntax and a loop owner, with no extra typed
+captures. Compiler and validator share FOREACH-only admission: no subscript
+targets or whole RECORD/named-row members in scalar lists. An actual lexical
+datum can shadow the unreserved SLICE clause; labels and record-field names
+alone do not. Separator/keyword positions retain admission diagnostics.
+The same signed-32-bit SLICE invariant guards parser admission and recompared
+raw/checked instructions, including coordinated metadata mutations.
+The walk evaluates the array once, traverses immutable flat elements
+or trailing slices and preserves the target on empty input. Exact descriptor
+arrayness precedes per-item assignment. Lists unpack composite fields ordinally
+and publish each destination sequentially; repeated roots see earlier writes.
+Whole targets use normal slot conversion; partial values reuse the host's
+semantic-target binder and ancestor publisher. FOREACH never uses FETCH staging.
 Checked ordered branches cache syntax queries, never bound
 evaluators. Simple CASE search slots are separate invocation-private Value/Usage
 pairs, not declarations, formals or persisted type dependencies. Their canonical
@@ -213,6 +227,10 @@ with `regobj`). Phase markers (`PLExpressionBindingError`, `...PlanningError`,
 phase; `PLExceptionCleanupError` is fatal to handler matching. Assignment phases
 from `plan` are matched by marker methods (`PLAssignmentDomain`,
 `PLAssignmentPlanning`, `PLAssignmentProjection`), so proc never imports `plan`.
+`PLDatumAccessError` marks lexical-datum access during binding without selecting
+a universal callback policy. Ordinary expressions retain their expression frame;
+the assignment owner omits its assignment-query callback for a current binding's
+datum-access failure. Outer execution/planning routes retain their own provenance.
 PL and SQL context decoration uses `sqlstate.WithDiagnostic`: the decorated
 primary diagnostic is visible through `errors.As`, while the original cause,
 fatal cleanup classification and secondary failure remain traversable across calls.
@@ -236,13 +254,16 @@ caller-resolved `PLTriggerRelation`; `(*PLFrame).CursorName` reads a cursor slot
 the missing-RETURN diagnostic), `Trigger` (caller's trigger frame, then
 `TriggerReturn` against the current row type), `Block` and `Statements`.
 `AssignVariable`, `PrepareVariable` and `AssignRow` are exported for the host's
-cursor and target code. The walk holds no lock and allocates nothing per
-statement or loop iteration; record rows are detached once per published row.
+cursor and target code. The walk holds no lock; element traversal allocates no
+enumerator or source copy. Published record rows and proper trailing slices own
+their detached buffers.
 
 `PLHost` is the walk's only capability; every method takes values and runs with
-nothing held. `Evaluate`, `Convert` and `AssignTarget` execute SQL and finalize
-notices emitted during that call with the `PLOrigin` statement action (a zero
-origin adds none). `Identity` is called only on error paths. `BeginException`
+nothing held. `Evaluate`, `Convert`, `AssignTarget` and `AssignValue` execute SQL
+or selected conversion and finalize notices emitted during that call with the
+`PLOrigin` statement action. `TargetUsage` resolves reached partial destinations
+without evaluating bounds. A zero origin adds no notice context.
+`Identity` and catalog-visible `TypeName` are called only on error paths. `BeginException`
 and `EndException` bracket a block with handlers around an opaque `PLCheckpoint`;
 initializers run before it, and a `PLExceptionCleanupError` or a non-SQL error
 (cancellation) skips handler matching. `OpenQuery` returns `PLRows` with errors
@@ -274,6 +295,8 @@ Static query-loop validation units use `RUN='^TestPLpgSQLQueryLoopValidation$'`.
 Runtime diagnostic units use `RUN='^TestPL(FormatError|AssignmentErrorPhase|CaseExpressionError|pgSQLCursorCurrentDiagnostic)'`.
 Message/assertion compilation and validation use `RUN='^TestPLpgSQL(Raise|Assert)'`.
 Statement-walk units over a fake host use `RUN='^TestPLRun'`.
+Array-loop compiler/validator/frame/cancellation units use
+`RUN='^TestPLpgSQLForeach(Compiler|Validation|TargetAdmission|Frame|Cancellation|DatumDiagnostic)$'`.
 
 ```sh
 make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'

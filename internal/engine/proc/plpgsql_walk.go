@@ -161,6 +161,8 @@ func (r *PLRun) Statements(statements []PLInstruction) (sqltype.Value, PLFlow, e
 			value, flow, err = r.Block(instruction.Block)
 		case instruction.If != nil || instruction.Case != nil:
 			value, flow, err = r.conditional(instruction)
+		case instruction.Foreach != nil:
+			value, flow, err = r.foreach(instruction)
 		case instruction.QueryLoop != nil:
 			value, flow, err = r.forQuery(instruction)
 		case instruction.Cursor != nil:
@@ -240,14 +242,14 @@ func (r *PLRun) assign(instruction PLInstruction) error {
 	var diagnostic *sqlstate.Error
 	var domain interface{ PLAssignmentDomain() }
 	query := PLDiagnosticQuery{}
-	triggerBinding := d.Trigger && PLTriggerExpressionBinding(err)
+	triggerBinding := d.Trigger && PLTriggerExpressionBinding(err) && plAssignmentExpressionCallback(err)
 	if !errors.As(err, &domain) && errors.As(err, &diagnostic) && ((!expressionError || d.Trigger) && strings.HasPrefix(diagnostic.Context, "SQL function ") || triggerBinding) {
 		callback := PLAssignmentContext
 		if triggerBinding {
 			callback = PLAssignmentBinding
 		}
 		query = PLBodyDiagnostic(d.Source, statement.Pos, statement.ExpressionEnd, callback)
-	} else if expressionError && !d.Trigger && PLExpressionCallback(err) {
+	} else if expressionError && !d.Trigger && plAssignmentExpressionCallback(err) {
 		query = PLBodyDiagnostic(d.Source, statement.Pos, statement.ExpressionEnd, PLAssignmentCallback)
 	}
 	return PLRuntimeQueryError(err, d, r.Host.Identity, statement.Pos, "at assignment", query)
