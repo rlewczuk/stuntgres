@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// Latest-predecessor expectations are independently derived from REL_18_0
-// TidNext and the ordinary UPDATE contract; root must confirm against 18.0.
+// Latest-predecessor expectations follow PostgreSQL 18.6 TidNext and the
+// ordinary UPDATE contract; the shared definition runs against the pinned oracle.
 func TestReferenceUpdateCurrentOfVersionsAndArbitration(t *testing.T) {
 	for _, lane := range []string{"own_insert", "own_before", "own_after", "peer_commit", "peer_rollback", "peer_delete", "peer_reinsert", "rr_update", "rr_delete"} {
 		for _, prepared := range []bool{false, true} {
@@ -115,9 +115,14 @@ func TestReferenceUpdateCurrentOfVersionsAndArbitration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer peer.Close()
+				t.Cleanup(func() {
+					if err := peer.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				currentOfPeerRollback(t, c)
 				run(fixture.Exec("BEGIN", 0))
-				defer c.ExecContext(p.Ctx, "ROLLBACK")
+				// Cleanup is registered before LockOperation so its cancel/join runs first.
 				run(fixture.Exec("DECLARE c CURSOR FOR SELECT id FROM t WHERE id=1 FOR "+mark, 0))
 				run(currentOfFetch("FETCH FORWARD 1 FROM c", 1))
 				run(fixture.Exec("UPDATE t SET v='owner' WHERE CURRENT OF c", 1))
@@ -150,5 +155,14 @@ func TestReferenceUpdateCurrentOfVersionsAndArbitration(t *testing.T) {
 				run(fixture.Select("SELECT id,v FROM t ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "owner-peer"}, {int64(2), "other"}, {int64(3), "three"}}))
 			})
 		})
+	}
+	for _, ordering := range []string{"blocked", "commit_before_capture"} {
+		for _, ownerRoute := range []string{"direct", "fresh", "held"} {
+			for _, peerRoute := range []string{"direct", "fresh", "held"} {
+				t.Run("peer_recheck/"+ordering+"/owner_"+ownerRoute+"/peer_"+peerRoute, func(t *testing.T) {
+					currentOfPeerRecheck(t, ordering, ownerRoute, peerRoute)
+				})
+			}
+		}
 	}
 }

@@ -73,6 +73,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - DELETE USING: `RUN='^TestReferenceDeleteUsing'`
 - DELETE RETURNING (with series and FK callers): `RUN='^TestReference[A-Za-z]*DeleteReturning'`
 - Positioned UPDATE/DELETE: `RUN='^TestReference[A-Za-z]+CurrentOf'`
+  `TestReferenceUpdateCurrentOfVersionsAndArbitration` preserves the predecessor,
+  isolation and four cursor-lock lanes and adds NO KEY UPDATE peer-recheck
+  schedules: actual blocked admission and owner commit before peer invocation,
+  each with direct/fresh/held owner × peer routes. Held handles are reused after
+  warmup rollback on the same pinned sessions. Private
+  `TestUpdateCurrentOfPeerCommitRecheck` separately fixes the snapshot-selection /
+  first-target-capture gap and inspects stable RowID, latest predecessor Base and
+  private replacement publication; public ordering alone does not prove that gap.
 - Data-modifying CTEs: `RUN='^TestReferenceCTEDML'`
 - MERGE INSERT: `RUN='^TestReferenceMergeInsert'`
 - MERGE matched UPDATE: `RUN='^TestReferenceMergeUpdate'`
