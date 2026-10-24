@@ -27,8 +27,8 @@ func TestProtocolPortalProducer(t *testing.T) {
 	}
 	for i := range 4 {
 		present, err := p.next(context.Background(), row)
-		if err != nil || !present || calls != i+1 || cursor.ordinalPosition != int64(i+1) {
-			t.Fatal("finite demand replayed or looked ahead", present, calls, cursor.ordinalPosition, err)
+		if err != nil || !present || calls != i+1 || cursor.OrdinalPosition != int64(i+1) {
+			t.Fatal("finite demand replayed or looked ahead", present, calls, cursor.OrdinalPosition, err)
 		}
 	}
 	if present, err := p.next(context.Background(), row); err != nil || present || calls != 4 {
@@ -47,7 +47,7 @@ func TestProtocolPortalProducer(t *testing.T) {
 	owner.Mu.Lock()
 	retireProtocolPortalsAfter(owner, 1)
 	owner.Mu.Unlock()
-	if p.retired || !newPortal.retired || foreign.retired || cursor.ordinalPosition != 4 {
+	if p.retired || !newPortal.retired || foreign.retired || cursor.OrdinalPosition != 4 {
 		t.Fatal("savepoint frontier changed older position or foreign ownership")
 	}
 	if err := drainCursorCleanup(owner, context.Background(), nil); err != nil {

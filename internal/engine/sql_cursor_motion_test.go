@@ -13,13 +13,13 @@ func TestSQLCursorScrollRetainedEOFAndMotion(t *testing.T) {
 	c := payloadOf(s).cursors.entries["c"]
 	first := cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
 	stage := c.stage
-	if stage == nil || stage.Closed || c.ordinalPosition != 3 || !c.atEnd || c.currentSource != nil {
+	if stage == nil || stage.Closed || c.OrdinalPosition != 3 || !c.AtEnd || c.CurrentSource != nil {
 		t.Fatal("EOF destroys retained tree or keeps lineage", c)
 	}
 	cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 2 FROM c", [][]driver.Value{{int64(2)}})
 	result, err := cursorUnitExecute(t, s, context.Background(), "MOVE BACKWARD ALL FROM c")
-	if err != nil || result.Count != 1 || result.Rows != nil || c.position != cursorBefore || c.currentSource != nil || c.stage != stage || c.authority.Host != nil {
+	if err != nil || result.Count != 1 || result.Rows != nil || c.Place != cursorBefore || c.CurrentSource != nil || c.stage != stage || c.authority.Host != nil {
 		t.Fatal(result, err, c)
 	}
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1)}})
@@ -51,7 +51,7 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(1), int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 3 FROM c", [][]driver.Value{{int64(3), nil}})
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{})
-	if c.stage != stage || stage.Closed || stage.Position != 3 || !c.atEnd {
+	if c.stage != stage || stage.Closed || stage.Position != 3 || !c.AtEnd {
 		t.Fatal("EOF lost retained frame or frontier", c)
 	}
 	// At EOF the sequential frontier is outside the permutation. Identity

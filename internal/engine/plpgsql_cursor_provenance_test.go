@@ -178,7 +178,7 @@ func TestPLpgSQLCursorLookupBeforeCount(t *testing.T) {
 		registry.entries["retained"] = replacement
 		_, err = s.fetchCursorPortal(retained, &parser.FetchCursor{Name: parser.Identifier{Text: "retained"}, Count: 1})
 		var got *sqlstate.Error
-		if !errors.As(err, &got) || got.Code != "34000" || registry.entries["retained"] != replacement || replacement.position != cursorBefore {
+		if !errors.As(err, &got) || got.Code != "34000" || registry.entries["retained"] != replacement || replacement.Place != cursorBefore {
 			t.Fatal("motion redirected retained identity to replacement", err)
 		}
 		delete(registry.entries, "retained")

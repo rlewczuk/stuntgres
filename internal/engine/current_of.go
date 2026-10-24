@@ -19,7 +19,7 @@ func (s *StatementScope) positionedMutationRow(b analyze.Binding) (dml.MutationR
 	if c.epoch != s.txRef.Epoch() {
 		return dml.MutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
-	if c.position == cursorFailed || c.root == nil {
+	if c.Place == cursorFailed || c.root == nil {
 		return dml.MutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is held from a previous transaction", b.CurrentOf))
 	}
 	occurrence := -1
@@ -50,13 +50,13 @@ func (s *StatementScope) positionedMutationRow(b analyze.Binding) (dml.MutationR
 		}
 		occurrence = scan.Occurrence
 	}
-	if c.position != cursorOn {
+	if c.Place != cursorOn {
 		return dml.MutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not positioned on a row", b.CurrentOf))
 	}
 	if c.locks == nil || occurrence < 0 || occurrence >= len(c.locks.Leaves) {
 		return dml.MutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
-	physical := exec.CursorOccurrencePhysicalRow(c.currentSource, c.currentIndex, occurrence, c.locks)
+	physical := exec.CursorOccurrencePhysicalRow(c.CurrentSource, c.CurrentIndex, occurrence, c.locks)
 	if physical.Version.Row == 0 {
 		return dml.MutationRowIdentity{}, nil
 	}

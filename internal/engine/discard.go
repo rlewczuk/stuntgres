@@ -287,7 +287,7 @@ func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, ad
 func (s *StatementScope) relationCursorPreflight(catalog catalog.Read, address ids.ObjectAddress, command string) error {
 	session := s.op.Session
 	for _, cursor := range payloadOf(session).cursors.entries {
-		if cursor.tx != s.txRef || cursor.root == nil || cursor.position == cursorFailed {
+		if cursor.tx != s.txRef || cursor.root == nil || cursor.Place == cursorFailed {
 			continue
 		}
 		for _, leaf := range cursor.leaves {

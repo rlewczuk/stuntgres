@@ -115,7 +115,7 @@ func TestTruncateActivity(t *testing.T) {
 		sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT id FROM p ORDER BY id")
 		transactionRows(t, s, "FETCH ALL FROM c", 1, 2)
 		cursor := payloadOf(s).cursors.entries["c"]
-		if cursor.root == nil || cursor.position != cursorAfter || len(cursor.leaves) == 0 {
+		if cursor.root == nil || cursor.Place != cursorAfter || len(cursor.leaves) == 0 {
 			t.Fatal("fixture did not retain exhausted real producer")
 		}
 		sessionSQL(t, s, "SAVEPOINT recover")
@@ -135,7 +135,7 @@ func TestTruncateActivity(t *testing.T) {
 		sessionSQL(t, s, "SAVEPOINT before_fetch")
 		truncateUnitError(t, e, s, "FETCH ALL FROM c", "22012")
 		cursor := payloadOf(s).cursors.entries["c"]
-		if cursor.position != cursorFailed || cursor.root != nil || cursor.leaves != nil {
+		if cursor.Place != cursorFailed || cursor.root != nil || cursor.leaves != nil {
 			t.Fatal("failed portal retained producer references")
 		}
 		sessionSQL(t, s, "ROLLBACK TO before_fetch")

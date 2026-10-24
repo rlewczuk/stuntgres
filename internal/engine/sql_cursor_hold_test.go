@@ -21,7 +21,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 	pin, cell, epoch := c.source.View, c.authority, c.epoch
 	first := cursorUnitBatch(t, s, "FETCH 1 FROM h", [][]driver.Value{{int64(1)}})
 	sessionSQL(t, s, "COMMIT")
-	if !c.promoted || c.tx != (ids.TxRef{}) || c.epoch != epoch || c.root != nil || c.source != nil || c.stage != nil || c.authority != nil || c.leaves != nil || c.locks != nil || c.currentSource != nil || c.state.Source != nil || c.state.Parameters != nil || pin.Load() != nil || cell.Host != nil || cell.Expression != nil || c.count != 2 || c.storeOffset != 1 || c.ordinalPosition != 1 {
+	if !c.promoted || c.tx != (ids.TxRef{}) || c.epoch != epoch || c.root != nil || c.source != nil || c.stage != nil || c.authority != nil || c.leaves != nil || c.locks != nil || c.CurrentSource != nil || c.state.Source != nil || c.state.Parameters != nil || pin.Load() != nil || cell.Host != nil || cell.Expression != nil || c.count != 2 || c.storeOffset != 1 || c.OrdinalPosition != 1 {
 		t.Fatal("export retains producer or loses owned remainder", c, cell)
 	}
 	if c.catalog.State() != nil || !reflect.DeepEqual(first.Rows.Schema(), c.schema) {
@@ -121,11 +121,11 @@ func TestSQLCursorHoldDemand(t *testing.T) {
 		sessionSQL(t, s, "DECLARE h NO SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
 		c := payloadOf(s).cursors.entries["h"]
 		move := sessionSQL(t, s, "MOVE 2 FROM h")
-		if move.Rows != nil || move.Count != 2 || c.stage.Position != 2 || c.ordinalPosition != 2 {
+		if move.Rows != nil || move.Count != 2 || c.stage.Position != 2 || c.OrdinalPosition != 2 {
 			t.Fatal("live MOVE and producer drain position diverge", move, c)
 		}
 		sessionSQL(t, s, "COMMIT")
-		if c.count != 1 || c.storeOffset != 2 || c.ordinalPosition != 2 {
+		if c.count != 1 || c.storeOffset != 2 || c.OrdinalPosition != 2 {
 			t.Fatal("NO SCROLL export is not remaining-only", c)
 		}
 		cursorUnitBatch(t, s, "FETCH ALL FROM h", [][]driver.Value{{int64(3)}})
@@ -152,9 +152,9 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 					cursorUnitBatch(t, s, "FETCH ALL FROM h", [][]driver.Value{})
 				}
 			}
-			ordinal, position, end := c.ordinalPosition, c.position, c.atEnd
+			ordinal, position, end := c.OrdinalPosition, c.Place, c.AtEnd
 			sessionSQL(t, s, "COMMIT")
-			if calls != min(fetched, 3)+3 || !c.promoted || c.count != 3 || c.storeOffset != 0 || c.ordinalPosition != ordinal || c.position != position || c.atEnd != end || c.stage != nil || c.root != nil || c.source != nil || c.authority != nil || pin.Load() != nil || cell.Host != nil || cell.Expression != nil {
+			if calls != min(fetched, 3)+3 || !c.promoted || c.count != 3 || c.storeOffset != 0 || c.OrdinalPosition != ordinal || c.Place != position || c.AtEnd != end || c.stage != nil || c.root != nil || c.source != nil || c.authority != nil || pin.Load() != nil || cell.Host != nil || cell.Expression != nil {
 				t.Fatal("SCROLL promotion loses position/full store or retains producer", calls, c)
 			}
 			sessionSQL(t, s, "MOVE FORWARD ALL FROM h")
@@ -188,7 +188,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 		cursorUnitBatch(t, s, "FETCH ALL FROM e", [][]driver.Value{})
 		c := payloadOf(s).cursors.entries["e"]
 		sessionSQL(t, s, "COMMIT")
-		if !c.promoted || c.count != 0 || c.ordinalPosition != 0 || !c.atEnd || c.position != cursorAfter {
+		if !c.promoted || c.count != 0 || c.OrdinalPosition != 0 || !c.AtEnd || c.Place != cursorAfter {
 			t.Fatal("empty SCROLL export loses attempted EOF", c)
 		}
 		empty := cursorUnitBatch(t, s, "FETCH PRIOR FROM e", [][]driver.Value{})
@@ -213,7 +213,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 				})
 				sessionSQL(t, s, fmt.Sprintf("MOVE %d FROM h", fetched))
 				sessionSQL(t, s, "COMMIT")
-				if calls != fetched+3 || c.count != 3 || c.ordinalPosition != int64(fetched) {
+				if calls != fetched+3 || c.count != 3 || c.OrdinalPosition != int64(fetched) {
 					t.Fatal("derived rewind duplicates captured prefix during full export", calls, c)
 				}
 				cursorUnitBatch(t, s, "FETCH ABSOLUTE -1 FROM h", [][]driver.Value{{int64(3)}})

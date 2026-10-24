@@ -46,8 +46,8 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if result.Count != 1 || c.ordinalPosition != 1 || s.completed != completed || s.sessionCompleted != sessionCompleted {
-						t.Fatal("lower held motion completed its parent", result.Count, c.ordinalPosition, s.completed, s.sessionCompleted)
+					if result.Count != 1 || c.OrdinalPosition != 1 || s.completed != completed || s.sessionCompleted != sessionCompleted {
+						t.Fatal("lower held motion completed its parent", result.Count, c.OrdinalPosition, s.completed, s.sessionCompleted)
 					}
 					if move {
 						if result.Rows != nil {
@@ -93,7 +93,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		row := frame.Values[2]
-		if row.Type().CompositeMember(0).Name != "original_field" || original.recordShape != row.Type() || other.recordShape != nil || other.ordinalPosition != 0 {
+		if row.Type().CompositeMember(0).Name != "original_field" || original.recordShape != row.Type() || other.recordShape != nil || other.OrdinalPosition != 0 {
 			t.Fatal("implicit movement followed mutable slot or descriptor")
 		}
 		if n, err := row.CompositeField(0).Integer(); err != nil || n != 7 {
@@ -102,7 +102,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		payloadOf(s.op.Session).cursors.entries["original"] = other
 		_, err := s.fetchCursorPortal(original, motion)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "34000" || original.ordinalPosition != 1 || other.ordinalPosition != 0 {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "34000" || original.OrdinalPosition != 1 || other.OrdinalPosition != 0 {
 			t.Fatal("same-name replacement redirected retained portal", err)
 		}
 		payloadOf(s.op.Session).cursors.entries["original"] = original
@@ -121,7 +121,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 			if n, err := value.Integer(); err != nil || n != 60 {
 				t.Fatal(n, err)
 			}
-			if payloadOf(s.op.Session).cursors.entries["owned_identity"] != nil || other.ordinalPosition != 0 {
+			if payloadOf(s.op.Session).cursors.entries["owned_identity"] != nil || other.OrdinalPosition != 0 {
 				t.Fatal("loop leaked original or moved another portal")
 			}
 		})
@@ -168,7 +168,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		if _, err := s.fetchCursor(&parser.FetchCursor{Name: parser.Identifier{Text: "pinned"}, Move: true, Count: 1}); err != nil {
 			t.Fatal(err)
 		}
-		if !c.pinned || c.ordinalPosition != 1 {
+		if !c.pinned || c.OrdinalPosition != 1 {
 			t.Fatal("movement changed protection")
 		}
 		if err := disposeSQLCursors(context.Background(), payloadOf(s.op.Session).cursors.clear()); err != nil {

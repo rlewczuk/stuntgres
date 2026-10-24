@@ -21,7 +21,7 @@ func (r *cursorRegistry) hasCurrentHold(ref ids.TxRef) bool {
 		return false
 	}
 	for _, c := range r.entries {
-		if c.hold && !c.promoted && c.tx == ref && c.position != cursorFailed {
+		if c.hold && !c.promoted && c.tx == ref && c.Place != cursorFailed {
 			return true
 		}
 	}
@@ -71,7 +71,7 @@ func (s *StatementScope) materializeHeldCursors() error {
 	// tests assert promotion independently of PostgreSQL's hash traversal order.
 	cursors := make([]*sqlCursor, 0, len(r.entries))
 	for _, c := range r.entries {
-		if c.hold && !c.promoted && c.tx == s.txRef && c.position != cursorFailed {
+		if c.hold && !c.promoted && c.tx == s.txRef && c.Place != cursorFailed {
 			cursors = append(cursors, c)
 		}
 	}
@@ -178,7 +178,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		s.routineDependencies = nil
 		authority.Host = nil
 		if err != nil {
-			c.position = cursorFailed
+			c.Place = cursorFailed
 			_ = c.dispose(s.op.Context())
 		}
 	}()
@@ -187,15 +187,15 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	}
 	var values []sqltype.Value
 	count := 0
-	savedOrdinal, savedPosition, savedEnd := c.ordinalPosition, c.position, c.atEnd
+	savedOrdinal, savedPosition, savedEnd := c.OrdinalPosition, c.Place, c.AtEnd
 	offset := savedOrdinal
 	if c.scroll {
-		if err = c.rewind(s.op.Context()); err != nil {
+		if err = c.Rewind(c.motionInput(s)); err != nil {
 			return err
 		}
 		offset = 0
 	}
-	if c.position != cursorAfter {
+	if c.Place != cursorAfter {
 		if err = c.openProducer(s); err != nil {
 			return err
 		}
@@ -228,7 +228,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		return err
 	}
 	c.values, c.count, c.storeOffset = values, count, offset
-	c.ordinalPosition, c.position, c.atEnd = savedOrdinal, savedPosition, savedEnd
+	c.OrdinalPosition, c.Place, c.AtEnd = savedOrdinal, savedPosition, savedEnd
 	c.authority = nil
 	c.tx = ids.TxRef{}
 	c.promoted = true
@@ -278,7 +278,7 @@ func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog ca
 func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor) (result Result, err error) {
 	defer func() {
 		if err != nil {
-			c.position = cursorFailed
+			c.Place = cursorFailed
 			_ = c.dispose(s.op.Context())
 		}
 	}()
@@ -287,7 +287,7 @@ func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor
 		rows = exec.NewFinalRows(c.schema, 0)
 		rows.Output = s.output
 	}
-	moved, err := c.motion(fetch, rows, s)
+	moved, err := c.Move(fetch, rows, c.motionInput(s))
 	if err != nil {
 		return Result{}, err
 	}

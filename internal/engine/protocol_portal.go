@@ -463,9 +463,9 @@ func (p *protocolPortal) next(ctx context.Context, values []sqltype.Value) (bool
 }
 
 func (c *sqlCursor) nextProtocolRow(ctx context.Context, values []sqltype.Value) (bool, error) {
-	present, err := c.stage.ProjectOrdinal(ctx, int(c.ordinalPosition), values)
+	present, err := c.stage.ProjectOrdinal(ctx, int(c.OrdinalPosition), values)
 	if present && err == nil {
-		c.ordinalPosition++
+		c.OrdinalPosition++
 	}
 	return present, err
 }

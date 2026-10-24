@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -24,16 +23,9 @@ type cursorRegistry struct {
 	ordinal uint64
 	token   ids.SessionToken
 }
-type cursorPosition uint8
-
-const (
-	cursorBefore cursorPosition = iota
-	cursorOn
-	cursorAfter
-	cursorFailed
-)
 
 type sqlCursor struct {
+	sqlCursorPosition
 	tx                                          ids.TxRef
 	ordinal                                     uint64
 	epoch                                       ids.CatalogEpoch
@@ -55,13 +47,8 @@ type sqlCursor struct {
 	snapshotFrontier                            ids.CommitSeq
 	foreignOwner                                *exec.ForeignScanOwner
 	rlsPrograms                                 []*rowSecurityProgram // Admitted clause state and nested source pins.
-	position                                    cursorPosition
 	scroll                                      bool
-	ordinalPosition                             int64
-	atEnd                                       bool
 	cleanupError                                error
-	currentSource                               *exec.Source
-	currentIndex                                int
 	leaves                                      []exec.Leaf
 	locks                                       *exec.LockContext
 	catalog                                     catalog.Read
@@ -81,7 +68,7 @@ type sqlCursor struct {
 // Producer teardown is distinct from disposing an exported result. Typed values
 // and schema own their codecs; no declaration catalog or execution survives.
 func (c *sqlCursor) releaseProducer(ctx context.Context) error {
-	c.currentSource, c.currentIndex = nil, 0
+	c.CurrentSource, c.CurrentIndex = nil, 0
 	var failure error
 	if c.stage != nil {
 		failure = c.stage.Close()
@@ -168,7 +155,7 @@ func (r *cursorRegistry) rollback(mark uint64) []*sqlCursor {
 func disposeSQLCursors(ctx context.Context, cursors []*sqlCursor) error {
 	var failure error
 	for _, cursor := range cursors {
-		alreadyFailed := cursor.position == cursorFailed
+		alreadyFailed := cursor.Place == cursorFailed
 		if err := cursor.dispose(ctx); failure == nil && !alreadyFailed {
 			failure = err
 		}
@@ -183,11 +170,6 @@ func (r *cursorRegistry) EndSession(token ids.SessionToken, _ session.EndReason)
 }
 func missingSQLCursor(name string) error {
 	return sqlError("34000", fmt.Sprintf("cursor \"%s\" does not exist", name))
-}
-func forwardSQLCursorError() error {
-	err := sqlError("55000", "cursor can only scan forward")
-	err.(*sqlstate.Error).Hint = "Declare it with SCROLL option to enable backward scan."
-	return err
 }
 
 func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, root plan.Node, source *exec.Source, parameters []sqltype.Value) (Result, error) {
@@ -279,6 +261,36 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	return c, name, nil
 }
 
+// sqlCursorProducer is a live cursor's producer for the motion its scope
+// admitted.
+type sqlCursorProducer struct {
+	cursor *sqlCursor
+	scope  *StatementScope
+}
+
+var _ cursorProducer = sqlCursorProducer{}
+
+func (p sqlCursorProducer) Context() context.Context { return p.scope.op.Context() }
+func (p sqlCursorProducer) Open() (*exec.Stage, error) {
+	if err := p.cursor.openProducer(p.scope); err != nil {
+		return nil, err
+	}
+	return p.cursor.stage, nil
+}
+func (p sqlCursorProducer) Exhausted() error {
+	return p.scope.finishForeignOwner(p.cursor.foreignOwner, nil)
+}
+
+// motionInput is the input of one motion admitted by s. A promoted cursor
+// reads its store and has no producer.
+func (c *sqlCursor) motionInput(s *StatementScope) cursorInput {
+	in := cursorInput{Stage: c.stage, Store: c.values, Count: c.count, Offset: c.storeOffset, Width: len(c.schema), Scroll: c.scroll}
+	if !c.promoted {
+		in.Producer = sqlCursorProducer{cursor: c, scope: s}
+	}
+	return in
+}
+
 // The operation, ticket, owner, command and write roots belong to the freshly
 // admitted FETCH; the initialized producer retains DECLARE's routine authority.
 func (c *sqlCursor) admit(s *StatementScope) {
@@ -350,7 +362,7 @@ func (s *StatementScope) validateCursorPortal(c *sqlCursor, name string) error {
 	if c.epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if c.position == cursorFailed {
+	if c.Place == cursorFailed {
 		return sqlError("55000", fmt.Sprintf("portal %q cannot be run", name))
 	}
 	return nil
@@ -379,7 +391,7 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 		s.routineAuth = AuthorizationView{}
 		s.routineDependencies = nil
 		if err != nil {
-			c.position = cursorFailed
+			c.Place = cursorFailed
 			_ = c.dispose(s.op.Context())
 		}
 		c.authority.Host = nil
@@ -392,13 +404,13 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 		rows = exec.NewFinalRows(c.schema, 0)
 		rows.Output = c.state.Output
 	}
-	moved, motionErr := c.motion(fetch, rows, s)
+	moved, motionErr := c.Move(fetch, rows, c.motionInput(s))
 	if motionErr != nil {
 		return Result{}, motionErr
 	}
 	// HOLD commit continues from the same live producer's next occurrence.
 	if c.stage != nil {
-		c.stage.Position = int(c.ordinalPosition)
+		c.stage.Position = int(c.OrdinalPosition)
 	}
 	if rows != nil {
 		if err := s.captureSQLCursorOutput(rows, c.catalog); err != nil {

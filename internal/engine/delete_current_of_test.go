@@ -19,11 +19,11 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 AS projected FROM unit_rows ORDER BY i FOR UPDATE")
 	c := payloadOf(s).cursors.entries["c"]
 	cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(99)}, {int64(99)}})
-	if c.authority.Host != nil || c.currentSource == nil || c.position != cursorOn {
+	if c.authority.Host != nil || c.CurrentSource == nil || c.Place != cursorOn {
 		t.Fatal("FETCH retained admission or lost physical occurrence", c)
 	}
 	ref := catalogRef(t, engineOf(s), engineOf(s).CatalogRead(), "unit_rows")
-	row := exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
+	row := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, c.locks)
 	engineOf(s).mu.Lock()
 	want := engineOf(s).storage.Relations[ref.Address].Versions[1].Row
 	engineOf(s).mu.Unlock()
@@ -31,16 +31,16 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 		t.Fatal("last returned occurrence is not physical row2", row.Row, want)
 	}
 	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
-	if exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks).Row != want {
+	if exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, c.locks).Row != want {
 		t.Fatal("DELETE moves or clears current identity")
 	}
 	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 0)
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
-	if c.position != cursorOn || c.currentSource == nil {
+	if c.Place != cursorOn || c.CurrentSource == nil {
 		t.Fatal("bounded final row probed EOF")
 	}
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{})
-	if c.position != cursorAfter || c.currentSource != nil {
+	if c.Place != cursorAfter || c.CurrentSource != nil {
 		t.Fatal("EOF retains current physical authority")
 	}
 }
@@ -80,7 +80,7 @@ func TestDeleteCurrentOfEligibility(t *testing.T) {
 		t.Fatal("transparent derived query loses physical scan")
 	}
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(1)}})
-	if got := exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, scan.Occurrence, c.locks); got.Row == 0 {
+	if got := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, scan.Occurrence, c.locks); got.Row == 0 {
 		t.Fatal("unlocked derived lineage lost identity")
 	}
 	for _, node := range []plan.Node{&plan.SortNode{Child: c.root}, &plan.AggregateNode{Child: c.root}, &plan.JoinNode{}, &plan.SetNode{}, &plan.DistinctNode{}, &plan.SingletonNode{}} {
@@ -134,7 +134,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 		t.Fatal("canceled Finish published private deletion", err)
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	if payloadOf(s).cursors.entries["c"] != cursor || cursor.position != cursorOn || cursor.authority.Host != nil {
+	if payloadOf(s).cursors.entries["c"] != cursor || cursor.Place != cursorOn || cursor.authority.Host != nil {
 		t.Fatal("mutation cancellation failed healthy cursor")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
@@ -152,7 +152,7 @@ func TestDeleteCurrentOfArbitration(t *testing.T) {
 	sessionSQL(t, worker, "DECLARE c CURSOR FOR SELECT 99 FROM t")
 	cursorUnitBatch(t, worker, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
 	cursor := payloadOf(worker).cursors.entries["c"]
-	identity := exec.CursorOccurrenceVersion(cursor.currentSource, cursor.currentIndex, 0, cursor.locks)
+	identity := exec.CursorOccurrenceVersion(cursor.CurrentSource, cursor.CurrentIndex, 0, cursor.locks)
 	tx := transactionBegin(t, holder)
 	deleteCount(t, holder, "DELETE FROM t WHERE v=7", 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -190,26 +190,26 @@ func TestDeleteCurrentOfLifetime(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT FROM unit_rows FOR UPDATE")
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{}})
 	old := payloadOf(s).cursors.entries["c"]
-	if old.currentSource == nil {
+	if old.CurrentSource == nil {
 		t.Fatal("zero-width result lost identity")
 	}
 	sessionSQL(t, s, "SAVEPOINT keep")
 	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
 	sessionSQL(t, s, "ROLLBACK TO keep")
-	if payloadOf(s).cursors.entries["c"] != old || old.currentSource == nil {
+	if payloadOf(s).cursors.entries["c"] != old || old.CurrentSource == nil {
 		t.Fatal("rollback rewinds or discards older current identity")
 	}
 	sessionSQL(t, s, "CLOSE c")
-	if old.currentSource != nil || old.source != nil || old.authority.Host != nil {
+	if old.CurrentSource != nil || old.source != nil || old.authority.Host != nil {
 		t.Fatal("dispose retains execution authority")
 	}
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM unit_rows")
 	fresh := payloadOf(s).cursors.entries["c"]
-	if fresh == old || fresh.currentSource != nil || fresh.position != cursorBefore {
+	if fresh == old || fresh.CurrentSource != nil || fresh.Place != cursorBefore {
 		t.Fatal("name incarnation inherited current identity")
 	}
 	sessionSQL(t, s, "ROLLBACK")
-	if len(payloadOf(s).cursors.entries) != 0 || fresh.currentSource != nil {
+	if len(payloadOf(s).cursors.entries) != 0 || fresh.CurrentSource != nil {
 		t.Fatal("transaction end retained cursor")
 	}
 }
@@ -242,7 +242,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 				t.Fatal("identity manifest changed semantic rowmark requirement")
 			}
 			cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(1)}, {int64(2)}})
-			source := c.currentSource
+			source := c.CurrentSource
 			for source != nil {
 				if source.Input != nil {
 					source = source.Input
@@ -252,7 +252,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 					break
 				}
 			}
-			if source == nil || c.authority.Host != nil || c.position != cursorOn {
+			if source == nil || c.authority.Host != nil || c.Place != cursorOn {
 				t.Fatal("FETCH lost retained lineage or retained admission")
 			}
 			if tc.join {
@@ -296,7 +296,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 				t.Fatal("physical target occurrence missing")
 			}
 			leaf := c.locks.Leaves[occurrence]
-			row := exec.CursorOccurrenceVersion(c.currentSource, c.currentIndex, occurrence, c.locks)
+			row := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, occurrence, c.locks)
 			engineOf(s).mu.Lock()
 			want := engineOf(s).storage.Relations[leaf.Leaf.Ref.Address].Versions[1].Row
 			engineOf(s).mu.Unlock()
