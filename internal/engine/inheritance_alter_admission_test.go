@@ -507,9 +507,9 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			// DROP itself owns its actual rowtype synchronization effects; the
 			// subsequent metadata helper correctly has nothing to cook again.
 			var dropTypes []catalog.Descriptor
-			for _, effect := range preparedDropOf(prepared.Steps[0].Drop).effects {
-				if effect.descriptor != nil {
-					dropTypes = append(dropTypes, effect.descriptor)
+			for _, effect := range preparedDropOf(prepared.Steps[0].Drop).Effects() {
+				if effect.Descriptor != nil {
+					dropTypes = append(dropTypes, effect.Descriptor)
 				}
 			}
 			assertPhase(dropTypes, []string{"a"})
@@ -608,7 +608,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			}
 			drop := preparedDropOf(prepared.Steps[1].Drop)
 			add := prepared.Steps[0]
-			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.HasAttribute(p.Attributes[p.Index["b"]]) || add.Old != drop.next || add.Added.Attribute == p.Attributes[p.Index["b"]] {
+			if drop.Old != p || drop.Ref != command.scope.lockedRef || drop.Next().HasAttribute(p.Attributes[p.Index["b"]]) || add.Old != drop.Next() || add.Added.Attribute == p.Attributes[p.Index["b"]] {
 				t.Fatal("mixed ADD cooked against original or guessed DROP shape")
 			}
 			cooked := prepared.Checks.Next

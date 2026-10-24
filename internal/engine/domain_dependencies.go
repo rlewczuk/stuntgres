@@ -136,77 +136,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	if err := provider.applyForeignKeyDependents(edges); err != nil {
 		return err
 	}
-	for _, old := range relations {
-		if provider.Removed(old.Address()) {
-			continue
-		}
-		// Whole-relation targets need no standalone shape projection or
-		// surviving-participant capability check.
-		if slices.Contains(targets, old.Address()) {
-			continue
-		}
-		ref := e.catalog.Domain.Ref(provider.base.Epoch(), old.Address())
-		next := old
-		consumed := false
-		for _, edge := range edges {
-			if edge.Column == "" || edge.Relation.Address() != old.Address() {
-				continue
-			}
-			if provider.Removed(old.Address()) {
-				break
-			}
-			if replacement, ok := provider.Replacement(old.Address()).(*catalog.Relation); ok {
-				next = replacement
-			}
-			// The closure captured a live stable attribute. A nested cascade
-			// may already have consumed it through a different provider path.
-			slot := next.IndexForAttribute(edge.Address.SubID)
-			if slot < 0 {
-				continue
-			}
-			if err = provider.InheritanceAlterGuard(next); err != nil {
-				return err
-			}
-			next, err = table.OrdinaryColumnDrop(provider, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.Columns[slot].Name}, Mode: parser.DropCascade})
-			if err != nil {
-				return err
-			}
-			consumed = true
-		}
-		if !consumed {
-			continue
-		}
-		if provider.Removed(old.Address()) {
-			continue
-		}
-		revision, er := provider.Revision(old.Revision())
-		if er != nil {
-			return er
-		}
-		next.ObjectRevision = revision
-		if err := provider.projectColumn(old, next); err != nil {
-			return err
-		}
-	}
-	for _, edge := range edges {
-		if edge.Domain == nil {
-			continue
-		}
-		if provider.Removed(edge.Domain.Address()) {
-			continue
-		}
-		if err := table.RemoveDomainCheck(provider, edge.Domain, edge.Address.ObjectID); err != nil {
-			return err
-		}
-	}
-	for _, target := range targets {
-		if table.RetiredProviderClass(target.ClassID) {
-			if err = provider.Remove(e.catalog.Domain.Ref(provider.base.Epoch(), target)); err != nil {
-				break
-			}
-		}
-	}
-	if err != nil {
+	if err := cascadeColumnDrops(provider, relations, edges, targets, provider.projectColumn); err != nil {
 		return err
 	}
 	provider.rewindNotices(noticeStart)

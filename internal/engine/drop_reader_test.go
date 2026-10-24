@@ -45,7 +45,7 @@ func TestDropReaderSeam(t *testing.T) {
 		t.Fatal("RetirementDescriptor must still read the removed relation")
 	}
 
-	prepared := &preparedDrop{base: read, discovery: read}
+	prepared := &preparedDrop{Base: read, Discovery: read}
 	var preparedReader view.DropReader = &dropProvider{base: read, prepared: prepared}
 	if input, ok := preparedReader.DefinitionInput().(*preparedDrop); !ok || input != prepared {
 		t.Fatalf("prepared DefinitionInput = %T, want the preparation", preparedReader.DefinitionInput())

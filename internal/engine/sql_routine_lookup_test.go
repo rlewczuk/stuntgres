@@ -121,7 +121,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	if call, ok := node.(plan.SQLRoutineExpr); !ok || call.Procedure != added {
 		t.Fatal("selected wrong staged provider")
 	}
-	prepared := &preparedDrop{base: base, discovery: base, input: reader}
+	prepared := &preparedDrop{Base: base, Discovery: base, Input: reader}
 	identity := &preparedIdentityDrop{drop: prepared}
 	for _, projected := range []catalog.DefinitionReader{prepared, identity} {
 		if !projected.HasDynamicProcedureName(added.Name()) {

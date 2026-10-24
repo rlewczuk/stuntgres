@@ -82,15 +82,14 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 	}
 	// An earlier genuine observation is never overwritten by the refresh.
 	observed := fresh.Catalog.Get(ref.Address)
-	if prior, captured := provider.prepared.observed[ref.Address]; captured && prior != observed {
+	if !provider.prepared.CaptureObservation(ref.Address, observed) {
 		return capture, ids.ErrCatalogReplaced
 	}
-	provider.prepared.observed[ref.Address] = observed
-	provider.prepared.grants = append(provider.prepared.grants, ref)
+	provider.prepared.Grants = append(provider.prepared.Grants, ref)
 	provider.base = fresh.Catalog
-	provider.prepared.discovery = fresh.Catalog
+	provider.prepared.Discovery = fresh.Catalog
 	provider.identitySource = sequence
-	provider.prepared.recordEffect(dropEffect{identityRoots: []ids.ObjectAddress{ref.Address}, identityState: e.catalog.state})
+	provider.prepared.RecordEffect(dropEffect{IdentityRoots: []ids.ObjectAddress{ref.Address}, IdentityState: e.catalog.state})
 	return identityDropCapture{sequence: ref, original: e.catalog.state.Get(ref.Address)}, nil
 }
 
