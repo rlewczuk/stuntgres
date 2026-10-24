@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -72,22 +73,6 @@ func TestReferenceMaterializedRefreshConcurrentTransactions(t *testing.T) {
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}
-			if !b.PG {
-				tx, err := conn.BeginTx(p.Ctx, nil)
-				if err != nil {
-					t.Fatal(err)
-				}
-				fixture.QueryLockRollbackCleanup(t, tx)
-				fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.ErrorDiagnostic(concurrentRefreshSQL, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")))
-				fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.ErrorDiagnostic("SELECT 1", fixture.TransactionAborted()))
-				if err := tx.Rollback(); err != nil {
-					t.Fatal(err)
-				}
-				run(concurrentOld())
-				run(fixture.Exec(concurrentRefreshSQL, 0))
-				run(concurrentNew())
-				return
-			}
 			for _, commit := range []bool{false, true} {
 				tx, err := conn.BeginTx(p.Ctx, nil)
 				if err != nil {
@@ -102,53 +87,57 @@ func TestReferenceMaterializedRefreshConcurrentTransactions(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				pid := fixture.LockPID(t, p.Ctx, worker)
-				blocker := fixture.LockPID(t, p.Ctx, conn)
-				oid := fixture.LockOID(t, p.Ctx, "concurrent_mv")
-				ctx, cancel := context.WithTimeout(p.Ctx, 10*time.Second)
-				done := make(chan refreshQueuedOutcome, 1)
-				joined := false
-				func() {
-					defer worker.Close()
-					defer func() {
-						cancel()
-						tx.Rollback()
-						if !joined {
-							cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
-							defer stop()
-							select {
-							case <-done:
-							case <-cleanup.Done():
-								t.Error("transaction worker cleanup", cleanup.Err())
-							}
-						}
-					}()
-					go refreshQueuedFirst(ctx, worker, concurrentRefreshSQL, done)
-					fixture.LockWaitBehind(t, ctx, pid, blocker, oid, "ExclusiveLock")
-					if commit {
-						if err = tx.Commit(); err != nil {
-							t.Fatal(err)
-						}
-						refreshQueuedJoin(t, ctx, done, &joined)
-					} else {
+				defer worker.Close()
+				pid, blocker := 0, 0
+				var oid int64
+				if b.PG {
+					pid = fixture.LockPID(t, p.Ctx, worker)
+					blocker = fixture.LockPID(t, p.Ctx, conn)
+					oid = fixture.LockOID(t, p.Ctx, "concurrent_mv")
+				}
+				ctx, cancel := context.WithCancel(p.Ctx)
+				defer cancel()
+				finished := make(chan struct{})
+				join := fixture.LockOperation(t, ctx, func(ctx context.Context) fixture.RelationOutcome {
+					defer close(finished)
+					result, err := worker.ExecContext(ctx, concurrentRefreshSQL)
+					return fixture.RelationOutcome{Result: result, Err: err}
+				})
+				fixture.RelationLockPending(t, p, b, pid, blocker, oid, "ExclusiveLock", finished)
+				if commit {
+					if err := tx.Commit(); err != nil {
+						t.Fatal(err)
+					}
+					outcome := join()
+					if outcome.Err != nil {
+						t.Fatal(outcome.Err)
+					}
+					n, err := outcome.Result.RowsAffected()
+					if err != nil || n != 0 {
+						t.Fatal(n, err)
+					}
+				} else {
+					if b.PG {
 						var signaled bool
-						if err := fixture.Admin.QueryRowContext(ctx, "SELECT pg_cancel_backend($1)", pid).Scan(&signaled); err != nil || !signaled {
+						if err := fixture.Admin.QueryRowContext(p.Ctx, "SELECT pg_cancel_backend($1)", pid).Scan(&signaled); err != nil || !signaled {
 							t.Fatal("cancel queued transaction refresh", signaled, err)
 						}
-						select {
-						case outcome := <-done:
-							joined = true
-							d := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to user request")
-							fixture.AssertDiagnostic(t, outcome.err, &d)
-						case <-ctx.Done():
-							t.Fatal(ctx.Err())
-						}
-						if err = tx.Rollback(); err != nil {
-							t.Fatal(err)
-						}
-						run(concurrentOld())
+					} else {
+						cancel()
 					}
-				}()
+					outcome := join()
+					if b.PG {
+						d := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to user request")
+						fixture.AssertDiagnostic(t, outcome.Err, &d)
+					} else if !errors.Is(outcome.Err, context.Canceled) {
+						t.Fatal("native queued cancellation", outcome.Err)
+					}
+					if err := tx.Rollback(); err != nil {
+						t.Fatal(err)
+					}
+					run(concurrentOld())
+					fixture.RunStep(t, p.Ctx, worker, b.Recorder, fixture.Select("SELECT 42 AS n", []string{"n"}, []string{"INT4"}, [][]any{{int64(42)}}))
+				}
 				if commit {
 					run(concurrentNew())
 				} else {

@@ -3,9 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"reflect"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
@@ -186,8 +184,7 @@ func vacuumMaterializedPreflight(t *testing.T) {
 	}
 }
 
-// Fresh REFRESH after BEGIN is an existing native capability boundary even
-// with genuine command admission. Retained implicit messages above are distinct.
+// Explicit refresh stages immutable roots and maintenance until the outer end.
 func vacuumMaterializedExplicitBoundary(t *testing.T) {
 	for _, concurrent := range []bool{false, true} {
 		t.Run(map[bool]string{false: "ordinary", true: "concurrent"}[concurrent], func(t *testing.T) {
@@ -208,28 +205,46 @@ func vacuumMaterializedExplicitBoundary(t *testing.T) {
 				q += "CONCURRENTLY "
 			}
 			q += "explicit_mv"
-			_, err := m.step(statement(t, q))
-			var diagnostic *sqlstate.Error
-			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "statement is unsupported in an explicit transaction"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
-				t.Fatal("explicit refresh boundary", diagnostic, err, want)
-			}
-			if finishErr := m.end(err); finishErr != err {
-				t.Fatal("message lost explicit error", finishErr, err)
-			}
-			op, err := s.Acquire(context.Background())
-			if err != nil {
+			if _, err := m.step(statement(t, q)); err != nil {
 				t.Fatal(err)
 			}
-			_, err = e.Execute(op, statement(t, "SELECT 1"), 0, nil)
-			op.Done()
-			want = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
-				t.Fatal("explicit refresh abort boundary", diagnostic, err, want)
+			if err := m.end(nil); err != nil {
+				t.Fatal(err)
+			}
+			shape := s.Transactions.Catalog.Storage[ref.Address]
+			if shape.Original != store || shape.Replacement == nil || shape.Replacement == store || !storage.SameVersionRoot(shape.Root, root) || shape.Ends != ends || shape.Generation != generation {
+				t.Fatal("explicit replacement lost committed predecessor", shape)
+			}
+			if e.catalog.state != base || e.storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
+				t.Fatal("private explicit refresh changed published roots/facts")
 			}
 			sessionSQL(t, s, "ROLLBACK")
 			if e.catalog.state != base || e.storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
-				t.Fatal("rejected explicit refresh changed published roots/facts")
+				t.Fatal("rolled-back explicit refresh changed published roots/facts")
+			}
+			lockEmpty(t, e)
+			sessionSQL(t, s, "BEGIN")
+			sessionSQL(t, s, q)
+			private := s.Transactions.Catalog.Storage[ref.Address].Replacement
+			sessionSQL(t, s, "COMMIT")
+			if e.storage.Relations[ref.Address] != private || private == store || len(private.Versions) != 2 || private.Maintenance.VacuumCount != facts.VacuumCount || private.Maintenance.LastVacuum != facts.LastVacuum {
+				t.Fatal("explicit commit lost replacement or cumulative maintenance")
+			}
+			maintenance := private.Maintenance
+			if maintenance.Scanned != facts.Scanned || maintenance.Tuples != facts.Tuples || maintenance.Updates != facts.Updates || maintenance.Deletes != facts.Deletes || maintenance.Inserts != facts.Inserts+2 || maintenance.Modifications != facts.Modifications+2 || maintenance.InsertsSince != facts.InsertsSince+2 || maintenance.Live != 2 || maintenance.Dead != 0 {
+				t.Fatal("explicit commit lost final maintenance deltas", facts, maintenance)
+			}
+			publisher := private.Versions[0].InsertFullXID
+			if publisher < 3 || maintenance.FrozenXID != publisher {
+				t.Fatal("explicit replacement retained obsolete freezing horizon", publisher, maintenance)
+			}
+			for _, row := range private.Versions {
+				if row.Frozen || row.ImportFrozen || row.InsertFullXID != publisher {
+					t.Fatal("explicit replacement lacks final publisher provenance", row)
+				}
+			}
+			if !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
+				t.Fatal("explicit commit mutated predecessor")
 			}
 			lockEmpty(t, e)
 		})

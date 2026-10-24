@@ -246,10 +246,10 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
 - `transactionalSchemaUtility` is the shared bounded Describe/Execute admission
   policy: permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA,
   shipped ALTER TABLE forms, trigger ALTER/DROP, CREATE/OR REPLACE/ALTER/DROP VIEW
-  and CREATE/ALTER/DROP MATERIALIZED VIEW use the existing transaction journal.
-  CREATE TRIGGER and REFRESH retain their independent utility policies. Generic
-  OWNER admits only tables; feature-specific view/materialized OWNER is AlterView.
-  Nontransactional concurrent variants keep their independent restrictions.
+  and CREATE/ALTER/DROP MATERIALIZED VIEW plus ordinary/concurrent REFRESH use the
+  existing transaction journal. CREATE TRIGGER retains its independent utility
+  policy. Generic OWNER admits only tables; feature-specific view/materialized
+  OWNER is AlterView. Concurrent index variants keep their independent restrictions.
 - Ordinary non-concurrent CREATE INDEX (including UNIQUE and shipped methods)
   is admitted separately at Execute. It uses the same private catalog/storage,
   journal, Finish and combined publication path as table/schema DDL. Its canonical
@@ -283,6 +283,14 @@ Creation WITH NO DATA has no demanded producer; REFRESH WITH NO DATA still has
 a pending replacement. Completed metadata-only index maintenance owns neither
 producer state and does not retain this role-read fence. Savepoints restore
 producer fences with the same journal as their rows and storage predecessors.
+
+Refresh replacements retain the first committed predecessor and only the latest
+private row/index candidates. Savepoints restore those roots and population with
+the owner's source writes; combined publication installs them once. Refresh takes
+AccessExclusive (ordinary) or Exclusive (concurrent) on the existing transaction
+ticket through transaction end. A queued refresh keeps its admitted source
+snapshot rather than silently recapturing after the wait. Only uninterrupted
+concurrent replacements preserve the concurrent-reader lineage.
 
 - `session.ExplicitUtility` admits the shipped COMMENT kinds (TABLE, COLUMN,
   FOREIGN TABLE, SCHEMA, ROLE and SEQUENCE) in SQL BEGIN and Go BeginTx.

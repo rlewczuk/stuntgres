@@ -87,11 +87,13 @@ ordinary SQL errors leave the connection reusable.
   supported ALTER TABLE forms, ALTER/DROP TRIGGER, ordinary DROP INDEX and
   ALTER INDEX rename/SET/RESET, CREATE/OR REPLACE/ALTER/DROP VIEW and
   CREATE/ALTER/DROP MATERIALIZED VIEW see earlier successful own changes.
-  Peers see the complete definitions and rows only after commit.
+  Ordinary and concurrent REFRESH consume earlier own source writes and keep
+  stored rows, indexes and population private until commit. Peers see the complete
+  definitions and rows only after commit.
   Rollback/savepoints restore definitions, dependencies and data together;
   sequence counters are not rewound. Autocommit uses the same supported forms.
-  Feature-specific view/materialized OWNER is included; generic ownership and
-  REFRESH keep their separate transaction boundaries.
+  Feature-specific view/materialized OWNER is included; generic ownership keeps
+  its separate transaction boundaries.
 - A Go transaction handle outlived by a SQL `COMMIT`/`ROLLBACK`/`AND CHAIN` boundary
   returns `stuntgres: stale transaction reference` instead of ending newer work.
 - Under `SERIALIZABLE`, retry the whole transaction on SQLSTATE 40001.

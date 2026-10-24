@@ -15,13 +15,13 @@ func TestTransactionalSchemaAdmission(t *testing.T) {
 		&parser.CreateView{}, &parser.AlterView{}, &parser.AlterView{Materialized: true},
 		&parser.DropView{}, &parser.DropView{Materialized: true},
 		&parser.CreateQueryTable{Form: parser.CreateMaterializedView},
+		&parser.RefreshMaterializedView{}, statement(t, "REFRESH MATERIALIZED VIEW CONCURRENTLY admission_mv"),
 	} {
 		if !transactionalSchemaUtility(stmt) {
 			t.Errorf("missing admission: %T", stmt)
 		}
 	}
 	for _, stmt := range []parser.Statement{
-		&parser.RefreshMaterializedView{},
 		&parser.AlterOwner{Kind: "view"}, &parser.AlterOwner{Kind: "type"}, &parser.AlterOwner{Kind: "domain"}, &parser.AlterOwner{Kind: "database"},
 		&parser.CreateDatabaseStmt{}, &parser.CreateTablespace{}, &parser.CreateIndex{}, &parser.DropIndex{},
 		&parser.CreateComposite{}, &parser.CreateDomain{}, &parser.CreateFunction{}, &parser.CreateRole{}, &parser.Comment{},

@@ -25,23 +25,6 @@ func TestReferenceMaterializedRefreshTransactions(t *testing.T) {
 					}
 				}
 			}
-			if !b.PG {
-				for _, suffix := range []string{"WITH DATA", "WITH NO DATA"} {
-					tx, err := conn.BeginTx(p.Ctx, nil)
-					if err != nil {
-						t.Fatal(err)
-					}
-					fixture.QueryLockRollbackCleanup(t, tx)
-					fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.ErrorDiagnostic("REFRESH MATERIALIZED VIEW refresh_mv "+suffix, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")))
-					fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.ErrorDiagnostic("SELECT 1", fixture.TransactionAborted()))
-					if err := tx.Rollback(); err != nil {
-						t.Fatal(err)
-					}
-					run(materializedViewBag("refresh_mv"))
-				}
-				return
-			}
-			// PostgreSQL transactional refresh is a server complement, not native DDL TX support.
 			for _, commit := range []bool{false, true} {
 				tx, err := conn.BeginTx(p.Ctx, nil)
 				if err != nil {
