@@ -13,10 +13,7 @@ func bindInsertReturning(b *Binding, binder *Binder, auth Authority, s *parser.I
 	binder.Query.Auth = auth
 	target := binder.mutationTargetNamespace()
 	binder.Query.Namespace = &target
-	binder.Query.Hidden = nil
-	if s.Alias.Text != "" {
-		binder.Query.Hidden = append(binder.Query.Hidden, target.Qualifiers[0])
-	}
+	binder.Query.Hidden = target.Qualifiers
 	if s.Conflict != nil && s.Conflict.Update {
 		binder.Query.Hidden = append(binder.Query.Hidden, QueryQualifier{Name: "excluded", Original: "excluded", LateralForbidden: true})
 	}

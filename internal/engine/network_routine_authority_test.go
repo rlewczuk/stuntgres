@@ -52,6 +52,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.Query.Auth, binder.Target.Ref = &auth, ref
 			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
+			bindTestTargetNamespace(binder)
 			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {

@@ -41,8 +41,7 @@ func TestArrayCompareVisitors(t *testing.T) {
 	literal := LiteralExpr{}
 	position := Position{Offset: 31, Character: 29}
 	qualified := ColumnExpr{
-		Name:             ObjectName{Parts: []Identifier{{Text: "t"}, {Text: "x"}}},
-		QualificationPos: position,
+		Name: ObjectName{Parts: []Identifier{{Text: "t"}, {Text: "x"}}},
 	}
 	property := FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: "pg_index_has_property"}}}, Pos: position}
 	stringCall := FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: "lower"}}}, Args: []Expr{literal}}
@@ -58,19 +57,6 @@ func TestArrayCompareVisitors(t *testing.T) {
 	for _, form := range forms {
 		t.Run(form.name, func(t *testing.T) {
 			raw := form.make(qualified)
-			if token, reject := nonqueryQualification(raw, true); token == nil || token.pos != position || !reject {
-				t.Fatal(token, reject)
-			}
-			if token := deleteQualification(raw, true); token == nil || token.pos != position {
-				t.Fatal(token)
-			}
-			marked := groupedQualification(raw)
-			if token, reject := nonqueryQualification(marked, true); token == nil || token.pos != position || reject {
-				t.Fatal(token, reject)
-			}
-			if token, reject := nonqueryQualification(raw, true); token == nil || !reject {
-				t.Fatal("grouping mutated original syntax", token, reject)
-			}
 			if pos, found := firstDefaultIndexProperty(form.make(property)); !found || pos != position {
 				t.Fatal(pos, found)
 			}
@@ -81,9 +67,6 @@ func TestArrayCompareVisitors(t *testing.T) {
 				t.Fatal("qualified child lost")
 			}
 			lexer := &lexer{}
-			if lexer.scalarInputTree(raw) {
-				t.Fatal("non-scalar child lost")
-			}
 			if !lexer.scalarInputTree(form.make(literal)) {
 				t.Fatal("scalar predicate rejected")
 			}

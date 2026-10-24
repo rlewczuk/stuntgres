@@ -44,9 +44,4 @@ func TestConditionalGrammar(t *testing.T) {
 	if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
 		t.Fatal(statements, err)
 	}
-	for _, q := range []string{"INSERT INTO t VALUES(COALESCE(NULL,v))", "INSERT INTO t VALUES(CASE WHEN TRUE THEN 1 ELSE v END)", "SELECT COALESCE(VARIADIC v) FROM t"} {
-		if _, err := Parse(q); err == nil {
-			t.Fatal("invalid admission", q)
-		}
-	}
 }

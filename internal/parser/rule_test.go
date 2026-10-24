@@ -47,9 +47,6 @@ func TestRuleGrammar(t *testing.T) {
 				}
 			}
 		}
-		if _, err := Parse("CREATE RULE r AS ON INSERT TO src DO NOTHING; INSERT INTO sink VALUES(sink.id)"); err == nil {
-			t.Fatal("rule expression context escaped its definition")
-		}
 	})
 	t.Run("owned_with_mutation_actions", func(t *testing.T) {
 		statements, err := Parse("CREATE RULE r AS ON UPDATE TO src DO (WITH q AS (SELECT 1 AS id) INSERT INTO sink SELECT id FROM q; WITH q AS (SELECT 1 AS id) UPDATE sink SET id=q.id FROM q; WITH q AS (SELECT 1 AS id) DELETE FROM sink USING q WHERE sink.id=q.id); SELECT 1")

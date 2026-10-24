@@ -42,21 +42,20 @@ func TestReferenceQueryJoinsRetainsScalarInputBoundaries(t *testing.T) {
 	const detail = `There is an entry for table "a", but it cannot be referenced from this part of the query.`
 	for _, backend := range p.Backends() {
 		for _, tc := range []struct {
-			q          string
-			native, pg fixture.Diagnostic
-			pgExecute  bool
+			q       string
+			want    fixture.Diagnostic
+			execute bool
 		}{
-			{"CREATE TABLE bad(v INT DEFAULT a.k)", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "."`, Position: "33"}, fixture.Diagnostic{Code: "0A000", Message: "cannot use column reference in DEFAULT expression", Position: "32"}, true},
-			{"INSERT INTO a(k) VALUES(a.k)", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "."`, Position: "26"}, fixture.Diagnostic{Code: "42P01", Message: `invalid reference to FROM-clause entry for table "a"`, Detail: detail, Position: "25"}, false},
-			{"SELECT current_setting(a.k)", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "."`, Position: "25"}, fixture.Diagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "a"`, Position: "24"}, false},
-			{"INSERT INTO a(k) VALUES(COALESCE(a.k,1))", fixture.Diagnostic{Code: "0A000", Message: "column references are unsupported in scalar inputs", Position: "34"}, fixture.Diagnostic{Code: "42P01", Message: `invalid reference to FROM-clause entry for table "a"`, Detail: detail, Position: "34"}, false},
+			{"CREATE TABLE bad(v INT DEFAULT a.k)", fixture.Diagnostic{Code: "0A000", Message: "cannot use column reference in DEFAULT expression", Position: "32"}, true},
+			{"INSERT INTO a(k) VALUES(a.k)", fixture.Diagnostic{Code: "42P01", Message: `invalid reference to FROM-clause entry for table "a"`, Detail: detail, Position: "25"}, false},
+			{"SELECT current_setting(a.k)", fixture.Diagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "a"`, Position: "24"}, false},
+			{"SELECT current_setting(public.a.k)", fixture.Diagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "a"`, Position: "24"}, false},
+			{"SELECT current_setting(CAST(a.k AS text))", fixture.Diagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "a"`, Position: "29"}, false},
+			{"SELECT current_setting(CAST(public.a.k AS text))", fixture.Diagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "a"`, Position: "29"}, false},
+			{"INSERT INTO a(k) VALUES(COALESCE(a.k,1))", fixture.Diagnostic{Code: "42P01", Message: `invalid reference to FROM-clause entry for table "a"`, Detail: detail, Position: "34"}, false},
 		} {
-			want := tc.native
-			if backend.PG {
-				want = tc.pg
-			}
-			queryJoinsScalarFailure(t, p, backend, tc.q, want, false, false)
-			queryJoinsScalarFailure(t, p, backend, tc.q, want, true, backend.PG && tc.pgExecute)
+			queryJoinsScalarFailure(t, p, backend, tc.q, tc.want, false, false)
+			queryJoinsScalarFailure(t, p, backend, tc.q, tc.want, true, tc.execute)
 		}
 		want := fixture.Diagnostic{Code: "0A000", Message: "cannot use column reference in DEFAULT expression", Position: "41"}
 		q := "CREATE TABLE bad(v INT DEFAULT COALESCE(a.k,1))"

@@ -62,16 +62,19 @@ func TestReferenceArithmeticMigratedDeleteSmoke(t *testing.T) {
 			if err := referenceMigratedRows(rows, err, []string{"id", "i"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(7)}, {int64(2), int64(0)}, {int64(3), nil}}); err != nil {
 				t.Fatal(err)
 			}
-			if backend.PG {
-				fixture.RunStep(t, ctx, db, backend.Recorder, fixture.Exec("DELETE FROM fail WHERE fail.i+1=8", 1))
-				return
-			}
-			result, err = db.ExecContext(ctx, "DELETE FROM fail WHERE fail.i+1=8")
-			if result != nil {
-				t.Fatal("qualified arithmetic exposed result")
-			}
-			if err := referenceMigratedDiagnostic(t, err, stuntgres.Error{Code: "42601", Message: `syntax error at or near "+"`, Position: "30"}); err != nil {
-				t.Fatal(err)
+			for _, prepared := range []bool{false, true} {
+				tx, err := db.BeginTx(ctx, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				step := fixture.Exec("DELETE FROM fail WHERE fail.i+1=8", 1)
+				step.Prepared = prepared
+				fixture.RunStep(t, ctx, tx, backend.Recorder, step)
+				fixture.RunStep(t, ctx, tx, backend.Recorder, fixture.Select("SELECT id,i FROM fail ORDER BY id", []string{"id", "i"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(0)}, {int64(3), nil}}))
+				if err := tx.Rollback(); err != nil {
+					t.Fatal(err)
+				}
+				fixture.RunStep(t, ctx, db, backend.Recorder, fixture.Select("SELECT id,i FROM fail ORDER BY id", []string{"id", "i"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(7)}, {int64(2), int64(0)}, {int64(3), nil}}))
 			}
 		})
 	}

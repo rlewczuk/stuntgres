@@ -40,8 +40,6 @@ func (b *Binder) resolveIntaggAggregate(raw parser.AggregateExpr, call parser.Fu
 }
 
 func (b *Binder) bindIntaggAggregate(raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, error) {
-	// As with SUM/bitwise aggregates, VALUES has no input namespace.
-	defer b.valuesAggregateNamespace()()
 	callRaw := parser.FunctionExpr{Name: name, Args: raw.Args, Star: raw.Star, Variadic: raw.Variadic, Pos: raw.Pos}
 	arg, proc, ref, filter, err := b.resolveIntaggAggregate(raw, callRaw)
 	if err != nil {

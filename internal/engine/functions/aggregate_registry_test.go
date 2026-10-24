@@ -52,10 +52,6 @@ func TestLookupAggregateClaimsRegisteredNames(t *testing.T) {
 	}
 	for _, name := range claimed {
 		definition, _ := LookupAggregate(name)
-		values := name == "sum" || name == "bit_and" || name == "bit_or" || name == "bit_xor"
-		if definition.ValuesNamespace != values {
-			t.Errorf("aggregate %q ValuesNamespace = %v", name, definition.ValuesNamespace)
-		}
 		if (definition.Window == nil) != OrderedSetName(name) {
 			t.Errorf("aggregate %q: window signature presence is wrong", name)
 		}

@@ -54,13 +54,6 @@ func (b *Binder) EnterQuery(disallowParent bool) func() {
 	parent.rowDiagnosticMode = b.Query.rowDiagnosticMode
 	parent.windowRaw, parent.windowDefinitions, parent.windowCalls = b.Grouping.windowRaw, b.Grouping.windowDefinitions, b.Grouping.WindowCalls
 	parent.argumentOwner = b.Grouping.ArgumentOwner
-	// Only the initial mutation owner can supply this fallback. Before a
-	// nested SELECT's FROM is bound, its nil namespace must not impersonate
-	// the retained mutation relation in an intermediate query frame.
-	if parent.namespace == nil && b.Query.Frame == 0 && b.Target.Relation != nil && (b.Params.UpdateParameters || b.Target.deleteTarget) {
-		ns := b.mutationTargetNamespace()
-		parent.namespace = &ns
-	}
 	oldFrame := b.Query.Frame
 	if b.Query.NextQueryFrame == 0 {
 		b.Query.NextQueryFrame = 1

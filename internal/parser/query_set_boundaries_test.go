@@ -6,7 +6,7 @@ import (
 )
 
 func TestQuerySetInsertScalarBoundaries(t *testing.T) {
-	for _, cell := range []string{"v+1", "CAST(v AS INT)", "COALESCE(NULL,v)", "CASE WHEN TRUE THEN 1 ELSE v END", "length(v)", "abs(1)", "TRUE AND FALSE", "t.v"} {
+	for _, cell := range []string{"abs(1)", "TRUE AND FALSE"} {
 		for _, shape := range []string{"VALUES(%s) ORDER BY 1", "VALUES(%s) LIMIT 1", "(VALUES(%s) LIMIT 1)", "((VALUES(%s) ORDER BY 1 LIMIT 1))"} {
 			q := "CREATE TABLE prefix(v INT); /*é*/ INSERT INTO t " + fmt.Sprintf(shape, cell)
 			statements, err := Parse(q)

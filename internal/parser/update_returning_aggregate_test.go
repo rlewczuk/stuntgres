@@ -18,12 +18,6 @@ func TestUpdateReturningAggregateSyntax(t *testing.T) {
 	if _, ok := aggregate.Args[0].(ConditionalExpr); !ok {
 		t.Fatal("aggregate argument discarded", aggregate.Args[0])
 	}
-	for _, q := range []string{"INSERT INTO t(id) VALUES(sum(t.id))"} {
-		statements, err := Parse(q)
-		if err == nil || statements != nil {
-			t.Fatal("aggregate child bypassed scalar qualification/input guard", q, statements, err)
-		}
-	}
 	for _, q := range []string{"UPDATE t SET id=sum(old.id)", "UPDATE t SET id=1 WHERE sum(old.id)=1"} {
 		statements, err := Parse(q)
 		if err != nil || len(statements) != 1 {

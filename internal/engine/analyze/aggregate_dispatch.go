@@ -13,9 +13,6 @@ import (
 // It returns the bound node, not yet owned, and the SQL/JSON RETURNING usage
 // that the caller applies after ownership (zero when absent).
 func (b *Binder) BindRegisteredAggregate(raw parser.AggregateExpr, name parser.ObjectName, definition functions.AggregateDefinition) (expr.Expr, sqltype.Usage, error) {
-	if definition.ValuesNamespace {
-		defer b.valuesAggregateNamespace()()
-	}
 	if definition.BindReturning != nil {
 		return definition.BindReturning(b, raw, name)
 	}
@@ -39,26 +36,6 @@ func (b *Binder) aggregateReturning(raw parser.AggregateExpr, node expr.Expr, re
 	}
 	info.Property = CoercionProperties(node, coercionPlan)
 	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
-}
-
-// valuesAggregateNamespace gives a call bound in INSERT ... VALUES, which has
-// no source namespace, an empty one in which the insert target is only an
-// inaccessible diagnostic candidate: it is never added to the source
-// namespace or read manifest. The returned function restores the binder.
-func (b *Binder) valuesAggregateNamespace() func() {
-	if b.Clause.AggregateClause != "INSERT VALUES" || b.Query.Namespace != nil {
-		return func() {}
-	}
-	b.Query.Namespace = &QueryNamespace{}
-	hidden := b.Query.Hidden
-	if target := b.Target.InsertTarget; target != nil {
-		columns := make([]QueryColumn, len(target.Columns))
-		for i, descriptor := range target.Columns {
-			columns[i].Descriptor = descriptor
-		}
-		b.Query.Hidden = append(b.Query.Hidden, QueryQualifier{Name: target.Name(), Columns: columns, LateralForbidden: true})
-	}
-	return func() { b.Query.Namespace, b.Query.Hidden = nil, hidden }
 }
 
 // rejectOrdinaryWithin analyzes WITHIN GROUP on an aggregate that is not an

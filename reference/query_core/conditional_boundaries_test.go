@@ -1,8 +1,6 @@
 package reference_test
 
 import (
-	"errors"
-	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -35,14 +33,10 @@ func TestReferenceConditionalQualifiedConsumerBoundary(t *testing.T) {
 			fixture.ScalarRunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Select("SELECT v FROM t ORDER BY id", []string{"v"}, []string{"INT4"}, [][]any{{int64(20)}, {int64(30)}}))
 		}
 		for _, q := range []string{"DELETE FROM t WHERE CAST(COALESCE(t.v,1) AS int4)=1"} {
-			if backend.PG {
-				fixture.ScalarRunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
-			} else {
-				_, err := backend.DB.ExecContext(p.Ctx, q)
-				var d *stuntgres.Error
-				if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "qualified column references are unsupported" || d.Position == "" {
-					t.Fatal(q, err)
-				}
+			for _, prepared := range []bool{false, true} {
+				step := fixture.Exec(q, 0)
+				step.Prepared = prepared
+				fixture.ScalarRunStep(t, p.Ctx, backend.DB, backend.Recorder, step)
 			}
 			fixture.ScalarRunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Select("SELECT v FROM t ORDER BY id", []string{"v"}, []string{"INT4"}, [][]any{{int64(20)}, {int64(30)}}))
 		}

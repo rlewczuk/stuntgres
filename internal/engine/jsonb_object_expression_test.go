@@ -185,6 +185,7 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 		Columns:    []catalog.Column{{Name: "a", Usage: array}, {Name: "v", Usage: array}},
 		Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "v": 1},
 	}
+	bindTestTargetNamespace(b)
 	node, err := b.Bind(statement(t, "SELECT jsonb_object(a,v)").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || !node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
 		t.Fatal(node, err)

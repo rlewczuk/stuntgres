@@ -34,15 +34,6 @@ func TestAggregateModifiersGrammar(t *testing.T) {
 	if !call.Star || call.Filter == nil || call.Pos.Character != 14 {
 		t.Fatal(call)
 	}
-	key := ColumnExpr{Name: ObjectName{Parts: []Identifier{{Text: "t"}, {Text: "v"}}}, QualificationPos: Position{Character: 7}}
-	raw := AggregateExpr{Name: "count", Star: true, Filter: key}
-	if token, _ := nonqueryQualification(raw, false); token == nil || token.pos.Character != 7 {
-		t.Fatal("FILTER qualification not visited", token)
-	}
-	grouped := groupedQualification(raw).(AggregateExpr)
-	if !grouped.Filter.(ColumnExpr).QualificationGrouped {
-		t.Fatal("FILTER grouping not retained")
-	}
 }
 
 func TestAggregateModifiersStarSyntax(t *testing.T) {

@@ -412,6 +412,7 @@ func TestArrayRelationalUsage(t *testing.T) {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				b.Clause.AggregateClause = "SELECT"
 				b.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: tc.input}}, Attributes: []int32{1}, Index: map[string]int{"a": 0}}
+				bindTestTargetNamespace(b)
 				var input parser.Expr = parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "a"}}}}
 				position := parser.Position{Character: 20}
 				if tc.collated {

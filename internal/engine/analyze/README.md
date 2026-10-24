@@ -97,10 +97,14 @@ library, and never the root engine or `session`. The engine, the root driver
   `LockAdmission` from syntax before binding; the engine holds one per
   statement scope.
 - **Query namespaces and helpers** (`namespace.go`, `query_*.go`, ...):
-  `QueryNamespace`/`RelationNamespace` for non-query consumers (checks,
-  defaults, generated columns, index, partition and policy expressions), plan
-  walks, coercion properties, collation derivation (`CollatedInfo`) and error
-  positions. They read only their arguments.
+  `QueryNamespace`/`RelationNamespace` for query, mutation and stored row
+  consumers (checks, generated columns, index, partition and policy expressions),
+  plan walks, coercion properties, collation derivation (`CollatedInfo`) and
+  error positions. Rowless consumers expose no relation namespace; assignment
+  coercion does not itself admit or forbid column references. INSERT producers
+  retain only a diagnostic target candidate, never a visible target row.
+  Routine defaults also resolve against an empty namespace; table defaults
+  retain their distinct prohibition on all column references.
   `ExpressionName` shares original typed target-label derivation with stored
   recursive presentation; it neither rebinds syntax nor consults current names.
 - **Cached query outputs** (`query_order_bind.go`, `query_distinct_on_bind.go`,
@@ -139,6 +143,16 @@ library, and never the root engine or `session`. The engine, the root driver
   when execution removes a branch.
 - **Frozen syntax keys.** Every capture writer and reader keys an occurrence by
   the node's own `Pos` (a postfix cast's `::`), never `SourcePosition`.
+- **Column visibility.** Every row consumer installs its namespace explicitly.
+  Nil and empty namespaces expose no local rows; retained write-target metadata
+  never supplies an implicit input. Hidden qualifiers contribute diagnostics,
+  not executable columns. INSERT producers hide their target, RETURNING exposes
+  its own row, and MERGE arms expose only their permitted sides.
+  Schema qualification selects an already-visible unaliased relation; aliases
+  hide base names. Qualified lookup chooses the nearest matching relation before
+  looking for its column, without retrying outer relations on a missing column.
+  Allowed correlation preserves frame identity, stable attribute origins,
+  descriptors and separate target/source read manifests.
 
 ## Binding rules
 

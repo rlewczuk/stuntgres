@@ -20,6 +20,7 @@ func pgOperatorRelationshipBind(t *testing.T, e *Engine, name string, left, righ
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "l", Usage: left.Usage()}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
+	bindTestTargetNamespace(b)
 	column := func(name string) parser.Expr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}

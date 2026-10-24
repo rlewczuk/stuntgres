@@ -53,19 +53,3 @@ func TestStringAggregateWindowAST(t *testing.T) {
 		t.Fatal(call)
 	}
 }
-
-func TestStringAggregateOrderedKeyVisitors(t *testing.T) {
-	key := ColumnExpr{Name: ObjectName{Parts: []Identifier{{Text: "t"}, {Text: "k"}}}, QualificationPos: Position{Offset: 10, Character: 11}}
-	call := AggregateExpr{Name: "string_agg", Args: []Expr{LiteralExpr{}, LiteralExpr{}}, Order: []OrderKey{{Expr: key}}}
-	if token, _ := nonqueryQualification(call, false); token == nil || token.pos.Character != 11 {
-		t.Fatal("ordering qualifier not visited", token)
-	}
-	marked := groupedQualification(call).(AggregateExpr)
-	if !marked.Order[0].Expr.(ColumnExpr).QualificationGrouped {
-		t.Fatal("ordered key grouping not retained")
-	}
-	markedCast := groupedQualification(CastExpr{Child: call}).(CastExpr)
-	if !markedCast.Child.(AggregateExpr).Order[0].Expr.(ColumnExpr).QualificationGrouped {
-		t.Fatal("ordered key grouping through cast not retained")
-	}
-}

@@ -84,8 +84,12 @@ func (b *Binder) QueryColumnAt(c QueryColumn, pos parser.Position) expr.Expr {
 func (b *Binder) queryQualifier(name parser.ObjectName, pos parser.Position) (*QueryQualifier, error) {
 	label := name.Parts[len(name.Parts)-1].Text
 	var match *QueryQualifier
-	for i := range b.Query.Namespace.Qualifiers {
-		q := &b.Query.Namespace.Qualifiers[i]
+	var qualifiers []QueryQualifier
+	if b.Query.Namespace != nil {
+		qualifiers = b.Query.Namespace.Qualifiers
+	}
+	for i := range qualifiers {
+		q := &qualifiers[i]
 		if q.Name != label || len(name.Parts) == 2 && (q.Alias != "" || q.Schema != name.Parts[0].Text) {
 			continue
 		}
@@ -129,9 +133,6 @@ func (b *Binder) queryQualifier(name parser.ObjectName, pos parser.Position) (*Q
 		if q.Original != label && q.Name != label {
 			continue
 		}
-		if len(name.Parts) == 2 && q.Schema != name.Parts[0].Text {
-			continue
-		}
 		if b.stringFromContext() && q.LateralForbidden {
 			return nil, stringLateralError(q, pos, true)
 		}
@@ -168,7 +169,12 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 		}
 	}
 	name := parts[len(parts)-1].Text
-	columns := b.Query.Namespace.Columns
+	// An absent namespace has no local rows, even when target metadata is retained.
+	namespace := b.Query.Namespace
+	if namespace == nil {
+		namespace = &QueryNamespace{}
+	}
+	columns := namespace.Columns
 	frame := b.FrameID()
 	if len(parts) > 1 {
 		q, err := b.queryQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
@@ -188,17 +194,17 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 		}
 		match = &columns[i]
 		if b.Clause.AggregateClause == "FROM" && b.Clause.stringFromForbidden {
-			return nil, stringForbiddenColumn(*b.Query.Namespace, match.Slot, raw.Pos)
+			return nil, stringForbiddenColumn(*namespace, match.Slot, raw.Pos)
 		}
 	}
 	if match != nil {
-		if demand := b.Query.Namespace.IdentityValuesOrderDemand; len(demand) != 0 {
+		if demand := namespace.IdentityValuesOrderDemand; len(demand) != 0 {
 			demand[match.Slot] = true
 		}
 		return b.queryColumnInFrame(*match, raw.Pos, frame), nil
 	}
 	if b.Target.mergeWhen && b.FrameID() == 1 && name != "tableoid" && catalog.IsSystemColumn(name) {
-		for _, q := range b.Query.Namespace.Qualifiers {
+		for _, q := range namespace.Qualifiers {
 			if len(parts) > 1 && (q.Name != parts[len(parts)-2].Text || len(parts) == 3 && q.Schema != parts[0].Text) {
 				continue
 			}
@@ -235,7 +241,7 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 		if scope, newValues := b.outerReturningScope(raw.Name); scope != nil {
 			return b.outerReturningWholeRow(scope, raw.Pos, newValues)
 		}
-		for _, q := range b.Query.Namespace.Qualifiers {
+		for _, q := range namespace.Qualifiers {
 			if q.Name == name {
 				return b.wholeRow(raw.Name, raw.Pos, true)
 			}
@@ -255,8 +261,8 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 			}
 		}
 	}
-	if b.Query.Namespace.Values && len(parts) == 1 {
-		return nil, ValuesOrderColumnError(b.Query.Namespace.Frame, name, raw.Pos)
+	if namespace.Values && len(parts) == 1 {
+		return nil, ValuesOrderColumnError(namespace.Frame, name, raw.Pos)
 	}
 	qualifier := ""
 	if len(parts) > 1 {

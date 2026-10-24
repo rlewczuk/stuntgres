@@ -57,6 +57,7 @@ func strictNullUnitBind(t *testing.T, e *Engine, op *session.Operation, scope *S
 	b := newExpressionBinder(context.Background(), e, scope.input, op, nil)
 	b.Query.Auth, b.Target.Ref = &auth, ref
 	b.Target.Relation = auth.Catalog.MustRelation(ref.Address)
+	bindTestTargetNamespace(b)
 	b.Clause.AggregateClause = "SELECT"
 	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	e.mu.Unlock()

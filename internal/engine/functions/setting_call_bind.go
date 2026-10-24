@@ -23,6 +23,16 @@ func BindSettingCall(b Binder, function string, name parser.ObjectName, args []p
 	formals := [3]sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Bool}
 	bound := make([]expr.Expr, len(args))
 	for i, raw := range args {
+		switch raw.(type) {
+		case parser.ParameterExpr, parser.TypedLiteralExpr, parser.LiteralExpr:
+		default:
+			// Resolve operands before applying this statement provider's shape
+			// boundary. Analysis cannot execute them or install an ambient row.
+			if _, err := b.AnalyzeArgument(raw, AnalysisRequest{Intent: BareProjectionArgument}); err != nil {
+				return nil, ids.ObjectRef{}, err
+			}
+			return nil, ids.ObjectRef{}, expr.ErrorAt("0A000", "unsupported setting function signature", name.Parts[len(name.Parts)-1].Pos)
+		}
 		typ := b.Type(formals[i])
 		if typ == nil {
 			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing setting argument type")

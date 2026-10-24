@@ -552,12 +552,6 @@ func insertConflictKeys(keys []IndexKey) []IndexKey {
 }
 
 func (l *lexer) scalarInput(expr Expr) bool {
-	// Raw qualification errors precede scalar consumer checks, including a
-	// later invalid cast beneath an otherwise unsupported conditional child.
-	if token, _ := nonqueryQualification(expr, false); token != nil && !l.options.ClosedRoutineFormals && l.routineBodyDepth == 0 {
-		l.syntax(*token)
-		return false
-	}
 	return selectedScalarOperators(l, expr) && l.scalarInputTree(expr)
 }
 
@@ -727,11 +721,7 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 		}
 		return true
 	case ColumnExpr:
-		if l.options.ClosedRoutineFormals || l.routineBodyDepth != 0 {
-			return true
-		}
-		l.failAt("0A000", "column references are unsupported in scalar inputs", r.Pos.Offset)
-		return false
+		return true // The consumer's namespace owns column visibility.
 	default:
 		return true
 	}
@@ -932,15 +922,13 @@ func settingCall(l sqlLexer, name lexeme, args []Expr) (Statement, bool) {
 			if v.Value.Kind != NullValue && v.Value.Kind != StringValue && !(i == 2 && v.Value.Kind == BooleanValue) {
 				valid = false
 			}
-		default:
-			valid = false
 		}
 	}
 	if !valid {
 		l.(*lexer).failAt("0A000", "unsupported setting function signature", name.pos.Offset)
 		return nil, false
 	}
-	return &SettingCall{Name: n, Args: args, Pos: name.pos}, true
+	return &SettingCall{Name: n, Args: args, Pos: name.pos, NamePos: name.pos}, true
 }
 
 // Accumulate dotted names and join once, avoiding quadratic concatenation.

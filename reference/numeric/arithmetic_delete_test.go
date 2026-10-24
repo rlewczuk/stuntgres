@@ -151,11 +151,25 @@ func TestReferenceArithmeticDeleteDiagnostics(t *testing.T) {
 				failure.ErrorStage = "prepare"
 				p.Step(t, fixture.Prepared(failure))
 			}
-			native := fixture.ImplicitError("DELETE FROM t WHERE t.i+1=8", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "+"`, Position: "24"})
-			native.ErrorStage = "execute"
-			fixture.RunStep(t, p.Ctx, referenceArithmeticExecutor{p.Memory, t}, p.MemoryRecord, native)
-			native.ErrorStage = "prepare"
-			fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Prepared(native))
+			for _, backend := range p.Backends() {
+				for _, prepared := range []bool{false, true} {
+					tx, err := backend.DB.BeginTx(p.Ctx, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var count int64
+					if populated {
+						count = 1
+					}
+					step := fixture.Exec("DELETE FROM t WHERE t.i+1=8", count)
+					step.Prepared = prepared
+					fixture.RunStep(t, p.Ctx, tx, backend.Recorder, step)
+					fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Select("SELECT i FROM t", []string{"i"}, []string{"INT4"}, nil))
+					if err := tx.Rollback(); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
 			var want [][]any
 			if populated {
 				want = [][]any{{int64(7)}}
@@ -171,20 +185,10 @@ func TestReferenceArithmeticDeleteDiagnostics(t *testing.T) {
 			p.Step(t, fixture.Exec("CREATE TABLE t(id INT,i INT,b BIGINT)", 0))
 			p.Step(t, fixture.Exec("INSERT INTO t VALUES(1,7,7),(2,-7,-7),(3,NULL,NULL),(4,7,7)", 4))
 			query := "DELETE FROM t WHERE t.i+1=8"
-			native := fixture.ImplicitError(query, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "+"`, Position: "24"})
-			native.Prepared = prepared
-			native.ErrorStage = "execute"
-			if prepared {
-				native.ErrorStage = "prepare"
-			}
-			fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, native)
-			fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Select("SELECT id,i,b FROM t ORDER BY id", []string{"id", "i", "b"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(1), int64(7), int64(7)}, {int64(2), int64(-7), int64(-7)}, {int64(3), nil, nil}, {int64(4), int64(7), int64(7)}}))
-			pg := fixture.Exec(query, 2)
-			pg.Prepared = prepared
-			if p.Postgres != nil {
-				fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, pg)
-				fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Select("SELECT id,i,b FROM t ORDER BY id", []string{"id", "i", "b"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(2), int64(-7), int64(-7)}, {int64(3), nil, nil}}))
-			}
+			step := fixture.Exec(query, 2)
+			step.Prepared = prepared
+			p.Step(t, step)
+			p.Step(t, fixture.Select("SELECT id,i,b FROM t ORDER BY id", []string{"id", "i", "b"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(2), int64(-7), int64(-7)}, {int64(3), nil, nil}}))
 		})
 	}
 }

@@ -15,9 +15,6 @@ import (
 )
 
 func (b *Binder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectRef, error) {
-	if err := qualifiedCastChild(raw); err != nil {
-		return nil, ids.ObjectRef{}, err
-	}
 	if cast, ok := raw.(parser.RegclassExpr); ok {
 		return b.bindRegclass(cast.Child)
 	}

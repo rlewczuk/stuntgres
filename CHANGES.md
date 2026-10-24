@@ -24,6 +24,17 @@ for current-authority readmission after unique waits and before publication.
 Revoked EXECUTE refuses the statement without a row/output prefix or CHECK truth
 replay; invoker and trusted referential-owner phases remain independently admitted.
 
+Schema-qualified column expressions now share namespace resolution across SQL
+consumers, including DELETE predicates and qualified operands in casts and calls.
+Aliases, correlation, clause visibility, column metadata and read privileges
+retain their ordinary rules through direct, prepared and server execution.
+Rowless assignment and setting-call inputs use the same empty-namespace
+diagnostics instead of rejecting column spelling before their owning consumer
+resolves visibility. INSERT RETURNING preserves inaccessible same-name relation
+diagnostics without exposing those relations as inputs. Unsupported setting-call
+signatures retain the final function-name component's diagnostic position after
+operand analysis; missing-column diagnostics still precede that shape boundary.
+
 information_schema.role_routine_grants now exposes ten domain-typed columns over
 real routine EXECUTE grant origins, preserving named grantors, grant options and
 enabled-role visibility across direct and prepared metadata reads.

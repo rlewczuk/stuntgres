@@ -13,6 +13,11 @@ NULL predicates in [types](../types/README.md); windows, ordering, LIMIT and
 DISTINCT in [query_order](../query_order/README.md); grouping sets in
 [aggregates](../aggregates/README.md).
 
+Column qualification selects visible relation identities, including eligible
+outer frames. Schema-qualified names do not add FROM sources, and a matched
+inner qualifier owns its missing-column diagnostic rather than retrying outer
+relations. Source column descriptors and origins survive expression composition.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md).
@@ -48,6 +53,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
+- Qualified column consumers: `RUN='^TestReferenceThreePart'`
 - Scalar SQL routines: `RUN='^TestReferenceRoutine(Core|StoredArgumentIdentity|Review)'`
 - <a id="ordered-sql-routine-bodies"></a>Ordered and SQL-standard routine bodies, procedures: `RUN='^TestReferenceRoutineSQLBodies'`
 - DROP FUNCTION/PROCEDURE: `RUN='^TestReferenceRoutineDrop'`

@@ -273,45 +273,7 @@ func (b *Binder) column(raw parser.ColumnExpr) (node expr.Expr, err error) {
 	if b.Target.returningAliases != nil {
 		return b.returningColumn(raw)
 	}
-	if b.Query.Namespace != nil {
-		return b.queryColumn(raw)
-	}
-	if len(raw.Name.Parts) == 2 && !b.Target.deleteTarget {
-		return nil, expr.ErrorAt("0A000", "qualified column references are unsupported", raw.Pos)
-	}
-	if len(raw.Name.Parts) == 0 || len(raw.Name.Parts) > 2 {
-		return nil, fmt.Errorf("stuntgres: column outside expression scope")
-	}
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if b.Target.Relation == nil {
-		return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
-	}
-	if len(raw.Name.Parts) == 2 {
-		qualifier := raw.Name.Parts[0].Text
-		visible := b.Target.Name
-		if b.Target.alias != "" {
-			visible = b.Target.alias
-		}
-		if qualifier != visible {
-			if qualifier == b.Target.Name && b.Target.alias != "" {
-				err := expr.ErrorAt("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, qualifier), raw.Pos).(*sqlstate.Error)
-				err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.Target.alias)
-				return nil, err
-			}
-			return nil, expr.ErrorAt("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, qualifier), raw.Pos)
-		}
-	}
-	i, ok := b.Target.Relation.Index[name]
-	if !ok {
-		if len(raw.Name.Parts) == 2 {
-			return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", raw.Name.Parts[0].Text, name), raw.Pos)
-		}
-		return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
-	}
-	return b.columnAt(i, raw.Pos), nil
-}
-func (b *Binder) useColumn(i int) ids.ObjectRef {
-	return b.useColumnOf(b.Target.Relation, i)
+	return b.queryColumn(raw)
 }
 
 func (b *Binder) useColumnOf(relation *catalog.Relation, i int) ids.ObjectRef {
@@ -696,14 +658,8 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				node = pseudo
 				break
 			}
-			if b.Consumer.DefaultConsumer {
-				if b.Consumer.RoutineDefault {
-					return nil, expr.ErrorAt("42703", fmt.Sprintf("column %q does not exist", catalog.ObjectNameText(r.Name)), r.Pos)
-				}
+			if b.Consumer.DefaultConsumer && !b.Consumer.RoutineDefault {
 				return nil, expr.ErrorAt("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
-			}
-			if policy.Context == AssignmentContext && !b.Params.ClosedRoutineFormals {
-				return nil, expr.ErrorAt("0A000", "column references outside SELECT are unsupported", r.Pos)
 			}
 			var err error
 			node, err = b.Column(r)
@@ -1078,11 +1034,6 @@ func internalCharLiteralCast(raw parser.CastExpr) bool {
 }
 
 func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.Expr, error) {
-	if !b.Consumer.DefaultConsumer && b.Query.Namespace == nil && b.Target.returningAliases == nil && b.Target.RuleNamespace == nil {
-		if err := qualifiedCastChild(raw.Child); err != nil {
-			return nil, err
-		}
-	}
 	rawNull, isNull := raw.Child.(parser.LiteralExpr)
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
 	// Expression input authority does not grant table declaration authority.

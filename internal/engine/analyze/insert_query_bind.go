@@ -19,14 +19,6 @@ func bindInsertSource(out *Binding, binder *Binder, auth Authority, s *parser.In
 	if sel := s.Source.Select; sel != nil {
 		out.Insert.SubquerySource = true
 		binder.Query.Auth = auth
-		// INSERT's target is an error namespace entry, not a correlation
-		// source. Keep it hidden when entering the shared SELECT binder.
-		columns := make([]QueryColumn, len(out.Relation.Columns))
-		for i, descriptor := range out.Relation.Columns {
-			columns[i] = QueryColumn{Descriptor: descriptor, Slot: i, Leaf: QueryTargetLeaf, Physical: i}
-		}
-		target := QueryQualifier{Name: out.Relation.Name(), Original: out.Relation.Name(), Ref: out.Ref, Columns: columns, Schema: auth.ReadCatalog().Get(out.Relation.Namespace()).Name(), LateralForbidden: true}
-		binder.Query.Hidden = append(binder.Query.Hidden, target)
 		query, err = binder.BindSelect(sel, true)
 		out.QuerySources = binder.Query.Sources
 	} else {

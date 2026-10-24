@@ -63,6 +63,11 @@ enter through exported `Bind*`, `Finish*` and `Select*` functions and bypass the
 registry. Shared diagnostics: `call_syntax.go` (`ValidateCallSyntax`),
 `resolution_error.go` and `operator_error.go`.
 
+Setting-call statement arguments resolve in their owner's rowless namespace
+before an unsupported expression-shape diagnostic. This analysis does not admit
+new executable argument shapes; literal, parameter and typed-literal inputs keep
+their existing fixed-formal coercion and routine identity.
+
 `CastRoutine` is the selected executable cast-procedure provider. Its checked
 routine declaration supplies signature, namespace, strictness and volatility;
 `sqltype.CoercionPlan` supplies conversion and session codec semantics. Typmod

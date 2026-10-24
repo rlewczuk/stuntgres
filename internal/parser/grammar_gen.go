@@ -23637,10 +23637,6 @@ sqldefault:
 	case 1583:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			if token, _ := nonqueryQualification(sqlDollar[2].expr, false); token != nil {
-				sqllex.(*lexer).syntax(*token)
-				return 1
-			}
 			if !sqllex.(*lexer).defaultIndexPropertyAllowed(sqlDollar[2].expr) {
 				return 1
 			}
@@ -23649,10 +23645,6 @@ sqldefault:
 	case 1584:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			if token, _ := nonqueryQualification(sqlDollar[4].expr, false); token != nil {
-				sqllex.(*lexer).syntax(*token)
-				return 1
-			}
 			if !sqllex.(*lexer).defaultIndexPropertyAllowed(sqlDollar[4].expr) {
 				return 1
 			}
@@ -24073,12 +24065,6 @@ sqldefault:
 	case 1675:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
-			if sqlDollar[5].fromItem == nil && !sqllex.(*lexer).ruleDefinition {
-				if token := deleteQualification(sqlDollar[6].mutationQualifier.Where, false); token != nil {
-					sqllex.(*lexer).syntax(*token)
-					return 1
-				}
-			}
 			sqlVAL.stmt = &Delete{Name: sqlDollar[3].alterTarget.Name, Only: sqlDollar[3].alterTarget.Only, Star: sqlDollar[3].alterTarget.Star, Alias: Identifier{Text: sqlDollar[4].tok.text, Pos: sqlDollar[4].tok.pos}, Using: sqlDollar[5].fromItem, Where: sqlDollar[6].mutationQualifier.Where, CurrentOf: sqlDollar[6].mutationQualifier.CurrentOf, Returning: sqlDollar[7].returning, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1676:
@@ -24636,7 +24622,7 @@ sqldefault:
 	case 1767:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			expr := groupedQualification(sqlDollar[2].expr)
+			expr := sqlDollar[2].expr
 			if call, ok := expr.(FunctionExpr); ok {
 				call.directSelectedCall = false
 				expr = call
@@ -26072,12 +26058,12 @@ sqldefault:
 	case 2026:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.expr = ColumnExpr{Name: ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, {Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}}}, Pos: sqlDollar[1].tok.pos, QualificationPos: sqlDollar[2].tok.pos}
+			sqlVAL.expr = ColumnExpr{Name: ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, {Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}}}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 2027:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.expr = ColumnExpr{Name: ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, {Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, {Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}}}, Pos: sqlDollar[1].tok.pos, QualificationPos: sqlDollar[2].tok.pos, ExtraQualificationPos: sqlDollar[4].tok.pos}
+			sqlVAL.expr = ColumnExpr{Name: ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, {Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, {Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}}}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 2028:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]

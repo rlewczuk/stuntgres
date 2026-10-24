@@ -130,6 +130,7 @@ func TestExpressionCompareNullOccurrenceTyping(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "v", Usage: b.Type(sqltype.Int4).Usage()}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}}
+		bindTestTargetNamespace(b)
 		s := statement(t, tc.q).(*parser.Select)
 		targets := []expr.Expr{}
 		var err error

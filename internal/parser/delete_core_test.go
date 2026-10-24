@@ -96,9 +96,9 @@ func TestDeleteCoreParserBoundaries(t *testing.T) {
 			t.Fatal("query qualification admission", query, statements, err)
 		}
 	}
-	for _, query := range []string{"DELETE FROM t d WHERE CAST(d.id AS BIGINT)=1", "DELETE FROM t d WHERE d.id::BIGINT=1", "DELETE FROM t d WHERE int8(d.id)=1", "DELETE FROM t WHERE 1 IS DISTINCT FROM 1 IS TRUE"} {
+	for _, query := range []string{"DELETE FROM t WHERE 1 IS DISTINCT FROM 1 IS TRUE"} {
 		if statements, err := Parse(query); err == nil || statements != nil {
-			t.Fatal("excluded cast qualification or ungrouped DISTINCT escaped", query, statements, err)
+			t.Fatal("ungrouped DISTINCT escaped", query, statements, err)
 		}
 	}
 	for _, query := range []string{"CREATE TABLE delete(delete INT)", "INSERT INTO delete(delete) VALUES(1)", "SELECT delete FROM delete WHERE delete=1"} {

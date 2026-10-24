@@ -43,7 +43,7 @@ func TestArithmeticGrammar(t *testing.T) {
 	if op.Pos.Character != 15 || len(op.Args) != 2 {
 		t.Fatal(op)
 	}
-	for _, q := range []string{"SELECT i+ FROM t", "SELECT (i+1 FROM t", "SELECT i+1 FROM t trailing garbage", "INSERT INTO t VALUES(i+1)", "SELECT current_setting('x'+1)"} {
+	for _, q := range []string{"SELECT i+ FROM t", "SELECT (i+1 FROM t", "SELECT i+1 FROM t trailing garbage"} {
 		if _, err := Parse(q); err == nil {
 			t.Fatal("unsupported/malformed SQL accepted", q)
 		}

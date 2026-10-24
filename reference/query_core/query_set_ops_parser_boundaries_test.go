@@ -8,19 +8,12 @@ import (
 	"unicode/utf8"
 )
 
-// These native capability boundaries intentionally remain narrower than PostgreSQL.
-// Decorations change execution category, not the admitted INSERT cell grammar.
+// Row expressions reach analysis without admitting the INSERT destination as input.
 var querySetOpsRestrictedCells = []struct {
 	cell, token, code, message string
 }{
-	{"v+1", "v", "0A000", "column references are unsupported in scalar inputs"},
-	{"CAST(v AS INT)", "v", "0A000", "column references are unsupported in scalar inputs"},
-	{"COALESCE(NULL,v)", "v", "0A000", "column references are unsupported in scalar inputs"},
-	{"CASE WHEN TRUE THEN 1 ELSE v END", "v", "0A000", "column references are unsupported in scalar inputs"},
-	{"length(v)", "v", "0A000", "column references are unsupported in scalar inputs"},
 	{"abs(1)", ")", "42601", `syntax error at or near ")"`},
 	{"TRUE AND FALSE", "AND", "42601", `syntax error at or near "AND"`},
-	{"boundary_dst.v", ".", "42601", `syntax error at or near "."`},
 }
 
 var querySetOpsValuesShapes = []string{
@@ -31,23 +24,26 @@ var querySetOpsValuesShapes = []string{
 func TestReferenceQuerySetOpsParserBoundaries(t *testing.T) {
 	querySetOpsScenario(t, func(p *fixture.Pair, b fixture.Backend) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE boundary_dst(v INT DEFAULT 7)", 0))
+		for _, cell := range []string{"v+1", "CAST(v AS INT)", "COALESCE(NULL,v)", "CASE WHEN TRUE THEN 1 ELSE v END", "length(v)", "boundary_dst.v"} {
+			for _, shape := range querySetOpsValuesShapes {
+				q := "/*é*/ INSERT INTO boundary_dst " + fmt.Sprintf(shape, cell)
+				code, message, token := "42703", `column "v" does not exist`, "v"
+				detail := `There is a column named "v" in table "boundary_dst", but it cannot be referenced from this part of the query.`
+				if cell == "boundary_dst.v" {
+					code, message, token = "42P01", `invalid reference to FROM-clause entry for table "boundary_dst"`, cell
+					detail = `There is an entry for table "boundary_dst", but it cannot be referenced from this part of the query.`
+				}
+				offset := strings.Index(q, cell) + strings.Index(cell, token)
+				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: code, Message: message, Detail: detail, Position: fixture.Position(utf8.RuneCountInString(q[:offset]) + 1)})
+				querySetOpsDiagnosticRoutes(t, p, b, s, "prepare")
+			}
+		}
 		for _, cell := range querySetOpsRestrictedCells {
 			for _, shape := range querySetOpsValuesShapes {
 				q := "/*é*/ INSERT INTO boundary_dst " + fmt.Sprintf(shape, cell.cell)
 				t.Run(q, func(t *testing.T) {
 					if b.PG {
-						// Full pinned18.0 records: root tests-8/artifact69.
-						if strings.Contains(cell.cell, "v") {
-							code, message, token := "42703", `column "v" does not exist`, "v"
-							detail := `There is a column named "v" in table "boundary_dst", but it cannot be referenced from this part of the query.`
-							if cell.cell == "boundary_dst.v" {
-								code, message, token = "42P01", `invalid reference to FROM-clause entry for table "boundary_dst"`, "boundary_dst.v"
-								detail = `There is an entry for table "boundary_dst", but it cannot be referenced from this part of the query.`
-							}
-							offset := strings.Index(q, cell.cell) + strings.Index(cell.cell, token)
-							s := fixture.ImplicitError(q, fixture.Diagnostic{Code: code, Message: message, Detail: detail, Position: fixture.Position(utf8.RuneCountInString(q[:offset]) + 1)})
-							querySetOpsDiagnosticRoutes(t, p, b, s, "prepare")
-						} else if cell.cell == "TRUE AND FALSE" {
+						if cell.cell == "TRUE AND FALSE" {
 							position := ""
 							if shape == "VALUES(%s)" {
 								position = "39"
@@ -142,9 +138,6 @@ func TestReferenceQuerySetOpsValuesLockBoundaries(t *testing.T) {
 			{"INSERT INTO boundary_dst VALUES(1); SELECT * FROM (VALUES(1) FOR SHARE) AS d; SELECT FROM", fixture.Diagnostic{Code: "42601", Message: "syntax error at end of input", Position: "90"}},
 		} {
 			want := tc.want
-			if !b.PG && tc.query == "INSERT INTO boundary_dst VALUES(missing) FOR SHARE" {
-				want = fixture.Diagnostic{Code: "0A000", Message: "column references are unsupported in scalar inputs", Position: "33"}
-			}
 			s := fixture.ImplicitError(tc.query, want)
 			querySetOpsDiagnosticRoutes(t, p, b, s, "prepare")
 			querySetOpsRoutes(t, p, b, querySetOpsBag("SELECT v FROM boundary_dst", "v", "INT4", nil))

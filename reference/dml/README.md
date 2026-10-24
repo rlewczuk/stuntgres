@@ -11,6 +11,11 @@ virtual generated columns (`GeneratedVirtualCopy*`) lives here to reuse
 sequence and identity semantics in `reference/sequences`; row locking in
 `reference/locking_transactions`.
 
+Column expressions use the same explicit namespace rules as queries: target,
+source and RETURNING visibility belong to their statement clause, not to the
+number of written name components. Aliases hide base names; qualification does
+not grant read privileges or expose an INSERT producer's destination.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
@@ -61,6 +66,7 @@ and conditional PL row replacement and suppression.
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - <a id="result-nullability"></a>Result-column nullability: `RUN='^TestReferenceResultNullability'`
+- Qualified column consumers: `RUN='^TestReferenceThreePart'`
 - INSERT ... SELECT: `RUN='^TestReference(Smoke)?InsertSelect'`
 - Implicit short INSERT: `RUN='^TestReferenceInsertImplicitShort'`
 - INSERT RETURNING: `RUN='^TestReferenceInsertReturning'`

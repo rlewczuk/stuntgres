@@ -64,8 +64,3 @@ func TestBinaryBasicScalarConsumers(t *testing.T) {
 		}
 	}
 }
-
-func TestBinaryBasicScalarInputChildBoundary(t *testing.T) {
-	keywordDiagnostic(t, "INSERT INTO dst VALUES(length(v))", "0A000", "column references are unsupported in scalar inputs", "31")
-	keywordDiagnostic(t, "INSERT INTO dst VALUES(btrim(v,$1))", "0A000", "column references are unsupported in scalar inputs", "30")
-}

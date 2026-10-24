@@ -143,32 +143,5 @@ func TestCheckQualifiedColumnAST(t *testing.T) {
 				t.Fatal(column)
 			}
 		}
-		if column.QualificationPos.Character == 0 || len(want) == 3 && column.ExtraQualificationPos.Character == 0 {
-			t.Fatal(column)
-		}
-	}
-}
-
-func TestCheckQualificationConsumerBoundaries(t *testing.T) {
-	statements, err := Parse("SELECT public.t.a")
-	if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
-		t.Fatal("lost no-FROM qualification", statements, err)
-	}
-	for _, query := range []string{
-		"CREATE TABLE t(a INT DEFAULT public.t.a)",
-		"DELETE FROM t WHERE public.t.a=1",
-	} {
-		statements, err := Parse(query)
-		if err == nil || statements != nil {
-			t.Fatal("CHECK widened ordinary qualification boundary", query, statements, err)
-		}
-	}
-	statements, err = Parse("UPDATE t SET a=public.t.a")
-	if err != nil || len(statements) != 1 {
-		t.Fatal("UPDATE namespace lost schema qualification", statements, err)
-	}
-	column, ok := statements[0].(*Update).Assignments[0].Value.(ColumnExpr)
-	if !ok || len(column.Name.Parts) != 3 || column.Name.Parts[0].Text != "public" || column.Name.Parts[1].Text != "t" || column.Name.Parts[2].Text != "a" {
-		t.Fatal("UPDATE qualification AST", column)
 	}
 }

@@ -22,12 +22,6 @@ func TestReferenceTimezoneViewsInsertAnalysis(t *testing.T) {
 				{"INSERT INTO pg_catalog." + view + "(is_dst) SELECT bogus FROM pg_timezone_abbrevs", "bogus", fixture.Diagnostic{Code: "42703", Message: `column "bogus" does not exist`}},
 			} {
 				tc.want.Position = strconv.Itoa(strings.Index(tc.query, tc.token) + 1)
-				if !b.PG && strings.Contains(tc.query, "VALUES(bogus)") {
-					// Existing scalar-input capability boundary, not an invented
-					// timezone binder or new VALUES column-reference support.
-					tc.want.Code = "0A000"
-					tc.want.Message = "column references are unsupported in scalar inputs"
-				}
 				for _, prepared := range []bool{false, true} {
 					t.Run(tc.query+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
 						s := fixture.ImplicitError(tc.query, tc.want)

@@ -496,7 +496,7 @@ func TestUnicodeEscapesValuesAndPositions(t *testing.T) {
 			t.Fatal("lookahead lost")
 		}
 	}
-	for _, source := range []string{`U &'a'`, `U& 'a'`, `U&'a' 'b'`, "U&'a'\nU&'b'", "U&'a'\nE'b'", "U&'a' /*\n*/ 'b'"} {
+	for _, source := range []string{`U&'a' 'b'`, "U&'a'\nU&'b'", "U&'a'\nE'b'", "U&'a' /*\n*/ 'b'"} {
 		if stmts, err := Parse("INSERT INTO t VALUES (" + source + ")"); err == nil || stmts != nil {
 			t.Fatalf("accepted %q", source)
 		}

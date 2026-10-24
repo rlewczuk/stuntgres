@@ -46,6 +46,13 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
+		// The write target is a diagnostic candidate, never an input row.
+		target := RelationNamespace(auth.ReadCatalog(), b.Relation, b.Ref, QueryTargetLeaf)
+		target.Qualifiers[0].LateralForbidden = true
+		if s.Alias.Text != "" {
+			target.Qualifiers[0].Name, target.Qualifiers[0].Alias = s.Alias.Text, s.Alias.Text
+		}
+		binder.Query.Hidden = append(binder.Query.Hidden, target.Qualifiers[0])
 		if err := bindInsertInput(&b, binder, auth, s); err != nil {
 			return b, err
 		}
@@ -93,9 +100,9 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 		}
 		binder.Target.deleteTarget, binder.Target.Name, binder.Target.alias = true, b.Relation.Name(), s.Alias.Text
 		binder.Query.Auth = auth
+		target := binder.mutationTargetNamespace()
+		binder.Query.Hidden = append(binder.Query.Hidden, target.Qualifiers[0])
 		if s.Using != nil {
-			target := binder.mutationTargetNamespace()
-			binder.Query.Hidden = append(binder.Query.Hidden, target.Qualifiers[0])
 			var sources QueryNamespace
 			binder.Target.deleteUsingSources = true
 			b.Delete.Using, sources, err = binder.BindFrom(s.Using)
@@ -108,9 +115,9 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 			if err != nil {
 				return b, err
 			}
-			binder.Query.Namespace = &target
-			binder.Clause.AggregateClause = "DELETE"
 		}
+		binder.Query.Namespace = &target
+		binder.Clause.AggregateClause = "DELETE"
 		if s.Where != nil {
 			b.Predicate, err = binder.Bind(s.Where, ExpressionPolicy{Context: FilterContext})
 			if err != nil {

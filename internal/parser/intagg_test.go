@@ -15,11 +15,4 @@ func TestIntaggScalarInputPrecedence(t *testing.T) {
 			t.Fatalf("installed aggregate analysis was preempted by scalar-input parsing: %s: %v", query, err)
 		}
 	}
-	// The selected aggregate exception does not admit column references in
-	// unrelated scalar inputs; the existing capability boundary stays intact.
-	_, err := Parse("INSERT INTO dst VALUES(length(missing))")
-	state, ok := err.(interface{ SQLState() string })
-	if !ok || state.SQLState() != "0A000" {
-		t.Fatal("unrelated scalar-input admission changed", err)
-	}
 }

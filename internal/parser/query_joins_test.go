@@ -75,11 +75,6 @@ func TestQueryJoinsKeywordTokens(t *testing.T) {
 }
 
 func TestQueryJoinsRetainsMutationGrammar(t *testing.T) {
-	for _, tc := range []struct{ q, code, message, pos string }{
-		{"DELETE FROM t WHERE t.i+1=8", "42601", `syntax error at or near "+"`, "24"},
-	} {
-		keywordDiagnostic(t, tc.q, tc.code, tc.message, tc.pos)
-	}
 	for _, q := range []string{"UPDATE t SET a=*", "UPDATE t SET a = *"} {
 		if statements, err := Parse(q); err == nil || len(statements) != 0 {
 			t.Fatal("invalid mutation assignment admitted", q, statements, err)
@@ -90,23 +85,6 @@ func TestQueryJoinsRetainsMutationGrammar(t *testing.T) {
 		if statements, err := Parse(q); err != nil || len(statements) != 1 {
 			t.Fatal(q, statements, err)
 		}
-	}
-}
-
-func TestQueryJoinsRetainsScalarInputGrammar(t *testing.T) {
-	for _, tc := range []struct{ q, code, message, pos string }{
-		{"CREATE TABLE bad(v INT DEFAULT a.k)", "42601", `syntax error at or near "."`, "33"},
-		{"INSERT INTO a(k) VALUES(a.k)", "42601", `syntax error at or near "."`, "26"},
-		{"SELECT current_setting(a.k)", "42601", `syntax error at or near "."`, "25"},
-		{"INSERT INTO a(k) VALUES(COALESCE(a.k,1))", "0A000", "column references are unsupported in scalar inputs", "34"},
-	} {
-		keywordDiagnostic(t, tc.q, tc.code, tc.message, tc.pos)
-	}
-	// Conditional DEFAULT arguments keep their established parse admission;
-	// utility Prepare describes them, while execution applies DEFAULT policy.
-	q := "CREATE TABLE bad(v INT DEFAULT COALESCE(a.k,1))"
-	if statements, err := Parse(q); err != nil || len(statements) != 1 {
-		t.Fatal(q, statements, err)
 	}
 }
 

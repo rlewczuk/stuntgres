@@ -6,36 +6,22 @@ import (
 )
 
 func TestReferenceDeleteCoreQualifiedCastBoundaries(t *testing.T) {
-	for _, tc := range []struct {
-		query string
-		want  fixture.Diagnostic
-	}{
-		{"DELETE FROM t AS d WHERE d.v::int4=10", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "::"`, Position: "29"}},
-		{"DELETE FROM t AS d WHERE CAST(d.v AS int4)=10", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "."`, Position: "32"}},
-		{"DELETE FROM t AS d WHERE int4(d.v)=10", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "."`, Position: "32"}},
+	for _, query := range []string{
+		"DELETE FROM t AS d WHERE d.v::int4=10",
+		"DELETE FROM t AS d WHERE CAST(d.v AS int4)=10",
+		"DELETE FROM t AS d WHERE int4(d.v)=10",
 	} {
 		for _, prepared := range []bool{false, true} {
 			p := fixture.NewScenario(t)
 			for _, backend := range p.Backends() {
-				t.Run(backend.Name+tc.query, func(t *testing.T) {
+				t.Run(backend.Name+query, func(t *testing.T) {
 					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s) }
 					run(fixture.Exec("CREATE TABLE t(id INT,v INT)", 0))
 					run(fixture.Exec("INSERT INTO t VALUES(1,10),(2,20),(4,10),(4,10)", 4))
-					if backend.PG {
-						s := fixture.Exec(tc.query, 3)
-						s.Prepared = prepared
-						run(s)
-						fixture.DeleteReferenceRows(t, p, backend.DB, backend.Recorder, 2)
-					} else {
-						s := fixture.ImplicitError(tc.query, tc.want)
-						s.Prepared = prepared
-						s.ErrorStage = "execute"
-						if prepared {
-							s.ErrorStage = "prepare"
-						}
-						fixture.DeleteReferenceExecuteStep(t, p, backend.DB, backend.Recorder, s)
-						fixture.DeleteReferenceRows(t, p, backend.DB, backend.Recorder, 1, 2, 4, 4)
-					}
+					s := fixture.Exec(query, 3)
+					s.Prepared = prepared
+					run(s)
+					fixture.DeleteReferenceRows(t, p, backend.DB, backend.Recorder, 2)
 				})
 			}
 		}

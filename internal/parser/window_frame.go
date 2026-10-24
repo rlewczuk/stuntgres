@@ -41,13 +41,3 @@ func (w *WindowSpec) Offsets() [2]Expr {
 	}
 	return [2]Expr{w.Frame.Start.Offset, w.Frame.End.Offset}
 }
-
-func markWindowFrameQualification(w *WindowSpec) {
-	if w.Frame == nil {
-		return
-	}
-	frame := *w.Frame
-	frame.Start.Offset, _ = markGroupedQualification(frame.Start.Offset)
-	frame.End.Offset, _ = markGroupedQualification(frame.End.Offset)
-	w.Frame = &frame
-}

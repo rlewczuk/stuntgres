@@ -123,6 +123,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 	}
 	flags := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
 	flags.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "z", Usage: flags.Type(sqltype.Timestamptz).Usage()}}, Attributes: []int32{1}, Index: map[string]int{"z": 0}}
+	bindTestTargetNamespace(flags)
 	column := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "z"}}}}
 	volatile, err := flags.BindFunctionProvider(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, column, datetimeMakeRaw("clock_timestamp")))
 	if err != nil {

@@ -69,19 +69,8 @@ func TestQueryWindowGroupsFrames(t *testing.T) {
 }
 
 func TestQueryWindowGroupsQualification(t *testing.T) {
-	q := "SELECT count(*) OVER(ORDER BY id GROUPS BETWEEN t.a PRECEDING AND t.b FOLLOWING) FROM base WINDOW unused AS(ORDER BY id GROUPS BETWEEN (SELECT n FROM named_start) PRECEDING AND (SELECT n FROM named_end) FOLLOWING)"
+	q := "SELECT count(*) OVER(ORDER BY id GROUPS BETWEEN (SELECT n FROM inline_start) PRECEDING AND (SELECT n FROM inline_end) FOLLOWING) FROM base WINDOW unused AS(ORDER BY id GROUPS BETWEEN (SELECT n FROM named_start) PRECEDING AND (SELECT n FROM named_end) FOLLOWING)"
 	statements, err := Parse(q)
-	if err != nil {
-		t.Fatal(err)
-	}
-	window := statements[0].(*Select).Targets[0].(AggregateExpr).Window
-	original := window.Frame
-	markWindowFrameQualification(window)
-	if window.Frame == original || window.Frame.Unit != FrameGroups || original.Start.Offset.(ColumnExpr).QualificationGrouped || original.End.Offset.(ColumnExpr).QualificationGrouped || !window.Frame.Start.Offset.(ColumnExpr).QualificationGrouped || !window.Frame.End.Offset.(ColumnExpr).QualificationGrouped {
-		t.Fatal(window.Frame, original)
-	}
-	q = "SELECT count(*) OVER(ORDER BY id GROUPS BETWEEN (SELECT n FROM inline_start) PRECEDING AND (SELECT n FROM inline_end) FOLLOWING) FROM base WINDOW unused AS(ORDER BY id GROUPS BETWEEN (SELECT n FROM named_start) PRECEDING AND (SELECT n FROM named_end) FOLLOWING)"
-	statements, err = Parse(q)
 	if err != nil {
 		t.Fatal(err)
 	}

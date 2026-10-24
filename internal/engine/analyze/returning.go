@@ -294,10 +294,8 @@ func (b *Binder) returningColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 			return b.wholeRow(raw.Name, raw.Pos, true)
 		}
 	}
-	if b.Query.Namespace != nil {
-		if _, pseudo := b.Target.returningPseudo(parser.ObjectName{Parts: parts[:len(parts)-1]}); !pseudo {
-			return b.queryColumn(raw)
-		}
+	if _, pseudo := b.Target.returningPseudo(parser.ObjectName{Parts: parts[:len(parts)-1]}); !pseudo {
+		return b.queryColumn(raw)
 	}
 	newValues, err := b.returningQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
 	if err != nil {

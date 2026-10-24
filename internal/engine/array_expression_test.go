@@ -211,6 +211,7 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	intArray := b.Type(b.Type(sqltype.Int4).AssociatedArray())
 	b.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: intArray.Usage()}, {Name: "hidden", Usage: b.Type(sqltype.Int4).Usage()}}, Attributes: []int32{3, 7}, Index: map[string]int{"a": 0, "hidden": 1}}
+	bindTestTargetNamespace(b)
 	column := func(name string) parser.Expr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}

@@ -2400,8 +2400,8 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | NOT NULL { $$=ColumnConstraint{NotNull:true,Pos:$1.pos} }
  | CONSTRAINT name NULL { $$=ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
  | CONSTRAINT name NOT NULL { $$=ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
- | DEFAULT create_default_target { if token,_:=nonqueryQualification($2,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};if !sqllex.(*lexer).defaultIndexPropertyAllowed($2) {return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
- | CONSTRAINT name DEFAULT create_default_target { if token,_:=nonqueryQualification($4,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};if !sqllex.(*lexer).defaultIndexPropertyAllowed($4) {return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
+ | DEFAULT create_default_target { if !sqllex.(*lexer).defaultIndexPropertyAllowed($2) {return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
+ | CONSTRAINT name DEFAULT create_default_target { if !sqllex.(*lexer).defaultIndexPropertyAllowed($4) {return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos} }
  | check_constraint { $$=ColumnConstraint{Check:$1,Pos:$1.Pos} }
  | column_unique { $$=ColumnConstraint{Unique:$1,Pos:$1.Pos} }
  | column_primary {$$=ColumnConstraint{Unique:$1,Pos:$1.Pos}}
@@ -2472,7 +2472,7 @@ merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeArm{Values:$4,ActionPo
  | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeArm{Override:$2,Values:$5,ActionPos:$1.pos} }
  | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
  | INSERT DEFAULT VALUES { $$=MergeArm{DefaultValues:true,ActionPos:$1.pos} } ;
-delete: DELETE FROM alter_target delete_alias delete_using mutation_where returning { if $5==nil && !sqllex.(*lexer).ruleDefinition {if token:=deleteQualification($6.Where,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3.Name,Only:$3.Only,Star:$3.Star,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
+delete: DELETE FROM alter_target delete_alias delete_using mutation_where returning { $$=&Delete{Name:$3.Name,Only:$3.Only,Star:$3.Star,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
  | DELETE FROM alter_target delete_alias delete_using mutation_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
 delete_using: /* empty */ { $$=nil } | USING from_list { $$=$2 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
@@ -2566,7 +2566,7 @@ scalar: scalar_atom { $$=$1 }
  | scalar qualified_operator quantifier '(' scalar_projection ')' %prec OPERATOR { $$=ArrayComparisonExpr{Left:$1,Right:$5,Name:$2,All:$3.text=="all",Pos:$2.Parts[0].Pos} }
  | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
 /* All grouped expressions reduce through one primary before any postfix. */
-grouped_primary: '(' scalar_projection ')' { expr:=groupedQualification($2);if call,ok:=expr.(FunctionExpr);ok {call.directSelectedCall=false;expr=call};$$=groupedPrimary{Expr:expr,Pos:$1.pos} } ;
+grouped_primary: '(' scalar_projection ')' { expr:=$2;if call,ok:=expr.(FunctionExpr);ok {call.directSelectedCall=false;expr=call};$$=groupedPrimary{Expr:expr,Pos:$1.pos} } ;
 field_value: grouped_primary '.' col_label { $$=FieldExpr{Base:$1.Expr,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.Expr.SourcePosition(),OpenPos:$1.Pos} }
  | grouped_primary '.' '*' { $$=FieldExpr{Base:$1.Expr,Expansion:true,Pos:$1.Expr.SourcePosition(),OpenPos:$1.Pos} }
  | PARAM '.' col_label { $$=FieldExpr{Base:ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos},Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
@@ -2797,8 +2797,8 @@ array_members: /* empty */ { $$=nil } | array_member_list { $$=$1 } ;
 array_member_list: array_member { $$=[]Expr{$1} } | array_member_list ',' array_member { $$=append($1,$3) } ;
 array_member: scalar_projection { $$=$1 } | array_bracket { $$=$1 } ;
 column_reference: name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
- | name '.' col_label %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
- | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} } ;
+ | name '.' col_label %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos} }
+ | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos} } ;
 operand: scalar %prec NAME_LIST { if !selectedScalarOperators(sqllex,$1) {return 1};$$=$1 } ;
 comparison_operator: '=' | '<' | '>' | LESS_EQUAL | GREATER_EQUAL | NOT_EQUAL ;
 qualified_operator: QUALIFIED_OPERATOR '(' name '.' operator_symbol ')' { $$=ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$1.pos},{Text:$5.text,Pos:$5.pos}}} } ;

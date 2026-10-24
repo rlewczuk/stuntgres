@@ -1850,11 +1850,8 @@ type TypedLiteralExpr struct {
 	RequiresDomain bool
 }
 type ColumnExpr struct {
-	Name                                    ObjectName
-	Pos                                     Position
-	QualificationPos, ExtraQualificationPos Position
-	// Grouping erases its AST node, but retains the old raw dot boundary.
-	QualificationGrouped bool
+	Name ObjectName
+	Pos  Position
 }
 type ParameterExpr struct {
 	Number int
@@ -2515,10 +2512,11 @@ type Reset struct {
 func (*Reset) statement() {}
 
 type SettingCall struct {
-	Name   string
-	Args   []Expr
-	Pos    Position
-	Schema *Identifier
+	Name    string
+	Args    []Expr
+	Pos     Position
+	NamePos Position // Final function-name component, independently of the qualified call start.
+	Schema  *Identifier
 }
 
 func (*SettingCall) statement() {}

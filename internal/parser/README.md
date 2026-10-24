@@ -30,6 +30,14 @@ single-statement limit of driver calls) belong to callers.
   never a partial parse.
 - Grammar actions copy semantic values and allocate AST nodes and backing
   slices independently, so no returned AST depends on parser lifetime.
+- Column expressions share one-, two- and three-component syntax in every
+  expression consumer, including casts, calls and grouped operands. Each
+  identifier retains its normalized spelling and source position; grouping
+  does not carry a separate qualification policy. The semantic owner decides
+  which rows are visible and whether its context permits column references.
+- Setting-call statements retain operand trees for semantic argument analysis;
+  their provider, not a syntactic expression-shape check, resolves row visibility.
+  Call-start and final function-name component positions remain distinct.
 - Trigger declarations retain explicit timing/row kind, ordered event syntax,
   positioned WHEN and literal arguments. Parsing does not reinterpret the default
   statement kind as ROW; execution admits the supported timing and target kind.

@@ -39,9 +39,9 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 		return settingCallBinding{}, sqlError("0A000", "unsupported setting function signature")
 	}
 	binder := newExpressionBinder(ctx, e, *input, op, nil)
-	name := parser.ObjectName{Parts: []parser.Identifier{{Text: s.Name, Pos: s.Pos}}}
+	name := parser.ObjectName{Parts: []parser.Identifier{{Text: s.Name, Pos: s.NamePos}}}
 	if s.Schema != nil {
-		name.Parts = []parser.Identifier{*s.Schema, {Text: s.Name, Pos: s.Pos}}
+		name.Parts = []parser.Identifier{*s.Schema, {Text: s.Name, Pos: s.NamePos}}
 	}
 	bound, routine, err := functions.BindSettingCall(binder, s.Name, name, s.Args)
 	if err != nil {

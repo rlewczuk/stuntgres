@@ -12,10 +12,6 @@ import (
 // consumers). Names are matched exactly: the parser folds aggregate names.
 type AggregateDefinition struct {
 	Names []string
-	// ValuesNamespace asks the engine to bind the call, in INSERT ... VALUES
-	// without a source namespace, with the insert target as an inaccessible
-	// diagnostic candidate rather than an input.
-	ValuesNamespace bool
 	// Bind analyzes the arguments and FILTER, resolves the signature, selects
 	// the provider and finishes the call through Binder.FinishAggregate.
 	Bind func(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, error)
@@ -37,12 +33,12 @@ type AggregateDefinition struct {
 // overlap any aggregate the engine still dispatches itself.
 var aggregateDefinitions = [...]AggregateDefinition{
 	{Names: []string{"count"}, Bind: BindCount, Window: windowCount, ProbeCall: probeAnyAggregate},
-	{Names: []string{"sum"}, ValuesNamespace: true, Bind: bindSum, Window: windowSum},
+	{Names: []string{"sum"}, Bind: bindSum, Window: windowSum},
 	{Names: []string{"avg"}, Bind: bindAvg, Window: windowAvg},
 	{Names: []string{"min", "max"}, Bind: bindExtrema, Window: windowExtrema},
 	{Names: []string{"any_value"}, Bind: bindAnyValue, Window: windowAnyValue, ProbeCall: probeAnyAggregate},
 	{Names: []string{"bool_and", "bool_or", "every"}, Bind: bindBooleanAggregate, Window: windowBooleanAggregate},
-	{Names: []string{"bit_and", "bit_or", "bit_xor"}, ValuesNamespace: true, Bind: bindBitwiseAggregate, Window: windowBitwiseAggregate},
+	{Names: []string{"bit_and", "bit_or", "bit_xor"}, Bind: bindBitwiseAggregate, Window: windowBitwiseAggregate},
 	{Names: statisticalNames[:], Bind: bindStatisticalAggregate, Window: windowStatisticalAggregate},
 	{Names: []string{"string_agg"}, Bind: bindStringAggregate, Window: windowStringAggregate},
 	{Names: []string{"array_agg"}, Bind: bindArrayAggregate, Window: windowArrayAggregate, ProbeCall: probeArrayAggregate},

@@ -33,9 +33,9 @@ type QueryQualifier struct {
 	LateralForbidden              bool // A DML target cannot correlate into its source, even with LATERAL.
 }
 
-// QueryNamespace is what a FROM item makes visible: its columns, its
-// qualifiers and its frame schema. Consumers outside queries (checks,
-// defaults, index and policy expressions) build one for their relation.
+// QueryNamespace is what a row consumer makes visible: its columns,
+// qualifiers and frame schema. Stored row expressions build one explicitly;
+// nil and empty namespaces expose no local input rows.
 type QueryNamespace struct {
 	Columns                   []QueryColumn
 	Qualifiers                []QueryQualifier

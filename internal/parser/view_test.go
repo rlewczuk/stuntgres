@@ -86,7 +86,7 @@ func TestCreateRecursiveViewSyntheticPositions(t *testing.T) {
 			positions := []Position{query.Pos, query.With[0].Name.Pos, query.With[0].Columns[0].Pos}
 			for _, target := range query.Targets {
 				column := target.(ColumnExpr)
-				positions = append(positions, column.Pos, column.QualificationPos, column.ExtraQualificationPos)
+				positions = append(positions, column.Pos)
 				for _, part := range column.Name.Parts {
 					positions = append(positions, part.Pos)
 				}

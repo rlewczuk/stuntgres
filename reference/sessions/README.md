@@ -99,6 +99,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
+- Qualified columns across held and wire transports: `RUN='^TestReferenceThreePart'`
+
 - Driver basics: parameters, rows, metadata, cancellation, Dump round trip: `RUN='^TestReference(DirectAndPrepared|RowsMetadata|TypedValues|CancellationTransactions|NativeCursor|Driver(Canceled|Rows)|DumpRoundTrip|DatabaseIdentity|ConcurrentInserts|ReferencesNulls)'`
 - Session lifecycle and physical isolation: `RUN='^TestReferenceSession(DiagnosticsAndPreparedLiveValue|PhysicalIsolationReuseAndReplacement)?$'`
 - Notices: `RUN='^TestReferenceNotices'`

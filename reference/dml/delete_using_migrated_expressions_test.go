@@ -26,27 +26,25 @@ func TestReferenceDeleteUsingMigratedExpressions(t *testing.T) {
 		} else {
 			run(fixture.ErrorDiagnostic(decisive, fixture.ControlsReferenceDiagnostic("22P02", `invalid input syntax for type integer: "bad"`), "bad"))
 		}
-		for _, tc := range []struct{ q, token, message string }{
-			{"DELETE FROM t d WHERE d.v::int4=10", "::", `syntax error at or near "::"`},
-			{"DELETE FROM t d WHERE CAST(d.v AS int4)=10", ".", `syntax error at or near "."`},
-			{"DELETE FROM t d WHERE int4(d.v)=10", ".", `syntax error at or near "."`},
+		for _, query := range []string{
+			"DELETE FROM t d WHERE d.v::int4=10",
+			"DELETE FROM t d WHERE CAST(d.v AS int4)=10",
+			"DELETE FROM t d WHERE int4(d.v)=10",
 		} {
-			// Qualified no-USING casts retain the documented native boundary;
-			// PostgreSQL executes the same SQL successfully inside a rollback.
-			tx, err := b.DB.Begin()
-			if err != nil {
-				t.Fatal(err)
-			}
-			boundaryRun := func(step fixture.Step) { step.NonContext = true; fixture.RunStep(t, p.Ctx, tx, b.Recorder, step) }
-			if b.PG {
-				boundaryRun(fixture.Exec(tc.q, 1))
-			} else {
-				want := fixture.ControlsReferenceDiagnostic("42601", tc.message)
-				want.Position = updateFromPosition(tc.q, tc.token)
-				boundaryRun(fixture.ErrorDiagnostic(tc.q, want))
-			}
-			if err := tx.Rollback(); err != nil {
-				t.Fatal(err)
+			for _, prepared := range []bool{false, true} {
+				tx, err := b.DB.Begin()
+				if err != nil {
+					t.Fatal(err)
+				}
+				boundaryRun := func(step fixture.Step) { step.NonContext = true; fixture.RunStep(t, p.Ctx, tx, b.Recorder, step) }
+				step := fixture.Exec(query, 1)
+				step.Prepared = prepared
+				boundaryRun(step)
+				boundaryRun(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(3)}}))
+				if err := tx.Rollback(); err != nil {
+					t.Fatal(err)
+				}
+				run(fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(3)}}))
 			}
 		}
 		run(fixture.Exec("DELETE FROM t AS d WHERE d.f IS FALSE AND CAST(v AS BIGINT)=20", 1))

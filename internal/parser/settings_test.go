@@ -21,6 +21,23 @@ func TestSettingsGrammar(t *testing.T) {
 			t.Errorf("%s: %v", q, err)
 		}
 	}
+	for _, tc := range []struct {
+		query       string
+		start, name int
+	}{
+		{"SELECT current_setting($1::TEXT)", 8, 8},
+		{"SELECT pg_catalog.current_setting($1::TEXT)", 8, 19},
+		{"/*é*/ SELECT pg_catalog.current_setting(a.k)", 14, 25},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(tc.query, statements, err)
+		}
+		call, ok := statements[0].(*SettingCall)
+		if !ok || call.Pos.Character != tc.start || call.NamePos.Character != tc.name {
+			t.Fatal("setting call lost component positions", tc.query, call)
+		}
+	}
 }
 func TestSettingsOnKeyword(t *testing.T) {
 	for _, q := range []string{"SET standard_conforming_strings TO on", "SET standard_conforming_strings = ON", "SET SESSION standard_conforming_strings TO on"} {
@@ -87,15 +104,8 @@ func TestSettingParserOptions(t *testing.T) {
 }
 
 func TestSettingsKeywordAndFunctionComposition(t *testing.T) {
-	for _, q := range []string{`CREATE TABLE local(local TEXT)`, `CREATE TABLE reset(reset TEXT)`, `CREATE TABLE current_setting(set_config TEXT)`, `SELECT set_config FROM local`, `SELECT "current_setting"('application_name')`, `SELECT CURRENT_SETTING('application_name')`} {
+	for _, q := range []string{`CREATE TABLE local(local TEXT)`, `CREATE TABLE reset(reset TEXT)`, `CREATE TABLE current_setting(set_config TEXT)`, `SELECT set_config FROM local`, `SELECT "current_setting"('application_name')`, `SELECT CURRENT_SETTING('application_name')`, `SELECT current_setting(current_setting('application_name'))`, `SELECT current_setting(a.k)`, `SELECT current_setting(qa.a.k)`} {
 		if _, err := Parse(q); err != nil {
-			t.Errorf("%s: %v", q, err)
-		}
-	}
-	for _, q := range []string{`SELECT current_setting(current_setting('application_name'))`} {
-		_, err := Parse(q)
-		var d *sqlstate.Error
-		if !errors.As(err, &d) || d.Code != "0A000" {
 			t.Errorf("%s: %v", q, err)
 		}
 	}

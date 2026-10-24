@@ -182,19 +182,25 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 	target := &catalog.Relation{ObjectName: "sum_unit_target", Columns: []catalog.Column{{Name: "i", Usage: integer.Usage()}}}
 	one := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Pos: parser.Position{Character: 20}}}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "sum", Pos: parser.Position{Character: 10}}}}
-	for _, existingNamespace := range []bool{false, true} {
+	for _, scope := range []string{"nil_namespace", "empty_namespace", "existing_namespace"} {
 		for _, outcome := range []string{"success", "filter_failure", "missing_target_column"} {
-			t.Run(map[bool]string{false: "nil_namespace", true: "existing_namespace"}[existingNamespace]+"/"+outcome, func(t *testing.T) {
+			t.Run(scope+"/"+outcome, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 				b.Clause.AggregateClause, b.Target.InsertTarget = "INSERT VALUES", target
 				hidden := []analyze.QueryQualifier{{Name: "earlier_hidden", Columns: []analyze.QueryColumn{{Descriptor: catalog.Column{Name: "prior", Usage: integer.Usage()}}}}}
+				hidden = append(hidden, analyze.QueryQualifier{Name: target.Name(), Columns: []analyze.QueryColumn{{Descriptor: target.Columns[0]}}})
 				beforeHidden := append([]analyze.QueryQualifier(nil), hidden...)
-				beforeHidden[0].Columns = append([]analyze.QueryColumn(nil), hidden[0].Columns...)
+				for i := range hidden {
+					beforeHidden[i].Columns = append([]analyze.QueryColumn(nil), hidden[i].Columns...)
+				}
 				b.Query.Hidden = hidden
 				var namespace *analyze.QueryNamespace
 				var beforeColumns []analyze.QueryColumn
-				if existingNamespace {
-					namespace = &analyze.QueryNamespace{Columns: []analyze.QueryColumn{{Descriptor: catalog.Column{Name: "visible", Usage: integer.Usage()}}}}
+				if scope != "nil_namespace" {
+					namespace = &analyze.QueryNamespace{}
+					if scope == "existing_namespace" {
+						namespace.Columns = []analyze.QueryColumn{{Descriptor: catalog.Column{Name: "visible", Usage: integer.Usage()}}}
+					}
 					beforeColumns = append([]analyze.QueryColumn(nil), namespace.Columns...)
 					b.Query.Namespace = namespace
 				}
@@ -227,9 +233,7 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 					want.Code, want.Message = "42804", "argument of FILTER must be type boolean, not type integer"
 				} else {
 					want.Code, want.Message = "42703", `column "i" does not exist`
-					if !existingNamespace {
-						want.Detail = `There is a column named "i" in table "sum_unit_target", but it cannot be referenced from this part of the query.`
-					}
+					want.Detail = `There is a column named "i" in table "sum_unit_target", but it cannot be referenced from this part of the query.`
 				}
 				if node != nil || !reflect.DeepEqual(err, want) {
 					t.Fatalf("analysis result = %v / %#v, want nil / %#v", node, err, want)

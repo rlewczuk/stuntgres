@@ -42,13 +42,6 @@ func TestCastRecursiveSyntaxAndLocations(t *testing.T) {
 }
 
 func TestCastParserBoundaries(t *testing.T) {
-	for _, q := range []string{"INSERT INTO t VALUES(CAST(i AS int4))", "INSERT INTO t VALUES(int4(i))"} {
-		_, err := Parse(q)
-		var d *sqlstate.Error
-		if !errors.As(err, &d) || d.Code != "0A000" {
-			t.Fatal(q, err)
-		}
-	}
 	for _, q := range []string{"SELECT integer('42') FROM t", "SELECT bigint('42') FROM t", "SELECT boolean('yes') FROM t", "SELECT int('42') FROM t", "SELECT i:: FROM t", "SELECT CAST(i AS) FROM t", "SELECT i::int4 garbage more FROM t"} {
 		if _, err := Parse(q); err == nil {
 			t.Fatal(q)
