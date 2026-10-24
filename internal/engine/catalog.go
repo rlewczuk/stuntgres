@@ -342,7 +342,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	e.mu.Lock()
-	if err := synchronizeStageTriggersLocked(&s.Candidate, func() catalog.Read { return e.stageRead(s) }, &e.catalog, s.triggerReplacement); err != nil {
+	if err := view.SynchronizeTriggersLocked(&s.Candidate, func() catalog.Read { return e.stageRead(s) }, &e.catalog, s.triggerReplacement); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}

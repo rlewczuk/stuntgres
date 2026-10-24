@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"fmt"
@@ -10,15 +10,14 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/view"
 )
 
-// synchronizeStageTriggersLocked maintains partition clone provenance at catalog
+// SynchronizeTriggersLocked maintains partition clone provenance at catalog
 // publication, including CREATE/ATTACH/DETACH and parent replacement. Runtime
 // dispatch reads only the physical relation's immutable list. stageRead reads
 // the candidate's current state, alloc issues clone OIDs and revisions, and
 // replacement names the CREATE OR REPLACE definition. Engine.mu is held.
-func synchronizeStageTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Read, alloc ddl.Allocator, replacement view.TriggerReplacement) error {
+func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Read, alloc ddl.Allocator, replacement TriggerReplacement) error {
 	read := stageRead()
 	relevant := false
 	for address, descriptor := range c.Descriptors() {
