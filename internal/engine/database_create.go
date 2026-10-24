@@ -116,33 +116,69 @@ func (e *Engine) databaseCreateOwnerLocked(scope *StatementScope, name string) (
 	if err != nil {
 		return authorization.PrincipalRef{}, err
 	}
-	owner := auth.State.CurrentUser
+	return createDatabaseOwner(auth.Roles, auth.State.CurrentUser, name)
+}
+
+// createDatabaseOwner resolves the new database's owner and checks that the
+// current user may create a database owned by it.
+func createDatabaseOwner(roles authorization.Read, current authorization.PrincipalRef, name string) (authorization.PrincipalRef, error) {
+	owner := current
 	if name != "" {
-		descriptor, ok := auth.Roles.Lookup(name)
+		descriptor, ok := roles.Lookup(name)
 		if !ok {
 			return owner, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, name))
 		}
 		owner = descriptor.Ref
 	}
-	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
+	actor, err := roles.Descriptor(current)
 	if err != nil {
 		return owner, err
 	}
 	if !actor.Superuser && !actor.CreateDB {
 		return owner, sqlError("42501", "permission denied to create database")
 	}
-	allowed, err := auth.Roles.CanSetRole(actor.Ref, owner)
+	allowed, err := roles.CanSetRole(actor.Ref, owner)
 	if err != nil {
 		return owner, err
 	}
 	if !allowed {
-		target, err := auth.Roles.Descriptor(owner)
+		target, err := roles.Descriptor(owner)
 		if err != nil {
 			return owner, err
 		}
 		return owner, sqlError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, target.Name))
 	}
 	return owner, nil
+}
+
+// checkCreateDatabase runs the admission checks in PostgreSQL's order. exists
+// answers whether a database name is registered; it is called under Engine.mu.
+func checkCreateDatabase(name string, options databaseCreateOptions, exists func(string) bool) error {
+	switch options.template {
+	case "template1":
+	case "template0":
+		return sqlError("0A000", "CREATE DATABASE with TEMPLATE other than template1 is not supported")
+	default:
+		if !exists(options.template) {
+			return sqlError("3D000", fmt.Sprintf(`template database "%s" does not exist`, options.template))
+		}
+		return sqlError("0A000", "CREATE DATABASE with TEMPLATE other than template1 is not supported")
+	}
+	if options.encoding != 6 {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf("new encoding (%s) is incompatible with the encoding of the template database (UTF8)", sqltype.EncodingName(options.encoding)), Hint: "Use the same encoding as in the template database, or use template0 as template."}
+	}
+	for _, locale := range []struct{ value, kind string }{{options.collate, "LC_COLLATE"}, {options.ctype, "LC_CTYPE"}} {
+		if locale.value != "C" && locale.value != "POSIX" {
+			return sqlError("0A000", "CREATE DATABASE with "+locale.kind+" other than C is not supported")
+		}
+	}
+	if options.capability != "" {
+		return sqlError("0A000", "CREATE DATABASE with "+options.capability+" is not supported")
+	}
+	if exists(name) {
+		return sqlError("42P04", fmt.Sprintf(`database "%s" already exists`, name))
+	}
+	return nil
 }
 
 func (e *Engine) executeCreateDatabase(scope *StatementScope, statement *parser.CreateDatabaseStmt, count int) (Result, error) {
@@ -157,34 +193,7 @@ func (e *Engine) executeCreateDatabase(scope *StatementScope, statement *parser.
 	e.mu.Lock()
 	owner, err := e.databaseCreateOwnerLocked(scope, options.owner)
 	if err == nil {
-		switch options.template {
-		case "template1":
-		case "template0":
-			err = sqlError("0A000", "CREATE DATABASE with TEMPLATE other than template1 is not supported")
-		default:
-			if e.cluster.targets[options.template] == nil {
-				err = sqlError("3D000", fmt.Sprintf(`template database "%s" does not exist`, options.template))
-			} else {
-				err = sqlError("0A000", "CREATE DATABASE with TEMPLATE other than template1 is not supported")
-			}
-		}
-	}
-	if err == nil && options.encoding != 6 {
-		err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf("new encoding (%s) is incompatible with the encoding of the template database (UTF8)", sqltype.EncodingName(options.encoding)), Hint: "Use the same encoding as in the template database, or use template0 as template."}
-	}
-	if err == nil {
-		for _, locale := range []struct{ value, kind string }{{options.collate, "LC_COLLATE"}, {options.ctype, "LC_CTYPE"}} {
-			if locale.value != "C" && locale.value != "POSIX" {
-				err = sqlError("0A000", "CREATE DATABASE with "+locale.kind+" other than C is not supported")
-				break
-			}
-		}
-	}
-	if err == nil && options.capability != "" {
-		err = sqlError("0A000", "CREATE DATABASE with "+options.capability+" is not supported")
-	}
-	if err == nil && e.cluster.targets[statement.Name] != nil {
-		err = sqlError("42P04", fmt.Sprintf(`database "%s" already exists`, statement.Name))
+		err = checkCreateDatabase(statement.Name, options, func(name string) bool { return e.cluster.targets[name] != nil })
 	}
 	if err == nil {
 		err = ctx.Err()
