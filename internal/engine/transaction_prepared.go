@@ -68,28 +68,13 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		return err
 	}
 	t.Mu.Lock()
-	var err error
-	if payloadOf(t.Session).cursors.hasCurrentHold(ref) {
-		err = sqlError("0A000", "cannot PREPARE a transaction that has created a cursor WITH HOLD")
-	}
-	if err == nil && len(control.GID) >= 200 {
-		err = sqlError("22023", `transaction identifier "`+control.GID+`" is too long`)
-	}
-	if err == nil && t.AccessedTemporary {
-		err = sqlError("0A000", "cannot PREPARE a transaction that has operated on temporary objects")
-	}
-	if err == nil && ownerHasForeign(t) {
-		err = sqlError("0A000", "cannot PREPARE a transaction that has operated on foreign tables")
-	}
-	if err == nil && (len(t.NotificationActions) != 0 || len(t.NotificationEvents) != 0) {
-		err = sqlError("0A000", "cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY")
-	}
+	err := t.PrepareRefusal(control.GID, payloadOf(t.Session).cursors.hasCurrentHold(ref), ownerHasForeign(t))
 	var entry *session.PreparedTransaction
 	if err == nil {
 		auth, authErr := operationAuthorization(s.op)
 		err = authErr
 		if err == nil {
-			entry = &session.PreparedTransaction{GID: control.GID, Owner: auth.State.CurrentUser, Ref: ref, Prepared: time.Now().UTC().Truncate(time.Microsecond), Database: s.op.Session.DatabaseName, Ticket: t.Ticket, Writes: t.Writes, Deletes: t.Deletes, Catalog: t.Catalog, Roots: t.Roots, Frontier: t.Frontier, Options: session.TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
+			entry = t.PreparedEntry(control.GID, ref, auth.State.CurrentUser, s.op.Session.DatabaseName, time.Now().UTC().Truncate(time.Microsecond))
 			e.mu.Lock()
 			e.prepared.ReserveLocked()
 			e.mu.Unlock()

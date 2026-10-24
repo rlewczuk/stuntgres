@@ -39,27 +39,8 @@ func clearTransaction(t *session.TransactionOwner) {
 			}
 		}
 	}
-	if t.ProtocolCycle != nil {
-		t.ProtocolCycle.Executed = false
-	}
-	t.State = session.TxIdle
-	t.Ref = ids.TxRef{}
-	t.Command = 0
-	t.Writes = nil
-	t.Deletes = nil
-	t.Start = time.Time{}
-	t.SnapshotSet = false
-	t.CurrentSnapshot = nil
-	t.Frontier = 0
-	t.Roots = nil
-	t.SequenceCatalog = nil
-	t.Catalog = nil
-	t.NotificationActions = nil
-	t.NotificationEvents = nil
-	clear(t.Savepoints)
-	t.Savepoints = nil
-	t.AccessedTemporary = false
 	ownerExtensionOf(t).exclusionModes = index.ExclusionModes{}
+	t.Clear()
 }
 
 // transactionSessionEnd is the owner seen as its session's Transaction
@@ -121,21 +102,9 @@ func (e *Engine) beginLocked(op *session.Operation, t *session.TransactionOwner,
 	}
 	t.Next++
 	t.Ref = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.state.Epoch(), t, diagnostic)
-	t.State = state
 	payloadOf(sess).notifications.Busy = true
-	t.Isolation = session.IsolationFromText(settings.Value("default_transaction_isolation"))
-	t.ReadOnly = settings.Value("default_transaction_read_only") == "on"
-	t.Deferrable = settings.Value("default_transaction_deferrable") == "on"
-	t.EntryIsolation, t.EntryReadOnly = t.Isolation, t.ReadOnly
-	t.EntryDeferrable = t.Deferrable
-	settings.CurrentIsolation = session.IsolationText(t.Isolation)
-	settings.CurrentReadOnly = t.ReadOnly
-	settings.CurrentDeferrable = t.Deferrable
+	t.BeginLocked(settings, state, start)
 	e.enrollSerializableLocked(t.Ref, t.Isolation)
-	t.Start = start
-	if t.RetainedMessage {
-		t.MessageBorn = true
-	}
 	sess.BeginTimeoutLocked(t.Ref, state == session.TxActive, start)
 	return nil
 }

@@ -299,21 +299,8 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	ownerExtensionOf(t).retireForeign()
 	t.Session.Settings.FinishTransaction(false)
 	e.endSerializable(t.Ref, false)
-	t.Isolation, t.ReadOnly = t.EntryIsolation, t.EntryReadOnly
-	t.Deferrable = t.EntryDeferrable
-	t.State = session.TxAborted
+	endedTicket := t.Abort()
 	syncCharacteristics(t)
-	t.Writes = nil
-	t.Deletes = nil
-	t.Roots = nil
-	t.SequenceCatalog = nil
-	t.CurrentSnapshot = nil
-	t.Frontier = 0
-	t.Catalog = nil
-	t.NotificationActions = nil
-	t.NotificationEvents = nil
-	endedTicket := t.Ticket
-	t.Ticket = nil
 	ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.endTransaction(t.Ref))
 	return endedTicket
 }

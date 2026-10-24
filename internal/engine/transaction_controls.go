@@ -115,14 +115,9 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 			return EndResult{}, err
 		}
 	}
-	isolation, readOnly, deferrable := t.Isolation, t.ReadOnly, t.Deferrable
-	if chain && (!commit || t.State == session.TxAborted) && len(t.Savepoints) != 0 {
-		// Abort pops every retained child before PostgreSQL selects CHAIN
-		// characteristics. Healthy commit instead carries the current child
-		// mode; do not apply abort unwinding to that distinct disposition.
-		readOnly = t.Savepoints[0].ReadOnly
-	}
+	var modes session.TxOptions
 	if chain {
+		modes = t.ChainModes(commit)
 		if t.Next == ids.TxID(^uint64(0)) {
 			return EndResult{}, errors.New("stuntgres: transaction identity exhausted")
 		}
@@ -136,7 +131,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		if err == nil {
 			t.Next++
 			next = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.state.Epoch(), t, diagnostic)
-			e.enrollSerializableLocked(next, isolation)
+			e.enrollSerializableLocked(next, modes.Isolation)
 		}
 		op.Session.Mu.Unlock()
 		e.mu.Unlock()
@@ -269,17 +264,8 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	// All fallible work/allocation is over. Publication survives late cancel,
 	// and old waiters wake only after this fresh empty incarnation is installed.
 	if chain {
-		t.Ref = next
-		t.State = session.TxActive
-		t.Isolation, t.ReadOnly = isolation, readOnly
-		t.Deferrable = deferrable
-		// CHAIN restores modes directly: they are the new block's unstacked
-		// baseline, unlike BEGIN's overrides of session defaults.
-		t.EntryIsolation, t.EntryReadOnly = isolation, readOnly
-		t.EntryDeferrable = deferrable
+		t.InstallChain(next, modes, nextStart, candidate)
 		syncCharacteristics(t)
-		t.Start = nextStart
-		t.Ticket = candidate
 		candidate = nil
 		installedNext = true
 		t.Session.Mu.Lock()
