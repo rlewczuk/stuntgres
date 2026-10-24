@@ -58,7 +58,7 @@ type PLHost interface {
 	// Cursor runs a cursor instruction. Cursor-FOR re-enters r.Block.
 	Cursor(r *PLRun, f *PLFrame, in PLInstruction) (sqltype.Value, PLFlow, error)
 	// Message runs RAISE or ASSERT.
-	Message(r *PLRun, f *PLFrame, in PLInstruction) error
+	Message(f *PLFrame, in PLInstruction) error
 }
 
 // PLRun is one PL invocation's walk over a checked program.

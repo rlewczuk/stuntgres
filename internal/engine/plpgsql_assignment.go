@@ -48,9 +48,9 @@ func (s *StatementScope) assignPLTarget(f *proc.PLFrame, checked proc.PLTarget, 
 
 // preparePLTargetValue never publishes activation values. Bounds execute before
 // the selected leaf conversion, and each ancestor is reconstructed exactly once.
-func (s *StatementScope) preparePLTargetValue(f *proc.PLFrame, checked proc.PLTarget, value, current sqltype.Value, read catalog.Read) (candidate sqltype.Value, err error) {
+func (s *StatementScope) preparePLTargetValue(run *proc.PLRun, f *proc.PLFrame, checked proc.PLTarget, value, current sqltype.Value, read catalog.Read) (candidate sqltype.Value, err error) {
 	if len(checked.Steps) == 0 {
-		return s.preparePLVariable(f, checked.Slot, value)
+		return (*plWalk)(run).PrepareVariable(checked.Slot, value, proc.PLOrigin{})
 	}
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()

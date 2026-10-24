@@ -52,7 +52,7 @@ func TestPLpgSQLLoopFrame(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, d, f, read := loopUnitFrame(t, tc.source)
-			value, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
+			value, flow, err := (*plWalk)(s.newPLRun(d, f, read)).Block(d.SQL.PL.Root)
 			if err != nil || flow.Kind != proc.PLReturn {
 				t.Fatal("loop flow failed", flow, err)
 			}
@@ -94,7 +94,7 @@ func TestPLpgSQLLoopCancellation(t *testing.T) {
 		s, d, f, read := loopUnitFrame(t, source)
 		ctx, cancel := context.WithCancel(s.op.Context())
 		s.op.Ctx = loopFrameCancel{Context: ctx, cancel: cancel, frame: f}
-		_, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
+		_, flow, err := (*plWalk)(s.newPLRun(d, f, read)).Block(d.SQL.PL.Root)
 		cancel()
 		if !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal {
 			t.Fatal("active loop cancellation lost", flow, err)

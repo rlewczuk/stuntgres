@@ -51,8 +51,7 @@ func queryLoopDemandFailure(t *testing.T) {
 			rows, source := queryLoopUnitRows(t, schema, [][]sqltype.Value{{value}}, projection)
 			owner := &exec.CTEInvocation{Frame: 1}
 			owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
-			iterated := false
-			_, flow, err := s.consumePLQuery(d, f, in, read, owned, &iterated)
+			_, flow, err := (*plWalk)(plQueryLoopTestRun(s, d, f, read, owned)).Statements(outer.Statements[:1])
 			if assignment {
 				var state interface{ SQLState() string }
 				if !errors.As(err, &state) || state.SQLState() != "22P02" {
@@ -61,10 +60,10 @@ func queryLoopDemandFailure(t *testing.T) {
 			} else if !errors.Is(err, cause) {
 				t.Fatal("fetch failure lost cause", err)
 			}
-			if iterated || flow.Kind != proc.PLNormal || f.Values[in.QueryLoop.Target.Slot] != previous || f.Values[f.Program.FoundSlot] != found {
-				t.Fatal("failed demand published target/FOUND/control", iterated, flow)
+			if flow.Kind != proc.PLNormal || f.Values[in.QueryLoop.Target.Slot] != previous || f.Values[f.Program.FoundSlot] != found {
+				t.Fatal("failed demand published target/FOUND/control", flow)
 			}
-			if err := owned.Close(); err != nil || !owner.Closed || !rows.closed {
+			if err := owned.Close(); err != nil || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
 				t.Fatal("failed demand retained producer", err)
 			}
 		})

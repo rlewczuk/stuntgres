@@ -13,20 +13,20 @@ import (
 	"unicode/utf8"
 )
 
-func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
+func (s *StatementScope) executePLCursor(d *catalog.Procedure, run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
 	noticeStart := len(s.op.Notices)
 	raw := in.Syntax.Cursor
 	var failure proc.PLDiagnosticQuery
 	action := "OPEN"
 	switch raw.Action {
 	case parser.PLOpenCursor:
-		_, _, err = s.openPLCursor(f, in.Cursor, raw, read, &failure)
+		_, _, err = s.openPLCursor(run, f, in.Cursor, raw, read, &failure)
 	case parser.PLFetchCursor, parser.PLMoveCursor:
 		action = "FETCH"
 		if raw.Action == parser.PLMoveCursor {
 			action = "MOVE"
 		}
-		err = s.movePLCursor(f, in.Cursor, raw, read, &failure)
+		err = s.movePLCursor(run, f, in.Cursor, raw, read, &failure)
 	case parser.PLCloseCursor:
 		action = "CLOSE"
 		var name string
@@ -37,7 +37,7 @@ func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, 
 			err = restore(err)
 		}
 	case parser.PLForCursor:
-		return s.forPLCursor(d, f, in, read)
+		return s.forPLCursor(d, run, f, in, read)
 	default:
 		return value, proc.PLFlow{}, fmt.Errorf("stuntgres: invalid PL cursor instruction")
 	}
@@ -50,7 +50,7 @@ func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, 
 	return value, flow, err
 }
 
-func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *proc.PLDiagnosticQuery) (opened *sqlCursor, name string, err error) {
+func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *proc.PLDiagnosticQuery) (opened *sqlCursor, name string, err error) {
 	v := f.Values[in.Slot]
 	generated := v.Type() == nil || v.IsNull()
 	if !generated {
@@ -78,7 +78,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 				if i < len(values) {
 					value = values[i]
 				}
-				if _, e = s.assignPLVariable(f, arg.Slot, value); e != nil {
+				if _, e = (*plWalk)(run).AssignVariable(arg.Slot, value, proc.PLOrigin{}); e != nil {
 					return nil, name, e
 				}
 			}
@@ -188,7 +188,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 	return opened, name, nil
 }
 
-func (s *StatementScope) movePLCursor(f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *proc.PLDiagnosticQuery) (err error) {
+func (s *StatementScope) movePLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *proc.PLDiagnosticQuery) (err error) {
 	name, err := f.CursorName(in.Slot)
 	if err != nil {
 		return err
@@ -220,10 +220,10 @@ func (s *StatementScope) movePLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 			return e
 		}
 	}
-	return s.movePLCursorPortal(f, in.Targets, cursor, motion, read)
+	return s.movePLCursorPortal(run, f, in.Targets, cursor, motion, read)
 }
 
-func (s *StatementScope) movePLCursorPortal(f *proc.PLFrame, targets []proc.PLTarget, cursor *sqlCursor, motion *parser.FetchCursor, read catalog.Read) (err error) {
+func (s *StatementScope) movePLCursorPortal(run *proc.PLRun, f *proc.PLFrame, targets []proc.PLTarget, cursor *sqlCursor, motion *parser.FetchCursor, read catalog.Read) (err error) {
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
 	result, err := s.fetchCursorPortal(cursor, motion)
@@ -248,24 +248,24 @@ func (s *StatementScope) movePLCursorPortal(f *proc.PLFrame, targets []proc.PLTa
 	// or a second scalar-row copy. Empty rows are shaped only when needed.
 	present := rows.Count != 0
 	fields := rows.Values
-	if err = s.assignPLCursorTargets(f, targets, cursor, fields, read); err != nil {
+	if err = s.assignPLCursorTargets(run, f, targets, cursor, fields, read); err != nil {
 		return err
 	}
 	f.SetFound(present)
 	return nil
 }
 
-func (s *StatementScope) assignPLCursorTargets(f *proc.PLFrame, targets []proc.PLTarget, cursor *sqlCursor, fields []sqltype.Value, read catalog.Read) error {
+func (s *StatementScope) assignPLCursorTargets(run *proc.PLRun, f *proc.PLFrame, targets []proc.PLTarget, cursor *sqlCursor, fields []sqltype.Value, read catalog.Read) error {
 	if len(targets) == 1 {
 		v := f.Program.Variables[targets[0].Slot]
 		if len(targets[0].Steps) == 0 && (v.Record || v.Usage.Type.BaseType().IsComposite()) {
-			return s.assignPLRow(f, targets[0].Slot, &cursor.recordShape, cursor.schema, fields)
+			return (*plWalk)(run).AssignRow(targets[0].Slot, &cursor.recordShape, (*plColumns)(&cursor.schema), fields, proc.PLOrigin{})
 		}
 		value := sqltype.Null(f.Program.Variables[f.Program.FoundSlot].Usage.Type)
 		if len(fields) != 0 {
 			value = fields[0]
 		}
-		candidate, err := s.preparePLTargetValue(f, targets[0], value, f.Values[targets[0].Slot], read)
+		candidate, err := s.preparePLTargetValue(run, f, targets[0], value, f.Values[targets[0].Slot], read)
 		if err == nil {
 			f.Values[targets[0].Slot] = candidate
 		}
@@ -284,7 +284,7 @@ func (s *StatementScope) assignPLCursorTargets(f *proc.PLFrame, targets []proc.P
 		if i < len(fields) {
 			value = fields[i]
 		}
-		candidate, err := s.preparePLTargetValue(f, target, value, current, read)
+		candidate, err := s.preparePLTargetValue(run, f, target, value, current, read)
 		if err != nil {
 			return err
 		}
@@ -296,13 +296,13 @@ func (s *StatementScope) assignPLCursorTargets(f *proc.PLFrame, targets []proc.P
 	return nil
 }
 
-func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
+func (s *StatementScope) forPLCursor(d *catalog.Procedure, run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
 	original := f.Values[in.Cursor.Slot]
 	wasNull := original.Type() == nil || original.IsNull()
 	var failure proc.PLDiagnosticQuery
 	origin := s.plNoticeOrigin(f, in.Syntax.Pos, "at FOR over cursor")
 	noticeStart := len(s.op.Notices)
-	cursor, name, err := s.openPLCursor(f, in.Cursor, in.Syntax.Cursor, read, &failure)
+	cursor, name, err := s.openPLCursor(run, f, in.Cursor, in.Syntax.Cursor, read, &failure)
 	s.appendPLNoticeContext(noticeStart, origin)
 	if err != nil {
 		return value, proc.PLFlow{}, s.plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at FOR over cursor", failure)
@@ -335,7 +335,7 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in p
 		}
 		previousFound := f.Values[f.Program.FoundSlot]
 		noticeStart := len(s.op.Notices)
-		err = s.movePLCursorPortal(f, targets, cursor, fetch, read)
+		err = s.movePLCursorPortal(run, f, targets, cursor, fetch, read)
 		s.appendPLNoticeContext(noticeStart, origin)
 		found, _ := f.Values[f.Program.FoundSlot].Boolean()
 		f.Values[f.Program.FoundSlot] = previousFound
@@ -346,7 +346,7 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in p
 			break
 		}
 		iterated = true
-		value, flow, err = s.executePLBlock(d, f, in.Cursor.Loop, read)
+		value, flow, err = (*plWalk)(run).Block(in.Cursor.Loop)
 		if err != nil {
 			return value, flow, err
 		}

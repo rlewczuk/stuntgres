@@ -3,176 +3,138 @@ package engine
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// assignPLRow takes ownership of fields when publishing an anonymous record.
-// Named rows use the existing ordinal assignment conversion and retain their
-// declared descriptor. The source descriptor is private to this open producer.
-func (s *StatementScope) assignPLRow(f *proc.PLFrame, slot int, shape **sqltype.Descriptor, schema []catalog.Column, fields []sqltype.Value) error {
-	if *shape == nil {
-		members := make([]sqltype.CompositeMember, len(schema))
-		for i, column := range schema {
-			members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: column.Name, Usage: column.Usage}
-		}
-		var err error
-		*shape, err = sqltype.RecordShape(members)
-		if err != nil {
-			return err
-		}
-	}
-	if len(fields) == 0 && len(schema) != 0 {
-		fields = make([]sqltype.Value, len(schema))
-		for i, column := range schema {
-			fields[i] = sqltype.Null(column.Usage.Type)
-		}
-	}
-	row, err := sqltype.OwnedCompositeValue(*shape, fields)
-	if err != nil {
-		return err
-	}
-	_, err = s.assignPLVariable(f, slot, row)
-	return err
+// plQueryRows is an open query-FOR producer under the loop's lexical
+// activation. The private producer and its PL body still belong to this
+// function; nested SQL calls get their own cleared activation and restore it.
+type plQueryRows struct {
+	host     *plHost
+	position parser.Position
+	origin   plNoticeOrigin
+	restore  func(error) error
+	result   Result
+	schema   []catalog.Column
 }
 
-func (s *StatementScope) forPLQuery(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
-	iterated, consumed := false, false
+var _ proc.PLRows = (*plQueryRows)(nil)
+
+// beginQueryRows takes the adapter for the next nesting depth and starts the
+// loop's activation. Close ends both.
+func (h *plHost) beginQueryRows(f *proc.PLFrame, in proc.PLInstruction) *plQueryRows {
+	q := &h.first
+	if h.depth != 0 {
+		for len(h.nested) < h.depth {
+			h.nested = append(h.nested, new(plQueryRows))
+		}
+		q = h.nested[h.depth-1]
+	}
+	h.depth++
+	s := h.s
 	diagnosticIdentity := s.sqlRoutine.plDiagnostic
-	origin := s.plNoticeOrigin(f, in.Syntax.Pos, "at FOR over SELECT rows")
+	*q = plQueryRows{host: h, position: in.Syntax.Pos, origin: s.plNoticeOrigin(f, in.Syntax.Pos, plQueryLoopAction)}
+	q.restore = s.activateSQLRoutine(nil, h.read)
+	s.sqlRoutine.lexical, s.sqlRoutine.scalar, s.sqlRoutine.rows = f, false, true
+	s.sqlRoutine.plDiagnostic = diagnosticIdentity
+	return q
+}
+
+// open plans and executes the loop query. On failure it has already closed q.
+func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
+	s := q.host.s
 	noticeStart, sourceComplete := len(s.op.Notices), false
 	defer func() {
-		if !sourceComplete { s.appendPLNoticeContext(noticeStart, origin) }
-	}()
-	restore := s.activateSQLRoutine(nil, read)
-	defer func() {
-		err = restore(err)
-		if err == nil && consumed {
-			f.SetFound(iterated)
+		if !sourceComplete {
+			s.appendPLNoticeContext(noticeStart, q.origin)
 		}
 	}()
-	s.sqlRoutine.lexical, s.sqlRoutine.scalar, s.sqlRoutine.rows = f, false, true
-	// The private producer and its PL body still belong to this function.
-	// Nested SQL calls get their own cleared activation and restore this owner.
-	s.sqlRoutine.plDiagnostic = diagnosticIdentity
-	raw := in.Syntax.QueryLoop
-	const action = "at FOR over SELECT rows"
-	queryError := func(cause error, planning bool) error {
-		diagnostic := proc.PLDiagnosticQuery{}
-		if planning {
-			diagnostic = proc.PLDiagnosticQuery{Text: parser.PLExpressionSource(f.Program.Source, raw.Start, raw.End), Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
-		}
-		return s.plRuntimeQueryError(cause, read, d, in.Syntax.Pos, action, diagnostic)
+	raw, query := in.Syntax.QueryLoop, in.QueryLoop.Query
+	planningError := func(cause error) error {
+		diagnostic := proc.PLDiagnosticQuery{Text: parser.PLExpressionSource(f.Program.Source, raw.Start, raw.End), Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
+		return s.plRuntimeQueryError(cause, q.host.read, q.host.d, q.position, plQueryLoopAction, diagnostic)
 	}
 	s.sqlRoutine.plPlanning = true
-	if err = s.acquireRelation(in.QueryLoop.Query, true); err != nil {
-		return value, flow, queryError(err, true)
+	if err = s.acquireRelation(query, true); err != nil {
+		return q.Close(planningError(err))
 	}
-	description, err := s.engine().describeOperation(s, in.QueryLoop.Query)
+	description, err := s.engine().describeOperation(s, query)
 	if err != nil {
-		return value, flow, queryError(err, true)
+		return q.Close(planningError(err))
 	}
 	s.Expected = &description
-	if !rewriteTupleStatement(in.QueryLoop.Query) {
-		return value, flow, queryError(sqlError("42P11", "cannot open "+routineCommandTag(in.QueryLoop.Query)+" query as cursor"), false)
+	if !rewriteTupleStatement(query) {
+		return q.Close(q.queryError(sqlError("42P11", "cannot open "+routineCommandTag(query)+" query as cursor")))
 	}
 	finishCommand, err := s.beginRoutineCommand()
 	if err != nil {
-		return value, flow, err
+		return q.Close(err)
 	}
-	result, executionErr := s.engine().executeStatement(s, in.QueryLoop.Query, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
+	result, executionErr := s.engine().executeStatement(s, query, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, f.Values[:f.Program.FormalCount])
 		return nil
 	})
 	// DML and modifying WITH have completed eagerly. Settle their command before
 	// any body SQL can observe the effects or create its own command identity.
 	err = finishCommand(executionErr)
-	s.appendPLNoticeContext(noticeStart, origin)
+	s.appendPLNoticeContext(noticeStart, q.origin)
 	sourceComplete = true
-	defer func() {
-		noticeStart := len(s.op.Notices)
-		defer func() { s.appendPLNoticeContext(noticeStart, origin) }()
-		if result.Rows != nil {
-			if closeErr := result.Rows.Close(); err == nil {
-				err = queryError(closeErr, false)
-			}
-		}
-		for _, rows := range result.RowSets {
-			if closeErr := rows.Close(); err == nil {
-				err = queryError(closeErr, false)
-			}
-		}
-	}()
+	q.result = result
 	if err != nil {
-		return value, flow, queryError(err, s.sqlRoutine.plPlanning)
+		if s.sqlRoutine.plPlanning {
+			return q.Close(planningError(err))
+		}
+		return q.Close(q.queryError(err))
 	}
 	if result.Rows == nil {
-		return value, flow, fmt.Errorf("stuntgres: query FOR has no row producer")
+		return q.Close(fmt.Errorf("stuntgres: query FOR has no row producer"))
 	}
-	consumed = true
-	return s.consumePLQuery(d, f, in, read, result.Rows, &iterated)
+	q.schema = result.Rows.Schema()
+	return nil
 }
 
-// consumePLQuery uses one width-sized demand buffer. Only published anonymous
-// record values need detached backing; no result history or second result buffer.
-func (s *StatementScope) consumePLQuery(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read, rows exec.RowResult, iterated *bool) (value sqltype.Value, flow proc.PLFlow, err error) {
-	schema := rows.Schema()
-	fields := make([]sqltype.Value, len(schema))
-	var shape *sqltype.Descriptor
-	owner := in.QueryLoop.Body.Control
-	origin := s.plNoticeOrigin(f, in.Syntax.Pos, "at FOR over SELECT rows")
-	failure := func(cause error) error {
-		return s.plRuntimeQueryError(cause, read, d, in.Syntax.Pos, "at FOR over SELECT rows", proc.PLDiagnosticQuery{})
+func (q *plQueryRows) queryError(cause error) error {
+	return q.host.s.plRuntimeQueryError(cause, q.host.read, q.host.d, q.position, plQueryLoopAction, proc.PLDiagnosticQuery{})
+}
+
+func (q *plQueryRows) Width() int { return len(q.schema) }
+
+func (q *plQueryRows) Column(i int) (string, sqltype.Usage) {
+	return q.schema[i].Name, q.schema[i].Usage
+}
+
+func (q *plQueryRows) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
+	s := q.host.s
+	noticeStart := len(s.op.Notices)
+	present, err := q.result.Rows.Next(ctx, dst)
+	s.appendPLNoticeContext(noticeStart, q.origin)
+	return present, err
+}
+
+// Close closes the producers, then ends the loop's activation. It releases
+// the adapter for reuse by the next query loop at this depth.
+func (q *plQueryRows) Close(primary error) error {
+	s, err := q.host.s, primary
+	noticeStart := len(s.op.Notices)
+	if q.result.Rows != nil {
+		if closeErr := q.result.Rows.Close(); err == nil {
+			err = q.queryError(closeErr)
+		}
 	}
-	for {
-		if err = s.op.Context().Err(); err != nil {
-			return value, proc.PLFlow{}, failure(err)
+	for _, rows := range q.result.RowSets {
+		if closeErr := rows.Close(); err == nil {
+			err = q.queryError(closeErr)
 		}
-		noticeStart := len(s.op.Notices)
-		present, fetchErr := rows.Next(s.op.Context(), fields)
-		s.appendPLNoticeContext(noticeStart, origin)
-		if fetchErr != nil {
-			return value, proc.PLFlow{}, failure(fetchErr)
-		}
-		if !present {
-			if !*iterated {
-				noticeStart := len(s.op.Notices)
-				err = s.assignPLRow(f, in.QueryLoop.Target.Slot, &shape, schema, nil)
-				s.appendPLNoticeContext(noticeStart, origin)
-				if err != nil {
-					return value, proc.PLFlow{}, failure(err)
-				}
-			}
-			break
-		}
-		owned := fields
-		if f.Program.Variables[in.QueryLoop.Target.Slot].Record {
-			owned = slices.Clone(fields)
-		}
-		noticeStart = len(s.op.Notices)
-		err = s.assignPLRow(f, in.QueryLoop.Target.Slot, &shape, schema, owned)
-		s.appendPLNoticeContext(noticeStart, origin)
-		if err != nil {
-			return value, proc.PLFlow{}, failure(err)
-		}
-		*iterated = true
-		value, flow, err = s.executePLBlock(d, f, in.QueryLoop.Body, read)
-		if err != nil {
-			return value, flow, err
-		}
-		if flow.Kind == proc.PLNormal || flow.Kind == proc.PLContinue && flow.Target == owner {
-			continue
-		}
-		if flow.Kind == proc.PLExit && flow.Target == owner {
-			return value, proc.PLFlow{}, nil
-		}
-		return value, flow, nil
 	}
-	return value, proc.PLFlow{}, nil
+	s.appendPLNoticeContext(noticeStart, q.origin)
+	err = q.restore(err)
+	host := q.host
+	*q = plQueryRows{}
+	host.depth--
+	return err
 }

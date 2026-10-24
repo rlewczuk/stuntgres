@@ -89,7 +89,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		frame := &proc.PLFrame{Program: &proc.PLProgram{FoundSlot: 0, Variables: []proc.PLVariable{{Usage: boolean.Usage(), Role: proc.PLFoundSlot}, {Usage: refcursor.Usage()}, {Record: true}}}, Values: []sqltype.Value{sqltype.Boolean(boolean, false), sqltype.String(refcursor, "other"), {}}}
 		defer frame.Close()
 		motion := &parser.FetchCursor{Name: parser.Identifier{Text: "original"}, Count: 1}
-		if err := s.movePLCursorPortal(frame, []proc.PLTarget{{Slot: 2}}, original, motion, read); err != nil {
+		if err := s.movePLCursorPortal(s.newPLRun(nil, frame, read), frame, []proc.PLTarget{{Slot: 2}}, original, motion, read); err != nil {
 			t.Fatal(err)
 		}
 		row := frame.Values[2]

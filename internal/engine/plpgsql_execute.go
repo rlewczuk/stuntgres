@@ -2,29 +2,21 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-// All three finite handler routes reach this executor/compiler, not a scalar
-// pseudo-interface. The caller owns routine admission, depth and root operation.
+// All three finite handler routes reach this entry, not a scalar
+// pseudo-interface. The caller owns routine admission, depth and root operation;
+// this entry publishes the routine's diagnostic identity around the walk.
 func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef) (sqltype.Value, error) {
-	if d.SQL.PL == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing checked PL program")
-	}
-	if collation.ID != 0 && !collation.Valid() {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid PL input collation")
-	}
 	identity, err := s.plDiagnosticIdentityFor(d, read)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -32,228 +24,7 @@ func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame
 	previousIdentity := s.sqlRoutine.plDiagnostic
 	s.sqlRoutine.plDiagnostic = identity
 	defer func() { s.sqlRoutine.plDiagnostic = previousIdentity }()
-	f := proc.NewPLFrame(d.SQL.PL, d.SQL, input, collation)
-	defer f.Close()
-	result, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if flow.Kind == proc.PLExit && flow.Target == d.SQL.PL.Root.Control {
-		diagnostic := sqlError("2F005", "control reached end of function without RETURN").(*sqlstate.Error)
-		diagnostic.Context = "PL/pgSQL function " + s.plRoutineDiagnosticIdentity(read, d)
-		return sqltype.Value{}, diagnostic
-	}
-	if flow.Kind != proc.PLNormal && flow.Kind != proc.PLReturn {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: unconsumed PL control transfer")
-	}
-	if d.SQL.PL.Procedure {
-		return sqltype.Value{}, nil
-	}
-	if len(d.SQL.OutputFormals) == 1 {
-		return f.Values[d.SQL.OutputFormals[0]], nil
-	}
-	if d.SQL.Void() {
-		return sqltype.VoidValue(d.SQL.Result.Type), nil
-	}
-	if flow.Kind != proc.PLReturn {
-		diagnostic := sqlError("2F005", "control reached end of function without RETURN").(*sqlstate.Error)
-		diagnostic.Context = "PL/pgSQL function " + s.plRoutineDiagnosticIdentity(read, d)
-		return sqltype.Value{}, diagnostic
-	}
-	return result, nil
-}
-
-func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, block *proc.PLBlock, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
-	f.Enter(block)
-	defer f.Leave(block)
-	defer func() {
-		if err == nil && flow.Kind == proc.PLExit && flow.Target == block.Control && block.Control != nil && !block.Control.Loop && !block.FunctionScope {
-			flow = proc.PLFlow{}
-		}
-	}()
-	for _, initializer := range block.Declarations {
-		if err := s.op.Context().Err(); err != nil {
-			return sqltype.Value{}, proc.PLFlow{}, err
-		}
-		variable := f.Program.Variables[initializer.Slot]
-		f.Values[initializer.Slot] = sqltype.Value{}
-		if variable.Record && initializer.Expression == nil {
-			continue
-		}
-		value := sqltype.Value{}
-		var err error
-		if initializer.Expression != nil {
-			f.Scopes[len(f.Scopes)-1] = initializer.Scope
-			value, _, _, err = s.evaluatePLExpression(f, initializer.Query, read, nil, s.plNoticeOrigin(f, initializer.Start, "during statement block local variable initialization"))
-			f.Scopes[len(f.Scopes)-1] = block
-		} else {
-			value = sqltype.Null(variable.Usage.Type.BaseType())
-		}
-		if err == nil {
-			noticeStart := len(s.op.Notices)
-			value, err = s.assignPLVariable(f, initializer.Slot, value)
-			origin := initializer.Start
-			if initializer.Expression == nil { origin = block.Syntax.Pos }
-			s.appendPLNoticeContext(noticeStart, s.plNoticeOrigin(f, origin, "during statement block local variable initialization"))
-		}
-		if err != nil {
-			origin := block.Syntax.Pos
-			if initializer.Expression != nil {
-				origin = initializer.Start
-			}
-			return sqltype.Value{}, proc.PLFlow{}, s.plRuntimeError(err, read, d, initializer.Start, initializer.End, origin, "during statement block local variable initialization", false)
-		}
-	}
-	if len(block.Handlers) == 0 {
-		return s.executePLStatements(d, f, block.Statements, read)
-	}
-	checkpoint, err := s.beginPLException()
-	if err != nil {
-		return sqltype.Value{}, proc.PLFlow{}, err
-	}
-	value, flow, bodyErr := s.executePLStatements(d, f, block.Statements, read)
-	if err := s.endPLException(checkpoint, bodyErr != nil, bodyErr); err != nil {
-		return sqltype.Value{}, proc.PLFlow{}, err
-	}
-	if bodyErr == nil {
-		return value, flow, nil
-	}
-	var cleanup *proc.PLExceptionCleanupError
-	var diagnostic *sqlstate.Error
-	if errors.As(bodyErr, &cleanup) || !errors.As(bodyErr, &diagnostic) {
-		return sqltype.Value{}, proc.PLFlow{}, bodyErr
-	}
-	handler := block.MatchException(diagnostic)
-	if handler == nil {
-		return sqltype.Value{}, proc.PLFlow{}, bodyErr
-	}
-	previous := f.EnterHandler(block.HandlerScope, diagnostic)
-	defer f.LeaveHandler(block.HandlerScope, previous)
-	return s.executePLStatements(d, f, handler.Statements, read)
-}
-
-func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFrame, statements []proc.PLInstruction, read catalog.Read) (sqltype.Value, proc.PLFlow, error) {
-	for _, instruction := range statements {
-		if err := s.op.Context().Err(); err != nil {
-			return sqltype.Value{}, proc.PLFlow{}, err
-		}
-		if instruction.Block != nil {
-			value, flow, err := s.executePLBlock(d, f, instruction.Block, read)
-			if err != nil || flow.Kind != proc.PLNormal {
-				return value, flow, err
-			}
-			continue
-		}
-		if instruction.If != nil || instruction.Case != nil {
-			value, flow, err := s.executePLConditional(d, f, instruction, read)
-			if err != nil || flow.Kind != proc.PLNormal {
-				return value, flow, err
-			}
-			continue
-		}
-		if instruction.QueryLoop != nil {
-			value, flow, err := s.forPLQuery(d, f, instruction, read)
-			if err != nil || flow.Kind != proc.PLNormal {
-				return value, flow, err
-			}
-			continue
-		}
-		if instruction.Cursor != nil {
-			value, flow, err := s.executePLCursor(d, f, instruction, read)
-			if err != nil || flow.Kind != proc.PLNormal {
-				return value, flow, err
-			}
-			continue
-		}
-		if instruction.Loop != nil {
-			value, flow, err := s.executePLLoop(d, f, instruction.Loop, read)
-			if err != nil || flow.Kind != proc.PLNormal {
-				return value, flow, err
-			}
-			continue
-		}
-		if instruction.Transfer != nil {
-			value, flow, err := s.executePLTransfer(d, f, instruction, read)
-			if err != nil || flow.Kind != proc.PLNormal {
-				return value, flow, err
-			}
-			continue
-		}
-		if instruction.Raise != nil {
-			if err := s.executePLRaise(d, f, instruction, read); err != nil {
-				return sqltype.Value{}, proc.PLFlow{}, err
-			}
-			continue
-		}
-		if instruction.Assert != nil {
-			if err := s.executePLAssert(d, f, instruction, read); err != nil {
-				return sqltype.Value{}, proc.PLFlow{}, err
-			}
-			continue
-		}
-		statement := instruction.Syntax
-		if statement.Rethrow {
-			if diagnostic := f.HandledError(); diagnostic != nil {
-				return sqltype.Value{}, proc.PLFlow{}, diagnostic
-			}
-			diagnostic := sqlError("0Z002", "RAISE without parameters cannot be used outside an exception handler").(*sqlstate.Error)
-			line := strings.Count(d.SQL.Source[:statement.Pos.Offset], "\n") + 1
-			diagnostic.Context = fmt.Sprintf("PL/pgSQL function %s line %d at RAISE", s.plRoutineDiagnosticIdentity(read, d), line)
-			return sqltype.Value{}, proc.PLFlow{}, diagnostic
-		}
-		if statement.Return {
-			if statement.Expression == nil {
-				return sqltype.Value{}, proc.PLFlow{Kind: proc.PLReturn}, nil
-			}
-			value, _, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil, s.plNoticeOrigin(f, statement.Pos, "at RETURN"))
-			expressionError := err != nil
-			if err == nil {
-				noticeStart := len(s.op.Notices)
-				if d.SQL.Trigger {
-					if !value.IsNull() && (value.Type() == nil || !value.Type().BaseType().IsComposite()) {
-						err = sqlError("42804", "cannot return non-composite value from function returning composite type")
-					}
-				} else {
-					value, err = s.convertPLValue(value, d.SQL.Result)
-				}
-				s.appendPLNoticeContext(noticeStart, s.plNoticeOrigin(f, statement.Pos, "at RETURN"))
-			}
-			if err != nil {
-				return sqltype.Value{}, proc.PLFlow{}, s.plRuntimeError(err, read, d, statement.ExpressionStart, statement.ExpressionEnd, statement.Pos, "at RETURN", expressionError)
-			}
-			return value, proc.PLFlow{Kind: proc.PLReturn}, nil
-		}
-		if len(instruction.Target.Steps) != 0 {
-			if _, err := s.assignPLTarget(f, instruction.Target, statement.Target, instruction.Query, read, s.plNoticeOrigin(f, statement.Pos, "at assignment")); err != nil {
-				return sqltype.Value{}, proc.PLFlow{}, proc.PLAssignmentError(err, d.SQL, s.plIdentity(read, d), statement)
-			}
-			continue
-		}
-		value, _, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil, s.plNoticeOrigin(f, statement.Pos, "at assignment"))
-		expressionError := err != nil
-		if err == nil {
-			noticeStart := len(s.op.Notices)
-			value, err = s.assignPLVariable(f, instruction.Target.Slot, value)
-			s.appendPLNoticeContext(noticeStart, s.plNoticeOrigin(f, statement.Pos, "at assignment"))
-		}
-		if err != nil {
-			var diagnostic *sqlstate.Error
-			var domainError *plan.AssignmentDomainError
-			query := proc.PLDiagnosticQuery{}
-			triggerBinding := d.SQL.Trigger && proc.PLTriggerExpressionBinding(err)
-			if !errors.As(err, &domainError) && errors.As(err, &diagnostic) && ((!expressionError || d.SQL.Trigger) && strings.HasPrefix(diagnostic.Context, "SQL function ") || triggerBinding) {
-				callback := proc.PLAssignmentContext
-				if triggerBinding {
-					callback = proc.PLAssignmentBinding
-				}
-				query = proc.PLBodyDiagnostic(d.SQL.Source, statement.Pos, statement.ExpressionEnd, callback)
-			} else if expressionError && !d.SQL.Trigger && proc.PLExpressionCallback(err) {
-				query = proc.PLBodyDiagnostic(d.SQL.Source, statement.Pos, statement.ExpressionEnd, proc.PLAssignmentCallback)
-			}
-			return sqltype.Value{}, proc.PLFlow{}, s.plRuntimeQueryError(err, read, d, statement.Pos, "at assignment", query)
-		}
-	}
-	return sqltype.Value{}, proc.PLFlow{}, nil
+	return (*plWalk)(s.newPLRun(d, nil, read)).Invoke(input, collation)
 }
 
 // Admission and the real executor handoff are shared by scalar expressions and
@@ -434,40 +205,6 @@ func (s *StatementScope) finishPLComposite(candidate sqltype.Value, target *sqlt
 		}
 	}
 	return target.Wrap(candidate)
-}
-
-func (s *StatementScope) assignPLVariable(f *proc.PLFrame, slot int, value sqltype.Value) (sqltype.Value, error) {
-	value, err := s.preparePLVariable(f, slot, value)
-	if err == nil {
-		f.Values[slot] = value
-	}
-	return value, err
-}
-
-// Whole-slot preparation is detached; its caller owns atomic publication.
-func (s *StatementScope) preparePLVariable(f *proc.PLFrame, slot int, value sqltype.Value) (sqltype.Value, error) {
-	variable := f.Program.Variables[slot]
-	var err error
-	if variable.Record {
-		if value.IsNull() {
-			if f.Program.Trigger && slot < 2 {
-				value = sqltype.Null(f.Values[slot].Type())
-			} else {
-				value = sqltype.Value{}
-			}
-		} else if value.Type() == nil || !value.Type().BaseType().IsComposite() {
-			return sqltype.Value{}, sqlError("0A000", "input of anonymous composite types is not implemented")
-		}
-	} else {
-		value, err = s.convertPLValue(value, f.Usage(slot))
-	}
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if variable.NotNull && (value.Type() == nil || value.IsNull()) {
-		return sqltype.Value{}, sqlError("22004", fmt.Sprintf("null value cannot be assigned to variable %q declared NOT NULL", variable.Name))
-	}
-	return value, nil
 }
 
 func (s *StatementScope) plRoutineDiagnosticIdentity(read catalog.Read, d *catalog.Procedure) string {

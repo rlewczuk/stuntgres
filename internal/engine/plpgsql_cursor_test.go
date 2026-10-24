@@ -263,12 +263,12 @@ func TestPLpgSQLCursorTargetAtomicity(t *testing.T) {
 	f := &proc.PLFrame{Program: &proc.PLProgram{FoundSlot: 0, Variables: []proc.PLVariable{{Name: "found", Usage: boolean.Usage(), Role: proc.PLFoundSlot}, {Name: "first", Usage: integer.Usage()}, {Name: "second", Usage: integer.Usage(), NotNull: true}, {Name: "r", Record: true}}}, Values: []sqltype.Value{sqltype.Boolean(boolean, false), seven, seven, {}}}
 	defer f.Close()
 	cursor := &sqlCursor{schema: []catalog.Column{{Name: "i", Usage: integer.Usage()}, {Name: "t", Usage: text.Usage()}}}
-	err := s.assignPLCursorTargets(f, []proc.PLTarget{{Slot: 1}, {Slot: 2}}, cursor, []sqltype.Value{eight, sqltype.Null(integer)}, read)
+	err := s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{{Slot: 1}, {Slot: 2}}, cursor, []sqltype.Value{eight, sqltype.Null(integer)}, read)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22004" || f.Values[1] != seven || f.Values[2] != seven {
 		t.Fatal("failed target list partially published", err)
 	}
-	if err = s.assignPLCursorTargets(f, []proc.PLTarget{{Slot: 3}}, cursor, []sqltype.Value{sqltype.Null(integer), sqltype.Null(text)}, read); err != nil {
+	if err = s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{{Slot: 3}}, cursor, []sqltype.Value{sqltype.Null(integer), sqltype.Null(text)}, read); err != nil {
 		t.Fatal(err)
 	}
 	row := f.Values[3]
@@ -276,20 +276,20 @@ func TestPLpgSQLCursorTargetAtomicity(t *testing.T) {
 		t.Fatal("empty FETCH erased RECORD shape")
 	}
 	shape := row.Type()
-	if err = s.assignPLCursorTargets(f, []proc.PLTarget{{Slot: 3}}, cursor, []sqltype.Value{seven, sqltype.String(text, "seven")}, read); err != nil || f.Values[3].Type() != shape || !row.CompositeField(0).IsNull() {
+	if err = s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{{Slot: 3}}, cursor, []sqltype.Value{seven, sqltype.String(text, "seven")}, read); err != nil || f.Values[3].Type() != shape || !row.CompositeField(0).IsNull() {
 		t.Fatal("refill mutated prior value or rebuilt descriptor", err)
 	}
 	field := func(name string) proc.PLTarget {
 		return proc.PLTarget{Slot: 3, Steps: []parser.TargetStep{{Field: &parser.Identifier{Text: name}}}}
 	}
-	if err = s.assignPLCursorTargets(f, []proc.PLTarget{field("i"), field("t")}, cursor, []sqltype.Value{eight, sqltype.String(text, "eight")}, read); err != nil {
+	if err = s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{field("i"), field("t")}, cursor, []sqltype.Value{eight, sqltype.String(text, "eight")}, read); err != nil {
 		t.Fatal(err)
 	}
 	updated := f.Values[3]
 	if !sqltype.SameDatum(updated.CompositeField(0), eight) || !sqltype.SameDatum(updated.CompositeField(1), sqltype.String(text, "eight")) {
 		t.Fatal("detached writes to the same RECORD lost a sibling")
 	}
-	err = s.assignPLCursorTargets(f, []proc.PLTarget{field("t"), field("i")}, cursor, []sqltype.Value{sqltype.String(text, "changed"), sqltype.String(text, "bad")}, read)
+	err = s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{field("t"), field("i")}, cursor, []sqltype.Value{sqltype.String(text, "changed"), sqltype.String(text, "bad")}, read)
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22P02" || f.Values[3] != updated || !sqltype.SameDatum(updated.CompositeField(1), sqltype.String(text, "eight")) {
 		t.Fatal("failed field transfer published or mutated its detached ancestor", err)
 	}
@@ -383,7 +383,7 @@ func TestPLpgSQLCursorTargetBoundsOrder(t *testing.T) {
 	} {
 		target := plUnitAssignmentTarget(t, tc.path)
 		target.Slot = 1
-		_, err := s.preparePLTargetValue(f, target, sqltype.String(text, "bad"), initial, read)
+		_, err := s.preparePLTargetValue(s.newPLRun(nil, f, read), f, target, sqltype.String(text, "bad"), initial, read)
 		domainUnitDiagnostic(t, err, tc.code, tc.message)
 		if f.Values[1] != initial {
 			t.Fatal("detached target preparation published its root")

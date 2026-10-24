@@ -5,7 +5,6 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/proc"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -33,23 +32,5 @@ func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, 
 	previousIdentity := s.sqlRoutine.plDiagnostic
 	s.sqlRoutine.plDiagnostic = diagnosticIdentity
 	defer func() { s.sqlRoutine.plDiagnostic = previousIdentity }()
-	result, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	identity := "PL/pgSQL function " + s.plRoutineDiagnosticIdentity(read, d)
-	if flow.Kind != proc.PLReturn {
-		return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2F005", Message: "control reached end of trigger procedure without RETURN", Context: identity}
-	}
-	shape, ok := read.LookupType(relation.RowType)
-	if !ok {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: trigger row type disappeared")
-	}
-	result, err = proc.TriggerReturn(shape, result)
-	if diagnostic, ok := err.(*sqlstate.Error); ok {
-		copy := *diagnostic
-		copy.Context = identity + " during function exit"
-		err = &copy
-	}
-	return result, err
+	return (*plWalk)(s.newPLRun(d, f, read)).Trigger(relation.RowType)
 }

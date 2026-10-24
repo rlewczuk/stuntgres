@@ -62,17 +62,12 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 			rows, source := queryLoopUnitRows(t, schema, [][]sqltype.Value{{one}, {two}}, projection)
 			owner := &exec.CTEInvocation{Frame: 1}
 			owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
-			restore := s.activateSQLRoutine(nil, read)
-			s.sqlRoutine.lexical, s.sqlRoutine.scalar, s.sqlRoutine.rows = f, false, true
-			iterated := false
-			_, flow, err := s.consumePLQuery(d, f, in, read, owned, &iterated)
+			_, flow, err := (*plWalk)(plQueryLoopTestRun(s, d, f, read, owned)).Statements(outer.Statements[:1])
 			if retained.Type() != nil {
 				if got, _ := retained.CompositeField(0).Integer(); got != 1 {
 					t.Fatal("later row mutated retained first row", got)
 				}
 			}
-			closeErr := owned.Close()
-			err = restore(err)
 			if body == "r.i:=1/0;" {
 				var state interface{ SQLState() string }
 				if !errors.As(err, &state) || state.SQLState() != "22012" {
@@ -81,8 +76,9 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 			} else if err != nil {
 				t.Fatal(err)
 			}
-			if !iterated || closeErr != nil || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
-				t.Fatal("producer/lexical lifetime", iterated, flow, err, closeErr)
+			found, _ := f.Values[f.Program.FoundSlot].Boolean()
+			if found != (body != "r.i:=1/0;") || f.Values[in.QueryLoop.Target.Slot].Type() == nil || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
+				t.Fatal("producer/lexical lifetime", found, flow, err)
 			}
 			if err := owned.Close(); err != nil {
 				t.Fatal("repeat close", err)
@@ -110,17 +106,13 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 		schema := []catalog.Column{{Name: "i", Usage: integer.Usage()}}
 		projection := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 		rows, _ := queryLoopUnitRows(t, schema, nil, projection)
-		iterated := false
-		_, _, err := s.consumePLQuery(d, f, in, read, rows, &iterated)
-		if err != nil || iterated {
-			t.Fatal("empty demand", iterated, err)
+		_, _, err := (*plWalk)(plQueryLoopTestRun(s, d, f, read, rows)).Statements(outer.Statements[:1])
+		if found, _ := f.Values[f.Program.FoundSlot].Boolean(); err != nil || found || !rows.closed {
+			t.Fatal("empty demand", found, err)
 		}
 		target := f.Values[in.QueryLoop.Target.Slot]
 		if target.Type() == nil || target.CompositeLen() != 1 || target.Type().CompositeMember(0).Name != "i" || !target.CompositeField(0).IsNull() {
 			t.Fatal("empty lost descriptor-shaped NULL", target)
-		}
-		if err := rows.Close(); err != nil {
-			t.Fatal(err)
 		}
 	})
 	t.Run("close_failure", func(t *testing.T) {
@@ -176,20 +168,34 @@ func TestPLpgSQLQueryLoopCancellation(t *testing.T) {
 	rows, source := queryLoopUnitRows(t, []catalog.Column{{Name: "i", Usage: integer.Usage()}}, [][]sqltype.Value{{value}, {value}}, plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0})
 	owner := &exec.CTEInvocation{Frame: 1}
 	owned := &cteOwnedRows{RowResult: rows, owner: owner, source: source}
-	restore := s.activateSQLRoutine(nil, read)
-	s.sqlRoutine.lexical, s.sqlRoutine.rows = f, true
-	iterated := false
-	_, flow, err := s.consumePLQuery(d, f, in, read, owned, &iterated)
-	closeErr := owned.Close()
-	err = restore(err)
+	_, flow, err := (*plWalk)(plQueryLoopTestRun(s, d, f, read, owned)).Statements(outer.Statements[:1])
 	s.op.Ctx = originalContext
-	if !iterated || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || closeErr != nil || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
-		t.Fatal("empty-body cancellation retained producer authority", flow, err, closeErr)
+	if f.Values[in.QueryLoop.Target.Slot].Type() == nil || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
+		t.Fatal("empty-body cancellation retained producer authority", flow, err)
 	}
 	// The same scope/frame can acquire fresh lexical demand after cancellation.
-	restore = s.activateSQLRoutine(nil, read)
+	restore := s.activateSQLRoutine(nil, read)
 	s.sqlRoutine.lexical = f
 	if err := restore(nil); err != nil || s.sqlRoutine.lexical != nil {
 		t.Fatal("caller scratch did not recover", err)
 	}
+}
+
+// plQueryLoopTestRun drives query loops over rows in place of the planned
+// producer. The real adapter still owns activation, close and FOUND order.
+func plQueryLoopTestRun(s *StatementScope, d *catalog.Procedure, f *proc.PLFrame, read catalog.Read, rows exec.RowResult) *proc.PLRun {
+	run := s.newPLRun(d, f, read)
+	run.Host = plInjectedRows{plHost: run.Host.(*plHost), rows: rows}
+	return run
+}
+
+type plInjectedRows struct {
+	*plHost
+	rows exec.RowResult
+}
+
+func (h plInjectedRows) OpenQuery(f *proc.PLFrame, in proc.PLInstruction) (proc.PLRows, error) {
+	q := h.beginQueryRows(f, in)
+	q.result, q.schema = Result{Rows: h.rows}, h.rows.Schema()
+	return q, nil
 }
