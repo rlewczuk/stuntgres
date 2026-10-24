@@ -317,4 +317,27 @@ run `make bench` before and after.
 - 161: not started.
 - 162: not started.
 - 164: not started.
-- 165: not started.
+- 165: done (`1b75fbd78`, `6fb0e5f37`, then the docs commit).
+  - On `session`: `ProtocolInput`, `ProtocolLogParameter`, `ProtocolContext`,
+    `ProtocolField`, `ProtocolFormats`, `ProtocolFormat`,
+    `ProtocolResultFormats`, `ProtocolReceiveKind` (`ProtocolBindInput`,
+    `ProtocolFunctionInput`), `ImportProtocolParameters` and
+    `EncodeProtocolRow` (`protocol_values.go`); `PreparableBody`,
+    `ProtocolPlannedStatement`, `ProtocolPlainSelect`, `ProtocolHasRows` and
+    `ProtocolParameterOIDs` (`protocol_statement.go`). The root's
+    `protocol_values.go` is gone; `cmd/stuntgres` names the four types from
+    `session`.
+  - Deviations: `protocolImport` became `ImportProtocolParameters`, a free
+    function taking the context, output environment, count and types;
+    `ProtocolParameterOIDs` takes the count and types. `EncodeProtocolRow`
+    is unchanged.
+  - Root 402 → 401 files and 49.7k → 49.5k lines (−0.24k); `session` gains
+    0.26k production lines.
+  - Tests: moved the scratch-reuse and unused-result-selector cases of
+    `TestProtocolValueCodecs` and the has-rows assertion of
+    `TestProtocolPreparedRegistry` to `session/protocol_values_test.go`
+    (`TestProtocolCodec*`), with a new import case for the value inputs.
+    Adapted `protocol_mechanism_test.go`, `protocol_terminal_test.go` (a
+    local `session` variable renamed) and `cmd/stuntgres/protocol_test.go`.
+  - For item 167: no new root feature files since 160; `077c060a8` grew
+    `index.go` by 24 lines.

@@ -71,6 +71,16 @@ implement its slots, so either import would form a cycle.
   (`command_tag.go`) and admission predicates (`statement_class.go`:
   `ModifyingTag`, `ExplicitUtility`, ...). The root keeps the checks, their
   exceptions and errors.
+- **Protocol codec** (`protocol_values.go`, `protocol_statement.go`): the wire
+  value types `ProtocolInput`, `ProtocolLogParameter`, `ProtocolContext` and
+  `ProtocolField`; format decoding (`ProtocolFormats`,
+  `ProtocolResultFormats`); `ImportProtocolParameters`, which decodes Bind and
+  fastpath parameters from the operation context, output environment and
+  formal types it is given; `EncodeProtocolRow`, run once per result row with
+  reused buffers; and the pure statement checks `PreparableBody`,
+  `ProtocolPlannedStatement`, `ProtocolPlainSelect`, `ProtocolHasRows` and
+  `ProtocolParameterOIDs`. It takes no lock; the root calls it with nothing
+  held.
 - **Timeouts** (`timeout.go`): transaction, idle-in-transaction and idle session
   budgets and timers.
 - **LISTEN/NOTIFY** (`notification_*.go`): records, persistent listener FIFO,
@@ -167,7 +177,10 @@ and visibility: the `Engine.mu` windows of begin, commit, rollback and CHAIN
 SSI and lock-manager calls (`transaction_prepared.go`), and of savepoints
 (`savepoints.go`, with `restoreSavepointLocked` shared by ROLLBACK TO and
 failed-statement or PL/pgSQL rollback), publication and preflight, session start,
-settings application (`setting_apply.go`, `discard.go`), the `Engine.mu`
+settings application (`setting_apply.go`, `discard.go`), the protocol Parse,
+Bind, Describe, Execute and fastpath steps (`protocol_*.go`, with
+`ProtocolStatement`, `ProtocolPortalDescription` and `ProtocolExecution`,
+which carry `StatementDescription`), the `Engine.mu`
 windows of notification publication and polling, the `…Locked` journal
 wrappers, the root fence types and the fence check order, and the root slot
 types.
@@ -178,12 +191,13 @@ Package units cover the journal with its fences, capture and merge, notices,
 SET LOCAL actions, the 2PC registry's claim and preflight, CHAIN modes and
 PREPARE refusals, the notification
 queue, registry and publication, characteristic modes, serializable write
-survival, the `lc_messages` access callback and the UUID v1 allocator. Engine
+survival, the `lc_messages` access callback, the UUID v1 allocator and the
+protocol codec. Engine
 tests (in `internal/engine`) cover the host and root slots, catalog fences,
 column-shape projections and settings provider capture.
 
 ```sh
-make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|SerializableWriteSurvives|SettingAccessAllowedCallback|SettingsLocal|UUIDOsspTime)'
+make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|SerializableWriteSurvives|SettingAccessAllowedCallback|SettingsLocal|UUIDOsspTime)'
 make check RACE=1 RUN='^Test(SessionHost|SessionPayload|OwnerExtension|ExclusionMark|Operation(AnalysisSlot|ReplaySlot)|UUIDOsspTimeConcurrent$$)'
 make check RUN='^Test(CatalogFences|EnumProvenanceSavepoints|AlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection)$$)'
 make check RUN='^Test(PGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)|RowSecurity(SettingProvenance|ProviderLifecycle))$$'

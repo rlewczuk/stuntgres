@@ -10,15 +10,15 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `cadb6dba6`.
+Last verified against `master` at `077c060a8`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 161 (session, statement classification), 163 (exec, cursors), 165
-  (session, protocol codec) and 166 (ddl, CREATE DATABASE).
+- 161 (session, statement classification), 163 (exec, cursors) and 166
+  (ddl, CREATE DATABASE).
 
 ## Linear plan
 
@@ -116,9 +116,14 @@ One item per session. Start one with "Implement Item N from Linear Plan in
 164. [ ] Session: settings, DISCARD and setting calls —
      [session](ENGINE-SPLIT-session.md#item-164--settings-discard-and-setting-calls)
      · needs 161, 163 · 0.16k
-165. [ ] Session: protocol value codec —
+165. [x] Session: protocol value codec —
      [session](ENGINE-SPLIT-session.md#item-165--protocol-value-codec) ·
-     needs — · 0.24k
+     needs — · 0.24k (`1b75fbd78`, `6fb0e5f37`, then the docs
+     commit) · root 402 → 401 files and 49.7k → 49.5k lines · no startup
+     allocation change and no new escapes on the Bind, Execute or fastpath
+     paths · targeted units, quickcheck, `make deps` and the quick and
+     `REFERENCE=1` server extended, portal, protocol and LIKE binary-parameter
+     selections passed; racecheck/finalcheck skipped at user request
 166. [ ] DDL: CREATE DATABASE decisions —
      [ddl](ENGINE-SPLIT-ddl.md#item-166--create-database-decisions) · needs —
      · 0.16k
