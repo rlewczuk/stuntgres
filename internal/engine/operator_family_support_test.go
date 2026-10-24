@@ -90,12 +90,18 @@ func TestOperatorFamilyProviderInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range []*sqltype.Descriptor{enum, domain} {
-		class, _ := view.DefaultIndexClass(403, typ)
+		class, _, defaultErr := view.DefaultIndexClass(403, typ)
+		if defaultErr != nil {
+			t.Fatal(defaultErr)
+		}
 		comparison, err := routine.BindIndexOrdering(view, typ.Usage(), class)
 		if err != nil || comparison.Support().Routine != 3514 {
 			t.Fatal("enum/domain comparator", comparison, err)
 		}
-		hashClass, _ := view.DefaultIndexClass(405, typ)
+		hashClass, _, defaultErr := view.DefaultIndexClass(405, typ)
+		if defaultErr != nil {
+			t.Fatal(defaultErr)
+		}
 		if _, err := routine.BindPartitionHash(view, typ.Usage(), hashClass); err != nil {
 			t.Fatal("enum/domain extended hash", err)
 		}

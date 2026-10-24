@@ -329,7 +329,7 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 		}
 	}
 	if err = index.StageCreateUniques(h, d, uniques); err != nil {
-		return nil, err
+		return nil, index.DefaultClassDiagnostic(h, auth, err)
 	}
 	if err = index.StageCreateExclusions(h, auth, input, d, syntax); err != nil {
 		return nil, err

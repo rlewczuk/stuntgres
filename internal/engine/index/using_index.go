@@ -64,7 +64,10 @@ func UsingIndexEligibility(view catalog.Read, parent, index *catalog.Relation, r
 	}
 	for i, key := range definition.Keys {
 		usage := parent.Columns[slices.Index(parent.Attributes, attributes[i])].Usage
-		class, ok := view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
+		class, ok, err := view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
+		if err != nil {
+			return nil, err
+		}
 		keyUsage, err := KeyUsage(parent, key)
 		if err != nil {
 			return nil, err

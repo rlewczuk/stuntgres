@@ -104,7 +104,7 @@ func (p *pruneProof) keyTerms(parent *catalog.Relation) ([32]int, error) {
 		result[i] = -1
 	}
 	for i, key := range parent.Partition.Keys {
-		class, ok := p.view.DefaultIndexClass(403, key.Usage.Type)
+		class, ok := p.view.UniqueDefaultIndexClass(403, key.Usage.Type)
 		if !ok {
 			continue
 		}
@@ -113,7 +113,7 @@ func (p *pruneProof) keyTerms(parent *catalog.Relation) ([32]int, error) {
 			continue
 		}
 		if parent.Partition.Strategy == parser.PartitionHash {
-			hashClass, ok := p.view.DefaultIndexClass(405, key.Usage.Type)
+			hashClass, ok := p.view.UniqueDefaultIndexClass(405, key.Usage.Type)
 			if !ok || !hashClass.SameIdentity(key.Class) {
 				continue
 			}

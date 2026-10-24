@@ -54,7 +54,7 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 		}
 		if support.Provider == sqltype.CubeIndexSupport {
 			member, _ := view.FamilySupport(fact.Family, fact.InputType, fact.InputType, int16(slot))
-			if member == nil || member.OwningClass != fact.Address().ObjectID || fact.Extension == (ids.ObjectAddress{}) {
+			if member == nil || member.InternalOwner != fact.Address() || fact.Extension == (ids.ObjectAddress{}) {
 				return class, fmt.Errorf("stuntgres: cube support requires its installed class")
 			}
 		}
@@ -105,10 +105,10 @@ func selectNativeIndexSupport(view catalog.Read, family, left, right uint32, slo
 		}
 		single := strconv.FormatUint(uint64(left), 10)
 		fact, exists := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(family)})
-		if !exists || fact.Method != 403 || fact.Extension != proc.Extension || slot != 1 || left != right || symbol != "cube_cmp" || string(proc.Signature) != single+","+single || proc.Result != 23 || member.OwningClass == 0 {
+		if !exists || fact.Method != 403 || fact.Extension != proc.Extension || slot != 1 || left != right || symbol != "cube_cmp" || string(proc.Signature) != single+","+single || proc.Result != 23 || member.InternalOwner.ClassID != ids.OperatorClassCatalogID || member.InternalOwner.ObjectID == 0 || member.InternalOwner.SubID != 0 {
 			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed cube support selection")
 		}
-		class, exists := view.OperatorClass(member.OwningClass)
+		class, exists := view.OperatorClass(member.InternalOwner.ObjectID)
 		if !exists || class.Family != fact.Address().ObjectID || class.InputType != ids.OID(left) || class.Extension != fact.Extension || class.Method != 403 {
 			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid installed cube support class")
 		}

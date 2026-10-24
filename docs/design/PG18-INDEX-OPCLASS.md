@@ -12,10 +12,12 @@ shape is [pg_opclass](https://www.postgresql.org/docs/18/catalog-pg-opclass.html
 `catalog.OperatorClass` is the live immutable authority: object address2616,
 namespace, name, revision, owner, exact method OID, containing family OID, input
 type OID, default flag, and storage type OID. Storage0 means the input type.
-Class names are keyed by `(namespace, method OID, name)`; defaults use a secondary
-namespace-independent `(method OID, input type OID)` key participating in ordinary
-candidate/name publication fences. Rename/schema/owner replacement retains OID
-and family identity. Moving a class never moves its family.
+Class names are keyed by `(namespace, method OID, name)`. DEFAULT membership is a
+derived immutable `(method OID,input type OID)` bucket of actual class OIDs,
+ordered by decoded name, namespace OID and OID, not a unique secondary name.
+Canonical writes, CloneState, Candidate projection, journal marks and bulk/reset/
+remap maintain the same index. Rename/schema/owner replacement retains OID and
+family identity. Moving a class never moves its family.
 
 The63 compiled supported class facts seed this authority alongside the existing
 49 families and released member facts. Compiled names and defaults are bootstrap
@@ -32,7 +34,8 @@ physical implementation facts. `IndexDefinition.MethodOID` retains exact
 identity; `Method` dispatches the existing btree/hash/bounded GiST algorithms.
 MethodOID is never reconstructed from the physical enum in a stored definition.
 Class/default lookup, family coherence and captured support use exact identity.
-There is no public registration API or CREATE/DROP ACCESS METHOD implementation.
+Registered CREATE/DROP ACCESS METHOD definitions supply exact handler-backed SQL
+identities; there is no arbitrary public native-handler registration API.
 
 `routine.TestOperatorClassMethodIdentity` supplies private immutable method facts
 with OIDs403 and90000 sharing btree mechanics. `Read.IndexClassForMethod` is the
@@ -50,8 +53,10 @@ keys, construction and retained method identity, not executable selection.
 
 The parser retains class names, input type, DEFAULT, USING, optional FAMILY,
 and ordered positioned OPERATOR/FUNCTION/STORAGE items. Utility preparation is
-quiet; ordinary read-only and native explicit-transaction utility policy stays
-in the existing execution classifiers.
+quiet. CREATE/ALTER/DROP use the existing transaction Journal and Finish path in
+autocommit, SQL/Go transactions and retained messages; Execute checks current
+actor/schema/provider authority. Private reads include earlier owner changes,
+and savepoints or rollback restore the complete graph without replacing identities.
 
 CREATE resolves the creation namespace and CREATE privilege before method and
 superuser authority, then input type and family. Without FAMILY, the same-named
@@ -63,13 +68,26 @@ fallback where required. Entire-list admission precedes operator and procedure
 storage phases. Class-name/default collisions, storage normalization and member
 slot collisions never publish a valid prefix.
 
-The descriptor, any implicit family, member rows, names, default key,
-dependencies and resulting index roots are published through one ordinary
-candidate. Validation failure or canceled publication leaves the incumbent
-catalog, data, keys and roots unchanged. Incomplete definitions are legal.
+The descriptor, any implicit family, member rows, names, derived default bucket,
+dependencies and resulting index roots publish through one ordinary candidate.
+Validation failure or canceled publication leaves the incumbent catalog, data,
+keys and roots unchanged. Incomplete definitions are legal.
 CREATE does not prove completeness or mathematical consistency; index binding
 requires the real executable members it actually needs. An admitted incomplete
 concrete enum class is not a claim that a concrete enum index can be built.
+
+Sequential CREATE checks `AnyDefaultOperatorClass` in the current private view
+and rejects an existing default. Two independently admitted distinct DEFAULT
+classes can both commit; there is no absent-default name fence or default-only
+lock. Required `DefaultIndexClass`/`DefaultIndexClassID` select an exact domain-base
+input first: multiple exact defaults report42710. Only applicable shipped
+compatible fallbacks participate after exact lookup; nonunique compatible
+candidates yield no selection and the caller's ordinary42704 missing-default
+diagnostic. Unrelated fallback buckets have no effect. Explicit named classes
+bypass default lookup. `DefaultOperatorClass` and
+`UniqueDefaultIndexClass` are unique metadata predicates for optional proof and
+deparse, not choosers that hide ambiguity. Stored indexes retain their selected
+class/provider rather than reselecting a new default.
 
 ## Executable support and consumers
 
@@ -113,8 +131,11 @@ Actual indexes have NORMAL references to their class; partition keys also retain
 class dependencies. Required class-owned member rows have INTERNAL class and
 NORMAL implementation dependencies. The existing method adjustment retains
 optional and cross-type loose members instead of retroactively hardening them.
-Selected GiST CREATE CLASS support slots retain INTERNAL class ownership;
-existing loose/classless family behavior is unchanged.
+GiST support1,2,5,6,7 has INTERNAL class ownership when inserted by CREATE CLASS,
+or INTERNAL family ownership when inserted by ALTER FAMILY. GiST operators and
+optional support stay loose. `InternalOwner` records the exact address at
+insertion; ALTER's btree/hash lookup uses physical403/405 class identity, not a
+later SQL-alias class. Validation and remapping preserve the actual owner kind.
 
 DROP RESTRICT of an indexed class reports the independently asserted dependent
 index diagnostic. CASCADE removes the actual dependent index and required owned
@@ -123,8 +144,8 @@ families survive class removal too. Loose member classification is insertion-tim
 Schema/principal lifecycle, REASSIGN/DROP OWNED, ACL decisions, object identity,
 pinning and graph retirement share ordinary subsystem machinery rather than a
 parallel class deletion map. `TestOperatorClassCatalogAtomicity` exercises
-canceled publication/default collision and class RESTRICT/CASCADE through the
-real stage and graph with a retained custom index root.
+canceled ordinary and duplicate-default publication plus class RESTRICT/CASCADE
+through the real stage and graph with a retained custom index root.
 
 The common removal provider accepts class descriptors directly, rejects pinned
 bootstrap identities independently of their current names, and then records
@@ -135,8 +156,9 @@ the same provider must accept the2616 target when executing the closure.
 
 The ordinary dependency scheduler emits types/routines/operators and families
 before classes, classes before dependent indexes and partitioned tables. Class
-CREATE emits INTERNAL-owned entries once; loose optional/cross-type rows remain
-separate ALTER FAMILY ADD events. A legal class with no owned entries emits a
+CREATE emits its class-owned entries once; loose optional/cross-type and
+family-owned support rows remain separate ALTER FAMILY ADD events, preserving
+the actual family INTERNAL edge. A legal class with no owned entries emits a
 normalized STORAGE=input item. Current class/family names, namespaces and owners
 are used, including bootstrap rename/schema/owner deltas staged collision-safely
 before graph replay.
@@ -147,13 +169,22 @@ are emitted with their live qualified catalog names; concrete types retain the
 ordinary declaration presenter. This keeps polymorphic class/member inputs
 separate from the concrete enum column whose destination identity is remapped.
 
-Foreign replacement remaps class/family/type/member/owning-class/principal and
+Foreign replacement remaps class/family/type/member/InternalOwner/principal and
 index references. Runtime class captures are reconstructed without source
 support; destination reads rebuild executable support and partition comparators.
 Source roots/providers are never transplanted. Failed late replay remains one
 atomic replacement failure. Held metadata reads use the existing dependency and
 effective-namespace machinery; returned Rows and retained roots remain immutable.
 No global DDL epoch or blanket warmed-root invalidation is introduced.
+
+Replay remains ordinary sequential SQL, without a trusted duplicate-default
+admission exception or new format. A graph with multiple persistent DEFAULT
+classes is not representable by sequential CREATE DEFAULT statements. Dump's
+existing preflight rejects it before writer output with an ordinary native error;
+TEMP namespaces and private overlays do not spuriously reject the persistent
+graph. Manually supplied sequential duplicate definitions still fail42710 during
+atomic Restore, leaving incumbent state and eligible private work unchanged.
+After dropping a duplicate, the unique graph roundtrips actual emitted bytes.
 
 The roundtrip reference definition replays actual native-emitted SQL on pinned
 PostgreSQL, not a separately reconstructed expected script. Its enum class is
@@ -171,6 +202,10 @@ Roundtrip and SeedRoundtrip. Their pinned PostgreSQL18.6 oracle discovery and
 native syntax RED preceded production. Final native/reference, package unit,
 race and whole-project evidence are root-owned; this design does not claim an
 unexecuted verification result.
+Transactional routes, concurrent default ambiguity and complete retained-index
+class dependency bags are covered in `reference/object_address/transactional_*`;
+`TestOperatorClassDefaultMultiplicity` and `TestOperatorFamilyInternalOwners`
+exercise immutable buckets, exact ownership, replay and retirement.
 
 Feature smoke selectors and exact commands are in the owning package READMEs.
 The feature adds no new physical access method, scalar function surface,

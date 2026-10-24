@@ -15,6 +15,31 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 	if err := ValidateExtensionMembership(v, d); err != nil {
 		return err
 	}
+	if owner := OperatorFamilyMemberOwner(d); owner != (ids.ObjectAddress{}) {
+		if owner.SubID != 0 {
+			return fmt.Errorf("stuntgres: invalid internal member owner")
+		}
+		var family ids.OID
+		switch member := d.(type) {
+		case *OperatorFamilyOperator:
+			family = member.Family
+		case *OperatorFamilySupport:
+			family = member.Family
+		}
+		switch owner.ClassID {
+		case ids.OperatorClassCatalogID:
+			class, ok := v.OperatorClass(owner.ObjectID)
+			if !ok || class.Family != family {
+				return fmt.Errorf("stuntgres: invalid internal class owner")
+			}
+		case ids.OperatorFamilyClassID:
+			if _, ok := v.OperatorFamily(owner); !ok || owner.ObjectID != family {
+				return fmt.Errorf("stuntgres: invalid internal family owner")
+			}
+		default:
+			return fmt.Errorf("stuntgres: invalid internal member owner")
+		}
+	}
 	switch d := d.(type) {
 	case *OperatorFamily:
 		method, exists := v.AccessMethod(d.Method)

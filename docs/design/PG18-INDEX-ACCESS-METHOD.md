@@ -59,14 +59,21 @@ handler invocation.
 
 ## Admission and operation identity
 
-Prepare parses and describes utilities without effects. Execute shares existing
-read-only and explicit-transaction policy. CREATE checks superuser first, then
-global collision, exact function-only `(internal)` lookup, exact return kind and
-registered capability. There is no handler call probe or independent EXECUTE
-privilege check. DROP resolves existence/IF EXISTS before existing-object
-superuser, pinning and the shared dependency closure. One ordinary catalog stage
-publishes the final descriptor/name/retirement effects. Publication fences outgoing
-method/handler reads and incoming consumers against concurrent utility changes.
+Prepare parses and describes utilities without effects. Execute checks current
+authority and read-only state. CREATE/DROP share the canonical Journal and
+Finish path in autocommit, SQL BEGIN, Go BeginTx and retained protocol messages;
+later owner commands see private definitions, while peers see the complete
+committed group. Savepoints and rollback restore descriptor/name/provider state.
+CREATE checks superuser first, then global collision, exact function-only
+`(internal)` lookup, exact return kind and registered capability. There is no
+handler call probe or independent EXECUTE privilege check. DROP resolves
+existence/IF EXISTS before existing-object superuser, pinning and the shared
+closure. Publication records actual outgoing method/handler predecessors and
+fences newly incoming consumers through the existing journal observations.
+Nonpinned provider AS and retirement AX grants use actual object resources and
+the normal ticket lifecycle outside Engine.mu. DROP captures its complete AUTO
+closure after its grant, retaining the original identity rather than retargeting
+by name. Changed global names use the common name-claim owner.
 
 Index definitions retain MethodOID separately from their physical Method enum.
 CREATE resolves a live method once and passes that descriptor through attribute
@@ -107,10 +114,11 @@ recapture; already captured rows retain their own values and metadata.
 ## Dependencies, persistence and replacement
 
 Family to method is AUTO, class to family is AUTO, and index to class is NORMAL.
-Required members retain their original INTERNAL class ownership. Empty family/
-class trees drop without CASCADE or NOTICE. A real index blocks RESTRICT with
-index-to-class detail. CASCADE reports the actual normal index consumer, retires
-the full automatic/internal graph and leaves the parent table/data intact.
+Members retain their insertion-time INTERNAL class or family owner; loose
+members retain AUTO family/implementation edges. Empty automatic trees drop
+without CASCADE or NOTICE. A real index blocks RESTRICT with index-to-class
+detail. CASCADE reports the actual normal index consumer, retires the complete
+automatic/internal graph and leaves the parent table/data intact.
 Method to handler is logically NORMAL; materialized references to pinned stock
 handler procedures are suppressed by the existing pg_depend pinning rule.
 
@@ -133,6 +141,9 @@ including the later review regressions. Final remedy verification is root-owned;
 this document does not claim it passed.
 Controls retain actual native-emitted-byte PostgreSQL replay, not reconstructed
 SQL pretending to be a dump.
+Transactional identity, all SQL/Go/direct/held routes, retirement and actual wire
+coverage live in `reference/object_address/transactional_*_test.go`; selected
+families are listed in that package's README.
 
 Selected proof, each under an external900-second deadline:
 

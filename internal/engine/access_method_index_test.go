@@ -33,7 +33,10 @@ func TestAccessMethodIndexRouting(t *testing.T) {
 		family *catalog.OperatorFamily
 		class  *catalog.OperatorClass
 	}{{first, family, class}, {second, secondFamily, secondClass}} {
-		selected, ok := view.DefaultIndexClassID(tc.method.Address().ObjectID, sqltype.Int4)
+		selected, ok, err := view.DefaultIndexClassID(tc.method.Address().ObjectID, sqltype.Int4)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !ok || selected.OID() != uint32(tc.class.Address().ObjectID) || selected.FamilyOID() != uint32(tc.family.Address().ObjectID) {
 			t.Fatal("cross-method default", selected)
 		}

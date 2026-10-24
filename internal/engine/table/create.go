@@ -262,7 +262,7 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 		}
 	}
 	if err := index.StageCreateUniques(h, d, b.Create.Uniques); err != nil {
-		return err
+		return index.DefaultClassDiagnostic(h, auth, err)
 	}
 	if err := index.StageCreateExclusions(h, auth, input, d, s); err != nil {
 		return err

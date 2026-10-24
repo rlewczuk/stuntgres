@@ -45,7 +45,10 @@ func BindHashIndex(view catalog.Read, parent *catalog.Relation, d *catalog.Index
 	class := key.Class
 	if class.Name == "" {
 		var exists bool
-		class, exists = view.DefaultIndexClass(d.MethodIdentity(), usage.Type)
+		class, exists, err = view.DefaultIndexClass(d.MethodIdentity(), usage.Type)
+		if err != nil {
+			return b, err
+		}
 		if !exists {
 			return b, DefaultClassError(usage.Type.DiagnosticName(), familyMethodName(view, d.MethodIdentity()))
 		}
@@ -183,7 +186,10 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		}
 		class := key.Class
 		if class.Name == "" {
-			class, _ = evaluation.Catalog.DefaultIndexClass(d.MethodIdentity(), usage.Type)
+			class, _, err = evaluation.Catalog.DefaultIndexClass(d.MethodIdentity(), usage.Type)
+			if err != nil {
+				return nil, err
+			}
 		}
 		slot := slices.Index(parent.Attributes, key.Attribute)
 		if key.Derived != nil {

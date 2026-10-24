@@ -16,8 +16,9 @@ type FamilyDependency struct {
 }
 
 func OperatorFamilyDependencies(view Read, d Descriptor) []FamilyDependency {
-	var family, left, right, implementation, sort, owning ids.OID
+	var family, left, right, implementation, sort ids.OID
 	var class ids.OID
+	var owning ids.ObjectAddress
 	switch d := d.(type) {
 	case *OperatorFamily:
 		return []FamilyDependency{{d.Namespace(), 'n'}, {ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: d.Method}, 'a'}}
@@ -28,19 +29,19 @@ func OperatorFamilyDependencies(view Read, d Descriptor) []FamilyDependency {
 		}
 		return deps
 	case *OperatorFamilyOperator:
-		family, left, right, implementation, sort, class, owning = d.Family, d.Left, d.Right, d.Operator, d.SortFamily, ids.OperatorClassID, d.OwningClass
+		family, left, right, implementation, sort, class, owning = d.Family, d.Left, d.Right, d.Operator, d.SortFamily, ids.OperatorClassID, d.InternalOwner
 	case *OperatorFamilySupport:
-		family, left, right, implementation, class, owning = d.Family, d.Left, d.Right, d.Function, ids.ProcedureClassID, d.OwningClass
+		family, left, right, implementation, class, owning = d.Family, d.Left, d.Right, d.Function, ids.ProcedureClassID, d.InternalOwner
 	default:
 		return nil
 	}
 	flavor := byte('a')
-	if owning != 0 {
+	if owning != (ids.ObjectAddress{}) {
 		flavor = 'n'
 	}
 	deps := []FamilyDependency{{ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: family}, 'a'}, {ids.ObjectAddress{ClassID: class, ObjectID: implementation}, flavor}}
-	if owning != 0 {
-		deps[0] = FamilyDependency{ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: owning}, 'i'}
+	if owning != (ids.ObjectAddress{}) {
+		deps[0] = FamilyDependency{owning, 'i'}
 	}
 	if class == ids.ProcedureClassID {
 		identity, _ := BuiltinRoutineIdentityByOID(implementation)
@@ -72,38 +73,48 @@ func OperatorFamilyDependencies(view Read, d Descriptor) []FamilyDependency {
 	return deps
 }
 
-// OperatorFamilyMemberOwner returns only the insertion-time class owner.
-// Loose members, including classless family entries, have no INTERNAL owner.
+// OperatorFamilyMemberOwner returns the immutable insertion-time INTERNAL
+// class or family owner; loose members have no INTERNAL owner.
 func OperatorFamilyMemberOwner(d Descriptor) ids.ObjectAddress {
-	var owning ids.OID
 	switch d := d.(type) {
 	case *OperatorFamilyOperator:
-		owning = d.OwningClass
+		return d.InternalOwner
 	case *OperatorFamilySupport:
-		owning = d.OwningClass
+		return d.InternalOwner
 	}
-	if owning == 0 {
-		return ids.ObjectAddress{}
-	}
-	return ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: owning}
+	return ids.ObjectAddress{}
 }
 
-// FamilyMemberClass applies btadjustmembers/hashadjustmembers at insertion.
-// Optional and cross-type rows are loose even when a matching class exists.
-// CREATE CLASS prefers its own descriptor for matching input; other eligible
-// inputs and ALTER FAMILY use the existing family/datatype lookup.
-func FamilyMemberClass(view Read, method, family, left, right ids.OID, number int16, function bool, creating *OperatorClass) ids.OID {
+// FamilyMemberInternalOwner applies the installed method's adjustment rules.
+// SQL method identity remains distinct from the physical callback's class search.
+func FamilyMemberInternalOwner(view Read, method, family, left, right ids.OID, number int16, function bool, creating *OperatorClass) ids.ObjectAddress {
 	fact, ok := view.AccessMethod(method)
-	if !ok || left != right || fact.Native != BtreeAccessMethod && fact.Native != HashAccessMethod || function && number != 1 {
-		return 0
+	if !ok {
+		return ids.ObjectAddress{}
+	}
+	if fact.Native == GistAccessMethod {
+		if !function || number != 1 && number != 2 && number != 5 && number != 6 && number != 7 {
+			return ids.ObjectAddress{}
+		}
+		if creating != nil {
+			return creating.Address()
+		}
+		return ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: family}
+	}
+	if left != right || fact.Native != BtreeAccessMethod && fact.Native != HashAccessMethod || function && number != 1 {
+		return ids.ObjectAddress{}
 	}
 	if creating != nil && creating.Method == method && creating.Family == family && creating.InputType == left {
-		return creating.Address().ObjectID
+		return creating.Address()
+	}
+	physical := ids.OID(403)
+	if fact.Native == HashAccessMethod {
+		physical = 405
 	}
 	for _, row := range view.OperatorClasses() {
-		if row.Method == method && row.Family == family && row.InputType == left {
-			return row.Address().ObjectID
+		if row.Method == physical && row.Family == family && row.InputType == left {
+			return row.Address()
 		}
 	}
-	return 0
+	return ids.ObjectAddress{}
 }

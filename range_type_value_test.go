@@ -16,11 +16,11 @@ func TestRangeTypeAdapter(t *testing.T) {
 	view := e.CatalogRead()
 	subtype, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
-	class, ok := view.DefaultIndexClass(403, subtype)
-	if !ok {
-		t.Fatal("missing actual class")
+	class, ok, err := view.DefaultIndexClass(403, subtype)
+	if err != nil || !ok {
+		t.Fatal("missing actual class", err)
 	}
-	class, err := routine.BindClassSupport(view, class)
+	class, err = routine.BindClassSupport(view, class)
 	if err != nil {
 		t.Fatal(err)
 	}

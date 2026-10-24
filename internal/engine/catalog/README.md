@@ -35,13 +35,14 @@ private frames, not catalog authority.
   `stored.TriggersOf`, `stored.PolicyOf`, ...) recover the concrete types.
 - **State and Read** (`read.go`, `state_access.go`). `State` is one catalog
   snapshot (epoch, namespace generation, descriptor and name maps,
-  operator/procedure name indexes, default ACL records, dump priorities,
-  replacement translations); `Read` is a state plus its `Owner`. Fields are
+  operator/procedure name indexes, derived class-default buckets, default ACL
+  records, dump priorities, replacement translations); `Read` is a state plus
+  its `Owner`. Fields are
   private. Typed accessors live once on `*State` and `Read` delegates: `Kind(a)`
   is the comma-ok assertion, `MustKind(a)` panics like a failed one;
   `Get`/`Find`, `LookupName`, the `Descriptors`/`Names` iterators and the counts
-  read the maps. Only `Descriptor`, `Lookup`, `LookupType` and `LookupArray`
-  guard a nil state.
+  read the maps. `Descriptor`, `Lookup`, `LookupType` and `LookupArray` guard a
+  nil state, as do the default-bucket cardinality predicates.
 - **Write API** (`state_write.go`, setters in `state_access.go`), only for a state
   still being built: the bootstrap seed, a `CloneState`, a candidate's merged
   state or a replacement before publication.
@@ -122,15 +123,36 @@ private frames, not catalog authority.
   `RestoreRangeConstructorEligible` admits a schema-qualified constructor call
   in a restored INSERT; it is membership, not overload resolution.
 - **Access methods, operator classes and families, casts** (`access_method.go`,
-  `operator_class*.go`, `operator_family*.go`, `cast*.go`). Immutable global
+  `operator_class*.go`, `operator_family*.go`, `cast*.go`). Immutable
   descriptors read through `Read.AccessMethod`, `Read.OperatorFamily`, ..., the
   same authority Candidate publication uses; compiled seeds are bootstrap inputs
   shared between engines. `CastDependencies` is the shared pg_depend/DROP/dump
-  authority. `SelectCoercion` and `CanCoerce` are the effect-free coercion
-  authority of the analyzer and routine feasibility probes: declared direct pairs
+  authority. `Read.Cast` selects stored declarations; builtin casts remain
+  intrinsic `sqltype` metadata. `SelectCoercion` and `CanCoerce` are the effect-free
+  coercion authority of the analyzer and routine feasibility probes: declared direct pairs
   take precedence, a context-ineligible pair blocks generic fallback, and there
   is no transitive search. Aggregate binary adapters keep their own
   `AggregateBinaryRecipe` and never borrow current cast rows.
+  Class DEFAULT membership is an immutable derived `(SQL method,input)` bucket
+  of actual descriptor OIDs, ordered by name, namespace OID and OID, not a unique
+  name or absent-default publication fence. Canonical writes, clone/candidate
+  projection, bulk/reset and remap maintain it without mutating older reads.
+  `AnyDefaultOperatorClass` serves sequential CREATE's presence check;
+  independently admitted distinct defaults can both commit. Required
+  `DefaultIndexClass`/`DefaultIndexClassID` return `(class,found,error)`: multiple
+  exact defaults for the domain-base input report 42710; nonunique compatible
+  defaults yield no selection. Only applicable enum, binary-alias and GiST range
+  fallbacks participate, after exact lookup. Named classes bypass that lookup.
+  Exact ambiguity carries the flattened input identity in `DefaultClassAmbiguity`;
+  authority-bearing callers present it with `RenderDefaultClassAmbiguity` and the
+  canonical current type namer. Context-free helpers preserve the typed cause and
+  fallback diagnostic; presentation changes no other fields or retained errors.
+  `DefaultOperatorClass` and `UniqueDefaultIndexClass` are unique metadata predicates for optional
+  proof/deparse, not arbitrary winners. `HasMultiplePersistentDefaults` excludes
+  TEMP namespaces for replay checks without changing runtime selection.
+  Member `InternalOwner` records an exact class or family `ObjectAddress`, zero
+  for loose membership; dependencies and typed remapping preserve that insertion
+  fact. Provider metadata and ownership never grant a callable implementation.
 - **Routine definition dependencies** (`aggregate_dependencies.go`):
   `VisitProcedureDefinitionDependencies` owns the common namespace, result/formal,
   checked standard-body/default and ordinary aggregate edges consumed by
@@ -279,4 +301,5 @@ make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkL
 make check RACE=1 RUN='^Test(CastDefinition(PairIndex|CandidateIsolation)|.*PrincipalRemap|OperatorClass(Catalog|Value))'
 make check RUN='^Test(CatalogProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload|UserOperatorIndex)'
 make check RACE=1 RUN='^Test(AccessMethodDescriptor|PgClassSubclass|TableSummary|DefaultPrivileges(PublicationFence|CreationFence)|SQLRoutineStagedLookup|DropReaderSeam)'
+make check RUN='^(TestOperatorClassDefaultCompatibility|TestOperatorClassDefaultMultiplicity|TestOperatorClassDefaultAmbiguityDiagnostics)$'
 ```

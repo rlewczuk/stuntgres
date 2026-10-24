@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -67,7 +66,6 @@ func TestOperatorClassCatalogMethodIdentity(t *testing.T) {
 
 func TestOperatorClassCatalogDefaults(t *testing.T) {
 	state := CloneState(familyCatalogFixture().State())
-	InstallBuiltinClasses(state, authorization.PrincipalRef{})
 	base := NewRead(nil, state)
 	if len(base.OperatorClasses()) != 63 {
 		t.Fatal("incomplete seeds", len(base.OperatorClasses()))
@@ -80,12 +78,16 @@ func TestOperatorClassCatalogDefaults(t *testing.T) {
 	conflict := *original
 	conflict.ObjectAddress.ObjectID = 95000
 	conflict.ObjectName = "other_default"
-	if err := candidate.Create(&conflict); err == nil {
-		t.Fatal("duplicate default accepted")
+	if err := candidate.Create(&conflict); err != nil {
+		t.Fatal(err)
 	}
-	if candidate.DescriptorCount() != 0 {
-		t.Fatal("failed default staged a prefix")
+	if candidate.DescriptorCount() != 1 {
+		t.Fatal("descriptor not retained")
 	}
+	if _, ok := NewRead(nil, candidate.State()).DefaultOperatorClass(403, 23); ok {
+		t.Fatal("multiple defaults selected a winner")
+	}
+	candidate = NewCandidate(base)
 	renamed := *original
 	renamed.ObjectName = "current_default"
 	renamed.ObjectRevision++
@@ -107,7 +109,7 @@ func TestOperatorClassCatalogDefaults(t *testing.T) {
 	if _, ok := removed.DefaultOperatorClass(403, 23); ok {
 		t.Fatal("removed default retained")
 	}
-	if _, ok := removed.DefaultIndexClassID(403, sqltype.Int4); ok {
+	if _, ok, err := removed.DefaultIndexClassID(403, sqltype.Int4); ok || err != nil {
 		t.Fatal("static builtin default fallback")
 	}
 }
@@ -115,8 +117,8 @@ func TestOperatorClassCatalogDefaults(t *testing.T) {
 func TestOperatorClassIdentityRemap(t *testing.T) {
 	class := &OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: 90001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90002}, ObjectName: "remapped", ObjectRevision: 1, Method: 403, Family: 90003, InputType: 90004, StorageType: 90005}
 	family := &OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: 90003}, Method: 403}
-	member := &OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 90006}, Family: 90003, Method: 403, OwningClass: 90001}
-	support := &OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 90007}, Family: 90003, OwningClass: 90001}
+	member := &OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 90006}, Family: 90003, Method: 403, InternalOwner: class.Address()}
+	support := &OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 90007}, Family: 90003, InternalOwner: class.Address()}
 	mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
 	for _, address := range []ids.ObjectAddress{class.Address(), class.Namespace(), family.Address(), member.Address(), support.Address(), {ClassID: 2601, ObjectID: 403}, {ClassID: ids.TypeClassID, ObjectID: 90004}, {ClassID: ids.TypeClassID, ObjectID: 90005}} {
 		next := address
@@ -133,10 +135,10 @@ func TestOperatorClassIdentityRemap(t *testing.T) {
 	if got := RemapOperatorFamily(family, mapping).(*OperatorFamily); got.Method != 503 || family.Method != 403 {
 		t.Fatal("family method remap", got)
 	}
-	if got := RemapOperatorFamily(member, mapping).(*OperatorFamilyOperator); got.Method != 503 || got.OwningClass != 90101 || member.OwningClass != 90001 {
+	if got := RemapOperatorFamily(member, mapping).(*OperatorFamilyOperator); got.Method != 503 || got.InternalOwner != mapping[class.Address()] || member.InternalOwner != class.Address() {
 		t.Fatal("operator method/class remap", got)
 	}
-	if got := RemapOperatorFamily(support, mapping).(*OperatorFamilySupport); got.OwningClass != 90101 || support.OwningClass != 90001 {
+	if got := RemapOperatorFamily(support, mapping).(*OperatorFamilySupport); got.InternalOwner != mapping[class.Address()] || support.InternalOwner != class.Address() {
 		t.Fatal("support class remap", got)
 	}
 }

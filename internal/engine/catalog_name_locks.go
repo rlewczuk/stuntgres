@@ -75,10 +75,9 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	claims := claimScratch[:0]
 	namespaces := namespaceScratch[:0]
 	for key, address := range stage.Names() {
-		if key.ClassID != ids.NamespaceClassID && key.ClassID != ids.RelationClassID && key.ClassID != ids.TypeClassID &&
-			key.ClassID != ids.ProcedureClassID && key.ClassID != ids.OperatorClassID &&
-			key.ClassID != ids.CollationClassID && key.ClassID != ids.ConversionClassID && key.ClassID != ids.CastClassID ||
-			stage.Base.NameAddress(key) == address {
+		definition := key.ClassID == ids.AccessMethodClassID || key.ClassID == ids.OperatorFamilyClassID || key.ClassID == ids.OperatorClassCatalogID || key.ClassID == ids.AccessMethodOperatorClassID || key.ClassID == ids.AccessMethodProcedureClassID
+		supported := definition || key.ClassID == ids.NamespaceClassID || key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID || key.ClassID == ids.ProcedureClassID || key.ClassID == ids.OperatorClassID || key.ClassID == ids.CollationClassID || key.ClassID == ids.ConversionClassID || key.ClassID == ids.CastClassID
+		if !supported || stage.Base.NameAddress(key) == address {
 			continue
 		}
 		priority := 1

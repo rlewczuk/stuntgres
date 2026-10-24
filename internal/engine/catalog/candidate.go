@@ -57,8 +57,7 @@ func (c *Candidate) LookupName(k ids.NameKey) ids.ObjectAddress {
 		return ids.ObjectAddress{}
 	}
 	if replacement := c.descriptors[address]; replacement != nil {
-		defaultKey, hasDefault := descriptorDefaultKey(replacement)
-		if DescriptorNameKey(replacement) != k && (!hasDefault || defaultKey != k) {
+		if DescriptorNameKey(replacement) != k {
 			return ids.ObjectAddress{}
 		}
 	}
@@ -86,13 +85,6 @@ func (c *Candidate) Create(d Descriptor) error {
 	// generations, whose private name slots can be reused by a new identity.
 	if c.LookupName(k) != (ids.ObjectAddress{}) {
 		return Conflict{}
-	}
-	if key, ok := descriptorDefaultKey(d); ok {
-		if c.LookupName(key) != (ids.ObjectAddress{}) {
-			return Conflict{}
-		}
-		c.touched[key] = c.Base.NameAddress(key)
-		c.names[key] = a
 	}
 	c.touched[k] = c.Base.NameAddress(k)
 	c.descriptors[a] = d
@@ -125,29 +117,13 @@ func (c *Candidate) Replace(d Descriptor) error {
 	if a := c.LookupName(newKey); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return Conflict{}
 	}
-	if key, ok := descriptorDefaultKey(d); ok {
-		if a := c.LookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
-			return Conflict{}
-		}
-		c.touched[key] = c.Base.NameAddress(key)
-	}
 	if previous := c.descriptors[d.Address()]; previous != nil {
 		delete(c.names, DescriptorNameKey(previous))
-		if key, ok := descriptorDefaultKey(previous); ok {
-			delete(c.names, key)
-		}
 	}
 	if c.oldNames == nil {
 		c.oldNames = make(map[ids.NameKey]bool)
 	}
 	c.oldNames[oldKey] = true
-	if key, ok := descriptorDefaultKey(old); ok {
-		c.oldNames[key] = true
-		c.touched[key] = c.Base.NameAddress(key)
-	}
-	if key, ok := descriptorDefaultKey(d); ok {
-		c.names[key] = d.Address()
-	}
 	c.touched[oldKey] = c.Base.NameAddress(oldKey)
 	c.touched[newKey] = c.Base.NameAddress(newKey)
 	c.descriptors[d.Address()] = d
@@ -167,16 +143,9 @@ func (c *Candidate) RecordRemoval(ref ids.ObjectRef, d Descriptor) {
 		if c.names[key] == ref.Address {
 			delete(c.names, key)
 		}
-		if key, ok := descriptorDefaultKey(candidate); ok {
-			delete(c.names, key)
-		}
 	}
 	delete(c.descriptors, ref.Address)
 	c.touched[DescriptorNameKey(d)] = ref.Address
-	if key, ok := descriptorDefaultKey(d); ok {
-		delete(c.names, key)
-		c.touched[key] = c.Base.NameAddress(key)
-	}
 }
 
 // State returns a new unpublished state: the base with the candidate's
@@ -200,9 +169,6 @@ func (c *Candidate) State() *State {
 		casts.updateCastIndex(c.Base.Get(a), c.descriptors[a])
 		ds.Delete(a)
 		ns.Delete(DescriptorNameKey(d))
-		if key, ok := descriptorDefaultKey(d); ok {
-			ns.Delete(key)
-		}
 	}
 	for k := range c.oldNames {
 		ns.Delete(k)
@@ -219,6 +185,13 @@ func (c *Candidate) State() *State {
 		ns.Set(k, v)
 	}
 	next := &State{epoch: c.Base.Epoch(), namespaceGeneration: base.namespaceGeneration, descriptors: ds.Persistent(), names: ns.Persistent(), operatorNames: operators.Index, procedureNames: procedures.Index, castPairs: casts.castPairs, defaultACLs: overlayDefaultACLs(base.defaultACLs, c.defaultACLs), dumpPriorities: base.dumpPriorities}
+	next.defaultClasses = base.defaultClasses
+	for a := range c.removals {
+		next.updateDefaultClasses(c.Base.Get(a), nil)
+	}
+	for a, d := range c.descriptors {
+		next.updateDefaultClasses(c.Base.Get(a), d)
+	}
 	if len(base.dumpPriorities) != 0 && len(c.removals) != 0 {
 		next.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(base.dumpPriorities))
 		for address, priority := range base.dumpPriorities {

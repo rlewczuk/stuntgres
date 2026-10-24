@@ -83,7 +83,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		e.mu.Unlock()
 		if err != nil {
 			e.DiscardCatalogStage(stage)
-			return Result{}, err
+			return Result{}, index.DefaultClassDiagnostic(h, auth, err)
 		}
 		prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
 		if err != nil {

@@ -97,6 +97,11 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	if err := capture.ObserveCandidate(); err != nil {
 		return err
 	}
+	for _, d := range s.Descriptors() {
+		if err := visitDefinitionProviders(s.Base, d, capture.ObserveBase); err != nil {
+			return err
+		}
+	}
 	domainBases := s.domainBases
 	if authority != nil && authority.Session == s.authSession && authority.Authorization == s.authRevision && authority.Roles == s.roleRevision &&
 		len(domainBases) != 0 && len(authority.Observations) == len(domainBases) && &authority.Observations[0] == &domainBases[0] {

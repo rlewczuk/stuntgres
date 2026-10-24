@@ -23,7 +23,7 @@ func operatorClassUnitDefinitions(t *testing.T, e *Engine, name string, function
 	}
 	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: builtin.Namespace(), ObjectRevision: 1, ObjectName: name + "_family", Method: 403, Owner: builtin.Owner}
 	class := &catalog.OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: builtin.Namespace(), ObjectRevision: 1, ObjectName: name, Method: 403, Family: family.Address().ObjectID, InputType: 23, Owner: builtin.Owner}
-	member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: function, OwningClass: class.Address().ObjectID}
+	member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: function, InternalOwner: class.Address()}
 	return family, class, member
 }
 

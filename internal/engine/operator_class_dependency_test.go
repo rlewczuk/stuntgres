@@ -24,16 +24,16 @@ func TestOperatorClassDependencyClosure(t *testing.T) {
 	implementation.ObjectAddress.ObjectID = catalogUnitOID(t, e)
 	implementation.ObjectNamespace = class.Namespace()
 	implementation.ObjectName = "==="
-	sibling := &catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, Family: family.Address().ObjectID, Left: 23, Right: 23, Operator: implementation.Address().ObjectID, Method: 403, Number: 1, Purpose: 's', OwningClass: class.Address().ObjectID}
+	sibling := &catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, Family: family.Address().ObjectID, Left: 23, Right: 23, Operator: implementation.Address().ObjectID, Method: 403, Number: 1, Purpose: 's', InternalOwner: class.Address()}
 	optional := *member
 	optional.ObjectAddress.ObjectID = catalogUnitOID(t, e)
-	optional.Number, optional.Function, optional.OwningClass = 2, 3130, 0
+	optional.Number, optional.Function, optional.InternalOwner = 2, 3130, ids.ObjectAddress{}
 	looseFamily := *family
 	looseFamily.ObjectAddress.ObjectID = catalogUnitOID(t, e)
 	looseFamily.ObjectName = "class_closure_loose"
 	loose := *sibling
 	loose.ObjectAddress.ObjectID = catalogUnitOID(t, e)
-	loose.Family, loose.OwningClass = looseFamily.Address().ObjectID, 0
+	loose.Family, loose.InternalOwner = looseFamily.Address().ObjectID, ids.ObjectAddress{}
 	setup := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(setup)
 	for _, d := range []catalog.Descriptor{&implementation, family, class, member, sibling, &optional, &looseFamily, &loose} {

@@ -29,18 +29,6 @@ func ClassNameKey(namespace ids.ObjectAddress, method ids.OID, name string) ids.
 	return ids.NameKey{ClassID: ids.OperatorClassCatalogID, Namespace: namespace, Name: name, Signature: strconv.FormatUint(uint64(method), 10)}
 }
 
-// Default keys occupy a namespace-free secondary name slot; SQL classes always
-// have a real namespace. They participate in the ordinary publication fences.
-func classDefaultKey(method, input ids.OID) ids.NameKey {
-	return ClassNameKey(ids.ObjectAddress{}, method, strconv.FormatUint(uint64(input), 10))
-}
-func descriptorDefaultKey(d Descriptor) (ids.NameKey, bool) {
-	c, ok := d.(*OperatorClass)
-	if !ok || !c.Default {
-		return ids.NameKey{}, false
-	}
-	return classDefaultKey(c.Method, c.InputType), true
-}
 func (r Read) OperatorClass(oid ids.OID) (*OperatorClass, bool) {
 	return descriptorAs[*OperatorClass](r.state, ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: oid})
 }
@@ -58,7 +46,10 @@ func (r Read) LookupOperatorClass(namespace ids.ObjectAddress, method ids.OID, n
 	return r.OperatorClass(r.NameAddress(ClassNameKey(namespace, method, name)).ObjectID)
 }
 func (r Read) DefaultOperatorClass(method, input ids.OID) (*OperatorClass, bool) {
-	return r.OperatorClass(r.NameAddress(classDefaultKey(method, input)).ObjectID)
+	if r.defaultClassCount(method, input) != 1 {
+		return nil, false
+	}
+	return r.AnyDefaultOperatorClass(method, input)
 }
 func (r Read) IndexClass(oid ids.OID) (sqltype.IndexClass, bool) {
 	d, ok := r.OperatorClass(oid)
@@ -94,47 +85,28 @@ func (r Read) IndexClassForMethod(oid ids.OID, method *AccessMethod) (sqltype.In
 	physical, _ := method.IndexImplementation()
 	return sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: uint32(oid), Method: uint32(d.Method), Family: uint32(d.Family), Input: uint32(d.InputType), Storage: uint32(d.StorageType), Name: d.Name(), FamilyName: f.Name(), Hash: physical == HashMethod, GiST: physical == GistMethod}), true
 }
-func (r Read) DefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sqltype.IndexClass, bool) {
+func (r Read) DefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sqltype.IndexClass, bool, error) {
 	if t == nil || !t.Concrete() {
-		return sqltype.IndexClass{}, false
+		return sqltype.IndexClass{}, false, nil
 	}
 	t = t.BaseType()
-	if d, ok := r.DefaultOperatorClass(method, ids.OID(t.ID())); ok {
-		return r.IndexClass(d.Address().ObjectID)
+	if r.defaultClassCount(method, ids.OID(t.ID())) != 0 {
+		return r.DefaultIndexClassID(method, t.ID())
 	}
 	if t.IsEnum() {
-		return r.DefaultIndexClassID(method, 3500)
+		// anyenum is compatible with the concrete enum, not an exact match.
+		// Multiple compatible defaults mean no selection, not corruption.
+		c, ok := r.uniqueDefaultIndexClassID(method, 3500)
+		return c, ok, nil
 	}
 	return r.DefaultIndexClassID(method, t.ID())
 }
-func (r Read) DefaultIndexClassID(method ids.OID, input sqltype.ID) (sqltype.IndexClass, bool) {
-	// Exact defaults win. Binary-compatible alternatives preserve existing
-	// directional provider adaptation without consulting bootstrap class names.
-	if d, ok := r.DefaultOperatorClass(method, ids.OID(input)); ok {
-		return r.IndexClass(d.Address().ObjectID)
+func (r Read) DefaultIndexClassID(method ids.OID, input sqltype.ID) (sqltype.IndexClass, bool, error) {
+	if r.defaultClassCount(method, ids.OID(input)) > 1 {
+		return sqltype.IndexClass{}, false, r.defaultClassAmbiguity(input)
 	}
-	var adapted sqltype.ID
-	switch input {
-	case sqltype.VarChar, sqltype.PgNodeTree:
-		adapted = sqltype.Text
-	case sqltype.Cidr:
-		adapted = sqltype.Inet
-	case sqltype.Regclass, sqltype.Regtype, sqltype.Regproc, sqltype.Regprocedure, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary:
-		adapted = sqltype.Oid
-	}
-	if adapted != 0 {
-		if d, ok := r.DefaultOperatorClass(method, ids.OID(adapted)); ok {
-			return r.IndexClass(d.Address().ObjectID)
-		}
-	}
-	if m, ok := r.AccessMethod(method); ok && m.Native == GistAccessMethod {
-		if d, ok := r.DefaultOperatorClass(method, 3831); ok {
-			if c, ok := r.IndexClass(d.Address().ObjectID); ok && c.AcceptsID(input) {
-				return c, true
-			}
-		}
-	}
-	return sqltype.IndexClass{}, false
+	c, ok := r.uniqueDefaultIndexClassID(method, input)
+	return c, ok, nil
 }
 
 type OperatorClassProvider struct{}
@@ -159,8 +131,16 @@ func (OperatorClassProvider) Validate(v Read, d Descriptor) error {
 		return fmt.Errorf("stuntgres: invalid operator class family/input")
 	}
 	if c.Default {
-		if selected, ok := v.DefaultOperatorClass(c.Method, c.InputType); !ok || selected.Address() != c.Address() {
-			return Conflict{}
+		bucket, _ := v.state.defaultClasses.Get(defaultClassPair{c.Method, c.InputType})
+		found := false
+		for _, oid := range bucket {
+			if oid == c.Address().ObjectID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("stuntgres: missing default operator class descriptor index")
 		}
 	}
 	return nil

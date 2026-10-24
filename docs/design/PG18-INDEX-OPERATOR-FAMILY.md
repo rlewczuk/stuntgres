@@ -3,7 +3,7 @@
 ## Boundary
 
 This feature owns CREATE/ALTER/DROP OPERATOR FAMILY for btree, hash and the
-implemented logical GiST methods. The approved downstream OPCLASS boundary owns
+implemented logical GiST methods. The operator-class boundary owns
 custom class DDL, FAMILY association and new custom-class indexes. A family is
 not a class. No fabricated class, reassigned builtin class or public test-only
 association supplies that downstream witness.
@@ -93,8 +93,14 @@ CREATE resolves its creation namespace and schema CREATE authority, then the
 access method, then superuser authority. Member ALTER resolves method/family
 before superuser authority. Rename, owner/schema and DROP use ordinary
 object/schema/role authorities. Direct and prepared utilities authorize at
-execution. Read-only and explicit-transaction
-boundaries remain the existing utility contract, not a new transaction path.
+execution. CREATE/ALTER/DROP share the existing Journal/Finish path in
+autocommit, SQL BEGIN, Go BeginTx and retained protocol messages. Later owner
+commands see private members/providers; peers see only complete committed
+groups. Savepoints and rollback restore the original identities and dependencies.
+Names include exact SQL method signatures; member claims identify actual
+family/pair/slot keys. Nonpinned provider AS and retirement AX waits occur on
+the existing ticket outside Engine.mu, followed by original-identity checks and
+grant-time retirement closure capture, never name-based retry or adoption.
 
 Family DROP resolves the access method strictly before looking up the family.
 `IF EXISTS` skips an absent explicitly named schema with a schema-specific
@@ -126,21 +132,25 @@ member permission state.
 
 ## Dependencies and pins
 
-Loose member→family and member→implementation edges are AUTO. Same-type required
-btree/hash members prefer a matching existing class at insertion, recording an
-INTERNAL class edge and NORMAL implementation edge. Optional and cross-type
-members stay loose; existing loose rows are never retroactively hardened.
-Explicit associated-type and sort-family edges are AUTO for loose members and
-NORMAL for hard members. Direct type edges are omitted when the type is pinned
-or the actual implementation formals/operator inputs already cover the type;
-equal left/right association emits at most one direct edge.
+Loose member→family and member→implementation edges are AUTO. The insertion-time
+`InternalOwner` is zero or an exact class/family ObjectAddress. Same-type required
+btree/hash members use the creating class or the method's physical403/405 ALTER
+class lookup, not a same-algorithm SQL alias. Optional and cross-type members stay
+loose. GiST operators stay loose; required support1,2,5,6,7 owns an INTERNAL class
+edge for CREATE CLASS and family edge for ALTER FAMILY. Optional GiST support
+stays loose. Existing members are never retroactively hardened. Hard members
+have NORMAL implementation edges. Explicit associated-type and sort-family edges
+are AUTO for loose members and NORMAL for hard members. Direct type edges are
+omitted when pinned or already covered by implementation formals/operator
+inputs; equal left/right association emits at most one direct edge.
 
 Original initdb families and members are pinned, including optional and
 cross-type rows. Pinning is not evidence of a traversed class dependency.
-Public selected witnesses therefore use original pinned rows, new loose
-classless optional/cross-type members and custom-operator AUTO removal. Public
-creation/removal of a new hard class member belongs downstream. Dropping a
-family removes its loose members and preserves underlying operators/routines.
+The original family-only witnesses use pinned rows, new loose optional/cross-type
+members and custom-operator AUTO removal. Class and transactional definition
+coverage additionally checks class-owned and family-owned hard members, grouped
+DROP refusal/recovery and whole-family retirement. Dropping a family removes
+its automatic/internal closure and preserves underlying operators/routines.
 Family, operator-member and support-member roots all enter the common drop
 provider's descriptor-removal phase after dependency checks. Recording a drop
 target alone is not a mutation; removal must reach Candidate publication and
@@ -172,7 +182,7 @@ projection and role staging. The existing principal-remap descriptor switch copi
 family owners using the seeded-owner mapper; operator/support members are explicitly
 ownerless and need no principal rewrite. Family/member identity remapping follows
 the ordinary replacement map, including namespace/type/operator/routine/sort-family
-refs; source descriptors are never edited.
+refs and typed InternalOwner addresses; source descriptors are never edited.
 
 Dump collection validates family descriptors and omits unchanged original seeds.
 Admitted builtin name/schema/owner deltas retain pinned identities: all moving
@@ -181,10 +191,11 @@ in the existing seed-staging section, then ordinary graph events restore final
 schema/name/owner before loose member events. Current/custom/canonical/reserved
 names prevent collisions and permit swaps without another scheduler. Custom
 families and members also enter the existing declaration graph. Family events precede
-member events; actual custom type/operator/routine/sort-family dependencies
-precede their consumers. SQL uses current qualified names, explicit association
-and true routine formals, under bootstrap construction with normal owner
-finalization. Loose additions to builtin families are emitted as ALTER events.
+member events; class-owned members fold into CREATE CLASS, while family-owned
+and loose members emit ALTER FAMILY events. Actual custom type/operator/routine/
+sort-family dependencies precede their consumers. SQL uses current qualified
+names, explicit association and true routine formals, under bootstrap construction
+with normal owner finalization. Additions to builtin families emit ALTER events.
 The native roundtrip test also executes the actual emitted bytes on pinned PG.
 Dump does not create cluster-global roles: destination owners must already exist,
 as for other owned catalog objects. Seed replay emits an owner transfer only when

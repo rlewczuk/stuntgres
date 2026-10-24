@@ -17,16 +17,6 @@ func classSQLName(view catalog.Read, class *catalog.OperatorClass) string {
 	return catalog.QuoteIdentifier(view.Get(class.Namespace()).Name()) + "." + catalog.QuoteIdentifier(class.Name())
 }
 
-func memberOwningClass(d catalog.Descriptor) ids.OID {
-	switch d := d.(type) {
-	case *catalog.OperatorFamilyOperator:
-		return d.OwningClass
-	case *catalog.OperatorFamilySupport:
-		return d.OwningClass
-	}
-	return 0
-}
-
 // operatorFamilyMemberDumpItem is shared by CREATE CLASS and loose FAMILY ADD.
 // Only insertion-time INTERNAL members belong in the class declaration.
 func operatorFamilyMemberDumpItem(p dump.Presenter, view catalog.Read, descriptor catalog.Descriptor) (string, error) {
@@ -97,7 +87,7 @@ func operatorClassDumpStatement(ctx context.Context, p dump.Presenter, view cata
 		if err := ctx.Err(); err != nil {
 			return dump.Statement{}, err
 		}
-		if memberOwningClass(member) != class.Address().ObjectID {
+		if catalog.OperatorFamilyMemberOwner(member) != class.Address() {
 			continue
 		}
 		item, err := operatorFamilyMemberDumpItem(p, view, member)

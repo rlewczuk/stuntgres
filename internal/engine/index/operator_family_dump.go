@@ -19,7 +19,7 @@ func OperatorFamilyDumpEvents(r dump.Resolver, view catalog.Read, descriptors []
 		}
 	}
 	for _, d := range descriptors {
-		if memberOwningClass(d) != 0 {
+		if catalog.OperatorFamilyMemberOwner(d).ClassID == ids.OperatorClassCatalogID {
 			continue
 		}
 		event := dump.Event{OID: d.Address().ObjectID}
@@ -27,7 +27,7 @@ func OperatorFamilyDumpEvents(r dump.Resolver, view catalog.Read, descriptors []
 		dependencies := catalog.OperatorFamilyDependencies(view, d)
 		if class, ok := d.(*catalog.OperatorClass); ok {
 			for _, member := range descriptors {
-				if memberOwningClass(member) == class.Address().ObjectID {
+				if catalog.OperatorFamilyMemberOwner(member) == class.Address() {
 					for _, dependency := range catalog.OperatorFamilyDependencies(view, member) {
 						if dependency.Address != class.Address() {
 							dependencies = append(dependencies, dependency)
@@ -121,7 +121,7 @@ func OperatorFamilyDumpStatements(ctx context.Context, p dump.Presenter, view ca
 			name := familySQLName(view, d) + " USING " + catalog.Identifier(familyMethodName(view, d.Method))
 			text = "CREATE OPERATOR FAMILY " + name + ";\nALTER OPERATOR FAMILY " + name + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n"
 		case *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
-			if memberOwningClass(d) != 0 {
+			if catalog.OperatorFamilyMemberOwner(d).ClassID == ids.OperatorClassCatalogID {
 				continue
 			}
 			var family ids.OID

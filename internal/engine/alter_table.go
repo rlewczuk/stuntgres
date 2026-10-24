@@ -353,7 +353,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			next, err = e.stageAddedChecks(scope, op, auth, stage, next, raw, &addedChecks)
 		}
 		if err != nil {
-			return Result{}, err
+			return Result{}, index.DefaultClassDiagnostic(ddlHost{e: e, op: op, stage: stage}, auth, err)
 		}
 	}
 	op.Definition = originalDefinition
@@ -439,7 +439,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	e.mu.Unlock()
 	if err != nil {
-		return Result{}, err
+		return Result{}, index.DefaultClassDiagnostic(h, auth, err)
 	}
 	fkIndex := 0
 	for _, action := range s.Actions {
@@ -574,7 +574,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	indexBuilds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, disclosure.View, disclosureEnv(&disclosure), e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes, rewrite)
 	if err != nil {
-		return Result{}, err
+		return Result{}, index.DefaultClassDiagnostic(ddlHost{e: e, op: op, stage: stage}, disclosure, err)
 	}
 	var indexOutputRows bool
 	projectedWrites, indexOutputRows, err = index.AttachIndexBuildOutputs(op.Context(), projectedWrites, indexBuilds)

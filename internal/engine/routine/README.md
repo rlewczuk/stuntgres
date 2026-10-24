@@ -88,8 +88,11 @@ package or the engine.
   verifies method/family coherence over a coherent `catalog.Read`, then finite
   `sqltype.NativeIndexRoutine*` associations select immutable native
   operations. There is no name/default/key-type fallback and no per-datum
-  catalog lookup; `functions` stays catalog-free; captures are immutable and
-  Restore binds destination members. `RangeTypeRebinder` rebuilds a range
+  catalog lookup; `functions` stays catalog-free. Captures include actual
+  member/family/routine revisions from the current private or committed view and
+  remain immutable. Cube support requires the exact INTERNAL class address,
+  never merely a nonzero family/class owner. Restore binds destination members.
+  `RangeTypeRebinder` rebuilds a range
   type's support capture with destination identities for
   `typedef.ReownDomainTypes`.
 - **Operator DDL** (`operator_ddl.go`, `operator_links.go`, `operator_lookup.go`,

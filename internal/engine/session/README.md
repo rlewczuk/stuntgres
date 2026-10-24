@@ -96,10 +96,13 @@ implement its slots, so either import would form a cycle.
   CREATE/ALTER/DROP MATERIALIZED VIEW plus ordinary/concurrent REFRESH,
   CREATE/ALTER/DROP POLICY (including rename), CREATE DOMAIN/composite TYPE,
   ALTER DOMAIN/composite attributes, type/domain rename, schema move and DROP,
+  CREATE/DROP ACCESS METHOD, CREATE/ALTER/DROP OPERATOR FAMILY and OPERATOR CLASS,
   shipped function creation, routine identity ALTER/DROP, aggregate creation,
   operator CREATE/ALTER/DROP, CREATE/ALTER/DROP COLLATION and CONVERSION, and
   CREATE/DROP CAST use the existing transaction journal, as do generic
-  table/type/domain/database OWNER and REASSIGN/DROP OWNED. Feature-specific
+  table/type/domain/database OWNER and REASSIGN/DROP OWNED. Definition utilities
+  keep quiet Describe; Execute consumes current private providers and authority,
+  with the existing Finish, savepoint and retained-message lifecycle. Feature-specific
   view/materialized OWNER is AlterView; collation/conversion OWNER is included.
   CreateFunction admits only non-procedure declarations; procedure creation and
   language lifecycle keep their separate admission. Unrelated utility exclusions

@@ -19,7 +19,10 @@ func cubeIndexTransportAuthority(t *testing.T) {
 	ctx := context.Background()
 	state := catalog.CloneState(e.catalog.State)
 	view := e.CatalogRead().WithState(state)
-	class, ok := view.DefaultIndexClass(403, base.SQLType)
+	class, ok, defaultErr := view.DefaultIndexClass(403, base.SQLType)
+	if defaultErr != nil {
+		t.Fatal(defaultErr)
+	}
 	if !ok {
 		t.Fatal("missing cube class")
 	}

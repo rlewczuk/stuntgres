@@ -22,7 +22,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	loose.ObjectAddress.ObjectID = catalogUnitOID(t, e)
 	loose.Number = 2
 	loose.Function = 3130
-	loose.OwningClass = 0
+	loose.InternalOwner = ids.ObjectAddress{}
 	classDeps := catalog.OperatorFamilyDependencies(base, class)
 	wantClass := map[ids.ObjectAddress]byte{class.Namespace(): 'n', {ClassID: ids.TypeClassID, ObjectID: 23}: 'n', family.Address(): 'a'}
 	if len(classDeps) != len(wantClass) {
@@ -88,7 +88,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 		}
 	}
 	// A fully prepared class/family/member batch canceled at publication cannot
-	// leak primary/default/name slots or invalidate an incumbent root.
+	// leak descriptors, derived default buckets or names, or invalidate a root.
 	newFamily, newClass, newMember := operatorClassUnitDefinitions(t, e, "class_atomic_cancel", 181)
 	canceled := e.BeginCatalogStage(current)
 	defer e.DiscardCatalogStage(canceled)
@@ -117,8 +117,8 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	if _, ok := e.CatalogRead().FamilySupport(newFamily.Address().ObjectID, 23, 23, 1); ok {
 		t.Fatal("canceled member escaped")
 	}
-	// A conflicting global default after creating an implicit-family-shaped
-	// candidate leaves every incumbent key and object unchanged.
+	// Distinct concurrent defaults are descriptor-valid. Canceling that prepared
+	// publication still leaves every incumbent key, bucket and object unchanged.
 	failed := e.BeginCatalogStage(current)
 	defer e.DiscardCatalogStage(failed)
 	if err := failed.Create(newFamily); err != nil {
@@ -126,15 +126,23 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	}
 	duplicate := *newClass
 	duplicate.Default = true
-	if err := failed.Create(&duplicate); err == nil {
-		if _, err = e.ValidateCatalogStage(ctx, failed); err == nil {
-			t.Fatal("duplicate integer default admitted")
-		}
+	if err := failed.Create(&duplicate); err != nil {
+		t.Fatal(err)
+	}
+	duplicateContext, cancelDuplicate := context.WithCancel(ctx)
+	duplicateReady, err := e.ValidateCatalogStage(duplicateContext, failed)
+	if err != nil {
+		cancelDuplicate()
+		t.Fatal(err)
+	}
+	cancelDuplicate()
+	if _, err = e.PublishCatalog(duplicateReady, PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, context.Canceled) {
+		t.Fatal("duplicate-default publication cancellation", err)
 	}
 	unchanged()
 	incumbent, ok := e.CatalogRead().DefaultOperatorClass(403, 23)
 	if !ok || incumbent.Address().ObjectID != 1978 {
-		t.Fatal("default slot changed", incumbent)
+		t.Fatal("incumbent default identity changed", incumbent)
 	}
 	// Exercise the common graph, not Candidate.Remove: index NORMAL blocks class
 	// RESTRICT, while required member INTERNAL edges retire with class CASCADE.

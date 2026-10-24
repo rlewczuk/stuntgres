@@ -32,7 +32,10 @@ func indexClausesFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, *c
 	t.Helper()
 	types := indexClausesTypes()
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{10, 20, 30}, ColumnMeta: catalog.ColumnMetadata{HighWater: 30}, Columns: []catalog.Column{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
-	c, ok := operatorFamilyTestRead().DefaultIndexClass(403, types[sqltype.Int4])
+	c, ok, defaultErr := operatorFamilyTestRead().DefaultIndexClass(403, types[sqltype.Int4])
+	if defaultErr != nil {
+		t.Fatal(defaultErr)
+	}
 	if !ok {
 		t.Fatal("missing current integer default class")
 	}
@@ -43,6 +46,52 @@ func indexClausesFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, *c
 		t.Fatal(err)
 	}
 	return parent, idx, catalogSnapshot, types
+}
+
+func TestIndexDefaultClassAmbiguityPropagation(t *testing.T) {
+	parent, idx, state, types := indexClausesFixture(t)
+	// The reduced index fixture copies providers, not their type/namespace
+	// descriptors. Ambiguity diagnostics need that genuine catalog authority
+	// too; WithState replaces the whole state rather than overlaying the seed.
+	seed := operatorFamilyTestRead()
+	integer := seed.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
+	for _, descriptor := range []catalog.Descriptor{seed.Get(integer.Namespace()), integer} {
+		state.SetDescriptor(descriptor.Address(), descriptor)
+		state.BindName(catalog.DescriptorNameKey(descriptor), descriptor.Address())
+	}
+	view := operatorFamilyTestRead().WithState(state)
+	first, ok := view.DefaultOperatorClass(403, ids.OID(sqltype.Int4))
+	if !ok {
+		t.Fatal("missing exact default fixture")
+	}
+	duplicate := *first
+	duplicate.ObjectAddress.ObjectID = 97000
+	duplicate.ObjectName = "second_exact_default"
+	state.SetDescriptor(duplicate.Address(), &duplicate)
+	view = operatorFamilyTestRead().WithState(state)
+	assertIdentity := func(err error) {
+		t.Helper()
+		var ambiguity *catalog.DefaultClassAmbiguity
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &ambiguity) || ambiguity.Input != sqltype.Int4 || !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: "there are multiple default operator classes for data type integer"}) {
+			t.Fatal("context-free helper lost exact identity/diagnostic", err)
+		}
+	}
+	usage := types[sqltype.Int4].Usage()
+	_, err := index.ReconstructIndexKey(view, catalog.IndexKey{Attribute: 10}, usage, usage, 403)
+	assertIdentity(err)
+	definition := *idx.SQLIndex
+	definition.Keys = append([]catalog.IndexKey(nil), definition.Keys...)
+	definition.Keys[0].Class = sqltype.IndexClass{}
+	_, err = index.BindIndexOrdering(view, parent, &definition)
+	assertIdentity(err)
+	_, err = index.PartitionIndexEquivalent(context.Background(), view, parent, &definition, &definition)
+	assertIdentity(err)
+	// Stored providers remain actual identities: ambiguity is not a reason to
+	// discard/reselect an explicitly captured class.
+	if _, err := index.BindIndexOrdering(view, parent, idx.SQLIndex); err != nil {
+		t.Fatal("stored provider reselected defaults", err)
+	}
 }
 
 func TestIndexClausesRootAttributes(t *testing.T) {
@@ -154,7 +203,10 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	ctx := context.Background()
 	c := catalog.UniqueConstraint{OID: 22000, Name: "cover", Attributes: []int32{10}, Index: idx.Address()}
 	parent.Constraints.Unique = []catalog.UniqueConstraint{c}
-	class, _ := catalog.NewRead(nil, catalogSnapshot).DefaultIndexClass(403, types[sqltype.Int4])
+	class, _, defaultErr := catalog.NewRead(nil, catalogSnapshot).DefaultIndexClass(403, types[sqltype.Int4])
+	if defaultErr != nil {
+		t.Fatal(defaultErr)
+	}
 	idx.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Include: []int32{30}, Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: index.UniqueBacking(&c), Ready: true, Valid: true, Live: true}
 	idx.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2]}
 	idx.Attributes = []int32{1, 2}
@@ -254,7 +306,10 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			parent, idx, catalogSnapshot, types := indexClausesFixture(t)
 			parent.Columns[1].Usage = types[sqltype.Text].Usage()
-			textClass, _ := catalog.NewRead(nil, catalogSnapshot).DefaultIndexClass(403, types[sqltype.Text])
+			textClass, _, defaultErr := catalog.NewRead(nil, catalogSnapshot).DefaultIndexClass(403, types[sqltype.Text])
+			if defaultErr != nil {
+				t.Fatal(defaultErr)
+			}
 			idx.SQLIndex.Keys[0].ExplicitClass = true
 			idx.SQLIndex.Keys[1].Class = textClass
 			idx.SQLIndex.Keys[1].ExplicitClass = true

@@ -273,7 +273,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 			err := index.EvolveIndexes(p, old.Address(), nil)
 			p.owner.mu.Unlock()
 			if err != nil {
-				return err
+				return catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(p.base, p.path))
 			}
 		}
 		p.prepared.RecordEffect(table.DropEffect{Before: old, After: next})

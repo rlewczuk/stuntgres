@@ -29,6 +29,24 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   `objectAddressScenario` (`inventory_<start>_<end>`, 512 routine facts per
   group). Never renew or extend a live scenario's context to fit more rows.
 - TEXT columns report `Length() = (math.MaxInt64, true)` on both adapters.
+- Transactional definition scenarios share `definitionScenario` and
+  `definitionRoutes`: fresh serial autocommit/SQL/Go transactions, direct or
+  genuinely held handles, exact identities/member dependencies and peer views.
+  Register global method cleanup before scenario setup through the fixture.
+  Wire scenarios use the real server fixture and pgconn's public frontend for
+  effect-free Parse/Describe/Bind and held Execute/Sync recovery.
+  Retirement schedules use `fixture.ObjectLockPending` for real dependency
+  endpoint AS/AX protection in both publication orders, not transaction-ID name
+  waits. Unique-index cancellation contexts vary only physical tuple coordinates.
+  Single-key index consumers assert the complete `pg_depend` class-edge bag and
+  exact `pg_class.relam`, retaining the captured index OID through default
+  multiplicity, explicit selection, INSERT and recovery. Native control phases
+  use actual emitted bytes and preserve incumbent/private work on failed replay.
+  `TestReferenceTransactionalDefinitionExactDiagnostics` uses incomplete concrete
+  enum DEFAULT classes in distinct concurrent transactions to reach exact
+  ambiguity before executable support validation. Direct and retained handles
+  report the visible or qualified base enum for enum/domain inputs as the current
+  search path changes, with full diagnostics and no index/dependency effects.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
@@ -42,3 +60,5 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Held execution and lifecycle:
   `RUN='^TestReferenceObjectAddress(HeldExecution|Transactions|Lifecycle|Cancellation|FeatureSmoke)$'`
 - Engine units for the address providers: `make check RUN='^TestObjectAddress'`.
+- Transactional method, family and class definitions:
+  `RUN='^TestReferenceTransactional(AccessMethodDefinitions|OperatorFamilyDefinitions|OperatorClassDefinitions|Definition)'`.

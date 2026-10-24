@@ -135,7 +135,7 @@ func DescriptorNameKey(d Descriptor) ids.NameKey {
 }
 
 // ExtensionMembership returns the extension claimed by a direct member, or
-// the zero address. Operator-family rows instead depend internally on a class.
+// the zero address. Family members instead follow their recorded family/class dependencies.
 func ExtensionMembership(d Descriptor) ids.ObjectAddress {
 	switch d := d.(type) {
 	case *Type:

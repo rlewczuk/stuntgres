@@ -378,14 +378,11 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 			case *catalog.OperatorFamilyOperator:
 				d.ObjectAddress.ObjectID = oid
 				d.ObjectRevision = revision
-				d.OwningClass = catalog.FamilyMemberClass(h.StageRead(), family.Method, d.Family, d.Left, d.Right, d.Number, false, class)
+				d.InternalOwner = catalog.FamilyMemberInternalOwner(h.StageRead(), family.Method, d.Family, d.Left, d.Right, d.Number, false, class)
 			case *catalog.OperatorFamilySupport:
 				d.ObjectAddress.ObjectID = oid
 				d.ObjectRevision = revision
-				d.OwningClass = catalog.FamilyMemberClass(h.StageRead(), family.Method, d.Family, d.Left, d.Right, d.Number, true, class)
-				if class != nil && physical == catalog.GistMethod && (d.Number == 1 || d.Number == 2 || d.Number == 5 || d.Number == 6 || d.Number == 7) {
-					d.OwningClass = class.Address().ObjectID
-				}
+				d.InternalOwner = catalog.FamilyMemberInternalOwner(h.StageRead(), family.Method, d.Family, d.Left, d.Right, d.Number, true, class)
 			}
 			if err = h.Stage().Create(d); err != nil {
 				return err

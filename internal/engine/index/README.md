@@ -24,8 +24,13 @@ builds a binder.
   metadata-only callbacks are not callable grants. Validation dispatches on the
   physical implementation while keys keep the exact SQL method identity and
   diagnostics use the declared method name.
-  The installed cube boundary formats type visibility from the captured catalog;
-  unrelated input families retain their established DiagnosticName formatting.
+  These definitions share the canonical Journal/Finish path in autocommit,
+  SQL/Go transactions and retained messages. Stagers do not wait under
+  `Engine.mu`; root admission owns exact provider/name locks and predecessor
+  fences before publication. Private reads include earlier successful definitions.
+  User-defined type diagnostics use the executing private catalog and current
+  search-path visibility. Exact-default ambiguity names the domain's base type;
+  missing-default diagnostics name the original requested type.
 - **Keys, roots and programs** (`index.go`, `hash*.go`, `gist.go`,
   `predicate.go`, `expression.go`, `program.go`, `clauses.go`, `options.go`,
   `property.go`): `BindIndexOrdering`, `BuildIndexRoot`, `MergeIndexRoot`,
@@ -194,9 +199,14 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
   enum is not class identity. Declared identity compares with
   `sqltype.IndexClass.SameIdentity`, not structural equality. Grouping
   compatibility is captured once in the ordering's key mask, never per row.
-- **Family members.** Required members keep their INTERNAL class owner; the
-  drop closure rejects their standalone deletion and redirects dependencies
-  through the class. Optional, cross-type and classless members stay loose.
+- **Family members.** `InternalOwner` is the insertion-time class or family
+  address, not a current-class search. Required GiST support1,2,5,6,7 belongs to
+  the creating class or, for ALTER FAMILY, to the family; GiST operators and
+  optional support stay loose. Btree/hash retain their required same-type versus
+  optional/cross-type rules, including physical403/405 ALTER lookup rather than
+  SQL-alias adoption. The common closure rejects standalone hard-member deletion
+  and promotes dependencies through the actual owner. Dump folds class-owned
+  members into CREATE CLASS and emits family-owned members as ALTER FAMILY.
 - **Exclusion events.** Deferral events enlist only actual potential conflicts.
   Savepoints retain immutable event/mode/projection snapshots; transient modes
   and events are never serialized.

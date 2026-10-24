@@ -111,7 +111,8 @@ func (h ddlHost) StageRowType(relation *catalog.Relation) error {
 
 func (h ddlHost) RangeClass(a ddl.Authority, u sqltype.Usage, name *parser.ObjectName) (sqltype.IndexClass, error) {
 	view := h.AccessView(a).Catalog
-	class, ok := view.DefaultIndexClass(403, u.Type)
+	var class sqltype.IndexClass
+	var ok bool
 	if name != nil {
 		var err error
 		class, err = index.LookupClass(h, a, *name, 403)
@@ -122,6 +123,12 @@ func (h ddlHost) RangeClass(a ddl.Authority, u sqltype.Usage, name *parser.Objec
 			return class, sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*name), u.Type.DiagnosticName()))
 		}
 		ok = true
+	} else {
+		var err error
+		class, ok, err = view.DefaultIndexClass(403, u.Type)
+		if err != nil {
+			return class, index.DefaultClassDiagnostic(h, a, err)
+		}
 	}
 	if !ok {
 		d := sqlError("42704", fmt.Sprintf(`data type %s has no default operator class for access method "btree"`, u.Type.DiagnosticName())).(*sqlstate.Error)

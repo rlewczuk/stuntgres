@@ -433,6 +433,9 @@ func (e *Engine) publishCatalogOperation(op *session.Operation, scope *Statement
 		if err := scope.acquireRoutineRetirements(p.stage); err != nil {
 			return ChangeSet{}, err
 		}
+		if err := scope.acquireDefinitionDependencyLocks(p.stage); err != nil {
+			return ChangeSet{}, err
+		}
 		if err := scope.acquireCatalogNames(p.stage); err != nil {
 			return ChangeSet{}, err
 		}

@@ -96,10 +96,6 @@ func TestReferenceOperatorClassDiagnostics(t *testing.T) {
 				run(fixture.Exec(`ROLLBACK`, 0))
 				run(fixture.Exec(`BEGIN`, 0))
 				s = fixture.Exec(tc.q, 0)
-				if !b.PG {
-					s = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: `statement is unsupported in an explicit transaction`})
-					s.ErrorStage = "execute"
-				}
 				s.Prepared = prepared
 				run(s)
 				run(fixture.Exec(`ROLLBACK`, 0))

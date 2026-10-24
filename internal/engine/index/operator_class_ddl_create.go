@@ -64,7 +64,7 @@ func StageCreateOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.Cre
 			return familyError("42710", fmt.Sprintf(`operator class "%s" for access method "%s" already exists`, name, s.Method.Text))
 		}
 		if s.Default {
-			if old, ok := v.Catalog.DefaultOperatorClass(method, input); ok {
+			if old, ok := v.Catalog.AnyDefaultOperatorClass(method, input); ok {
 				typeName := familyTypeNames(v.Catalog, []ids.OID{input}, "")
 				if typ, found := v.Catalog.LookupType(sqltype.ID(input)); found {
 					typeName = typ.SQLName()

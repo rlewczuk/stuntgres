@@ -20,17 +20,21 @@ func KeyCollation(u sqltype.Usage, key catalog.IndexKey) sqltype.Usage {
 	return u
 }
 
-func ReconstructIndexKey(view catalog.Read, key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, methodOID ids.OID) catalog.IndexKey {
-	oldDefault, _ := view.DefaultIndexClass(methodOID, oldUsage.Type)
+func ReconstructIndexKey(view catalog.Read, key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, methodOID ids.OID) (catalog.IndexKey, error) {
+	oldDefault, _ := view.UniqueDefaultIndexClass(methodOID, oldUsage.Type)
 	if key.Class.Name == "" || key.Class.SameIdentity(oldDefault) {
-		key.Class, _ = view.DefaultIndexClass(methodOID, newUsage.Type)
+		var err error
+		key.Class, _, err = view.DefaultIndexClass(methodOID, newUsage.Type)
+		if err != nil {
+			return key, err
+		}
 		key.ExplicitClass = false
 	}
 	if key.Collation == oldUsage.Collation.ID {
 		key.Collation = 0
 		key.CollationRef = sqltype.CollationRef{}
 	}
-	return key
+	return key, nil
 }
 
 // Release18 utility semantic errors have no expression/parser location. Keep

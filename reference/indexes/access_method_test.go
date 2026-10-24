@@ -1,13 +1,10 @@
 package reference_test
 
 import (
-	"context"
 	"database/sql"
 	"strconv"
 	"testing"
-	"time"
 
-	"github.com/lib/pq"
 	"stuntgres/reference/fixture"
 )
 
@@ -15,19 +12,7 @@ import (
 // Register before NewScenario so all case borrowers close before admin cleanup.
 func amBackends(t *testing.T, names []string, body func(*testing.T, *fixture.Pair, fixture.Backend)) {
 	t.Helper()
-	clean := func() {
-		if !fixture.Started {
-			return
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		for _, name := range names {
-			if _, err := fixture.Admin.ExecContext(ctx, `DROP ACCESS METHOD IF EXISTS `+pq.QuoteIdentifier(name)+` CASCADE`); err != nil {
-				t.Errorf("global method cleanup %s: %v", name, err)
-			}
-		}
-	}
-	t.Cleanup(clean)
+	clean := fixture.AccessMethodReferenceCleanup(t, names)
 	p := fixture.NewScenario(t)
 	clean()
 	for _, b := range p.Backends() {

@@ -108,7 +108,10 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 			if wrapped {
 				sql.WriteByte(')')
 			}
-			presented = ReconstructIndexKey(view, key, usage, usage, index.SQLIndex.MethodIdentity())
+			presented, err = ReconstructIndexKey(view, key, usage, usage, index.SQLIndex.MethodIdentity())
+			if err != nil {
+				return "", err
+			}
 			if !presentation.Reconstruct {
 				actual, err := KeyUsage(parent, key)
 				if err != nil {

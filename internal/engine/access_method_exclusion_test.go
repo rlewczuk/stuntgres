@@ -58,7 +58,7 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 			member := *equality
 			member.ObjectAddress.ObjectID = catalogUnitOID(t, e)
 			member.ObjectRevision = 1
-			member.Method, member.Family, member.OwningClass = method.Address().ObjectID, family.Address().ObjectID, class.Address().ObjectID
+			member.Method, member.Family, member.InternalOwner = method.Address().ObjectID, family.Address().ObjectID, class.Address()
 			accessMethodPublish(t, e, &member)
 			op, auth := conversionUnitAuth(t, e)
 			before := e.CatalogRead()

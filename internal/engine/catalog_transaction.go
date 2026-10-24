@@ -168,6 +168,14 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 			}
 			owner := candidate.Get(address)
 			for _, target := range observation.Targets {
+				if err := visitDefinitionProviders(catalog.NewRead(nil, candidate), owner, func(a ids.ObjectAddress) error {
+					if a == target {
+						return catalog.Conflict{}
+					}
+					return nil
+				}); err != nil {
+					return err
+				}
 				switch owner := owner.(type) {
 				case *catalog.Procedure:
 					if (target.ClassID != ids.TypeClassID || candidate.Get(target) == nil) && catalog.ProcedureDefinitionDependsOn(owner, target) {

@@ -165,7 +165,10 @@ func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.
 			idx.ColumnMeta.HighWater = int32(len(c.Attributes))
 			for j, a := range c.Attributes {
 				column := d.Columns[slices.Index(d.Attributes, a)]
-				class, ok := h.StageBase().DefaultIndexClass(definition.MethodIdentity(), column.Usage.Type)
+				class, ok, err := h.StageBase().DefaultIndexClass(definition.MethodIdentity(), column.Usage.Type)
+				if err != nil {
+					return err
+				}
 				if !ok {
 					return DefaultClassError(column.Usage.Type.DiagnosticName(), familyMethodName(h.StageBase(), definition.MethodIdentity()))
 				}

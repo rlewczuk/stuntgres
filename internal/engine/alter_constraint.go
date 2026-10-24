@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -49,7 +50,12 @@ func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, 
 func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return table.StageAddedUnique(ddlHost{e: e, op: op, stage: stage}, op, parent, raw)
+	h := ddlHost{e: e, op: op, stage: stage}
+	next, err := table.StageAddedUnique(h, op, parent, raw)
+	if err != nil {
+		return nil, index.DefaultClassDiagnostic(h, auth, err)
+	}
+	return next, nil
 }
 
 func (e *Engine) stageAddedForeignKey(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {

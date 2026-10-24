@@ -60,6 +60,21 @@ func bindingDuplicate(claim BindingClaim) error {
 	case ids.CastClassID:
 		source, target, _ := strings.Cut(key.Name, ",")
 		table, constraint, detail = "pg_cast", "pg_cast_source_target_index", fmt.Sprintf("Key (castsource, casttarget)=(%s, %s) already exists.", source, target)
+	case ids.AccessMethodClassID:
+		table, constraint, detail = "pg_am", "pg_am_name_index", fmt.Sprintf("Key (amname)=(%s) already exists.", key.Name)
+	case ids.OperatorFamilyClassID:
+		table, constraint, detail = "pg_opfamily", "pg_opfamily_am_name_nsp_index", fmt.Sprintf("Key (opfmethod, opfname, opfnamespace)=(%s, %s, %d) already exists.", key.Signature, key.Name, key.Namespace.ObjectID)
+	case ids.OperatorClassCatalogID:
+		table, constraint, detail = "pg_opclass", "pg_opclass_am_name_nsp_index", fmt.Sprintf("Key (opcmethod, opcname, opcnamespace)=(%s, %s, %d) already exists.", key.Signature, key.Name, key.Namespace.ObjectID)
+	case ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID:
+		parts := strings.Split(key.Name, ",")
+		if key.ClassID == ids.AccessMethodOperatorClassID {
+			table, constraint = "pg_amop", "pg_amop_fam_strat_index"
+			detail = "Key (amopfamily, amoplefttype, amoprighttype, amopstrategy)=(" + strings.Join(parts[:4], ", ") + ") already exists."
+		} else {
+			table, constraint = "pg_amproc", "pg_amproc_fam_proc_index"
+			detail = "Key (amprocfamily, amproclefttype, amprocrighttype, amprocnum)=(" + strings.Join(parts[:4], ", ") + ") already exists."
+		}
 	default:
 		table, constraint, detail = "pg_class", "pg_class_relname_nsp_index", fmt.Sprintf("Key (relname, relnamespace)=(%s, %d) already exists.", key.Name, key.Namespace.ObjectID)
 	}

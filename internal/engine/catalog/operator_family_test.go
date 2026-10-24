@@ -14,12 +14,13 @@ func familyCatalogFixture() Read {
 	state.BindName(DescriptorNameKey(namespace), namespace.Address())
 	InstallBuiltinAccessMethods(state)
 	InstallBuiltinFamilies(state, authorization.PrincipalRef{})
+	InstallBuiltinClasses(state, authorization.PrincipalRef{})
 	return NewRead(nil, state)
 }
 func TestOperatorFamilyCatalog(t *testing.T) {
 	view := familyCatalogFixture()
 	t.Run("dependency classification", func(t *testing.T) { operatorFamilyDependencyCases(t, view) })
-	if view.DescriptorCount() != 1+4+49+292+185 {
+	if view.DescriptorCount() != 1+4+49+292+185+63 {
 		t.Fatal("incomplete released family inventory", view.DescriptorCount())
 	}
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}
@@ -29,7 +30,7 @@ func TestOperatorFamilyCatalog(t *testing.T) {
 		t.Fatal("family method identity", btree, hash)
 	}
 	support, ok := view.FamilySupport(1976, 23, 23, 1)
-	if !ok || support.Function != 351 || support.Left != 23 || support.Right != 23 || support.OwningClass != 1978 {
+	if !ok || support.Function != 351 || support.Left != 23 || support.Right != 23 || support.InternalOwner != (ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: 1978}) {
 		t.Fatal("released comparator member", support)
 	}
 	hashSupport, ok := view.FamilySupport(1977, 23, 23, 1)
@@ -46,11 +47,11 @@ func TestOperatorFamilyCatalog(t *testing.T) {
 		t.Fatal("ordering purpose aliases search member")
 	}
 	cross, ok := view.FamilyOperator(1976, 21, 20, 1, 's')
-	if !ok || cross.Operator != 1864 || cross.OwningClass != 0 {
+	if !ok || cross.Operator != 1864 || cross.InternalOwner != (ids.ObjectAddress{}) {
 		t.Fatal("released cross-type metadata", cross)
 	}
 	optional, ok := view.FamilySupport(1976, 23, 23, 2)
-	if !ok || optional.Function != 3130 || optional.OwningClass != 0 || !OperatorFamilySeeded(optional) {
+	if !ok || optional.Function != 3130 || optional.InternalOwner != (ids.ObjectAddress{}) || !OperatorFamilySeeded(optional) {
 		t.Fatal("original optional pin authority", optional)
 	}
 	for _, d := range view.Descriptors() {
@@ -60,13 +61,19 @@ func TestOperatorFamilyCatalog(t *testing.T) {
 		if _, ok := d.(*AccessMethod); ok {
 			continue
 		}
+		if _, ok := d.(*OperatorClass); ok {
+			if err := (OperatorClassProvider{}).Validate(view, d); err != nil {
+				t.Fatal(d, err)
+			}
+			continue
+		}
 		if err := (OperatorFamilyProvider{Class: d.Address().ClassID}).Validate(view, d); err != nil {
 			t.Fatal(d, err)
 		}
 	}
 	loose := *support
 	loose.ObjectAddress.ObjectID = 90001
-	loose.OwningClass = 0
+	loose.InternalOwner = ids.ObjectAddress{}
 	deps := OperatorFamilyDependencies(view, &loose)
 	if OperatorFamilySeeded(&loose) || deps[0].Kind != 'a' || deps[0].Address != btree || deps[1].Kind != 'a' {
 		t.Fatal("loose dependency authority", deps)
@@ -99,7 +106,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	search := *strategy
 	search.ObjectAddress.ObjectID = 90005
 	search.Family = 90001
-	search.OwningClass = 0
+	search.InternalOwner = ids.ObjectAddress{}
 	if err := candidate.Create(&search); err != nil {
 		t.Fatal(err)
 	}

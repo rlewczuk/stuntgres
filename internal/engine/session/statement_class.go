@@ -273,6 +273,10 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule, *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger:
 		return true
+	case *parser.CreateAccessMethod, *parser.DropAccessMethod,
+		*parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily,
+		*parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
+		return true
 	case *parser.CreateTable, *parser.DropTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema,
 		*parser.AlterTable, *parser.AlterTableRenameTable, *parser.AlterTableRenameColumn,
 		*parser.AlterTableRenameConstraint, *parser.AlterTableSetSchema, *parser.AlterTableDefault,

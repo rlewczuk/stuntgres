@@ -550,7 +550,7 @@ var builtinFamilyOperatorKeys = func() [len(builtinFamilyOperators)]ids.NameKey 
 	var keys [len(builtinFamilyOperators)]ids.NameKey
 	for i := range keys {
 		d := &builtinFamilyOperators[i]
-		d.OwningClass = builtinMemberClass(d.Method, d.Family, d.Left, d.Right, d.Number, false)
+		d.InternalOwner = builtinMemberInternalOwner(d.Method, d.Family, d.Left, d.Right, d.Number, false)
 		keys[i] = DescriptorNameKey(d)
 	}
 	return keys
@@ -561,7 +561,7 @@ var builtinFamilySupportKeys = func() [len(builtinFamilySupports)]ids.NameKey {
 		d := &builtinFamilySupports[i]
 		for _, family := range builtinFamilyRows {
 			if family.oid == d.Family {
-				d.OwningClass = builtinMemberClass(family.method, d.Family, d.Left, d.Right, d.Number, true)
+				d.InternalOwner = builtinMemberInternalOwner(family.method, d.Family, d.Left, d.Right, d.Number, true)
 				break
 			}
 		}

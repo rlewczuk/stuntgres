@@ -79,8 +79,8 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   Routine overloads and table columns therefore retain builtin identities when
   replay runs with shadowing domains before `pg_catalog` in `search_path`.
   Extension-member predecessors collapse to their actual owning extension;
-  internally owned family rows first collapse to their class. Lifetime comes
-  from the extension's target namespace: a missing namespace is invalid, while
+  internally owned family rows first collapse to their actual class or family
+  owner. Lifetime comes from the extension's target namespace: a missing namespace is invalid, while
   a valid TEMP installation gets the same atomic nonportable rejection as
   extension collection, independent of descriptor traversal order.
 - **Large objects** (`largeobject.go`): a fixed-OID-sorted list outside the

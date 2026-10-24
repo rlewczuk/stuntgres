@@ -60,7 +60,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	if err := index.StageMaintenance(ddlHost{e: e, op: scope.op, stage: stage}, g, stmt); err != nil {
 		e.mu.Unlock()
 		e.DiscardCatalogStage(stage)
-		return Result{}, err
+		return Result{}, index.DefaultClassDiagnostic(ddlHost{e: e, op: scope.op, stage: stage}, auth, err)
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

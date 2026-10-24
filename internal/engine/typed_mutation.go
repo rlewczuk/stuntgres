@@ -220,7 +220,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	e.mu.Unlock()
 	if err != nil {
-		return err
+		return index.DefaultClassDiagnostic(h, auth, err)
 	}
 	if err := stage.Replace(next); err != nil {
 		return err
@@ -229,7 +229,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, disclosureEnv(&auth), e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, mutation.transforms, nil, nil, rewrite)
 		if err != nil {
-			return err
+			return index.DefaultClassDiagnostic(h, auth, err)
 		}
 		projectedWrites, _, err = index.AttachIndexBuildOutputs(scope.op.Context(), projectedWrites, builds)
 		if err != nil {

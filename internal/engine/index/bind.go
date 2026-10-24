@@ -1,6 +1,7 @@
 package index
 
 import (
+	"errors"
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
@@ -34,6 +35,24 @@ func LookupClass(h KeyHost, auth ddl.Authority, raw parser.ObjectName, methodOID
 	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, catalog.ObjectNameText(raw), method.Name()))
 }
 
+// DefaultClassDiagnostic presents a propagated exact ambiguity through the
+// supplied executing authority. Successful lookup and unrelated errors do not
+// capture another path or allocate a diagnostic.
+func DefaultClassDiagnostic(h KeyHost, auth ddl.Authority, err error) error {
+	if err == nil {
+		return nil
+	}
+	var ambiguity *catalog.DefaultClassAmbiguity
+	if !errors.As(err, &ambiguity) {
+		return err
+	}
+	path, pathErr := auth.ReferencePath()
+	if pathErr != nil {
+		return pathErr
+	}
+	return catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(h.AccessView(auth).Catalog, path))
+}
+
 // BindKey binds one index key of type u: collation, operator class and the
 // ordering options method allows.
 func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey, methodOID ids.OID) (catalog.IndexKey, error) {
@@ -64,9 +83,9 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 	// Preserve the existing unsupported-input boundary without manufacturing a
 	// diagnostic-only class or consulting a static name/default fallback.
 	typeName := u.Type.DiagnosticName()
-	// Cube's installed-provider boundary uses catalog visibility. Preserve
-	// established DiagnosticName formatting for other input families.
-	if u.Type.IsCube() {
+	// User-defined type spelling follows the current private catalog and search
+	// path, just like other catalog diagnostics; builtins retain SQL spellings.
+	if u.Type.IsUserDefined() {
 		view := h.AccessView(auth).Catalog
 		if descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}); ok {
 			path, err := h.SearchNamespaces(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: descriptor.Name()}}}, ids.TypeClassID)
@@ -80,7 +99,8 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 	if method == catalog.HashMethod && base.IsArray() || method == catalog.BtreeMethod && base.ID() == sqltype.NameArray {
 		return key, sqlError("0A000", "index operator class is unsupported")
 	}
-	c, exists := h.AccessView(auth).Catalog.DefaultIndexClass(methodOID, u.Type)
+	var c sqltype.IndexClass
+	var exists bool
 	if raw.Opclass != nil {
 		var err error
 		c, err = LookupClass(h, auth, *raw.Opclass, methodOID)
@@ -92,6 +112,12 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 		}
 		key.ExplicitClass = true
 		exists = true
+	} else {
+		var err error
+		c, exists, err = h.AccessView(auth).Catalog.DefaultIndexClass(methodOID, u.Type)
+		if err != nil {
+			return key, DefaultClassDiagnostic(h, auth, err)
+		}
 	}
 	if !exists {
 		return key, DefaultClassError(typeName, fact.Name())
@@ -141,9 +167,15 @@ func validateSystemKey(h KeyHost, auth ddl.Authority, raw parser.IndexKey, metho
 		if !class.AcceptsID(id) {
 			return sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*raw.Opclass), name))
 		}
-	} else if _, exists := h.AccessView(auth).Catalog.DefaultIndexClassID(methodOID, id); !exists {
-		fact, _ := h.AccessView(auth).Catalog.AccessMethod(methodOID)
-		return DefaultClassError(name, fact.Name())
+	} else {
+		_, exists, err := h.AccessView(auth).Catalog.DefaultIndexClassID(methodOID, id)
+		if err != nil {
+			return DefaultClassDiagnostic(h, auth, err)
+		}
+		if !exists {
+			fact, _ := h.AccessView(auth).Catalog.AccessMethod(methodOID)
+			return DefaultClassError(name, fact.Name())
+		}
 	}
 	return nil
 }

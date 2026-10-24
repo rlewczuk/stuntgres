@@ -232,14 +232,14 @@ func TestCubeSpatialProviderControls(t *testing.T) {
 	for address, descriptor := range before.Descriptors() {
 		switch row := descriptor.(type) {
 		case *catalog.OperatorFamilyOperator:
-			if row.OwningClass == ext.Members[17].ObjectID {
+			if row.InternalOwner == ext.Members[17] {
 				mapped := catalog.RemapOperatorFamily(row, mapping)
 				next.UnbindName(catalog.DescriptorNameKey(row))
 				next.SetDescriptor(address, mapped)
 				next.BindName(catalog.DescriptorNameKey(mapped), address)
 			}
 		case *catalog.OperatorFamilySupport:
-			if row.OwningClass == ext.Members[17].ObjectID {
+			if row.InternalOwner == ext.Members[17] {
 				mapped := catalog.RemapOperatorFamily(row, mapping)
 				next.UnbindName(catalog.DescriptorNameKey(row))
 				next.SetDescriptor(address, mapped)
@@ -254,11 +254,11 @@ func TestCubeSpatialProviderControls(t *testing.T) {
 	class := mapping[ext.Members[17]].ObjectID
 	for strategy := int16(1); strategy <= 5; strategy++ {
 		row, ok := view.FamilyOperator(family, ids.OID(newType.ID()), ids.OID(newType.ID()), strategy, 's')
-		if !ok || row.Family != family || row.Left != ids.OID(newType.ID()) || row.Right != row.Left || row.OwningClass != class {
+		if !ok || row.Family != family || row.Left != ids.OID(newType.ID()) || row.Right != row.Left || row.InternalOwner != (ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: class}) {
 			t.Fatal("missing mapped strategy lookup or class ownership", strategy, row)
 		}
 	}
-	if row, ok := view.FamilySupport(family, ids.OID(newType.ID()), ids.OID(newType.ID()), 1); !ok || row.Family != family || row.Left != ids.OID(newType.ID()) || row.Right != row.Left || row.OwningClass != class {
+	if row, ok := view.FamilySupport(family, ids.OID(newType.ID()), ids.OID(newType.ID()), 1); !ok || row.Family != family || row.Left != ids.OID(newType.ID()) || row.Right != row.Left || row.InternalOwner != (ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: class}) {
 		t.Fatal("missing mapped support lookup or class ownership", row)
 	}
 	if err := extension.StockCube.ValidateExtension(view, next.MustExtension(mapping[ext.Address()])); err != nil {

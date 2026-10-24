@@ -301,7 +301,7 @@ func (p *prover) fact(node expr.Expr, goal *ProofGoal) (bool, error) {
 		return false, nil
 	}
 	// A custom index ordering is not automatically the CHECK operator's family.
-	class, supported := p.view.DefaultIndexClass(403, entry.Usage.Type)
+	class, supported := p.view.UniqueDefaultIndexClass(403, entry.Usage.Type)
 	if !supported {
 		return false, nil
 	}

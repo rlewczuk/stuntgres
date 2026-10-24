@@ -55,8 +55,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   exact backing-procedure links. Symbolic owner signatures preserve every builtin
   formal, including `cube,23` coordinate operators. Import resolves the expected
   destination member, not an arbitrary same-name object.
-  `RemapDescriptor` delegates class, family and class-owned row relocation to the
-  catalog remappers, preserving immutable source descriptors.
+  Comparison support keeps its exact INTERNAL class address; a family owner is
+  not an interchangeable execution capability. `RemapDescriptor` delegates class,
+  family and member relocation to the typed catalog remappers, preserving the
+  actual owner kind and immutable source descriptors.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured

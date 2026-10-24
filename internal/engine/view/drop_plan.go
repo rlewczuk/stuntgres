@@ -40,9 +40,8 @@ type DropPlan struct {
 	// Hierarchy are the inheritance and partition owners the closure
 	// reached, in edge order.
 	Hierarchy []ids.ObjectAddress
-	// ObserveIdentities reports whether the drop reaches an extension, an
-	// SQL/MED wrapper or server, or a foreign-handler procedure, whose
-	// incoming identities the drop must fence.
+	// ObserveIdentities reports a reached provider whose incoming identities
+	// must be fenced against descriptors committed after closure discovery.
 	ObserveIdentities bool
 }
 
@@ -75,14 +74,17 @@ func PlanDrop(r DropReader, roots []ids.ObjectAddress, edges []table.DomainDepen
 			plan.Hierarchy = append(plan.Hierarchy, edge.Address)
 		}
 	}
-	// The final closure can discover SQL/MED providers below a schema,
-	// registered procedure or wrapper root. Fence their incoming identities
-	// together with the existing extension retirement observation.
+	// Definition providers share the same captured retirement observation as
+	// existing extension and SQL/MED providers. No registry-wide generation
+	// substitutes for actual changed incoming edges.
 	for _, target := range plan.Targets {
 		observe := target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ForeignWrapperClassID || target.ClassID == ids.ForeignServerClassID
+		switch target.ClassID {
+		case ids.AccessMethodClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TypeClassID, ids.OperatorClassID:
+			observe = true
+		}
 		if target.ClassID == ids.ProcedureClassID {
-			procedure, ok := r.RetirementDescriptor(target).(*catalog.Procedure)
-			observe = ok && procedure.Foreign != nil
+			_, observe = r.RetirementDescriptor(target).(*catalog.Procedure)
 		}
 		if observe {
 			plan.ObserveIdentities = true

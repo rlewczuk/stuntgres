@@ -8,9 +8,12 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// CheckPortable rejects unsupported explicit SQL/MED ACLs, default privileges
-// and invalid indexes before any writer output.
+// CheckPortable rejects catalog state not representable by the supported SQL
+// stream before any writer output.
 func CheckPortable(state *catalog.State) error {
+	if catalog.NewRead(nil, state).HasMultiplePersistentDefaults() {
+		return fmt.Errorf("stuntgres: multiple default operator classes cannot be dumped")
+	}
 	for _, descriptor := range state.Descriptors() {
 		if foreign, ok := descriptor.(*catalog.ForeignObject); ok && foreign.ACL.Explicit {
 			return fmt.Errorf("stuntgres: dump cannot serialize explicit foreign object ACL")

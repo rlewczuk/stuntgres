@@ -55,7 +55,11 @@ func PartitionUniqueCoverage(view catalog.Read, table *catalog.Relation, index *
 			}
 			class := key.Class
 			if class.Name == "" {
-				class, _ = view.DefaultIndexClass(index.MethodIdentity(), usage.Type)
+				var err error
+				class, _, err = view.DefaultIndexClass(index.MethodIdentity(), usage.Type)
+				if err != nil {
+					return err
+				}
 			}
 			selected, err := routine.BindClassSupport(view, class)
 			partitionSelected, partitionErr := routine.BindClassSupport(view, partitionKey.Class)
@@ -193,10 +197,16 @@ func PartitionIndexEquivalent(ctx context.Context, view catalog.Read, table *cat
 		}
 		ac, bc := key.Class, other.Class
 		if ac.Name == "" {
-			ac, _ = view.DefaultIndexClass(a.MethodIdentity(), au.Type)
+			ac, _, err = view.DefaultIndexClass(a.MethodIdentity(), au.Type)
+			if err != nil {
+				return false, err
+			}
 		}
 		if bc.Name == "" {
-			bc, _ = view.DefaultIndexClass(b.MethodIdentity(), bu.Type)
+			bc, _, err = view.DefaultIndexClass(b.MethodIdentity(), bu.Type)
+			if err != nil {
+				return false, err
+			}
 		}
 		if ac.MethodOID() != bc.MethodOID() || ac.FamilyOID() != bc.FamilyOID() {
 			return false, nil

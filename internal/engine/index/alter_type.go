@@ -290,7 +290,10 @@ func RebuildAlterUniques(h Host, parent *catalog.Relation, transformations []Col
 			slot := slices.Index(parent.Attributes, attribute)
 			clone.Columns[j].Name = parent.Columns[slot].Name
 			clone.Columns[j].Usage = parent.Columns[slot].Usage
-			class, ok := h.StageBase().DefaultIndexClass(definition.MethodIdentity(), clone.Columns[j].Usage.Type)
+			class, ok, err := h.StageBase().DefaultIndexClass(definition.MethodIdentity(), clone.Columns[j].Usage.Type)
+			if err != nil {
+				return nil, err
+			}
 			if !ok {
 				return nil, DefaultClassError(clone.Columns[j].Usage.Type.DiagnosticName(), familyMethodName(h.StageBase(), definition.MethodIdentity()))
 			}

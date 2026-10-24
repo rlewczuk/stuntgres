@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -26,7 +27,7 @@ func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.Ob
 		}
 		provider := &dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
 		if err := index.ApplyIndexEvolution(provider, address, idx, parent, staged, typeParent, transformations); err != nil {
-			return err
+			return catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(stage.Base, stage.dependencyPath))
 		}
 	}
 	return nil
@@ -46,13 +47,27 @@ func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *cata
 	view := e.catalog.Read(next)
 	disclosure := access.View{Catalog: view}
 	var env index.DisclosureEnv
+	var recaptured *AuthorizationView
 	if auth != nil {
-		recaptured := *auth
+		copy := *auth
+		recaptured = &copy
 		recaptured.Catalog = view
 		recaptured.Recapture(recaptured.Catalog)
-		disclosure, env = recaptured.View, disclosureEnv(&recaptured)
+		disclosure, env = recaptured.View, disclosureEnv(recaptured)
 	}
-	return index.PrepareIndexPublication(evaluation, current, next, view, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, disclosure, env, runtimeOwners, candidates)
+	roots, err := index.PrepareIndexPublication(evaluation, current, next, view, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, disclosure, env, runtimeOwners, candidates)
+	if auth == nil || err == nil {
+		return roots, err
+	}
+	var ambiguity *catalog.DefaultClassAmbiguity
+	if errors.As(err, &ambiguity) {
+		name, nameErr := captureTypeDiagnosticName(*recaptured)
+		if nameErr != nil {
+			return nil, nameErr
+		}
+		err = catalog.RenderDefaultClassAmbiguity(err, name)
+	}
+	return roots, err
 }
 
 // Explicit statements must discover derived-key errors before installing private

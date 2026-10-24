@@ -97,6 +97,11 @@ production dependency is involved.
   matched query uses the held statement, others use the underlying plain DB/Tx.
   Consumers such as `DeleteReferenceConsume` skip step metadata/Scan callbacks, so
   keep those checks at the callsite.
+- **Access-method lifetime.** `AccessMethodReferenceCleanup(t, names)` registers
+  database-global method cleanup before a scenario is created and returns its
+  cleanup function. Invoke that function after `NewScenario` starts the oracle
+  and before scenario SQL; registered cleanup runs after borrowers close.
+  Schema reset alone cannot retire methods.
 - **Lock observation.** `LockWaitBehind(t, ctx, waiter, holder, relation, mode,
   completed...)` requires the exact waiter/holder/relation/mode queue witness. The
   optional completion channel is only for self-timing SQL (return then means
@@ -113,6 +118,11 @@ production dependency is involved.
   Capture PostgreSQL PIDs before starting a worker; never query its busy Conn.
   The supplied completion signal fails premature native completion; callers
   retain `LockOperation`'s cancellation/join ownership on every exit.
+  `ObjectLockPending` observes the actual dependency endpoint class/OID/subobject,
+  requested mode and blocker, never a synthetic relation or name-conflict tag.
+  Native admission additionally requires the parked manager/worker stack and
+  the exact real object row with its granted blocker. Completion before the
+  required witness fails; callers still own worker cancellation and joining.
 - **Active cancellation.** `BinaryConversionActiveCancel` and `SleepActiveCancel`
   cancel only after real admission: natively, the exact provider and fixture worker
   frames in one complete live goroutine stack (creation metadata does not count);

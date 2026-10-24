@@ -41,7 +41,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			return fail(err)
 		}
 		if err := g.AddAttach(s.op.Context(), auth.Catalog, ref); err != nil {
-			return fail(err)
+			return fail(index.DefaultClassDiagnostic(ddlHost{e: e, op: s.op}, auth, err))
 		}
 	}
 	if err := g.FinishPlan(auth.View, stmt); err != nil {

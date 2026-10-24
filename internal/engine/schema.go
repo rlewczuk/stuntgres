@@ -78,6 +78,9 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		return Result{}, err
 	}
 	stage, err = scope.admitDefinitionMutation(stage, stmt, input, noticeMark)
+	if err == nil {
+		stage, err = scope.admitDefinitionRetirement(stage, stmt, input)
+	}
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return Result{}, err

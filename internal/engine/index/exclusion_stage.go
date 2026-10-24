@@ -144,7 +144,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	definition.Constraint = ExclusionBacking(&c)
 	definition.Exclusion = operators
 	if err := PartitionUniqueCoverage(h.StageRead(), parent, definition); err != nil {
-		return err
+		return DefaultClassDiagnostic(h, auth, err)
 	}
 	backing := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}}
 	for i := range columns {
@@ -167,7 +167,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 			definition.Valid = len(parent.Partition.Children) == 0
 			return nil
 		}
-		return StagePartitionIndexChildren(h, parent, backing, false)
+		return DefaultClassDiagnostic(h, auth, StagePartitionIndexChildren(h, parent, backing, false))
 	}
 	return nil
 }

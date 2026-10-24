@@ -91,13 +91,13 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *s
 	}
 	idx := e.stageRead(stage).MustRelation(next.Constraints.Unique[len(next.Constraints.Unique)-1].Index)
 	if err = index.PartitionUniqueCoverage(e.stageRead(stage), next, idx.SQLIndex); err != nil {
-		return Result{}, err
+		return Result{}, index.DefaultClassDiagnostic(ddlHost{e: e, op: op, stage: stage}, auth, err)
 	}
 	e.mu.Lock()
 	err = e.stagePartitionIndexChildren(op, stage, next, idx, true)
 	e.mu.Unlock()
 	if err != nil {
-		return Result{}, err
+		return Result{}, index.DefaultClassDiagnostic(ddlHost{e: e, op: op, stage: stage}, auth, err)
 	}
 	if next.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")

@@ -24,6 +24,17 @@ metadata preserve unsigned values exactly, including duplicate and dangling
 references. Dump/Reset/Restore retain logical type identity, owners and numeric
 payloads through replacement and extension recreation.
 
+CREATE/DROP ACCESS METHOD and CREATE/ALTER/DROP OPERATOR FAMILY and OPERATOR CLASS
+now share SQL BEGIN and Go BeginTx with autocommit and retained messages.
+Definitions, members, dependencies and consuming indexes remain owner-private
+until commit and restore together at savepoints or rollback. Held execution uses
+current authority. Concurrent distinct DEFAULT classes remain distinct; implicit
+selection reports ambiguity only for multiple exact defaults and missing-default
+when compatible defaults have no unique winner. Explicitly selected and existing
+indexes retain their actual class. Exact ambiguity names the domain's base type
+using current catalog/search-path visibility; missing-default diagnostics retain
+the original requested type.
+
 Shipped function, aggregate and operator definitions and routine identity changes
 now share SQL BEGIN and Go BeginTx with autocommit and retained messages.
 Private callable programs, overload names, dependencies and rows publish or roll

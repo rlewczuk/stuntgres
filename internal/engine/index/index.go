@@ -66,7 +66,10 @@ func BindIndexOrdering(view catalog.Read, parent *catalog.Relation, definition *
 			class := key.Class
 			if class.Name == "" {
 				var exists bool
-				class, exists = view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
+				class, exists, err = view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
+				if err != nil {
+					return o, err
+				}
 				if !exists {
 					return o, DefaultClassError(usage.Type.DiagnosticName(), familyMethodName(view, definition.MethodIdentity()))
 				}
@@ -100,7 +103,11 @@ func BindIndexOrdering(view catalog.Read, parent *catalog.Relation, definition *
 		class := key.Class
 		if class.Name == "" {
 			var exists bool
-			class, exists = view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
+			var err error
+			class, exists, err = view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
+			if err != nil {
+				return o, err
+			}
 			if !exists {
 				return o, DefaultClassError(usage.Type.DiagnosticName(), familyMethodName(view, definition.MethodIdentity()))
 			}
@@ -121,7 +128,7 @@ func BindIndexOrdering(view catalog.Read, parent *catalog.Relation, definition *
 }
 
 func groupingCompatible(view catalog.Read, method ids.OID, usage sqltype.Usage, class sqltype.IndexClass) bool {
-	defaultClass, ok := view.DefaultIndexClass(method, usage.Type)
+	defaultClass, ok := view.UniqueDefaultIndexClass(method, usage.Type)
 	// Network comparison has no generic grouping provider. A nondefault
 	// family may have coarser equality, so its claims share a comparer bucket.
 	return ok && usage.Type.BaseType().ID() != sqltype.Inet && usage.Type.BaseType().ID() != sqltype.Cidr && class.SameInferenceIdentity(defaultClass)

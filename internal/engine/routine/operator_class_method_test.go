@@ -35,7 +35,7 @@ func TestOperatorClassMethodIdentity(t *testing.T) {
 		if i == 1 {
 			routine = 181
 		}
-		member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: ids.OID(93000 + i)}, ObjectRevision: ids.DefinitionRevision(31 + i), Family: class.Family, Left: 23, Right: 23, Function: routine, Number: 1, OwningClass: class.Address().ObjectID}
+		member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: ids.OID(93000 + i)}, ObjectRevision: ids.DefinitionRevision(31 + i), Family: class.Family, Left: 23, Right: 23, Function: routine, Number: 1, InternalOwner: class.Address()}
 		for _, d := range []catalog.Descriptor{family, class, member} {
 			if err := candidate.Create(d); err != nil {
 				t.Fatal(err)

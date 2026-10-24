@@ -63,16 +63,23 @@ func RemapOperatorClass(d *OperatorClass, mapping map[ids.ObjectAddress]ids.Obje
 	return &n
 }
 
-// Bootstrap-only member ownership; live admission uses FamilyMemberClass(Read).
-func builtinMemberClass(method, family, left, right ids.OID, number int16, function bool) ids.OID {
-	if left != right || method != 403 && method != 405 || function && number != 1 {
-		return 0
+// Bootstrap-only member ownership; live admission uses FamilyMemberInternalOwner.
+func builtinMemberInternalOwner(method, family, left, right ids.OID, number int16, function bool) ids.ObjectAddress {
+	if method == 783 {
+		if !function || number != 1 && number != 2 && number != 5 && number != 6 && number != 7 {
+			return ids.ObjectAddress{}
+		}
+	} else if left != right || method != 403 && method != 405 || function && number != 1 {
+		return ids.ObjectAddress{}
 	}
 	for i := range sqltype.IndexClassMetadataCount() {
 		f, ok := sqltype.IndexClassMetadataAt(i)
 		if ok && ids.OID(f.Method) == method && ids.OID(f.Family) == family && ids.OID(f.Input) == left {
-			return ids.OID(f.OID)
+			return ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(f.OID)}
 		}
 	}
-	return 0
+	if method == 783 {
+		return ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: family}
+	}
+	return ids.ObjectAddress{}
 }

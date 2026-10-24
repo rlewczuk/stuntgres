@@ -1,8 +1,10 @@
 package analyze
 
 import (
+	"errors"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
@@ -71,7 +73,22 @@ func (b *Binder) bindSelectedCubeComparison(raw parser.FunctionExpr, selected sq
 // routine before reading rows. The static builtin class registry is untouched.
 func (b *Binder) bindCubeOrdering(usage sqltype.Usage) (sqltype.Comparison, error) {
 	view := b.BindingCatalog()
-	class, ok := view.DefaultIndexClass(403, usage.Type)
+	class, ok, err := view.DefaultIndexClass(403, usage.Type)
+	if err != nil {
+		var ambiguity *catalog.DefaultClassAmbiguity
+		if errors.As(err, &ambiguity) {
+			auth, authErr := b.BindingAuthorization()
+			if authErr != nil {
+				return sqltype.Comparison{}, authErr
+			}
+			path, pathErr := b.Host.ReferencePath(auth)
+			if pathErr != nil {
+				return sqltype.Comparison{}, pathErr
+			}
+			err = catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(view, path))
+		}
+		return sqltype.Comparison{}, err
+	}
 	if !ok {
 		return sqltype.Comparison{}, fmt.Errorf("stuntgres: missing cube ordering class")
 	}

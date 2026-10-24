@@ -147,13 +147,16 @@ func RebindAlterTypeIndexes(h AlterHost, auth ddl.Authority, parent *catalog.Rel
 			if err != nil {
 				return err
 			}
-			definition.Keys[i] = index.ReconstructIndexKey(h.StageBase(), key, oldUsage, newUsage, definition.MethodIdentity())
+			definition.Keys[i], err = index.ReconstructIndexKey(h.StageBase(), key, oldUsage, newUsage, definition.MethodIdentity())
+			if err != nil {
+				return index.DefaultClassDiagnostic(h, auth, err)
+			}
 		}
 		// The captured TYPE queue already normalized every key against its
 		// original Usage while retaining the newly rebound expression trees.
 		next, err := index.EvolveIndex(h.StageBase(), &copy, oldParent, parent, nil)
 		if err != nil {
-			return err
+			return index.DefaultClassDiagnostic(h, auth, err)
 		}
 		if next != nil {
 			if next.Revision() == pending.Index.Revision() {

@@ -110,7 +110,7 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 		}
 	}
 	if err := PartitionUniqueCoverage(view, parent, definition); err != nil {
-		return CreatePlan{}, err
+		return CreatePlan{}, DefaultClassDiagnostic(h, auth, err)
 	}
 	if len(s.Options) != 0 {
 		return CreatePlan{}, Capability("index storage parameters are unsupported", s.WithPos)

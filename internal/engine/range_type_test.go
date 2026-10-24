@@ -24,10 +24,16 @@ func rangeTypeUnitFamily(t *testing.T, subtype sqltype.ID, subtract bool) (catal
 	state := catalog.CloneState(e.CatalogRead().State())
 	view := catalog.NewRead(e.CatalogRead().Owner(), state)
 	u, _ := view.LookupType(subtype)
-	class, ok := view.DefaultIndexClass(403, u)
+	class, ok, defaultErr := view.DefaultIndexClass(403, u)
+	if defaultErr != nil {
+		t.Fatal(defaultErr)
+	}
 	if !ok && (u.ContainsRegclass() || u.ContainsRegtype()) {
 		oid, _ := view.LookupType(sqltype.Oid)
-		class, ok = view.DefaultIndexClass(403, oid)
+		class, ok, defaultErr = view.DefaultIndexClass(403, oid)
+		if defaultErr != nil {
+			t.Fatal(defaultErr)
+		}
 	}
 	if !ok {
 		t.Fatal("missing actual subtype class")

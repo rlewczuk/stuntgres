@@ -374,7 +374,10 @@ func TestPGConstraintOperatorMetadata(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE pc_unit_enum AS ENUM ('z','a')"))
 	view = e.CatalogRead()
 	enum := domainUnitType(t, view, "pc_unit_enum").SQLType
-	class, _ := view.DefaultIndexClass(403, enum)
+	class, _, defaultErr := view.DefaultIndexClass(403, enum)
+	if defaultErr != nil {
+		t.Fatal(defaultErr)
+	}
 	bound, err := routine.BindIndexForeignKey(view, enum.Usage(), enum.Usage(), class)
 	if err != nil {
 		t.Fatal(err)

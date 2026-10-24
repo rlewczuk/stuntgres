@@ -27,10 +27,11 @@ type OperatorFamilyOperator struct {
 	ObjectAddress                                     ids.ObjectAddress
 	ObjectRevision                                    ids.DefinitionRevision
 	Family, Left, Right, Operator, Method, SortFamily ids.OID
-	// OwningClass is the insertion-time INTERNAL dependency, or zero for loose members.
-	OwningClass ids.OID
-	Number      int16
-	Purpose     byte
+	// InternalOwner is the insertion-time INTERNAL class or family dependency.
+	// Zero denotes a loose member with AUTO family ownership.
+	InternalOwner ids.ObjectAddress
+	Number        int16
+	Purpose       byte
 }
 
 func (d *OperatorFamilyOperator) Address() ids.ObjectAddress       { return d.ObjectAddress }
@@ -45,7 +46,7 @@ type OperatorFamilySupport struct {
 	ObjectAddress                 ids.ObjectAddress
 	ObjectRevision                ids.DefinitionRevision
 	Family, Left, Right, Function ids.OID
-	OwningClass                   ids.OID
+	InternalOwner                 ids.ObjectAddress
 	Number                        int16
 }
 

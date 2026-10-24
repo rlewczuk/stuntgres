@@ -71,7 +71,7 @@ func TestReferenceCompositeAlterStoredDependencies(t *testing.T) {
 			fixture.CompositeReferenceSetup(t, p, b, c, `CREATE TYPE pair AS (id integer,note text)`, `CREATE TABLE holder(id integer,note text)`)
 			q := `CREATE INDEX holder_pair ON holder ((ROW(id,note)::pair))`
 			if !b.PG {
-				d := fixture.CompositeReferenceDiagnostic("42704", `data type public.pair has no default operator class for access method "btree"`)
+				d := fixture.CompositeReferenceDiagnostic("42704", `data type pair has no default operator class for access method "btree"`)
 				d.Hint = "You must specify an operator class for the index or define a default operator class for the data type."
 				fixture.CompositeReferenceError(t, p, c, q, "execute", d)
 				return

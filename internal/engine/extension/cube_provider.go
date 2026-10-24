@@ -191,12 +191,12 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	}
 	for i, operator := range cubeStrategies {
 		m, ok := v.FamilyOperator(class.Family, class.InputType, class.InputType, int16(i+1), 's')
-		if !ok || m.Family != class.Family || m.Left != class.InputType || m.Right != class.InputType || m.Number != int16(i+1) || m.Purpose != 's' || m.Operator != ext.Members[10+operator].ObjectID || m.Method != 403 || m.SortFamily != 0 || m.OwningClass != class.Address().ObjectID || m.Revision() == 0 {
+		if !ok || m.Family != class.Family || m.Left != class.InputType || m.Right != class.InputType || m.Number != int16(i+1) || m.Purpose != 's' || m.Operator != ext.Members[10+operator].ObjectID || m.Method != 403 || m.SortFamily != 0 || m.InternalOwner != class.Address() || m.Revision() == 0 {
 			return invalid()
 		}
 	}
 	support, ok := v.FamilySupport(class.Family, class.InputType, class.InputType, 1)
-	if !ok || support.Family != class.Family || support.Left != class.InputType || support.Right != class.InputType || support.Number != 1 || support.Function != ext.Members[9].ObjectID || support.OwningClass != class.Address().ObjectID || support.Revision() == 0 {
+	if !ok || support.Family != class.Family || support.Left != class.InputType || support.Right != class.InputType || support.Number != 1 || support.Function != ext.Members[9].ObjectID || support.InternalOwner != class.Address() || support.Revision() == 0 {
 		return invalid()
 	}
 	if err := p.validateCoordinates(v, ext, base); err != nil {

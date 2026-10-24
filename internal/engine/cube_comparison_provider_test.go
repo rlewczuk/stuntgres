@@ -194,7 +194,10 @@ func TestCubeIndexSupport(t *testing.T) {
 	t.Run("transport_retains_catalog_owner", cubeIndexTransportAuthority)
 	e, ext, base := cubeUnitInstalled(t)
 	view := e.CatalogRead()
-	class, ok := view.DefaultIndexClass(403, base.SQLType)
+	class, ok, defaultErr := view.DefaultIndexClass(403, base.SQLType)
+	if defaultErr != nil {
+		t.Fatal(defaultErr)
+	}
 	if !ok {
 		t.Fatal("missing dynamic default")
 	}
@@ -258,7 +261,7 @@ func TestCubeIndexSupport(t *testing.T) {
 		func(s *catalog.OperatorFamilySupport) { s.Left++ },
 		func(s *catalog.OperatorFamilySupport) { s.Right++ },
 		func(s *catalog.OperatorFamilySupport) { s.Family++ },
-		func(s *catalog.OperatorFamilySupport) { s.OwningClass = 0 },
+		func(s *catalog.OperatorFamilySupport) { s.InternalOwner = ids.ObjectAddress{} },
 	} {
 		candidate := catalog.CloneState(e.catalog.State)
 		member, _ := view.FamilySupport(ids.OID(support.Family), ids.OID(support.Left), ids.OID(support.Right), 1)

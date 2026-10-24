@@ -105,6 +105,14 @@ ordinary SQL errors leave the connection reusable.
   `ErrCatalogReplaced` is an ordinary native error without SQLSTATE and clears
   explicit-transaction savepoints: fully roll back and begin a fresh transaction
   on the same connection before qualified recovery.
+- CREATE/DROP ACCESS METHOD and CREATE/ALTER/DROP OPERATOR FAMILY and OPERATOR
+  CLASS also share autocommit, SQL transaction controls, Go `BeginTx` and retained
+  messages. Later owner commands consume private methods, classes and members;
+  peers see the complete group only after commit. Savepoints and rollback restore
+  identities, names, dependencies and providers together. Distinct concurrently
+  created DEFAULT classes can coexist: multiple exact defaults make implicit
+  selection report 42710; nonunique compatible defaults leave no selection and
+  report 42704. Explicit classes and existing indexes retain their selected identities.
 - ALTER OWNER for tables, types, domains and databases, feature-specific view/
   materialized-view OWNER, REASSIGN OWNED and DROP OWNED share autocommit, SQL
   transaction controls and Go `BeginTx`. They see earlier successful own changes;
@@ -162,6 +170,12 @@ ordinary SQL errors leave the connection reusable.
 - **SQL `PREPARE`/`EXECUTE`** names and cursors are session objects, independent of
   Go `Stmt` handles; closing a `Stmt` or `Rows` neither deallocates a name nor moves
   a cursor.
+
+Access-method, family and class definition utilities have no parameter or row
+signature and report zero affected rows. Go Prepare and wire Parse/Describe/Bind
+do not apply their effects; Execute checks current role, schema and provider
+authority. Held handles participate in the executing owner's transaction and can
+be reused after savepoint recovery. SQL `PREPARE` retains its own syntax policy.
 
 Routine rename/schema/owner DDL has no parameter/result signature; Prepare stays
 effect-free and Execute owns authorization and read-only/transaction admission.
