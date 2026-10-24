@@ -5,7 +5,7 @@ the producer-backed `information_schema` views (`table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
-`sequences`, `role_column_grants`, `columns`, `domains`, `views`). Each
+`sequences`, `role_column_grants`, `columns`, `domains`, `views`, `tables`). Each
 producer is a pure function from a captured catalog, a paired role read and a
 narrow runtime capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -281,6 +281,26 @@ definitions, privileges and naming paths; returned rows retain their original
 values and descriptor generations.
 Malformed source/base/collation authority and cancellation return no prefix.
 
+## Table metadata
+
+`info_tables.go` uses the ordinary PUBLIC-readable source/type path and twelve
+nullable source-owned domain columns. Capture validates the source layout,
+domain/base generations and column origins before projecting actual represented
+relations. Classification comes from `ClassKind`; a physical session's TEMP
+namespace takes precedence, and peer TEMP namespaces are excluded.
+
+Tables and views share enabled-ownership and effective relation/live-column
+privilege visibility. Schema USAGE and search paths add no metadata filter;
+MAINTAIN alone does not disclose a relation. Typed-table identity comes from
+the captured `OfType` descriptor and namespace, not an implicit row type.
+Insertability reuses structural view/rule capabilities and registered foreign
+modification interfaces without executing relation bodies or foreign callbacks.
+The PostgreSQL-unimplemented fields remain genuine typed NULLs.
+
+Each held execution captures current definitions and authorization. Returned rows
+retain their original values and domain authority; an empty capture is nonnil,
+and invalid authority or cancellation publishes no partial result.
+
 ## Information-schema views
 
 `info_views.go` projects ten nullable source-owned domain columns through the
@@ -305,9 +325,10 @@ three trigger flags are NO.
 Represented catalog relations classified as ordinary tables supply ordinary
 base-table structural events; this does not change catalog write admission.
 
-`builtin_views*.go` owns one closed inventory of 38 builtin view definitions,
-including `information_schema.columns`, `information_schema.domains` and
-`pg_catalog.pg_rules`, with classification and per-output capability facts.
+`builtin_views*.go` owns one closed inventory of 39 builtin view definitions,
+including `information_schema.columns`, `information_schema.domains`,
+`information_schema.tables` and `pg_catalog.pg_rules`, with classification and
+per-output capability facts.
 Its canonical literal fragments contain explicit object-name and identifier
 occurrences. `pg_rules` uses the same definition authority as both consumers;
 its `pg_get_ruledef(oid)` reference captures stable routine identity, while
@@ -349,6 +370,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - Column metadata public scenarios: `RUN='^TestReferenceInfoColumns'`
 - Domain-definition producer units: `RUN='^TestInfoDomains'`
 - Domain-definition public scenarios: `RUN='^TestReferenceInfoDomains'`
+- Table metadata producer units: `RUN='^TestInfoTables'`
+- Table metadata public scenarios: `RUN='^TestReferenceInfoTables'`
 
 ### Domain constraints
 

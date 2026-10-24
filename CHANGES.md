@@ -6,6 +6,10 @@ Existing table, column, foreign-table, schema and role comments now participate
 in SQL and Go transactions, with private visibility, savepoints and atomic commit
 or rollback. Sequence comment and counter behavior is preserved.
 
+`information_schema.tables` exposes privilege-filtered table, view, foreign-table
+and session-local temporary identities with typed-table metadata, structural
+insertability and current results on held prepared reads.
+
 Trigger rename, extension dependencies and table-qualified DROP preserve installed
 definitions and partition clone identities, participate in transactions, and
 survive native Dump/Restore.

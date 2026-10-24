@@ -520,6 +520,12 @@ PL cursor compiler/provider/ownership units: `RUN='^TestPLpgSQLCursor'`.
   real retained views and heap sources. Utility timing observes an actual queued
   target lock; safe-snapshot units check accepted and discarded public/root pairs.
 
+Table-metadata producer units reuse the engine-seeded catalog and authorization
+fixture through the real producer registry. They assert source-owned domain
+cells, retained captures, typed empty results and rejection of malformed or
+foreign capture authority: `RUN='^TestInfoTables'`. Public SQL and native-control
+witnesses belong to the corresponding `reference/catalogs` family.
+
 ### Advisory timer scheduling and shared result waits
 
 - Timer cases of `TestAdvisorySessionQueueTimersDeadlock` run under

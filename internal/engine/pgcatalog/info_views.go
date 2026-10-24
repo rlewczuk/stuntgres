@@ -55,35 +55,9 @@ func captureInfoViews(in Input) ([][]sqltype.Value, error) {
 		if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != in.Runtime.TemporaryOwner() {
 			continue
 		}
-		owner, err := in.Roles.InheritsRole(in.Runtime.CurrentPrincipal(), relation.Owner)
+		owner, visible, err := infoRelationVisible(in, relation)
 		if err != nil {
 			return nil, err
-		}
-		visible := owner
-		ref := in.Ref.Domain().Ref(in.Ref.Epoch, relation.Address())
-		if !visible {
-			rights, err := in.Runtime.Effective(ref, false)
-			if err != nil {
-				return nil, err
-			}
-			visible = rights&(authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.DeletePrivilege|authorization.TruncatePrivilege|authorization.ReferencesPrivilege|authorization.TriggerPrivilege) != 0
-			if !visible {
-				for _, attribute := range relation.Attributes {
-					if attribute <= 0 {
-						continue
-					}
-					columnRef := ref
-					columnRef.Address.SubID = attribute
-					rights, err := in.Runtime.Effective(columnRef, false)
-					if err != nil {
-						return nil, err
-					}
-					if rights&(authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.ReferencesPrivilege) != 0 {
-						visible = true
-						break
-					}
-				}
-			}
 		}
 		if !visible {
 			continue
@@ -132,4 +106,40 @@ func captureInfoViews(in Input) ([][]sqltype.Value, error) {
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+// infoRelationVisible implements the shared tables/views relation-access
+// predicate. Namespace USAGE is deliberately not part of metadata visibility.
+// Ownership is returned separately for views' definition-disclosure decision.
+func infoRelationVisible(in Input, relation *catalog.Relation) (owner, visible bool, err error) {
+	owner, err = in.Roles.InheritsRole(in.Runtime.CurrentPrincipal(), relation.Owner)
+	if err != nil || owner {
+		return owner, owner, err
+	}
+	ref := in.Ref.Domain().Ref(in.Ref.Epoch, relation.Address())
+	rights, err := in.Runtime.Effective(ref, false)
+	if err != nil {
+		return false, false, err
+	}
+	if rights&(authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.DeletePrivilege|authorization.TruncatePrivilege|authorization.ReferencesPrivilege|authorization.TriggerPrivilege) != 0 {
+		return false, true, nil
+	}
+	for _, attribute := range relation.Attributes {
+		if attribute <= 0 {
+			continue
+		}
+		if _, dropped := relation.ColumnMeta.Dropped[attribute]; dropped {
+			continue
+		}
+		columnRef := ref
+		columnRef.Address.SubID = attribute
+		rights, err := in.Runtime.Effective(columnRef, false)
+		if err != nil {
+			return false, false, err
+		}
+		if rights&(authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.ReferencesPrivilege) != 0 {
+			return false, true, nil
+		}
+	}
+	return false, false, nil
 }

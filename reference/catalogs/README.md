@@ -253,6 +253,17 @@ bytes and preserve old eager rows, with explicit ACL rejection tested separately
 
 - Column metadata: `RUN='^TestReferenceInfoColumns'`
 
+### Table metadata
+
+`info_tables_helpers_test.go` owns exact twelve-column rows, logical domains,
+raw/adapter metadata and direct/fresh/held consumers. Scenarios assert represented
+object kinds, typed identities, physical TEMP scope, effective privilege
+visibility and metadata refresh without executing view bodies or foreign scans.
+Native retained rows and Dump/Reset/Restore are explicit public-control phases.
+Builtin definition consumers retain independent PostgreSQL display expectations.
+
+- Table metadata: `RUN='^TestReferenceInfoTables'`
+
 ### View definition metadata
 
 `info_views_helpers_test.go` owns paired scenarios, exact ten-column domain and
