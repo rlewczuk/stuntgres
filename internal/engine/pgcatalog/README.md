@@ -1,7 +1,8 @@
 # internal/engine/pgcatalog
 
 Row producers for the system relations: the `pg_catalog` tables and views and
-the producer-backed `information_schema` tables and views (`sql_features`, `sql_sizing`, `table_privileges`,
+the producer-backed `information_schema` tables and views (`sql_features`,
+`sql_sizing`, `sql_implementation_info`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
@@ -133,6 +134,22 @@ identifier byte bounds. The physical catalog table uses ordinary schema/relation
 admission and PUBLIC SELECT, without per-item identity or object filtering.
 Captures validate both domains against the current base descriptor generations
 and allocate detached rows; cancellation publishes no prefix.
+
+## SQL implementation metadata
+
+`info_sql_implementation_info.go` owns twelve stable initial product
+characteristics, not feature-conformance population. The physical table has
+five nullable `character_data`/`cardinal_number` domain columns. Integer zero,
+empty character strings and typed NULLs remain distinct. DBMS NAME is
+`stuntgres`; DBMS VERSION uses `functions.EmbeddedVersionBanner`, the same pure
+identity as `version()`. Initial collation `C` and default isolation information
+do not change with user collations or session settings.
+
+Schema USAGE and relation SELECT admission apply normally; PUBLIC SELECT
+exposes the complete bag without per-item identity filtering. Each capture
+validates the catalog/role frontier and exact captured domains/base identities,
+owns its row/cell buffers and publishes no prefix on cancellation or error.
+
 
 ## Registry
 

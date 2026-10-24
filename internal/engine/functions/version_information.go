@@ -9,7 +9,8 @@ import (
 	"stuntgres/internal/sqltype/unicode16"
 )
 
-const embeddedVersionBanner = "PostgreSQL 18.0 compatible; embedded stuntgres"
+// EmbeddedVersionBanner is the shared native product/version identity.
+const EmbeddedVersionBanner = "PostgreSQL 18.0 compatible; embedded stuntgres"
 
 // The SQL inquiry uses major.minor; Unicode execution owns the full version.
 var sqlUnicodeVersion = unicode16.Version[:strings.LastIndexByte(unicode16.Version, '.')]
@@ -74,7 +75,7 @@ func (e VersionInformation) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	switch e.Kind {
 	case VersionInformationServer:
-		return sqltype.String(e.Usage.Type, embeddedVersionBanner), nil
+		return sqltype.String(e.Usage.Type, EmbeddedVersionBanner), nil
 	case VersionInformationUnicode:
 		return sqltype.String(e.Usage.Type, sqlUnicodeVersion), nil
 	default:

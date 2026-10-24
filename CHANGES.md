@@ -13,6 +13,12 @@ variance/var_samp and stddev/stddev_samp, including modifiers and outer-owned ca
 Repeated immutable calls to one declaration still share; distinct declarations
 retain independent original proofs and current-invoker EXECUTE admission.
 
+information_schema.sql_implementation_info now exposes twelve stable product
+characteristics through five nullable domain-typed columns, including truthful
+stuntgres identity, the existing compatibility version banner and initial C
+collation. Direct and prepared reads preserve NULL, empty-string and zero
+values with normal PUBLIC SELECT and schema/relation admission.
+
 information_schema.role_udt_grants now exposes seven domain-typed columns over
 actual composite type USAGE grant origins, including represented catalog row
 types. Named grantors, grant options and inherited enabled-role visibility

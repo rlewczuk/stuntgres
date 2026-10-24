@@ -884,4 +884,11 @@ var Specs = [...]Spec{
 		{"supported_value", 13243, true, 0, 0, -1},
 		{"comments", 13246, true, 950, 0, -1},
 	}, false, false, false, false, "stuntgres: missing SQL sizing domain"},
+	{InfoSQLImplementationInfoOID, 13229, "sql_implementation_info", []ColumnSpec{
+		{"implementation_info_id", 13246, true, 950, 0, -1},
+		{"implementation_info_name", 13246, true, 950, 0, -1},
+		{"integer_value", 13243, true, 0, 0, -1},
+		{"character_value", 13246, true, 950, 0, -1},
+		{"comments", 13246, true, 950, 0, -1},
+	}, false, false, false, false, "stuntgres: missing SQL implementation info domain"},
 }

@@ -271,6 +271,19 @@ checks reinitialized sizing authority and detached retained descriptors.
 
 - SQL sizing metadata: `RUN='^TestReferenceInfoSQLSizing'`
 
+### SQL implementation metadata
+
+`info_sql_implementation_info_helpers_test.go` owns independently specified
+twelve-row expectations, including explicit backend product identities, domain
+metadata and raw NULL/integer/string boundaries. Shared scenarios exercise
+physical table/type ownership, direct/fresh/held reads, stable initial values,
+ordinary identities and complete diagnostics. PostgreSQL target ACL revocation
+is rollback-contained; engine units cover real native catalog ACL replacement,
+schema admission and retained authorization without widening SQL ACL admission.
+
+- SQL implementation metadata: `RUN='^TestReferenceInfoSQLImplementationInfo'`
+
+
 ### Column grant metadata
 
 `info_role_column_grants_helpers_test.go` owns the shared scenario, exact

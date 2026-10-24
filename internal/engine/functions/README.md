@@ -8,6 +8,10 @@ registry entry. The analyzer that drives binding is in
 the authority behind evaluation capabilities in the root
 [engine](../README.md#function-runtimes).
 
+`EmbeddedVersionBanner` is the pure native product/version identity shared by
+`version()` and implementation-information metadata; it retains no runtime or
+catalog authority.
+
 ## Imports and layering
 
 - A leaf library: it imports only [`expr`](../expr/README.md), `ids`, `sqltype`,
