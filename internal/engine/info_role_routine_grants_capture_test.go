@@ -8,16 +8,21 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
 
 func TestInfoRoleRoutineGrantsCapture(t *testing.T) {
-	f := newRoleRoutineGrantsFixture(t)
+	testRoutinePrivilegesCapture(t, newRoleRoutineGrantsFixture(t))
+}
+
+func testRoutinePrivilegesCapture(t *testing.T, f roleRoutineGrantsFixture) {
+	t.Helper()
 	routine := *f.routine
 	routine.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.ExecutePrivilege, 0)}}
 	f.state.SetDescriptor(routine.Address(), &routine)
 	in := f.input(t, f.state, f.f.reader)
-	produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoRoleRoutineGrantsOID)
+	produce, ok := pgcatalog.ProducerFor(f.sourceOID)
 	if !ok {
 		t.Fatal("missing producer")
 	}
@@ -57,6 +62,14 @@ func TestInfoRoleRoutineGrantsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { copy := *in.Source; copy.ObjectAddress.ObjectID++; in.Source = &copy },
+		func(in *pgcatalog.Input) {
+			other := pgcatalog.InfoRoutinePrivilegesOID
+			if f.sourceOID == other {
+				other = pgcatalog.InfoRoleRoutineGrantsOID
+			}
+			in.Source = in.Catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: other})
+			in.Ref = in.Owner.Domain.Ref(in.Catalog.Epoch(), in.Source.Address())
+		},
 		func(in *pgcatalog.Input) {
 			runtime := in.Runtime.(engineCatalogRuntime)
 			runtime.auth.RoleRecord = nil
@@ -140,7 +153,11 @@ func TestInfoRoleRoutineGrantsCapture(t *testing.T) {
 }
 
 func TestInfoRoleRoutineGrantsCaptureFrontier(t *testing.T) {
-	f := newRoleRoutineGrantsFixture(t)
+	testRoutinePrivilegesCaptureFrontier(t, newRoleRoutineGrantsFixture(t))
+}
+
+func testRoutinePrivilegesCaptureFrontier(t *testing.T, f roleRoutineGrantsFixture) {
+	t.Helper()
 	routine := *f.routine
 	routine.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.ExecutePrivilege, 0)}}
 	f.state.SetDescriptor(routine.Address(), &routine)

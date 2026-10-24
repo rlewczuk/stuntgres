@@ -28,14 +28,21 @@ type rrgCase struct {
 	conn            *sql.Conn
 	recorder        *fixture.Recorder
 	owner, database string
+	query           string
 }
 
 func rrgScenario(t *testing.T, body func(*rrgCase)) {
 	t.Helper()
-	fixture.RoleReferenceCleanup(t, rrgRoles)
-	fixture.SchemaReferenceCleanup(t, "rrg_private")
-	fixture.SchemaReferenceCleanup(t, "rrg_moved")
-	fixture.SchemaReferenceCleanup(t, "rrg_ext")
+	routineACLScenario(t, rrgRoles, []string{"rrg_private", "rrg_moved", "rrg_ext"}, body)
+}
+
+// Both routine ACL views share the same public fixture and transport contract.
+func routineACLScenario(t *testing.T, roles, schemas []string, body func(*rrgCase)) {
+	t.Helper()
+	fixture.RoleReferenceCleanup(t, roles)
+	for _, schema := range schemas {
+		fixture.SchemaReferenceCleanup(t, schema)
+	}
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
@@ -183,7 +190,11 @@ func (c *rrgCase) step(query string, want [][]any, args ...any) fixture.Step {
 }
 func (c *rrgCase) check(e fixture.Executor, schema, name string, want ...[]any) {
 	c.t.Helper()
-	s := c.step(rrgQuery, want, schema, name)
+	query := c.query
+	if query == "" {
+		query = rrgQuery
+	}
+	s := c.step(query, want, schema, name)
 	c.run(e, s)
 	if _, held := e.(fixture.HeldStatement); !held {
 		c.run(e, fixture.Prepared(s))

@@ -12,9 +12,10 @@ import (
 )
 
 type roleRoutineGrantsFixture struct {
-	f       defaultUnitFixture
-	state   *catalog.State
-	routine *catalog.Procedure
+	f         defaultUnitFixture
+	state     *catalog.State
+	routine   *catalog.Procedure
+	sourceOID ids.OID
 }
 
 func newRoleRoutineGrantsFixture(t *testing.T) roleRoutineGrantsFixture {
@@ -23,21 +24,21 @@ func newRoleRoutineGrantsFixture(t *testing.T) roleRoutineGrantsFixture {
 	state := catalog.CloneState(f.e.catalog.State)
 	routine := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 20522}, ObjectNamespace: f.schema, ObjectName: "rrg_unit", ObjectRevision: 1, Owner: f.owner, RoutineKind: catalog.FunctionRoutine, ACL: authorization.ACLValue{Explicit: true}}
 	state.SetDescriptor(routine.Address(), routine)
-	return roleRoutineGrantsFixture{f, state, routine}
+	return roleRoutineGrantsFixture{f: f, state: state, routine: routine, sourceOID: pgcatalog.InfoRoleRoutineGrantsOID}
 }
 func (f roleRoutineGrantsFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
 	view := f.f.e.catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
-	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoRoleRoutineGrantsOID})
+	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: f.sourceOID})
 	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
 }
 func roleRoutineGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
-	produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoRoleRoutineGrantsOID)
+	produce, ok := pgcatalog.ProducerFor(in.Source.Address().ObjectID)
 	if !ok {
-		t.Fatal("missing role_routine_grants producer")
+		t.Fatal("missing routine ACL producer", in.Source.Name())
 	}
 	captured, err := captureCatalogSourceRows(in, produce)
 	if err != nil {
@@ -107,13 +108,30 @@ func (f roleRoutineGrantsFixture) check(t *testing.T, state *catalog.State, acto
 	}
 }
 func TestInfoRoleRoutineGrantsMetadata(t *testing.T) {
-	f := newRoleRoutineGrantsFixture(t)
+	testRoutinePrivilegesMetadata(t, newRoleRoutineGrantsFixture(t), 13381, 13380)
+}
+
+func testRoutinePrivilegesMetadata(t *testing.T, f roleRoutineGrantsFixture, rowID, arrayID sqltype.ID) {
+	t.Helper()
+	// An empty ACL on the authored routine alone does not empty the PUBLIC
+	// view: represented builtins also have real default EXECUTE origins.
+	for _, descriptor := range f.f.e.catalog.Read(f.state).Descriptors() {
+		if routine, ok := descriptor.(*catalog.Procedure); ok {
+			empty := *routine
+			empty.ACL = authorization.ACLValue{Explicit: true}
+			f.state.SetDescriptor(empty.Address(), &empty)
+		}
+	}
 	in := f.input(t, f.state, f.f.reader)
-	if rows := roleRoutineGrantsRows(t, in); len(rows) != 0 {
-		t.Fatal("reader should have nonnil empty rows", rows)
+	produce, ok := pgcatalog.ProducerFor(f.sourceOID)
+	if !ok {
+		t.Fatal("missing producer", f.sourceOID)
+	}
+	if rows, err := produce(in); err != nil || rows == nil || len(rows) != 0 {
+		t.Fatal("expected successful nonnil empty rows", rows, err)
 	}
 	source := in.Source
-	if source.Address().ObjectID != 16220 || source.Namespace().ObjectID != 13229 || source.RowType != 13381 || !source.VirtualView || source.RelationKind != catalog.CatalogRelation {
+	if source.Address().ObjectID != f.sourceOID || source.Namespace().ObjectID != 13229 || source.RowType != rowID || !source.VirtualView || source.RelationKind != catalog.CatalogRelation {
 		t.Fatal("view identity", source)
 	}
 	names := [10]string{"grantor", "grantee", "specific_catalog", "specific_schema", "specific_name", "routine_catalog", "routine_schema", "routine_name", "privilege_type", "is_grantable"}
@@ -126,7 +144,7 @@ func TestInfoRoleRoutineGrantsMetadata(t *testing.T) {
 			domain, base = 13256, sqltype.VarChar
 		}
 		captured, ok := in.Catalog.LookupType(domain)
-		if !ok || column.Name != names[i] || !column.Nullable || !column.NullabilityKnown || column.OriginTable != 16220 || column.OriginAttribute != int16(i+1) || column.DeclaredDimensions != 0 || column.Usage.Typmod != -1 || column.Usage.Collation.ID != 950 || column.Usage.Type != captured || column.Usage.Type.BaseType().ID() != base {
+		if !ok || column.Name != names[i] || !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(f.sourceOID) || column.OriginAttribute != int16(i+1) || column.DeclaredDimensions != 0 || column.Usage.Typmod != -1 || column.Usage.Collation.ID != 950 || column.Usage.Type != captured || column.Usage.Type.BaseType().ID() != base {
 			t.Fatal("column contract", i, column)
 		}
 	}
@@ -134,11 +152,11 @@ func TestInfoRoleRoutineGrantsMetadata(t *testing.T) {
 	if !acl.Explicit || len(acl.Entries) != 1 || !acl.Entries[0].Grantee.Public || acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", acl)
 	}
-	row, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13381})
-	if !ok || row.OwningRelation != source.Address() || row.Array != 13380 {
+	row, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(rowID)})
+	if !ok || row.OwningRelation != source.Address() || row.Array != arrayID {
 		t.Fatal("row backlink", row)
 	}
-	array, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13380})
+	array, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(arrayID)})
 	if !ok || array.OwningRelation != source.Address() || array.SQLType.Element() != row.SQLType {
 		t.Fatal("array backlink", array)
 	}

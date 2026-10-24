@@ -12,8 +12,13 @@ import (
 )
 
 func TestInfoRoleRoutineGrantsOrigins(t *testing.T) {
+	testRoutinePrivilegesOrigins(t, newRoleRoutineGrantsFixture, false)
+}
+
+func testRoutinePrivilegesOrigins(t *testing.T, newFixture func(*testing.T) roleRoutineGrantsFixture, includePublic bool) {
+	t.Helper()
 	t.Run("defaults_empty_masks", func(t *testing.T) {
-		f := newRoleRoutineGrantsFixture(t)
+		f := newFixture(t)
 		f.check(t, f.state, f.f.owner)
 		routine := *f.routine
 		routine.ACL = authorization.ACLValue{}
@@ -22,9 +27,13 @@ func TestInfoRoleRoutineGrantsOrigins(t *testing.T) {
 		public := roleRoutineGrantsWant("default_owner", "PUBLIC", "EXECUTE", "NO")
 		f.check(t, f.state, f.f.owner, owner, public)
 		f.check(t, f.state, f.f.member, owner, public)
-		f.check(t, f.state, f.f.reader)
+		if includePublic {
+			f.check(t, f.state, f.f.reader, public)
+		} else {
+			f.check(t, f.state, f.f.reader)
+		}
 		f.check(t, f.state, f.f.e.Roles().LookupRef("postgres"), owner, public)
-		for _, mask := range []authorization.Privileges{authorization.SelectPrivilege, authorization.UpdatePrivilege, authorization.UsagePrivilege, authorization.ExecutePrivilege, authorization.ExecutePrivilege | authorization.SelectPrivilege} {
+		for _, mask := range []authorization.Privileges{0, authorization.SelectPrivilege, authorization.UpdatePrivilege, authorization.UsagePrivilege, authorization.ExecutePrivilege, authorization.ExecutePrivilege | authorization.SelectPrivilege} {
 			routine.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, mask, authorization.ExecutePrivilege)}}
 			f.state.SetDescriptor(routine.Address(), &routine)
 			var want [][10]string
@@ -42,7 +51,7 @@ func TestInfoRoleRoutineGrantsOrigins(t *testing.T) {
 		for _, kind := range []catalog.RoutineKind{catalog.FunctionRoutine, catalog.ProcedureRoutine, catalog.AggregateRoutine, catalog.WindowRoutine} {
 			for _, provider := range []string{"plain", "sql_body", "builtin", "extension"} {
 				t.Run(fmt.Sprintf("%c/%s", kind, provider), func(t *testing.T) {
-					f := newRoleRoutineGrantsFixture(t)
+					f := newFixture(t)
 					routine := *f.routine
 					routine.RoutineKind = kind
 					routine.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.ExecutePrivilege, 0)}}
@@ -64,7 +73,7 @@ func TestInfoRoleRoutineGrantsOrigins(t *testing.T) {
 		}
 	})
 	t.Run("separate_origins_grantee_ownership", func(t *testing.T) {
-		f := newRoleRoutineGrantsFixture(t)
+		f := newFixture(t)
 		routine := *f.routine
 		first := defaultUnitReaderEntry(f.f, authorization.ExecutePrivilege, 0)
 		second := first
@@ -95,12 +104,16 @@ func TestInfoRoleRoutineGrantsOrigins(t *testing.T) {
 		f.check(t, f.state, f.f.reader, a, b)
 	})
 	t.Run("public_actual_superuser", func(t *testing.T) {
-		f := newRoleRoutineGrantsFixture(t)
+		f := newFixture(t)
 		routine := *f.routine
 		routine.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.f.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.ExecutePrivilege}}}
 		f.state.SetDescriptor(routine.Address(), &routine)
 		public := roleRoutineGrantsWant("default_owner", "PUBLIC", "EXECUTE", "NO")
-		f.check(t, f.state, f.f.reader)
+		if includePublic {
+			f.check(t, f.state, f.f.reader, public)
+		} else {
+			f.check(t, f.state, f.f.reader)
+		}
 		f.check(t, f.state, f.f.owner, public)
 		f.check(t, f.state, f.f.member, public)
 		roles := cloneRoleFixture(f.f.e.roles.Published)
@@ -109,11 +122,15 @@ func TestInfoRoleRoutineGrantsOrigins(t *testing.T) {
 		putFixtureRole(roles, power)
 		setFixtureEdges(roles, []authorization.Membership{{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}})
 		f.f.e.roles.PublishLocked(roles)
-		f.check(t, f.state, f.f.member)
+		if includePublic {
+			f.check(t, f.state, f.f.member, public)
+		} else {
+			f.check(t, f.state, f.f.member)
+		}
 		f.check(t, f.state, f.f.reader, public)
 	})
 	t.Run("recursive_multiple_paths", func(t *testing.T) {
-		f := newRoleRoutineGrantsFixture(t)
+		f := newFixture(t)
 		routine := *f.routine
 		routine.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.ExecutePrivilege, 0)}}
 		f.state.SetDescriptor(routine.Address(), &routine)
@@ -137,7 +154,7 @@ func TestInfoRoleRoutineGrantsOrigins(t *testing.T) {
 		}
 	})
 	t.Run("no_nonroutine_or_lookup_population", func(t *testing.T) {
-		f := newRoleRoutineGrantsFixture(t)
+		f := newFixture(t)
 		relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20524}, ObjectNamespace: f.f.schema, ObjectName: "rrg_unit", ObjectRevision: 1, Owner: f.f.owner, RelationKind: catalog.TableRelation, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.ExecutePrivilege, 0)}}}}
 		f.state.SetDescriptor(relation.Address(), relation)
 		f.check(t, f.state, f.f.reader)

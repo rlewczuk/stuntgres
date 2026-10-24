@@ -17,6 +17,12 @@ verification is NULL and comments are non-NULL empty strings matching PostgreSQL
 The physical table preserves default owner/superuser access without PUBLIC
 SELECT, with normal schema/relation admission and current-identity rechecks.
 
+information_schema.routine_privileges now exposes ten nullable domain-typed
+columns over actual routine EXECUTE grant origins. PUBLIC origins remain visible
+to unrelated observers, while named grantors/grantees, inherited membership and
+grantability refresh across direct and held prepared reads. The shared projector
+preserves role_routine_grants' enabled-origin visibility.
+
 information_schema.sql_sizing now supports direct and prepared reads through four
 nullable domain-typed columns. Its standardized inventory reports enforced
 native limits, zero for unlimited or undetermined sizes, and NULL for unsupported

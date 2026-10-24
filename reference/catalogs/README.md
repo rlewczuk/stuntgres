@@ -333,12 +333,15 @@ Builtin definition consumers retain independent PostgreSQL display expectations.
 
 ### Routine grant metadata
 
-`info_role_routine_grants_helpers_test.go` owns exact origin bags, independently
-resolved routine identities, domain/adapter metadata and direct/fresh/held reads.
-The family covers enabled identities, live ACL and membership publication,
-represented routine kinds, lifecycle frontiers and structured diagnostics.
+`info_role_routine_grants_helpers_test.go` owns the shared routine ACL scenario,
+exact origin bags, independently resolved routine identities, domain/adapter
+metadata and direct/fresh/held reads. `info_routine_privileges_helpers_test.go`
+selects the PUBLIC-visible source with independent role/schema setup. The family
+distinguishes PUBLIC origins from enabled grantor/grantee visibility, checks named
+grantee grantability, live ACL/membership publication, represented routine kinds,
+lifecycle frontiers and complete structured diagnostics.
 
-- Routine grants: `RUN='^TestReferenceInfoRoleRoutineGrants'`
+- Routine ACL metadata: `RUN='^TestReferenceInfo(RoleRoutineGrants|RoutinePrivileges)'`
 
 ### UDT grants
 

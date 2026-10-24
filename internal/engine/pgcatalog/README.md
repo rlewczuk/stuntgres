@@ -6,7 +6,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
-`sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`,
+`sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `role_usage_grants`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
 capability to rows. Orchestration (per-OID catalog choice,
@@ -59,7 +59,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
   absent ACL and `{}` for an empty one.
 - Information-schema producers emit genuine source-owned domains, not bare
   primitive carriers. `role_column_grants`, `role_table_grants`,
-  `role_routine_grants`, `role_udt_grants` and `role_usage_grants` use `sql_identifier`,
+  `role_routine_grants`, `routine_privileges`, `role_udt_grants` and `role_usage_grants` use `sql_identifier`,
   `character_data` and `yes_or_no` from the captured type catalog.
   Numeric metadata likewise retains genuine `cardinal_number` domain values.
 - `role_column_grants` captures one catalog/role frontier and projects actual
@@ -77,12 +77,16 @@ type Producer func(Input) ([][]sqltype.Value, error)
   owner origins; explicit-empty ACLs supply none. MAINTAIN, column ACLs and
   partition-parent expansion do not contribute rows. Grant options or immediately
   usable owner authority determine grantability; only SELECT has hierarchy.
-- `role_routine_grants` projects EXECUTE ACL origins from actual Procedure
-  descriptors of every represented kind, without inspecting or executing bodies.
-  It shares enabled-grantor-or-named-grantee visibility and per-capture membership
-  authority with other grant views. Absent ACLs supply owner and PUBLIC origins;
-  explicit-empty ACLs supply none. Grantability belongs to the named grantee.
-  Specific names retain the actual routine OID within NAME's UTF8 byte boundary.
+- `routine_privileges` and `role_routine_grants` share one EXECUTE ACL projector
+  over actual Procedure descriptors of every represented kind, without inspecting
+  or executing bodies or requiring schema USAGE. Both expose enabled grantor or
+  named-grantee origins; `routine_privileges` additionally exposes every PUBLIC
+  origin. The role view retains PUBLIC origins when their grantor is enabled.
+  Absent ACLs supply owner and PUBLIC origins; explicit-empty ACLs supply none.
+  Grantability belongs to the named grantee through its grant option or immediately
+  usable owner authority, never the observer's authority; PUBLIC is not grantable.
+  One captured catalog/role frontier owns domains and lazy membership/ownership
+  caches. Specific names retain the actual routine OID within NAME's UTF8 boundary.
 - `role_udt_grants` projects raw type USAGE origins as `TYPE USAGE` for actual
   reciprocal composite row types, including lookup-only catalog rows. Arrays
   and domains do not contribute. Synthetic default ACLs retain raw absence;
@@ -474,6 +478,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - Table metadata public scenarios: `RUN='^TestReferenceInfoTables'`
 - Routine metadata producer/identity units: `RUN='^TestInfoRoutines'`
 - Routine metadata public scenarios: `RUN='^TestReferenceInfoRoutines'`
+- Routine ACL producer/authority units: `RUN='^TestInfo(RoleRoutineGrants|RoutinePrivileges)'`
+- Routine ACL public scenarios: `RUN='^TestReferenceInfo(RoleRoutineGrants|RoutinePrivileges)'`
 - UDT grant producer/authority units: `RUN='^TestInfoRoleUdtGrants'`
 - UDT grant public scenarios: `RUN='^TestReferenceInfoRoleUdtGrants'`
 - SQL-feature producer/authority units: `RUN='^TestInfoSQLFeatures'`
