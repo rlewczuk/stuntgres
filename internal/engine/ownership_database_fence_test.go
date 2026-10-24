@@ -44,7 +44,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err := e.captureCatalogStageLocked(stage, changes, auth.Catalog.State(), authority); err != nil {
 				t.Fatal(err)
 			}
-			if changes.Originals[catalog.CurrentDatabaseAddress] != committed || authority.databasePredecessor != committed || authority.databaseAuthority != auth.Catalog.Get(catalog.CurrentDatabaseAddress) {
+			if changes.Originals[catalog.CurrentDatabaseAddress] != committed || authority.DatabasePredecessor != committed || authority.DatabaseAuthority != auth.Catalog.Get(catalog.CurrentDatabaseAddress) {
 				t.Fatal("entry/private predecessor pairing")
 			}
 			child := changes.Clone()

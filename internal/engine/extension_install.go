@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -66,7 +67,7 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 	}
 	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.roleRevision, Namespace: stage.Base.Get(stage.extensionNamespace), Database: stage.databasePredecessor}})
 	scope.catalog = changes
-	scope.catalogAuthority = &catalogAuthority{session: scope.op.Session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ids.ObjectRef{Address: e.catalog.owner().DatabaseAddress()}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
+	scope.catalogAuthority = &session.CatalogAuthority{Session: scope.op.Session, Authorization: stage.authRevision, Roles: stage.roleRevision, Ref: ids.ObjectRef{Address: e.catalog.owner().DatabaseAddress()}, Descriptor: stage.databasePredecessor, DatabaseAuthority: stage.databaseAuthority, DatabasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()
 	return Result{}, nil
 }

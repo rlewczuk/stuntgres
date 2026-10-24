@@ -104,9 +104,9 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 		if len(stage.domainBases) != 0 {
 			// The validated stage no longer mutates these observations. Retain
 			// them through Finish without copying them into the outer transaction.
-			scope.catalogAuthority = &catalogAuthority{
-				session: stage.authSession, authorization: stage.authRevision,
-				roles: stage.roleRevision, observations: stage.domainBases, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor,
+			scope.catalogAuthority = &session.CatalogAuthority{
+				Session: stage.authSession, Authorization: stage.authRevision,
+				Roles: stage.roleRevision, Observations: stage.domainBases, DatabaseAuthority: stage.databaseAuthority, DatabasePredecessor: stage.databasePredecessor,
 			}
 		}
 		if err := e.stageCatalogOverlay(scope, stage, changes); err != nil {

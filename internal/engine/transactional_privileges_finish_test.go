@@ -56,7 +56,7 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				}
 				e.mu.Lock()
 				auth, err := e.authorizationLocked(op)
-				var general *catalogAuthority
+				var general *session.CatalogAuthority
 				if err == nil {
 					general = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 				}
@@ -65,7 +65,7 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 					t.Fatal(err)
 				}
 				oldRoles := e.roles.published
-				if scope.catalog == nil || scope.catalogAuthority == nil || scope.catalogAuthority.aclRoles != oldRoles || op.Session.Transactions.Catalog != nil {
+				if scope.catalog == nil || scope.catalogAuthority == nil || scope.catalogAuthority.ACLRoles != oldRoles || op.Session.Transactions.Catalog != nil {
 					t.Fatal("selected candidate escaped its statement or lost captured authority")
 				}
 				if roleMutation {
@@ -178,7 +178,7 @@ func TestTransactionalPrivilegesPendingPrivateAuthority(t *testing.T) {
 				if _, err := scope.Execute(pending, 0, nil); err != nil {
 					t.Fatal("pending private grant option", err)
 				}
-				if scope.catalog == nil || scope.catalogAuthority == nil || scope.catalogAuthority.aclRoles != private.Roles || scope.catalogAuthority.aclPublishedRoles != published || op.Session.Transactions.Catalog != private {
+				if scope.catalog == nil || scope.catalogAuthority == nil || scope.catalogAuthority.ACLRoles != private.Roles || scope.catalogAuthority.ACLPublishedRoles != published || op.Session.Transactions.Catalog != private {
 					t.Fatal("pending statement lost its original private/published authority pair")
 				}
 				delta := scope.catalog.Roles.Revision - scope.catalog.RolesBase.Revision

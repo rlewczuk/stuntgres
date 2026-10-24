@@ -238,7 +238,7 @@ type StatementScope struct {
 	quoteCaptures               *exec.QuoteCaptureCandidate // sealed before executor/source publication
 	catalog                     *session.Journal
 	largeObjectRead             catalog.Read // Immutable active-query READ view, saved/restored by SQL body activation.
-	catalogAuthority            *catalogAuthority
+	catalogAuthority            *session.CatalogAuthority
 	projectedRoots              bool
 	foreignActionAuth           *AuthorizationView
 	identity                    exec.IdentitySnapshot

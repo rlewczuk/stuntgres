@@ -91,47 +91,10 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 		// descriptor-only stage must retain, not clear, the pending role root.
 		changes.Roles = stage.roleCandidate
 	}
-	for a, rowShape := range stage.rowShapes {
-		shape, exists := changes.Storage[a]
-		if !exists {
-			shape = session.StorageChange{Original: rowShape.Original, Root: rowShape.Root, Ends: rowShape.ObservedEnds, Generation: rowShape.Generation}
-		}
-		if shape.Replacement != rowShape.Replacement {
-			shape.Truncated = false
-			shape.MaterializedConcurrent, shape.MaterializedContinuous = false, false
-		}
-		shape.Replacement = rowShape.Replacement
-		if rowShape.Rewritten {
-			shape.Rewritten, shape.Frontier = true, rowShape.Frontier
-			shape.Snapshot, shape.HasSnapshot = nil, false
-		}
-		shape.Relation, _ = stage.Get(a).(*catalog.Relation)
-		if shape.Relation == nil {
-			// An index-expression-only domain generation changes executable
-			// index authority without changing its parent's column descriptor.
-			shape.Relation = stage.Base.MustRelation(a)
-		}
-		changes.Storage[a] = shape
-	}
+	changes.RecordRowShapes(stage.rowShapes, &stage.Candidate)
 	if r := stage.materializedOrZero().Replacement; r != nil {
 		a := r.Original.Address()
-		shape, exists := changes.Storage[a]
-		if !exists {
-			shape = session.StorageChange{Original: r.Predecessor, Root: r.Predecessor.Versions, Ends: r.Ends, Generation: r.Generation}
-		}
-		if !exists {
-			shape.MaterializedContinuous = r.Concurrent && r.Predecessor == e.storage.Relations[a]
-		} else {
-			shape.MaterializedContinuous = shape.MaterializedContinuous && r.Concurrent
-		}
-		shape.MaterializedConcurrent = r.Concurrent
-		// Keep the first committed predecessor (or genuine private CREATE
-		// absence). A repeated refresh replaces only the latest private root.
-		shape.Replacement, shape.Relation = r.Storage, r.Descriptor
-		shape.Truncated = false
-		shape.Rewritten, shape.Frontier = true, e.visibility.CommitSeq()
-		shape.Snapshot, shape.HasSnapshot = nil, false
-		changes.Storage[a] = shape
+		changes.RecordMaterializedRefresh(session.MaterializedRefresh{Address: a, Predecessor: r.Predecessor, Storage: r.Storage, Ends: r.Ends, Generation: r.Generation, Descriptor: r.Descriptor, Concurrent: r.Concurrent, Committed: r.Predecessor == e.storage.Relations[a], Frontier: e.visibility.CommitSeq()})
 	}
 	for a, d := range stage.Descriptors() {
 		e.catalogChangeLocked(changes, a, d)

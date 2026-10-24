@@ -67,7 +67,7 @@ func (f catalogRoleReadFence) currentLocked(e *Engine, _ *session.Journal) error
 
 // Capture committed predecessor fences while checking the exact private roots
 // used by the ordinary stage. Pending writes are not committed observations.
-func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, current *catalog.State, authority *catalogAuthority) error {
+func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, current *catalog.State, authority *session.CatalogAuthority) error {
 	// Cleanup candidates derive from the operation's exact private predecessor,
 	// while the journal keeps the original committed root as its commit fence.
 	if err := s.validateRoleCandidate(e.sessionRolesLocked(s.authSession)); err != nil {
@@ -90,16 +90,16 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			return err
 		}
 		if authority != nil {
-			authority.databaseAuthority = s.databaseAuthority
-			authority.databasePredecessor = s.databasePredecessor
+			authority.DatabaseAuthority = s.databaseAuthority
+			authority.DatabasePredecessor = s.databasePredecessor
 		}
 	}
 	if err := capture.ObserveCandidate(); err != nil {
 		return err
 	}
 	domainBases := s.domainBases
-	if authority != nil && authority.session == s.authSession && authority.authorization == s.authRevision && authority.roles == s.roleRevision &&
-		len(domainBases) != 0 && len(authority.observations) == len(domainBases) && &authority.observations[0] == &domainBases[0] {
+	if authority != nil && authority.Session == s.authSession && authority.Authorization == s.authRevision && authority.Roles == s.roleRevision &&
+		len(domainBases) != 0 && len(authority.Observations) == len(domainBases) && &authority.Observations[0] == &domainBases[0] {
 		// These exact validated providers belong to this statement's Finish
 		// authority, not to the outer transaction's predecessor fences.
 		domainBases = nil

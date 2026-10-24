@@ -24,7 +24,7 @@ func (e *Engine) publishWrites(op *session.Operation, ref ids.TxRef, writes map[
 	return e.publishRows(op, ref, writes, deletes, owner.Catalog, nil, scope)
 }
 
-func (e *Engine) publishRows(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *catalogAuthority, scope *StatementScope) error {
+func (e *Engine) publishRows(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *session.CatalogAuthority, scope *StatementScope) error {
 	var err error
 	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c)
 	if err != nil {
@@ -57,7 +57,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 	return false
 }
 
-func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *catalogAuthority, phase *session.PreparedPublication, scope *StatementScope) error {
+func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *session.CatalogAuthority, phase *session.PreparedPublication, scope *StatementScope) error {
 	materialize := phase == nil || !phase.Preparing
 	actions, events, err := notificationEffects(op, ref, phase, scope)
 	if err != nil {

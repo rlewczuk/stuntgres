@@ -48,8 +48,8 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 	}
 	result, err := e.stageObjectGrantLocked(scope, fresh, statement, request, publishedRoles)
 	if err == nil && scope.catalogAuthority != nil {
-		scope.catalogAuthority.databasePredecessor = auth.DatabasePredecessor
-		scope.catalogAuthority.databaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
+		scope.catalogAuthority.DatabasePredecessor = auth.DatabasePredecessor
+		scope.catalogAuthority.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
 	}
 	return result, err
 }
@@ -110,7 +110,7 @@ func (e *Engine) stageObjectGrantLocked(scope *StatementScope, auth Authorizatio
 	}
 	scope.catalog = changes
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
-	scope.catalogAuthority.aclRoles = auth.RoleRecord
-	scope.catalogAuthority.aclPublishedRoles = publishedRoles
+	scope.catalogAuthority.ACLRoles = auth.RoleRecord
+	scope.catalogAuthority.ACLPublishedRoles = publishedRoles
 	return Result{}, nil
 }

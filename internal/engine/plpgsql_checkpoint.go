@@ -31,7 +31,7 @@ type plExceptionCheckpoint struct {
 	ownWrites                                   map[ids.ObjectAddress][]storage.RowVersion
 	ownDeletes                                  map[ids.ObjectAddress]*visibility.PrivateDeletes
 	catalog                                     *session.Journal
-	catalogAuthority                            *catalogAuthority
+	catalogAuthority                            *session.CatalogAuthority
 	foreignActions                              *dml.ForeignActionScope
 	indexes                                     *index.Scope
 	multiEvents                                 []lock.MultiEvent
@@ -131,7 +131,7 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 	c.holdPromotions = slices.Clone(s.foreignTablesOrZero().holdPromotions)
 	if s.catalogAuthority != nil {
 		owned := *s.catalogAuthority
-		owned.observations = slices.Clone(owned.observations)
+		owned.Observations = slices.Clone(owned.Observations)
 		c.catalogAuthority = &owned
 	}
 	if s.truncateSlot != nil {
