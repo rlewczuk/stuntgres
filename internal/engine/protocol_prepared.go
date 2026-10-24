@@ -132,7 +132,7 @@ func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStateme
 	description := entry.description
 	if s.op.Session.TransactionState() == session.TxAborted {
 		if session.ProtocolHasRows(entry.body, description.Results) {
-			return ProtocolStatement{}, protocolAbortedError()
+			return ProtocolStatement{}, session.AbortedError()
 		}
 		oids := entry.parameterOIDs
 		if entry.body != nil {

@@ -64,8 +64,8 @@ func (s *StatementScope) gateSavepoint(control *parser.SavepointControl) error {
 	if err := e.endPreflight(s.op); err != nil {
 		return err
 	}
-	if t.State == session.TxAborted && control.Kind != parser.RollbackSavepoint {
-		return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
+	if t.State == session.TxAborted && !session.AbortedControlAllowed(control) {
+		return session.AbortedError()
 	}
 	return nil
 }
@@ -83,14 +83,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 	if t.State == session.TxIdle || t.State == session.TxImplicit {
-		word := "SAVEPOINT"
-		if control.Kind == parser.RollbackSavepoint {
-			word = "ROLLBACK TO SAVEPOINT"
-		}
-		if control.Kind == parser.ReleaseSavepoint {
-			word = "RELEASE SAVEPOINT"
-		}
-		return Result{}, sqlError("25P01", word+" can only be used in transaction blocks")
+		return Result{}, session.SavepointOutsideBlockError(control.Kind)
 	}
 	// A replaced incarnation cannot recover through a discarded savepoint.
 	// Fence before inspecting marks or invoking foreign savepoint callbacks.

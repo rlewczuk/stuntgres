@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 type controlOutcome uint8
@@ -292,60 +291,47 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 	t.Mu.Lock()
 	state, ref := t.State, t.Ref
 	t.Mu.Unlock()
+	step := session.ClassifyControl(control.Kind, control.Chain, state)
 	var err error
 	if control.Kind == parser.KindPrepareTransaction || control.Kind == parser.KindCommitPrepared || control.Kind == parser.KindRollbackPrepared {
-		err = s.executePrepared(control, state, ref)
+		err = s.executePrepared(control, step, state, ref)
 		if err == nil {
 			s.controlOutcome = controlExecuted
 		}
 		return Result{}, err
 	}
-	if control.Kind == parser.KindStart {
-		if state == session.TxIdle {
-			_, err = e.beginAdmitted(s.op, t, s.transactionStart)
-			if err == nil {
-				t.Mu.Lock()
-				err = assignModes(t, control.Modes)
-				t.Mu.Unlock()
-			}
-		} else if state == session.TxImplicit {
-			err = e.endPreflight(s.op)
-			if err == nil {
-				t.Mu.Lock()
-				t.State = session.TxActive
-				err = assignModes(t, control.Modes)
-				t.Mu.Unlock()
-				t.Session.Mu.Lock()
-				t.Session.Timeouts.Explicit = true
-				t.Session.Mu.Unlock()
-			}
-		} else {
-			err = e.endPreflight(s.op)
-			if err == nil {
-				s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25001", Message: "there is already a transaction in progress"})
-			}
+	switch step.Action {
+	case session.ControlBegin:
+		_, err = e.beginAdmitted(s.op, t, s.transactionStart)
+		if err == nil {
+			t.Mu.Lock()
+			err = assignModes(t, control.Modes)
+			t.Mu.Unlock()
 		}
-	} else if state == session.TxIdle {
+	case session.ControlPromote:
 		err = e.endPreflight(s.op)
-		if err == nil && control.Chain {
-			word := "COMMIT"
-			if control.Kind == parser.KindRollback {
-				word = "ROLLBACK"
-			}
-			err = sqlError("25P01", word+" AND CHAIN can only be used in transaction blocks")
-		} else if err == nil {
-			s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+		if err == nil {
+			t.Mu.Lock()
+			t.State = session.TxActive
+			err = assignModes(t, control.Modes)
+			t.Mu.Unlock()
+			t.Session.Mu.Lock()
+			t.Session.Timeouts.Explicit = true
+			t.Session.Mu.Unlock()
 		}
-	} else {
-		if state == session.TxImplicit {
-			if control.Chain {
-				word := "COMMIT"
-				if control.Kind == parser.KindRollback {
-					word = "ROLLBACK"
-				}
-				return Result{}, sqlError("25P01", word+" AND CHAIN can only be used in transaction blocks")
-			}
-			s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+	case session.ControlPreflight:
+		err = e.endPreflight(s.op)
+		if err == nil {
+			err = step.Err
+		}
+		if err == nil {
+			s.op.EmitNotice(session.LevelWarning, *step.Warning)
+		}
+	case session.ControlRefuse:
+		return Result{}, step.Err
+	default:
+		if step.Warning != nil {
+			s.op.EmitNotice(session.LevelWarning, *step.Warning)
 		}
 		nextStart := s.statementStart
 		if s.message {

@@ -337,8 +337,8 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		if err := s.engine().endPreflight(s.op); err != nil {
 			return err
 		}
-		if (control.Kind == parser.KindStart || control.Kind == parser.KindCommitPrepared || control.Kind == parser.KindRollbackPrepared) && s.owner.State == session.TxAborted {
-			return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
+		if s.owner.State == session.TxAborted && !session.AbortedControlAllowed(control) {
+			return session.AbortedError()
 		}
 		return nil
 	}
@@ -374,7 +374,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return ids.ErrCatalogReplaced
 	}
 	if t.State == session.TxAborted {
-		return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
+		return session.AbortedError()
 	}
 	if t.Command == ids.CommandID(^uint64(0)) {
 		return errors.New("stuntgres: command identity exhausted")

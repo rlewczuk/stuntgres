@@ -241,7 +241,7 @@ func (s *StatementScope) DescribeProtocolPortal(name string) (ProtocolPortalDesc
 		return ProtocolPortalDescription{}, missingProtocolPortal(name)
 	}
 	if session.ProtocolHasRows(p.entry.body, p.columns) && s.op.Session.TransactionState() == session.TxAborted {
-		return ProtocolPortalDescription{}, protocolAbortedError()
+		return ProtocolPortalDescription{}, session.AbortedError()
 	}
 	return ProtocolPortalDescription{Columns: p.columns, Formats: p.formats, Context: p.context, Empty: p.entry.body == nil, HasRows: session.ProtocolHasRows(p.entry.body, p.columns)}, nil
 }
@@ -260,10 +260,6 @@ func (s *StatementScope) CloseProtocolPortal(name string) error {
 		})
 	}
 	return nil
-}
-
-func protocolAbortedError() error {
-	return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 }
 
 // Savepoint publication only removes visibility; callbacks and producer

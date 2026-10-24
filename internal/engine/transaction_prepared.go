@@ -4,7 +4,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"time"
 )
 
@@ -42,24 +41,19 @@ func (e *Engine) finishPreparedLocked(p *session.PreparedPublication) {
 	e.endSerializableLocked(p.Entry.Ref, true)
 }
 
-func (s *StatementScope) executePrepared(control *parser.TransactionControl, state session.TxState, ref ids.TxRef) error {
+func (s *StatementScope) executePrepared(control *parser.TransactionControl, step session.ControlStep, state session.TxState, ref ids.TxRef) error {
 	e, t := s.engine(), s.owner
-	if control.Kind != parser.KindPrepareTransaction {
-		if state != session.TxIdle {
-			word := "COMMIT"
-			if control.Kind == parser.KindRollbackPrepared {
-				word = "ROLLBACK"
-			}
-			return sqlError("25001", word+" PREPARED cannot run inside a transaction block")
-		}
+	switch step.Action {
+	case session.ControlRefuse:
+		return step.Err
+	case session.ControlComplete:
 		return e.completePrepared(s.op, control.GID, control.Kind == parser.KindCommitPrepared)
 	}
-	if state == session.TxIdle {
-		s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
-		return nil
+	if step.Warning != nil {
+		s.op.EmitNotice(session.LevelWarning, *step.Warning)
 	}
-	if state == session.TxImplicit {
-		s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+	if step.Action == session.ControlWarn {
+		return nil
 	}
 	// Every admitted PREPARE, even failure, ends the whole incarnation.
 	s.controlOutcome = controlExecuted

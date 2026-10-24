@@ -28,7 +28,7 @@ func (s *StatementScope) CallProtocolFunction(input session.ProtocolInput) (sess
 	t.Mu.Lock()
 	if t.State == session.TxAborted {
 		t.Mu.Unlock()
-		return session.ProtocolField{}, sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
+		return session.ProtocolField{}, session.AbortedError()
 	}
 	if c := t.ProtocolCycle; c != nil {
 		c.Active = c.Executed
