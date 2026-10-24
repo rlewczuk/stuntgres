@@ -16,16 +16,15 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `c9348457c` (item 175 rebased on it;
-`c9348457c` added root production code since item 174's check, a finding for
-item 180).
+Last verified against `master` at `94ac1ef52` (item 176 rebased on it;
+no feature commit added root production code since item 175's check).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 176.
+- 177.
 
 ## Linear plan
 
@@ -101,9 +100,17 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      selections, `RACE=1` transactional and admission units and deps passed;
      bench skipped (DROP COLUMN prepare path only); racecheck and finalcheck
      skipped (user decision)
-176. [ ] Index, storage, session: catalog publication sub-steps —
+176. [x] Index, storage, session: catalog publication sub-steps —
      [catalog](ENGINE-SPLIT-catalog.md#item-176--catalog-publication-sub-steps)
-     · needs — · 0.3k
+     · needs — · 0.3k (`776886564`, `ec303876b`, `7c493cfdf`, `60fc6d9eb`,
+     `91ecadea8`, docs commit) · publication value sub-steps moved: row shapes,
+     candidate relations, birth stamping and capacity to `storage`, candidate
+     fences and index captures to `index`, catalog authority and shape
+     recording to `session`, the namespace scan and revision frontier to
+     `catalog`; quickcheck, quick and `REFERENCE=1` selections, `RACE=1`
+     concurrent selections, bench (allocations unchanged), `reference/tables`
+     CPU time within noise and deps passed; racecheck and finalcheck skipped
+     (user decision)
 177. [ ] Catalog: `catalog.Store` —
      [catalog](ENGINE-SPLIT-catalog.md#item-177--catalogstore) · needs 168,
      169, 170, 171, 172, 173, 174, 175, 176 · 0.29k

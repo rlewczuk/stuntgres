@@ -165,6 +165,18 @@ implement its slots, so either import would form a cycle.
   descriptors and lock marks.
   `StorageChange.MergeFills` merges added-column fills and drops those of
   removed attributes, replacing the shared fill map instead of mutating it.
+  `RecordRowShapes` and `RecordMaterializedRefresh` (`journal_storage.go`)
+  record a staged catalog change's heap replacements and materialized refresh
+  as storage changes, keeping the first predecessor; the root supplies the
+  committed-store check and the commit sequence.
+- **Catalog authority** (`catalog_authority.go`): `CatalogAuthority`, a
+  statement's entry authority (authorization and role revisions, resolved
+  object, database predecessor, consulted providers), and its
+  `PreflightLocked` fence over the committed catalog, the session and
+  published role records and the database address. It expires at the
+  statement's successful Finish, never at the outer Commit. The root captures
+  it from its authorization view and passes those values under `Engine.mu`
+  and the session mutex; it takes no lock.
 - **Journal capture** (`journal_capture.go`): `JournalCapture` turns a
   validated stage's `catalog.Candidate` into the retained transaction's
   observations and fences, over the published and private catalog states:
@@ -274,7 +286,7 @@ provider capture.
 ```sh
 make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|TransactionalSchemaAdmission|StatementPhases|DataView|PrivateStorage|CommittedRoots|NeedsSnapshotProjection|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'
 make check RACE=1 RUN='^Test(SessionHost|SessionPayload|OwnerExtension|ExclusionMark|Operation(AnalysisSlot|ReplaySlot)|UUIDOsspTimeConcurrent$$)'
-make check RUN='^Test(CatalogFences|EnumProvenanceSavepoints|AlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection)$$)'
+make check RUN='^Test(CatalogFences|TransactionalPrivileges(Finish|Pending)|RoleOwnershipD|EnumProvenanceSavepoints|AlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection)$$)'
 make check RACE=1 RUN='^Test(PgrowlocksEligibility|SnapshotStatement(Retention|RootConsistency)|SnapshotBinding|SerializableSafeSnapshot)'
 make check RUN='^Test(PGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)|RowSecurity(SettingProvenance|ProviderLifecycle))$$'
 ```

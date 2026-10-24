@@ -435,7 +435,7 @@ Producers, the OID registry and descriptor specs live in
 
 ## Catalog writes and built-in seed
 
-- `catalog.AdvanceRevisionFrontier` is pure and saturating and never reserves
+- `catalog.RevisionFrontier` is pure and saturating and never reserves
   the global allocator; publication commits its local frontier only at
   successful installation under `Engine.mu`.
 - Persistent replacement reserves OIDs with an operation-local base/next cursor
@@ -447,10 +447,17 @@ Producers, the OID registry and descriptor specs live in
   Failed candidates never reset another operation's consumed identities.
 - `CatalogStage` embeds `catalog.Candidate`, which owns the catalog-only
   publication fences, the apply step, the history markers and the creation
-  ACLs; DDL authorization, lifecycle, rowtype synchronization, storage
-  coordination, the extension materialized-view fence and engine-dependent
-  validators stay in the root. Recipe rewrites retain the original routine authority, never
-  recovering it from an OID.
+  ACLs. Publication's value sub-steps belong to their packages: row shapes,
+  candidate relations, birth stamping and replacement capacity to
+  [`storage`](storage/README.md), index captures and candidate fences to
+  [`index`](index/README.md), statement catalog authority and journal shape
+  recording to [`session`](session/README.md). The root keeps the skeleton:
+  the `publishCatalog` lock and retry loop, `authorizationLocked`, the
+  session-mutex revalidation, XID assignment and the install block,
+  `replaceCatalog`, `stageCatalogOverlay`, the fence order, DDL
+  authorization, lifecycle, rowtype synchronization, the extension
+  materialized-view fence and the post-apply validators. Recipe rewrites
+  retain the original routine authority, never recovering it from an OID.
 - Every engine seeds the same built-in catalog in one bulk load (`newEngine`'s
   `BeginBulkLoad` … `finishSeed`) from pure constructors; `builtin_catalog.go`
   validates the shared seed once per process, and each engine validates and

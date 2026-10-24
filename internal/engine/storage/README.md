@@ -37,6 +37,14 @@ and never the engine.
   row already produced. `CaptureRowEntries` builds the per-row hash entry
   index for exclusion indexes with runtime domain key conversion.
 - **Sequence generators** (`sequence.go`): `SequenceGenerator`.
+- **Catalog publication values** (`row_shape.go`, `publication.go`): a
+  stage's planned heap replacement `RowShape`, whose `Matches` fences store,
+  generation and row count and `MatchesWithEnds` also the deletion ends;
+  `Publication` (initial tables, row shapes, refreshed store) and its
+  `CandidateRelations`, the relation map a catalog candidate installs;
+  `Relation.StampPublishedBirth` and `CountPublishedInserts` for privately
+  built stores; and `Store.ReplacementCapacityLocked`, the identity and
+  commit-sequence capacity check of a catalog replacement.
 
 ## Invariants
 
@@ -55,6 +63,10 @@ and never the engine.
   index roots are immutable and shared copy-on-write. Publication swaps the
   store's maps together with the catalog state under `Engine.mu`. Snapshots
   retain roots by pointer and never copy row values.
+- **Publication values take no lock.** `RowShape`, `Publication` and the
+  stamping methods are value code the engine runs under `Engine.mu` inside
+  `publishCatalog`; the visibility calls, retry loop and installation stay
+  in the engine.
 - **Allocation order.** Row and version identities are globally nonreused
   and allocated in order; failed work may leave gaps.
 - **Sequence generators.** Generator state is nontransactional and distinct
@@ -109,7 +121,7 @@ VACUUM roots; public sequence, control and hash-partition replacement
 witnesses are in `reference/`.
 
 ```sh
-make check RUN='^Test(Store|Relation(IndexIdentity|SameTruncateLineage))'
+make check RUN='^Test(Store|Relation(IndexIdentity|SameTruncateLineage)|RowShape|StampPublishedBirth|ReplacementCapacityLocked)'
 make check RACE=1 RUN='^Test(ConcurrentIndexU1RootPhasesAndVersions|ConcurrentIndexU6ReadyCancellationReleasesSUE|UniqueIndexPublication(Streaming|Cancellation)|GeneratedReplacement(StaleAuthority|LateCancellation)|TemporaryTableCleanupPublication)$$'
 make check RUN='^Test(MaterializedViewSnapshotImport|MaterializedViewPublication|MaterializedRefreshPublicationFences|ControlTransactionsReplacementCancellationBoundary|CommitTimePublication|TruncateGeneration|TruncateIndexes)$$'
 make check RUN='^TestVacuum'

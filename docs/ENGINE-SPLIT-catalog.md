@@ -257,7 +257,46 @@ store sentence becomes a pointer to it.
 
 ## Status
 
-- 176: not started.
+- 176: done (`776886564`, `ec303876b`, `7c493cfdf`, `60fc6d9eb`,
+  `91ecadea8`, docs commit), started at master `6005760ff`, rebased on
+  `94ac1ef52` (item 175). `reach` confirmed `catalogRowShape` and
+  `catalogAuthority` clean; the other sub-steps were cut by value inputs.
+  - `catalog`: `Candidate.NamespaceChanged` and `RevisionFrontier` (four
+    sites). `replacementACLsLocked` now validates every ACL first, then
+    computes the frontier in a second pass (Restore only; one closure).
+  - `storage`: `RowShape` with `Matches` (the stage-validation check, which
+    skips `Ends`) and `MatchesWithEnds` (both publication fences);
+    `Publication.CandidateRelations`; `Relation.StampPublishedBirth` plus
+    `CountPublishedInserts` for the duplicated counter lines;
+    `Store.ReplacementCapacityLocked`. `FullXIDLocked` (a map read) is read
+    once per publication instead of per row.
+  - `index`: `CandidatesMatch`, `CaptureStagedIndexStores`,
+    `PublicationBuildStores` (one result struct) and the optional
+    `SelectOverlayCapturesLocked`, which needed no callbacks: it reads the
+    published `*storage.Store` through `session.PrivateStorage`.
+  - `session`: `CatalogAuthority` with `PreflightLocked` (the root keeps a
+    four-line adapter), `Journal.RecordRowShapes` and
+    `Journal.RecordMaterializedRefresh`.
+  - Deviations: `CandidatesMatch` takes the staged candidate and current
+    state instead of an `indexOf` callback (both sites resolved the index the
+    same way). At the capture site `storeOf` adds the parent's read fence
+    before its match; a mismatch discards the journal, so successful fence
+    order is unchanged. The refresh's committed-store check is evaluated
+    eagerly (a pure read).
+  - Checks: quickcheck; quick and `REFERENCE=1` selections
+    (`TestReferenceAlterAddColumn(Transactions|Cancellation)`,
+    `MaterializedRefreshConcurrentLifecycle`, `PartialIndexConcurrent`,
+    `TruncateBoundaries`, `ForeignActionsConcurrentDDL`); `RACE=1` on the
+    concurrent selections; deps. `make bench` with interleaved base and
+    branch binaries: 5461–5479 allocations per op on both, ns/op overlapping
+    (1.6–3.1 ms on both, above the 1 ms target only under load 14–170);
+    `reference/tables` CPU time within noise (217/283 s branch,
+    234/277 s base, interleaved). The `-gcflags=-m` diff: no new
+    allocation on the publication path. Racecheck and finalcheck skipped
+    (user decision).
+  - For 177: `catalogStore` reads in the moved code now come in as values
+    (`e.catalog.state`, `DatabaseAddress()`, `nextRevision`), so the rename
+    touches only the root call sites.
 - 177: not started.
 - 178: not started.
 - 179: not started.

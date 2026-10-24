@@ -85,7 +85,8 @@ private frames, not catalog authority.
   parent flags through a revision allocator and a replace callback (the root
   passes `CatalogStage.Replace`, which also synchronizes the row type).
   `CreationACL`, `CreationTypeACL` and `RemoveSchemaDefaults` read and stage
-  default ACLs as observed inputs.
+  default ACLs as observed inputs. `NamespaceChanged` reports a staged
+  namespace change or removal, which advances the namespace generation.
 - **Derived name indexes** (`operator_index.go`, `procedure_index.go`).
   `OperatorNameIndex` and `ProcedureNameIndex` map names to addresses; they are
   membership, not callable or ACL authority. Edits (`OperatorIndexEdit`,
@@ -157,8 +158,9 @@ private frames, not catalog authority.
   set on replacement and cleared only by VACUUM's own publication), principal
   remap (`principal_remap.go`: `RemapPrincipals` over an unpublished candidate;
   ownerless kinds stay unchanged, unknown kinds fail), reg\* references
-  (`alias_references.go`), extension version paths (`extension_versions.go`) and
-  `AdvanceRevisionFrontier`.
+  (`alias_references.go`), extension version paths (`extension_versions.go`),
+  `AdvanceRevisionFrontier` and `RevisionFrontier` (the frontier over a
+  descriptor sequence; nil entries are skipped).
   Principal remapping recursively reprovenances procedure body declarations
   through the same owner/ACL mappers, preserving original revisions and
   shared/cyclic associations rather than substituting a newer current descriptor

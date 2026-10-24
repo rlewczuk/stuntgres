@@ -42,6 +42,15 @@ builds a binder.
   transaction's private root, else the committed one), `AlterIndexBuild` and
   `RebindExclusionOperators`. The engine fills capture inputs under `Engine.mu`
   after its epoch checks and holds the lock across the call.
+- **Catalog publication captures** (`publication_stores.go`,
+  `overlay_capture.go`): `CandidatesMatch` (the concurrent root-candidate
+  fence of catalog publication and of overlay capture; the caller picks each
+  parent's store), `CaptureStagedIndexStores` (the captured stores, including
+  staged indexes' parents), `PublicationBuildStores` (build stores, rebuild
+  set and source roots over a `storage.Publication`) and
+  `SelectOverlayCapturesLocked` (the indexes a transaction overlay rebuilds,
+  with their read fences). They take no lock; the engine calls them under
+  `Engine.mu` and keeps the fence order and the `Conflict` it returns.
 - **Write-time records and enforcement** (`write_candidate.go`, `insertion.go`,
   `unique*.go`, `exclusion_*.go`, `constraint.go`): `WriteCandidate`,
   `UniqueWriteBinding`, `UniqueKeyHash` (the opaque key the engine pins in the
@@ -233,6 +242,7 @@ fixtures.
 
 ```sh
 make check RUN='^Test(Index|EffectiveRoot)'   # keys, clauses, properties, maintenance, hosts
+make check RUN='^Test(CandidatesMatch|DriverBatch|PartitionAttachPublicationFences)'   # catalog publication captures
 make check RACE=1 RUN='^Test(Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex)'   # enforcement
 ```
 
