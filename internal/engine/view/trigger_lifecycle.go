@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"fmt"
@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -20,7 +19,7 @@ import (
 // DEPENDS ON EXTENSION and DROP TRIGGER. Lifecycle utilities alter only the
 // immutable attached payload; publication retains the relation and extension
 // source fences.
-func planTriggerLifecycle(h view.Host, auth ddl.Authority, stmt parser.Statement, locked ids.ObjectRef) (view.RelationChange, error) {
+func planTriggerLifecycle(h Host, auth ddl.Authority, stmt parser.Statement, locked ids.ObjectRef) (RelationChange, error) {
 	var target parser.ObjectName
 	var name string
 	alter, renaming := stmt.(*parser.AlterTrigger)
@@ -33,12 +32,12 @@ func planTriggerLifecycle(h view.Host, auth ddl.Authority, stmt parser.Statement
 	ref, err := h.ResolveRelation(auth, target)
 	if err != nil {
 		if dropping && drop.IfExists && table.RenameMissing(err) {
-			return view.RelationChange{Skip: err.(*sqlstate.Error).Message + ", skipping"}, nil
+			return RelationChange{Skip: err.(*sqlstate.Error).Message + ", skipping"}, nil
 		}
-		return view.RelationChange{}, err
+		return RelationChange{}, err
 	}
 	if ref != locked {
-		return view.RelationChange{}, ids.ErrCatalogReplaced
+		return RelationChange{}, ids.ErrCatalogReplaced
 	}
 	catalogAccess := h.AccessView(auth)
 	old := catalogAccess.Catalog.MustRelation(ref.Address)
@@ -52,40 +51,40 @@ func planTriggerLifecycle(h view.Host, auth ddl.Authority, stmt parser.Statement
 	rename := renaming && alter.Action == "rename"
 	if !rename && index < 0 {
 		if dropping && drop.IfExists {
-			return view.RelationChange{Skip: fmt.Sprintf(`trigger "%s" for relation "%s" does not exist, skipping`, name, catalog.ObjectNameText(target))}, nil
+			return RelationChange{Skip: fmt.Sprintf(`trigger "%s" for relation "%s" does not exist, skipping`, name, catalog.ObjectNameText(target))}, nil
 		}
-		return view.RelationChange{}, missing()
+		return RelationChange{}, missing()
 	}
 	noun := "relation"
 	if rename {
 		noun = "table"
 	}
 	if err := catalogAccess.Check(auth, access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: noun}); err != nil {
-		return view.RelationChange{}, err
+		return RelationChange{}, err
 	}
 	if index < 0 {
-		return view.RelationChange{}, missing()
+		return RelationChange{}, missing()
 	}
 	if dropping {
 		if list[index].Parts().Parent.ObjectID != 0 {
 			path, err := auth.ReferencePath()
 			if err != nil {
-				return view.RelationChange{}, err
+				return RelationChange{}, err
 			}
-			return view.RelationChange{}, view.TriggerPartitionDropError(catalogAccess.Catalog, old, list[index], path)
+			return RelationChange{}, TriggerPartitionDropError(catalogAccess.Catalog, old, list[index], path)
 		}
 		return triggerListChange(h, ref, old, append(slices.Clone(list[:index]), list[index+1:]...), nil)
 	}
 	p, sources, changed, err := alterTriggerParts(catalogAccess, alter, old, list, list[index].Parts())
 	if err != nil {
-		return view.RelationChange{}, err
+		return RelationChange{}, err
 	}
 	if !changed {
-		return view.RelationChange{Ref: ref, Next: old, Sources: sources}, nil
+		return RelationChange{Ref: ref, Next: old, Sources: sources}, nil
 	}
 	definition, err := stored.NewTrigger(p)
 	if err != nil {
-		return view.RelationChange{}, err
+		return RelationChange{}, err
 	}
 	list = slices.Clone(list)
 	list[index] = definition
