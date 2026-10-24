@@ -30,8 +30,8 @@ driver import it.
   for bootstrap and replacement. SQL DROP does not unregister a driver's
   capability; a foreign source cannot supply its callback. Tokens are selected
   while constructing a private candidate, never by runtime name fallback.
-  Replacement rebinds imported tokens before the single strict source-principal
-  graph memo is constructed. Historical original carriers use that same scoped
+  Replacement rebinds imported tokens (`RebindReplacementProviders`) before
+  the single strict source-principal graph memo is constructed. Historical original carriers use that same scoped
   source-to-destination token map; retained destination TEMP authority stays separate.
 - **Options** (`options.go`): `TransformOptions` applies ADD/SET/DROP option
   lists with PostgreSQL 18 diagnostics.

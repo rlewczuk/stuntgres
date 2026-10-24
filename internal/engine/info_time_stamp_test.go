@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -85,7 +86,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	namespace.ObjectName = "renamed_info"
 	next.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()}, namespace.Address())
 	next.SetDescriptor(namespace.Address(), &namespace)
-	changed, err := typedef.ReownDomainTypes(next, nil, false, rangeTypeRebinder(next, nil))
+	changed, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil))
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -124,7 +125,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 		t.Fatal("principal remap left invalid builtin authority", err)
 	}
 	invalid := catalog.CloneState(original.State())
-	if _, err := typedef.ReownDomainTypes(invalid, map[ids.ObjectAddress]ids.ObjectAddress{d.Address(): {ClassID: ids.TypeClassID, ObjectID: 60000}}, false, rangeTypeRebinder(invalid, nil)); err == nil {
+	if _, err := typedef.ReownDomainTypes(invalid, map[ids.ObjectAddress]ids.ObjectAddress{d.Address(): {ClassID: ids.TypeClassID, ObjectID: 60000}}, false, routine.RangeTypeRebinder(invalid, nil)); err == nil {
 		t.Fatal("builtin domain reminted")
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
@@ -231,7 +232,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	for i, typ := range []*sqltype.Descriptor{rc.SQLType, rcArray, whole.SQLType, wholeArray, nested.SQLType, nestedArray} {
 		mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60001 + i)}
 	}
-	changed, err := typedef.ReownDomainTypes(next, mapping, false, rangeTypeRebinder(next, mapping))
+	changed, err := typedef.ReownDomainTypes(next, mapping, false, routine.RangeTypeRebinder(next, mapping))
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

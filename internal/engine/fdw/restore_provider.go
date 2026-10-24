@@ -1,21 +1,21 @@
-package engine
+package fdw
 
 import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 )
 
-// rebindReplacementForeignProviders keeps execution authority in the destination
-// installation. Neither imported labels/OIDs nor the presence of a live catalog
+// RebindReplacementProviders points every imported foreign procedure in next
+// at the destination registry's token for the same name and signature, so
+// execution authority stays in the destination installation. Neither imported labels/OIDs nor the presence of a live catalog
 // declaration selects a callback: Reset must reseed even a dropped registration.
 // Registry lookup happens only while constructing the private replacement;
 // published execution continues to use immutable procedure tokens.
-func rebindReplacementForeignProviders(current catalog.Read, registry fdw.Registry, next *catalog.State) error {
+func RebindReplacementProviders(current catalog.Read, registry Registry, next *catalog.State) error {
 	type key struct {
 		name      catalog.ForeignFunctionName
 		signature catalog.ProcedureSignature

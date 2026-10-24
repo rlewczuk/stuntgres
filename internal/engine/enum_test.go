@@ -2,15 +2,16 @@ package engine
 
 import (
 	"context"
-	"database/sql/driver"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
 
+	"database/sql/driver"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -123,7 +124,7 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	next := catalog.CloneState(e.CatalogRead().State())
 	target := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 60000}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{mood.Address(): target}
-	changed, err := typedef.ReownDomainTypes(next, mapping, false, rangeTypeRebinder(next, mapping))
+	changed, err := typedef.ReownDomainTypes(next, mapping, false, routine.RangeTypeRebinder(next, mapping))
 	if err != nil || !changed {
 		t.Fatal(err)
 	}

@@ -24,7 +24,7 @@ func rangeTypeUnitRemappedConstructor(t *testing.T) (*Engine,*catalog.Procedure,
  targetRoles:=target.roles.read(target.catalog.owner(),target.CatalogRead(),target.roles.published)
  next,principal,err:=func()(*catalog.State,catalog.ProcedureRemapper,error){target.mu.Lock();defer target.mu.Unlock();return target.remapPreparedCatalog(next,sourceRoles,targetRoles,nil)}()
  if err!=nil {t.Fatal(err)}
- if _,err:=typedef.ReownDomainTypes(next,nil,true,rangeTypeRebinder(next,nil));err!=nil {t.Fatal(err)}
+ if _,err:=typedef.ReownDomainTypes(next,nil,true,routine.RangeTypeRebinder(next,nil));err!=nil {t.Fatal(err)}
  view:=target.catalog.read(next)
  remap:=stored.NewRoutineRemap(view,nil,nil,principal,false)
  if err:=routine.RebindSQLDefinitions(next,remap);err!=nil {t.Fatal("constructor declaration stabilization reapplied source principal policy",err)}

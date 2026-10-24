@@ -3,17 +3,19 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestRangeTypeConstructors(t *testing.T) {
@@ -212,7 +214,7 @@ func TestRangeTypeExactEndpoints(t *testing.T) {
 			t.Fatal(err)
 		}
 		next := catalog.CloneState(view.State())
-		if _, err := typedef.ReownDomainTypes(next, nil, true, rangeTypeRebinder(next, nil)); err != nil {
+		if _, err := typedef.ReownDomainTypes(next, nil, true, routine.RangeTypeRebinder(next, nil)); err != nil {
 			t.Fatal(err)
 		}
 		for _, source := range []sqltype.Value{value, multi} {

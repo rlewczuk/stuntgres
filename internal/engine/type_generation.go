@@ -2,8 +2,10 @@ package engine
 
 import (
 	"maps"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
@@ -14,7 +16,7 @@ import (
 func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	view := e.stageRead(stage)
 	next := view.State()
-	if _, err := typedef.ReownDomainTypes(next, nil, false, rangeTypeRebinder(next, nil)); err != nil {
+	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil)); err != nil {
 		return err
 	}
 	// Citext and EAN13 deliberately reject ordinary same-OID generation Retag.

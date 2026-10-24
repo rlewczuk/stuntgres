@@ -2,8 +2,10 @@ package engine
 
 import (
 	"context"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/routine"
@@ -27,7 +29,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := control.CheckTemporaryRuleSourcesLocked(current); err != nil {
 		return err
 	}
-	if err := rebindReplacementForeignProviders(current, e.foreign, next); err != nil {
+	if err := fdw.RebindReplacementProviders(current, e.foreign, next); err != nil {
 		return err
 	}
 	temporary, err := control.TemporarySet(current, next)
@@ -59,7 +61,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	defer func() { next.SetScalarImports(nil) }()
-	domainsChanged, err := typedef.ReownDomainTypes(next, mapping, true, rangeTypeRebinder(next, mapping))
+	domainsChanged, err := typedef.ReownDomainTypes(next, mapping, true, routine.RangeTypeRebinder(next, mapping))
 	if err != nil {
 		return err
 	}

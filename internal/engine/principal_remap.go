@@ -2,10 +2,12 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/routine"
 )
 
@@ -24,7 +26,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 			foreignOriginals = append(foreignOriginals, procedure)
 		}
 	}
-	if err := rebindReplacementForeignProviders(e.catalog.read(e.catalog.state), e.foreign, state); err != nil {
+	if err := fdw.RebindReplacementProviders(e.catalog.read(e.catalog.state), e.foreign, state); err != nil {
 		return nil, nil, err
 	}
 	var foreignTokens map[*catalog.ForeignProcedure]*catalog.ForeignProcedure

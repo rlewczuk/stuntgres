@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
@@ -136,7 +137,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	base := *next.MustType(baseAddress)
 	base.SQLType, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
 	next.SetDescriptor(baseAddress, &base)
-	changed, err := typedef.ReownDomainTypes(next, nil, false, rangeTypeRebinder(next, nil))
+	changed, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil))
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}
