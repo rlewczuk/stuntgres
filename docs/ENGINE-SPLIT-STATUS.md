@@ -16,15 +16,16 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `f3a050354` (item 169 rebased; one feature
-commit, `f3a050354`, added root production code since item 168).
+Last verified against `master` at `6bd13811c` (item 171 based on it; three
+feature commits, `7ae826adb`, `cae4fce3f` and `6bd13811c`, added root
+production code since item 169).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 170, 171, 173, 174, 175 and 176. Item 174 and item 170 both edit the
+- 170, 172, 173, 174, 175 and 176. Item 174 and item 170 both edit the
   PL/pgSQL query-loop unit tests, so whichever merges second rebases.
 
 ## Linear plan
@@ -58,9 +59,13 @@ One item per session. Start one with "Implement Item N from Linear Plan in
 170. [ ] Proc: PL/pgSQL statement walk —
      [proc](ENGINE-SPLIT-proc.md#item-170--plpgsql-statement-walk) · needs
      169 · 0.45k
-171. [ ] View: trigger DDL decisions —
+171. [x] View: trigger DDL decisions —
      [view](ENGINE-SPLIT-view.md#item-171--trigger-ddl-decisions) · needs —
-     · 0.25k
+     · 0.25k (`72e54064b`, `8f6aeb486`, docs commit) · CREATE, ALTER and DROP
+     TRIGGER decisions moved to `view.PlanTrigger`, `view.Host` gained
+     `SelectFunction` and `BindTriggerWhen`; quickcheck, quick and
+     `REFERENCE=1` selections and deps passed; bench skipped (DDL decision
+     path only); racecheck and finalcheck skipped (user decision)
 172. [ ] View: trigger partition synchronization —
      [view](ENGINE-SPLIT-view.md#item-172--trigger-partition-synchronization)
      · needs 171 · 0.18k

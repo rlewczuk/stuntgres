@@ -107,5 +107,17 @@ invariants.
 
 ## Status
 
-- 171: not started.
+- 171: done (`72e54064b`, `8f6aeb486`, docs commit). `view.PlanTrigger`
+  (`trigger_ddl.go`, `trigger_lifecycle.go`) decides all trigger DDL; the
+  root keeps a 35-line `executeTrigger`. Deviations: `executeTrigger` and
+  `executeTriggerLifecycle` merged into one root skeleton, and the CREATE
+  argument-count check now runs before `Engine.mu` (a pure check, so error
+  precedence is unchanged). `TriggerReplacement` sits in `host.go` beside
+  `RelationChange`. No root unit named the moved methods; the
+  `TestTriggerCoreWhenProvider` binder call now goes through `view.Host`.
+  For 172: `CatalogStage.triggerReplacement` is now a
+  `view.TriggerReplacement` value. For 180: the transactional trigger,
+  policy and rule commits (`7ae826adb`, `cae4fce3f`, `6bd13811c`) added root
+  production code, mostly to `rule_ddl.go`, `relation_scope.go` and
+  `view_locks.go`.
 - 172: not started.

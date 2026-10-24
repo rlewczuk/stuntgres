@@ -13,10 +13,10 @@ dependencies and row effects commit together or restore at rollback/savepoints;
 each DML activation captures the current owner-private trigger list, not a list
 cached by its prepared handle. CREATE/REPLACE admits ShareRowExclusive on the
 root and descendants; rename admits AccessExclusive before mutation. Addressed
-DROP and extension metadata use the generic AccessShare target admission.
-Creation checks table TRIGGER and function EXECUTE grants; lifecycle ownership
-requires table authority. Clone synchronization preserves exact Parent/OID
-identity and fails a descendant name collision before publication. Extension x
+DROP and extension metadata use the generic AccessShare target admission;
+`view.PlanTrigger` then decides the change under `Engine.mu`. Clone
+synchronization preserves exact Parent/OID identity and fails a descendant name
+collision before publication. Extension x
 retirement uses the shared dependency closure, including the partition-owner
 deletion guard; CASCADE does not grant upward partition deletion authority.
 Dump emits current definitions post-data followed by local dependency metadata.

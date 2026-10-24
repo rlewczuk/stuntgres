@@ -1,7 +1,7 @@
 # internal/engine/view
 
-The code that *uses* stored queries and needs no engine: view, rule and policy
-DDL decisions, rule rewriting, writes through auto-updatable views, materialized
+The code that *uses* stored queries and needs no engine: view, rule, policy and
+trigger DDL decisions, rule rewriting, writes through auto-updatable views, materialized
 refresh and snapshots, RLS layer selection, execution-time query preflight, the
 privilege and lock walks over view definitions and the read side of DROP.
 
@@ -24,9 +24,10 @@ imports `view`.
 ## What it owns
 
 - **DDL decisions** (`host.go`, `create.go`, `alter_drop.go`, `rule_ddl.go`,
-  `policy_ddl.go`, `definition.go`): `Host` (stage-less: allocation, the access
-  view, relation resolution, the temporary owner and the root-built rule and
-  policy binders) and `StageHost` (`Host` plus `ddl.Host` with row-type staging),
+  `policy_ddl.go`, `trigger_ddl.go`, `trigger_lifecycle.go`, `definition.go`):
+  `Host` (stage-less: allocation, the access view, relation resolution, the
+  temporary owner, function selection and the root-built rule, policy and
+  trigger WHEN binders) and `StageHost` (`Host` plus `ddl.Host` with row-type staging),
   both implemented by the root's `ddlHost`. CREATE OR REPLACE VIEW is
   `CreateTarget`, `CheckCreate` and `StageCreate`; ALTER VIEW is `AlterChange`;
   DROP VIEW is `DropTargets`, then `RecheckDropTargets` after the waits. RULE DDL
@@ -34,8 +35,12 @@ imports `view`.
   uses `PlanPolicy`. They produce a `RelationChange` for root staging/publication.
   Each rule phase holds Engine.mu and never waits. The root admits event AX
   first, binds the qualification, then interleaves unlocked provider admission
-  with each action's canonical binding in order. `FreezeDefinition` freezes
-  view queries.
+  with each action's canonical binding in order. TRIGGER DDL (CREATE [OR
+  REPLACE], ALTER TRIGGER RENAME and [NO] DEPENDS ON EXTENSION, DROP) is
+  `PlanTrigger`; its `RelationChange.Replacement` names the definition an OR
+  REPLACE replaces. Creation checks table TRIGGER and function EXECUTE grants;
+  lifecycle ownership requires table authority, which a rename checks before
+  the trigger's existence. `FreezeDefinition` freezes view queries.
 - **Query preflight and join legality** (`query_preflight.go`,
   `query_set_preflight.go`, `query_join_legality.go`): `PreflightQuery` copies
   the plan paths that hold folded coercions for one execution;
@@ -183,7 +188,7 @@ preparation, the row-security authority wrappers and `dropProvider`.
 ## Testing
 
 Package units cover the slot helpers and the target-admission entry. Every other
-view, rule, policy, materialized-view and query preflight unit builds an engine
+view, rule, policy, trigger DDL, materialized-view and query preflight unit builds an engine
 and stays in `internal/engine`, naming the code as `view.X`; `TestViewHostSeam`
 and `TestDropReaderSeam` pin the two seams, and the
 `TestMaterializedViewSnapshot*` units cover snapshot import admission. Public SQL
@@ -196,5 +201,6 @@ make check RUN='^Test(ViewHostSeam|DropReaderSeam|ViewTargetAdmission|BindingSlo
 make check RACE=1 RUN='^TestMaterializedRefreshConcurrent'
 make check RUN='^TestReference(View|Rule|Materialized)'
 make check RUN='^TestReferenceRLS'
+make check RUN='^TestReference(TriggerDDL|TriggerCore|TransactionalTrigger)'
 make check RUN='^TestViewCapabilities(ColumnSubset|RuleEvents|ForeignEvents)$'
 ```
