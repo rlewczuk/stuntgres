@@ -40,20 +40,20 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if err := preparedUnitControl(t, e, origin, parser.KindPrepareTransaction, "move"); err != nil {
 		t.Fatal(err)
 	}
-	entry := e.prepared["move"]
-	if entry == nil || entry.ticket != ticket || entry.ref != ref || origin.Transactions.Ticket != nil || origin.TransactionState() != session.TxIdle {
+	entry := e.prepared.Lookup("move")
+	if entry == nil || entry.Ticket != ticket || entry.Ref != ref || origin.Transactions.Ticket != nil || origin.TransactionState() != session.TxIdle {
 		t.Fatal("ownership was not transferred once")
 	}
 	if err := origin.Transactions.Validate(ref); err == nil {
 		t.Fatal("detached reference still authorized")
 	}
-	entry.claimed = true
+	entry.Claimed = true
 	err = preparedUnitControl(t, e, peer, parser.KindRollbackPrepared, "move")
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "55000" || e.prepared["move"] != entry {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "55000" || e.prepared.Lookup("move") != entry {
 		t.Fatal(err, "claim consumed resources")
 	}
-	entry.claimed = false
+	entry.Claimed = false
 	ctx, cancel := context.WithCancel(context.Background())
 	canceled, err := peer.Acquire(ctx)
 	if err != nil {
@@ -62,14 +62,14 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	cancel()
 	err = e.completePrepared(canceled, "move", true)
 	canceled.Done()
-	if !errors.Is(err, context.Canceled) || entry.claimed || e.prepared["move"] != entry || e.locks.TransactionTicket(ref) != ticket {
+	if !errors.Is(err, context.Canceled) || entry.Claimed || e.prepared.Lookup("move") != entry || e.locks.TransactionTicket(ref) != ticket {
 		t.Fatal(err, "cancellation consumed entry or ticket")
 	}
 	origin.RequestEnd(session.CleanClose)
 	if err := origin.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if e.prepared["move"] != entry || entry.ticket != ticket {
+	if e.prepared.Lookup("move") != entry || entry.Ticket != ticket {
 		t.Fatal("origin exit consumed registry")
 	}
 	if e.locks.TransactionTicket(ref) != ticket {
@@ -78,7 +78,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if err := preparedUnitControl(t, e, peer, parser.KindCommitPrepared, "move"); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.prepared) != 0 {
+	if e.prepared.Len() != 0 {
 		t.Fatal("completed entry retained")
 	}
 	if e.locks.TransactionTicket(ref) != nil {
@@ -98,7 +98,7 @@ func TestPreparedTransactionFailureEndsStickyFootprint(t *testing.T) {
 	s.Transactions.AccessedTemporary = true
 	err = preparedUnitControl(t, e, s, parser.KindPrepareTransaction, "temp")
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || s.TransactionState() != session.TxIdle || s.Transactions.AccessedTemporary || s.Transactions.Ticket != nil || len(e.prepared) != 0 {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || s.TransactionState() != session.TxIdle || s.Transactions.AccessedTemporary || s.Transactions.Ticket != nil || e.prepared.Len() != 0 {
 		t.Fatal(err, "failed prepare did not dispose entire owner")
 	}
 }

@@ -32,7 +32,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			defer m.end(context.Canceled)
 			t.Cleanup(func() {
 				e.mu.Lock()
-				pending := e.prepared["batch_detached"] != nil
+				pending := e.prepared.Lookup("batch_detached") != nil
 				e.mu.Unlock()
 				if pending {
 					if err := controlsExecute(t, peer, "ROLLBACK PREPARED 'batch_detached'"); err != nil {
@@ -48,8 +48,8 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			if err := m.end(nil); err != nil {
 				t.Fatal(err)
 			}
-			entry := e.prepared["batch_detached"]
-			if entry == nil || entry.catalog == nil || entry.catalog.Roles == nil || owner.Authorization.State.CurrentUser != entry.owner || owner.Authorization.State.SessionUser != original.SessionUser || owner.Transactions.Catalog != nil {
+			entry := e.prepared.Lookup("batch_detached")
+			if entry == nil || entry.Catalog == nil || entry.Catalog.Roles == nil || owner.Authorization.State.CurrentUser != entry.Owner || owner.Authorization.State.SessionUser != original.SessionUser || owner.Transactions.Catalog != nil {
 				t.Fatal("prepared role authority was lost or retained by session")
 			}
 			op, err := owner.Acquire(context.Background())
@@ -58,7 +58,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			}
 			auth, err := operationAuthorization(op)
 			op.Done()
-			if err != nil || auth.RoleRecord != e.roles.published || auth.State.CurrentUser != entry.owner || auth.MissingCurrent != entry.owner {
+			if err != nil || auth.RoleRecord != e.roles.published || auth.State.CurrentUser != entry.Owner || auth.MissingCurrent != entry.Owner {
 				t.Fatal("numeric authority did not admit missing effective name", err)
 			}
 			if _, exists := auth.Roles.Lookup("detached"); exists {
@@ -74,21 +74,21 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 				t.Fatal("unadmitted missing actor bypassed privilege preflight")
 			}
 			foreign := auth
-			foreign.State.CurrentUser = New().roles.domain.Principal(entry.owner.ID())
+			foreign.State.CurrentUser = New().roles.domain.Principal(entry.Owner.ID())
 			if _, err := foreign.Effective(table, false); err == nil {
 				t.Fatal("foreign numeric principal bypassed authority")
 			}
-			missing := fmt.Sprintf("invalid role OID: %d", entry.owner.ID())
+			missing := fmt.Sprintf("invalid role OID: %d", entry.Owner.ID())
 			batchUnitDiagnostic(t, controlsExecute(t, owner, "SELECT current_user"), "42704", missing)
 			batchUnitDiagnostic(t, controlsExecute(t, owner, "SELECT v FROM t"), "42501", "permission denied for table t")
 			transactionRows(t, owner, "SELECT 1", 1)
 			controlsRequire(t, peer, finish+" PREPARED 'batch_detached'")
-			if e.prepared["batch_detached"] != nil {
+			if e.prepared.Lookup("batch_detached") != nil {
 				t.Fatal("prepared completion retained registry")
 			}
 			if finish == "COMMIT" {
 				role, exists := e.Roles().Lookup("detached")
-				if !exists || role.Ref != entry.owner {
+				if !exists || role.Ref != entry.Owner {
 					t.Fatal("commit changed numeric role identity")
 				}
 				result := sessionSQL(t, owner, "SELECT current_user")

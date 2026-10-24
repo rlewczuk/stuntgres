@@ -410,7 +410,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12001})
 		in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: retained, Owner: e.catalog.owner(), Source: d, Runtime: engineCatalogRuntime{engine: e}}
 		e.mu.Lock()
-		expectedXID := e.visibility.AssignedXIDLocked(e.prepared["producer_runtime_gid"].ref)
+		expectedXID := e.visibility.AssignedXIDLocked(e.prepared.Lookup("producer_runtime_gid").Ref)
 		rows, err := capturePreparedSource(in)
 		e.mu.Unlock()
 		if err != nil || len(rows) != 1 {

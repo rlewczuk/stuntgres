@@ -187,7 +187,7 @@ func TestVacuumFreezeProvenance(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO provenance(id) VALUES(3)")
 	sessionSQL(t, s, "PREPARE TRANSACTION 'vacuum_provenance'")
 	e.mu.Lock()
-	publisher := e.visibility.FullXIDLocked(e.prepared["vacuum_provenance"].ref)
+	publisher := e.visibility.FullXIDLocked(e.prepared.Lookup("vacuum_provenance").Ref)
 	e.mu.Unlock()
 	sessionSQL(t, s, "COMMIT PREPARED 'vacuum_provenance'")
 	if store.Versions[1].InsertFullXID != publisher {

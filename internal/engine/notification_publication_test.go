@@ -409,7 +409,7 @@ func TestNotificationEffectsOwnership(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(actions, []session.NotificationAction{listen}) || len(merged) != 2 || merged[0] != events[0] || merged[1].Payload != "statement" {
 		t.Fatal("statement effects not merged after the owner's", err, actions, merged)
 	}
-	if actions, events, err := notificationEffects(op, live, &preparedPublication{}, statement); err != nil || actions != nil || events != nil {
+	if actions, events, err := notificationEffects(op, live, &session.PreparedPublication{}, statement); err != nil || actions != nil || events != nil {
 		t.Fatal("prepared completion read live effects", err, actions, events)
 	}
 }

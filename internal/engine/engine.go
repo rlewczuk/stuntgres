@@ -48,7 +48,7 @@ type Engine struct {
 	visibility        visibility.Registry
 	indexWaits        index.WaitRegistry
 	exclusions        index.ExclusionRegistry
-	prepared          map[string]*preparedTransaction
+	prepared          session.PreparedRegistry
 	roles             *roleStore
 	cluster           *databaseCluster
 	importTargets     map[authorization.PrincipalRef]authorization.PrincipalRef

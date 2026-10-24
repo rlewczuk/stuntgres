@@ -230,8 +230,8 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 			foreignKeyHeldMode(t, e, ref, 0, ticket, lock.RowExclusive)
 			foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForUpdate)
 			sessionSQL(t, a, "PREPARE TRANSACTION 'action_unit'")
-			prepared := e.prepared["action_unit"]
-			if prepared == nil || prepared.ref != origin || prepared.ticket != ticket || a.Transactions.Ticket != nil || prepared.deletes[ref.Address] == nil {
+			prepared := e.prepared.Lookup("action_unit")
+			if prepared == nil || prepared.Ref != origin || prepared.Ticket != ticket || a.Transactions.Ticket != nil || prepared.Deletes[ref.Address] == nil {
 				t.Fatal("action deletion/grants did not transfer to prepared owner")
 			}
 			foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForUpdate)
@@ -263,7 +263,7 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 			joined = true
 			transactionEnd(t, b, waiter, true)
 			waiterEnded = true
-			if len(e.prepared) != 0 {
+			if e.prepared.Len() != 0 {
 				t.Fatal("completed action prepared owner retained")
 			}
 			storage := e.storage.Relations[ref.Address]

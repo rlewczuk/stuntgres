@@ -93,7 +93,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if publicationNeedsXID(map[ids.ObjectAddress][]storage.RowVersion{address: nil}, map[ids.ObjectAddress]*visibility.PrivateDeletes{address: {}}, session.NewJournal(), nil) {
 		t.Fatal("empty reserved publication containers fabricated assignment")
 	}
-	if !publicationNeedsXID(nil, nil, nil, &preparedPublication{preparing: true}) {
+	if !publicationNeedsXID(nil, nil, nil, &session.PreparedPublication{Preparing: true}) {
 		t.Fatal("empty PREPARE lost explicit assignment")
 	}
 	disabled := New()

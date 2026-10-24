@@ -7,12 +7,12 @@ import (
 )
 
 // notificationEffects binds the existing sole publisher's transaction effects.
-func notificationEffects(op *session.Operation, ref ids.TxRef, phase *preparedPublication, scope *StatementScope) ([]session.NotificationAction, []session.Notification, error) {
+func notificationEffects(op *session.Operation, ref ids.TxRef, phase *session.PreparedPublication, scope *StatementScope) ([]session.NotificationAction, []session.Notification, error) {
 	var statement *session.NotificationStatement
 	if scope != nil {
 		statement = &session.NotificationStatement{Op: scope.op, Owner: scope.owner, Actions: scope.notificationActions, Events: scope.notificationEvents}
 	}
-	return session.NotificationEffects(op, ref, phase != nil && !phase.preparing, statement)
+	return session.NotificationEffects(op, ref, phase != nil && !phase.Preparing, statement)
 }
 
 type notificationTargetPublication struct {

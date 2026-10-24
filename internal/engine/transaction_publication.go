@@ -34,8 +34,8 @@ func (e *Engine) publishRows(op *session.Operation, ref ids.TxRef, writes map[id
 
 // A reserved empty container is not a write. PREPARE is the explicit exception:
 // even an otherwise empty prepared transaction needs a retained public identity.
-func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, phase *preparedPublication) bool {
-	if phase != nil && phase.preparing {
+func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, phase *session.PreparedPublication) bool {
+	if phase != nil && phase.Preparing {
 		return true
 	}
 	if c != nil && (len(c.Descriptors) != 0 || len(c.Names) != 0 || len(c.DefaultACLs) != 0 ||
@@ -56,8 +56,8 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 	return false
 }
 
-func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
-	materialize := phase == nil || !phase.preparing
+func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *catalogAuthority, phase *session.PreparedPublication, scope *StatementScope) error {
+	materialize := phase == nil || !phase.Preparing
 	actions, events, err := notificationEffects(op, ref, phase, scope)
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				goto emptyFence
 			}
 			// Every replacement and veto precedes this first installation.
-			if phase != nil && phase.preparing {
+			if phase != nil && phase.Preparing {
 				e.installPreparedLocked(phase)
 			} else {
 				e.installNotificationPublicationLocked(notifications)
@@ -429,7 +429,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.mu.Unlock()
 			return err
 		}
-		if phase != nil && phase.preparing {
+		if phase != nil && phase.Preparing {
 			e.installPreparedLocked(phase)
 			sess.Mu.Unlock()
 			e.mu.Unlock()

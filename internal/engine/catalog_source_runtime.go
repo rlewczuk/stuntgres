@@ -85,14 +85,14 @@ func (r engineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.
 	}
 	return facts, nil
 }
-func (r engineCatalogRuntime) PreparedCount() int { return len(r.engine.prepared) }
+func (r engineCatalogRuntime) PreparedCount() int { return r.engine.prepared.Len() }
 func (r engineCatalogRuntime) VisitPreparedTransactions(ctx context.Context, visit func(pgcatalog.PreparedFact) error) error {
-	for _, entry := range r.engine.prepared {
+	for _, entry := range r.engine.prepared.All() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		fact := pgcatalog.PreparedFact{XID: r.engine.visibility.AssignedXIDLocked(entry.ref), GID: entry.gid, Prepared: entry.prepared, Database: entry.database}
-		if role, ok := r.engine.roles.published.Root.Read(authorization.PrincipalRef{}).Find(entry.owner); ok {
+		fact := pgcatalog.PreparedFact{XID: r.engine.visibility.AssignedXIDLocked(entry.Ref), GID: entry.GID, Prepared: entry.Prepared, Database: entry.Database}
+		if role, ok := r.engine.roles.published.Root.Read(authorization.PrincipalRef{}).Find(entry.Owner); ok {
 			fact.Owner, fact.OwnerPresent = role.Name, true
 		}
 		if err := visit(fact); err != nil {

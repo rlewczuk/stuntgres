@@ -144,7 +144,7 @@ func TestPreparedTemporarySemanticDescriptionIsSticky(t *testing.T) {
 	if err := preparedUnitControl(t, e, s, parser.KindPrepareTransaction, "semantic"); err == nil {
 		t.Fatal("semantic temporary access allowed prepare")
 	}
-	if s.TransactionState() != session.TxIdle || len(e.prepared) != 0 {
+	if s.TransactionState() != session.TxIdle || e.prepared.Len() != 0 {
 		t.Fatal("semantic prepare failure did not fully dispose transaction")
 	}
 }

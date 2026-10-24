@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -47,7 +48,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 						}
 					}
 				}
-				var prepared *preparedTransaction
+				var prepared *session.PreparedTransaction
 				if carrier == "prepared" {
 					if _, err := m.step(statement(t, "PREPARE TRANSACTION 'retirement_guard'")); err != nil {
 						t.Fatal(err)
@@ -58,8 +59,8 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 						t.Fatal(err)
 					}
 					if carrier == "prepared" {
-						prepared = e.prepared["retirement_guard"]
-						if prepared == nil || prepared.catalog == nil || prepared.catalog.Roles == nil {
+						prepared = e.prepared.Lookup("retirement_guard")
+						if prepared == nil || prepared.Catalog == nil || prepared.Catalog.Roles == nil {
 							t.Fatal("detach lost the private role candidate")
 						}
 					}
@@ -123,7 +124,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					t.Fatal("rejected retirement orphaned the canonical peer principal")
 				}
 				if carrier == "prepared" {
-					if e.prepared["retirement_guard"] != prepared || prepared.claimed {
+					if e.prepared.Lookup("retirement_guard") != prepared || prepared.Claimed {
 						t.Fatal("failed final completion consumed or claimed detached authority")
 					}
 					sessionSQL(t, a, "ROLLBACK PREPARED 'retirement_guard'")

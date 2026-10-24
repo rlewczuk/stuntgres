@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
@@ -181,19 +182,20 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 	finisher := sessionStart(t, e, nil)
 	op := transactionOperation(t, finisher)
 	defer op.Done()
-	entry := &preparedTransaction{gid: "identity_claimed", ref: owner.Ref(), ticket: owner, owner: finisher.Authorization.State.CurrentUser, claimed: true}
+	entry := &session.PreparedTransaction{GID: "identity_claimed", Ref: owner.Ref(), Ticket: owner, Owner: finisher.Authorization.State.CurrentUser, Claimed: true}
 	e.mu.Lock()
-	e.prepared = map[string]*preparedTransaction{entry.gid: entry}
+	e.prepared.ReserveLocked()
+	e.prepared.InstallLocked(entry)
 	before := e.visibility.Entries[owner.Ref()]
 	e.mu.Unlock()
-	err := e.completePrepared(op, entry.gid, true)
+	err := e.completePrepared(op, entry.GID, true)
 	var state *sqlstate.Error
 	if !errors.As(err, &state) || state.Code != "55000" || state.Message != `prepared transaction with identifier "identity_claimed" is busy` {
 		t.Fatal("busy claim", err)
 	}
 	e.mu.Lock()
-	same := e.prepared[entry.gid] == entry && entry.claimed && e.visibility.Entries[owner.Ref()] == before
-	delete(e.prepared, entry.gid)
+	same := e.prepared.Lookup(entry.GID) == entry && entry.Claimed && e.visibility.Entries[owner.Ref()] == before
+	e.prepared.RemoveLocked(entry.GID)
 	e.mu.Unlock()
 	if !same {
 		t.Fatal("busy completion changed actual owner")

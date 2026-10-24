@@ -1,92 +1,45 @@
 package engine
 
 import (
-	"errors"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"time"
 )
 
-// The registry owns these roots and the original lock/SSI identity after detach.
-// No session attachment is consulted to authorize completion.
-type preparedTransaction struct {
-	gid      string
-	owner    authorization.PrincipalRef
-	ref      ids.TxRef
-	prepared time.Time
-	database string
-	ticket   *lock.Ticket
-	writes   map[ids.ObjectAddress][]storage.RowVersion
-	deletes  map[ids.ObjectAddress]*visibility.PrivateDeletes
-	catalog  *session.Journal
-	claimed  bool
-	roots    map[ids.ObjectAddress]visibility.Root
-	frontier ids.CommitSeq
-	options  session.TxOptions
-}
-
-type preparedPublication struct {
-	entry     *preparedTransaction
-	preparing bool
-	origin    *session.TransactionOwner
-}
-
-func (e *Engine) preparedPublicationPreflightLocked(op *session.Operation, p *preparedPublication) error {
+func (e *Engine) preparedPublicationPreflightLocked(op *session.Operation, p *session.PreparedPublication) error {
 	if p == nil {
 		return nil
 	}
-	if p.preparing {
-		if p.origin.Ref != p.entry.ref || !p.origin.InBlock() {
-			return errors.New("stuntgres: stale preparing transaction")
-		}
-		if e.prepared[p.entry.gid] != nil {
-			return sqlError("42710", `transaction identifier "`+p.entry.gid+`" is already in use`)
-		}
-	} else if e.prepared[p.entry.gid] != p.entry || !p.entry.claimed {
-		return errors.New("stuntgres: stale prepared publication")
+	if err := e.prepared.PublicationPreflightLocked(p); err != nil || p.Preparing {
+		return err
 	}
-	if !p.preparing {
-		return e.preparedActorLocked(op, p.entry)
-	}
-	return nil
+	return e.preparedActorLocked(op, p.Entry)
 }
 
 // Engine.mu and the finishing Session.mu are held at final installation.
-func (e *Engine) preparedActorLocked(op *session.Operation, entry *preparedTransaction) error {
+func (e *Engine) preparedActorLocked(op *session.Operation, entry *session.PreparedTransaction) error {
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
-	current := op.Session.Authorization.State.CurrentUser
-	if err := roles.ValidatePrincipal(current); err != nil {
-		return err
-	}
-	actor, exists := roles.Find(current)
-	if current != entry.owner && (!exists || !actor.Superuser) {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to finish prepared transaction", Hint: "Must be superuser or the user that prepared the transaction."}
-	}
-	return nil
+	return entry.CheckActor(roles, op.Session.Authorization.State.CurrentUser)
 }
 
 // Called at the canonical publisher's callback-free final boundary.
-func (e *Engine) installPreparedLocked(p *preparedPublication) {
-	e.visibility.SerializablePreparedLocked(p.entry.ref)
-	e.visibility.DropSnapshotLocked(p.entry.ref)
-	e.prepared[p.entry.gid] = p.entry
-	p.origin.Ticket = nil
-	clearTransaction(p.origin)
-	p.origin.Session.RetireTransactionTimeoutLocked()
+func (e *Engine) installPreparedLocked(p *session.PreparedPublication) {
+	e.visibility.SerializablePreparedLocked(p.Entry.Ref)
+	e.visibility.DropSnapshotLocked(p.Entry.Ref)
+	e.prepared.InstallLocked(p.Entry)
+	p.Origin.Ticket = nil
+	clearTransaction(p.Origin)
+	p.Origin.Session.RetireTransactionTimeoutLocked()
 }
 
-func (e *Engine) finishPreparedLocked(p *preparedPublication) {
+func (e *Engine) finishPreparedLocked(p *session.PreparedPublication) {
 	if p == nil {
 		return
 	}
-	delete(e.prepared, p.entry.gid)
-	e.endSerializableLocked(p.entry.ref, true)
+	e.prepared.RemoveLocked(p.Entry.GID)
+	e.endSerializableLocked(p.Entry.Ref, true)
 }
 
 func (s *StatementScope) executePrepared(control *parser.TransactionControl, state session.TxState, ref ids.TxRef) error {
@@ -131,25 +84,23 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	if err == nil && (len(t.NotificationActions) != 0 || len(t.NotificationEvents) != 0) {
 		err = sqlError("0A000", "cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY")
 	}
-	var entry *preparedTransaction
+	var entry *session.PreparedTransaction
 	if err == nil {
 		auth, authErr := operationAuthorization(s.op)
 		err = authErr
 		if err == nil {
-			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.Session.DatabaseName, ticket: t.Ticket, writes: t.Writes, deletes: t.Deletes, catalog: t.Catalog, roots: t.Roots, frontier: t.Frontier, options: session.TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
+			entry = &session.PreparedTransaction{GID: control.GID, Owner: auth.State.CurrentUser, Ref: ref, Prepared: time.Now().UTC().Truncate(time.Microsecond), Database: s.op.Session.DatabaseName, Ticket: t.Ticket, Writes: t.Writes, Deletes: t.Deletes, Catalog: t.Catalog, Roots: t.Roots, Frontier: t.Frontier, Options: session.TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
 			e.mu.Lock()
-			if e.prepared == nil {
-				e.prepared = make(map[string]*preparedTransaction)
-			}
+			e.prepared.ReserveLocked()
 			e.mu.Unlock()
 			s.attachTransactionLocked()
 			t.Mu.Unlock()
-			err = e.locks.CheckPreparedAdvisory(entry.ticket)
+			err = e.locks.CheckPreparedAdvisory(entry.Ticket)
 			if err == nil {
 				err = e.checkTransactionExclusions(s)
 			}
 			if err == nil {
-				err = e.publishRowsPrepared(s.op, ref, t.Writes, t.Deletes, t.Catalog, nil, &preparedPublication{entry: entry, preparing: true, origin: t}, s)
+				err = e.publishRowsPrepared(s.op, ref, t.Writes, t.Deletes, t.Catalog, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: t}, s)
 			}
 			t.Mu.Lock()
 		}
@@ -167,55 +118,43 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	}
 	t.Session.Settings.FinishTransaction(true)
 	t.Mu.Unlock()
-	e.locks.DetachPrepared(entry.ticket)
+	e.locks.DetachPrepared(entry.Ticket)
 	return nil
 }
 
 func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool) error {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	entry := e.prepared[gid]
-	if err == nil && entry == nil {
-		err = sqlError("42704", `prepared transaction with identifier "`+gid+`" does not exist`)
-	}
+	var entry *session.PreparedTransaction
 	if err == nil {
-		actor, exists := auth.Roles.Find(auth.State.CurrentUser)
-		if auth.State.CurrentUser != entry.owner && (!exists || !actor.Superuser) {
-			err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to finish prepared transaction", Hint: "Must be superuser or the user that prepared the transaction."}
-		}
-	}
-	if err == nil && entry.claimed {
-		err = sqlError("55000", `prepared transaction with identifier "`+gid+`" is busy`)
-	}
-	if err == nil {
-		entry.claimed = true
+		entry, err = e.prepared.ClaimLocked(gid, auth.Roles, auth.State.CurrentUser)
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
 	if commit {
-		err = e.publishRowsPrepared(op, entry.ref, entry.writes, entry.deletes, entry.catalog, nil, &preparedPublication{entry: entry}, nil)
+		err = e.publishRowsPrepared(op, entry.Ref, entry.Writes, entry.Deletes, entry.Catalog, nil, &session.PreparedPublication{Entry: entry}, nil)
 	} else {
 		e.mu.Lock()
 		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
 		if err == nil {
-			err = e.preparedPublicationPreflightLocked(op, &preparedPublication{entry: entry})
+			err = e.preparedPublicationPreflightLocked(op, &session.PreparedPublication{Entry: entry})
 		}
 		if err == nil {
-			delete(e.prepared, gid)
-			e.endSerializableLocked(entry.ref, false)
+			e.prepared.RemoveLocked(gid)
+			e.endSerializableLocked(entry.Ref, false)
 		}
 		op.Session.Mu.Unlock()
 		e.mu.Unlock()
 	}
 	if err != nil {
 		e.mu.Lock()
-		entry.claimed = false
+		e.prepared.ReleaseLocked(entry)
 		e.mu.Unlock()
 		return err
 	}
-	e.endLockOwner(entry.ticket)
+	e.endLockOwner(entry.Ticket)
 	return nil
 }

@@ -136,8 +136,8 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 		t.Fatal("savepoint did not restore projection and constraint modes")
 	}
 	sessionSQL(t, a, "PREPARE TRANSACTION 'exclusion_unit'")
-	prepared := e.prepared["exclusion_unit"]
-	if prepared == nil || prepared.ticket != at || a.Transactions.Ticket != nil || e.exclusions.OwnLocked(at) != before {
+	prepared := e.prepared.Lookup("exclusion_unit")
+	if prepared == nil || prepared.Ticket != at || a.Transactions.Ticket != nil || e.exclusions.OwnLocked(at) != before {
 		t.Fatal("PREPARE did not retain the detached dirty owner")
 	}
 	br := transactionBegin(t, b)
@@ -147,7 +147,7 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 	exclusionCompletionQueued(t, e, at, bt, done)
 	sessionSQL(t, a, "ROLLBACK PREPARED 'exclusion_unit'")
 	exclusionCommitAwait(t, done)
-	if e.exclusions.CountLocked() != 0 || len(e.prepared) != 0 {
+	if e.exclusions.CountLocked() != 0 || e.prepared.Len() != 0 {
 		t.Fatal("prepared completion retained exclusion ownership")
 	}
 	uniqueClaimsEmpty(t, e)

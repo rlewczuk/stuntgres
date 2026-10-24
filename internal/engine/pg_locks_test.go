@@ -295,8 +295,8 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	t.Helper()
 	e, _, d := typedUnitCatalog(t, false)
-	session, ticket := blockingUnitOwner(t, e)
-	op, err := session.Acquire(context.Background())
+	owner, ticket := blockingUnitOwner(t, e)
+	op, err := owner.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,9 +333,9 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 			}
 		}
 	case "prepare":
-		e.prepared = make(map[string]*preparedTransaction)
-		entry := &preparedTransaction{ref: ticket.Ref(), ticket: ticket, gid: "pg_locks_unit_prepare"}
-		err = e.publishRowsPrepared(op, ticket.Ref(), nil, nil, nil, nil, &preparedPublication{entry: entry, preparing: true, origin: scope.owner}, scope)
+		e.prepared.ReserveLocked()
+		entry := &session.PreparedTransaction{Ref: ticket.Ref(), Ticket: ticket, GID: "pg_locks_unit_prepare"}
+		err = e.publishRowsPrepared(op, ticket.Ref(), nil, nil, nil, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: scope.owner}, scope)
 		if err == nil {
 			e.locks.DetachPrepared(ticket)
 		}
@@ -350,7 +350,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 		t.Fatal("actual assignment lacks completion ownership", route)
 	}
 	if route == "prepare" {
-		delete(e.prepared, "pg_locks_unit_prepare")
+		e.prepared.RemoveLocked("pg_locks_unit_prepare")
 		e.endLockOwner(ticket)
 	}
 }
