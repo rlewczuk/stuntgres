@@ -49,6 +49,7 @@ func stageTypeIdentity(h StageHost, auth ddl.Authority, source parser.ObjectName
 	if err != nil {
 		return err
 	}
+	h.AddDomainBase(old)
 	view := h.AccessView(auth)
 	path, _ := auth.ReferencePath()
 	address := old.Address()

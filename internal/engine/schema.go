@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
@@ -63,7 +64,48 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		}
 	}
 	defer e.DiscardCatalogStage(stage)
-	_, droppingTypedSource := stmt.(*parser.DropType)
+	switch stmt.(type) {
+	case *parser.AlterDomain, *parser.AlterType:
+		// The identity stager records its exact source before companion
+		// displacement. Identity authority has no scalar heap resource.
+		source := stage.domainBases[0]
+		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), source.Address())
+		if err := scope.acquireSequence(ref, lock.TypeExclusive, true); err != nil {
+			return Result{}, err
+		}
+		// Composite RENAME owns its actual backing relation, just as the
+		// relation rename owner does. SET SCHEMA only mutates tuple metadata.
+		backing := ids.ObjectAddress{}
+		if identity, ok := stmt.(*parser.AlterType); ok && !identity.SetSchema {
+			typ := source.(*catalog.Type)
+			if typ.SQLType.IsComposite() {
+				backing = typ.OwningRelation
+				if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, backing), lock.AccessExclusive, true); err != nil {
+					return Result{}, err
+				}
+			}
+		}
+		e.mu.Lock()
+		current, admissionErr := e.authorizationLocked(op)
+		if admissionErr == nil && (current.Catalog.Epoch() != ref.Epoch || current.Catalog.Get(ref.Address) != source) {
+			admissionErr = ids.ErrCatalogReplaced
+		}
+		if admissionErr == nil && backing != (ids.ObjectAddress{}) && current.Catalog.Get(backing) != stage.Base.Get(backing) {
+			admissionErr = ids.ErrCatalogReplaced
+		}
+		if admissionErr == nil {
+			admissionErr = current.Check(access.Requirement{Object: ref, OwnerOnly: true})
+		}
+		e.mu.Unlock()
+		if admissionErr != nil {
+			return Result{}, admissionErr
+		}
+	}
+	droppingTypedSource := false
+	switch stmt.(type) {
+	case *parser.DropType, *parser.DropDomain:
+		droppingTypedSource = true
+	}
 	if err := scope.acquireTypedSources(stage, droppingTypedSource); err != nil {
 		return Result{}, err
 	}

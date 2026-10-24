@@ -3,6 +3,11 @@ and Go BeginTx as well as autocommit. Source writes, stored rows, indexes and
 population commit or roll back together, including savepoint recovery, with
 transaction-lifetime reader/refresh locking.
 
+Domain and composite creation, domain rule changes, composite attribute evolution
+and type/domain rename, schema move and DROP now share SQL and Go transactions
+with autocommit and retained messages. Definitions, consuming rows and logical keys
+commit or roll back together, with savepoint recovery and exact source authority.
+
 View and materialized-view definitions now participate in SQL and Go transactions
 as well as autocommit, with private definitions and stored rows, identity-preserving
 alterations, savepoints and atomic commit or rollback. REFRESH remains separate.

@@ -82,18 +82,21 @@ ordinary SQL errors leave the connection reusable.
 - `BeginTx` supports `sql.LevelReadCommitted`, `LevelReadUncommitted`,
   `LevelRepeatableRead` and `LevelSerializable`; `ReadOnly` maps to the access mode.
   Deferrability uses the session default (`sql.TxOptions` has no field for it).
-- SQL transaction controls and `BeginTx` share transactional relation/schema DDL:
-  permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA,
+- SQL transaction controls and `BeginTx` share transactional relation/schema/type
+  DDL: permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA,
   supported ALTER TABLE forms, ALTER/DROP TRIGGER, ordinary DROP INDEX and
-  ALTER INDEX rename/SET/RESET, CREATE/OR REPLACE/ALTER/DROP VIEW and
-  CREATE/ALTER/DROP MATERIALIZED VIEW see earlier successful own changes.
-  Ordinary and concurrent REFRESH consume earlier own source writes and keep
-  stored rows, indexes and population private until commit. Peers see the complete
-  definitions and rows only after commit.
-  Rollback/savepoints restore definitions, dependencies and data together;
-  sequence counters are not rewound. Autocommit uses the same supported forms.
-  Feature-specific view/materialized OWNER is included; generic ownership keeps
-  its separate transaction boundaries.
+  ALTER INDEX rename/SET/RESET, CREATE/OR REPLACE/ALTER/DROP VIEW,
+  CREATE/ALTER/DROP MATERIALIZED VIEW, CREATE DOMAIN/composite TYPE, domain
+  rule changes, composite attribute evolution and type/domain rename, schema move
+  and DROP see earlier successful own changes. Ordinary and concurrent REFRESH
+  consume earlier own source writes and keep stored rows, indexes and population
+  private until commit. Peers see complete definitions, constraints, consuming rows
+  and logical keys only after commit.
+  Rollback/savepoints restore definitions, dependencies, row layouts and data
+  together; sequence counters are not rewound. Autocommit and retained simple-query
+  messages use the same supported forms. Feature-specific view/materialized OWNER
+  is included; generic ownership outside the admitted table forms, including
+  TYPE/DOMAIN OWNER, keeps its separate transaction boundaries.
 - A Go transaction handle outlived by a SQL `COMMIT`/`ROLLBACK`/`AND CHAIN` boundary
   returns `stuntgres: stale transaction reference` instead of ending newer work.
 - Under `SERIALIZABLE`, retry the whole transaction on SQLSTATE 40001.
@@ -108,7 +111,7 @@ ordinary SQL errors leave the connection reusable.
   42P18. Prepared statements keep their parameter and result signatures: an
   incompatible catalog change fails with 0A000 `cached plan must not change result
   type` rather than changing shape.
-- Relation/schema utility Prepare/Describe is effect-free; execution performs
+- Relation/schema/type utility Prepare/Describe is effect-free; execution performs
   current authority and identity checks. CTAS/SELECT INTO and materialized-view
   creation still analyze their query source during preparation. Ordinary view
   creation analyzes its body at execution. Actual held statements use these

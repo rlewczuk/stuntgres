@@ -64,7 +64,7 @@ func TestReferenceDomainAlterDefaultDiagnostics(t *testing.T) {
 
 func TestReferenceDomainAlterNotNullDiagnostics(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"domain_alter_values_actor"})
-	domainAlterValueScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder) {
+	domainAlterValueScenario(t, func(t *testing.T, p *fixture.Pair, _ fixture.Backend, c *sql.Conn, r *fixture.Recorder) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 		for _, q := range []string{"CREATE DOMAIN domain_s.d AS integer DEFAULT 7", "CREATE ROLE domain_alter_values_actor", "GRANT USAGE ON SCHEMA domain_s TO domain_alter_values_actor"} {
 			run(fixture.Exec(q, 0))
@@ -85,8 +85,7 @@ func TestReferenceDomainAlterNotNullDiagnostics(t *testing.T) {
 				t.Run("owner_"+action+map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) { fixture.RunStep(t, p.Ctx, c, r, s) })
 				run(fixture.Exec("RESET ROLE", 0))
 			}
-			// A valid held utility prepares quietly in an explicit transaction;
-			// native Execute retains its deliberate utility capability boundary.
+			// A held utility prepares quietly, changes only its owner, and rolls back.
 			t.Run("transaction_"+action, func(t *testing.T) {
 				tx, err := c.BeginTx(p.Ctx, nil)
 				if err != nil {
@@ -101,11 +100,18 @@ func TestReferenceDomainAlterNotNullDiagnostics(t *testing.T) {
 				defer stmt.Close()
 				held := fixture.HeldStatement{Executor: tx, Statement: stmt, SQL: q}
 				s := fixture.Exec(q, 0)
-				if !b.PG {
-					s = fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction"))
-				}
 				s.ErrorStage = "execute"
 				fixture.RunStep(t, p.Ctx, held, r, s)
+				wantDefault, wantNull := any("7"), false
+				switch action {
+				case "SET DEFAULT 11":
+					wantDefault = "11"
+				case "DROP DEFAULT":
+					wantDefault = nil
+				case "SET NOT NULL":
+					wantNull = true
+				}
+				fixture.RunStep(t, p.Ctx, tx, r, fixture.Select("SELECT typdefault,typnotnull FROM pg_type WHERE oid='domain_s.d'::regtype::oid", []string{"typdefault", "typnotnull"}, []string{"TEXT", "BOOL"}, [][]any{{wantDefault, wantNull}}))
 				if err := tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}

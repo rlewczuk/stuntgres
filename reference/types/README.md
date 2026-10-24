@@ -210,6 +210,16 @@ absent temporal companions.
 
 Family selector: `RUN='^TestReferenceTypeLifecycle'`.
 
+`transactional_types_*` exercises the same domain/composite/type lifecycle in
+autocommit, retained messages, SQL BEGIN and Go BeginTx, through direct and genuine
+held handles. Scenarios assert owner-private definitions and data, selected domain
+scans, composite layouts and logical keys, savepoints, prepared freshness and native
+replacement/Dump controls. Identity and composite-identity scheduling use canonical
+observed queues, cancellation and joined workers; generic OWNER remains separate.
+Actual simple/extended protocol coverage belongs in
+[reference/sessions](../sessions/README.md#testing).
+
+
 
 ### Family selectors
 
@@ -239,6 +249,7 @@ Family selector: `RUN='^TestReferenceTypeLifecycle'`.
 - Composite types (all): `RUN='^TestReferenceComposite'`
 - Composite field expressions: `RUN='^TestReferenceCompositeExpr'`
 - ALTER TYPE attributes: `RUN='^TestReferenceCompositeAlter'`
+- Transactional domain/composite/type lifecycle: `RUN='^TestReferenceTransactionalTypes'`
 - Enums (all): `RUN='^TestReferenceEnum'`
 - ALTER TYPE for enums: `RUN='^TestReferenceEnumAlter'`
 - Enum support functions: `RUN='^TestReferenceEnumFunctions'`

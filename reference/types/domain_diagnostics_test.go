@@ -7,7 +7,7 @@ import (
 )
 
 func TestReferenceDomainDiagnostics(t *testing.T) {
-	domainReferenceScenario(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, conn *sql.Conn, recorder *fixture.Recorder, notices *[]fixture.Diagnostic) {
+	domainReferenceScenario(t, func(t *testing.T, p *fixture.Pair, _ fixture.Backend, conn *sql.Conn, recorder *fixture.Recorder, notices *[]fixture.Diagnostic) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
 		for _, q := range []string{"CREATE DOMAIN domain_s.di AS integer", "CREATE DOMAIN domain_s.dv AS varchar(3)", "CREATE DOMAIN domain_s.uuid AS integer", "CREATE TABLE domain_s.t (id integer,i domain_s.di,v domain_s.dv)"} {
 			run(fixture.Exec(q, 0))
@@ -99,13 +99,10 @@ func TestReferenceDomainDiagnostics(t *testing.T) {
 		s = fixture.ErrorDiagnostic("CREATE TABLE domain_s.probe (v domain_s.trailing)", want)
 		s.ErrorStage = "execute"
 		run(s)
-		// Preserve the existing native utility-in-explicit-transaction boundary.
+		// Domain definitions and companions belong to the transaction owner.
 		run(fixture.Exec("BEGIN", 0))
-		if backend.PG {
-			run(fixture.Exec("CREATE DOMAIN domain_s.in_transaction AS integer", 0))
-		} else {
-			run(fixture.Error("CREATE DOMAIN domain_s.in_transaction AS integer", "0A000"))
-		}
+		run(fixture.Exec("CREATE DOMAIN domain_s.in_transaction AS integer", 0))
+		run(fixture.Select("SELECT count(*) FROM pg_type WHERE typnamespace='domain_s'::regnamespace AND typname IN ('in_transaction','_in_transaction')", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
 		run(fixture.Exec("ROLLBACK", 0))
 		want = fixture.ControlsReferenceDiagnostic("42704", `type "domain_s.in_transaction" does not exist`)
 		want.Position = "32"

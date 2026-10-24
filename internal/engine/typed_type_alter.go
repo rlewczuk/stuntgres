@@ -47,6 +47,11 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 	if err != nil {
 		return Result{}, err
 	}
+	// Source metadata mutations share exact type authority with identity/drop.
+	// Keep type -> real backing relation -> typed closure order on every route.
+	if err := scope.acquireSequence(e.catalog.Domain.Ref(auth.Catalog.Epoch(), typ.Address()), lock.TypeExclusive, true); err != nil {
+		return Result{}, err
+	}
 	if err := scope.acquireSequence(e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address()), lock.AccessExclusive, true); err != nil {
 		return Result{}, err
 	}
@@ -78,11 +83,24 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 		}
 	}
 	e.mu.Lock()
-	current := e.catalog.read(e.catalog.state)
-	valid := e.catalog.state.Epoch() == auth.Catalog.Epoch() && e.catalog.state.Get(source.Address()) == source && e.catalog.state.Get(typ.Address()) == typ && table.TypedObservationValid(stage.typed, current)
+	currentAuth, admissionErr := e.authorizationLocked(op)
+	if admissionErr == nil {
+		current := currentAuth.Catalog
+		if current.Epoch() != auth.Catalog.Epoch() || current.Get(source.Address()) != source || current.Get(typ.Address()) != typ || typ.OwningRelation != source.Address() || !table.TypedObservationValid(stage.typed, current) {
+			admissionErr = catalog.Conflict{}
+		}
+	}
+	if admissionErr == nil {
+		admissionErr = currentAuth.Check(access.Requirement{Object: e.catalog.Domain.Ref(currentAuth.Catalog.Epoch(), source.Address()), OwnerOnly: true})
+	}
+	if admissionErr == nil {
+		auth = currentAuth
+		stage.authorizeLocked(auth, op.Session)
+		scope.routineAuth = auth
+	}
 	e.mu.Unlock()
-	if !valid {
-		return Result{}, catalog.Conflict{}
+	if admissionErr != nil {
+		return Result{}, admissionErr
 	}
 	// Source ownership does not extend to typed tables or their descendants.
 	// PostgreSQL checks them while recursing each subcommand, so ALTER

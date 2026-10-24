@@ -16,6 +16,8 @@ func TestTransactionalSchemaAdmission(t *testing.T) {
 		&parser.DropView{}, &parser.DropView{Materialized: true},
 		&parser.CreateQueryTable{Form: parser.CreateMaterializedView},
 		&parser.RefreshMaterializedView{}, parsedStatement(t, "REFRESH MATERIALIZED VIEW CONCURRENTLY admission_mv"),
+		&parser.CreateComposite{}, &parser.CreateDomain{}, &parser.AlterDomain{}, &parser.AlterComposite{},
+		&parser.AlterType{}, &parser.DropDomain{}, &parser.DropType{},
 	} {
 		if !TransactionalSchemaUtility(stmt) {
 			t.Errorf("missing admission: %T", stmt)
@@ -24,7 +26,7 @@ func TestTransactionalSchemaAdmission(t *testing.T) {
 	for _, stmt := range []parser.Statement{
 		&parser.AlterOwner{Kind: "view"}, &parser.AlterOwner{Kind: "type"}, &parser.AlterOwner{Kind: "domain"}, &parser.AlterOwner{Kind: "database"},
 		&parser.CreateDatabaseStmt{}, &parser.CreateTablespace{}, &parser.CreateIndex{}, &parser.DropIndex{},
-		&parser.CreateComposite{}, &parser.CreateDomain{}, &parser.CreateFunction{}, &parser.CreateRole{}, &parser.Comment{},
+		&parser.CreateFunction{}, &parser.CreateRole{}, &parser.Comment{},
 		&parser.ObjectGrant{}, &parser.ReassignOwned{}, &parser.DropOwned{}, &parser.CreateConversion{},
 	} {
 		if TransactionalSchemaUtility(stmt) {

@@ -90,6 +90,13 @@ engine.
   `HasAccessShare`/`ReleaseAddedAccessShare` remove only the function-added
   exact-relation contribution, preserving earlier SELECT grants.
 
+Engine type mutation resource order is source TypeExclusive, actual composite
+backing AX when required, then typed-table closure AX. Schema moves retain source
+type authority without adding backing AX; scalar sources never fabricate a
+relation resource. These are ordinary ticket contributions, restored by savepoint
+checkpoints and released at owner end.
+
+
 ## Mutex ownership and lock order
 
 `Manager.mu` guards every map, queue, journal and counter above. Engine code

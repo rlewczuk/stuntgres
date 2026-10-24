@@ -113,11 +113,20 @@ Held casts retain logical captures until normal effective-path/dependency
 invalidation reanalyzes their original SQL; fresh lookup/metadata/diagnostics use
 current names. DROP/CREATE at the same spelling is a different identity and cannot
 retarget an old parameter/result signature. PostgreSQL may instead retain a
-retired physical parameter OID and report a cache-lookup error. Existing native
-explicit-transaction and arbitrary explicit-ACL portability limits remain.
+retired physical parameter OID and report a cache-lookup error. Dump rejects
+unrepresentable explicit ACLs before emitting output.
 The SQL authority is [ALTER TYPE](https://www.postgresql.org/docs/18/sql-altertype.html)
 and [DROP TYPE](https://www.postgresql.org/docs/18/sql-droptype.html); public
 proof belongs in [reference/types](../../../reference/types/README.md#type-identity-lifecycle).
+
+The engine admits shipped domain/composite creation, domain rule changes,
+composite attribute evolution and type/domain identity/drop through its canonical
+transaction journal in autocommit, retained messages, SQL BEGIN and Go BeginTx.
+Private definitions, constraints, consuming rows and logical keys commit or roll
+back together, including savepoint recovery. Generic TYPE/DOMAIN OWNER retains its
+separate transaction policy. These handlers stage decisions only; source authority,
+historical scans and storage/index publication remain engine-owned.
+
 
 ## The stage host
 

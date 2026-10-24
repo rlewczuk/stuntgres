@@ -60,29 +60,7 @@ func pgTypeTransactionalIdentity(t *testing.T, p *fixture.Pair, b fixture.Backen
 func pgTypeTransitions(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
 	createDomain := "CREATE DOMAIN pt18_transaction AS integer"
-	if b.PG {
-		// PostgreSQL supports domain utility DDL in an explicit transaction.
-		pgTypeTransactionalIdentity(t, p, b, createDomain, "pt18_transaction")
-	} else {
-		// Preserve the existing native utility boundary, without losing the
-		// supported actual rowtype/array overlay witness below.
-		for _, prepared := range []bool{false, true} {
-			tx, err := b.DB.BeginTx(p.Ctx, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			s := fixture.ImplicitError(createDomain, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-			s.Prepared, s.ErrorStage = prepared, "execute"
-			if prepared {
-				s.ErrorStage = "prepare"
-			}
-			fixture.RunStep(t, p.Ctx, tx, b.Recorder, s)
-			if err := tx.Rollback(); err != nil {
-				t.Fatal(err)
-			}
-		}
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT typname FROM pg_type WHERE typname='pt18_transaction'", []string{"typname"}, []string{"NAME"}, nil))
-	}
+	pgTypeTransactionalIdentity(t, p, b, createDomain, "pt18_transaction")
 	// CREATE TEMP TABLE is already supported transaction-private DDL: both
 	// actual rowtype and canonical array disappear atomically on rollback.
 	pgTypeTransactionalIdentity(t, p, b, "CREATE TEMP TABLE pt18_tx_table(n integer)", "pg_temp.pt18_tx_table")

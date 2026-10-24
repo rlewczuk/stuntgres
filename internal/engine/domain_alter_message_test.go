@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"testing"
@@ -186,6 +187,14 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 }
 
 func domainAlterMessageIndexOutputs(t *testing.T) {
+	domainAlterOwnedIndexOutputs(t, false)
+}
+
+func TestTransactionalTypesPrivateDomainIndexes(t *testing.T) {
+	domainAlterOwnedIndexOutputs(t, true)
+}
+
+func domainAlterOwnedIndexOutputs(t *testing.T, explicit bool) {
 	for _, definition := range []struct{ name, column, index string }{
 		{"btree_expression", "integer", "CREATE INDEX checked_idx ON public.stored(((v::public.d)::integer))"},
 		{"hash_expression", "integer", "CREATE INDEX checked_idx ON public.stored USING hash(((v::public.d)::integer))"},
@@ -198,12 +207,30 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			for _, q := range []string{"CREATE SEQUENCE public.calls", "CREATE DOMAIN public.d AS integer CONSTRAINT counted CHECK(nextval('public.calls')>0)", "CREATE TABLE public.stored(v " + definition.column + ")", definition.index, "INSERT INTO public.stored VALUES(1)"} {
 				sessionSQL(t, s, q)
 			}
-			message := batchUnitStart(t, s, context.Background())
-			defer message.end(context.Canceled)
-			step := func(q string) {
-				t.Helper()
-				if _, err := message.step(statement(t, q)); err != nil {
-					t.Fatal(q, err)
+			var step func(string)
+			var finish func()
+			if explicit {
+				ref := transactionBegin(t, s)
+				defer func() {
+					if s.TransactionState() == session.TxActive {
+						transactionEnd(t, s, ref, false)
+					}
+				}()
+				step = func(q string) { sessionSQL(t, s, q) }
+				finish = func() { transactionEnd(t, s, ref, true) }
+			} else {
+				message := batchUnitStart(t, s, context.Background())
+				defer message.end(context.Canceled)
+				step = func(q string) {
+					t.Helper()
+					if _, err := message.step(statement(t, q)); err != nil {
+						t.Fatal(q, err)
+					}
+				}
+				finish = func() {
+					if err := message.end(nil); err != nil {
+						t.Fatal("owner publication", err)
+					}
 				}
 			}
 			step("INSERT INTO public.stored VALUES(2)")
@@ -241,9 +268,7 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			if e.storage.Sequences[sequence].Last != 2 {
 				t.Fatal("metadata truth replay")
 			}
-			if err := message.end(nil); err != nil {
-				t.Fatal("owner publication", err)
-			}
+			finish()
 			if e.storage.Sequences[sequence].Last != 2 {
 				t.Fatal("owner publication replayed CHECK truth")
 			}

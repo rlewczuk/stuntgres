@@ -62,17 +62,11 @@ func TestReferenceInfoDomainConstraintsDiagnostics(t *testing.T) {
 				}
 				defer tx.Rollback()
 				q := "ALTER DOMAIN dc_scope.a ADD CONSTRAINT transactional CHECK(VALUE<100)"
-				if b.PG {
-					s := fixture.Exec(q, 0)
-					s.Prepared = prepared
-					fixture.RunStep(t, p.Ctx, tx, r, s)
-					scope := append(append([][]any(nil), want...), dcRow(database, "dc_scope", "transactional", "a"))
-					fixture.RunStep(t, p.Ctx, tx, r, dcProjection(b.PG, where, scope))
-				} else {
-					s := fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction"))
-					s.Prepared, s.ErrorStage = prepared, "execute"
-					fixture.RunStep(t, p.Ctx, tx, r, s)
-				}
+				s := fixture.Exec(q, 0)
+				s.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, tx, r, s)
+				scope := append(append([][]any(nil), want...), dcRow(database, "dc_scope", "transactional", "a"))
+				fixture.RunStep(t, p.Ctx, tx, r, dcProjection(b.PG, where, scope))
 				if err := tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}

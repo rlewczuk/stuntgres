@@ -79,6 +79,11 @@ type catalogRowShape struct {
 	observedLength int
 	observedEnds   *storage.DeletionRoot
 	generation     uint64
+	// Typed evolution has already transformed its own rows alongside the heap.
+	ownProjected bool
+	rewritten    bool
+	frontier     ids.CommitSeq
+	fills        map[int32]sqltype.Value
 }
 
 // CatalogStage is a private catalog change: the pure overlay it embeds plus

@@ -9,7 +9,7 @@ import (
 )
 
 func TestReferenceDomainAlterConstraintBoundaries(t *testing.T) {
-	domainAlterScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder, _ *[]fixture.Diagnostic) {
+	domainAlterScenario(t, func(t *testing.T, p *fixture.Pair, _ fixture.Backend, c *sql.Conn, r *fixture.Recorder, _ *[]fixture.Diagnostic) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 		run(fixture.Exec("CREATE DOMAIN domain_s.d AS integer CONSTRAINT keep CHECK(VALUE<10)", 0))
 		for _, q := range []string{"ALTER DOMAIN domain_s.d ADD CONSTRAINT positive CHECK(VALUE>0) NOT VALID", "ALTER DOMAIN domain_s.d VALIDATE CONSTRAINT keep", "ALTER DOMAIN domain_s.d DROP CONSTRAINT keep", "ALTER DOMAIN domain_s.d SET DEFAULT 7", "ALTER DOMAIN domain_s.d DROP DEFAULT", "ALTER DOMAIN domain_s.d SET NOT NULL", "ALTER DOMAIN domain_s.d DROP NOT NULL"} {
@@ -26,11 +26,16 @@ func TestReferenceDomainAlterConstraintBoundaries(t *testing.T) {
 				defer stmt.Close()
 				held := fixture.HeldStatement{Executor: tx, Statement: stmt, SQL: q}
 				fixture.RunStep(t, p.Ctx, tx, r, domainAlterFlags("d", [][]any{{"keep", true}}))
-				if b.PG {
-					fixture.RunStep(t, p.Ctx, held, r, fixture.Exec(q, 0))
-				} else {
-					fixture.RunStep(t, p.Ctx, held, r, fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")))
+				fixture.RunStep(t, p.Ctx, held, r, fixture.Exec(q, 0))
+				flags := [][]any{{"keep", true}}
+				if strings.Contains(q, "ADD CONSTRAINT") {
+					flags = append(flags, []any{"positive", false})
+				} else if strings.Contains(q, "DROP CONSTRAINT") {
+					flags = nil
+				} else if strings.Contains(q, "SET NOT NULL") {
+					flags = [][]any{{"d_not_null", true}, {"keep", true}}
 				}
+				fixture.RunStep(t, p.Ctx, tx, r, domainAlterFlags("d", flags))
 				if err := tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}

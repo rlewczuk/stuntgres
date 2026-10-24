@@ -61,16 +61,13 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 
 func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
 	var changes *session.Journal
-	if stage.authSession != nil && stage.authSession.Transactions.RetainsTransaction() {
+	if stage.authSession != nil && (stage.authSession.Transactions.State == session.TxActive || stage.authSession.Transactions.RetainsTransaction()) {
 		changes = stage.authSession.Transactions.Catalog
 	}
 	return index.EffectiveRoot(e.storage.IndexRoots, changes, address)
 }
 
-func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes *session.Journal) error {
-	if stage.domainAlter.AlterContext() == nil {
-		return nil
-	}
+func (scope *StatementScope) reownTypeOverlayRows(stage *CatalogStage, changes *session.Journal) error {
 	e := scope.engine()
 	e.mu.Lock()
 	next := e.privateCatalogLocked(changes).State()
@@ -98,7 +95,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 				}
 			}
 		}
-		if scope.owner.Isolation.Stable() && !shape.HasSnapshot {
+		if scope.owner.Isolation.Stable() && !shape.HasSnapshot && !shape.Rewritten {
 			scope.owner.Mu.Lock()
 			snapshot, exists := scope.owner.Roots[address]
 			scope.owner.Mu.Unlock()

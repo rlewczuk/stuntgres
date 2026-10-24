@@ -36,7 +36,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err = scope.projectCatalogOverlayShapes(stage, changes); err != nil {
 		return err
 	}
-	if err = scope.reownDomainOverlayRows(stage, changes); err != nil {
+	if err = scope.reownTypeOverlayRows(stage, changes); err != nil {
 		return err
 	}
 	if r := stage.materializedOrZero().Replacement; r != nil {
@@ -96,6 +96,10 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 			shape.MaterializedConcurrent, shape.MaterializedContinuous = false, false
 		}
 		shape.Replacement = rowShape.replacement
+		if rowShape.rewritten {
+			shape.Rewritten, shape.Frontier = true, rowShape.frontier
+			shape.Snapshot, shape.HasSnapshot = nil, false
+		}
 		shape.Relation, _ = stage.Get(a).(*catalog.Relation)
 		if shape.Relation == nil {
 			// An index-expression-only domain generation changes executable

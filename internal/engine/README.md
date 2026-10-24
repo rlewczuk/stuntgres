@@ -232,10 +232,13 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   NO DATA resolves source names and output types but does not demand the skipped
   SELECT executor's privileges.
 - `session.TransactionalSchemaUtility` selects the table, schema, trigger,
-  view and materialized-view DDL (including REFRESH) that Describe and Execute
-  run on the existing transaction journal
-  ([policy](session/README.md#what-it-owns)). Concurrent index variants keep
-  their independent restrictions.
+  view and materialized-view DDL (including ordinary/concurrent REFRESH), domain/
+  composite creation and alterations, and type/domain identity/drop that Describe
+  and Execute run on the existing transaction journal
+  ([policy](session/README.md#what-it-owns)). CREATE TRIGGER retains its independent
+  utility policy. Generic OWNER admits only tables; feature-specific view/
+  materialized OWNER is AlterView. Concurrent index variants keep their independent
+  restrictions.
 - Ordinary non-concurrent CREATE INDEX (including UNIQUE and shipped methods)
   is admitted separately at Execute. It uses the same private catalog/storage,
   journal, Finish and combined publication path as table/schema DDL. Its canonical
@@ -278,6 +281,18 @@ ticket through transaction end. A queued refresh keeps its admitted source
 snapshot rather than silently recapturing after the wait. Only uninterrupted
 concurrent replacements preserve the concurrent-reader lineage.
 
+Type/domain candidates use the same private catalog, storage and index roots in
+explicit transactions and retained messages. Historical domain validation scans
+selected committed heads plus own writes, excluding replaced/deleted predecessors.
+Composite evolution transforms heap layouts and own rows together; logical-key
+validation includes own rows at the ALTER statement, with produced index outputs
+retained rather than replayed at Finish. Savepoints restore these paired roots.
+Type metadata edits retain exact source TypeExclusive authority. Composite rename
+and attribute evolution also own the real backing relation AX; attribute propagation
+then locks its typed-table closure in deterministic order. Schema moves do not add
+backing AX. Grants recapture exact private providers and authorization, never a
+same-named replacement or a fabricated scalar relation.
+
 - `session.ExplicitUtility` admits the shipped COMMENT kinds (TABLE, COLUMN,
   FOREIGN TABLE, SCHEMA, ROLE and SEQUENCE) in SQL BEGIN and Go BeginTx.
   Describe remains effect-free; Execute preserves read-only and aborted-state
@@ -296,7 +311,7 @@ Catalog inquiry rows capture their statement's metadata values; retained results
 remain immutable after later changes or rollback. Those row snapshots are not
 permission to reuse stale internal identity or authorization.
 
-Relation/schema candidates resolve against current committed state plus the owner's
+Relation/schema/type candidates resolve against current committed state plus the owner's
 private catalog and storage in both explicit and retained-message transactions.
 `publishCatalogOperation` claims only changed namespace,
 relation and type destination names through the existing lock ticket, then

@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
 
@@ -135,7 +134,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		return nil
 	}
 	e.mu.Lock()
-	store := e.storage.Relations[old.Address()]
+	store := e.stageStorageLocked(stage, old.Address())
 	frontier := e.visibility.CommitSeq()
 	e.mu.Unlock()
 	if store == nil {
@@ -178,9 +177,10 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			return err
 		}
 	}
+	sourceWrites, projectedDeletes := scope.columnProjectionRoots(old.Address())
+	projectedWrites := sourceWrites
 	if rewrite {
-		writes, deletes := scope.columnProjectionRoots(old.Address())
-		replacement, _, _, err = table.RewriteTypeRows(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), old, next, store, frontier, writes, deletes, mutation.transforms, mutation.additions, nil, validator)
+		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), old, next, store, frontier, sourceWrites, projectedDeletes, mutation.transforms, mutation.additions, nil, validator)
 	} else if !slices.Equal(old.Attributes, next.Attributes) {
 		projection, projectionErr := session.NewColumnProjection(old, next, fills)
 		if projectionErr != nil {
@@ -194,22 +194,16 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			return fmt.Errorf("stuntgres: storage generation exhausted")
 		}
 		replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
+		projectedWrites, err = projection.Versions(scope.op.Context(), sourceWrites)
+		projectedDeletes = session.ProjectDeletions(projectedDeletes, replacement)
 	}
 	if err != nil {
 		return err
 	}
 	if !rewrite && len(mutation.checks) != 0 {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		for _, row := range replacement.Versions {
-			if err := scope.op.Context().Err(); err != nil {
-				return err
-			}
-			if !visibility.LiveVersion(row, frontier, replacement.Ends, nil) {
-				continue
-			}
-			if err := validator.Validate(row.Values, &evaluation); err != nil {
-				return err
-			}
+		if err := table.ValidateAddedConstraintRows(evaluation, validator, replacement.Versions, replacement.Ends, frontier, projectedWrites, projectedDeletes); err != nil {
+			return err
 		}
 	}
 	e.mu.Lock()
@@ -233,35 +227,60 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	if rewrite || len(mutation.transforms) != 0 {
 		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, disclosureEnv(&auth), e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil, rewrite)
+		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, disclosureEnv(&auth), e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, mutation.transforms, nil, nil, rewrite)
 		if err != nil {
 			return err
+		}
+		projectedWrites, _, err = index.AttachIndexBuildOutputs(scope.op.Context(), projectedWrites, builds)
+		if err != nil {
+			return err
+		}
+		var positions map[index.RowIdentity]int
+		for _, build := range builds {
+			if build.Store != replacement {
+				positions, err = index.BuildPositions(scope.op.Context(), replacement)
+				if err != nil {
+					return err
+				}
+				break
+			}
 		}
 		for _, build := range builds {
 			if stage.indexesOrZero().Candidates == nil {
 				stage.indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
 			}
-			stage.indexes().Candidates[build.Index.Address()] = index.RootCandidate{Index: build.Index, Root: build.Root, Storage: replacement.IndexIdentity(), Generation: replacement.Generation, Ends: replacement.Ends, Length: len(replacement.Versions)}
+			root, err := build.BaselineRoot(scope.op.Context(), build.Index, replacement, positions)
+			if err != nil {
+				return err
+			}
+			stage.indexes().Candidates[build.Index.Address()] = index.RootCandidate{Index: build.Index, Root: root, Storage: replacement.IndexIdentity(), Generation: replacement.Generation, Ends: replacement.Ends, Length: len(replacement.Versions)}
 		}
 	}
 	if replacement != store {
 		if stage.rowShapes == nil {
 			stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
 		}
-		stage.rowShapes[old.Address()] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation}
+		stage.rowShapes[old.Address()] = catalogRowShape{original: store, root: store.Versions, replacement: replacement, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation, ownProjected: true, rewritten: rewrite, frontier: frontier, fills: fills}
 	}
 	if !rewrite && len(stage.indexesOrZero().Layouts) != 0 {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		transported := session.NewJournal()
-		if _, _, err := transportIndexLayouts(&evaluation, stage, transported, next, store, replacement, nil, nil); err != nil {
+		transported := scope.owner.Catalog.Clone()
+		projectedWrites, _, err = transportIndexLayouts(&evaluation, stage, transported, next, store, replacement, sourceWrites, projectedWrites)
+		if err != nil {
 			return err
 		}
 		for address, candidate := range index.JournalIndexesOrZero(transported).Candidates {
+			if _, changed := stage.indexesOrZero().Layouts[address]; !changed || candidate.Index.SQLIndex.Parent != old.Address() {
+				continue
+			}
 			if stage.indexesOrZero().Candidates == nil {
 				stage.indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
 			}
 			stage.indexes().Candidates[address] = candidate
 		}
+	}
+	if replacement != store || len(mutation.transforms) != 0 {
+		scope.stageProjectedColumnRoots(old.Address(), projectedWrites, projectedDeletes)
 	}
 	return nil
 }

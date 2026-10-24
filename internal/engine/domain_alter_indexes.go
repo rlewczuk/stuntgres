@@ -30,7 +30,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		}
 	}
 	var private *session.Journal
-	if stage.authSession != nil && stage.authSession.Transactions.RetainsTransaction() {
+	if stage.authSession != nil && (stage.authSession.Transactions.State == session.TxActive || stage.authSession.Transactions.RetainsTransaction()) {
 		private = stage.authSession.Transactions.Catalog
 	}
 	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter.AlterContext(), stage.Base, sources, sourceRoots, e.visibility.CommitSeq(), stores, private)

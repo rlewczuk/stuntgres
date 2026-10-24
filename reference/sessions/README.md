@@ -50,6 +50,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   utility preparation stays quiet; materialized creation retains source
   analysis. Check command counts, Ready states, private peer invisibility,
   held-reader freshness and rollback/savepoint recovery through the same server.
+- Transactional domain/composite/type utilities reuse those raw helpers for
+  simple messages and held named Parse/Describe(S), Bind/Describe(P)/Execute.
+  Assert effect-free preparation, utility NoData/tags, private owner effects,
+  peer invisibility, bound consumers and error/savepoint/readiness recovery.
 - Keep the comparison wire matrix pipelined: one server fixture, a fresh session
   per left source, and each pair's cells sent as one pipeline of Sync-terminated
   groups whose responses are checked in order.
@@ -101,11 +105,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Prepared-statement revalidation and rebind: `RUN='^TestReferencePrepared(Rebind|QueryRevalidates)'`
 - DISCARD: `RUN='^TestReferenceDiscard'`
 - SQL PREPARE/EXECUTE/DEALLOCATE: `RUN='^TestReferenceSQLPrepared'`
-- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol|TransactionalMaterializedRefreshProtocol)'`
+- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol|TransactionalMaterializedRefreshProtocol|TransactionalTypesProtocol)'`
 - Wire extended protocol and portals: `RUN='^TestReferenceServer(Extended|Portal|Unnamed|FailedPortal|WrappedPortal)'`
 - Wire transactional comments: `RUN='^TestReferenceTransactionalCommentProtocol$'`
 - Wire transactional view/materialized definitions: `RUN='^TestReferenceTransactionalViewsProtocol$'`
 - Wire transactional materialized refresh: `RUN='^TestReferenceTransactionalMaterializedRefreshProtocol$'`
+- Wire transactional domain/composite/type lifecycle: `RUN='^TestReferenceTransactionalTypesProtocol$'`
 - Wire COPY: `RUN='^TestReferenceServer(Copy|PreparedCopy)'`
 - Wire comparison matrix: `RUN='^TestReferenceServerComparison'`
 - Wire notifications: `RUN='^TestReferenceServerNotifications'`
