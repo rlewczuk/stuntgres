@@ -111,11 +111,11 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   occurrence, not the whole rewritten command; substituted fresh inputs return
   to their own source lane. Consumed-call dedup retains recipe and original
   declaration identity in addition to reference, consumer and actor.
-  Aggregate/window admission receives the original checked declaration, including
-  every independently captured alias sharing aggregate state. An old manifest
-  stamp is never paired with a borrowed current descriptor. Only the existing
-  hard lane follows mutable revisions; direct and genuinely ref-only lanes stay
-  strict. Each occurrence, including each alias, still checks current EXECUTE.
+  Aggregate/window admission receives each slot's original checked declaration.
+  Distinct aggregate declarations retain separate slots even when their providers
+  compute equal values. An old manifest stamp is never paired with a borrowed
+  current descriptor. Only the existing hard lane follows mutable revisions;
+  direct and genuinely ref-only lanes stay strict. Each slot checks current EXECUTE.
   Query grouping and window peer equality use that same original-declaration
   fence, with recipe ancestry selected by the owning query key rather than its
   possibly substituted expression. The nil-carrier revision rejection remains

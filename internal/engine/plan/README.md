@@ -29,8 +29,8 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   `CycleRecipe`, `CTEDefinition`, `CTEMutation`, `FunctionCorrelation`,
   `SetTemplate`, `SetStep`, `SetStepKind`, `SetSlot`, `RowMark` and
   `SQLJSONArrayQuery`.
-  Aggregate calls and independently admitted aliases retain opaque defining
-  recipe identity; windows carry it on their original occurrence's `Info`.
+  Each declaration-specific aggregate slot retains its original owning declaration,
+  reference and opaque defining recipe; windows carry the recipe on their original occurrence's `Info`.
   The token separates graft ancestry, not catalog permission or execution.
   Query `Grouping` keys and window peer `SortKey`s retain their selected original
   equality declaration beside its reference and defining recipe in the existing

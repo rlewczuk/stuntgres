@@ -2,10 +2,8 @@ package analyze
 
 import (
 	"fmt"
-	"slices"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -188,7 +186,6 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 		for i, existing := range b.Grouping.Aggregates {
 			if b.SameAggregateCall(call, existing) {
 				slot = i
-				b.Grouping.Aggregates[i] = mergeAggregateRoutineAliases(existing, call)
 				break
 			}
 		}
@@ -199,29 +196,6 @@ func (b *Binder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCa
 	return plan.AggregateExpr{Info: info, Slot: slot, Frame: b.FrameID()}, nil
 }
 
-// Builtin aliases share computation, not EXECUTE authority. Copy only when a
-// distinct written identity is added so published/outer-owner slices stay immutable.
-func mergeAggregateRoutineAliases(dst, src plan.AggregateCall) plan.AggregateCall {
-	copied := false
-	add := func(alias plan.AggregateRoutineAlias) {
-		ref := alias.Ref
-		if ref == (ids.ObjectRef{}) || ref == dst.Routine && alias.Procedure == dst.Procedure && alias.Recipe == dst.RoutineRecipe || slices.ContainsFunc(dst.RoutineAliases, func(existing plan.AggregateRoutineAlias) bool { return existing == alias }) {
-			return
-		}
-		if !copied {
-			aliases := make([]plan.AggregateRoutineAlias, len(dst.RoutineAliases), len(dst.RoutineAliases)+len(src.RoutineAliases)+1)
-			copy(aliases, dst.RoutineAliases)
-			dst.RoutineAliases = aliases
-			copied = true
-		}
-		dst.RoutineAliases = append(dst.RoutineAliases, alias)
-	}
-	add(plan.AggregateRoutineAlias{Ref: src.Routine, Procedure: src.Procedure, Recipe: src.RoutineRecipe})
-	for _, alias := range src.RoutineAliases {
-		add(alias)
-	}
-	return dst
-}
 
 func (b *Binder) SameAggregateCall(a, other plan.AggregateCall) bool {
 	if a.RoutineRecipe != other.RoutineRecipe {
@@ -230,6 +204,9 @@ func (b *Binder) SameAggregateCall(a, other plan.AggregateCall) bool {
 	builtin := a.Procedure != nil && a.Procedure.Builtin != nil
 	otherBuiltin := other.Procedure != nil && other.Procedure.Builtin != nil
 	if builtin != otherBuiltin || !builtin && !plan.SameIntaggIdentity(a.Procedure, a.Ref, other.Procedure, other.Ref) {
+		return false
+	}
+	if builtin && (a.Routine != other.Routine || a.Procedure != other.Procedure) {
 		return false
 	}
 	if p, ok := a.Provider.(functions.JSONObjectAggregate); ok {

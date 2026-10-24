@@ -8,6 +8,11 @@ real domain, sequence, collation, foreign-wrapper and foreign-server USAGE
 origins. Enabled-role visibility and named-grantee grantability refresh across
 direct and held prepared reads, preserving raw-NULL versus empty ACL semantics.
 
+Aggregate slot reuse now preserves selected declaration identity for bool_and/every,
+variance/var_samp and stddev/stddev_samp, including modifiers and outer-owned calls.
+Repeated immutable calls to one declaration still share; distinct declarations
+retain independent original proofs and current-invoker EXECUTE admission.
+
 information_schema.role_udt_grants now exposes seven domain-typed columns over
 actual composite type USAGE grant origins, including represented catalog row
 types. Named grantors, grant options and inherited enabled-role visibility

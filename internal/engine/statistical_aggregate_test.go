@@ -12,11 +12,29 @@ import (
 )
 
 func TestStatisticalAggregateSlotsAndMetadata(t *testing.T) {
-	_, q, source := queryCoreFixture(t, "SELECT var_pop(1),var_pop(1),var_samp(1),stddev_pop(1),stddev_samp(1),variance(1),stddev(1),regr_slope(2,1),regr_sxx(2,1),regr_sxy(2,1),regr_syy(2,1) FROM t")
+	engine, q, source := queryCoreFixture(t, "SELECT var_pop(1),var_pop(1),var_samp(1),stddev_pop(1),stddev_samp(1),variance(1),stddev(1),regr_slope(2,1),regr_sxx(2,1),regr_sxy(2,1),regr_syy(2,1) FROM t")
 	defer source.Close()
 	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
-	if len(node.Calls) != 8 {
-		t.Fatal("final-operation sharing", len(node.Calls))
+	if len(node.Calls) != 10 {
+		t.Fatal("selected declaration identity or repeated-call reuse", len(node.Calls))
+	}
+	project := q.Root.(*plan.ProjectNode)
+	for i, slot := range []int{0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
+		selected := project.Expressions[i].(plan.GroupExpr)
+		if selected.Slot != slot || selected.Frame != project.Expressions[0].(plan.GroupExpr).Frame {
+			t.Fatal("selected declaration projection slot/frame", i, selected, slot)
+		}
+	}
+	for i, name := range []string{"var_pop", "var_samp", "stddev_pop", "stddev_samp", "variance", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy"} {
+		call := node.Calls[i]
+		if call.Routine == (ids.ObjectRef{}) || call.Procedure == nil || call.Procedure.Name() != name || call.Procedure.Address() != call.Routine.Address || engine.CatalogRead().MustProcedure(call.Routine.Address) != call.Procedure {
+			t.Fatal("genuine selected statistical declaration missing", name, call)
+		}
+		for _, earlier := range node.Calls[:i] {
+			if call.Routine == earlier.Routine || call.Procedure == earlier.Procedure {
+				t.Fatal("distinct statistical declarations share identity", name, call, earlier)
+			}
+		}
 	}
 	for i, c := range q.Root.Schema() {
 		want := sqltype.Numeric

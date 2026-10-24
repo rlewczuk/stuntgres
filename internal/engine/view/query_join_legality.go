@@ -216,21 +216,6 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				if err := exec.AdmitRoutineReference(&local, call.Routine, call.Procedure, "aggregate"); err != nil {
 					return err
 				}
-				for _, alias := range call.RoutineAliases {
-					aliasContext := *c
-					recipe, err := exec.ExpressionRecipeDescriptor(alias)
-					if err != nil {
-						return err
-					}
-					if recipe != nil && (!aliasContext.RoutineGraft || aliasContext.RoutineGraftSource != recipe) || recipe == nil && aliasContext.RoutineGraft {
-						if err := exec.SelectExpressionRecipe(&aliasContext, recipe); err != nil {
-							return err
-						}
-					}
-					if err := exec.AdmitRoutineReference(&aliasContext, alias.Ref, alias.Procedure, "aggregate"); err != nil {
-						return err
-					}
-				}
 				if err := exec.AdmitAggregateSupport(&local, call.Provider); err != nil {
 					return err
 				}

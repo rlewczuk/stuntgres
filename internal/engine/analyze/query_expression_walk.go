@@ -112,7 +112,6 @@ func (b *Binder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 			for i, existing := range s.aggregates {
 				if b.SameAggregateCall(call, existing) {
 					e.Slot = i
-					s.aggregates[i] = mergeAggregateRoutineAliases(existing, call)
 					break
 				}
 			}

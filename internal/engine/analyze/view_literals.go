@@ -321,17 +321,7 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 					}
 				}
 				if call.Procedure != nil && call.Procedure.Builtin != nil {
-					p, ref := call.Procedure, call.Routine
-					// Select the written occurrence only from the independently
-					// captured declarations sharing this computation.
-					for _, alias := range call.RoutineAliases {
-						candidate := alias.Procedure
-						if candidate != nil && (candidate.Name() == r.Name || candidate.Builtin != nil && candidate.Builtin.Identity.Name == r.Name) {
-							p, ref = candidate, alias.Ref
-							break
-						}
-					}
-					if err := b.captureProviderReference(path, r, p, ref); err != nil {
+					if err := b.captureProviderReference(path, r, call.Procedure, call.Routine); err != nil {
 						return err
 					}
 				}

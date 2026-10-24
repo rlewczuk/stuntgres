@@ -15,30 +15,27 @@ func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
 	engine, q, source := queryCoreFixture(t, "SELECT count(f),bool_and(f),bool_or(f),every(f),bool_and(f) FROM t")
 	defer source.Close()
 	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
-	if len(node.Calls) != 3 {
-		t.Fatal("operation identity or alias sharing", len(node.Calls))
+	if len(node.Calls) != 4 {
+		t.Fatal("selected declaration identity or repeated-call reuse", len(node.Calls))
 	}
-	aliases := node.Calls[1].RoutineAliases
-	if len(aliases) != 1 {
-		t.Fatal("shared Boolean aliases lost or duplicated", aliases)
+	every := node.Calls[3]
+	if every.Procedure == nil || every.Procedure.Address() != every.Routine.Address || every.Procedure.Name() != "every" || engine.CatalogRead().MustProcedure(every.Routine.Address) != every.Procedure || every.Routine == node.Calls[1].Routine {
+		t.Fatal("independent selected Boolean declaration proof missing", every)
 	}
-	aliasRef := aliases[0].Ref
-	if aliases[0].Procedure == nil || aliases[0].Procedure.Address() != aliasRef.Address || node.Calls[1].Procedure == nil {
-		t.Fatal("shared builtin declaration proof missing", node.Calls[1])
-	}
-	alias, ok := engine.CatalogRead().Procedure(aliasRef.Address)
-	if !ok || alias.Name() != "every" {
-		t.Fatal("wrong shared Boolean alias", alias)
+	project := q.Root.(*plan.ProjectNode)
+	first, repeated := project.Expressions[1].(plan.GroupExpr), project.Expressions[4].(plan.GroupExpr)
+	if first.Slot != repeated.Slot || first.Frame != repeated.Frame {
+		t.Fatal("repeated bool_and no longer reuses its slot", first, repeated)
 	}
 	mapped, err := stored.RemapViewQuery(engine.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef {
 		return ref
 	}, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 	if err != nil {
-		t.Fatal("shared alias remap", err)
+		t.Fatal("independent declaration remap", err)
 	}
-	mapped.(*plan.AggregateNode).Calls[1].RoutineAliases[0].Ref = node.Calls[0].Routine
-	if node.Calls[1].RoutineAliases[0].Ref != aliasRef {
-		t.Fatal("alias remap mutated source")
+	mapped.(*plan.AggregateNode).Calls[3].Routine = node.Calls[0].Routine
+	if node.Calls[3].Routine != every.Routine {
+		t.Fatal("declaration remap mutated source")
 	}
 	for i, c := range q.Root.Schema() {
 		if !c.NullabilityKnown || c.Nullable != (i != 0) || c.OriginTable != 0 || c.OriginAttribute != 0 || c.Usage.Typmod != -1 {

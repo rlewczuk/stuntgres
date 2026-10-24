@@ -61,10 +61,11 @@ library, and never the root engine or `session`. The engine, the root driver
   without mutating shared syntax. Proof:
   `make check RUN='^(TestCreateAggregateStoredSyntaxCastOwnership|TestStoredProviderSyntax(GeneratedOccurrences|SubstitutedRoot|OwnedAggregateOccurrence|FunctionCastOccurrence)|TestSQLRoutineFrozenPresentation)$'`.
   Builtin aggregate/window plans retain original checked declarations from the
-  binding snapshot alongside refs. Shared `bool_and`/`every` computation retains
-  separate declaration/ref pairs and EXECUTE proofs; COUNT star/input identities
-  are separate too. Literal capture selects this occurrence inventory, not a new
-  spelling lookup. Frozen views/standard bodies prove originals after relabel,
+  binding snapshot alongside refs. Aggregate slot reuse requires the same selected
+  declaration, owning descriptor, recipe and complete immutable call shape.
+  Value aliases such as `bool_and`/`every` retain separate slots and EXECUTE proofs.
+  Literal capture uses each slot's declaration, not a spelling lookup.
+  Frozen views/standard bodies prove originals after relabel,
   relocation or owner COW; direct source resolves current public identity.
   The same capture pair belongs to DISTINCT (including ON), GROUP BY, set and
   recursive CYCLE-mark grouping keys, and window partition/peer equality.

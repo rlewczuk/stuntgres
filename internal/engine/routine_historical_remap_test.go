@@ -37,7 +37,9 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	aggregate := &plan.AggregateNode{Child: &plan.SingletonNode{}, Calls: []plan.AggregateCall{{
 		Provider: functions.NewBooleanAggregateProvider(boolean.Usage(), true),
 		Routine:  ref(originals["bool_and"]), Procedure: originals["bool_and"],
-		RoutineAliases: []plan.AggregateRoutineAlias{{Ref: ref(originals["every"]), Procedure: originals["every"]}},
+	}, {
+		Provider: functions.NewBooleanAggregateProvider(boolean.Usage(), true),
+		Routine: ref(originals["every"]), Procedure: originals["every"],
 	}}}
 	window := &plan.WindowNode{Child: aggregate, Calls: []plan.WindowCall{{Routine: ref(originals["row_number"]), Procedure: originals["row_number"], Expression: &plan.WindowExpr{Info: expr.Info{Usage: integer.Usage()}}}}}
 	candidate := catalog.CloneState(source.catalog.State)
@@ -75,7 +77,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	}
 	mappedWindow := mapped.(*plan.WindowNode)
 	mappedAggregate := mappedWindow.Child.(*plan.AggregateNode)
-	captured := []*catalog.Procedure{mappedAggregate.Calls[0].Procedure, mappedAggregate.Calls[0].RoutineAliases[0].Procedure, mappedWindow.Calls[0].Procedure}
+	captured := []*catalog.Procedure{mappedAggregate.Calls[0].Procedure, mappedAggregate.Calls[1].Procedure, mappedWindow.Calls[0].Procedure}
 	for i, name := range []string{"bool_and", "every", "row_number"} {
 		old, got := originals[name], captured[i]
 		current, _ := view.Procedure(old.Address())
@@ -100,15 +102,15 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 			t.Fatal("raw remap refreshed a historical manifest or changed its source", dependency)
 		}
 	}
-	if mappedAggregate.Calls[0].RoutineAliases[0].Ref.Address != captured[1].Address() || mappedWindow.Calls[0].Routine.Address != captured[2].Address() {
-		t.Fatal("alias/window references separated from their original proofs")
+	if mappedAggregate.Calls[1].Routine.Address != captured[1].Address() || mappedWindow.Calls[0].Routine.Address != captured[2].Address() {
+		t.Fatal("aggregate/window references separated from their original proofs")
 	}
 	forged := *originals["every"]
 	forged.Owner = target.roles.Domain.Principal(forged.Owner.ID())
 	if _, err := procedure(&forged); err == nil {
 		t.Fatal("target-domain owner rescued an imported-source carrier")
 	}
-	if aggregate.Calls[0].RoutineAliases[0].Procedure != originals["every"] || window.Calls[0].Procedure != originals["row_number"] {
+	if aggregate.Calls[1].Procedure != originals["every"] || window.Calls[0].Procedure != originals["row_number"] {
 		t.Fatal("query remap mutated the source captures")
 	}
 }

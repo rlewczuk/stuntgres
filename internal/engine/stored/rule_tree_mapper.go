@@ -204,10 +204,6 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 					call.RoutineRecipe = mapping.Recipe
 					call.Distinct = groupings(call.Distinct)
 					call.Order = order(call.Order)
-					call.RoutineAliases = slices.Clone(call.RoutineAliases)
-					for j := range call.RoutineAliases {
-						call.RoutineAliases[j].Recipe = mapping.Recipe
-					}
 					copy.Calls[i] = call
 				}
 				mapped = &copy

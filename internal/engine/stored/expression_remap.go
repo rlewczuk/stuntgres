@@ -863,16 +863,6 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 				copy.Calls[i].Procedure, err = m.procedure(call.Procedure)
 			}
 			copy.Calls[i].Routine = ref(call.Routine)
-			if len(call.RoutineAliases) != 0 {
-				copy.Calls[i].RoutineAliases = make([]plan.AggregateRoutineAlias, len(call.RoutineAliases))
-				for j, alias := range call.RoutineAliases {
-					copy.Calls[i].RoutineAliases[j] = alias
-					copy.Calls[i].RoutineAliases[j].Ref = ref(alias.Ref)
-					if err == nil {
-						copy.Calls[i].RoutineAliases[j].Procedure, err = m.procedure(alias.Procedure)
-					}
-				}
-			}
 			provider, ok := call.Provider.(functions.RemappableProvider)
 			if !ok {
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")

@@ -13,8 +13,13 @@ import (
 )
 
 // The public regression proves real view/body execution and ACL transitions.
-// This unit checks the otherwise unobservable proof boundary: a shared alias
-// must retain its OWN historical declaration, never the primary/current one.
+// Each slot must retain its own historical declaration, never another slot's
+// declaration or a replacement from the current catalog.
+type routineTestCapture struct {
+	Ref ids.ObjectRef
+	Procedure *catalog.Procedure
+}
+
 func TestRoutineBuiltinCapturedDeclarations(t *testing.T) {
 	for _, query := range []string{
 		"SELECT bool_and(f),every(f),bool_and(f) FROM t",
@@ -27,35 +32,34 @@ func TestRoutineBuiltinCapturedDeclarations(t *testing.T) {
 		t.Run(query, func(t *testing.T) {
 			e, bound, source := queryCoreFixture(t, query)
 			defer source.Close()
-			var captures []plan.AggregateRoutineAlias
+			var captures []routineTestCapture
 			plan.VisitExecutableQuery(bound.Root, func(node plan.Node) {
 				switch n := node.(type) {
 				case *plan.AggregateNode:
-					if query == "SELECT bool_and(f),every(f),bool_and(f) FROM t" && (len(n.Calls) != 1 || len(n.Calls[0].RoutineAliases) != 1) {
-						t.Fatal("shared computation no longer retains one independent alias", n.Calls)
+					if query == "SELECT bool_and(f),every(f),bool_and(f) FROM t" && len(n.Calls) != 2 {
+						t.Fatal("distinct declarations did not retain independent slots", n.Calls)
 					}
 					for _, group := range n.Grouping {
-						captures = append(captures, plan.AggregateRoutineAlias{Ref: group.Routine, Procedure: group.Procedure})
+						captures = append(captures, routineTestCapture{Ref: group.Routine, Procedure: group.Procedure})
 					}
 					for _, call := range n.Calls {
-						captures = append(captures, plan.AggregateRoutineAlias{Ref: call.Routine, Procedure: call.Procedure})
-						captures = append(captures, call.RoutineAliases...)
+						captures = append(captures, routineTestCapture{Ref: call.Routine, Procedure: call.Procedure})
 					}
 				case *plan.WindowNode:
 					for _, call := range n.Calls {
-						captures = append(captures, plan.AggregateRoutineAlias{Ref: call.Routine, Procedure: call.Procedure})
+						captures = append(captures, routineTestCapture{Ref: call.Routine, Procedure: call.Procedure})
 					}
 					for _, spec := range n.Specs {
 						for _, group := range spec.Grouping {
-							captures = append(captures, plan.AggregateRoutineAlias{Ref: group.Routine, Procedure: group.Procedure})
+							captures = append(captures, routineTestCapture{Ref: group.Routine, Procedure: group.Procedure})
 						}
 						for _, key := range spec.Order {
-							captures = append(captures, plan.AggregateRoutineAlias{Ref: key.EqualityRoutine, Procedure: key.EqualityProcedure})
+							captures = append(captures, routineTestCapture{Ref: key.EqualityRoutine, Procedure: key.EqualityProcedure})
 						}
 					}
 				case *plan.DistinctNode:
 					for _, group := range n.Grouping {
-						captures = append(captures, plan.AggregateRoutineAlias{Ref: group.Routine, Procedure: group.Procedure})
+						captures = append(captures, routineTestCapture{Ref: group.Routine, Procedure: group.Procedure})
 					}
 				}
 			}, func(expr.Expr) {})
@@ -90,6 +94,14 @@ func TestRoutineBuiltinCapturedDeclarations(t *testing.T) {
 				if err := exec.AdmitRoutineReference(&context, capture.Ref, nil, "function"); err == nil {
 					t.Fatal("reference-only occurrence acquired historical declaration proof")
 				}
+				if err := exec.AdmitRoutineReference(&context, ids.ObjectRef{}, capture.Procedure, "function"); err == nil {
+					t.Fatal("descriptor-only occurrence acquired reference proof")
+				}
+				withoutManifest := context
+				withoutManifest.RoutineChecks = []catalog.ExpressionDependency{}
+				if err := exec.AdmitRoutineReference(&withoutManifest, capture.Ref, capture.Procedure, "function"); err == nil {
+					t.Fatal("occurrence without original manifest accepted")
+				}
 				current := state.MustProcedure(capture.Ref.Address)
 				if err := exec.AdmitRoutineReference(&context, capture.Ref, current, "function"); err == nil {
 					t.Fatal("current descriptor beside historical manifest accepted")
@@ -100,7 +112,7 @@ func TestRoutineBuiltinCapturedDeclarations(t *testing.T) {
 				for _, other := range captures {
 					if other.Ref != capture.Ref && other.Ref != (ids.ObjectRef{}) {
 						if err := exec.AdmitRoutineReference(&context, capture.Ref, other.Procedure, "function"); err == nil {
-							t.Fatal("primary/alias declarations interchangeable")
+							t.Fatal("different selected declarations interchangeable")
 						}
 					}
 				}

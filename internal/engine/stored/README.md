@@ -124,8 +124,8 @@ host methods.
   retained handles/manifests and rejection of changed result/signature/SQL payloads.
   Frozen action planning/runtime sources borrow that original manifest.
   Rule conditions/actions select their exact live rule slot and original
-  presentation before NEW substitution. Grafted scalar, window, aggregate and
-  independent alias occurrences carry that recipe identity; fresh producer
+  presentation before NEW substitution. Grafted scalar, window and declaration-
+  specific aggregate occurrences carry that recipe identity; fresh producer
   nodes keep their own direct manifest, even at the same routine address.
   Quoted/rebound source does not inherit hard-recipe policy. Aggregate admission
   uses its captured descriptor and exact original ref/revision; ref-only carriers
@@ -143,9 +143,9 @@ host methods.
   execution under a support-denied invoker and owner EXECUTE revoke/regrant.
 - **Historical routine remapping.** Raw mapping preserves original declaration
   carriers and exact dependency revisions; an address change is not SQL reanalysis.
-  Builtin aggregate primaries, paired aliases, windows and scalar/body captures
-  share the scoped original-procedure callback, never current-descriptor
-  substitution. Each alias maps its own ref and declaration independently.
+  Each builtin aggregate slot, window and scalar/body capture uses the scoped
+  original-procedure callback, never current-descriptor substitution.
+  Each selected declaration maps its own ref and descriptor independently.
   `NewRoutineRemap` shares original SQL-definition/body/default mappings with the
   existing two-phase rewrite. Keys are original immutable payload identities,
   not names, addresses or revisions: relabel-only COW versions share mapped
