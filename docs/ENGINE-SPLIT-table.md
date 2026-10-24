@@ -83,4 +83,25 @@ lock. These must stay identical:
 
 ## Status
 
-- 175: not started.
+- 175: done (`d81543475`, `b8260bfcb`, docs commit), started at master
+  `c3f662551`, rebased on `6005760ff` and `c9348457c`. `table.DropPreparation`,
+  `table.DropEffect` (exported fields) and the slot index moved to
+  `drop_preparation.go`; `table.DropPreparationView` to
+  `drop_preparation_view.go`; the cascade pass to `table.CascadeColumnDrops`
+  (`cascade_column_drops.go`, `reach` clean). The root `dropProvider` keeps its
+  stage branches and delegates the rest. Deviations: the log's fields that
+  the root reads or sets are exported (`Old`, `Ref`, `Prior`, `Statement`,
+  `TxRef`, `Base`, `Discovery`, `Input`, `Grants`), while `next`, the effects,
+  observations and slots stay private behind `Finish`/`Next`, `Effects`,
+  `Observe`/`CaptureObservation` and `RecordEffect`. The scope says prepared
+  mode runs under `Engine.mu`, but `PrepareHost` callers hold nothing and
+  `Acquire` waits, so the log belongs to the preparing statement's goroutine;
+  its methods have no `Locked` suffix. `ValidateObservations` leaves the
+  root's `scope.finished` check in the root wrapper. A `table` parameter of
+  `captureIdentityDropDefinitionLocked` became `relation` (it hid the
+  package). The old prepared `Descriptors` iterator read `p.base` as it went,
+  and `OwnedSequences` can replace that base mid-iteration (its callback runs
+  `ExpressionDependencies`), so the view adds `DescriptorsOver`, which takes
+  the base as a function. For 180: `6005760ff` added no root production code;
+  `c9348457c` added a few lines to `generated_replacement.go` and
+  `temporary_preservation.go`.

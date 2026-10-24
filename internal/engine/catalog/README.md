@@ -215,9 +215,9 @@ providers that live in their own packages (`role.ParameterProvider`,
 `table.RelationProvider`, `stored.TypeProvider`, `stored.ProcedureProvider`,
 `extension.CatalogProvider`, `routine.OperatorProvider`), definition-OID
 assignment (the Restore remap is `control.RemapDefinitionOIDs`), the stage
-reader's index layouts (`stageDefinitionReader.IndexLayout`) and the
-prepared-drop `DefinitionReader`. Callers name the declarations here directly,
-without aliases.
+reader's index layouts (`stageDefinitionReader.IndexLayout`); the
+prepared-drop `DefinitionReader` is `table.DropPreparation`. Callers name the
+declarations here directly, without aliases.
 
 ## Testing
 

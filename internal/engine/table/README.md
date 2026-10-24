@@ -68,7 +68,25 @@ call live here.
   `CheckRemovalLocked` admits a whole-object removal under `Engine.mu`
   (objects the system requires, then the registered class provider);
   `ClosureTargetClass` and `RetiredProviderClass` are the class lists of the
-  root's expression-dependency pass.
+  root's expression-dependency pass; `CascadeColumnDrops` is that pass's
+  column, domain-CHECK and retired-provider steps, with the root projecting
+  each new shape.
+- **Prepared DROP log** (`drop_preparation.go`, `drop_preparation_view.go`):
+  `DropPreparation` records, in order, the `DropEffect`s of a drop prepared
+  before the statement's stage exists (ALTER TABLE DROP COLUMN, DROP IDENTITY
+  and constraint-index drops over an inheritance tree), chained to the node's
+  `Prior` preparation. It is the prepared drop's `DefinitionReader`,
+  `PreparedDrop` and `DefinitionDelta`. `Observe` captures an address's
+  original descriptor before any read returns it, and `ValidateObservations`
+  fences those captures and the statement, transaction, domain and epoch
+  against a catalog; additive members are not replacements. `RewindNotices`
+  positions index effects, not notices. `DropPreparationView` is the root
+  `dropProvider`'s prepared-mode reads (replacement, removal, enumeration,
+  index layouts, input descriptors) over a base, a preparation (nil for a bare
+  provider) and the identity sequence captured at its grant;
+  `DescriptorsOver` enumerates over a base that may change while it runs. The preparing
+  statement's goroutine owns the log; it has no lock, and the statement
+  identity is an opaque `any`.
 - **Relation options** (`relation_options.go`): the storage-parameter registry
   and `RelationOptionsCandidate`, which transforms each option namespace
   independently, base first.
@@ -174,7 +192,8 @@ its pass loop, the lazy stage (`authorizedStage`), the stage-to-journal merge
 template; lock admission and post-wait checks (`acquireDefinitionProviders`,
 `admitInheritanceAlter`, `acquireRelationTarget` around `AdmitTarget`, ...);
 identity sequence waits; the prepare host and prepared-drop consumers; the
-DROP pipeline (`dropProvider`, its prepared-drop effect log, and the lock
+DROP pipeline (`dropProvider`'s stage mode and lock waits, the prepared-drop
+admission and the `consumePreparedDrop` replay into the stage, and the lock
 waits and projection of `ExpressionDependencies`); Finish;
 VACUUM's lock loop, `Engine.mu` windows, retry, install and progress map;
 the binder bodies; and the Restore hook bodies (authorization, the `Engine.mu`
@@ -218,6 +237,7 @@ in [reference/alter](../../../reference/alter/README.md#testing); add
 ```sh
 make check RUN='^Test(TableHost|AlterHost|RelationValidatorsOrder|GeneratedRemapCheckCapture|TableTargetAdmission|AdmitTargetAsksEachEntry)'
 make check RUN='^Test(CheckCreateShape|TypedSources|PlanAlterScan|ValidateAddedConstraintRows|RelationOptions|PrepareInheritanceNode|InheritancePendingGrants|InheritanceDropClosure|DefinitionProviders|Deparse(SerialSequence|MissingObjects)|ValidateSelectedDomainRows|OwnedSequenceName)'
+make check RUN='^Test(DropPreparation|DropReaderSeam|InheritanceAlterAdmission|ReferenceAlterDropColumn)'
 make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|Scan(Restored)?ForeignKeys|RestoredForeignKeyTarget|RestoreInherited|AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit)'
 make check RACE=1 RUN='^Test(NotNull|PhysicalNotNull|Inheritance)'
 make check RUN='^Test(Reference)?Vacuum'

@@ -16,15 +16,16 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `861442188` (item 174 rebased on it; no
-feature commit added root production code since item 173's check).
+Last verified against `master` at `c9348457c` (item 175 rebased on it;
+`c9348457c` added root production code since item 174's check, a finding for
+item 180).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 175 and 176.
+- 176.
 
 ## Linear plan
 
@@ -91,9 +92,15 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      diagnostic mapping moved to `exec`; quickcheck, quick and `REFERENCE=1`
      selections, `RACE=1` cancellation units, bench (allocations unchanged)
      and deps passed; racecheck and finalcheck skipped (user decision)
-175. [ ] Table: prepared DROP log —
+175. [x] Table: prepared DROP log —
      [table](ENGINE-SPLIT-table.md#item-175--prepared-drop-log) · needs — ·
-     0.37k
+     0.37k (`d81543475`, `b8260bfcb`, docs commit) · the prepared-drop effect
+     log moved to `table.DropPreparation` with `table.DropPreparationView` for
+     the prepared-mode reads, and the cascade column-drop pass to
+     `table.CascadeColumnDrops`; quickcheck, quick and `REFERENCE=1`
+     selections, `RACE=1` transactional and admission units and deps passed;
+     bench skipped (DROP COLUMN prepare path only); racecheck and finalcheck
+     skipped (user decision)
 176. [ ] Index, storage, session: catalog publication sub-steps —
      [catalog](ENGINE-SPLIT-catalog.md#item-176--catalog-publication-sub-steps)
      · needs — · 0.3k
