@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -127,7 +128,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				identity := s.Authorization.State
 				apply(nil, false)
 				baseline()
-				s.Settings.RestoreSavepoint(mark.Clone(), identity)
+				restoreSettingsSavepoint(s, mark.Clone(), identity)
 				check(s, tc.value, tc.value, "session")
 				s.Settings.FinishTransaction(ending == "COMMIT")
 				if ending == "COMMIT" {
@@ -145,7 +146,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				identity := s.Authorization.State
 				apply(&other, kind == "LOCAL")
 				check(s, other, tc.value, "session")
-				s.Settings.RestoreSavepoint(mark.Clone(), identity)
+				restoreSettingsSavepoint(s, mark.Clone(), identity)
 				baseline()
 				s.Settings.FinishTransaction(true)
 				baseline()
@@ -167,4 +168,14 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 			baseline()
 		})
 	}
+}
+
+// restoreSettingsSavepoint restores a settings mark without a transaction
+// owner, in the Settings.Mu -> Session.Mu order.
+func restoreSettingsSavepoint(s *session.Session, mark session.SettingsMark, identity authorization.RoleState) {
+	s.Settings.Mu.Lock()
+	s.Mu.Lock()
+	s.Settings.RestoreSavepointLocked(mark, identity)
+	s.Mu.Unlock()
+	s.Settings.Mu.Unlock()
 }

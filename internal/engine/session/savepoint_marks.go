@@ -60,20 +60,64 @@ func (s *SettingsStore) Savepoint() SettingsMark {
 	return m.Clone()
 }
 
-// candidate is already independent of the retained mark; no callbacks or
-// allocation are allowed between final preflight and effect installation.
-func (s *SettingsStore) RestoreSavepoint(candidate SettingsMark, identity authorization.RoleState) {
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
+// RestoreSavepointLocked installs candidate, which is already independent of
+// the retained mark, and identity with candidate's current role. Settings.Mu
+// and Session.Mu are held; no callbacks or allocation are allowed between
+// final preflight and effect installation.
+func (s *SettingsStore) RestoreSavepointLocked(candidate SettingsMark, identity authorization.RoleState) {
 	s.Values, s.Typed, s.Actions = candidate.Values, candidate.Typed, candidate.Actions
 	s.RoleAction = candidate.RoleAction
 	if s.Session != nil {
-		s.Session.Mu.Lock()
 		identity.CurrentUser = candidate.CurrentRole
 		s.RestoreIdentityLocked(identity)
 		s.Session.PublishTimeoutSettingsLocked(s, false, time.Now())
-		s.Session.Mu.Unlock()
 	}
+}
+
+// CaptureSavepoint completes mark, whose name and root values (settings,
+// identity, lock checkpoint, cursor ordinal and exclusion slot) the root
+// already set, with the owner's private state, and advances the serial.
+func (t *TransactionOwner) CaptureSavepoint(mark SavepointMark) SavepointMark {
+	writes := maps.Clone(t.Writes)
+	for a, rows := range t.Writes {
+		// A later append after rollback must not overwrite a discarded suffix
+		// still retained by a result opened before rollback.
+		writes[a] = rows[:len(rows):len(rows)]
+	}
+	t.SavepointSerial++
+	mark.Serial = t.SavepointSerial
+	mark.Writes, mark.Deletes, mark.Catalog = writes, t.Deletes, t.Catalog
+	mark.Isolation, mark.ReadOnly, mark.Deferrable = t.Isolation, t.ReadOnly, t.Deferrable
+	mark.NotificationActions = t.NotificationActions[:len(t.NotificationActions):len(t.NotificationActions)]
+	mark.NotificationEvents = t.NotificationEvents[:len(t.NotificationEvents):len(t.NotificationEvents)]
+	return mark
+}
+
+// FindSavepoint returns the position of the innermost SQL savepoint named
+// name, or -1. Internal procedural marks never match.
+func (t *TransactionOwner) FindSavepoint(name string) int {
+	for i := len(t.Savepoints) - 1; i >= 0; i-- {
+		if !t.Savepoints[i].Internal && t.Savepoints[i].Name == name {
+			return i
+		}
+	}
+	return -1
+}
+
+// RollbackToLocked restores the owner's private state, settings and
+// characteristics from mark, with settings as the independent settings
+// candidate. Settings.Mu and Session.Mu are held; the root restores cursors,
+// portals, exclusions and SSI around it.
+func (t *TransactionOwner) RollbackToLocked(mark SavepointMark, settings SettingsMark) {
+	t.Writes, t.Deletes, t.Catalog = mark.Writes, mark.Deletes, mark.Catalog
+	t.NotificationActions, t.NotificationEvents = mark.NotificationActions, mark.NotificationEvents
+	store := t.Session.Settings
+	store.RestoreSavepointLocked(settings, mark.Identity)
+	t.Isolation, t.ReadOnly = mark.Isolation, mark.ReadOnly
+	t.Deferrable = mark.Deferrable
+	store.CurrentIsolation = IsolationText(t.Isolation)
+	store.CurrentReadOnly = t.ReadOnly
+	store.CurrentDeferrable = t.Deferrable
 }
 
 func (t *TransactionOwner) TruncateSavepoints(n int) {
