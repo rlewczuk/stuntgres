@@ -254,6 +254,22 @@ func (c *Candidate) Removal(a ids.ObjectAddress) (Removal, bool) {
 }
 func (c *Candidate) Removals() iter.Seq2[ids.ObjectAddress, Removal] { return maps.All(c.removals) }
 func (c *Candidate) RemovalCount() int                               { return len(c.removals) }
+
+// NamespaceChanged reports whether the candidate creates, replaces or removes
+// a namespace, so publication must advance the namespace generation.
+func (c *Candidate) NamespaceChanged() bool {
+	for a := range c.descriptors {
+		if a.ClassID == ids.NamespaceClassID {
+			return true
+		}
+	}
+	for a := range c.removals {
+		if a.ClassID == ids.NamespaceClassID {
+			return true
+		}
+	}
+	return false
+}
 func (c *Candidate) NameObservation(k ids.NameKey) (ids.ObjectAddress, bool) {
 	a, ok := c.touched[k]
 	return a, ok

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"maps"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -425,11 +426,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		}
 		nextRevision := e.catalog.nextRevision
 		if c != nil && materialize {
-			for _, d := range c.Descriptors {
-				if d != nil {
-					nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
-				}
-			}
+			nextRevision = catalog.RevisionFrontier(nextRevision, maps.All(c.Descriptors))
 		}
 		if err := e.visibility.SerializablePrecommitLocked(ref); err != nil {
 			sess.Mu.Unlock()

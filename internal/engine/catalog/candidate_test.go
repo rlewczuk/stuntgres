@@ -205,3 +205,34 @@ func TestCandidateRetainedState(t *testing.T) {
 		t.Fatal("metadata-only relation edit detached unchanged indexes")
 	}
 }
+
+func TestCandidateNamespaceChanged(t *testing.T) {
+	base, ns, rel := catalogReadFixture()
+	c := NewCandidate(Read{state: base})
+	if c.NamespaceChanged() {
+		t.Fatal("empty candidate changed a namespace")
+	}
+	replacement := *rel
+	replacement.ObjectRevision = 2
+	if err := c.Replace(&replacement); err != nil {
+		t.Fatal(err)
+	}
+	if c.NamespaceChanged() {
+		t.Fatal("relation replacement changed a namespace")
+	}
+	staged := NewCandidate(Read{state: base})
+	renamed := *ns
+	renamed.ObjectName = "renamed"
+	renamed.ObjectRevision = 2
+	if err := staged.Replace(&renamed); err != nil {
+		t.Fatal(err)
+	}
+	if !staged.NamespaceChanged() {
+		t.Fatal("namespace replacement not reported")
+	}
+	removed := NewCandidate(Read{state: base})
+	removed.RecordRemoval(ids.ObjectRef{Address: ns.Address()}, ns)
+	if !removed.NamespaceChanged() {
+		t.Fatal("namespace removal not reported")
+	}
+}

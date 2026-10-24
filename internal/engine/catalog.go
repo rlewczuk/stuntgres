@@ -846,14 +846,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			err = p.ctx.Err()
 		}
 		if err == nil {
-			namespaceChanged := false
-			for a := range s.Descriptors() {
-				namespaceChanged = namespaceChanged || a.ClassID == ids.NamespaceClassID
-			}
-			for a := range s.Removals() {
-				namespaceChanged = namespaceChanged || a.ClassID == ids.NamespaceClassID
-			}
-			if namespaceChanged {
+			if s.NamespaceChanged() {
 				err = next.AdvanceNamespaceGeneration()
 			}
 		}
@@ -881,10 +874,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		if err == nil {
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
-			nextRevision := e.catalog.nextRevision
-			for _, d := range s.Descriptors() {
-				nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
-			}
+			nextRevision := catalog.RevisionFrontier(e.catalog.nextRevision, s.Descriptors())
 			if len(s.initialTables) != 0 || s.materializedOrZero().Replacement != nil {
 				frontier := e.visibility.CommitSeq() + 1
 				for _, initial := range s.initialTables {
@@ -1220,14 +1210,12 @@ func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevis
 	if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), e.catalog.read(next)); err != nil {
 		return 0, err
 	}
-	nextRevision := e.catalog.nextRevision
 	for _, d := range next.Descriptors() {
 		if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
 			return 0, err
 		}
-		nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, d)
 	}
-	return nextRevision, nil
+	return catalog.RevisionFrontier(e.catalog.nextRevision, next.Descriptors()), nil
 }
 
 // replacementCapacityLocked checks that installing relations' rows fits the
