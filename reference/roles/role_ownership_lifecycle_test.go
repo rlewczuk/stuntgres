@@ -137,8 +137,7 @@ func TestReferenceRoleOwnershipTransactions(t *testing.T) {
 			{"REASSIGN OWNED BY own_source TO own_target", "REASSIGN OWNED"},
 			{"DROP OWNED BY own_source CASCADE", "DROP OWNED"},
 		} {
-			// Preparing outside the block preserves the separate execution-time
-			// read-only refusal even where explicit-transaction Prepare is excluded.
+			// The same held definition must reach execution-time read-only checks.
 			held, err := s.c.PrepareContext(s.p.Ctx, tc.q)
 			if err != nil {
 				s.t.Fatal(err)
@@ -156,47 +155,32 @@ func TestReferenceRoleOwnershipTransactions(t *testing.T) {
 			}
 			ownershipOwner(s, "own_tx_table", "own_source")
 			s.exec("BEGIN READ ONLY")
-			if !s.backend.PG && s.prepared && tc.tag != "ALTER TABLE" {
-				predefinedFailure(s, tc.q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}, true, "prepare")
-			} else {
-				ownershipFailure(s, tc.q, fixture.Diagnostic{Code: "25006", Message: "cannot execute " + tc.tag + " in a read-only transaction"})
-			}
+			ownershipFailure(s, tc.q, fixture.Diagnostic{Code: "25006", Message: "cannot execute " + tc.tag + " in a read-only transaction"})
 			ownershipAborted(s, tc.q)
 			s.exec("ROLLBACK")
 			ownershipOwner(s, "own_tx_table", "own_source")
 			s.exec("BEGIN")
-			if s.backend.PG || tc.tag == "ALTER TABLE" {
-				s.exec(tc.q)
-			} else {
-				stage := "execute"
-				if s.prepared {
-					stage = "prepare"
-				}
-				predefinedFailure(s, tc.q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}, s.prepared, stage)
-				ownershipAborted(s, tc.q)
-			}
+			s.exec(tc.q)
 			s.exec("ROLLBACK")
 			ownershipOwner(s, "own_tx_table", "own_source")
 			ownershipRows(s, "own_tx_table")
-			if s.backend.PG || tc.tag == "ALTER TABLE" {
-				s.exec("BEGIN")
-				s.exec(tc.q)
-				s.exec("COMMIT")
-				if tc.tag == "DROP OWNED" {
-					ownershipCount(s, "SELECT count(*) FROM pg_class WHERE relname='own_tx_table' OR relname='own_tx_sequence'", 0)
-					ownershipBool(s, "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='own_source')", true)
-					ownershipSeed(s, "own_tx_table", "own_source")
-					s.exec("CREATE SEQUENCE own_tx_sequence")
-					s.exec("ALTER SEQUENCE own_tx_sequence OWNER TO own_source")
+			s.exec("BEGIN")
+			s.exec(tc.q)
+			s.exec("COMMIT")
+			if tc.tag == "DROP OWNED" {
+				ownershipCount(s, "SELECT count(*) FROM pg_class WHERE relname='own_tx_table' OR relname='own_tx_sequence'", 0)
+				ownershipBool(s, "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='own_source')", true)
+				ownershipSeed(s, "own_tx_table", "own_source")
+				s.exec("CREATE SEQUENCE own_tx_sequence")
+				s.exec("ALTER SEQUENCE own_tx_sequence OWNER TO own_source")
+			} else {
+				ownershipOwner(s, "own_tx_table", "own_target")
+				ownershipRows(s, "own_tx_table")
+				if tc.tag == "REASSIGN OWNED" {
+					ownershipOwner(s, "own_tx_sequence", "own_target")
+					s.exec("REASSIGN OWNED BY own_target TO own_source")
 				} else {
-					ownershipOwner(s, "own_tx_table", "own_target")
-					ownershipRows(s, "own_tx_table")
-					if tc.tag == "REASSIGN OWNED" {
-						ownershipOwner(s, "own_tx_sequence", "own_target")
-						s.exec("REASSIGN OWNED BY own_target TO own_source")
-					} else {
-						s.exec("ALTER TABLE own_tx_table OWNER TO own_source")
-					}
+					s.exec("ALTER TABLE own_tx_table OWNER TO own_source")
 				}
 			}
 		}

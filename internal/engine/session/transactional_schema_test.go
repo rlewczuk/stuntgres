@@ -20,16 +20,19 @@ func TestTransactionalSchemaAdmission(t *testing.T) {
 		&parser.AlterType{}, &parser.DropDomain{}, &parser.DropType{},
 		&parser.CreateTrigger{}, parsedStatement(t, "CREATE OR REPLACE TRIGGER admission BEFORE INSERT ON admission_t FOR EACH ROW EXECUTE FUNCTION admission_fn()"),
 		&parser.AlterTrigger{Action: "rename"}, &parser.AlterTrigger{Action: "depends"}, &parser.AlterTrigger{Action: "no_depends"}, &parser.DropTrigger{},
+		&parser.AlterOwner{Kind: "type"}, &parser.AlterOwner{Kind: "domain"}, &parser.AlterOwner{Kind: "database"},
+		&parser.AlterView{Action: "owner"}, &parser.AlterView{Action: "owner", Materialized: true},
+		&parser.ReassignOwned{}, &parser.DropOwned{},
 	} {
 		if !TransactionalSchemaUtility(stmt) {
 			t.Errorf("missing admission: %T", stmt)
 		}
 	}
 	for _, stmt := range []parser.Statement{
-		&parser.AlterOwner{Kind: "view"}, &parser.AlterOwner{Kind: "type"}, &parser.AlterOwner{Kind: "domain"}, &parser.AlterOwner{Kind: "database"},
+		&parser.AlterOwner{Kind: "view"}, &parser.AlterOwner{Kind: "unknown"}, &parser.AlterOwner{},
 		&parser.CreateDatabaseStmt{}, &parser.CreateTablespace{}, &parser.CreateIndex{}, &parser.DropIndex{},
 		&parser.CreateFunction{}, &parser.CreateRole{}, &parser.Comment{},
-		&parser.ObjectGrant{}, &parser.ReassignOwned{}, &parser.DropOwned{}, &parser.CreateConversion{},
+		&parser.ObjectGrant{}, &parser.CreateConversion{},
 	} {
 		if TransactionalSchemaUtility(stmt) {
 			t.Errorf("widened admission: %T", stmt)

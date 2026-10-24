@@ -120,9 +120,13 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   none takes, releases or waits on a lock. Plans return candidates and
   warnings; the engine emits the warnings (in statement order, also before a
   returned error), allocates OIDs and revisions and installs the result.
-- **Role publication stays atomic.** `StageOwnedCleanup` joins its
-  membership deletion to the stage through `SetRoleCandidate`, so it
-  publishes with the catalog change.
+- **Role publication stays atomic.** `StageOwnedCleanup` joins its membership
+  deletion to the stage through `SetRoleCandidate`. The engine validates a nonnil
+  candidate against the session's current private role predecessor and attaches it
+  to `Journal.Roles`, retaining the actual write's committed delta base in
+  `RolesBase` until a successful immutable journal refresh advances both roots.
+  A nil candidate preserves earlier pending roles and does not create a write
+  fence. Catalog, ACL/default/policy and membership changes publish together.
 - **Errors.** Messages, SQLSTATEs, details and hints are compatibility
   contracts.
 
@@ -145,12 +149,24 @@ materialized view authority, `ownershipStage`, lock waits,
 `StageOwnedCleanup`, the scope dependents, publication and the cascade
 notice).
 
+Generic table/type/domain/database OWNER, feature-specific view/materialized OWNER
+and REASSIGN/DROP OWNED use `session.TransactionalSchemaUtility` for the shared
+Describe/Execute transaction boundary. Autocommit, explicit SQL/Go transactions
+and retained protocol messages use the same stages and see earlier successful own
+changes. Savepoints and rollback restore private definitions, ownership and
+cleanup together. Bulk relation/type/schema changes remain database-local; shared database-owner
+projection and cross-database retirement checks stay with the root.
+
 `installOperationRolesLocked` publishes ordinary autocommit changes but installs
 an immutable journal role root for active explicit or retained-message/protocol
-transactions. The first actual role mutation captures its predecessor as
-`RolesBase`; later mutations preserve that base. Finish and savepoints own failure
-disposal and restoration. Combined commit merges disjoint role changes without
-overwriting peer work and validates retirement dependencies across databases.
+transactions. The first actual role mutation captures its committed predecessor as
+`RolesBase`; later mutations chain against the current private predecessor.
+Read/publication refresh merges the exact descriptor/name/membership delta with
+disjoint committed changes, cloning the journal and advancing base and candidate
+without mutating retained roots or savepoint marks. Changed touched predecessors
+still veto publication; a different root identity or revision alone does not.
+Finish and savepoints own failure disposal and restoration. Combined commit
+preserves unrelated role work and validates retirement dependencies across databases.
 Completed catalog metadata, including ACL/default-privilege changes, does not
 retain its execution authorization or pin an unrelated committed role root.
 Pending query-derived rows and materialized replacements keep their separate

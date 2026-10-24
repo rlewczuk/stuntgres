@@ -45,8 +45,9 @@ func TestReferenceTransactionalSchemaUtilityBoundaries(t *testing.T) {
 		{name: "MaterializedForm", query: "CREATE MATERIALIZED VIEW tx_bound_new AS SELECT a FROM tx_bound WITH NO DATA", tag: "CREATE MATERIALIZED VIEW", probe: "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relname='tx_bound_new'"},
 		{name: "Refresh", setup: []string{"CREATE MATERIALIZED VIEW tx_bound_mat AS SELECT a FROM tx_bound WITH NO DATA"}, query: "REFRESH MATERIALIZED VIEW tx_bound_mat", tag: "REFRESH MATERIALIZED VIEW", probe: "SELECT count(*) FROM pg_class WHERE oid='tx_bound_mat'::regclass AND relispopulated"},
 		{name: "ViewOwner", setup: []string{"CREATE VIEW tx_bound_view AS SELECT a FROM tx_bound"}, query: "ALTER VIEW tx_bound_view OWNER TO CURRENT_USER", tag: "ALTER VIEW"},
-		{name: "TypeOwner", setup: []string{"CREATE TYPE tx_bound_type AS(a INT)"}, query: "ALTER TYPE tx_bound_type OWNER TO CURRENT_USER", tag: "ALTER TYPE", nativeExcluded: true},
-		{name: "DomainOwner", setup: []string{"CREATE DOMAIN tx_bound_domain AS INT"}, query: "ALTER DOMAIN tx_bound_domain OWNER TO CURRENT_USER", tag: "ALTER DOMAIN", nativeExcluded: true},
+		{name: "MaterializedOwner", setup: []string{"CREATE MATERIALIZED VIEW tx_bound_mat AS SELECT a FROM tx_bound WITH NO DATA"}, query: "ALTER MATERIALIZED VIEW tx_bound_mat OWNER TO CURRENT_USER", tag: "ALTER MATERIALIZED VIEW"},
+		{name: "TypeOwner", setup: []string{"CREATE TYPE tx_bound_type AS(a INT)"}, query: "ALTER TYPE tx_bound_type OWNER TO CURRENT_USER", tag: "ALTER TYPE"},
+		{name: "DomainOwner", setup: []string{"CREATE DOMAIN tx_bound_domain AS INT"}, query: "ALTER DOMAIN tx_bound_domain OWNER TO CURRENT_USER", tag: "ALTER DOMAIN"},
 		{name: "RoutineOwner", setup: []string{"CREATE FUNCTION tx_bound_function() RETURNS INT LANGUAGE SQL RETURN 11"}, query: "ALTER FUNCTION tx_bound_function() OWNER TO CURRENT_USER", tag: "ALTER FUNCTION", nativeExcluded: true},
 	}
 	for _, tc := range cases {

@@ -96,8 +96,9 @@ implement its slots, so either import would form a cycle.
   CREATE/ALTER/DROP MATERIALIZED VIEW plus ordinary/concurrent REFRESH,
   CREATE/ALTER/DROP POLICY (including rename), CREATE DOMAIN/composite TYPE,
   ALTER DOMAIN/composite attributes, and type/domain rename, schema move and DROP
-  use the existing transaction journal. Generic OWNER admits only tables, not types
-  or domains; feature-specific view/materialized OWNER is AlterView. The root reads
+  use the existing transaction journal, as do generic table/type/domain/database
+  OWNER and REASSIGN/DROP OWNED. Feature-specific view/materialized OWNER is AlterView.
+  Unrelated utility exclusions retain their independent policies. The root reads
   state, InBlock and ReadOnly under `t.Mu` and keeps its locks, preflights,
   short-circuits (`partitionIndexTransaction`, `transactionalIndexMaintenance`)
   and call order.
@@ -140,18 +141,25 @@ implement its slots, so either import would form a cycle.
   checked and recorded against the published base). The root's `…Locked`
   wrappers pass the published base under `Engine.mu`.
   Object/default ACLs, role mutations and comments share the immutable role
-  overlay. The first actual role delta captures its predecessor as `RolesBase`;
-  later private deltas preserve that base. Actual-role and mixed journals keep
-  the root's explicit merge and principal/member/precondition checks.
+  overlay. The first actual role delta captures its committed predecessor as
+  `RolesBase`; later private deltas preserve that base until a successful immutable
+  read/publication refresh advances both base and candidate on a cloned journal.
+  Actual-role and mixed journals keep the root's explicit merge and exact touched
+  descriptor/name/membership predecessor checks; disjoint peer changes merge
+  without loss, while older private roots and marks remain unchanged.
   ACL-only revision changes preserve their immutable authority origin; root
   publication checks and rebases their revision delta without conflicting with
-  independent ACL targets. General access stamps stay exact. `RolesBase` is not
+  independent ACL targets. General access stamps stay exact. `RolesBase` describes
+  actual private role writes, not a blanket committed-root identity veto or
   authorization consulted by a completed catalog statement; execution authority
-  ends at Finish. Pending query-derived rows and materialized replacements
-  separately retain a root-owned role-read fence until publication. Journal
-  clones and savepoint marks retain or discard that fence with its producer,
-  not as a role overlay. Savepoints also restore the private role root,
-  retirement obligations, session identity, descriptors and lock marks.
+  ends at Finish. DROP OWNED's nonnil cleanup candidate is checked against the
+  current private role predecessor before joining `Journal.Roles`; a nil candidate
+  preserves pending roles and their base without inventing a new role-write fence.
+  Pending query-derived rows and materialized replacements separately retain a
+  root-owned role-read fence until publication. Journal clones and savepoint marks
+  retain or discard that fence with its producer, not as a role overlay. Savepoints
+  also restore the private role root, retirement obligations, session identity,
+  descriptors and lock marks.
   `StorageChange.MergeFills` merges added-column fills and drops those of
   removed attributes, replacing the shared fill map instead of mutating it.
 - **Journal capture** (`journal_capture.go`): `JournalCapture` turns a

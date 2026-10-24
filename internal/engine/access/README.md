@@ -60,6 +60,10 @@ No parallel language-permission table or cached grant decision exists.
   REASSIGN and DROP OWNED. `OwnershipRoot` and `OwnedRoots` take the
   seeded-operator predicate as a value (`routine.OperatorSeeded` in the
   engine), because `routine` imports `access`.
+  `OwnershipRelationLocks` merges actual policy-deletion containing relations from
+  its optional source map into the sorted/deduplicated root lock list. It expands
+  companions only for ownership roots, not these surviving policy tables; PUBLIC
+  or any nonselected target prevents deletion. Other callers pass nil.
 - **Namespaces** (`namespace.go`): `CheckPersistentCreationNamespace`, the
   TEMP capability boundary of non-table creation and namespace moves,
   `CheckTemporaryStorageAccess`, which rejects another session's stored

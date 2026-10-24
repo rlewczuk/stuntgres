@@ -40,6 +40,15 @@ authority.
   `ownershipRoles` entry and drops its nonpublic schemas under a bounded
   context. Establish schema ownership with `CREATE SCHEMA ... AUTHORIZATION`;
   drop nonpublic fixture schemas before roles on failure paths.
+- `ownershipTransactionCases` covers autocommit, SQL BEGIN and Go BeginTx with
+  direct and held ownership/bulk statements, earlier-private objects, peer
+  isolation and savepoint/end transitions. For database OWNER, select the ordinary
+  CREATEDB session actor before BEGIN; use SET ROLE, not SET SESSION AUTHORIZATION,
+  inside the transaction.
+  Cleanup authority witnesses use actual ordinary-role SELECT/UPDATE operations
+  and savepoint recovery for expected denials. Independent surviving SELECT grants
+  separate RLS policy effects from ACL loss; PostgreSQL policy catalog assertions
+  supplement common behavior and exact canonical-descriptor units.
 - Dependency Detail lines have no PostgreSQL ordering contract: compare them as
   bags with exact multiplicities (`ownershipFailureDetailBag`,
   `ownershipNoticesDetailBag`) and keep every other diagnostic field exact.

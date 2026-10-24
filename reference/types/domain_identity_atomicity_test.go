@@ -101,7 +101,7 @@ func TestReferenceDomainIdentityAtomicity(t *testing.T) {
 }
 
 func TestReferenceDomainIdentityBoundaries(t *testing.T) {
-	domainIdentityScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder, _ *[]fixture.Diagnostic) {
+	domainIdentityScenario(t, func(t *testing.T, p *fixture.Pair, _ fixture.Backend, c *sql.Conn, r *fixture.Recorder, _ *[]fixture.Diagnostic) {
 		domainIdentityDDL(t, p, c, r, "CREATE SCHEMA di_src", "CREATE SCHEMA di_dst", "CREATE DOMAIN di_src.d AS integer")
 		oid := domainAlterOID(t, p, c, "SELECT 'di_src.d'::regtype::oid")
 		for _, q := range []string{"ALTER DOMAIN di_src.d RENAME TO renamed", "ALTER DOMAIN di_src.d SET SCHEMA di_dst", "ALTER DOMAIN di_src.d OWNER TO CURRENT_USER", "DROP DOMAIN di_src.d"} {
@@ -119,24 +119,21 @@ func TestReferenceDomainIdentityBoundaries(t *testing.T) {
 				domainIdentitySameOID(t, p, tx, "SELECT 'di_src.d'::regtype::oid", oid)
 				held := fixture.HeldStatement{Executor: tx, Statement: stmt, SQL: q}
 				s := fixture.Exec(q, 0)
-				if !b.PG && q == "ALTER DOMAIN di_src.d OWNER TO CURRENT_USER" {
-					s = fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction"))
-					s.ErrorStage = "execute"
-				}
 				fixture.RunStep(t, p.Ctx, held, r, s)
-				if b.PG || q != "ALTER DOMAIN di_src.d OWNER TO CURRENT_USER" {
-					target := "di_src.d"
-					switch q {
-					case "ALTER DOMAIN di_src.d RENAME TO renamed":
-						target = "di_src.renamed"
-					case "ALTER DOMAIN di_src.d SET SCHEMA di_dst":
-						target = "di_dst.d"
-					}
-					if q == "DROP DOMAIN di_src.d" {
-						fixture.RunStep(t, p.Ctx, tx, r, fixture.Select("SELECT count(*) FROM pg_type WHERE oid=$1::oid", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}, oid))
-					} else {
-						domainIdentitySameOID(t, p, tx, "SELECT '"+target+"'::regtype::oid", oid)
-					}
+				target := "di_src.d"
+				switch q {
+				case "ALTER DOMAIN di_src.d RENAME TO renamed":
+					target = "di_src.renamed"
+				case "ALTER DOMAIN di_src.d SET SCHEMA di_dst":
+					target = "di_dst.d"
+				}
+				if q == "DROP DOMAIN di_src.d" {
+					fixture.RunStep(t, p.Ctx, tx, r, fixture.Select("SELECT count(*) FROM pg_type WHERE oid=$1::oid", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}, oid))
+				} else {
+					domainIdentitySameOID(t, p, tx, "SELECT '"+target+"'::regtype::oid", oid)
+				}
+				if q == "ALTER DOMAIN di_src.d OWNER TO CURRENT_USER" {
+					fixture.RunStep(t, p.Ctx, tx, r, fixture.Select("SELECT t.typowner=(SELECT oid FROM pg_roles WHERE rolname=current_user) AS unchanged_owner FROM pg_type t WHERE t.oid='di_src.d'::regtype::oid", []string{"unchanged_owner"}, []string{"BOOL"}, [][]any{{true}}))
 				}
 				if err := tx.Rollback(); err != nil {
 					t.Fatal(err)

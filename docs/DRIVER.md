@@ -96,9 +96,19 @@ ordinary SQL errors leave the connection reusable.
   definitions, constraints, consuming rows and logical keys only after commit.
   Rollback/savepoints restore definitions, dependencies, row layouts and data
   together; sequence counters are not rewound. Autocommit and retained simple-query
-  messages use the same supported forms. Feature-specific view/materialized OWNER
-  is included; generic ownership outside the admitted table forms, including
-  TYPE/DOMAIN OWNER, keeps its separate transaction boundaries.
+  messages use the same supported forms.
+- ALTER OWNER for tables, types, domains and databases, feature-specific view/
+  materialized-view OWNER, REASSIGN OWNED and DROP OWNED share autocommit, SQL
+  transaction controls and Go `BeginTx`. They see earlier successful own changes;
+  ownership, dependencies, ACLs, policies, default privileges and supported
+  membership cleanup remain private until commit and restore at savepoints or
+  rollback. Held execution checks current authority rather than retaining the
+  preparer's privileges. Ownership transfer preserves object identities and data.
+  Database-owner changes publish shared metadata coherently and change implicit
+  `pg_database_owner` authority without creating membership rows. Bulk relation/
+  type/schema changes do not cross database boundaries; shared metadata uses
+  cluster publication, and objects in other databases still prevent role
+  retirement. Other utility exclusions remain independent.
 - `GRANT`/`REVOKE` on supported objects (including table columns) and
   `ALTER DEFAULT PRIVILEGES` participate in SQL and Go transactions and retained
   messages. Later owner operations see private ACLs and creation-time defaults;

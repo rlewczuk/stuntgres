@@ -86,6 +86,11 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 
 func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session.Journal) {
 	changes.RecordCandidateDefaults(e.catalog.state, &stage.Candidate)
+	if stage.roleCandidate != nil {
+		// captureCatalogStageLocked validated this immutable candidate. A later
+		// descriptor-only stage must retain, not clear, the pending role root.
+		changes.Roles = stage.roleCandidate
+	}
 	for a, rowShape := range stage.rowShapes {
 		shape, exists := changes.Storage[a]
 		if !exists {

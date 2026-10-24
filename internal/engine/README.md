@@ -255,10 +255,11 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   SELECT executor's privileges.
 - `session.TransactionalSchemaUtility` selects the table, schema, rule, trigger,
   view and materialized-view DDL (including ordinary/concurrent REFRESH), policy
-  definitions, domain/composite creation and alterations, and type/domain
-  identity/drop that Describe and Execute run on the existing transaction journal
-  ([policy](session/README.md#what-it-owns)). Generic OWNER admits only tables;
-  feature-specific view/materialized OWNER is AlterView. Concurrent index variants
+  definitions, domain/composite creation and alterations, type/domain identity/drop,
+  generic table/type/domain/database OWNER and REASSIGN/DROP OWNED that Describe and
+  Execute run on the existing transaction journal
+  ([policy](session/README.md#what-it-owns)). Feature-specific view/materialized OWNER
+  is AlterView. Concurrent index variants
   keep their independent restrictions.
 - Ordinary non-concurrent CREATE INDEX (including UNIQUE and shipped methods)
   is admitted separately at Execute. It uses the same private catalog/storage,
@@ -290,6 +291,36 @@ and dependency authority across private changes, savepoints and held execution.
 Event AX and action target/source locks retain their canonical transaction
 lifetime; peer DML waits for publication or rollback. Stored recipes and prepared
 consumers select the owner's current private definition, never a cached authority.
+
+Ownership transfer stages resolve earlier successful private definitions and preserve exact
+object identities, associations and storage. Relation OWNER refreshes authority
+after target admission and checks the locked ref; type/bulk operations retain
+their captured complete root union rather than retargeting after a wait. Stage
+capture and Finish check the consulted private catalog/role/database/provider
+predecessors before effects survive. REASSIGN/DROP OWNED use the existing closure,
+ACL/default/policy and grantor-support algorithms, with no intermediate global
+publication or rollback-by-undo. Database-owner changes use the shared projection
+publication path; bulk relation/type/schema cleanup remains local to the current database.
+DROP OWNED policy deletion also contributes the actual surviving containing table
+to the same canonical AccessExclusive lock set before staging. The complete source
+union must remove every target of at least one policy; partial target rewrites and
+ACL-only cleanup do not add this lock. These tables are not ownership roots and do
+not pull in indexes or owned sequences. Existing tickets retain AX until rollback
+to the acquiring mark or transaction end, so peer row reads wait for release;
+nonconflicting catalog reads still see the committed definitions.
+
+DROP OWNED's nonnil cleanup role candidate is validated against the session's
+current private predecessor and attached to `Journal.Roles`; the first actual role
+write captures committed `RolesBase` for its exact delta. Later private candidates
+chain against their current private predecessor. Read/publication refresh merges
+disjoint committed changes, but rejects changed touched role/name descriptors or
+membership predecessors (Role/Member/Grantor and option bits). A successful refresh
+clones the journal and advances both base and candidate without changing saved
+roots or marks. A nil candidate neither clears pending roles nor creates a
+role-write fence.
+Savepoints restore these paired private roots; combined commit publishes catalog,
+defaults, storage and any role changes together. Completed metadata-only ownership
+does not retain execution authorization as an outer-commit role fence.
 
 View and materialized definitions resolve against the owner's private catalog,
 including private source relations and providers. Materialized producers consume

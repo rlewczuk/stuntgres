@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"sort"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
@@ -59,6 +60,33 @@ func TestDropOwnedMembershipProvenance(t *testing.T) {
 		if edge.Grantor == source || edge.Grantor == reader {
 			t.Fatal("unsupported downstream membership survived", edge)
 		}
+	}
+	var want []authorization.Membership
+	for _, edge := range retained {
+		if edge.Grantor != source && edge.Grantor != reader {
+			want = append(want, edge)
+		}
+	}
+	if !reflect.DeepEqual(fixtureEdges(next), want) {
+		t.Fatal("surviving membership identity/flags/order changed", fixtureEdges(next), want)
+	}
+	// An independent ADMIN origin supports the reader's downstream grant even
+	// after the source-origin edge disappears. Every surviving flag is exact.
+	alternate := cloneRoleFixture(old)
+	setFixtureEdges(alternate, append(append([]authorization.Membership(nil), retained...), authorization.Membership{Role: target, Member: reader, Grantor: owner, Admin: true, Set: true}))
+	alternateBefore := append([]authorization.Membership(nil), fixtureEdges(alternate)...)
+	supported, err := access.OwnedMembershipCandidate(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), alternate), alternate.Revision, map[authorization.PrincipalRef]bool{source: true})
+	if err != nil || supported == nil {
+		t.Fatal("independent membership support", err)
+	}
+	want = nil
+	for _, edge := range alternateBefore {
+		if edge.Grantor != source {
+			want = append(want, edge)
+		}
+	}
+	if !reflect.DeepEqual(fixtureEdges(supported), want) || !reflect.DeepEqual(fixtureEdges(alternate), alternateBefore) {
+		t.Fatal("alternate support/provenance or source root changed", fixtureEdges(supported), want)
 	}
 	if next.Root.Read(authorization.PrincipalRef{}).RoleCount() != old.Root.Read(authorization.PrincipalRef{}).RoleCount() || fixtureRole(next, source) != fixtureRole(old, source) {
 		t.Fatal("DROP OWNED removed role endpoint")
@@ -408,5 +436,72 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	roleError(t, e, op, "DROP ROLE ownership_sql_source", "2BP01", `role "ownership_sql_source" cannot be dropped because some objects depend on it`, "privileges for table ownership_sql_support")
 	if e.catalog.state != before || e.roles.published != roles {
 		t.Fatal("retained grantor blocker partially retired the source")
+	}
+}
+
+func TestDropOwnedPolicyRelationLocks(t *testing.T) {
+	e, _, source, target, reader := ownershipUnitRoles()
+	for _, q := range []string{
+		"CREATE TABLE ownership_lock_root(id INT)",
+		"CREATE INDEX ownership_lock_root_i ON ownership_lock_root(id)",
+		"CREATE SEQUENCE ownership_lock_root_s OWNED BY ownership_lock_root.id",
+		"ALTER TABLE ownership_lock_root OWNER TO ownership_source",
+		"CREATE TABLE ownership_lock_survivor(id INT)",
+		"CREATE INDEX ownership_lock_survivor_i ON ownership_lock_survivor(id)",
+		"CREATE SEQUENCE ownership_lock_survivor_s OWNED BY ownership_lock_survivor.id",
+		"CREATE POLICY lock_last_source ON ownership_lock_survivor TO ownership_source,ownership_source USING(true)",
+		"CREATE POLICY lock_last_reader ON ownership_lock_survivor TO ownership_reader USING(true)",
+		"CREATE TABLE ownership_lock_union(id INT)",
+		"CREATE POLICY lock_union ON ownership_lock_union TO ownership_source,ownership_reader USING(true)",
+		"CREATE TABLE ownership_lock_partial(id INT)",
+		"CREATE POLICY lock_partial ON ownership_lock_partial TO ownership_source,ownership_target,ownership_source USING(true)",
+		"CREATE TABLE ownership_lock_public(id INT)",
+		"CREATE POLICY lock_public ON ownership_lock_public TO PUBLIC USING(false)",
+		"CREATE TABLE ownership_lock_acl(id INT)",
+		"GRANT SELECT ON ownership_lock_acl TO ownership_source",
+	} {
+		ownershipUnitExec(t, e, q)
+	}
+	view := e.CatalogRead()
+	base := e.catalog.state
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+	address := func(name string) ids.ObjectAddress {
+		a := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
+		if a == (ids.ObjectAddress{}) {
+			t.Fatal("missing actual relation fixture", name)
+		}
+		return a
+	}
+	root, index, sequence := address("ownership_lock_root"), address("ownership_lock_root_i"), address("ownership_lock_root_s")
+	survivor, union, partial := address("ownership_lock_survivor"), address("ownership_lock_union"), address("ownership_lock_partial")
+	original := view.MustRelation(survivor)
+	retained := slices.Clone(original.Security.Policies)
+	for i := range retained {
+		retained[i].Roles = slices.Clone(retained[i].Roles)
+	}
+	for _, tc := range []struct {
+		name    string
+		roots   []ids.ObjectAddress
+		sources map[authorization.PrincipalRef]bool
+		want    []ids.ObjectAddress
+	}{
+		{"non-cleanup", []ids.ObjectAddress{root}, nil, []ids.ObjectAddress{root, index, sequence}},
+		{"source-and-root-dedup", []ids.ObjectAddress{root, root}, map[authorization.PrincipalRef]bool{source: true}, []ids.ObjectAddress{root, index, sequence, survivor}},
+		{"reader-zero-owned-roots", nil, map[authorization.PrincipalRef]bool{reader: true}, []ids.ObjectAddress{survivor}},
+		{"complete-source-reader-union", []ids.ObjectAddress{root}, map[authorization.PrincipalRef]bool{source: true, reader: true}, []ids.ObjectAddress{root, index, sequence, survivor, union}},
+		{"complete-source-target-union", []ids.ObjectAddress{root}, map[authorization.PrincipalRef]bool{source: true, target: true}, []ids.ObjectAddress{root, index, sequence, survivor, partial}},
+		{"mixed-public-acl-only", nil, map[authorization.PrincipalRef]bool{target: true}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sort.Slice(tc.want, func(i, j int) bool { return tc.want[i].ObjectID < tc.want[j].ObjectID })
+			roots := slices.Clone(tc.roots)
+			got := access.OwnershipRelationLocks(view, tc.roots, tc.sources)
+			if !slices.Equal(got, tc.want) || !slices.Equal(tc.roots, roots) {
+				t.Fatal("exact sorted/deduplicated admission, without survivor companions", got, tc.want)
+			}
+			if e.catalog.state != base || view.MustRelation(survivor) != original || !reflect.DeepEqual(original.Security.Policies, retained) {
+				t.Fatal("lock enumeration changed retained catalog/policy roots")
+			}
+		})
 	}
 }

@@ -68,6 +68,11 @@ func (f catalogRoleReadFence) currentLocked(e *Engine, _ *session.Journal) error
 // Capture committed predecessor fences while checking the exact private roots
 // used by the ordinary stage. Pending writes are not committed observations.
 func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, current *catalog.State, authority *catalogAuthority) error {
+	// Cleanup candidates derive from the operation's exact private predecessor,
+	// while the journal keeps the original committed root as its commit fence.
+	if err := s.validateRoleCandidate(e.sessionRolesLocked(s.authSession)); err != nil {
+		return err
+	}
 	if err := s.DefaultPreflight(current); err != nil {
 		return err
 	}
@@ -180,6 +185,9 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	// Finish. Keep their role read separate from actual private role writes.
 	if s.initialTx != (ids.TxRef{}) || s.materializedOrZero().Replacement != nil {
 		c.AddFence(catalogRoleReadFence{roles: e.roles.published})
+	}
+	if s.roleCandidate != nil && c.RolesBase == nil {
+		c.RolesBase = e.roles.published
 	}
 	c.DomainChanged = c.DomainChanged || len(s.domainTargets) != 0
 	for _, d := range s.Descriptors() {

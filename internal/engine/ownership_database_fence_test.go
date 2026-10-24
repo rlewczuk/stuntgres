@@ -69,6 +69,12 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if auth.Catalog.Get(catalog.CurrentDatabaseAddress) != stage.databaseAuthority || auth.RoleRecord.Revision != e.roles.published.Revision {
 				t.Fatal("retained authority mutated or artificial role revision")
 			}
+			implicit := auth.Roles.LookupRef("pg_database_owner")
+			for _, edge := range fixtureEdges(auth.RoleRecord) {
+				if edge.Role == implicit {
+					t.Fatal("database-owner authority invented explicit membership", edge)
+				}
+			}
 		})
 	}
 }

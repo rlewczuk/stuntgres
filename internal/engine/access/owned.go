@@ -32,7 +32,9 @@ func OwnedRoots(catalog catalog.Read, sources map[authorization.PrincipalRef]boo
 // OwnershipRelationLocks lists the relations to lock for roots. Ownership
 // locks follow canonical associations, not generated names. Include
 // independent roots and their backing relations, indexes and owned sequences.
-func OwnershipRelationLocks(view catalog.Read, roots []ids.ObjectAddress) []ids.ObjectAddress {
+// Non-nil policySources additionally locks containing relations for actual policy
+// deletions, without expanding those surviving relations' automatic companions.
+func OwnershipRelationLocks(view catalog.Read, roots []ids.ObjectAddress, policySources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
 	group := make(map[ids.ObjectAddress]bool, len(roots))
 	for _, a := range roots {
 		switch d := view.Get(a).(type) {
@@ -57,6 +59,27 @@ func OwnershipRelationLocks(view catalog.Read, roots []ids.ObjectAddress) []ids.
 			parent.SubID = 0
 			if group[parent] {
 				group[a] = true
+			}
+		}
+	}
+	if len(policySources) != 0 {
+		for a, d := range view.Descriptors() {
+			r, ok := d.(*catalog.Relation)
+			if !ok || group[a] {
+				continue
+			}
+			for _, policy := range r.Security.Policies {
+				deleted := len(policy.Roles) != 0
+				for _, target := range policy.Roles {
+					if target.Public || !policySources[target.Ref] {
+						deleted = false
+						break
+					}
+				}
+				if deleted {
+					group[a] = true
+					break
+				}
 			}
 		}
 	}

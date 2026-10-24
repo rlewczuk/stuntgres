@@ -81,7 +81,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	err = role.StageOwnership(stage, old, change.Target)
 	e.mu.Unlock()
 	if err == nil {
-		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}) {
+		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}, nil) {
 			if a == old.Address() {
 				continue
 			}
@@ -130,7 +130,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	err = role.StageOwnership(stage, change.Object, change.Target)
 	e.mu.Unlock()
 	if err == nil {
-		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{change.Object.Address()}) {
+		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{change.Object.Address()}, nil) {
 			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}

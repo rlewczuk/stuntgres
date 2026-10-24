@@ -8,6 +8,7 @@ import (
 
 func TestReferenceRoleOwnershipDatabase(t *testing.T) {
 	ownershipProviderCases(t, func(s *membershipScenario, database string) {
+		fixture.SchemaReferenceCleanup(s.t, "own_db_transaction_probe")
 		prefix := "ALTER DATABASE " + pq.QuoteIdentifier(database) + " OWNER TO "
 		s.exec("ALTER ROLE own_source CREATEDB")
 		s.exec("GRANT own_target TO own_source WITH INHERIT TRUE, SET TRUE")
@@ -84,35 +85,45 @@ func TestReferenceRoleOwnershipDatabase(t *testing.T) {
 		}
 		ownershipDatabaseOwner(s, "own Quoted")
 		s.exec(prefix + "own_source")
+		// Public schema ACLs are fixture-owned. Use the real implicit owner of
+		// a dedicated namespace instead of granting the actor blanket access.
+		s.exec("CREATE SCHEMA own_db_transaction_probe AUTHORIZATION pg_database_owner")
+		s.actor("own_actor") // Existing ordinary CREATEDB actor has SET/INHERIT on both owners.
 		s.exec("BEGIN")
-		if s.backend.PG {
-			s.exec(prefix + "own_target")
-			ownershipDatabaseOwner(s, "own_target")
-		} else {
-			predefinedFailure(s, prefix+"own_target", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}, s.prepared, func() string {
-				if s.prepared {
-					return "prepare"
-				}
-				return "execute"
-			}())
-		}
+		s.exec(prefix + "own_target")
+		ownershipDatabaseOwnerTransactional(s, "own_target")
 		s.exec("ROLLBACK")
+		s.actor("")
 		ownershipDatabaseOwner(s, "own_source")
-		if s.backend.PG {
-			s.exec("BEGIN")
-			s.exec(prefix + "own_target")
-			s.exec("COMMIT")
-			ownershipDatabaseOwner(s, "own_target")
-			s.exec(prefix + "own_source")
-		}
+		s.exec("BEGIN")
+		s.exec(prefix + "own_target")
+		s.exec("COMMIT")
+		ownershipDatabaseOwner(s, "own_target")
+		s.exec(prefix + "own_source")
 		s.exec("BEGIN READ ONLY")
-		if !s.backend.PG && s.prepared {
-			predefinedFailure(s, prefix+"own_target", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}, true, "prepare")
-		} else {
-			ownershipFailure(s, prefix+"own_target", fixture.Diagnostic{Code: "25006", Message: "cannot execute ALTER DATABASE in a read-only transaction"})
-		}
+		ownershipFailure(s, prefix+"own_target", fixture.Diagnostic{Code: "25006", Message: "cannot execute ALTER DATABASE in a read-only transaction"})
 		ownershipAborted(s, prefix+"own_target")
 		s.exec("ROLLBACK")
 		ownershipDatabaseOwner(s, "own_source")
 	})
+}
+
+// The ordinary session actor is selected before BEGIN. Inside the block only
+// transaction-safe SET ROLE is used; no new session-authorization admission.
+func ownershipDatabaseOwnerTransactional(s *membershipScenario, owner string) {
+	s.t.Helper()
+	ownershipSelect(s, "SELECT r.rolname FROM pg_database d JOIN pg_roles r ON r.oid=d.datdba WHERE d.datname=current_database()", []string{"rolname"}, []string{"NAME"}, [][]any{{owner}})
+	ownershipBool(s, "SELECT pg_has_role("+pq.QuoteLiteral(owner)+",'pg_database_owner','USAGE')", true)
+	s.exec("RESET ROLE")
+	s.exec("CREATE TABLE own_db_transaction_probe.own_inheritance_probe(id INT)")
+	s.run(fixture.Exec("INSERT INTO own_db_transaction_probe.own_inheritance_probe VALUES(7)", 1))
+	s.exec("ALTER TABLE own_db_transaction_probe.own_inheritance_probe OWNER TO pg_database_owner")
+	s.exec("SET ROLE " + pq.QuoteIdentifier(owner))
+	ownershipRows(s, "own_db_transaction_probe.own_inheritance_probe")
+	s.exec("RESET ROLE")
+	s.exec("DROP TABLE own_db_transaction_probe.own_inheritance_probe")
+	s.exec("SET ROLE " + pq.QuoteIdentifier(owner))
+	s.exec("SET ROLE pg_database_owner")
+	ownershipSelect(s, "SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{"pg_database_owner"}})
+	s.exec("RESET ROLE")
 }

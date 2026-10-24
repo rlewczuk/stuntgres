@@ -40,8 +40,13 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	stage.dependencyPath, _ = referencePath(auth)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	// Pin roots and automatic associations before producing private candidates.
-	for _, a := range access.OwnershipRelationLocks(stage.Base, roots) {
+	// Pin roots/associations and actual policy-deletion survivors in one
+	// canonical order before producing private candidates.
+	var policySources = sources
+	if reassign {
+		policySources = nil
+	}
+	for _, a := range access.OwnershipRelationLocks(stage.Base, roots, policySources) {
 		if err = scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}

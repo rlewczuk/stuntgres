@@ -258,7 +258,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 }
 
 // TransactionalSchemaUtility reports whether stmt runs on the transaction
-// journal. It is the bounded relation/schema/type integration boundary, including
+// journal. It is the bounded relation/schema/type/ownership integration boundary, including
 // ordinary and concurrent materialized refresh, not a relaxation of
 // independent standalone utility policies. Describe uses the
 // same boundary as Execute, but query-derived creation still analyzes its
@@ -277,7 +277,9 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.AlterType, *parser.DropDomain, *parser.DropType:
 		return true
 	case *parser.AlterOwner:
-		return s.Kind == "table"
+		return s.Kind == "table" || s.Kind == "type" || s.Kind == "domain" || s.Kind == "database"
+	case *parser.ReassignOwned, *parser.DropOwned:
+		return true
 	case *parser.CreateQueryTable:
 		return s.Form == parser.CreateTableAs || s.Form == parser.SelectInto || s.Form == parser.CreateMaterializedView
 	}

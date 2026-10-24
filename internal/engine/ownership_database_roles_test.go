@@ -25,6 +25,8 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: next, Name: "successor", Inherit: true})
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: member, Name: "member", Inherit: true})
 	implicit := roles.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	published, revision, root := e.roles.published, roles.Revision, roles.Root
+	memberships := append([]authorization.Membership(nil), fixtureEdges(roles)...)
 	before := e.catalog.read(e.catalog.state)
 	candidate := catalog.CloneState(e.catalog.state)
 	database := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
@@ -59,6 +61,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	for _, flags := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
 		graph := cloneRoleFixture(roles)
 		setFixtureEdges(graph, []authorization.Membership{{Role: next, Member: member, Grantor: previous, Inherit: flags[0], Set: flags[1]}})
+		exactEdges := append([]authorization.Membership(nil), fixtureEdges(graph)...)
 		read := e.roles.read(e.catalog.owner(), after, graph)
 		closure, err := read.RoleClosure(context.Background(), member, false)
 		if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{member, next, implicit}) {
@@ -73,8 +76,16 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 		if ok, err := read.AdminOfRole(member, implicit); err != nil || ok {
 			t.Fatal("member ADMIN invented", flags, ok, err)
 		}
+		if !reflect.DeepEqual(fixtureEdges(graph), exactEdges) {
+			t.Fatal("implicit owner hop mutated explicit membership identities/flags")
+		}
+		for _, edge := range fixtureEdges(graph) {
+			if edge.Role == implicit {
+				t.Fatal("synthetic database-owner membership", edge)
+			}
+		}
 	}
-	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(catalog.CurrentDatabaseAddress).Owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles.published)) {
+	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(catalog.CurrentDatabaseAddress).Owner != previous || e.roles.published != published || roles.Revision != revision || !reflect.DeepEqual(roles.Root, root) || !reflect.DeepEqual(fixtureEdges(roles), memberships) {
 		t.Fatal("source pair mutated")
 	}
 }

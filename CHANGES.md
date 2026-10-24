@@ -1,3 +1,11 @@
+Table/type/domain/database OWNER, view/materialized-view OWNER and REASSIGN/DROP
+OWNED now share SQL and Go transactions with autocommit and retained protocol
+messages. Ownership and ACL/default/policy/membership cleanup see earlier private
+changes, restore at savepoints or rollback and publish together at commit.
+Sole-target policy deletion retains AccessExclusive on its surviving containing
+table until transaction end or rollback to an earlier savepoint, without blanket
+partial-policy or ACL-survivor locking.
+
 CREATE, ALTER (including rename) and DROP POLICY now participate in SQL BEGIN
 and Go BeginTx as well as autocommit and retained messages. Private definitions,
 role bindings, dependencies and rows commit or roll back together, with savepoint

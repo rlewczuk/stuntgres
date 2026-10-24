@@ -346,7 +346,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		e.mu.Unlock()
 		return nil, err
 	}
-	if err := s.validateRoleCandidate(e.roles.published); err != nil {
+	if err := s.validateRoleCandidate(e.sessionRolesLocked(s.authSession)); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
