@@ -78,7 +78,7 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 	}
 	baseline := capture(t,base,nil)
 	for _,h := range handlers {
-		want := []any{int64(h.oid),h.name,int64(11),int64(source.Owner.ID()),h.arity,h.result,"i",true,"s","f",nil,int64(12),false}
+		want := []any{int64(h.oid),h.name,int64(11),int64(source.Owner.ID()),h.arity,h.result,"i",true,"s","f",nil,int64(12),false,float64(0)}
 		if got := parserProjectionCells(t,baseline[h.oid]); !reflect.DeepEqual(got,want) {
 			t.Fatalf("released handler %d: got=%#v want=%#v",h.oid,got,want)
 		}
@@ -100,7 +100,7 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 			state.SetDescriptor(represented.Address(),represented)
 			state.BindName(catalog.DescriptorNameKey(represented),represented.Address())
 			rows := capture(t,base.WithState(state),represented)
-			want := []any{int64(h.oid),"represented_parser_handler",int64(11),int64(source.Owner.ID()),int64(1),int64(25),"v",false,"s","f",nil,int64(12),false}
+			want := []any{int64(h.oid),"represented_parser_handler",int64(11),int64(source.Owner.ID()),int64(1),int64(25),"v",false,"s","f",nil,int64(12),false,float64(0)}
 			if got := parserProjectionCells(t,rows[h.oid]); !reflect.DeepEqual(got,want) {
 				t.Fatalf("represented descriptor lost precedence: got=%#v want=%#v",got,want)
 			}
@@ -128,6 +128,8 @@ func parserProjectionCells(t *testing.T,row []sqltype.Value) []any {
 			cells[i],err = value.Integer()
 		case sqltype.Bool:
 			cells[i],err = value.Boolean()
+		case sqltype.Float4:
+			cells[i],err = value.Float()
 		case sqltype.Name,sqltype.Char,sqltype.Text:
 			cells[i],err = value.Text()
 		default:

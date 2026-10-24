@@ -108,5 +108,8 @@ func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			return err
 		}
 	}
-	return p.stagePatterns(stage, ext, owner, typ)
+	if err := p.stagePatterns(stage, ext, owner, typ); err != nil {
+		return err
+	}
+	return p.stageRegexp(stage, ext, owner, typ)
 }

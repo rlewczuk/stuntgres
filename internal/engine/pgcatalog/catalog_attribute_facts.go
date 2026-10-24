@@ -29,6 +29,8 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 			return 23
 		case "proretset":
 			return 14
+		case "prorows":
+			return 7
 		}
 	case 2606:
 		switch name {

@@ -13,7 +13,7 @@ import (
 func TestCitextPatternProviderIdentity(t *testing.T) {
 	e, ext, base := citextUnitInstalled(t)
 	view := e.CatalogRead()
-	if len(ext.Members) != 42 {
+	if len(ext.Members) != 52 {
 		t.Fatal(ext.Members)
 	}
 	names := [4]string{"texticlike", "texticnlike", "texticregexeq", "texticregexne"}
@@ -76,7 +76,7 @@ func TestCitextPatternProviderIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	decoded, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
-	if err != nil || !found || len(decoded.Members) != 42 {
+	if err != nil || !found || len(decoded.Members) != 52 {
 		t.Fatal(decoded, found, err)
 	}
 	for i := 18; i < 26; i++ {

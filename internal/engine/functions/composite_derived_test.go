@@ -135,7 +135,7 @@ func TestPlanningHooks(t *testing.T) {
 	}{
 		{RangeInspect{}, expr.FoldConstant, expr.StrictNone, true},
 		{JSONKeys{}, expr.FoldNever, expr.StrictNone, false},
-		{RegexpSet{}, expr.FoldNever, expr.StrictNone, false},
+		{RegexpSet{}, expr.FoldNever, expr.StrictNone, true},
 		{Regexp{}, expr.FoldConstant, expr.StrictNone, true},
 		{VersionInformation{}, expr.FoldNever, expr.StrictNone, false},
 		{JSONCreate{}, expr.FoldNever, expr.StrictNone, true},
@@ -156,6 +156,19 @@ func TestPlanningHooks(t *testing.T) {
 		if got := stored(tc.node); got != tc.stored {
 			t.Errorf("%T stored provider = %v, want %v", tc.node, got, tc.stored)
 		}
+	}
+	// Stored query sources may retain captured sets; that does not make them
+	// scalar-foldable or grant a scalar SQL replay form.
+	if err := (RegexpSet{}).ValidateStoredProvider(); err != nil {
+		t.Fatal("builtin set acquired captured-provider requirements", err)
+	}
+	malformed := RegexpSet{RegexpCall: RegexpCall{Citext: &CitextRegexpCapture{}}}
+	if err := malformed.ValidateStoredProvider(); err == nil {
+		t.Fatal("stored set accepted an invalid captured provider")
+	}
+	rendered, err := (RegexpSet{}).Render()
+	if err != nil || rendered.Replay.Validate == nil || rendered.Replay.Validate() == nil {
+		t.Fatal("stored set gained scalar SQL replay", err)
 	}
 }
 

@@ -71,7 +71,14 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 		{"pgcrypto", catalog.CRoutineLanguage, []string{"pg_digest", "pg_digest", "pg_hmac", "pg_hmac", "pg_crypt", "pg_gen_salt", "pg_gen_salt_rounds", "pg_encrypt", "pg_decrypt", "pg_encrypt_iv", "pg_decrypt_iv", "pg_random_bytes", "pg_random_uuid", "pg_check_fipsmode"}},
 		{"uuid-ossp", catalog.CRoutineLanguage, []string{"uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500", "uuid_generate_v1", "uuid_generate_v1mc", "uuid_generate_v3", "uuid_generate_v4", "uuid_generate_v5"}},
 		{"fuzzystrmatch", catalog.CRoutineLanguage, []string{"daitch_mokotoff", "levenshtein", "levenshtein_with_costs", "levenshtein_less_equal", "levenshtein_less_equal_with_costs", "metaphone", "dmetaphone", "dmetaphone_alt", "soundex", "difference"}},
-		{"citext", catalog.InternalRoutineLanguage, []string{"textin", "textout", "citext_eq", "citext_ne", "citext_lt", "citext_le", "citext_gt", "citext_ge", "rtrim1", "booltext", "network_show", "texticlike", "texticlike", "texticnlike", "texticnlike", "texticregexeq", "texticregexeq", "texticregexne", "texticregexne"}},
+		{"citext", catalog.InternalRoutineLanguage, []string{
+			"textin", "textout", "citext_eq", "citext_ne", "citext_lt", "citext_le", "citext_gt", "citext_ge", "rtrim1", "booltext", "network_show", "texticlike", "texticlike", "texticnlike", "texticnlike", "texticregexeq", "texticregexeq", "texticregexne", "texticregexne",
+			"", "", // regexp_match
+			"", "", // regexp_matches
+			"", "", // regexp_replace
+			"", "", // regexp_split_to_array
+			"", "", // regexp_split_to_table
+		}},
 		{"intarray", catalog.CRoutineLanguage, []string{"bqarr_in", "bqarr_out"}},
 		{"isn", catalog.CRoutineLanguage, []string{"ean13_in", "ean13_out", "isbn_in", "isn_out", "isbn_in", "ean13_out"}},
 		{"intagg", catalog.InternalRoutineLanguage, []string{"aggregate_dummy", "array_unnest"}},
@@ -103,6 +110,8 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 					switch p.Name() {
 					case "citext_eq", "citext_ne", "citext_lt", "citext_le", "citext_gt", "citext_ge":
 						language = catalog.CRoutineLanguage
+					case "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
+						language = catalog.SQLRoutineLanguage
 					}
 				}
 				if p.Display.Language != language || p.Display.SecurityDefiner {

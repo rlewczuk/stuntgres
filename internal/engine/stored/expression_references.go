@@ -60,6 +60,10 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		return
 	}
 	switch n := expr.(type) {
+	case functions.Regexp:
+		if n.Citext != nil { r.Add(n.Citext.Ref.Address) }
+	case functions.RegexpSet:
+		if n.Citext != nil { r.Add(n.Citext.Ref.Address) }
 	case plan.RangeConstructorExpr:
 		r.Add(n.Ref.Address)
 	case plan.SQLRoutineExpr:

@@ -29,7 +29,7 @@ func CitextPatternSignature(left, right sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(string(CitextSignature(left)) + "," + string(CitextSignature(right)))
 }
 func CitextOperatorSlot(slot int) bool {
-	return slot >= CitextComparisonOperatorStart && slot < CitextConversionProcedureStart || slot >= CitextPatternOperatorStart && slot < CitextMemberCount
+	return slot >= CitextComparisonOperatorStart && slot < CitextConversionProcedureStart || slot >= CitextPatternOperatorStart && slot < CitextPatternOperatorEnd
 }
 func citextPatternRight(id sqltype.ID, pair int) sqltype.ID {
 	if pair == 1 {

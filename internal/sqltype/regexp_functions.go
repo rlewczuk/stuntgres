@@ -53,6 +53,7 @@ type RegexpPlan struct {
 	result                                                    Usage
 	collation                                                 CollationRef
 	conflict                                                  bool
+	citext                                                    bool
 	replacement, start, occurrence, endOption, flags, subexpr int8
 }
 
@@ -80,6 +81,7 @@ func (p RegexpPlan) Name() string {
 	return ""
 }
 func (p RegexpPlan) ArgCount() int           { return int(p.argCount) }
+func (p RegexpPlan) ArgumentUsage(i int) Usage { return p.args[i] }
 func (p RegexpPlan) ReturnsSet() bool        { return p.kind == RegexpMatches || p.kind == RegexpSplitTable }
 func (p RegexpPlan) ResultUsage() Usage      { return p.result }
 func (p RegexpPlan) Collation() CollationRef { return p.collation }
@@ -177,8 +179,31 @@ func BindRegexpFunction(name string, args []Usage, result Usage, collation Colla
 	}
 	return p, nil
 }
-func regexpFlags(ctx context.Context, text string) (PGRegexOptions, bool, error) {
-	var o PGRegexOptions
+// BindCitextRegexpFunction preserves the installed formal descriptors while
+// sharing the text kernel. Citext values already retain their original spelling.
+func BindCitextRegexpFunction(name string, args []Usage, result, text Usage, collation CollationRef, conflict bool) (RegexpPlan, error) {
+	if len(args) < 2 || len(args) > 4 || !args[0].Valid() || !args[1].Valid() || !args[0].Type.IsCitext() || args[1].Type != args[0].Type || !text.Valid() || text.Type.ID() != Text {
+		return RegexpPlan{}, fmt.Errorf("invalid citext regexp signature")
+	}
+	kind := RegexpFunctionKind(name)
+	if kind != RegexpMatch && kind != RegexpMatches && kind != RegexpReplace && kind != RegexpSplitArray && kind != RegexpSplitTable || kind != RegexpReplace && len(args) > 3 {
+		return RegexpPlan{}, fmt.Errorf("invalid citext regexp member")
+	}
+	var adapted [4]Usage
+	copy(adapted[:], args)
+	adapted[0], adapted[1] = text, text
+	p, err := BindRegexpFunction(name, adapted[:len(args)], result, collation, conflict)
+	if err != nil {
+		return p, err
+	}
+	copy(p.args[:], args)
+	p.citext = true
+	return p, nil
+}
+// Starting insensitive is equivalent to the citext SQL wrappers' appended i:
+// any explicit c resets it, and subsequent i/c options retain written order.
+func regexpFlags(ctx context.Context, text string, insensitive bool) (PGRegexOptions, bool, error) {
+	o := PGRegexOptions{CaseInsensitive: insensitive}
 	global := false
 	for _, r := range text {
 		if err := ctx.Err(); err != nil {
@@ -292,7 +317,7 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 	}
 	var options PGRegexOptions
 	var global bool
-	options, global, err = regexpFlags(ctx, flagtext)
+	options, global, err = regexpFlags(ctx, flagtext, p.citext)
 	if err != nil {
 		if p.kind == RegexpReplace && p.flags == 3 && len(flagtext) > 0 && flagtext[0] >= '0' && flagtext[0] <= '9' {
 			if e, ok := err.(*sqlstate.Error); ok {
@@ -590,7 +615,7 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 		value = Null(p.result.Type)
 	case RegexpReplace:
 		if last == 0 && len(output) == 0 {
-			value = args[0]
+			value = String(p.result.Type, source)
 			return
 		}
 		err = appendText(source[last:])

@@ -221,6 +221,16 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 				return invalid()
 			}
 		}
+		if p.Implementation == StockCitext && slot >= CitextRegexpProcedureStart {
+			m := CitextRegexpMembers[slot-CitextRegexpProcedureStart]
+			name, signature, result = m.Name, m.Signature(base.SQLType.ID()), m.Result
+			if p.Installed != m.Declaration || p.Language != (ids.ObjectAddress{}) || p.Display != (catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage}) {
+				return invalid()
+			}
+			if err := ValidateProviderHeader(v, p, ids.ProcedureClassID); err != nil {
+				return invalid()
+			}
+		}
 	case StockPgrowlocks:
 		count = 1
 		name, signature, result, volatility = "pgrowlocks", "25", 2249, expr.Volatile

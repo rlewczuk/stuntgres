@@ -376,6 +376,14 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		if name == "citext" && slot >= CitextPatternProcedureStart && slot < CitextPatternOperatorStart {
 			return [2]string{"citext,citext", "citext,25"}[(slot-CitextPatternProcedureStart)%2], true
 		}
+		if name == "citext" && slot >= CitextRegexpProcedureStart && slot < CitextMemberCount {
+			m := CitextRegexpMembers[slot-CitextRegexpProcedureStart]
+			signature := "citext,citext"
+			for i := 2; i < m.ArgCount; i++ {
+				signature += ",25"
+			}
+			return signature, true
+		}
 		if slot == 1 {
 			return "2275", true
 		}
@@ -410,7 +418,7 @@ func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 		if slot >= CitextComparisonOperatorStart && slot < CitextConversionProcedureStart {
 			return citextOperatorNames[slot-CitextComparisonOperatorStart], "citext,citext", true
 		}
-		if slot >= CitextPatternOperatorStart && slot < CitextMemberCount {
+		if slot >= CitextPatternOperatorStart && slot < CitextPatternOperatorEnd {
 			index := slot - CitextPatternOperatorStart
 			return citextPatternOperators[index%8], [2]string{"citext,citext", "citext,25"}[index/8], true
 		}

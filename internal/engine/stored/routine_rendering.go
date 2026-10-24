@@ -15,6 +15,16 @@ import (
 // genuinely relabelled declaration replaces it with its checked current SQL
 // identity; unchanged provider formatting remains byte-for-byte unchanged.
 func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Rendering) (expr.Rendering, error) {
+	if call, installed := citextRegexpCallOf(node); installed {
+		current, err := currentCitextRegexp(view, call)
+		if err != nil { return spec, err }
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok { return spec, fmt.Errorf("stuntgres: missing citext regexp namespace") }
+		spec.Name = current.Name()
+		spec.Namespace = namespace.Name()
+		spec.Quote = expr.QuoteIdentifier
+		return spec, nil
+	}
 	captured, err := exec.ExpressionRoutineDescriptor(node)
 	if err != nil || captured == nil {
 		return spec, err

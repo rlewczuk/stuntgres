@@ -32,6 +32,10 @@ func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 		if len(declared) == 0 {
 			return candidate, false
 		}
+		if d.Installed.ArgumentNames[0] != "" {
+			candidate.NamedDeclaration = declared
+			return candidate, true
+		}
 		symbol, err := callableProviderSymbol(view, d)
 		if err != nil {
 			return candidate, false
@@ -116,6 +120,23 @@ func AppendSQLCallable(candidates []SQLCallable, candidate SQLCallable) []SQLCal
 }
 
 func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.Argument, candidate *SQLCallable) bool {
+	if candidate.Procedure.Installed.ArgumentNames[0] != "" {
+		declared := candidate.Inputs
+		if candidate.NamedDeclaration != nil { declared = candidate.NamedDeclaration }
+		if len(operands) != len(declared) || len(declared) > 4 || raw.Variadic { return false }
+		var names [7]string
+		copy(names[:], candidate.Procedure.Installed.ArgumentNames[:])
+		written, _, valid := functions.RegexpSlots(raw, names, len(operands))
+		if !valid { return false }
+		candidate.Inputs = make([]sqltype.Usage, len(declared))
+		candidate.Targets = make([]sqltype.Usage, len(declared))
+		for i, slot := range written[:len(operands)] {
+			target := declared[slot]
+			if operands[i].Usage.Type != nil && !b.CanCoerce(operands[i].Usage, target, sqltype.Implicit) { return false }
+			candidate.Inputs[i], candidate.Targets[i] = target, target
+		}
+		return true
+	}
 	if candidate.NamedDeclaration != nil {
 		symbol, err := callableProviderSymbol(b.BindingCatalog(), candidate.Procedure)
 		if err != nil {

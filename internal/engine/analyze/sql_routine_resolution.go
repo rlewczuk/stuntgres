@@ -68,7 +68,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := cast != nil || b.typeNameCallable(raw.Name)
-	if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !b.BindingCatalog().HasCasts() {
+	if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -77,6 +77,16 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	}
 	path, err := b.Host.LookupNamespaces(auth, raw.Name, FunctionLookup)
 	if err != nil {
+		// PostgreSQL transforms written arguments before reporting function
+		// namespace errors. Publish real argument diagnostics first without
+		// binding losing candidates or changing the successful lookup path.
+		if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42501" || diagnostic.Code == "3F000") {
+			for _, argument := range raw.Args {
+				if _, argumentErr := b.comparisonOperand(argument); argumentErr != nil {
+					return selection, true, argumentErr
+				}
+			}
+		}
 		return selection, true, err
 	}
 	selection.auth = auth
@@ -540,6 +550,16 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		symbol, err := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
 		if err != nil {
 			return nil, err
+		}
+		if extension.CitextRegexpName(symbol) {
+			node, err := b.bindSelectedCitextRegexp(raw, selected, symbol)
+			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+				frozen := raw
+				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+				if b.Stored.Syntax == nil { b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr) }
+				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+			}
+			return node, err
 		}
 		if extension.CitextComparisonName(symbol) {
 			node, err := b.bindSelectedCitextComparison(raw, selected, symbol)

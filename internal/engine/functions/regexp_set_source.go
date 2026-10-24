@@ -7,8 +7,12 @@ import (
 func (e RegexpSet) SourceAdmission() (bool, bool) { return e.Plan.ReturnsSet(), true }
 
 func (e RegexpSet) SameSourceOccurrence(other expr.Expr) bool {
-	_, ok := other.(RegexpSet)
-	return ok
+	o, ok := other.(RegexpSet)
+	if !ok { return false }
+	if e.Citext != nil || o.Citext != nil {
+		return e.Citext != nil && o.Citext != nil && *e.Citext == *o.Citext && e.RoutineReference == o.RoutineReference && e.Plan == o.Plan
+	}
+	return true
 }
 
 func (e RegexpSet) OpenSource(c expr.Context) (expr.SourceCursor, error) {

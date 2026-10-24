@@ -13,6 +13,7 @@ type RegexpCall struct {
 	Args         []expr.Expr
 	WrittenSlots [7]uint8
 	Labels       [7]string
+	Citext       *CitextRegexpCapture
 }
 type Regexp struct{ RegexpCall }
 type RegexpSet struct{ RegexpCall }
@@ -37,7 +38,8 @@ func (e Regexp) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.Plan.Evaluate(c.FunctionContext(), values, c.FunctionRegexExecution())
+	value, err := e.Plan.Evaluate(c.FunctionContext(), values, c.FunctionRegexExecution())
+	return value, e.citextError(c, err)
 }
 func (e RegexpSet) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
@@ -50,7 +52,8 @@ func (e RegexpSet) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	return e.Plan.EvaluateSet(c.FunctionContext(), values, c.FunctionRegexExecution())
+	valuesOut, err := e.Plan.EvaluateSet(c.FunctionContext(), values, c.FunctionRegexExecution())
+	return valuesOut, e.citextError(c, err)
 }
 func NewRegexpCall(info expr.Info, name string, args []expr.Expr, writtenSlots [7]uint8, labels [7]string, collation sqltype.CollationRef, conflict bool) (RegexpCall, error) {
 	usages := make([]sqltype.Usage, len(args))
@@ -58,9 +61,12 @@ func NewRegexpCall(info expr.Info, name string, args []expr.Expr, writtenSlots [
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindRegexpFunction(name, usages, info.Usage, collation, conflict)
-	return RegexpCall{info, plan, args, writtenSlots, labels}, err
+	return RegexpCall{Info: info, Plan: plan, Args: args, WrittenSlots: writtenSlots, Labels: labels}, err
 }
 func (call RegexpCall) Reconstruct(info expr.Info, args []expr.Expr, collation sqltype.CollationRef, conflict bool) (RegexpCall, error) {
+	if call.Citext != nil {
+		return NewCitextRegexpCall(info, call.Plan.Name(), args, call.WrittenSlots, call.Labels, *call.Citext)
+	}
 	return NewRegexpCall(info, call.Plan.Name(), args, call.WrittenSlots, call.Labels, collation, conflict)
 }
 func RegexpSignature(name string, n int, replaceFlags bool) (labels [7]string, types [7]sqltype.ID, result sqltype.ID, valid bool) {
@@ -213,7 +219,8 @@ func (call RegexpCall) IntrinsicVolatility() expr.Volatility { return expr.Immut
 
 func (e RegexpSet) PlanningFold() expr.Fold { return expr.FoldNever }
 
-func (e Regexp) ValidateStoredProvider() error { return nil }
+func (e Regexp) ValidateStoredProvider() error { return e.validateCitext() }
+func (e RegexpSet) ValidateStoredProvider() error { return e.validateCitext() }
 
 // retag recomputes the input collation from the retagged arguments. It runs
 // even when nothing changed, as the stored call is always revalidated.
@@ -221,6 +228,13 @@ func (call RegexpCall) retag(info expr.Info, children []expr.Expr, env expr.Reta
 	input, err := env.Collated(expr.Info{Usage: children[0].ResultUsage(), Pos: info.Pos}, children...)
 	if err != nil {
 		return call, err
+	}
+	if call.Citext != nil {
+		capture := *call.Citext
+		capture.Text.Type = env.Type(capture.Text.Type)
+		capture.Text.Collation, err = env.Collation(capture.Text.Collation)
+		if err != nil { return call, err }
+		call.Citext = &capture
 	}
 	return call.Reconstruct(info, children, input.Usage.Collation, input.CollationConflict)
 }
@@ -237,6 +251,9 @@ var _ expr.Renderable = Regexp{}
 
 // Render implements expr.Renderable.
 func (e Regexp) Render() (expr.Rendering, error) {
+	if e.Citext != nil {
+		return e.citextRendering()
+	}
 	return e.RegexpCall.rendering("Regexp "), nil
 }
 
@@ -245,6 +262,11 @@ var _ expr.Renderable = RegexpSet{}
 // Render implements expr.Renderable.
 func (e RegexpSet) Render() (expr.Rendering, error) {
 	spec := e.RegexpCall.rendering("RegexpSet ")
+	if e.Citext != nil {
+		spec, err := e.citextRendering()
+		spec.Replay.Validate = unsupportedReplay
+		return spec, err
+	}
 	spec.Replay.Validate = unsupportedReplay
 	return spec, nil
 }
@@ -274,6 +296,11 @@ func (c RegexpCall) sameGroup(other RegexpCall, same func(a, b expr.Expr) bool) 
 	if c.Plan != other.Plan || len(c.Args) != len(other.Args) {
 		return false
 	}
+	if c.Citext != nil || other.Citext != nil {
+		if c.Citext == nil || other.Citext == nil || *c.Citext != *other.Citext || c.RoutineReference != other.RoutineReference {
+			return false
+		}
+	}
 	for i, arg := range c.Args {
 		if !same(arg, other.Args[i]) {
 			return false
@@ -286,7 +313,10 @@ func (c RegexpCall) sameGroup(other RegexpCall, same func(a, b expr.Expr) bool) 
 func (e RegexpSet) PreflightFold() expr.Preflight { return expr.PreflightChildren }
 
 // PreflightFold implements expr.Preflighting.
-func (e Regexp) PreflightFold() expr.Preflight { return expr.PreflightEvaluate }
+func (e Regexp) PreflightFold() expr.Preflight {
+	if e.Citext != nil { return expr.PreflightRegexNullOrEvaluate }
+	return expr.PreflightEvaluate
+}
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e Regexp) LooksLikeFunction() bool { return true }
@@ -316,7 +346,10 @@ func (e RegexpCall) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, 
 	if kind != expr.CaptureFunction {
 		return expr.CaptureOperands{}, false, nil
 	}
-	return captureWritten(e.Args, e.WrittenSlots[:], len(e.Args), len(e.Args))
+	if err := e.validateCitext(); err != nil { return expr.CaptureOperands{}, true, err }
+	capture, ok, err := captureWritten(e.Args, e.WrittenSlots[:], len(e.Args), len(e.Args))
+	capture.SelectedImplicit = e.Citext != nil
+	return capture, ok, err
 }
 
 func (e RegexpCall) CaptureOperand(written int) (expr.Expr, error) {

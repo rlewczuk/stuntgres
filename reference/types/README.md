@@ -307,12 +307,25 @@ Actual simple/extended protocol coverage belongs in
 - `cube` (scalar/codecs, coordinate extraction and spatial predicates/distances): `RUN='^TestReferenceCube'`
 - <a id="earth-domain-contract"></a>`earth` domain, coordinates and conversions: `RUN='^TestReferenceEarth'`
 - <a id="citext-storage-and-value-round-trips"></a>`citext` storage, scalar
-  comparisons, pattern operators, binding, collation demand, diagnostics, catalogs
-  and controls: `RUN='^TestReferenceCitext'`. Scenarios specify fixed Boolean vectors
+  comparisons, pattern operators, regexp scalar/set overloads, binding, collation
+  demand, diagnostics, catalogs and controls: `RUN='^TestReferenceCitext'`.
+  Scenarios specify fixed Boolean vectors
   and original spelling independently, reuse held statements, and replay emitted
   stored view/CHECK SQL through native controls and the pinned oracle. Operator
   selectivity references use exact schema-qualified regproc identities without
   requiring lookup-only estimators to be callable pg_proc rows.
+- Citext regexp wrappers: `RUN='^TestReferenceCitextRegexp'`. Independently
+  specified captures/replacements/splits distinguish SQL NULL, null captures and
+  empty strings, retain original case, and exercise explicit `c`, named formals,
+  held recovery, zipped/LATERAL sets, exact declaration metadata and caller ACLs.
+  Stored scalar and set views, CHECK/default consumers, displaced-driver imports
+  and actual emitted SQL replay share the existing public control fixture.
+  Review regressions independently assert row-dependent scalar error provenance,
+  CHECK body collation with NULL/invalid inputs, and current renamed-wrapper
+  diagnostics through held/stored calls, native controls and actual emitted replay:
+  `RUN='^TestReferenceCitextRegexp(Provenance|BodyCollation|Renamed)$'`.
+  Retained original SQL reports undefined-function lookup after rename; separately
+  rebound held calls and stored identities report the current invocation name.
 - `query_int`: `RUN='^TestReferenceQueryInt'`
 - `aclitem`: `RUN='^TestReferenceACLItem'`
 - ACL construction and expansion: `RUN='^TestReferenceACLValues'`

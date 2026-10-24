@@ -107,9 +107,9 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 					parallel = "u"
 				}
 			}
+			if d.Installed.Parallel != 0 { parallel = string(d.Installed.Parallel) }
 			text(8, parallel)
 			text(9, string(d.RoutineKind))
-			boolean(12, d.Builtin != nil && d.Builtin.ReturnsSet)
 			row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 			if d.SQL != nil {
 				named := false
@@ -151,6 +151,30 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, values)
 				}
 			}
+			if d.Installed.ArgumentNames[0] != "" {
+				elements := make([]sqltype.Value, ProcedureArity(d))
+				for i := range elements {
+					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), d.Installed.ArgumentNames[i])
+				}
+				row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
+			}
+			returnsSet, estimate := d.Installed.ReturnsSet, float64(d.Installed.Rows)
+			if d.Builtin != nil && d.Builtin.ReturnsSet {
+				returnsSet, estimate = true, builtinRoutineRows(d.Builtin)
+			}
+			if ext, ok := view.Extension(d.Extension); ok && d.Implementation != nil && (ext.Name() == "pgrowlocks" || ext.Name() == "intagg" && d.RoutineKind == catalog.FunctionRoutine && d.Signature == "1007" && d.Result == 23) {
+				if err := d.Implementation.ValidateExtension(view, ext); err != nil {
+					return nil, err
+				}
+				if !slices.Contains(ext.Members, d.Address()) {
+					return nil, fmt.Errorf("stuntgres: nonmember set routine declaration")
+				}
+				returnsSet, estimate = true, 1000
+			}
+			boolean(12, returnsSet)
+			estimateValue, err := sqltype.Float(source.Columns[13].Usage.Type, estimate)
+			if err != nil { return nil, err }
+			row[13] = estimateValue
 		case *catalog.TSTemplate:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())

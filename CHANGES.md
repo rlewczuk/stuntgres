@@ -44,6 +44,12 @@ stuntgres identity, the existing compatibility version banner and initial C
 collation. Direct and prepared reads preserve NULL, empty-string and zero
 values with normal PUBLIC SELECT and schema/relation admission.
 
+Installed citext supplies its ten documented regexp scalar and set overloads.
+Captures, replacements and split results retain original spelling, default to
+case-insensitive matching and honor explicit flags. Named parameters, installed
+SQL declaration metadata, current caller privileges and stored scalar/set
+invocation share the existing routine and native-control machinery.
+
 information_schema.role_udt_grants now exposes seven domain-typed columns over
 actual composite type USAGE grant origins, including represented catalog row
 types. Named grantors, grant options and inherited enabled-role visibility

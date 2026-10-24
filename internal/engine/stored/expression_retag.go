@@ -116,6 +116,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, failure
 				}
 			}
+			if call, isCitext := citextRegexpCallOf(node); isCitext {
+				if failure := remapCitextRegexpRoutine(view, reader, captured, current, call, retainedType); failure != nil {
+					return nil, false, failure
+				}
+			}
 			sameSignature := ok && current.Signature == captured.Signature
 			if captured.RangeConstructor != nil {
 				sameSignature = ok && current.RangeConstructor != nil && current.RangeConstructor.Form == captured.RangeConstructor.Form && current.RangeConstructor.Type == retainedType(captured.RangeConstructor.Type)

@@ -40,6 +40,15 @@ func (d *Extension) Name() string { return d.ObjectName }
 
 func (*Extension) Kind() ids.ObjectKind { return ids.ExtensionObject }
 
+// InstalledRoutineDeclaration is immutable declaration metadata, not execution
+// authority. Fixed-size argument names keep descriptor copies self-contained.
+type InstalledRoutineDeclaration struct {
+	ArgumentNames [4]string
+	Parallel byte
+	ReturnsSet bool
+	Rows float32
+}
+
 type Procedure struct {
 	ObjectAddress, ObjectNamespace, Extension ids.ObjectAddress
 	ObjectRevision                            ids.DefinitionRevision
@@ -47,6 +56,7 @@ type Procedure struct {
 	Signature                                 ProcedureSignature
 	RoutineKind                               RoutineKind
 	Builtin                                   *BuiltinRoutineDeclaration
+	Installed                                 InstalledRoutineDeclaration
 	SQL                                       *proc.Definition
 	Language                                  ids.ObjectAddress
 	Display                                   RoutineDisplay

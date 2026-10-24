@@ -89,6 +89,10 @@ library, and never the root engine or `session`. The engine, the root driver
   `LookupPath`, `EffectivePath`, `CreationNamespace`, ... over one by-value
   `PathInput[E]`; `ResolveTypeName` takes a `TypeNameOperation` because the
   package never imports `session`.
+  SQL-callable namespace failures publish real written-argument binding errors
+  first, preserving cast/type source positions. Only SQL namespace errors are
+  deferred; cancellation and internal failures retain their original identity.
+  Successful lookup and builtin fallback do not gain a second argument pass.
 - **Captured input retargeting** (`captured_inputs.go`): `IdentifierTarget` and
   the `*Retarget` interfaces.
 - **Privilege walkers** (`binding_privileges.go`): `CheckBinding` and

@@ -315,6 +315,21 @@ publication and lock-manager tickets stay in the engine.
 - **Regexp**: `RegexpCall` binds a `sqltype.RegexpPlan` and shares the
   statement-local `PGRegexExecution` (no global regex cache). The query binder
   lifts set calls into stages, so `RegexpSet.Eval` is an invariant failure.
+  An optional `CitextRegexpCapture` preserves opaque selected-routine identity,
+  reference/member provenance and descriptive naming without importing catalog
+  ownership. Scalar/set scheduling and kernel hooks stay shared; `analyze`,
+  `stored` and `exec` validate actual declarations, generations and current ACLs.
+  Captured SQL bodies retain their declaration-default collation independently
+  of outer metadata and inline error provenance. After shared constant/parameter
+  evaluation declines, eligible nonconstant no-flags scalar bodies retain inline
+  diagnostics in projection, WHERE and stored consumers; flags and set wrappers
+  retain invocation Context. Diagnostic naming borrows the current validated
+  declaration through `CitextRegexpRuntime`, never the kernel symbol or stale
+  captured public spelling. Scalar NULL preflight uses the shared typed-frame
+  proof and regex reset hook; set initialization still demands routine admission.
+  Unchanged replacements borrow the original bytes but construct the bound TEXT
+  result descriptor; the input's installed CITEXT identity never becomes a
+  TEXT-typed literal's datum identity.
 - **pgcrypto**: `sqltype` owns the plans and kernels. Plans retain no password,
   salt, entropy, key or IV.
 - **MAC operations**: `trunc` keeps one registry owner in `math_bind.go`;

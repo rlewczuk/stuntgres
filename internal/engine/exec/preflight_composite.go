@@ -2,6 +2,7 @@ package exec
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -94,6 +95,11 @@ func preflightEvaluate(c *Context, node expr.Expr, changed bool) (expr.Expr, boo
 	if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 		value, err := EvaluatePlanningExpression(c, node)
 		return preflightValue(c, expr.InfoOf(node), value, err)
+	}
+	if call, ok := node.(functions.Regexp); ok {
+		if inlined, did := call.InlineSQLBody(); did {
+			return inlined, true, nil
+		}
 	}
 	return node, changed, nil
 }

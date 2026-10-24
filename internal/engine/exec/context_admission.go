@@ -153,6 +153,26 @@ func (c *Context) EarthCoordinateDiagnosticName(n functions.EarthCoordinate) (st
 	return current.Name(), nil
 }
 
+// CitextRegexpDiagnosticName borrows the current admitted declaration rather
+// than the immutable kernel symbol or a name retained before ALTER RENAME.
+func (c *Context) CitextRegexpDiagnosticName(n functions.RegexpCall) (string, error) {
+	if err := EvaluationContext(c); err != nil {
+		return "", err
+	}
+	captured, err := ExpressionRoutineDescriptor(n)
+	if err != nil {
+		return "", err
+	}
+	if captured == nil {
+		return "", fmt.Errorf("stuntgres: missing citext regexp routine identity")
+	}
+	current, err := ValidateStoredRoutineDescriptor(preparation.DomainCatalog(c), captured)
+	if err != nil {
+		return "", err
+	}
+	return current.Name(), nil
+}
+
 func SQLRoutineContext(err error, name string, runtime bool) error {
 	statement := 0
 	if runtime {
