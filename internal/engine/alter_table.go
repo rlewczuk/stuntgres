@@ -18,7 +18,6 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // The strictest captured ALTER grant protects the incarnation until Finish.
@@ -31,19 +30,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	ref, err := e.resolveRelationReference(auth, s.Name, true)
 	if s.IfExists && table.RenameMissing(err) {
-		op.Session.Mu.Lock()
-		err = publicationOperationLocked(e, op)
-		op.Session.Mu.Unlock()
-		if err == nil {
-			err = op.Context().Err()
-		}
-		if err != nil {
-			return fail(err)
-		}
-		scope.completed = true
-		e.mu.Unlock()
-		op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
-		return Result{}, nil
+		return e.skipMissingRelationLocked(scope, op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
 	}
 	if err == nil && ref != scope.lockedRef {
 		err = ids.ErrCatalogReplaced

@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // Utility admission pins the target identity before waiting. Shared rename and
@@ -31,19 +30,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	}
 	ref, err := e.resolveRelationReference(auth, s.Name, true)
 	if s.IfExists && table.RenameMissing(err) {
-		scope.op.Session.Mu.Lock()
-		err = publicationOperationLocked(e, scope.op)
-		scope.op.Session.Mu.Unlock()
-		if err == nil {
-			err = scope.op.Context().Err()
-		}
-		if err != nil {
-			return fail(err)
-		}
-		scope.completed = true
-		e.mu.Unlock()
-		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
-		return Result{}, nil
+		return e.skipMissingRelationLocked(scope, scope.op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
 	}
 	if err != nil {
 		return fail(err)

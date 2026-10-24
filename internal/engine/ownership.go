@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 func (e *Engine) ownershipStage(auth AuthorizationView, op *session.Operation) *CatalogStage {
@@ -54,7 +53,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if ifExists && table.RenameMissing(err) {
 		e.mu.Unlock()
 		scope.completed = true
-		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, name.Parts[len(name.Parts)-1].Text)})
+		scope.op.EmitNotice(session.LevelNotice, session.MissingRelation(name.Parts[len(name.Parts)-1].Text))
 		return Result{}, scope.op.Context().Err()
 	}
 	if err != nil {

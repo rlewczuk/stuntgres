@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // Engine.mu is consumed on every return. The execution scope owns parent AX;
@@ -21,16 +20,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	if scope.lockedRef.Domain() == nil {
-		op.Session.Mu.Lock()
-		err := publicationOperationLocked(e, op)
-		op.Session.Mu.Unlock()
-		e.mu.Unlock()
-		if err != nil {
-			return Result{}, err
-		}
-		scope.completed = true
-		op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, raw.Name.Parts[len(raw.Name.Parts)-1].Text)})
-		return Result{}, nil
+		return e.skipMissingRelationLocked(scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)
 	if parent.Partition == nil {

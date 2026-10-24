@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // Engine.mu is held on entry and released on every return. Dependency waits
@@ -24,19 +23,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if s.IfExists && table.RenameMissing(err) {
-		op.Session.Mu.Lock()
-		err = publicationOperationLocked(e, op)
-		op.Session.Mu.Unlock()
-		if err == nil {
-			err = op.Context().Err()
-		}
-		if err != nil {
-			return fail(err)
-		}
-		scope.completed = true
-		e.mu.Unlock()
-		op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
-		return Result{}, nil
+		return e.skipMissingRelationLocked(scope, op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
 	}
 	if err != nil {
 		return fail(err)

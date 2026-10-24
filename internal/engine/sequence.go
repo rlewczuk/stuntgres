@@ -211,7 +211,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			if s.IfExists {
 				if d, ok := err.(*sqlstate.Error); ok && d.Code == "42P01" {
-					op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(s.Name))})
+					op.EmitNotice(session.LevelNotice, session.MissingRelation(catalog.ObjectNameText(s.Name)))
 					return Result{}, nil
 				}
 			}

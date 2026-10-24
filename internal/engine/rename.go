@@ -25,19 +25,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if ifExists && table.RenameMissing(err) {
-		op.Session.Mu.Lock()
-		err = publicationOperationLocked(e, op)
-		op.Session.Mu.Unlock()
-		if err == nil {
-			err = op.Context().Err()
-		}
-		if err != nil {
-			return fail(err)
-		}
-		scope.completed = true
-		e.mu.Unlock()
-		op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, name.Parts[len(name.Parts)-1].Text)})
-		return Result{}, nil
+		return e.skipMissingRelationLocked(scope, op, name.Parts[len(name.Parts)-1].Text, false)
 	}
 	if err != nil {
 		return fail(err)
