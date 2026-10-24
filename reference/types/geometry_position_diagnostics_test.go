@@ -44,41 +44,43 @@ func TestReferenceGeometryPositionDiagnostics(t *testing.T) {
 	// Valid held statements fail only on a malformed runtime datum and remain
 	// usable after that failure; invalid overloads above cannot be prepared.
 	for _, shape := range geometryPositionShapes[1:3] {
-		t.Run(shape.typ+"_held_recovery", func(t *testing.T) {
-			p := fixture.NewScenario(t)
-			for _, backend := range p.Backends() {
-				t.Run(backend.Name, func(t *testing.T) {
-					c, err := backend.DB.Conn(p.Ctx)
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer c.Close()
-					q := "SELECT $1::" + shape.typ + " << $2::" + shape.typ + " AS v"
-					stmt, err := c.PrepareContext(p.Ctx, q)
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer stmt.Close()
-					held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
-					for _, index := range []int{1, 2} {
-						args := []any{shape.a, shape.b}
-						args[index-1] = "bad"
-						d := fixture.ControlsReferenceDiagnostic("22P02", "invalid input syntax for type "+shape.typ+": \"bad\"")
-						d.Context = "unnamed portal parameter $" + fixture.Position(index) + " = '...'"
-						s := fixture.ErrorDiagnostic(q, d, args...)
-						s.SelectRows, s.ErrorStage = true, "execute"
-						fixture.RunStep(t, p.Ctx, c, backend.Recorder, s)
-						fixture.RunStep(t, p.Ctx, c, backend.Recorder, fixture.Prepared(s))
-						fixture.RunStep(t, p.Ctx, held, backend.Recorder, s)
-						for _, recovery := range []struct {
-							a    any
-							want any
-						}{{shape.a, true}, {nil, nil}, {[]byte(nil), nil}, {[]byte(shape.a), true}} {
-							fixture.RunStep(t, p.Ctx, held, backend.Recorder, fixture.Select(q, []string{"v"}, []string{"BOOL"}, [][]any{{recovery.want}}, recovery.a, shape.b))
+		for _, op := range []string{"<<", "<<|"} {
+			t.Run(shape.typ+"_"+op+"_held_recovery", func(t *testing.T) {
+				p := fixture.NewScenario(t)
+				for _, backend := range p.Backends() {
+					t.Run(backend.Name, func(t *testing.T) {
+						c, err := backend.DB.Conn(p.Ctx)
+						if err != nil {
+							t.Fatal(err)
 						}
-					}
-				})
-			}
-		})
+						defer c.Close()
+						q := "SELECT $1::" + shape.typ + " " + op + " $2::" + shape.typ + " AS v"
+						stmt, err := c.PrepareContext(p.Ctx, q)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer stmt.Close()
+						held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
+						for _, index := range []int{1, 2} {
+							args := []any{shape.a, shape.b}
+							args[index-1] = "bad"
+							d := fixture.ControlsReferenceDiagnostic("22P02", "invalid input syntax for type "+shape.typ+": \"bad\"")
+							d.Context = "unnamed portal parameter $" + fixture.Position(index) + " = '...'"
+							s := fixture.ErrorDiagnostic(q, d, args...)
+							s.SelectRows, s.ErrorStage = true, "execute"
+							fixture.RunStep(t, p.Ctx, c, backend.Recorder, s)
+							fixture.RunStep(t, p.Ctx, c, backend.Recorder, fixture.Prepared(s))
+							fixture.RunStep(t, p.Ctx, held, backend.Recorder, s)
+							for _, recovery := range []struct {
+								a    any
+								want any
+							}{{shape.a, true}, {nil, nil}, {[]byte(nil), nil}, {[]byte(shape.a), true}} {
+								fixture.RunStep(t, p.Ctx, held, backend.Recorder, fixture.Select(q, []string{"v"}, []string{"BOOL"}, [][]any{{recovery.want}}, recovery.a, shape.b))
+							}
+						}
+					})
+				}
+			})
+		}
 	}
 }

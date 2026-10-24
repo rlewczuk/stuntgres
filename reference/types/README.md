@@ -51,10 +51,11 @@ these are shared across families:
   retains same-type LSEG inference and exact22P02/character8 input failure for
   `'(1,1)' ## lseg '[(0,0),(2,0)]'` on direct analysis and Prepare.
   Geometry positions reuse the same witnesses for all32 signatures, including
-  BOX touching versus strict POINT aliases, polygon raw bounds versus fuzzy
-  positions, complete overload diagnostics and stored generated/CHECK/view
-  replay with new writes. The shared-spelling cases retain shift, range,
-  network and custom-operator selection.
+  vertical corresponding-edge extent predicates, touching BOX aliases versus
+  strict POINT aliases, polygon raw bounds versus fuzzy positions, and complete
+  overload diagnostics. Shared stored generated/CHECK/view expressions retain
+  non-NULL vertical computation through replay and new writes. The shared-spelling
+  cases retain shift, range, network and custom-operator selection.
   Alignment uses the same fixture/raw adapter for unary and binary LINE/LSEG
   execution, physical columns, overload diagnostics and stored replay. Sameness
   witnesses distinguish corner-local NaNs and vertex sequence matching from

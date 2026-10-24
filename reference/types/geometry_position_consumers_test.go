@@ -36,6 +36,9 @@ func geometryPositionCreateConsumers(run func(fixture.Step)) {
 	}
 	run(fixture.Exec("CREATE VIEW position_constants AS SELECT "+strings.Join(expressions, ","), 0))
 	run(fixture.Exec("INSERT INTO position_store(id,b,p) VALUES(1,'(1,1),(0,0)','((0,0))'),(2,NULL,NULL)", 2))
+	run(fixture.Exec("CREATE TABLE position_vertical_store(id integer NOT NULL,b box,below boolean GENERATED ALWAYS AS (b <<| box '(3,3),(2,2)') STORED,CONSTRAINT position_vertical_ok CHECK(b <<| box '(3,3),(2,2)'))", 0))
+	run(fixture.Exec("CREATE VIEW position_vertical_view AS SELECT id,below,b <^ box '(3,3),(2,2)' AS touching,b |&> box '(0,0),(0,0)' AS extent FROM position_vertical_store", 0))
+	run(fixture.Exec("INSERT INTO position_vertical_store(id,b) VALUES(1,'(1,1),(0,0)'),(2,NULL)", 2))
 }
 
 func geometryPositionConsumerChecks(t *testing.T, run func(fixture.Step)) {
@@ -86,6 +89,33 @@ func geometryPositionConsumerChecks(t *testing.T, run func(fixture.Step)) {
 			s.Prepared, s.ErrorStage = prepared, "execute"
 			run(s)
 			run(fixture.Select("SELECT id FROM position_store ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
+		}
+	}
+	verticalNames := []string{"id", "below", "touching", "extent"}
+	verticalTypes := []string{"INT4", "BOOL", "BOOL", "BOOL"}
+	for _, prepared := range []bool{false, true} {
+		s := fixture.Select("SELECT id,below,touching,extent FROM position_vertical_view ORDER BY id", verticalNames, verticalTypes, [][]any{{int64(1), true, true, true}, {int64(2), nil, nil, nil}})
+		s.Prepared = prepared
+		run(s)
+	}
+	run(fixture.Exec("BEGIN", 0))
+	run(fixture.Prepared(fixture.Exec("INSERT INTO position_vertical_store(id,b) VALUES($1,$2)", 1, 3, "(1,1),(0,0)")))
+	s = fixture.Select("SELECT id,below,touching,extent FROM position_vertical_view WHERE id=3", verticalNames, verticalTypes, [][]any{{int64(3), true, true, true}})
+	run(s)
+	run(fixture.Prepared(s))
+	run(fixture.Exec("ROLLBACK", 0))
+	d = fixture.ControlsReferenceDiagnostic("23514", "new row for relation \"position_vertical_store\" violates check constraint \"position_vertical_ok\"")
+	d.Schema, d.Table, d.Constraint = "public", "position_vertical_store", "position_vertical_ok"
+	d.Detail = "Failing row contains (5, (1,3),(0,2), f)."
+	for _, prepared := range []bool{false, true} {
+		for _, q := range []string{
+			"INSERT INTO position_vertical_store(id,b) VALUES(5,'(1,3),(0,2)')",
+			"INSERT INTO position_vertical_store(id,b) VALUES(4,'(1,1),(0,0)'),(5,'(1,3),(0,2)')",
+		} {
+			s := fixture.ErrorDiagnostic(q, d)
+			s.Prepared, s.ErrorStage = prepared, "execute"
+			run(s)
+			run(fixture.Select("SELECT id FROM position_vertical_store ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
 		}
 	}
 }

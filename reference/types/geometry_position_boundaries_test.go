@@ -39,6 +39,21 @@ func TestReferenceGeometryPositionBoundaries(t *testing.T) {
 		{"<<", "polygon", "polygon", "((1,1),(0,1),(0,0),(1,0),(1,1))", "((3,3))", "BOOL", true},
 		{"<<|", "polygon", "polygon", "((1,1),(0,0),(0.5,0.5))", "((3,3))", "BOOL", true},
 		{"&>", "circle", "circle", "<(0,1e308),1e308>", "<(0,0),0>", "BOOL", false},
+		{"&<|", "box", "box", "(2,2),(0,0)", "(2,2),(1,1)", "BOOL", true},
+		{"&<|", "box", "box", "(2,2),(1,1)", "(2,2),(0,0)", "BOOL", true},
+		{"|&>", "box", "box", "(2,2),(0,0)", "(2,2),(1,1)", "BOOL", false},
+		{"|&>", "box", "box", "(2,2),(1,1)", "(2,2),(0,0)", "BOOL", true},
+		{"&<|", "polygon", "polygon", "((0,0),(2,2))", "((1,1),(2,2))", "BOOL", true},
+		{"&<|", "polygon", "polygon", "((1,1),(2,2))", "((0,0),(2,2))", "BOOL", true},
+		{"|&>", "polygon", "polygon", "((0,0),(2,2))", "((1,1),(2,2))", "BOOL", false},
+		{"|&>", "polygon", "polygon", "((1,1),(2,2))", "((0,0),(2,2))", "BOOL", true},
+		{"&<|", "circle", "circle", "<(0,1),1>", "<(9,1.5),0.5>", "BOOL", true},
+		{"&<|", "circle", "circle", "<(9,1.5),0.5>", "<(0,1),1>", "BOOL", true},
+		{"|&>", "circle", "circle", "<(0,1),1>", "<(9,1.5),0.5>", "BOOL", false},
+		{"|&>", "circle", "circle", "<(9,1.5),0.5>", "<(0,1),1>", "BOOL", true},
+		{"|&>", "polygon", "polygon", "((0,0),(0,NaN))", "((0,0))", "BOOL", true},
+		{"&<|", "polygon", "polygon", "((0,0),(0,NaN))", "((0,0))", "BOOL", false},
+		{"|&>", "circle", "circle", "<(1e308,0),1e308>", "<(0,0),0>", "BOOL", false},
 	}
 	// Overlap and equal endpoints compare like extents, not opposing edges.
 	for _, shape := range []struct{ typ, a, b string }{
