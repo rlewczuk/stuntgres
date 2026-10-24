@@ -29,7 +29,7 @@ func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, 
 	case parser.PLCloseCursor:
 		action = "CLOSE"
 		var name string
-		name, err = plCursorName(f, in.Cursor.Slot)
+		name, err = f.CursorName(in.Cursor.Slot)
 		if err == nil {
 			restore := s.activateSQLRoutine(nil, read)
 			_, err = s.closeCursor(&parser.CloseCursor{Name: parser.Identifier{Text: name}})
@@ -44,14 +44,6 @@ func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, 
 		err = plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at "+action, failure)
 	}
 	return value, flow, err
-}
-
-func plCursorName(f *proc.PLFrame, slot int) (string, error) {
-	v := f.Values[slot]
-	if v.Type() == nil || v.IsNull() {
-		return "", sqlError("22004", fmt.Sprintf("cursor variable %q is null", f.Program.Variables[slot].Name))
-	}
-	return v.Text()
 }
 
 func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *proc.PLDiagnosticQuery) (opened *sqlCursor, name string, err error) {
@@ -193,7 +185,7 @@ func (s *StatementScope) openPLCursor(f *proc.PLFrame, in *proc.PLCursorInstruct
 }
 
 func (s *StatementScope) movePLCursor(f *proc.PLFrame, in *proc.PLCursorInstruction, raw *parser.PLCursorStatement, read catalog.Read, failure *proc.PLDiagnosticQuery) (err error) {
-	name, err := plCursorName(f, in.Slot)
+	name, err := f.CursorName(in.Slot)
 	if err != nil {
 		return err
 	}

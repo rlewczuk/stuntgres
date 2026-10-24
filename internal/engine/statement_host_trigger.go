@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -112,7 +113,11 @@ func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, erro
 		} else if request.Event == dml.BeforeDelete {
 			name = "DELETE"
 		}
-		frame, err := newPLTriggerFrame(d, read, relation, p.Name, name, p.Arguments, request.Old, result.Row)
+		rel, err := plTriggerRelation(read, relation)
+		if err != nil {
+			return result, err
+		}
+		frame, err := proc.NewPLTriggerFrame(d.SQL, rel, p.Name, name, p.Arguments, request.Old, result.Row)
 		if err != nil {
 			return result, err
 		}

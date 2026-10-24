@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -189,4 +190,13 @@ func (p *PLProgram) cursorArgumentQuery(arguments []PLInitializer, actuals []par
 		}
 	}
 	return query
+}
+
+// CursorName reads a cursor variable's portal name; a NULL variable has none.
+func (f *PLFrame) CursorName(slot int) (string, error) {
+	v := f.Values[slot]
+	if v.Type() == nil || v.IsNull() {
+		return "", &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22004", Message: fmt.Sprintf("cursor variable %q is null", f.Program.Variables[slot].Name)}
+	}
+	return v.Text()
 }

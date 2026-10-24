@@ -118,7 +118,11 @@ func TestTriggerCoreFrame(t *testing.T) {
 		}
 	}
 	row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 5)}
-	f, err := newPLTriggerFrame(d, read, relation, "a", "INSERT", []string{"x", "7"}, nil, row)
+	rel, err := plTriggerRelation(read, relation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := proc.NewPLTriggerFrame(d.SQL, rel, "a", "INSERT", []string{"x", "7"}, nil, row)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +150,7 @@ func TestTriggerCoreFrame(t *testing.T) {
 	if err != nil || got != 5 {
 		t.Fatal("frame borrowed producer scratch or erased returned composite", got, err)
 	}
-	noargs, err := newPLTriggerFrame(d, read, relation, "b", "DELETE", nil, row, nil)
+	noargs, err := proc.NewPLTriggerFrame(d.SQL, rel, "b", "DELETE", nil, row, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +213,11 @@ func TestTriggerCoreFrame(t *testing.T) {
 		if program.SearchCount != 1 || conditional.SearchName != "__Case__Variable_13__" || conditional.SearchSlot < 0 || conditional.SearchSlot >= program.SearchCount {
 			t.Fatal("trigger diagnostic count displaced native CASE search ownership")
 		}
-		frame, err := newPLTriggerFrame(routine, read, relation, "case", "INSERT", nil, nil, nil)
+		rel, err := plTriggerRelation(read, relation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		frame, err := proc.NewPLTriggerFrame(routine.SQL, rel, "case", "INSERT", nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
