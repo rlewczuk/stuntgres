@@ -584,28 +584,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		}
 		e.mu.Unlock()
 		next := s.ApplyTo(current)
-		relations := make(map[ids.ObjectAddress]*storage.Relation, len(currentStorage)+s.DescriptorCount())
-		for a, v := range currentStorage {
-			relations[a] = v
-		}
-		for a := range s.Removals() {
-			delete(relations, a)
-		}
-		for a, d := range s.Descriptors() {
-			if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind.Stored() && relations[a] == nil {
-				if initial := s.initialTables[a]; initial != nil {
-					relations[a] = initial
-				} else {
-					relations[a] = &storage.Relation{}
-				}
-			}
-		}
-		for a, shape := range s.rowShapes {
-			relations[a] = shape.Replacement
-		}
-		if replacement := s.materializedOrZero().Replacement; replacement != nil {
-			relations[replacement.Original.Address()] = replacement.Storage
-		}
+		relations := s.storagePublication().CandidateRelations(currentStorage, &s.Candidate)
 		if err := catalogDependencyPreflight(current, next, s.sequence.IdentityDependencyList(), s.sequence.IdentityOriginalMap()); err != nil {
 			return ChangeSet{}, err
 		}
@@ -862,20 +841,12 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			// the allocator. Commit its frontier with the successful publication.
 			nextRevision := catalog.RevisionFrontier(e.catalog.nextRevision, s.Descriptors())
 			if len(s.initialTables) != 0 || s.materializedOrZero().Replacement != nil {
-				frontier := e.visibility.CommitSeq() + 1
+				frontier, fullXID := e.visibility.CommitSeq()+1, e.visibility.FullXIDLocked(commitRef)
 				for _, initial := range s.initialTables {
-					for i := range initial.Versions {
-						initial.Versions[i].Born = frontier
-						initial.Versions[i].InsertFullXID = e.visibility.FullXIDLocked(commitRef)
-						initial.Maintenance.RecordBirth(initial.Versions[i].InsertFullXID)
-						initial.Versions[i].Frozen, initial.Versions[i].ImportFrozen = false, false
-					}
+					initial.StampPublishedBirth(frontier, fullXID)
 					initial.Generation = 1
 					e.visibility.InitializeMaintenanceLocked(initial)
-					initial.Maintenance.Inserts += int64(len(initial.Versions))
-					initial.Maintenance.InsertsSince += int64(len(initial.Versions))
-					initial.Maintenance.Modifications += int64(len(initial.Versions))
-					initial.Maintenance.Live += int64(len(initial.Versions))
+					initial.CountPublishedInserts()
 				}
 				if replacement := s.materializedOrZero().Replacement; replacement != nil {
 					// Refresh retains this object's cumulative facts, captured from
@@ -884,12 +855,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 					replacement.Storage.Maintenance.FrozenXID = 0
 					replacement.Storage.Maintenance.Live = 0
 					replacement.Storage.Maintenance.Dead = 0
-					for i := range replacement.Storage.Versions {
-						replacement.Storage.Versions[i].Born = frontier
-						replacement.Storage.Versions[i].InsertFullXID = e.visibility.FullXIDLocked(commitRef)
-						replacement.Storage.Maintenance.RecordBirth(replacement.Storage.Versions[i].InsertFullXID)
-						replacement.Storage.Versions[i].Frozen, replacement.Storage.Versions[i].ImportFrozen = false, false
-					}
+					replacement.Storage.StampPublishedBirth(frontier, fullXID)
 					if replacement.Concurrent {
 						lineage := replacement.Predecessor.MaterializedLineage
 						if lineage == nil {
@@ -899,10 +865,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 						replacement.Storage.MaterializedLineage = lineage
 					}
 					e.visibility.InitializeMaintenanceLocked(replacement.Storage)
-					replacement.Storage.Maintenance.Inserts += int64(len(replacement.Storage.Versions))
-					replacement.Storage.Maintenance.InsertsSince += int64(len(replacement.Storage.Versions))
-					replacement.Storage.Maintenance.Modifications += int64(len(replacement.Storage.Versions))
-					replacement.Storage.Maintenance.Live += int64(len(replacement.Storage.Versions))
+					replacement.Storage.CountPublishedInserts()
 				}
 				e.visibility.AdvanceCommitSeqLocked()
 			}
@@ -1089,7 +1052,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err != nil {
 			return ChangeSet{}, err
 		}
-		if err := e.replacementCapacityLocked(relations); err != nil {
+		if err := e.storage.ReplacementCapacityLocked(relations, e.catalog.state.Epoch(), e.visibility.CommitSeq()); err != nil {
 			return ChangeSet{}, err
 		}
 		if hasHierarchy {
@@ -1145,7 +1108,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := e.replacementCapacityLocked(relations); err != nil {
+	if err := e.storage.ReplacementCapacityLocked(relations, e.catalog.state.Epoch(), e.visibility.CommitSeq()); err != nil {
 		return ChangeSet{}, err
 	}
 	replacement.State().SetACLItemImport(e.aclItemImporter(source, sourceRoles, targetRoles, source.importTargets))
@@ -1202,28 +1165,6 @@ func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevis
 		}
 	}
 	return catalog.RevisionFrontier(e.catalog.nextRevision, next.Descriptors()), nil
-}
-
-// replacementCapacityLocked checks that installing relations' rows fits the
-// catalog epoch, the row and version identities and the commit sequence.
-func (e *Engine) replacementCapacityLocked(relations map[ids.ObjectAddress]*storage.Relation) error {
-	if e.catalog.state.Epoch() == ids.CatalogEpoch(math.MaxUint64) {
-		return fmt.Errorf("stuntgres: catalog epoch exhausted")
-	}
-	var imported uint64
-	for _, relation := range relations {
-		imported += uint64(len(relation.Versions))
-	}
-	if imported > ^uint64(0)-e.storage.RowFrontier() {
-		return fmt.Errorf("stuntgres: row identity exhausted")
-	}
-	if imported > ^uint64(0)-e.storage.VersionFrontier() {
-		return fmt.Errorf("stuntgres: version identity exhausted")
-	}
-	if e.visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
-		return fmt.Errorf("stuntgres: commit sequence exhausted")
-	}
-	return nil
 }
 
 // installReplacementLocked installs a validated replacement generation: its
