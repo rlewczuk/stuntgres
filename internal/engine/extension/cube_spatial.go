@@ -50,7 +50,7 @@ func (p *CubeProvider) stageSpatial(stage Stage, ext *catalog.Extension, owner a
 		if err != nil {
 			return err
 		}
-		proc := &catalog.Procedure{ObjectAddress: ext.Members[cubeSpatialProcedureStart+i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.operation.Routine(), Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: ids.OID(member.operation.ResultID()), Volatility: expr.Immutable, Strict: true, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: ext.Members[cubeSpatialProcedureStart+i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.operation.Routine(), Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: ids.OID(member.operation.ResultID()), Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.operation.Routine()}, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, proc.Name())}
 		}

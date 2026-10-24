@@ -836,4 +836,5 @@ var Specs = [...]Spec{
 		{"is_trigger_insertable_into", 13256, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing views domain"},
 	{InfoTablesOID, 13229, "tables", infoTablesColumns, true, false, false, false, "stuntgres: missing tables domain"},
+	{InfoRoutinesOID, 13229, "routines", infoRoutinesColumns, true, false, false, false, "stuntgres: missing routines domain"},
 }

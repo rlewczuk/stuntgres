@@ -21,17 +21,18 @@ var FuzzystrmatchMembers = [...]struct {
 	Name      string
 	Signature catalog.ProcedureSignature
 	Result    ids.OID
+	Source    string
 }{
-	{"daitch_mokotoff", "25", 1009},
-	{"levenshtein", "25,25", 23},
-	{"levenshtein", "25,25,23,23,23", 23},
-	{"levenshtein_less_equal", "25,25,23", 23},
-	{"levenshtein_less_equal", "25,25,23,23,23,23", 23},
-	{"metaphone", "25,23", 25},
-	{"dmetaphone", "25", 25},
-	{"dmetaphone_alt", "25", 25},
-	{"soundex", "25", 25},
-	{"difference", "25,25", 23},
+	{"daitch_mokotoff", "25", 1009, "daitch_mokotoff"},
+	{"levenshtein", "25,25", 23, "levenshtein"},
+	{"levenshtein", "25,25,23,23,23", 23, "levenshtein_with_costs"},
+	{"levenshtein_less_equal", "25,25,23", 23, "levenshtein_less_equal"},
+	{"levenshtein_less_equal", "25,25,23,23,23,23", 23, "levenshtein_less_equal_with_costs"},
+	{"metaphone", "25,23", 25, "metaphone"},
+	{"dmetaphone", "25", 25, "dmetaphone"},
+	{"dmetaphone_alt", "25", 25, "dmetaphone_alt"},
+	{"soundex", "25", 25, "soundex"},
+	{"difference", "25,25", 23, "difference"},
 }
 
 func (p *FuzzystrmatchProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {

@@ -54,30 +54,31 @@ type cubeRoutineSpec struct {
 	args   [3]sqltype.ID
 	nargs  int
 	result sqltype.ID
+	source string
 }
 
 var cubeRoutines = [...]cubeRoutineSpec{
-	{"cube_in", [3]sqltype.ID{2275}, 1, 0},
-	{"cube_out", [3]sqltype.ID{0}, 1, 2275},
-	{CubeComparisonNames[0], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
-	{CubeComparisonNames[1], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
-	{CubeComparisonNames[2], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
-	{CubeComparisonNames[3], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
-	{CubeComparisonNames[4], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
-	{CubeComparisonNames[5], [3]sqltype.ID{0, 0}, 2, sqltype.Bool},
-	{CubeComparisonNames[6], [3]sqltype.ID{0, 0}, 2, sqltype.Int4},
-	{"cube", [3]sqltype.ID{sqltype.Float8}, 1, 0},
-	{"cube", [3]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, 0},
-	{"cube", [3]sqltype.ID{1022}, 1, 0},
-	{"cube", [3]sqltype.ID{1022, 1022}, 2, 0},
-	{"cube", [3]sqltype.ID{0, sqltype.Float8}, 2, 0},
-	{"cube", [3]sqltype.ID{0, sqltype.Float8, sqltype.Float8}, 3, 0},
-	{"cube_dim", [3]sqltype.ID{0}, 1, sqltype.Int4},
-	{"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool},
-	{"cube_ll_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8},
-	{"cube_ur_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8},
-	{"cube_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8},
-	{"cube_coord_llur", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8},
+	{"cube_in", [3]sqltype.ID{2275}, 1, 0, "cube_in"},
+	{"cube_out", [3]sqltype.ID{0}, 1, 2275, "cube_out"},
+	{CubeComparisonNames[0], [3]sqltype.ID{0, 0}, 2, sqltype.Bool, "cube_eq"},
+	{CubeComparisonNames[1], [3]sqltype.ID{0, 0}, 2, sqltype.Bool, "cube_ne"},
+	{CubeComparisonNames[2], [3]sqltype.ID{0, 0}, 2, sqltype.Bool, "cube_lt"},
+	{CubeComparisonNames[3], [3]sqltype.ID{0, 0}, 2, sqltype.Bool, "cube_le"},
+	{CubeComparisonNames[4], [3]sqltype.ID{0, 0}, 2, sqltype.Bool, "cube_gt"},
+	{CubeComparisonNames[5], [3]sqltype.ID{0, 0}, 2, sqltype.Bool, "cube_ge"},
+	{CubeComparisonNames[6], [3]sqltype.ID{0, 0}, 2, sqltype.Int4, "cube_cmp"},
+	{"cube", [3]sqltype.ID{sqltype.Float8}, 1, 0, "cube_f8"},
+	{"cube", [3]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, 0, "cube_f8_f8"},
+	{"cube", [3]sqltype.ID{1022}, 1, 0, "cube_a_f8"},
+	{"cube", [3]sqltype.ID{1022, 1022}, 2, 0, "cube_a_f8_f8"},
+	{"cube", [3]sqltype.ID{0, sqltype.Float8}, 2, 0, "cube_c_f8"},
+	{"cube", [3]sqltype.ID{0, sqltype.Float8, sqltype.Float8}, 3, 0, "cube_c_f8_f8"},
+	{"cube_dim", [3]sqltype.ID{0}, 1, sqltype.Int4, "cube_dim"},
+	{"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool, "cube_is_point"},
+	{"cube_ll_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_ll_coord"},
+	{"cube_ur_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_ur_coord"},
+	{"cube_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord"},
+	{"cube_coord_llur", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord_llur"},
 }
 
 // The selected comparison graph keeps its stable prefix. Other installed

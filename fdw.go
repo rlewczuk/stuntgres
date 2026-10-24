@@ -8,6 +8,9 @@ import (
 
 // Foreign callback types use only standard Go values. Registration installs
 // executable capabilities, not PostgreSQL C functions or remote transports.
+// Routine metadata reports GO/EXTERNAL/INVOKER, an empty owner-visible definition
+// and no external link symbol. Nonowners with EXECUTE see a NULL definition.
+// Reading metadata never invokes a callback.
 type ForeignOption = catalog.ForeignOption
 type ForeignObjectKind = catalog.ForeignObjectKind
 type ForeignFunctionName = catalog.ForeignFunctionName

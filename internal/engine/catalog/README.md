@@ -19,6 +19,11 @@ private frames, not catalog authority.
   procedures, operators, collations, conversions, extensions, foreign objects,
   large objects, access methods, casts, operator classes and families, ...) and
   their records. Read identity through the `Descriptor` methods.
+  `Procedure.Display` holds immutable creation-owned language/source/security
+  facts, with invalid zero language and legitimately empty source. It is distinct
+  from execution `Language`, supplies no capability, and survives identity, ACL,
+  ownership and replacement remapping by value. PL call handlers are nonstrict;
+  inline and validator handlers are strict, all with zero execution Language.
 - **Languages.** Real owner/ACL/trust and distinct call/inline/validator procedure
   capabilities are validated by `LanguageProvider`; PL installation OIDs are
   allocated, not universal constants. `Procedure.DeclarationDependencies` stores
@@ -85,7 +90,8 @@ private frames, not catalog authority.
   `InstallBuiltinNamespaces`, `InstallBuiltinTypes`, `InstallBuiltinCollations`,
   `InstallBuiltinProcedures` (then the native access methods),
   `Store.InstallBuiltinLanguagesLocked` (plpgsql and its handlers at allocated
-  OIDs), `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
+  OIDs, with creation-owned C display sources and canonical strictness),
+  `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
   `InstallBuiltinOperators`, `InstallBuiltinFamilies`, `InstallBuiltinClasses`
   and `InstallCatalogSource`, which hands a same-named row type and its array
   to the catalog relation. Owners and the compiled tables of `routine` and

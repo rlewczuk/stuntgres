@@ -306,6 +306,7 @@ func TestPLpgSQLHandlerAuthority(t *testing.T) {
 			},
 			func(d *catalog.Procedure) { d.Owner = other.Owner().Principals.Principal(d.Owner.ID()) },
 			func(d *catalog.Procedure) { d.ObjectRevision = 0 },
+			func(d *catalog.Procedure) { d.Strict = !d.Strict },
 		} {
 			forged := *handler
 			corrupt(&forged)
@@ -468,11 +469,16 @@ func TestPLpgSQLDiagnosticIdentity(t *testing.T) {
 		shadow.ObjectAddress.ObjectID = 910013
 		shadow.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		for _, descriptor := range []catalog.Descriptor{namespace, typ, routine, &shadow} {
-			if err := candidate.Create(descriptor); err != nil { t.Fatal(err) }
+			if err := candidate.Create(descriptor); err != nil {
+				t.Fatal(err)
+			}
 		}
 		reader := candidate.Definitions()
 		public := shadow.Namespace()
-		for _, tc := range []struct { path []ids.ObjectAddress; want string }{
+		for _, tc := range []struct {
+			path []ids.ObjectAddress
+			want string
+		}{
 			{[]ids.ObjectAddress{namespace.Address(), public}, `"Mixed Name"(integer,special)`},
 			{[]ids.ObjectAddress{public, namespace.Address()}, `"Mixed Schema"."Mixed Name"(integer,special)`},
 			{[]ids.ObjectAddress{public}, `"Mixed Schema"."Mixed Name"(integer,"Mixed Schema".special)`},

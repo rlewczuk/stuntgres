@@ -146,7 +146,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 			return err
 		}
 	}
-	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.AggregateRoutine, Result: ids.OID(inputs[0].Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Immutable, Aggregate: &catalog.OwnedAggregate{Definition: *definition}}
+	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.AggregateRoutine, Result: ids.OID(inputs[0].Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Immutable, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy"}, Aggregate: &catalog.OwnedAggregate{Definition: *definition}}
 	if h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) {
 		return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", d.Name()))
 	}

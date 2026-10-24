@@ -120,7 +120,7 @@ func (s *Store) InstallBuiltinLanguagesLocked(owner authorization.PrincipalRef) 
 			return err
 		}
 		name, signature, result := kind.Declaration()
-		handler := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: name, Signature: signature, Result: result, Owner: owner, RoutineKind: FunctionRoutine, Volatility: expr.Volatile, PLHandler: kind}
+		handler := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: name, Signature: signature, Result: result, Owner: owner, RoutineKind: FunctionRoutine, Volatility: expr.Volatile, Display: RoutineDisplay{Language: CRoutineLanguage, Source: name}, Strict: kind != PLCallHandler, PLHandler: kind}
 		installSeedDescriptor(s.State, handler)
 		switch kind {
 		case PLCallHandler:

@@ -39,7 +39,7 @@ func (p *EarthdistanceProvider) stageRoutines(stage Stage, ext *catalog.Extensio
 		if err != nil {
 			return err
 		}
-		proc := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: op.Name(), Signature: earthRoutineSignature(op, earth.ID()), RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: earthRoutineResult(op, earth.ID()), Volatility: expr.Immutable, Strict: op != sqltype.EarthRadiusOperation, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: op.Name(), Signature: earthRoutineSignature(op, earth.ID()), RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: earthRoutineResult(op, earth.ID()), Volatility: expr.Immutable, Strict: op != sqltype.EarthRadiusOperation, Display: catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage}, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, proc.Name())}
 		}

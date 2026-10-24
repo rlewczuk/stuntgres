@@ -50,14 +50,21 @@ func indexBuiltinRoutineFormals() map[builtinRoutineKey]*catalog.BuiltinRoutineD
 // Immutable cells remain stable; later ACL/owner changes still publish
 // ordinary COW records.
 func BuiltinProcedures(owner authorization.PrincipalRef) []catalog.Procedure {
+	if len(builtinRoutineDisplay) != len(BuiltinRoutineDeclarations) {
+		panic("stuntgres: incomplete builtin routine display inventory")
+	}
 	procedures := make([]catalog.Procedure, len(BuiltinRoutineDeclarations))
 	for i := range BuiltinRoutineDeclarations {
 		declaration := &BuiltinRoutineDeclarations[i]
+		display, ok := builtinRoutineDisplay[declaration.Identity.ID]
+		if !ok || !display.Valid() {
+			panic("stuntgres: missing builtin routine display declaration")
+		}
 		procedures[i] = catalog.Procedure{
 			ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID},
 			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: declaration.Identity.Namespace},
 			ObjectRevision:  1, ObjectName: declaration.Identity.Name, Signature: declaration.Identity.Signature,
-			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner,
+			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner, Display: display,
 			Result: declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
 		}
 	}

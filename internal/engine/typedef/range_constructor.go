@@ -24,7 +24,7 @@ func stageRangeConstructors(h StageHost, namespace ids.ObjectAddress, r, m *sqlt
 		if err != nil {
 			return err
 		}
-		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: namespace, ObjectName: t.Name(), Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: bootstrap.Owner, Result: ids.OID(t.ID()), Volatility: expr.Immutable, Strict: form >= catalog.MultirangeConstructorZero, RangeConstructor: provider}
+		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: namespace, ObjectName: t.Name(), Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: bootstrap.Owner, Result: ids.OID(t.ID()), Volatility: expr.Immutable, Strict: form >= catalog.MultirangeConstructorZero, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: provider.Source()}, RangeConstructor: provider}
 		if h.StageRead().NameAddress(catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) {
 			return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", d.Name()))
 		}

@@ -121,7 +121,7 @@ func BuiltinConversionProcedures(owner authorization.PrincipalRef) []catalog.Pro
 		if !ok {
 			panic("stuntgres: missing released encoding conversion provider")
 		}
-		procedures[i] = catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: routine.oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: routine.name, Signature: catalog.ConversionSignature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: 23, Volatility: expr.Immutable, Strict: true, Conversion: provider}
+		procedures[i] = catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: routine.oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: routine.name, Signature: catalog.ConversionSignature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: 23, Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: routine.name}, Conversion: provider}
 	}
 	return procedures
 }

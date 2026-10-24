@@ -25,7 +25,7 @@ func (p *IntaggProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: member.Signature, RoutineKind: member.Kind, Owner: owner, Result: member.Result, Volatility: expr.Immutable, Strict: member.Strict, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: member.Signature, RoutineKind: member.Kind, Owner: owner, Result: member.Result, Volatility: expr.Immutable, Strict: member.Strict, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: [2]string{"aggregate_dummy", "array_unnest"}[i]}, Implementation: p}
 		if i == 0 {
 			state, err := stage.AllocateOID()
 			if err != nil {

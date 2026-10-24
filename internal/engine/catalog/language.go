@@ -98,7 +98,7 @@ func ValidatePLHandler(v Read, d *Procedure) error {
 	if len(d.DeclarationDependencies) != 0 {
 		return fmt.Errorf("stuntgres: PL handler carries declaration replay metadata")
 	}
-	if d.Volatility != expr.Volatile || d.Strict || d.Language != (ids.ObjectAddress{}) {
+	if d.Volatility != expr.Volatile || d.Strict != (d.PLHandler != PLCallHandler) || d.Language != (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: invalid PL handler declaration")
 	}
 	return nil

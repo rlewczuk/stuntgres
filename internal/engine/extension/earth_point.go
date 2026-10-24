@@ -27,7 +27,7 @@ func (p *EarthdistanceProvider) stagePoint(stage Stage, ext *catalog.Extension, 
 	if err != nil {
 		return err
 	}
-	proc := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: "geo_distance", Signature: "600,600", RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: ids.OID(sqltype.Float8), Volatility: expr.Immutable, Strict: true, Implementation: p}
+	proc := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: "geo_distance", Signature: "600,600", RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: ids.OID(sqltype.Float8), Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "geo_distance"}, Implementation: p}
 	if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: `function "geo_distance" already exists with same argument types`, Context: "SQL statement \"CREATE FUNCTION geo_distance (point, point)\nRETURNS float8\nLANGUAGE C IMMUTABLE STRICT PARALLEL SAFE AS '$libdir/earthdistance'\"\nextension script file \"earthdistance--1.1.sql\", near line 87"}
 	}

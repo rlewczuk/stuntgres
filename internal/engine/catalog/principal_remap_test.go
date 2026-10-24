@@ -10,9 +10,9 @@ import (
 func TestRoutineBodyPrincipalRemap(t *testing.T) {
 	source, target := new(authorization.Domain), new(authorization.Domain)
 	owner, reader := source.Principal(10), source.Principal(20)
-	body := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90001}, ObjectRevision: 3, Owner: owner,
+	body := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90001}, ObjectRevision: 3, Owner: owner, Display: RoutineDisplay{Language: SQLRoutineLanguage, Source: " SELECT $1 ", SecurityDefiner: true},
 		ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.ExecutePrivilege}}}}
-	outer := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90002}, ObjectRevision: 4, Owner: owner,
+	outer := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90002}, ObjectRevision: 4, Owner: owner, Display: RoutineDisplay{Language: CRoutineLanguage, Source: "original_symbol"},
 		Body: []RoutineBodyEdge{{Routine: body}, {Routine: body}}}
 	// A current COW revision must not replace the original body association.
 	current := *body
@@ -34,7 +34,7 @@ func TestRoutineBodyPrincipalRemap(t *testing.T) {
 	}
 	mapped := state.MustProcedure(outer.Address())
 	captured := mapped.Body[0].Routine
-	if mapped == outer || captured == body || mapped.Owner != target.Principal(110) || captured.Owner != mapped.Owner || captured.Revision() != body.Revision() || state.MustProcedure(body.Address()).Revision() != current.Revision() {
+	if mapped == outer || captured == body || mapped.Display != outer.Display || captured.Display != body.Display || mapped.Owner != target.Principal(110) || captured.Owner != mapped.Owner || captured.Revision() != body.Revision() || state.MustProcedure(body.Address()).Revision() != current.Revision() {
 		t.Fatal("principal remap lost original declaration provenance")
 	}
 	if mapped.Body[1].Routine != captured || captured.Body[0].Routine != mapped {

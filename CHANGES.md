@@ -9,6 +9,12 @@ CHECK expressions. Dependency-ordered table, view, SQL-function and data replay 
 local staged effects and trusted FDW definition validation; private-stage
 advisory ownership and settings never replace live target-session state.
 
+information_schema.routines now exposes the exact 82 domain-typed columns for
+real routines, overload identities, declared returns and provider-owned source,
+language and security facts. Captured ownership/EXECUTE filtering protects
+definitions; builtin view display follows current naming and quote settings.
+PL inline/validator declarations now retain their canonical strictness.
+
 JSONPath datetime, date, time, time_tz, timestamp and timestamp_tz methods now
 execute typed temporal conversions, strict templates and precision rounding
 through existing JSONB and SQL/JSON consumers, retaining parsed offsets,

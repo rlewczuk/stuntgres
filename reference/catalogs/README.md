@@ -288,3 +288,6 @@ in `reference/tables`; they share the same family selector.
 See [producer ownership](../../internal/engine/pgcatalog/README.md#information-schema-views).
 
 - View definitions: `RUN='^TestReferenceInfoViews'`
+- Routine metadata: `RUN='^TestReferenceInfoRoutines'`. Full-row witnesses are
+  supplemented by test-owned released builtin identity/source/language/security
+  facts, queried in serial batches under the ordinary scenario deadline.

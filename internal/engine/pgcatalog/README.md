@@ -6,8 +6,9 @@ the producer-backed `information_schema` views (`table_privileges`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `columns`, `domains`,
-`views`, `tables`). Each producer is a pure function from a captured catalog, a
-paired role read and a narrow runtime capability to rows. Orchestration (per-OID catalog choice,
+`views`, `tables`, `routines`). Each producer is a pure function from a captured
+catalog, a paired role read and a narrow runtime capability to rows.
+Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
 [engine README](../README.md).
 
@@ -74,6 +75,12 @@ type Producer func(Input) ([][]sqltype.Value, error)
   providers, including nominal-only domains and reciprocal arrays. Metadata
   admission does not grant executable codec or storage authority; foreign
   same-OID base generations are not interchangeable.
+- `routines` reads only actual captured Procedure descriptors. Immutable provider
+  display facts are separate from execution-language authority. Enabled ownership
+  or effective EXECUTE exposes the row; only enabled ownership exposes source,
+  while C link symbols remain visible to executors. Declared result identity is
+  not domain-unwrapped and does not admit a codec or execute a provider. All 82
+  cells, including NULLs, retain their captured information-schema domains.
 
 ## Registry
 
@@ -365,7 +372,7 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 `reference/object_grants`, settings in `reference/session_state`); follow
 [docs/TESTING.md](../../../docs/TESTING.md) and add `REFERENCE=1` for the oracle.
 
-- Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders|InfoRoutineSequenceUsageSpecificName)$'`
+- Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders)$'`
 - Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets))'`
 - Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets)'`
@@ -380,6 +387,8 @@ catalog SQL belongs in `reference/catalogs` (large objects in
 - Domain-definition public scenarios: `RUN='^TestReferenceInfoDomains'`
 - Table metadata producer units: `RUN='^TestInfoTables'`
 - Table metadata public scenarios: `RUN='^TestReferenceInfoTables'`
+- Routine metadata producer/identity units: `RUN='^TestInfoRoutines'`
+- Routine metadata public scenarios: `RUN='^TestReferenceInfoRoutines'`
 
 ### Domain constraints
 

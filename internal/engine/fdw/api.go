@@ -5,10 +5,15 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
+// WrapperDefinition registers a native Go capability. Declaration display is
+// GO/EXTERNAL/INVOKER with empty owned source and no external link symbol; it is
+// independent of execution Language and metadata reads never call the wrapper.
 type WrapperDefinition struct {
 	HandlerName catalog.ForeignFunctionName
 	Wrapper     catalog.ForeignDataWrapper
 }
+
+// ValidatorDefinition carries the same native Go declaration metadata contract.
 type ValidatorDefinition struct {
 	Name     catalog.ForeignFunctionName
 	Validate func(context.Context, catalog.ForeignObjectKind, []catalog.ForeignOption) error

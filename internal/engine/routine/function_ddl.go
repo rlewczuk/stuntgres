@@ -146,6 +146,13 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		return err
 	}
 	d.SQL = definition
+	d.Display = catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage, Source: definition.Source}
+	if s.Language.Text == "plpgsql" {
+		d.Display.Language = catalog.PLpgSQLRoutineLanguage
+	}
+	if s.Standard != nil {
+		d.Display.Source = ""
+	}
 	definition.Name, definition.Names = name, names
 	definition.Formals, definition.InputFormals = layout.Formals, layout.InputFormals
 	definition.OutputFormals, definition.FormalInputs = layout.OutputFormals, layout.FormalInputs

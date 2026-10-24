@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func TestInfoRoutineSequenceUsageSpecificName(t *testing.T) {
+func TestInfoRoutinesSpecificName(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		oid  ids.OID
@@ -20,7 +20,7 @@ func TestInfoRoutineSequenceUsageSpecificName(t *testing.T) {
 		{strings.Repeat("é", 31), 4294967295, strings.Repeat("é", 26) + "_4294967295"},
 		{"", 42, "_42"},
 	} {
-		got := routineSequenceSpecificName(tc.name, tc.oid)
+		got := routineSpecificName(tc.name, tc.oid)
 		if got != tc.want || len(got) > 63 || !utf8.ValidString(got) {
 			t.Fatalf("name=%q oid=%d got=%q want=%q", tc.name, tc.oid, got, tc.want)
 		}

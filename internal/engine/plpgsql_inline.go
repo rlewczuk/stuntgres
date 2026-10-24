@@ -40,7 +40,7 @@ func (e *Engine) executeDO(s *StatementScope, raw *parser.Do, count int) (Result
 		return Result{}, parser.PLBodyError(err, raw.BodyPos)
 	}
 	definition := &proc.Definition{Kind: proc.PLpgSQLBody, Source: raw.Body, Position: raw.BodyPos, Name: "inline_code_block", Result: void.Usage(), PLSyntax: syntax}
-	d := &catalog.Procedure{ObjectName: "inline_code_block", Language: language.Address(), SQL: definition, RoutineKind: catalog.FunctionRoutine}
+	d := &catalog.Procedure{ObjectName: "inline_code_block", Language: language.Address(), SQL: definition, Display: catalog.RoutineDisplay{Language: catalog.PLpgSQLRoutineLanguage, Source: raw.Body}, RoutineKind: catalog.FunctionRoutine}
 	err = e.compilePLRoutineLocked(s.op, auth, d)
 	read := auth.Catalog
 	e.mu.Unlock()

@@ -49,6 +49,7 @@ type Procedure struct {
 	Builtin                                   *BuiltinRoutineDeclaration
 	SQL                                       *proc.Definition
 	Language                                  ids.ObjectAddress
+	Display                                   RoutineDisplay
 	PLHandler                                 PLHandler
 	RangeConstructor                          *RangeConstructor
 	// DeclarationDependencies order replay only; PL source is not an eager SQL

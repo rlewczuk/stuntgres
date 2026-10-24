@@ -86,7 +86,7 @@ func captureInfoRoutineSequenceUsage(in Input) ([][]sqltype.Value, error) {
 					return nil, fmt.Errorf("stuntgres: missing routine_sequence_usage routine namespace")
 				}
 				database := in.Runtime.DatabaseName()
-				values := [7]string{database, namespace.Name(), routineSequenceSpecificName(routine.Name(), routine.Address().ObjectID), database, namespace.Name(), routine.Name(), database}
+				values := [7]string{database, namespace.Name(), routineSpecificName(routine.Name(), routine.Address().ObjectID), database, namespace.Name(), routine.Name(), database}
 				for i, value := range values {
 					typ := in.Source.Columns[i].Usage.Type
 					prefix[i], err = typ.Wrap(sqltype.String(typ.BaseType(), value))
@@ -121,7 +121,7 @@ func captureInfoRoutineSequenceUsage(in Input) ([][]sqltype.Value, error) {
 
 // PostgreSQL's nameconcatoid preserves the complete suffix within NAME's
 // 63-byte payload, clipping only the prefix on a UTF8 character boundary.
-func routineSequenceSpecificName(name string, oid ids.OID) string {
+func routineSpecificName(name string, oid ids.OID) string {
 	suffix := "_" + strconv.FormatUint(uint64(oid), 10)
 	end := 63 - len(suffix)
 	if len(name) > end {

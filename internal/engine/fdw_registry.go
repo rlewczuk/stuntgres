@@ -42,7 +42,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []fdw.WrapperDefinition, val
 		if err != nil {
 			return err
 		}
-		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: name.Name, Signature: signature, Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: result, Strict: true, Volatility: expr.Volatile, Foreign: p}
+		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: name.Name, Signature: signature, Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: result, Strict: true, Volatility: expr.Volatile, Display: catalog.RoutineDisplay{Language: catalog.GoRoutineLanguage}, Foreign: p}
 		e.catalog.State.SetDescriptor(d.Address(), d)
 		e.catalog.State.BindName(key, d.Address())
 		return nil

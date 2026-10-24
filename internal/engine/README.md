@@ -682,6 +682,9 @@ fixture through the real producer registry. They assert source-owned domain
 cells, retained captures, typed empty results and rejection of malformed or
 foreign capture authority: `RUN='^TestInfoTables'`. Public SQL and native-control
 witnesses belong to the corresponding `reference/catalogs` family.
+Routine-metadata units use the same real capture fixture and staged extension
+constructors for declaration completeness, independent source bags, redaction,
+empty/canceled results and generation fences: `RUN='^TestInfoRoutines'`.
 
 ### Advisory timer scheduling and shared result waits
 

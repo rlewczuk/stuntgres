@@ -65,6 +65,11 @@ package or the engine.
   the builtin SQL-body edges. Each executable declaration names its routine
   provider with fixed OID, signature and attributes; lookup-only identities
   never become executable or grant a binding.
+  `display_inventory.go` owns complete REL_18_6 source/language/security facts
+  keyed by genuine declaration OID, including matched SQL-standard replacements.
+  Materialization rejects missing facts; the display inventory never creates rows.
+  SQL/PL creation records original quoted source or empty SQL-standard source
+  on the descriptor. Identity changes preserve those immutable facts.
 - **Operator inventory and metadata** (`operator_*.go`): released operator
   identities, their routine associations (`OperatorRoutine`,
   `OperatorRoutines`), `SeededOperatorNames`, `SupportedOperatorMetadata` and
