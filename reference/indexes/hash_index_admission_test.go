@@ -83,14 +83,8 @@ func TestReferenceHashIndexBuildAdmission(t *testing.T) {
 			fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
 			run(fixture.Exec("BEGIN", 0))
 			q := "CREATE INDEX retry ON t USING hash(n)"
-			if b.PG {
-				run(fixture.Prepared(fixture.Exec(q, 0)))
-				run(fixture.Select("SELECT relname FROM pg_class WHERE relname='retry'", []string{"relname"}, []string{"NAME"}, [][]any{{"retry"}}))
-			} else {
-				s := fixture.Prepared(fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
-				s.ErrorStage = "execute"
-				run(s)
-			}
+			run(fixture.Prepared(fixture.Exec(q, 0)))
+			run(fixture.Select("SELECT relname FROM pg_class WHERE relname='retry'", []string{"relname"}, []string{"NAME"}, [][]any{{"retry"}}))
 			run(fixture.Exec("ROLLBACK", 0))
 			run(fixture.Select("SELECT relname FROM pg_class WHERE relname='retry'", []string{"relname"}, []string{"NAME"}, nil))
 			run(fixture.Exec(q, 0))

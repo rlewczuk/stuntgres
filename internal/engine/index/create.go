@@ -2,6 +2,7 @@ package index
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
@@ -27,7 +28,7 @@ type CreatePlan struct {
 // method, clauses, predicate and attributes, name, operator class options,
 // unique providers, partition coverage, then the new identities. A
 // CONCURRENTLY index starts neither ready nor valid.
-func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *parser.CreateIndex, input sqltype.InputEnvironment) (CreatePlan, error) {
+func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *parser.CreateIndex, input sqltype.InputEnvironment, reservedNames []ids.NameKey) (CreatePlan, error) {
 	trusted, err := h.TrustedRestoreDestination(auth, "index")
 	if err != nil {
 		return CreatePlan{}, err
@@ -84,8 +85,9 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 			}
 		}
 		name = ddl.GeneratedRelationName(parent.Name(), addition.String(), "idx", func(n string) bool {
-			_, ok := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: n})
-			return ok
+			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: n}
+			_, ok := view.LookupName(key)
+			return ok || slices.Contains(reservedNames, key)
 		})
 	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}

@@ -238,6 +238,12 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   journal. CREATE TRIGGER keeps its independent utility policy. Generic OWNER
   admits only tables; materialized and standalone utility policies remain
   independent, including nontransactional concurrent variants.
+- Ordinary non-concurrent CREATE INDEX (including UNIQUE and shipped methods)
+  is admitted separately at Execute. It uses the same private catalog/storage,
+  journal, Finish and combined publication path as table/schema DDL. Its canonical
+  owner-authorized Share grant is retained through transaction end; savepoints
+  restore only postmark contributions and locks. CONCURRENTLY and standalone
+  index maintenance keep their existing independent boundaries.
 
 Table/schema candidates resolve against current committed state plus the owner's
 private catalog and storage in both explicit and retained-message transactions.

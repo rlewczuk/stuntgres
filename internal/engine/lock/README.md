@@ -69,10 +69,15 @@ engine.
 - **Inquiries.** `BlockingPids` (for `pg_blocking_pids`), `PGLocks` (the
   manager's half of `pg_locks`, as owned `Record` values) and the grant queries
   the engine uses to validate its own admission (`Holds`, `MissingRowGrant`,
-  `ReplacementGrants`, `ValidSession`, `TransactionTicket`, `IndexWriters`).
+  `ReplacementGrants`, `ValidSession`, `TransactionTicket`, `IndexWriters`,
+  `AppendRelationNameClaims`).
   Namespace existence/removal holds project as real object tags. Exact catalog
   binding claims are internal, not physical relation/object tags; their real
   queues remain visible to blocking inquiry and deadlock arbitration.
+  Generated ordinary index naming snapshots only other owners' granted relation
+  names for the exact namespace/domain/epoch into caller-owned scratch. Pending
+  requests alone reserve no generated name. Capture takes only manager metadata,
+  outside engine/session mutexes, and creates no second reservation registry.
 - **pgrowlocks capture.** `Pgrowlocks` accepts only an MVCC-selected prefix of
   exact ObjectRef/RowID/VersionID identities. It applies current HTSU-style
   eligibility separately from raw membership, preserves full aligned bags,

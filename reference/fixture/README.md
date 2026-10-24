@@ -39,6 +39,9 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
   scenario 30 s, reset 15 s, termination 45 s.
 - Every pair owns a dedicated native `Driver`; its wrapped and control pools share
   the fixture DSN, so reopening a pool keeps the engine.
+  `RecordedNativePool(t, connector)` applies that same recording adapter to a
+  fresh native connector, such as a separate Driver's Restore destination.
+  `RawBackend` selects codec assertions; it does not install recording middleware.
 - Before and after each case, the reset borrows the admin pool's one idle session
   and runs standalone `ROLLBACK`, then standalone `DISCARD ALL` (it cannot run in a
   transaction block), then `DROP SCHEMA public CASCADE; CREATE SCHEMA public`, on
@@ -104,6 +107,12 @@ production dependency is involved.
   native stack before its holder commits or rolls back. A started channel or
   elapsed delay is not admission; premature worker completion fails, and the
   caller still joins and validates its outcome.
+  `RelationLockPending` observes the exact PostgreSQL relation/mode/blocker tuple
+  (relation zero selects a real transaction-ID name-conflict wait), or the native
+  relation-request wait and `LockOperation` frames in one complete live stack.
+  Capture PostgreSQL PIDs before starting a worker; never query its busy Conn.
+  The supplied completion signal fails premature native completion; callers
+  retain `LockOperation`'s cancellation/join ownership on every exit.
 - **Active cancellation.** `BinaryConversionActiveCancel` and `SleepActiveCancel`
   cancel only after real admission: natively, the exact provider and fixture worker
   frames in one complete live goroutine stack (creation metadata does not count);

@@ -18,7 +18,23 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 	if operationReplayOrZero(scope.op).tableDestination && s.Concurrent.Character != 0 {
 		return Result{}, fmt.Errorf("stuntgres: restore cannot execute concurrent index phases")
 	}
+	scope.owner.Mu.Lock()
+	explicit := scope.owner.InBlock()
+	scope.owner.Mu.Unlock()
+	var nameScratch [8]ids.NameKey
 	for {
+		var reservedNames []ids.NameKey
+		if s.Name.Text == "" && s.Concurrent.Character == 0 {
+			e.mu.Lock()
+			namespace := scope.lockedRef
+			namespace.Address = scope.lockedDescriptor.(*catalog.Relation).Namespace()
+			e.mu.Unlock()
+			var err error
+			reservedNames, err = e.locks.AppendRelationNameClaims(nameScratch[:0], scope.ticket, namespace)
+			if err != nil {
+				return Result{}, err
+			}
+		}
 		e.mu.Lock()
 		fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 		if err := scope.refreshRelationGrantsLocked(e); err != nil {
@@ -45,7 +61,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			return Result{}, err
 		}
 		h := ddlHost{e: e, op: scope.op, stage: stage}
-		created, err := index.PrepareCreate(h, auth, parent, s, scope.input)
+		created, err := index.PrepareCreate(h, auth, parent, s, scope.input, reservedNames)
 		if err != nil {
 			return failStage(err)
 		}
@@ -78,12 +94,15 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		e.DiscardCatalogStage(stage)
 		_, conflict := err.(catalog.Conflict)
 		if err != nil && !conflict && (s.Name.Text == "" || s.IfNotExists) {
-			// Name scheduling must preserve this feature's existing generated
-			// name / conditional-publication recovery, not retry table DDL.
+			// Explicit named creation preserves the post-capture catalog race.
+			// Existing autocommit/generated recovery remains feature-owned.
 			var diagnostic *sqlstate.Error
 			conflict = errors.As(err, &diagnostic) && diagnostic.Code == "23505" &&
 				diagnostic.Schema == "pg_catalog" && diagnostic.Table == "pg_class" &&
 				diagnostic.Constraint == "pg_class_relname_nsp_index"
+			if conflict && explicit && s.Name.Text != "" {
+				return Result{}, err
+			}
 		}
 		if conflict {
 			if contextErr := scope.op.Context().Err(); contextErr != nil {
@@ -98,10 +117,10 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				current := e.privateCatalogLocked(scope.owner.Catalog)
 				_, exists := current.LookupName(key)
 				same := current.Epoch() == base.Epoch() && current.Get(parent.Address()) != nil
-				if authErr == nil && same && exists {
+				if authErr == nil && same {
 					authErr = currentAuth.Check(access.Requirement{Object: scope.lockedRef, OwnerOnly: true})
 				}
-				if authErr == nil && same && exists {
+				if authErr == nil && same {
 					authErr = currentAuth.CheckCreate(ns)
 				}
 				e.mu.Unlock()

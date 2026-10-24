@@ -82,11 +82,7 @@ func TestReferenceConcurrentIndexTransactionRestrictions(t *testing.T) {
 		c := fixture.ConcurrentIndexConn(t, p, b)
 		fixture.ConcurrentIndexExec(t, p, b, c, "CREATE TABLE t(n INTEGER)", 0)
 		fixture.ConcurrentIndexExec(t, p, b, c, "BEGIN", 0)
-		if b.PG {
-			fixture.ConcurrentIndexExec(t, p, b, c, "CREATE INDEX ix ON t(n)", 0)
-		} else {
-			fixture.ConcurrentIndexError(t, p, b, c, "CREATE INDEX ix ON t(n)", fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction"))
-		}
+		fixture.ConcurrentIndexExec(t, p, b, c, "CREATE INDEX ix ON t(n)", 0)
 		fixture.ConcurrentIndexExec(t, p, b, c, "ROLLBACK", 0)
 		if _, found := fixture.ConcurrentIndexState(t, p, b, "ix"); found {
 			t.Fatal("ordinary rollback retained index")

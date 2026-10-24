@@ -103,3 +103,48 @@ func LockWait(t *testing.T, ctx context.Context, pid int) {
 		runtime.Gosched()
 	}
 }
+
+// RelationLockPending observes a real LockOperation worker parked in the native
+// relation scheduler, or the exact PostgreSQL relation/mode/blocker tuple.
+// The worker's completion signal prevents mistaking an already-finished command
+// for admission. It does not cancel or consume the operation.
+func RelationLockPending(t *testing.T, p *Pair, b Backend, waiter, holder int, relation int64, mode string, finished <-chan struct{}) {
+	t.Helper()
+	if b.PG {
+		if relation != 0 {
+			LockWaitBehind(t, p.Ctx, waiter, holder, relation, mode)
+		} else {
+			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			defer cancel()
+			for {
+				var pending bool
+				if err := Admin.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='transactionid' AND NOT granted) AND $2=ANY(pg_blocking_pids($1))`, waiter, holder).Scan(&pending); err != nil {
+					t.Fatal(err)
+				}
+				if pending {
+					break
+				}
+			}
+		}
+		return
+	}
+	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	defer cancel()
+	stacks := make([]byte, 64<<10)
+	poll := time.NewTicker(time.Millisecond)
+	defer poll.Stop()
+	for {
+		select {
+		case <-finished:
+			t.Fatal("operation completed before required scheduler wait")
+		case <-ctx.Done():
+			t.Fatal("native scheduler admission", ctx.Err())
+		case <-poll.C:
+		}
+		var observed bool
+		observed, stacks = nativeOperationStack(stacks, []byte("(*relationRequest).wait"), []byte("LockOperation"))
+		if observed {
+			return
+		}
+	}
+}

@@ -76,3 +76,27 @@ func (m *Manager) IndexWriters(ticket *Ticket, parent ids.ObjectRef) ([]*Ticket,
 	}
 	return cohort, nil
 }
+
+// AppendRelationNameClaims snapshots other owners' granted relation-name claims
+// in namespace. Generated names avoid these still-private catalog destinations,
+// just as they avoid committed names. Pending-only requests reserve no name.
+// Call outside engine/session mutexes; returned keys own no manager state.
+func (m *Manager) AppendRelationNameClaims(dst []ids.NameKey, ticket *Ticket, namespace ids.ObjectRef) ([]ids.NameKey, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.valid(ticket) || namespace.Domain() != m.domain || namespace.Epoch != ticket.ref.Epoch() || namespace.Address.ClassID != ids.NamespaceClassID || namespace.Address.SubID != 0 || namespace.Address.ObjectID == 0 {
+		return dst, ids.ErrCatalogReplaced
+	}
+	for resource, entry := range m.entries {
+		if resource.ObjectRef != namespace || resource.Name.ClassID != ids.RelationClassID || resource.Name.Namespace != namespace.Address {
+			continue
+		}
+		for owner, held := range entry.holders {
+			if owner != ticket && m.valid(owner) && held.Mode&AccessExclusive != 0 {
+				dst = append(dst, resource.Name)
+				break
+			}
+		}
+	}
+	return dst, nil
+}

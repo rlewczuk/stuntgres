@@ -33,7 +33,7 @@ func TestReferenceTransactionalSchemaUtilityBoundaries(t *testing.T) {
 		// Parsed concurrent DROP is forbidden in a transaction even though its
 		// standalone executor retains the feature-owned unsupported boundary.
 		{name: "ConcurrentDropIndex", setup: []string{"CREATE INDEX tx_bound_index ON tx_bound(a)"}, query: "DROP INDEX CONCURRENTLY tx_bound_index", tag: "DROP INDEX", prohibited: "DROP INDEX CONCURRENTLY"},
-		{name: "Index", query: "CREATE INDEX tx_bound_new ON tx_bound(a)", tag: "CREATE INDEX", nativeExcluded: true, probe: "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relname='tx_bound_new'"},
+		{name: "Index", query: "CREATE INDEX tx_bound_new ON tx_bound(a)", tag: "CREATE INDEX", probe: "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relname='tx_bound_new'"},
 		{name: "View", query: "CREATE VIEW tx_bound_new AS SELECT a FROM tx_bound", tag: "CREATE VIEW", nativeExcluded: true, probe: "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relname='tx_bound_new'"},
 		{name: "Composite", query: "CREATE TYPE tx_bound_new AS(a INT)", tag: "CREATE TYPE", nativeExcluded: true, probe: "SELECT count(*) FROM pg_type WHERE typnamespace='public'::regnamespace AND typname='tx_bound_new'"},
 		{name: "Domain", query: "CREATE DOMAIN tx_bound_new AS INT", tag: "CREATE DOMAIN", nativeExcluded: true, probe: "SELECT count(*) FROM pg_type WHERE typnamespace='public'::regnamespace AND typname='tx_bound_new'"},

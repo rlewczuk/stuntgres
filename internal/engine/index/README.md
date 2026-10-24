@@ -80,6 +80,20 @@ Entry points:
 - CREATE INDEX: `PrepareCreate` (authority, privilege, method, clauses,
   predicate, name, unique providers, coverage; `CreatePlan.Skip` for IF NOT
   EXISTS), then `StageCreate`.
+  Ordinary creation in explicit transactions uses that same path, including
+  UNIQUE and shipped methods/options. The engine captures the owner-private
+  parent and current execution authority under its canonical Share grant.
+  Names/descriptors/dependencies and candidate roots remain private until the
+  existing combined DDL/DML publisher commits; no live publication/undo path
+  exists. Baseline candidates exclude own writes, whose frozen `IndexOutputs`
+  contribute once during enforcement/publication. Read-only and concurrent
+  transaction restrictions remain engine execution-admission responsibilities.
+  For unnamed ordinary creation the engine also passes an owned snapshot of
+  other owners' granted relation-name claims, captured outside engine/session
+  mutexes. `PrepareCreate` includes these names in its existing generated-name
+  predicate without exposing other private definitions. Named explicit
+  post-capture catalog uniqueness errors, including IF NOT EXISTS, propagate
+  unchanged; preexisting-name behavior and autocommit recovery stay distinct.
 - ATTACH PARTITION and REINDEX: `StageMaintenance`, `ValidateMaintenance`;
   binding: `LookupClass`, `BindKey`, `BindAttributes`, `RejectVirtualUses`.
 - Constraint indexes, called by `table`: `StageUniqueDefinitions`,
@@ -137,9 +151,11 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
   `Engine.exclusions`). Every projection change advances the generation, so a
   scan captured with `ScanLocked` fails `CurrentLocked` and is retaken; the maps
   stay private so nothing changes a projection without advancing it.
-- **Journal slot.** `Journal` implements `session.IndexSlot` (private unique
-  roots, candidates, REINDEX intents); `Clone` deep-copies, so savepoint marks
-  keep sharing older journals.
+- **Journal slot.** `Journal` implements `session.IndexSlot` (private logical
+  roots, candidates, REINDEX intents); `Clone` copies its maps while sharing
+  immutable roots and candidate pins. Savepoint marks retain older journals.
+  Rollback-to restores the catalog/row prefix and lock checkpoint; full rollback
+  discards private index names, descriptors, dependencies and roots.
 - **Savepoint exclusion mark.** `ExclusionMark` implements
   `session.ExclusionMarkSlot`; `ExclusionMarkSlotOf` keeps zero state as a nil
   slot, so most savepoints allocate nothing.

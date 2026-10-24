@@ -6,6 +6,13 @@ Trigger rename, extension dependencies and table-qualified DROP preserve install
 definitions and partition clone identities, participate in transactions, and
 survive native Dump/Restore.
 
+Ordinary CREATE INDEX, including UNIQUE and shipped access methods/options, now
+participates in SQL and Go transactions on existing or transaction-private
+tables. Index metadata, keys and rows commit atomically or roll back together;
+savepoints restore private work and release postmark locks. Ordinary builds
+retain SHARE through transaction end; CONCURRENTLY and standalone maintenance
+keep their existing transaction boundaries.
+
 Permanent table/schema DDL now participates in SQL and Go transactions, including
 private schema/table chains, query-derived tables, savepoints and atomic
 definition/data commit or rollback.

@@ -35,6 +35,14 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 - Query results do not prove that an index is used. Index structure, lookup and
   native lock-queue order are asserted by engine units:
   `make check RUN='^Test(AccessMethod|OperatorClass|OperatorFamily|HashIndex|ConcurrentIndex|PartialIndex|UsingIndex|PrimaryKey|Exclusion)'`.
+- Transactional ordinary creation uses `transactionalIndexRun` with actual
+  pinned owners/held statements. `TransactionalIndexFlyway` retains the exact
+  reported SQL across SQL BEGIN/BeginTx, existing/private full-table parents and
+  commit/rollback. Lifecycle, UNIQUE, savepoints, diagnostics, current prepared
+  authority, locks/cancellation, names and native controls have separate bounded
+  definitions. `fixture.RelationLockPending` observes actual scheduler admission;
+  native units additionally assert exact ticket/ref/mode and substantive typed
+  root identities, physical positions, candidates and immutable prefixes.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
@@ -42,6 +50,16 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - <a id="operator-class-definitions"></a>Operator classes: `RUN='^TestReferenceOperatorClass'`
 - Operator families and support routines: `RUN='^TestReferenceOperatorFamily'`
 - B-tree indexes and build timeouts: `RUN='^TestReferenceBtreeIndex'`
+- Transactional ordinary creation (select small groups, add `REFERENCE=1`):
+  `RUN='^(TestReferenceTransactionalIndexFlyway|TestReferenceTransactionalIndexLifecycle)$'`,
+  `RUN='^(TestReferenceTransactionalIndexUnique|TestReferenceTransactionalIndexSavepoints)$'`,
+  `RUN='^(TestReferenceTransactionalIndexDiagnostics|TestReferenceTransactionalIndexPrepared)$'`,
+  `RUN='^(TestReferenceTransactionalIndexLocks|TestReferenceTransactionalIndexCancellation)$'`,
+  `RUN='^(TestReferenceTransactionalIndexNames|TestReferenceTransactionalIndexControls)$'`.
+  Focused native structure/authority:
+  `RUN='^(TestTransactionalIndexPrivateRoots|TestTransactionalIndexSavepointRoots|TestTransactionalIndexAuthorityFences)$'`.
+  Use `RACE=1` for the transactional lock/savepoint/cancellation/name selections
+  and `TestTransactionalIndexLocks`/`TestTransactionalIndexReplacementFences`.
 - Hash indexes: `RUN='^TestReferenceHashIndex'`
 - Partial indexes: `RUN='^TestReferencePartialIndex'`
 - Concurrent indexes: `RUN='^TestReferenceConcurrentIndex'`

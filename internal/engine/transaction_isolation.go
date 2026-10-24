@@ -289,6 +289,9 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	if !session.ExplicitUtility(stmt) || transactionalSchemaUtility(stmt) || s.partitionIndexTransaction(stmt) {
 		return nil
 	}
+	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character == 0 {
+		return nil
+	}
 	t := s.owner
 	t.Mu.Lock()
 	defer t.Mu.Unlock()

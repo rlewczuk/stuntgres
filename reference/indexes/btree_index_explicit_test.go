@@ -39,7 +39,7 @@ func TestReferenceBtreeIndexExplicitAdmissionRegression(t *testing.T) {
 											t.Fatal(err)
 										}
 										defer blocker.Rollback()
-										fixture.LockExec(t, p.Ctx, blocker, "LOCK TABLE t IN ROW EXCLUSIVE MODE", 0)
+										fixture.LockExec(t, p.Ctx, blocker, "UPDATE t SET n=2 WHERE n=1", 1)
 									}
 									fixture.LockExec(t, p.Ctx, builder, "SET lock_timeout='20ms'", 0)
 									query := "CREATE INDEX idx ON t(n)"
@@ -60,17 +60,27 @@ func TestReferenceBtreeIndexExplicitAdmissionRegression(t *testing.T) {
 										t.Fatal(err)
 									}
 									defer tx.Rollback()
+									var result sql.Result
 									if prepared {
-										active := tx.StmtContext(p.Ctx, held)
-										_, err = active.ExecContext(p.Ctx)
+										var active *sql.Stmt
+										if nonContext {
+											active = tx.Stmt(held)
+											result, err = active.Exec()
+										} else {
+											active = tx.StmtContext(p.Ctx, held)
+											result, err = active.ExecContext(p.Ctx)
+										}
 										active.Close()
+									} else if nonContext {
+										result, err = tx.Exec(query)
 									} else {
-										_, err = tx.ExecContext(p.Ctx, query)
+										result, err = tx.ExecContext(p.Ctx, query)
 									}
-									want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
-									if readOnly {
-										want = fixture.ControlsReferenceDiagnostic("25006", "cannot execute CREATE INDEX in a read-only transaction")
-									} else if backend.PG {
+									if result != nil {
+										t.Fatal("failed CREATE INDEX returned a result")
+									}
+									want := fixture.ControlsReferenceDiagnostic("25006", "cannot execute CREATE INDEX in a read-only transaction")
+									if !readOnly {
 										switch target {
 										case "missing":
 											want = fixture.ControlsReferenceDiagnostic("42P01", `relation "missing" does not exist`)

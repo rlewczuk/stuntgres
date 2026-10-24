@@ -18,15 +18,35 @@ and exact incarnation/epoch are revalidated. Namespace CREATE belongs to the
 initiating authority, not a substitute index catalog. Prepare describes an empty
 utility result without binding the table or keys; every Execute binds afresh.
 This syntax-only preparation also applies inside active writable/read-only
-transactions; CREATE INDEX's native exclusion and read-only checks belong to
-Execute. Other utilities retain their existing central preparation policy.
+transactions; read-only and execution authority checks belong to Execute.
+Other utilities retain their existing central preparation policy.
 
-Explicit writable transactions retain the existing native utility exclusion:
-CREATE INDEX Execute returns 0A000 before target lookup, ACL checks or Share
-requests, without effects. PostgreSQL permits ordinary transactional CREATE
-INDEX, including rollback. Read-only execution instead returns 25006 before
-that exclusion and relation resolution. SQL PREPARE AS CREATE INDEX is not the
-extended database/sql preparation surface.
+Ordinary CREATE INDEX, including UNIQUE and shipped methods/options, participates
+in explicit writable transactions on committed or transaction-private parents.
+Names, descriptors, dependencies and real logical roots remain owner-private;
+combined DDL/DML commit publishes them together. Full rollback discards them,
+and savepoints restore the existing journal and lock checkpoint. Own writes are
+not duplicated into the immutable physical baseline: their captured index
+outputs participate once in enforcement and publication. Share grants survive
+successful Execute until transaction end; rollback-to releases only postmark
+acquisitions. Prepared handles recapture current role, path and exact parent
+authority at execution/readmission, never retargeting a replacement after wait.
+
+Unnamed ordinary creation avoids other owners' already-granted private relation
+names as well as the owner's current catalog, matching PostgreSQL's dirty-snapshot
+generated-name selection. The engine captures owned name keys from the existing
+lock manager outside engine/session mutexes; it does not publish private metadata
+or maintain another reservation registry. Named explicit creation that races
+after its initial absence check retains the catalog uniqueness error 23505,
+including IF NOT EXISTS. A name already present at initial execution still gives
+42P07 or the conditional notice. Existing autocommit conflict recovery remains
+feature-owned. Conditional recovery rechecks current owner/namespace CREATE
+after a wait even when the competing name rolled back.
+
+Read-only execution returns 25006 before target resolution or relation locks;
+an aborted block retains 25P02. CONCURRENTLY remains prohibited in a transaction
+with 25001. Standalone DROP/ALTER INDEX and REINDEX keep their existing utility
+boundaries. SQL PREPARE AS CREATE INDEX is not the extended database/sql surface.
 
 ## Representation
 

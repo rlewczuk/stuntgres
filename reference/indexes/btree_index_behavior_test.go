@@ -305,17 +305,10 @@ func referenceIndexTransactionDistinction(t *testing.T, unique bool) {
 					t.Fatal(err)
 				}
 				defer tx.Rollback()
-				if db == p.Memory {
-					step := fixture.Prepared(fixture.ImplicitError(head+" idx ON t(n)", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
-					step.ErrorStage = "execute"
-					step.Prepared = prepared
-					fixture.RunStep(t, p.Ctx, tx, recorder, step)
-				} else {
-					step := fixture.Exec(head+" idx ON t(n)", 0)
-					step.Prepared = prepared
-					fixture.RunStep(t, p.Ctx, tx, recorder, step)
-					fixture.RunStep(t, p.Ctx, tx, recorder, fixture.Select("SELECT relname FROM pg_catalog.pg_class WHERE relname='idx'", []string{"relname"}, []string{"NAME"}, [][]any{{"idx"}}))
-				}
+				step := fixture.Exec(head+" idx ON t(n)", 0)
+				step.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, tx, recorder, step)
+				fixture.RunStep(t, p.Ctx, tx, recorder, fixture.Select("SELECT relname FROM pg_catalog.pg_class WHERE relname='idx'", []string{"relname"}, []string{"NAME"}, [][]any{{"idx"}}))
 				if err := tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}
@@ -339,7 +332,7 @@ func referenceIndexTransactionDistinction(t *testing.T, unique bool) {
 					t.Fatal(err)
 				}
 				defer tx.Rollback()
-				step := fixture.Prepared(fixture.ImplicitError(head+" idx ON missing(n)", fixture.Diagnostic{Code: "25006", Message: "cannot execute CREATE INDEX in a read-only transaction"}))
+				step = fixture.Prepared(fixture.ImplicitError(head+" idx ON missing(n)", fixture.Diagnostic{Code: "25006", Message: "cannot execute CREATE INDEX in a read-only transaction"}))
 				step.ErrorStage = "execute"
 				step.Prepared = prepared
 				fixture.RunStep(t, p.Ctx, tx, recorder, step)
@@ -434,7 +427,7 @@ func TestReferenceBtreeIndexTransactionNonContext(t *testing.T) {
 						fixture.DeleteReferenceCount(t, result, err, 0)
 					}
 					q := "CREATE INDEX idx ON t(n)"
-					want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
+					want := fixture.ControlsReferenceDiagnostic("25006", "cannot execute CREATE INDEX in a read-only transaction")
 					if readOnly {
 						q = "CREATE INDEX idx ON missing(n)"
 						want = fixture.ControlsReferenceDiagnostic("25006", "cannot execute CREATE INDEX in a read-only transaction")
@@ -453,7 +446,7 @@ func TestReferenceBtreeIndexTransactionNonContext(t *testing.T) {
 					} else {
 						result, err = tx.Exec(q)
 					}
-					if b.PG && !readOnly {
+					if !readOnly {
 						fixture.DeleteReferenceCount(t, result, err, 0)
 						s := fixture.Select("SELECT relname FROM pg_catalog.pg_class WHERE relname='idx'", []string{"relname"}, []string{"NAME"}, [][]any{{"idx"}})
 						rows, err := tx.Query(s.Query)

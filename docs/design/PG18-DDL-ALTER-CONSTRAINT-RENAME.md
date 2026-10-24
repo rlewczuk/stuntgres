@@ -11,8 +11,10 @@ whole-input parsing rejects a suffix before executing any valid prefix.
 Prepare is syntax-only. Execute acquires the existing owner-authorized ACCESS
 EXCLUSIVE table grant and uses the grant-time private descriptor. Namespace
 USAGE resolution remains normal; namespace CREATE is not required. Read-only
-transactions retain25006. Only constraint rename is newly admitted in writable
-explicit transactions; table/column rename and index utilities retain exclusions.
+transactions retain25006. Constraint rename uses the shared transactional
+catalog journal. Permanent table/column rename and ordinary CREATE INDEX also
+participate in explicit transactions through their owning feature paths;
+standalone DROP/ALTER INDEX and REINDEX retain their utility exclusions.
 
 Represented NOT NULL, CHECK, UNIQUE, PRIMARY KEY and EXCLUDE definitions rename
 through existing catalog providers. Sequence targets return PostgreSQL's42809
