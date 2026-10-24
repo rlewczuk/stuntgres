@@ -2,6 +2,7 @@ package stored
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
@@ -18,9 +19,9 @@ func TriggerDepends(t Trigger, target ids.ObjectAddress) bool {
 func KeepTriggers(list []Trigger, targets []ids.ObjectAddress) []Trigger {
 	var kept []Trigger
 	for _, t := range list {
-		remove := false
+		remove := slices.Contains(targets, ids.ObjectAddress{ClassID: 2620, ObjectID: t.OID()}) || slices.Contains(targets, t.parts.Parent)
 		for _, target := range targets {
-			if TriggerDepends(t, target) {
+			if TriggerDepends(t, target) || slices.Contains(t.parts.AutoExtensions, target) {
 				remove = true
 				break
 			}
@@ -30,6 +31,20 @@ func KeepTriggers(list []Trigger, targets []ids.ObjectAddress) []Trigger {
 		}
 	}
 	return kept
+}
+
+// TriggerParent finds the owning relation of an exact attached trigger identity.
+func TriggerParent(read catalog.Read, address ids.ObjectAddress) (*catalog.Relation, Trigger) {
+	for _, d := range read.Descriptors() {
+		if relation, ok := d.(*catalog.Relation); ok {
+			for _, t := range TriggersOf(relation) {
+				if address == (ids.ObjectAddress{ClassID: 2620, ObjectID: t.OID()}) {
+					return relation, t
+				}
+			}
+		}
+	}
+	return nil, Trigger{}
 }
 
 func ValidateTriggers(read catalog.Read, d *catalog.Relation) error {

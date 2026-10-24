@@ -430,7 +430,7 @@ package parser
 %type <tok> truncate_identity
 %type <stmt> create_policy alter_policy drop_policy
 %type <stmt> create_rule alter_rule drop_rule rule_action
-%type <stmt> create_trigger
+%type <stmt> create_trigger alter_trigger drop_trigger
 %type <trigger> trigger_head
 %type <triggerEvent> trigger_event
 %type <triggerEvents> trigger_events
@@ -922,7 +922,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
  | create_rule | alter_rule | drop_rule
- | create_trigger
+ | create_trigger | alter_trigger | drop_trigger
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
  | generic_statement_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -992,6 +992,18 @@ trigger_arguments: /* empty */ {$$=nil} | trigger_argument_list ;
 trigger_argument_list: trigger_argument {$$=[]string{$1.text}}
  | trigger_argument_list ',' trigger_argument {$$=append($1,$3.text)} ;
 trigger_argument: name | STRING | NUMBER ;
+alter_trigger: ALTER TRIGGER name ON relation_name RENAME TO name {
+ $$=&AlterTrigger{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Action:"rename",Target:Identifier{Text:$8.text,Pos:$8.pos},Pos:$1.pos}
+} | ALTER TRIGGER name ON relation_name depends_word ON EXTENSION name {
+ $$=&AlterTrigger{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Action:"depends",Target:Identifier{Text:$9.text,Pos:$9.pos},Pos:$1.pos}
+} | ALTER TRIGGER name ON relation_name NO depends_word ON EXTENSION name {
+ $$=&AlterTrigger{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Action:"no_depends",Target:Identifier{Text:$10.text,Pos:$10.pos},Pos:$1.pos}
+} ;
+drop_trigger: DROP TRIGGER name ON relation_name drop_mode {
+ $$=&DropTrigger{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Mode:$6,Pos:$1.pos}
+} | DROP TRIGGER IF EXISTS name ON relation_name drop_mode {
+ $$=&DropTrigger{Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,IfExists:true,Mode:$8,Pos:$1.pos}
+} ;
 rule_head: CREATE RULE name AS ON rule_event TO relation_name {
  sqllex.(*lexer).ruleDefinition=true
  $$=&CreateRule{Name:Identifier{Text:$3.text,Pos:$3.pos},Event:$6.text,Table:$8,Pos:$1.pos}

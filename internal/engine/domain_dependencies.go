@@ -78,6 +78,14 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	}
 	plan := view.PlanDrop(provider, roots, edges)
 	targets, relations := plan.Targets, plan.Relations
+	// Attached trigger retirement contributes payload identities, not relation
+	// deletion or column projection targets. Retain the extracted shared plan
+	// and extend its lock owners for these selected lifecycle edges.
+	for _, edge := range edges {
+		if edge.Address.ClassID == 2620 {
+			targets = append(targets, edge.Address)
+		}
+	}
 	if plan.ObserveIdentities {
 		provider.observeIdentityDependencies(targets)
 	}
@@ -88,7 +96,18 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 				return err
 			}
 		}
-		for _, r := range plan.LockRelations(edges) {
+		lockRelations := plan.LockRelations(edges)
+		for _, edge := range edges {
+			if edge.Address.ClassID != 2620 || edge.Relation == nil {
+				continue
+			}
+			address := edge.Relation.Address()
+			if !slices.ContainsFunc(lockRelations, func(r *catalog.Relation) bool { return r.Address() == address }) {
+				lockRelations = append(lockRelations, edge.Relation)
+			}
+		}
+		sort.Slice(lockRelations, func(i, j int) bool { return lockRelations[i].Address().ObjectID < lockRelations[j].Address().ObjectID })
+		for _, r := range lockRelations {
 			ref := e.catalog.Domain.Ref(provider.base.Epoch(), r.Address())
 			if err := provider.Acquire(ref, true); err != nil {
 				return err

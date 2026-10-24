@@ -531,7 +531,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, err
 	}
 	switch stmt.(type) {
-	case *parser.CreateTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
+	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
 		return s.engine().describeOperation(s, stmt)
 	case *parser.CreateTable, *parser.DropTable, *parser.CreateView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterComposite, *parser.AlterType, *parser.DropType:
 		// Definition utilities have no result signature. Resolve ownership, read-only

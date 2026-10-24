@@ -11,11 +11,12 @@ type TriggersPayload interface {
 }
 
 type TriggerFact struct {
-	OID        ids.OID
-	Name       string
-	Procedure  ids.ObjectAddress
-	Parent     ids.ObjectAddress
-	References []ids.ObjectAddress
+	OID            ids.OID
+	Name           string
+	Procedure      ids.ObjectAddress
+	Parent         ids.ObjectAddress
+	References     []ids.ObjectAddress
+	AutoExtensions []ids.ObjectAddress
 }
 
 func (d *Relation) HasTriggers() bool { return d.Triggers != nil && d.Triggers.Len() != 0 }

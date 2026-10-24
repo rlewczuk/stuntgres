@@ -1,3 +1,7 @@
+Trigger rename, extension dependencies and table-qualified DROP preserve installed
+definitions and partition clone identities, participate in transactions, and
+survive native Dump/Restore.
+
 Permanent table/schema DDL now participates in SQL and Go transactions, including
 private schema/table chains, query-derived tables, savepoints and atomic
 definition/data commit or rollback.

@@ -11,13 +11,20 @@ no activation values or evaluated PL expressions enter stored payloads.
 
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
-WHEN recipes and partition-clone provenance, never activation values. Mapping
-preserves source snapshots; SQL serialization omits derived clones and renders
-current catalog names from retained identities.
+WHEN recipes and partition-clone provenance, never activation values. Rename
+retains every identity and recipe while reordering the table-local chain.
+Automatic extension addresses are constructor-owned, sorted unique metadata,
+separate from normal function/WHEN references and extension membership.
+Mapping preserves source snapshots and resolves extension addresses in the
+destination; SQL serialization omits derived clone CREATEs, renders current
+names, and emits clone-local dependency ALTERs after all parent definitions.
 Partition synchronization may replace a conflicting local child definition only
 along the exact CREATE OR REPLACE root definition's stage-local clone lineage.
 Ordinary CREATE, ATTACH and unrelated catalog synchronization retain conflicts;
 replaced local definitions and their dependency edges retire atomically.
+Clone matching follows exact Parent identity before checking destination-name
+collisions. Existing clone OIDs and local extension edges survive parent
+resynchronization; a new clone does not inherit the parent's extension edges.
 WHEN literal validation closes OLD/NEW occurrences over the owning relation,
 not the synthetic Boolean projection's output frame. Ordinary view validation
 retains its query-frame rules. Pseudo-column remapping resolves current physical

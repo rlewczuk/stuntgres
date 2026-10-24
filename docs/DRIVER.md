@@ -82,9 +82,10 @@ ordinary SQL errors leave the connection reusable.
 - `BeginTx` supports `sql.LevelReadCommitted`, `LevelReadUncommitted`,
   `LevelRepeatableRead` and `LevelSerializable`; `ReadOnly` maps to the access mode.
   Deferrability uses the session default (`sql.TxOptions` has no field for it).
-- SQL transaction controls and `BeginTx` share transactional table/schema DDL:
-  permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA and
-  supported ALTER TABLE forms see earlier successful own changes. Peers see
+- SQL transaction controls and `BeginTx` share transactional schema DDL:
+  permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA,
+  supported ALTER TABLE forms and ALTER/DROP TRIGGER see earlier successful own
+  changes. Peers see
   the complete definitions and rows only after commit. Rollback/savepoints
   restore definitions, dependencies and data together; sequence counters are
   not rewound.

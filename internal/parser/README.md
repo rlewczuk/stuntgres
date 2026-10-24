@@ -35,6 +35,9 @@ single-statement limit of driver calls) belong to callers.
   statement kind as ROW; execution admits the supported timing and target kind.
   Timing words require keyword identity: quoted `"before"`/`"after"` are names,
   not timing syntax, and cannot install definitions.
+  ALTER/DROP retain positioned table-local trigger identities and explicit
+  rename, extension-dependency, existence and drop-mode syntax. Preparing these
+  utilities parses only; execution resolves relation, trigger and owner.
 
 ### Scratch receivers
 
@@ -125,6 +128,8 @@ retains an expression and ordered USING list, not a second SQL parser; diagnosti
 text is sliced from these boundaries and never rescanned into executable syntax.
 
 ## Testing
+
+Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
 
 Unit tests here drive the real lexer and generated parser and check AST shape,
 positions, ownership and complete-input rejection. Public SQL acceptance and

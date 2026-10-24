@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -26,6 +27,17 @@ func RemapTriggers(read catalog.Read, d *catalog.Relation, mapping map[ids.Objec
 		p.References = slices.Clone(p.References)
 		for j, a := range p.References {
 			p.References[j] = ref(ids.ObjectRef{Address: a}).Address
+		}
+		p.AutoExtensions = slices.Clone(p.AutoExtensions)
+		for j, a := range p.AutoExtensions {
+			p.AutoExtensions[j] = ref(ids.ObjectRef{Address: a}).Address
+			ext, ok := read.Extension(p.AutoExtensions[j])
+			if !ok {
+				return nil, ids.ErrCatalogReplaced
+			}
+			if err := extension.ValidateProviderHeader(read, ext, ids.ExtensionClassID); err != nil {
+				return nil, err
+			}
 		}
 		if p.When != nil {
 			var err error

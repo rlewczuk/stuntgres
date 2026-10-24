@@ -16,6 +16,8 @@ func CloneTrigger(read catalog.Read, t Trigger, parent, child *catalog.Relation,
 	p.OID = oid
 	p.Parent = ids.ObjectAddress{ClassID: 2620, ObjectID: t.OID()}
 	p.ParentRevision = parent.Revision()
+	// Automatic extension edges belong to the addressed clone, never its parent.
+	p.AutoExtensions = nil
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		if old.Address.ClassID == ids.RelationClassID && old.Address.ObjectID == parent.Address().ObjectID {
 			attribute := old.Address.SubID

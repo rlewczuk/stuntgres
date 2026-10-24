@@ -367,11 +367,13 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					}
 				}
 				for _, trigger := range stored.TriggersOf(d) {
-					if stored.TriggerDepends(trigger, target) {
+					p := trigger.Parts()
+					automatic := p.Relation.Address == target || p.Parent == target || slices.Contains(p.AutoExtensions, target)
+					if automatic || stored.TriggerDepends(trigger, target) {
 						if name == "" {
 							name = stored.DependencyRelationName(base, d, path)
 						}
-						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2620, ObjectID: trigger.OID()}, Target: target, Root: root, OID: trigger.OID(), Label: "trigger " + catalog.DependencyIdentifier(trigger.Name()) + " on table " + name, Relation: d})
+						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2620, ObjectID: trigger.OID()}, Target: target, Root: root, OID: trigger.OID(), Automatic: automatic, Label: "trigger " + catalog.DependencyIdentifier(trigger.Name()) + " on table " + name, Relation: d})
 					}
 				}
 				if d.View != nil {
@@ -529,7 +531,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			slot := len(result)
 			resultSlots[edge.Address] = len(result)
 			result = append(result, edge)
-			if edge.Address.ClassID == ids.OperatorClassCatalogID || edge.Address.ClassID == ids.OperatorFamilyClassID || edge.Address.ClassID == ids.TypeClassID || edge.Address.ClassID == ids.RelationClassID || edge.Address.ClassID == ids.ExtensionClassID || edge.Address.ClassID == ids.ProcedureClassID || edge.Address.ClassID == ids.TSTemplateClassID || edge.Address.ClassID == ids.TSDictionaryClassID || edge.Address.ClassID == ids.ForeignWrapperClassID || edge.Address.ClassID == ids.ForeignServerClassID || edge.Address.ClassID == ids.ForeignMappingClassID {
+			if edge.Address.ClassID == 2620 || edge.Address.ClassID == ids.OperatorClassCatalogID || edge.Address.ClassID == ids.OperatorFamilyClassID || edge.Address.ClassID == ids.TypeClassID || edge.Address.ClassID == ids.RelationClassID || edge.Address.ClassID == ids.ExtensionClassID || edge.Address.ClassID == ids.ProcedureClassID || edge.Address.ClassID == ids.TSTemplateClassID || edge.Address.ClassID == ids.TSDictionaryClassID || edge.Address.ClassID == ids.ForeignWrapperClassID || edge.Address.ClassID == ids.ForeignServerClassID || edge.Address.ClassID == ids.ForeignMappingClassID {
 				if err := visit(edge.Address, root); err != nil {
 					return err
 				}
@@ -543,6 +545,23 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 	for _, root := range targets {
 		if err := visit(root, root); err != nil {
 			return nil, err
+		}
+	}
+	// Automatic extension retirement does not waive a clone's partition
+	// dependency. A parent trigger or the clone's owning table must retire too.
+	for address, descriptor := range r.Descriptors() {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || r.Removed(address) || seen[address] {
+			continue
+		}
+		if replacement, ok := r.Replacement(address).(*catalog.Relation); ok {
+			relation = replacement
+		}
+		for _, trigger := range stored.TriggersOf(relation) {
+			parent := trigger.Parts().Parent
+			if parent.ObjectID != 0 && seen[ids.ObjectAddress{ClassID: 2620, ObjectID: trigger.OID()}] && !seen[parent] {
+				return nil, TriggerPartitionDropError(base, relation, trigger, path)
+			}
 		}
 	}
 	if compositeDefaultOrder || domainRootOrder {

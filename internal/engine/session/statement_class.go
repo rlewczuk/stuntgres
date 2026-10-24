@@ -41,6 +41,10 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "REFRESH MATERIALIZED VIEW"
 	case *parser.CreateTrigger:
 		return "CREATE TRIGGER"
+	case *parser.AlterTrigger:
+		return "ALTER TRIGGER"
+	case *parser.DropTrigger:
+		return "DROP TRIGGER"
 	case *parser.CreateRule:
 		return "CREATE RULE"
 	case *parser.AlterRule:
@@ -236,7 +240,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.RefreshMaterializedView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return true
-	case *parser.CreateTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
+	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true

@@ -62,6 +62,27 @@ type CreateTablespace struct {
 
 func (*CreateTablespace) statement() {}
 
+// Trigger lifecycle identities are local names qualified by their owning relation.
+type AlterTrigger struct {
+	Name   Identifier
+	Table  ObjectName
+	Action string
+	Target Identifier
+	Pos    Position
+}
+
+func (*AlterTrigger) statement() {}
+
+type DropTrigger struct {
+	Name     Identifier
+	Table    ObjectName
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropTrigger) statement() {}
+
 // Rules retain their ordered query commands as one outer SQL utility.
 type CreateRule struct {
 	Name             Identifier

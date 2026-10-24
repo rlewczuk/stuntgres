@@ -98,7 +98,15 @@ func (e *Engine) synchronizeStageTriggersLocked(stage *CatalogStage) error {
 		}
 		if parent != nil {
 			for _, source := range stored.TriggersOf(parent) {
-				prior := slices.IndexFunc(list, func(t stored.Trigger) bool { return t.Name() == source.Name() })
+				parentAddress := ids.ObjectAddress{ClassID: 2620, ObjectID: source.OID()}
+				prior := slices.IndexFunc(list, func(t stored.Trigger) bool { return t.Parts().Parent == parentAddress })
+				occupant := slices.IndexFunc(list, func(t stored.Trigger) bool { return t.Name() == source.Name() })
+				if occupant >= 0 && prior >= 0 && occupant != prior {
+					return sqlError("42710", fmt.Sprintf("trigger %q for relation %q already exists", source.Name(), child.Name()))
+				}
+				if prior < 0 {
+					prior = occupant
+				}
 				replaceLocal := replacementSources[source.OID()]
 				var oid ids.OID
 				if prior >= 0 {
@@ -131,6 +139,14 @@ func (e *Engine) synchronizeStageTriggersLocked(stage *CatalogStage) error {
 				cloned, err := stored.CloneTrigger(read, source, parent, child, oid, procedure)
 				if err != nil {
 					return err
+				}
+				if prior >= 0 && list[prior].Parts().Parent == parentAddress {
+					p := cloned.Parts()
+					p.AutoExtensions = list[prior].Parts().AutoExtensions
+					cloned, err = stored.NewTrigger(p)
+					if err != nil {
+						return err
+					}
 				}
 				next = append(next, cloned)
 				changed = true

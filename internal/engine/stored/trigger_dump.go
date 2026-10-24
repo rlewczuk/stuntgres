@@ -18,6 +18,7 @@ import (
 // partition clones (replay derives clones from their parent definition).
 func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorization.Read) ([]dump.Group, error) {
 	var groups []dump.Group
+	var dependencies []dump.Group
 	for _, descriptor := range read.Descriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok || !relation.HasTriggers() {
@@ -39,6 +40,13 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				return nil, err
 			}
 			p := t.Parts()
+			for _, address := range p.AutoExtensions {
+				extension, ok := read.Extension(address)
+				if !ok {
+					return nil, ids.ErrCatalogReplaced
+				}
+				dependencies = append(dependencies, dump.Group{Owner: owner.Name, Table: table, SQL: "ALTER TRIGGER " + catalog.QuoteIdentifier(p.Name) + " ON " + table + " DEPENDS ON EXTENSION " + catalog.QuoteIdentifier(extension.Name()) + ";\n"})
+			}
 			if p.Parent.ObjectID != 0 {
 				continue
 			}
@@ -116,5 +124,14 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 		}
 		return strings.Compare(a.SQL, b.SQL)
 	})
+	// Derived clones exist only after every parent CREATE. Keep their local x
+	// metadata in a final deterministic phase, independent of table-name order.
+	slices.SortFunc(dependencies, func(a, b dump.Group) int {
+		if a.Table != b.Table {
+			return strings.Compare(a.Table, b.Table)
+		}
+		return strings.Compare(a.SQL, b.SQL)
+	})
+	groups = append(groups, dependencies...)
 	return groups, nil
 }

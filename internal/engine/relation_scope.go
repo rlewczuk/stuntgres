@@ -241,7 +241,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 					ref = e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 				}
 			}
-		} else if mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive {
+		} else if !rename && (mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive) {
 			if _, copyTarget := stmt.(*parser.Copy); copyTarget {
 				ref, err = e.resolveRelationReference(auth, name, true)
 			} else {

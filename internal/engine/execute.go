@@ -31,6 +31,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	switch stmt.(type) {
 	case *parser.CreateTrigger:
 		return e.executeTrigger(scope, stmt.(*parser.CreateTrigger), count)
+	case *parser.AlterTrigger, *parser.DropTrigger:
+		return e.executeTriggerLifecycle(scope, stmt, count)
 	case *parser.CreateFunction, *parser.CreateAggregate:
 		return e.executeSQLRoutineDDL(scope, stmt, count)
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:

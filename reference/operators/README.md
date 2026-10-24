@@ -20,6 +20,9 @@ Lifetime witnesses combine supported routine/relation/column rename with
 dependency RESTRICT/CASCADE/drop-recreate routes. A competing function reusing
 the original name must not retarget an installed trigger, including two native
 replacement rounds and unchanged-stream PostgreSQL replay.
+Trigger lifecycle scenarios cover rename ordering and held handles, table-local
+DROP identity, ownership/notices, automatic extension retirement, stable partition
+clones, private transaction/savepoint chains and unchanged-stream native replay.
 Generated partition CREATE/ATTACH boundaries are asserted explicitly; movement
 semantics use nongenerated partitions, while ordinary-table Ordering covers
 generation after BEFORE transformation.
@@ -80,6 +83,7 @@ Add `REFERENCE=1` for the oracle.
 - <a id="routine-parameter-binding"></a>Routine parameter binding: `RUN='^TestReferenceRoutineParameters'`
 - <a id="cast-definitions"></a>CREATE CAST definitions: `RUN='^TestReferenceCastDefinition'`
 - Row-level triggers: `RUN='^TestReferenceTriggerCore'`
+- Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`
 
 ### PL/pgSQL core
 

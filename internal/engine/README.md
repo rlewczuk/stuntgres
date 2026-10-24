@@ -7,6 +7,18 @@ native Dump/Restore and the wire protocol. Subsystem logic lives in layered
 subpackages ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SPLIT.md) §3) that never
 import the root and reach it through the hosts below.
 
+Trigger lifecycle utilities publish immutable relation payloads through the
+ordinary catalog stage. Rename admits AccessExclusive on the root and each
+partition before mutation; addressed DROP and extension metadata use the generic
+AccessShare target admission. Ownership is table authority, not trigger-creation
+or routine-execution grants. Clone synchronization preserves exact Parent/OID
+identity and fails a descendant name collision before publication. Extension x
+retirement uses the shared dependency closure, including the partition-owner
+deletion guard; CASCADE does not grant upward partition deletion authority.
+Dump emits current definitions post-data followed by local dependency metadata.
+Restore admits only qualified positive trigger dependency ALTERs, never arbitrary
+rename/drop utilities.
+
 ## Procedural exception boundaries
 
 `plpgsql_checkpoint.go` binds unnamed owner marks to the exact admitted statement,
@@ -214,9 +226,10 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   before their read-only execution check. WITH NO DATA resolves source names and
   output types but does not demand the skipped SELECT executor's privileges.
 - `transactionalSchemaUtility` is the shared bounded Describe/Execute admission
-  policy: permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA
-  and shipped ALTER TABLE forms use the existing transaction journal. Generic
-  OWNER admits only tables; materialized and standalone utility policies remain
+  policy: permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA,
+  shipped ALTER TABLE forms and trigger ALTER/DROP use the existing transaction
+  journal. CREATE TRIGGER keeps its independent utility policy. Generic OWNER
+  admits only tables; materialized and standalone utility policies remain
   independent, including nontransactional concurrent variants.
 
 Table/schema candidates resolve against current committed state plus the owner's
@@ -457,6 +470,8 @@ authority.
 
 Trigger payload/frame/runtime/remap/stage units share
 `RUN='^TestTriggerCore(Catalog|Frame|Return|Runtime|Persistence|AtomicStage|PartitionPath|WhenProvider)$'`.
+Trigger lifecycle identity, clone, source-fence, dependency and remap units use
+`RUN='^TestTriggerDDL'` and construct metadata with the same trigger fixture.
 
 Root tests are package-level units of these contracts; public SQL behavior is
 tested only in `reference/` ([docs/TESTING.md](../../docs/TESTING.md)). SHOW ALL

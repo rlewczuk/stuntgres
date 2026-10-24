@@ -7,6 +7,8 @@ import "stuntgres/internal/parser"
 // same boundary as Execute, but query-derived creation still analyzes its source.
 func transactionalSchemaUtility(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
+	case *parser.AlterTrigger, *parser.DropTrigger:
+		return true
 	case *parser.CreateTable, *parser.DropTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema,
 		*parser.AlterTable, *parser.AlterTableRenameTable, *parser.AlterTableRenameColumn,
 		*parser.AlterTableRenameConstraint, *parser.AlterTableSetSchema, *parser.AlterTableDefault,

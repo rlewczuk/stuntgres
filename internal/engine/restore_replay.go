@@ -76,6 +76,8 @@ func restoreTableDestination(stmt parser.Statement) bool {
 		*parser.CreateIndex, *parser.CreateCollation, *parser.CreateConversion, *parser.AlterConversion,
 		*parser.CreateOperator, *parser.AlterOperator, *parser.CreateExtension, *parser.AlterRoutine:
 		return true
+	case *parser.AlterTrigger:
+		return s.Action == "depends"
 	case *parser.CreateQueryTable:
 		return s.Form == parser.CreateMaterializedView
 	}

@@ -81,6 +81,14 @@ func CheckAlterView(s *parser.AlterView) error {
 	return nil
 }
 
+// CheckAlterTrigger admits only emitted, qualified positive extension metadata.
+func CheckAlterTrigger(s *parser.AlterTrigger) error {
+	if s.Action != "depends" || len(s.Table.Parts) != 2 || stagesTemporary("", s.Table) {
+		return sqlError("0A000", "restore accepts only qualified trigger extension dependency ALTER")
+	}
+	return nil
+}
+
 // CheckCreateView rejects a temporary view.
 func CheckCreateView(s *parser.CreateView) error {
 	if stagesTemporary(s.Persistence, s.Name) {

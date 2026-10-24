@@ -30,6 +30,13 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	}
 	visibleForeign := slices.ContainsFunc(foreign, func(edge table.DomainDependency) bool { return !edge.Automatic })
 	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policies) == 0 && !visibleForeign {
+		// Automatic attached-trigger targets have no visible dependency label,
+		// but their immutable owner payloads still require retirement.
+		if slices.ContainsFunc(expanded, func(address ids.ObjectAddress) bool { return address.ClassID == 2620 }) {
+			if err := view.DropRuleDependents(provider, expanded, mode); err != nil {
+				return err
+			}
+		}
 		return table.ForeignKeyDependents(provider, foreign)
 	}
 	if mode == parser.DropRestrict {

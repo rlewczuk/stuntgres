@@ -1,6 +1,7 @@
 package stored
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -34,6 +36,7 @@ type TriggerParts struct {
 	Presentation   *View
 	Binding        *analyze.Binding
 	References     []ids.ObjectAddress
+	AutoExtensions []ids.ObjectAddress
 }
 
 type Trigger struct{ parts TriggerParts }
@@ -48,9 +51,17 @@ func validateTriggerParts(p TriggerParts) error {
 	if !slices.Contains(p.References, p.Procedure.Address) {
 		return fmt.Errorf("stuntgres: missing trigger function dependency")
 	}
+	for i, a := range p.AutoExtensions {
+		if a.ClassID != ids.ExtensionClassID || a.ObjectID == 0 || a.SubID != 0 || i > 0 && p.AutoExtensions[i-1].ObjectID >= a.ObjectID {
+			return fmt.Errorf("stuntgres: invalid trigger extension dependency")
+		}
+	}
 	return nil
 }
 func NewTrigger(p TriggerParts) (Trigger, error) {
+	p.AutoExtensions = slices.Clone(p.AutoExtensions)
+	slices.SortFunc(p.AutoExtensions, func(a, b ids.ObjectAddress) int { return cmp.Compare(a.ObjectID, b.ObjectID) })
+	p.AutoExtensions = slices.Compact(p.AutoExtensions)
 	if err := validateTriggerParts(p); err != nil {
 		return Trigger{}, err
 	}
@@ -83,7 +94,7 @@ func (t TriggerList) Len() int { return len(t) }
 func (t TriggerList) Visit(visit func(catalog.TriggerFact) error) error {
 	for _, definition := range t {
 		p := definition.parts
-		if err := visit(catalog.TriggerFact{OID: p.OID, Name: p.Name, Procedure: p.Procedure.Address, Parent: p.Parent, References: p.References}); err != nil {
+		if err := visit(catalog.TriggerFact{OID: p.OID, Name: p.Name, Procedure: p.Procedure.Address, Parent: p.Parent, References: p.References, AutoExtensions: p.AutoExtensions}); err != nil {
 			return err
 		}
 	}
@@ -115,6 +126,15 @@ func (t TriggerList) Validate(read catalog.Read, owner *catalog.Relation) error 
 		}
 		if err := validateTriggerWhen(read, owner, p); err != nil {
 			return err
+		}
+		for _, address := range p.AutoExtensions {
+			ext, ok := read.Extension(address)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing trigger extension dependency")
+			}
+			if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(read, ext); err != nil {
+				return err
+			}
 		}
 		for _, attribute := range p.UpdateColumns {
 			if !owner.HasAttribute(attribute) {

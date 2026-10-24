@@ -469,6 +469,9 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				for _, reference := range trigger.References {
 					add(owner, reference, 'n')
 				}
+				for _, extension := range trigger.AutoExtensions {
+					add(owner, extension, 'x')
+				}
 				if trigger.Parent.ObjectID != 0 {
 					add(owner, trigger.Parent, 'P')
 				}

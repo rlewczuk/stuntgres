@@ -174,6 +174,16 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 					if view.ViewDepends(owner, target) || view.MaterializedExtensionDepends(owner, target) || table.CheckDepends(owner, target) || table.DefaultDepends(owner, target) || table.GenerationDepends(owner, target) || index.ExpressionDepends(owner, target) {
 						return catalog.Conflict{}
 					}
+					if err := owner.VisitTriggers(func(trigger catalog.TriggerFact) error {
+						for _, address := range trigger.AutoExtensions {
+							if address == target {
+								return catalog.Conflict{}
+							}
+						}
+						return nil
+					}); err != nil {
+						return err
+					}
 					if candidate.Get(target) == nil {
 						for _, column := range owner.Columns {
 							if typedef.UsageDependsOn(column.Usage, target) {
