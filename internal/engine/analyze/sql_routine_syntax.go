@@ -3,6 +3,7 @@ package analyze
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
@@ -33,7 +34,7 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 		}
 		call = parser.FunctionExpr{Name: parser.ObjectName{Parts: parts}, Args: r.Args, Pos: r.Pos, Star: r.Star, Distinct: r.Distinct, Variadic: r.Variadic, Order: r.Order, Filter: r.Filter, Window: r.Window, Within: r.Within, WithinPos: r.WithinPos}
 	case parser.CastExpr:
-		if r.Syntax != parser.FunctionCast || (!b.hasDynamicProcedureName(r.Callee) && !b.hasProviderProcedureOverride(r.Callee) && !functions.CubeFunctionName(r.Callee) && !functions.EarthFunctionName(r.Callee) && !extension.CubeComparisonName(r.Callee) && !extension.CitextComparisonName(r.Callee)) {
+		if r.Syntax != parser.FunctionCast {
 			return nil, false, nil
 		}
 		parts := []parser.Identifier{{Text: r.Callee, Pos: r.Pos}}
@@ -45,6 +46,7 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 	default:
 		return nil, false, nil
 	}
+	call = b.elideVoidParameters(call)
 	selected, handled, err := b.selectSQLCallable(call, cast)
 	if err != nil || !handled {
 		return nil, handled, err
@@ -57,7 +59,17 @@ func (b *Binder) sqlFunctionCastTarget(raw parser.TypeName, operand ComparisonOp
 	// An unresolved external Param does not take the unknown-literal shortcut.
 	// Exact typed functions won already; literal/IO/relabel casts precede the
 	// ordinary implicit/unknown best-match phase (PostgreSQL10.3 step3).
-	target, err := b.Host.ResolveAnnotationType(raw, false)
+	unknownNull := false
+	if literal, ok := operand.raw.(parser.LiteralExpr); ok {
+		unknownNull = literal.Value.Kind == parser.NullValue
+	}
+	target, err := b.Host.ResolveAnnotationType(raw, unknownNull)
+	if raw.Quoted && raw.Name == "char" {
+		target, err = b.Host.ResolveStringAnnotationType(raw, unknownNull)
+	}
+	if err != nil && operand.descriptor() != nil {
+		target, err = b.resolveCastIdentity(raw, operand.descriptor())
+	}
 	if err != nil {
 		return sqltype.Usage{}, sqltype.CoercionPlan{}, false
 	}
@@ -65,28 +77,38 @@ func (b *Binder) sqlFunctionCastTarget(raw parser.TypeName, operand ComparisonOp
 		return target, sqltype.CoercionPlan{}, true
 	}
 	if operand.descriptor() == nil {
+		if _, parameter := operand.raw.(parser.ParameterExpr); parameter {
+			if metadata, ok := target.Type.PGTypeMetadata(); ok && metadata.Category == "S" {
+				return target, sqltype.CoercionPlan{}, true
+			}
+		}
 		return sqltype.Usage{}, sqltype.CoercionPlan{}, false
+	}
+	if recordCastPassthrough(operand.descriptor(), target.Type) {
+		return operand.Node.ResultUsage(), sqltype.CoercionPlan{}, true
+	}
+	source := operand.Node.ResultUsage()
+	if source.Type.BaseType() == target.Type.BaseType() {
+		// Typename identity does not select a same-type sizing function.
+		plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
+		return target, plan, err == nil && plan.FunctionCastShortcut()
+	}
+	declared, selectionErr := catalog.SelectCoercion(b.BindingCatalog(), source.BaseUsage(), target.BaseUsage(), sqltype.Explicit)
+	if selectionErr != nil {
+		return target, sqltype.CoercionPlan{}, false
+	}
+	if declared != nil {
+		eligible := declared.Method == "b"
+		if declared.Method == "i" {
+			metadata, _ := target.Type.BaseType().PGTypeMetadata()
+			eligible = !source.Type.BaseType().IsComposite() || metadata.Category != "S"
+		}
+		// The selected coercion owner constructs declared binary/IO nodes;
+		// a generic sqltype plan is neither their authority nor their recipe.
+		return target, sqltype.CoercionPlan{}, eligible
 	}
 	plan, err := sqltype.PlanCoercion(operand.Node.ResultUsage(), target, sqltype.Explicit)
 	return target, plan, err == nil && plan.FunctionCastShortcut()
-}
-
-func geometricTypeNameID(name string) (sqltype.ID, bool) {
-	switch name {
-	case "box":
-		return sqltype.Box, true
-	case "circle":
-		return sqltype.Circle, true
-	case "lseg":
-		return sqltype.Lseg, true
-	case "path":
-		return sqltype.Path, true
-	case "point":
-		return sqltype.Point, true
-	case "polygon":
-		return sqltype.Polygon, true
-	}
-	return 0, false
 }
 
 // Retain only the selected type identity, never an executable expression or a
@@ -107,13 +129,14 @@ func (b *Binder) retainedTypeNameCast(raw parser.FunctionExpr) (expr.Expr, bool,
 	if len(raw.Name.Parts) == 0 || len(raw.Args) != 1 || len(raw.ArgNames) != 0 || raw.Star || raw.Variadic {
 		return nil, true, fmt.Errorf("stuntgres: incompatible retained typename occurrence")
 	}
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	id, geometric := geometricTypeNameID(name)
-	compatible := geometric && captured.Base == b.Type(id).Usage()
-	if captured.Base.Type.IsCube() && name == "cube" {
-		actual, ok := view.LookupType(captured.Base.Type.ID())
-		compatible = ok && actual == captured.Base.Type
+	actual, ok := view.LookupType(captured.Base.Type.ID())
+	compatible := ok && (actual == captured.Base.Type || captured.Base.Type.Concrete() && (captured.Base.Type.ID() == 2249 || captured.Base.Type.ID() == 2287)) || captured.Base.Type.IsDeferredRecord()
+	annotation := parser.TypeName{Name: raw.Name.Parts[len(raw.Name.Parts)-1].Text, Quoted: true, Pos: raw.Pos}
+	if len(raw.Name.Parts) == 2 {
+		annotation.Schema = &raw.Name.Parts[0]
 	}
+	resolved, resolveErr := b.resolveCastIdentity(annotation, captured.Base.Type)
+	compatible = compatible && resolveErr == nil && (resolved.Type.ID() == captured.Base.Type.ID() || recordCastPassthrough(captured.Base.Type, resolved.Type))
 	if !compatible || captured.Kind != TypeNameCast {
 		return nil, true, fmt.Errorf("stuntgres: incompatible retained typename authority")
 	}
@@ -132,20 +155,19 @@ func (b *Binder) retainedTypeNameCast(raw parser.FunctionExpr) (expr.Expr, bool,
 	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, true, err
 	}
-	target := captured.Base.Type
-	schema, err := b.typeNameCallSchema(target)
+	operand, err := b.comparisonOperand(raw.Args[0])
 	if err != nil {
 		return nil, true, err
 	}
-	cast := parser.CastExpr{
-		Child:    raw.Args[0],
-		TypeName: parser.TypeName{Name: target.Name(), Schema: &parser.Identifier{Text: schema}, Pos: raw.Pos},
-		Syntax:   parser.StandardCast, Pos: raw.Pos,
+	target, coercion, eligible := b.sqlFunctionCastTarget(annotation, operand)
+	if !eligible {
+		name := "unknown"
+		if typ := operand.descriptor(); typ != nil {
+			name = b.DiagnosticTypeName(typ)
+		}
+		return nil, true, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, []string{name}, false)
 	}
-	node, err := b.Cast(cast, ExpressionPolicy{Context: ProjectionContext})
-	if err == nil {
-		b.Prepared.CaptureComposite(key, captured.Base, nil)
-	}
+	node, err := b.finishSQLCallable(raw, sqlCallableSelection{typeNameTarget: target, typeNamePlan: coercion, typeNameOperand: operand}, nil, ExpressionPolicy{Context: ProjectionContext})
 	return node, true, err
 }
 
@@ -162,19 +184,4 @@ func (b *Binder) typeNameCallSchema(target *sqltype.Descriptor) (string, error) 
 		return "", fmt.Errorf("stuntgres: missing cube type-call namespace")
 	}
 	return namespace.Name(), nil
-}
-
-func legacyFunctionCastPredicate(raw parser.Expr) bool {
-	switch child := raw.(type) {
-	case parser.PredicateExpr, parser.LogicalExpr, parser.InListExpr, parser.ArrayComparisonExpr:
-		return true
-	case parser.OperatorExpr:
-		if len(child.Name.Parts) == 1 {
-			switch child.Name.Parts[0].Text {
-			case "=", "<", ">", "<=", ">=", "<>":
-				return true
-			}
-		}
-	}
-	return false
 }

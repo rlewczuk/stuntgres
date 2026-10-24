@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/typedef"
@@ -56,6 +57,10 @@ func TestCitextProviderIdentity(t *testing.T) {
 	if ext.Version != "1.8" || len(ext.Members) != extension.CitextMemberCount || base.Extension != ext.Address() || !base.SQLType.IsCitext() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
+	facts, err := pgcatalog.TypeFacts(context.Background(), view, base, sqltype.OutputEnvironment{})
+	if err != nil || facts.Input != uint32(ext.Members[1].ObjectID) || facts.Output != uint32(ext.Members[2].ObjectID) {
+		t.Fatal("installed type IO projection", facts, err)
+	}
 	array, ok := view.LookupArray(base.SQLType)
 	if !ok || array.Concrete() || array.Element() != base.SQLType || array.ID() == base.SQLType.ID() {
 		t.Fatal("lookup-only reciprocal array")
@@ -82,6 +87,18 @@ func TestCitextProviderIdentity(t *testing.T) {
 			}
 		} else if err := (extension.CatalogProvider{address.ClassID}).Validate(view, member); err != nil {
 			t.Fatal(err)
+		}
+	}
+	for i, signature := range []catalog.ProcedureSignature{"1042", "16", "869"} {
+		procedure, ok := view.Procedure(ext.Members[extension.CitextConversionProcedureStart+i])
+		if !ok || procedure.Name() != "citext" || procedure.Signature != signature || procedure.Result != ids.OID(base.SQLType.ID()) || !procedure.Strict || procedure.Volatility != expr.Immutable {
+			t.Fatal("released citext conversion declaration", procedure)
+		}
+		// REL_18_6 citext--1.4.sql uses internal symbols, not C-library
+		// module names, with invoker security and unnamed arguments.
+		display := catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: [3]string{"rtrim1", "booltext", "network_show"}[i]}
+		if procedure.Display != display {
+			t.Fatal("released citext conversion display declaration", procedure.Display)
 		}
 	}
 	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})

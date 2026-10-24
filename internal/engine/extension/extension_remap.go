@@ -199,7 +199,10 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 			n.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
 		}
 		if IntarrayProviderOf(&n) != nil || CitextProviderOf(&n) != nil || IsnProviderOf(&n) != nil {
-			if d.Signature == "2275" {
+			// Provider validation owns these immutable formal signatures.
+			// Comparisons instead remap their citext inputs and retain BOOL.
+			citextConversion := CitextProviderOf(d) == StockCitext && (d.Signature == "1042" || d.Signature == "16" || d.Signature == "869")
+			if d.Signature == "2275" || citextConversion {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {
 				parts := strings.Split(string(n.Signature), ",")

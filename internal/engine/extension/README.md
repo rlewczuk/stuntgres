@@ -75,14 +75,19 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `ean13_in(cstring)`/`ean13_out(ean13)` immutable strict I/O members. Owner
   metadata records the output argument symbolically and remaps it to the
   destination descriptor during catalog replacement.
-- **citext and earthdistance.** Citext stages 15 direct members: scalar, two I/O
-  routines, six strict immutable comparison routines and their six operators.
-  Incumbent slots remain fixed; the associated array is lookup-only. Operator
-  links and procedure authority come from exact manifest slots and signatures.
-  Comparison routine display declarations retain C language and their original
-  source symbols; the I/O routines retain INTERNAL language and text codec symbols.
-  I/O helper names resolve through `ScriptFunctions`; owner metadata serializes
-  every citext input symbolically and resolves destination descriptors on import.
+- **citext and earthdistance.** Citext stages the scalar, two I/O routines,
+  six strict immutable comparison routines and their six operators, plus the
+  real strict `citext(bpchar)`, `citext(bool)` and `citext(inet)` conversions.
+  Incumbent comparison/operator slots remain fixed; the associated array is
+  lookup-only. Operator links and procedure authority come from exact manifest
+  slots and signatures. Comparison routine display declarations retain C
+  language and original source symbols; I/O routines retain INTERNAL language
+  and text codec symbols. I/O helper names use `ScriptFunctions`; owner metadata
+  serializes citext inputs symbolically and resolves destination descriptors
+  and installed conversion results on import, never copying a source OID.
+  Conversion declarations own the released internal display symbols `rtrim1`,
+  `booltext` and `network_show`, with invoker security and unnamed arguments;
+  display metadata does not replace the installed provider's execution authority.
   Earthdistance requires installed cube and atomically stages the `earth` domain,
   its actual companion and six coordinate/conversion routines, followed by
   `geo_distance(point,point)` and its self-commuting `<@>` operator. Incumbent slots

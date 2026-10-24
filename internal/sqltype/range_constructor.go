@@ -68,7 +68,7 @@ func MultirangeFromValues(ctx context.Context, d *Descriptor, members []Value) (
 // normalization buffer. The value source is not retained and never supplies
 // ordering authority; evaluation can avoid an intermediate []Value allocation.
 func MultirangeFromSource(ctx context.Context, d *Descriptor, count int, member func(int) (Value, error)) (Value, error) {
-	if d == nil || !d.validMultirangeAuthority() || d.multirangeRange.customRange == nil || count < 0 || member == nil {
+	if d == nil || !d.validMultirangeAuthority() || count < 0 || member == nil {
 		return Value{}, fmt.Errorf("invalid multirange constructor authority")
 	}
 	if err := ctx.Err(); err != nil {
@@ -118,7 +118,7 @@ func MultirangeFromSource(ctx context.Context, d *Descriptor, count int, member 
 // MultirangeFromArray borrows the immutable array's leaf slice only during
 // construction; the normalized result owns separate member storage.
 func MultirangeFromArray(ctx context.Context, d *Descriptor, v Value) (Value, error) {
-	if d == nil || !d.validMultirangeAuthority() || d.multirangeRange.customRange == nil || v.Type() == nil || !v.Type().IsArray() || v.Type().Element() != d.RangeType() {
+	if d == nil || !d.validMultirangeAuthority() || v.Type() == nil || !v.Type().IsArray() || v.Type().Element() != d.RangeType() {
 		return Value{}, fmt.Errorf("invalid variadic multirange array")
 	}
 	if err := ctx.Err(); err != nil {

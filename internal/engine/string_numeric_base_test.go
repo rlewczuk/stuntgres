@@ -239,8 +239,5 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		if node.ResultUsage().Type != b.Type(sqltype.Text) || b.Params.Parameters[1] != char {
 			t.Fatal("lost annotated CHAR parameter contract", established, node.ResultUsage(), b.Params.Parameters[1])
 		}
-		if _, err := sqltype.PlanCoercion(char, char, sqltype.Explicit); err == nil {
-			t.Fatal("textual input admission broadened general CHAR identity casts")
-		}
 	}
 }

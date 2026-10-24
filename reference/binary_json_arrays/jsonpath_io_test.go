@@ -43,7 +43,7 @@ func TestReferenceJSONPathRepresentation(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE jp_io(id INT,p pg_catalog.jsonpath)", 0))
 				inquiry := func(s fixture.Step) {
 					s.Prepared = prepared
-					run(jsonpathReferenceInquiry(b, s))
+					run(s)
 				}
 				inquiry(fixture.Select("SELECT typname::text,oid::bigint,typarray::bigint,typelem::bigint FROM pg_catalog.pg_type WHERE typname='jsonpath'", []string{"typname", "oid", "typarray", "typelem"}, []string{"TEXT", "INT8", "INT8", "INT8"}, [][]any{{"jsonpath", int64(4072), int64(4073), int64(0)}}))
 				inquiry(fixture.Select("SELECT typname::text,oid::bigint,typarray::bigint,typelem::bigint FROM pg_catalog.pg_type WHERE typname='_jsonpath'", []string{"typname", "oid", "typarray", "typelem"}, []string{"TEXT", "INT8", "INT8", "INT8"}, [][]any{{"_jsonpath", int64(4073), int64(0), int64(4072)}}))

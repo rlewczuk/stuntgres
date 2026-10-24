@@ -79,6 +79,10 @@ host methods.
   Import validates the mapped original against the destination's exact installed
   member, remaps registered collations, and rebuilds the scalar predicate.
   Replay renders checked current labels without refreshing captured authority.
+  Installed citext `CastRoutine` calls use this same presentation seam after
+  validating the original carrier and current provider manifest/signature.
+  Schema rename therefore updates deparse and default replay labels without
+  changing the captured declaration, coercion plan or original snapshot.
   Mutation-rule VALUES expressions use the same checked current-label projection
   while preserving their original OLD/NEW bindings and callable input assembly.
   `RetagTypes` is a structural generation rewrite, not a presentation refresh.

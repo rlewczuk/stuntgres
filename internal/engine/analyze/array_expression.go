@@ -58,6 +58,14 @@ func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Exp
 			target = selected
 		} else {
 			array, ok := b.definitionArray(selected.Type)
+			if selected.Type.ID() == 2249 && selected.Type.IsComposite() {
+				var err error
+				array, err = sqltype.Array(2287, "_record", selected.Type)
+				if err != nil {
+					return nil, err
+				}
+				ok = true
+			}
 			if !ok || !array.Concrete() {
 				return nil, expr.ErrorAt("0A000", "unsupported array element type", raw.Pos)
 			}
@@ -75,7 +83,11 @@ func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Exp
 		var node expr.Expr
 		var err error
 		if explicit {
-			node, err = b.finalizeOperand(o, childUsage.Type)
+			if row, structural := o.raw.(parser.RowExpr); structural && childUsage.Type.BaseType().IsComposite() {
+				node, err = b.BindRow(row, childUsage, sqltype.Explicit, row.Pos)
+			} else {
+				node, err = b.finalizeOperand(o, childUsage.Type)
+			}
 			if err == nil && node.ResultUsage() != childUsage {
 				input, annotations := DomainCoercionInput(node, childUsage)
 				var info expr.Info
@@ -100,6 +112,10 @@ func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Exp
 					}
 				}
 			}
+		} else if childUsage.Type.ID() == 2249 && childUsage.Type.IsComposite() && o.Node != nil && o.Node.ResultUsage().Type.IsDeferredRecord() && plan.StructuralNull(o.Node) {
+			node = plan.LiteralExpr{Info: b.Info(childUsage, o.Node.SourcePosition(), o.Node.Properties()), Value: sqltype.Null(childUsage.Type)}
+		} else if childUsage.Type.ID() == 2249 && childUsage.Type.IsComposite() && o.Node != nil && o.Node.ResultUsage().Type.IsComposite() {
+			node, err = b.assignCompositeMember(o.Node, childUsage, sqltype.Implicit, o.Node.SourcePosition())
 		} else {
 			node, err = b.CoerceConditional(o, childUsage, "ARRAY")
 		}

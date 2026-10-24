@@ -89,34 +89,6 @@ func (b *Binder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectRef, error)
 	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}, ids.ObjectRef{}, nil
 }
 
-// Explicit casts share name input with sequence consumers but use the ordinary
-// coercion matrix for typed sources. Keep coercion nodes: they are not stored
-// regclass input constants and must not acquire relation dependencies.
-func (b *Binder) bindRegclassCast(raw parser.Expr, pos parser.Position) (expr.Expr, error) {
-	if err := qualifiedCastChild(raw); err != nil {
-		return nil, err
-	}
-	if literal, ok := raw.(parser.LiteralExpr); ok && literal.Value.Kind == parser.StringValue {
-		node, _, err := b.bindRegclass(raw)
-		return node, err
-	}
-	if err := b.captureElementInput(); err != nil {
-		return nil, err
-	}
-	target := b.Type(sqltype.Regclass).Usage()
-	child, err := b.Bind(raw, ExpressionPolicy{Context: ProjectionContext, Expected: target, deferAssignment: true})
-	if err != nil {
-		return nil, err
-	}
-	coercionPlan, err := sqltype.PlanCoercion(child.ResultUsage(), target, sqltype.Explicit)
-	if err != nil {
-		return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to regclass", b.DiagnosticTypeName(child.ResultUsage().Type)), pos)
-	}
-	if child.ResultUsage() == target {
-		return child, nil
-	}
-	return plan.CoercionExpr{Info: b.Info(target, raw.SourcePosition(), CoercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}, nil
-}
 func SequenceInputError(err error, pos parser.Position, context string, parameter int) error {
 	var d *sqlstate.Error
 	if errors.As(err, &d) {

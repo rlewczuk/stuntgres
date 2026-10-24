@@ -63,6 +63,13 @@ enter through exported `Bind*`, `Finish*` and `Select*` functions and bypass the
 registry. Shared diagnostics: `call_syntax.go` (`ValidateCallSyntax`),
 `resolution_error.go` and `operator_error.go`.
 
+`CastRoutine` is the selected executable cast-procedure provider. Its checked
+routine declaration supplies signature, namespace, strictness and volatility;
+`sqltype.CoercionPlan` supplies conversion and session codec semantics. Typmod
+and explicitness arguments remain evaluated operands. Rebuild, capture, grouping
+and rendering preserve the selected call rather than reinterpreting it as a
+typename shortcut. No procedure becomes callable from type-catalog presence alone.
+
 ## Geometric relation operator provider
 
 `GeometryRelation` consumes one or two already selected/coerced children, preserving

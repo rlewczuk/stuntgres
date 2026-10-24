@@ -111,9 +111,14 @@ func TestNameCoercion(t *testing.T) {
 	for _, tc := range []struct {
 		source, target ID
 		mode           CoercionContext
-	}{{Name, Int4, Assignment}, {Bool, Name, Implicit}, {Name, VarChar, Implicit}, {Name, BPChar, Implicit}, {Text, Name, Explicit}, {Name, Text, Explicit}} {
+	}{{Name, Int4, Assignment}, {Bool, Name, Implicit}, {Name, VarChar, Implicit}, {Name, BPChar, Implicit}} {
 		if _, err := PlanCoercion(ds[tc.source].Usage(), ds[tc.target].Usage(), tc.mode); err == nil {
 			t.Fatal("unbounded coercion", tc)
+		}
+	}
+	for _, pair := range [][2]ID{{Text, Name}, {Name, Text}} {
+		if _, err := PlanCoercion(ds[pair[0]].Usage(), ds[pair[1]].Usage(), Explicit); err != nil {
+			t.Fatal("released name conversion refused", pair, err)
 		}
 	}
 	foreign := testTypes()[Name]

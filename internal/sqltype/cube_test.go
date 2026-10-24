@@ -146,8 +146,8 @@ func TestCubeIdentity(t *testing.T) {
 }
 func TestCubeCoercion(t *testing.T) {
 	d := cubeUnitType(t, 45000)
-	text := &Descriptor{id: Text}
-	varchar := &Descriptor{id: VarChar}
+	builtins := testTypes()
+	text, varchar := builtins[Text], builtins[VarChar]
 	for _, character := range []*Descriptor{text, varchar} {
 		for _, tc := range []struct {
 			from, to *Descriptor

@@ -220,7 +220,16 @@ func TestBitstringModifiersAndAssignment(t *testing.T) {
 			}
 		}
 	}
-	if _, err := PlanCoercion(bit.Usage(), varying.Usage(), Explicit); err == nil {
-		t.Fatal("cast owner boundary widened")
+	// Released bit/varbit binary casts also admit explicit destination sizing.
+	target := varying.Usage()
+	target.Typmod = 2
+	plan, err := PlanCoercion(bit.Usage(), target, Explicit)
+	if err != nil {
+		t.Fatal("released explicit BIT conversion refused", err)
+	}
+	source, _ := BitString(bit, "101")
+	got, err := plan.Apply(ctx, source, InputEnvironment{}, OutputEnvironment{})
+	if err != nil || got.Type() != varying || got.text != "10" || source.text != "101" {
+		t.Fatal("explicit BIT sizing or immutable source", got, err)
 	}
 }

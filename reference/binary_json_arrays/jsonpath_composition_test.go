@@ -21,7 +21,7 @@ func TestReferenceJSONPathComposition(t *testing.T) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, jsonpathReferenceStep(t, b, s)) }
 		run(fixture.Exec("CREATE DOMAIN jp_domain AS jsonpath", 0))
 		run(fixture.Exec("CREATE TABLE jp_saved(id INT,p jsonpath DEFAULT jsonpath 'strict $.a.v',d jp_domain,a jsonpath[])", 0))
-		inquiry := func(s fixture.Step) { run(jsonpathReferenceInquiry(b, s)) }
+		inquiry := run
 		inquiry(fixture.Select("SELECT attname::text,atttypid::bigint,atttypmod,attcollation::bigint FROM pg_catalog.pg_attribute WHERE attrelid='jp_saved'::regclass AND attname='a'", []string{"attname", "atttypid", "atttypmod", "attcollation"}, []string{"TEXT", "INT8", "INT4", "INT8"}, [][]any{{"a", int64(4073), int64(-1), int64(0)}}))
 		inquiry(fixture.Select("SELECT attname::text,atttypid::bigint,atttypmod,attcollation::bigint FROM pg_catalog.pg_attribute WHERE attrelid='jp_saved'::regclass AND attname='p'", []string{"attname", "atttypid", "atttypmod", "attcollation"}, []string{"TEXT", "INT8", "INT4", "INT8"}, [][]any{{"p", int64(4072), int64(-1), int64(0)}}))
 		var relationID int64

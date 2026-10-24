@@ -2677,7 +2677,7 @@ cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; 
  | ordinary_call_keyword '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 /* Qualified calls and precision literals share their opener so a function-call
  * shift cannot consume the precision before the literal STRING continuation. */
-qualified_call_head: name '.' col_label '(' {$$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos};if $1.text=="pg_catalog" && ($3.text=="timestamptz" || $3.text=="timetz") {sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).dateLiteralModifier=true}} ;
+qualified_call_head: name '.' col_label '(' {$$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos};if $1.text=="pg_catalog" && ($3.text=="timestamptz" || $3.text=="timetz") && sqllex.(*lexer).temporalLiteralAhead() {sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).dateLiteralModifier=true}} ;
 date_literal_precision: DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$1,false);if !ok{return 1}}
  | '-' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
  | '+' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].Pos=$1.pos} ;

@@ -27,6 +27,15 @@ language and security facts. Captured ownership/EXECUTE filtering protects
 definitions; builtin view display follows current naming and quote settings.
 PL inline/validator declarations now retain their canonical strictness.
 
+Explicit casts now cover implemented scalar and structured types, including
+typed UUID/timestamptz parameters in SERVICE_CERTIFICATES INSERTs. Conversion,
+typmods, domains, session settings and prepared identities share the existing
+coercion machinery; typename calls resolve real functions before cast shortcuts.
+Declared cast methods also govern typename eligibility; numeric-leading temporal
+calls remain ordinary calls, and installed cast defaults render current checked
+routine namespaces after schema rename and through native replay.
+Cast procedure registration also supplies released source/language/security facts.
+
 JSONPath datetime, date, time, time_tz, timestamp and timestamp_tz methods now
 execute typed temporal conversions, strict templates and precision rounding
 through existing JSONB and SQL/JSON consumers, retaining parsed offsets,

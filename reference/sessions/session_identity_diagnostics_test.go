@@ -63,17 +63,14 @@ func TestReferenceSessionIdentityFormDiagnostics(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s)
 			}
 		}
-		cast := fixture.ImplicitError("SELECT CAST(current_user AS TEXT)", fixture.Diagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: "8"})
-		cast.SelectRows = true
+		account := "postgres"
+		if backend.PG {
+			account = "stuntgres"
+		}
 		for _, prepared := range []bool{false, true} {
-			cast.Prepared = prepared
-			if backend.PG {
-				s := fixture.Select(cast.Query, []string{"current_user"}, []string{"TEXT"}, [][]any{{"stuntgres"}})
-				s.Prepared = prepared
-				fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s)
-			} else {
-				fixture.RunStep(t, p.Ctx, conn, backend.Recorder, cast)
-			}
+			s := fixture.Select("SELECT CAST(current_user AS TEXT)", []string{"current_user"}, []string{"TEXT"}, [][]any{{account}})
+			s.Prepared = prepared
+			fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s)
 		}
 	}
 }

@@ -196,7 +196,12 @@ func TestByteaExplicitTextCoercion(t *testing.T) {
 	if assignment, err := PlanCoercion(d.Usage(), text.Usage(), Assignment); err != nil || assignment.method != viaIO {
 		t.Fatal("assignment changed", assignment, err)
 	}
-	if _, err := PlanCoercion(text.Usage(), d.Usage(), Explicit); err == nil {
-		t.Fatal("reverse explicit edge admitted")
+	reverse, err := PlanCoercion(text.Usage(), d.Usage(), Explicit)
+	if err != nil {
+		t.Fatal("released string input edge refused", err)
+	}
+	got, err := reverse.Apply(ctx, String(text, `\x00ff`), InputEnvironment{}, OutputEnvironment{})
+	if err != nil || got.Type() != d || got.text != "\x00\xff" {
+		t.Fatal("BYTEA input conversion lost raw bytes", got, err)
 	}
 }

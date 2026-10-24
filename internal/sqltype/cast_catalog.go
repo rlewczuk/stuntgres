@@ -11,16 +11,13 @@ type CastMetadata struct {
 	Context, Method byte
 }
 
-// Baseline providers carry their own facts in castSpec. A zero OID deliberately
-// omits a partial provider or automatic string I/O from pg_cast.
+// Provider facts distinguish declared conversions from automatic string I/O.
 type castCatalogFact struct {
 	oid, function   uint32
 	context, method byte
 }
 
-// These facts belong to the existing special PlanCoercion branches: character
-// conversion, explicit integer/boolean, boolean text, identity typmod sizing,
-// and JSON I/O. No new execution edge or admission context is introduced.
+// Existing local identities remain stable when additional providers are released.
 var specialCastMetadata = [...]CastMetadata{
 	{20046, Text, BPChar, 0, 'i', 'b'},
 	{20047, Text, VarChar, 0, 'i', 'b'},
@@ -43,13 +40,11 @@ var specialCastMetadata = [...]CastMetadata{
 	{20064, JSONB, JSON, 0, 'a', 'i'},
 }
 
-// Build once into a fixed value array. Reads neither allocate nor search the
-// coercion graph; callers cannot mutate the owner definitions. IDs are explicit
-// per definition and remain stable regardless of baseline provider order.
+// Construct the immutable catalog once; catalog reads allocate nothing.
 var castMetadata = initializeCastMetadata()
 
-func initializeCastMetadata() [73]CastMetadata {
-	var rows [73]CastMetadata
+func initializeCastMetadata() []CastMetadata {
+	rows := make([]CastMetadata, 73, 220)
 	install := func(row CastMetadata) {
 		if row.OID < 20000 || row.OID >= 20000+uint32(len(rows)) || rows[row.OID-20000].OID != 0 {
 			panic("sqltype: invalid fixed cast catalog identity")
@@ -68,6 +63,19 @@ func initializeCastMetadata() [73]CastMetadata {
 	for _, row := range rows {
 		if row.OID == 0 {
 			panic("sqltype: incomplete fixed cast catalog")
+		}
+	}
+	for _, row := range releasedCastMetadata {
+		found := false
+		for _, old := range rows {
+			if old.Source == row.Source && old.Target == row.Target {
+				found = true
+				break
+			}
+		}
+		if !found {
+			row.OID = 20000 + uint32(len(rows))
+			rows = append(rows, row)
 		}
 	}
 	return rows
@@ -99,6 +107,9 @@ func BinaryCoercible(source, target *Descriptor) bool {
 	}
 	source = source.BaseType()
 	if source == target {
+		return true
+	}
+	if source.IsCitext() && (target.ID() == Text || target.ID() == VarChar) {
 		return true
 	}
 	for _, fact := range castMetadata {

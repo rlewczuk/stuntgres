@@ -495,7 +495,7 @@ func ordinaryCastFunction(callee lexeme) bool {
 
 func (l *lexer) castFunction(callee, opener lexeme) bool {
 	if ordinaryCastFunction(callee) {
-		if callee.text == "date" || callee.text == "timestamptz" || callee.text == "timetz" {
+		if (callee.text == "date" || callee.text == "timestamptz" || callee.text == "timetz") && l.temporalLiteralAhead() {
 			l.genericModifier = true
 			l.dateLiteralModifier = true
 		}

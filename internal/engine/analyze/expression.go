@@ -684,7 +684,7 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			}
 		case parser.RegclassExpr:
 			var err error
-			node, err = b.bindRegclassCast(r.Child, r.Pos)
+			node, err = b.Cast(parser.CastExpr{Child: r.Child, TypeName: parser.TypeName{Name: "regclass", Pos: r.Pos}, Syntax: parser.StandardCast, Pos: r.Pos}, policy)
 			if err != nil {
 				return nil, err
 			}
@@ -1078,46 +1078,18 @@ func internalCharLiteralCast(raw parser.CastExpr) bool {
 }
 
 func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.Expr, error) {
-	if raw.Syntax == parser.FunctionCast && legacyFunctionCastPredicate(raw.Child) {
-		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
-	}
 	if !b.Consumer.DefaultConsumer && b.Query.Namespace == nil && b.Target.returningAliases == nil && b.Target.RuleNamespace == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
 		}
 	}
-	visible := true
-	if raw.Syntax == parser.FunctionCast {
-		name := parser.ObjectName{Parts: []parser.Identifier{{Text: raw.Callee, Pos: raw.Pos}}}
-		if raw.TypeName.Schema != nil {
-			name.Parts = []parser.Identifier{*raw.TypeName.Schema, {Text: raw.Callee, Pos: raw.Pos}}
-		}
-		var err error
-		visible, err = b.builtinVisible(name, FunctionLookup)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if raw.Syntax == parser.FunctionCast && (!visible || raw.Callee != "pg_snapshot" && raw.Callee != "oid" && raw.Callee != "xid" && raw.Callee != "cid" && raw.Callee != "xid8" && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool") {
-		source := "unknown"
-		if literal, ok := raw.Child.(parser.LiteralExpr); !ok || (literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue) {
-			child, err := b.Bind(raw.Child, ExpressionPolicy{Context: ProjectionContext})
-			if err != nil {
-				return nil, err
-			}
-			if child.ResultUsage().Type != nil {
-				source = child.ResultUsage().Type.DiagnosticName()
-			}
-		}
-		return nil, functionCastError(raw, source, false)
-	}
 	rawNull, isNull := raw.Child.(parser.LiteralExpr)
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
-	// Canonical catalog definitions annotate internal CHAR constants. Admit
-	// only their direct textual input, not CHAR parameters or general casts.
-	stringInput := outerPolicy.stringInput || internalCharLiteralCast(raw)
+	// Expression input authority does not grant table declaration authority.
+	stringInput := outerPolicy.stringInput || raw.TypeName.Quoted && raw.TypeName.Name == "char"
 	var target sqltype.Usage
 	var err error
+	var boundChild expr.Expr
 	annotation, err := b.TypeCastAnnotation(raw)
 	if err != nil {
 		return nil, err
@@ -1136,7 +1108,20 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		target, err = b.Host.ResolveAnnotationType(annotation, unknownNull)
 	}
 	if err != nil {
-		return nil, err
+		switch raw.Child.(type) {
+		case parser.LiteralExpr:
+			return nil, err
+		}
+		boundChild, _ = b.Bind(raw.Child, ExpressionPolicy{Context: ProjectionContext})
+		if boundChild == nil || boundChild.ResultUsage().Type == nil {
+			return nil, err
+		}
+		resolved, identityErr := b.resolveCastIdentity(annotation, boundChild.ResultUsage().Type)
+		if identityErr != nil {
+			return nil, err
+		}
+		target = resolved
+		err = nil
 	}
 	if b.Clause.JSONBRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
 		b.Prepared.CaptureComposite(PreparedTypeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}, target, nil)
@@ -1156,13 +1141,13 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		// UNKNOWN is syntax provenance only, never an executable datum type.
 		return b.Bind(raw.Child, outerPolicy)
 	}
-	if row, ok := raw.Child.(parser.RowExpr); ok && target.Type.BaseType().IsComposite() {
+	if row, ok := raw.Child.(parser.RowExpr); ok && target.Type.BaseType().IsComposite() && target.Type.ID() != 2249 {
 		return b.BindRow(row, target, sqltype.Explicit, raw.Pos)
 	}
-	if target.Type.ID() == sqltype.Regclass {
-		return b.bindRegclassCast(raw.Child, raw.Pos)
+	if literal, ok := raw.Child.(parser.LiteralExpr); ok && target.Type.ID() == sqltype.Regclass && literal.Value.Kind == parser.StringValue {
+		node, _, err := b.bindRegclass(raw.Child)
+		return node, err
 	}
-	unsupportedTarget := !target.Type.IsUserDefined() && !target.Type.IsDomain() && !target.Type.IsDeferredRecord() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
 	if err := b.CaptureTypeDiagnosticInput(target.Type); err != nil {
 		return nil, err
 	}
@@ -1210,7 +1195,10 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 			policy.Expected = target
 		}
 	}
-	child, err := b.Bind(raw.Child, policy)
+	child := boundChild
+	if child == nil {
+		child, err = b.Bind(raw.Child, policy)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1218,13 +1206,11 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	// locations, captured identities and child effects remain authoritative.
 	child, annotations := DomainCoercionInput(child, target)
 	source := child.ResultUsage()
+	if recordCastPassthrough(source.Type, target.Type) {
+		return RestoreDomainCastCollations(annotations, child), nil
+	}
 	if unknownNull && target.Type.IsDeferredRecord() && source == target {
 		// This is NULL transport, not a general RECORD cast/coercion edge.
-		return child, nil
-	}
-	if stringInput && target.Type.ID() == sqltype.Char && source == target {
-		// The literal/input path already applied the CHAR codec. Retain that
-		// resolved datum without admitting CHAR to general explicit coercion.
 		return child, nil
 	}
 	pos := raw.Pos
@@ -1268,63 +1254,18 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		}
 		return RestoreDomainCastCollations(annotations, selected), selectionErr
 	}
-	if unsupportedTarget && !b.Consumer.DatetimeZoneOperands {
-		return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
-	}
 	coercionPlan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if sqltype.IsFTS(source.Type.BaseType().ID()) || sqltype.IsFTS(target.Type.BaseType().ID()) || source.Type.BaseType().ID() == sqltype.Box || source.Type.BaseType().ID() == sqltype.Point || source.Type.BaseType().ID() == sqltype.Line || source.Type.BaseType().ID() == sqltype.Lseg || target.Type.BaseType().ID() == sqltype.Box || target.Type.BaseType().ID() == sqltype.Point || target.Type.BaseType().ID() == sqltype.Line || target.Type.BaseType().ID() == sqltype.Lseg {
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
-		}
-		if source.Type.BaseType().ID() == sqltype.Tid || target.Type.BaseType().ID() == sqltype.Tid {
-			if raw.Syntax == parser.FunctionCast {
-				return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
-			}
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
-		}
-		if sqltype.IsRoutineAlias(source.Type.BaseType().ID()) || sqltype.IsRoutineAlias(target.Type.BaseType().ID()) {
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
-		}
-		// A rejected cast from an existing stored scalar to an existing array is
-		// a type mismatch, not an unimplemented scalar provider. This only
-		// selects the diagnostic below; it adds no coercion capability.
-		if sqltype.IsRegObjectAlias(source.Type.BaseType().ID()) || sqltype.IsRegObjectAlias(target.Type.BaseType().ID()) {
-			if raw.Syntax == parser.FunctionCast {
-				return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
-			}
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
-		}
-		if source.Type.BaseType().ID() == sqltype.PgSnapshot || target.Type.BaseType().ID() == sqltype.PgSnapshot {
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
-		}
-		customSourceRange, customTargetRange := false, false
-		if family := source.Type.BaseType().RangeType(); family != nil {
-			_, customSourceRange = family.RangeDefinition()
-		}
-		if family := target.Type.BaseType().RangeType(); family != nil {
-			_, customTargetRange = family.RangeDefinition()
-		}
-		if source.Type.BaseType().ID() == sqltype.Circle || target.Type.BaseType().ID() == sqltype.Circle || source.Type.BaseType().IsCube() || target.Type.BaseType().IsCube() || source.Type.BaseType().IsCitext() || target.Type.BaseType().IsCitext() || source.Type.BaseType().IsEan13() || target.Type.BaseType().IsEan13() || customSourceRange || customTargetRange {
-			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
-		}
-		if !source.Type.BaseType().IsQueryInt() && !target.Type.BaseType().IsQueryInt() && !sqltype.IsTransactionIdentifier(source.Type.BaseType().ID()) && !sqltype.IsTransactionIdentifier(target.Type.BaseType().ID()) && !b.Consumer.DatetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && source.Type.BaseType().ID() != sqltype.Regrole && target.Type.BaseType().ID() != sqltype.Regrole && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
-			if !sqltype.IsOperatorAlias(source.Type.BaseType().ID()) && !sqltype.IsOperatorAlias(target.Type.BaseType().ID()) && !sqltype.IsRegTS(source.Type.BaseType().ID()) && !sqltype.IsRegTS(target.Type.BaseType().ID()) {
-				return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
-			}
-		}
 		if raw.Syntax == parser.FunctionCast {
 			return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
 		}
 		return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
 	}
-	if unsupportedTarget {
-		return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
-	}
 	if coercionPlan.RequiresCatalogOutput() {
 		b.Prepared.RegclassConcat = true
 	}
 	if source == target {
-		return child, nil
+		return RestoreDomainCastCollations(annotations, child), nil
 	}
 	info.Property = CoercionProperties(child, coercionPlan)
 	if folded, ok, err := b.foldRegtypeConstant(child, coercionPlan, info); ok || err != nil {
@@ -1779,25 +1720,37 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 	case functions.ConditionalArgument:
 		return b.CoerceConditional(operand, request.Target, request.Label)
 	case functions.JSONFormattedArgument, functions.TypeNameCastArgument:
+		if err := b.CaptureTypeDiagnosticInput(request.Target.Type); err != nil {
+			return nil, err
+		}
+		if request.Target.Type.ContainsCatalogIdentifier() {
+			if err := b.captureElementInput(); err != nil {
+				return nil, err
+			}
+		}
+		if request.Plan.RequiresCatalogOutput() {
+			b.Prepared.RegclassConcat = true
+		}
 		node := argument.Expression
 		var err error
 		if request.Intent == functions.TypeNameCastArgument && argument.Usage.Type == nil {
 			node, err = b.finalizeOperand(operand, request.Target.Type)
-		} else {
-			var info expr.Info
-			info, err = b.coercionInfo(b.Info(request.Target, node.SourcePosition(), CoercionProperties(node, request.Plan)), node)
-			if err == nil {
-				node = plan.CoercionExpr{Info: info, Child: node, Plan: request.Plan, Mode: sqltype.Explicit}
+		} else if request.Intent != functions.TypeNameCastArgument || argument.Usage != request.Target {
+			if request.Intent == functions.TypeNameCastArgument && argument.Usage.Type.BaseType() != request.Target.Type.BaseType() {
+				node, err = b.CoerceSelected(node, request.Target, sqltype.Explicit, node.SourcePosition(), argument.Raw)
+			} else {
+				var info expr.Info
+				info, err = b.coercionInfo(b.Info(request.Target, node.SourcePosition(), CoercionProperties(node, request.Plan)), node)
+				if err == nil {
+					node = plan.CoercionExpr{Info: info, Child: node, Plan: request.Plan, Mode: sqltype.Explicit}
+				}
 			}
 		}
 		if err != nil {
 			return nil, err
 		}
 		if request.Intent == functions.TypeNameCastArgument {
-			target := request.Target.Type
-			if id, geometric := geometricTypeNameID(target.Name()); geometric && target.ID() == id || target.IsCube() {
-				b.Prepared.CaptureComposite(PreparedTypeKey{Offset: request.TypeNameCallPosition.Offset, Kind: TypeNameCast}, request.Target, nil)
-			}
+			b.Prepared.CaptureComposite(PreparedTypeKey{Offset: request.TypeNameCallPosition.Offset, Kind: TypeNameCast}, request.Target, nil)
 		}
 		if request.Intent == functions.TypeNameCastArgument && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 			// Resolution selected a cast, not an executable routine. Synchronize
@@ -1811,13 +1764,17 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 			if err != nil {
 				return nil, err
 			}
-			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: request.TypeNameCallPosition, Input: argument.Raw.SourcePosition()}] = parser.CastExpr{
+			frozen := parser.CastExpr{
 				Child: argument.Raw,
 				TypeName: parser.TypeName{
 					Name: target.Name(), Schema: &parser.Identifier{Text: schema}, Pos: request.TypeNameCallPosition,
 				},
 				Syntax: parser.StandardCast, Pos: request.TypeNameCallPosition,
 			}
+			if selected, ok := node.(plan.DatumCastExpr); ok {
+				frozen.FrozenMethod, frozen.FrozenContext = selected.Method, selected.Context
+			}
+			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: request.TypeNameCallPosition, Input: argument.Raw.SourcePosition()}] = frozen
 		}
 		return node, nil
 	case functions.BareFormalArgument:

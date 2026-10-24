@@ -1,11 +1,11 @@
 package reference_test
 
 import (
-	"context"
+	"database/sql/driver"
 	"strings"
-	"stuntgres/reference/fixture"
 	"testing"
-	"time"
+
+	"stuntgres/reference/fixture"
 )
 
 func TestReferenceHashPartitionAtomicity(t *testing.T) {
@@ -141,21 +141,37 @@ func TestReferenceHashPartitionCancellation(t *testing.T) {
 			}
 			// Observe the persistent hold before arming; do not race to observe a
 			// transient waiter within the unchanged 50ms statement budget.
-			timeoutArmed := true
+			armed := waiter
 			t.Cleanup(func() {
-				if timeoutArmed {
-					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-					defer cancel()
-					fixture.LockExec(t, ctx, waiter, "SET statement_timeout=0", 0)
-				}
+				_ = armed.Raw(func(any) error { return driver.ErrBadConn })
+				_ = armed.Close()
 			})
 			fixture.LockExec(t, p.Ctx, waiter, "SET statement_timeout='50ms'", 0)
 			s := referenceRangeError(q, "57014", "canceling statement due to statement timeout", fixture.Diagnostic{})
 			fixture.RunStep(t, p.Ctx, executor, b.Recorder, s)
-			fixture.LockExec(t, p.Ctx, waiter, "SET statement_timeout=0", 0)
-			timeoutArmed = false
+			// A fresh SQL command can itself hit the armed timeout under load.
+			// Discard the timed borrower instead of racing SET against its clock.
+			if err := armed.Raw(func(any) error { return driver.ErrBadConn }); err != driver.ErrBadConn {
+				t.Fatal("discard timed borrower:", err)
+			}
 		}
 		fixture.LockExec(t, p.Ctx, holder, "ROLLBACK", 0)
+		if !b.PG {
+			replacement, err := b.DB.Conn(p.Ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = replacement.Close() })
+			executor = replacement
+			if prepared {
+				stmt, err := replacement.PrepareContext(p.Ctx, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = stmt.Close() })
+				executor = fixture.HeldStatement{Executor: replacement, Statement: stmt, SQL: q}
+			}
+		}
 		run(fixture.Select("SELECT relname FROM pg_class WHERE relname='hp_cancel_new'", []string{"relname"}, []string{"NAME"}, nil))
 		run(fixture.Exec("CREATE TYPE hp_cancel_new AS (probe INT)", 0))
 		run(fixture.Exec("DROP TYPE hp_cancel_new", 0))

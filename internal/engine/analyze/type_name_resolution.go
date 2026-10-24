@@ -25,6 +25,9 @@ type TypeNameInput struct {
 	// rejects SQL/JSON returning pseudo-types; ThresholdArrayInput admits
 	// enum arrays.
 	UnknownNull, DomainBase, StringInput, JSONReturning, ThresholdArrayInput bool
+	// CastSource permits input-free identity and generic RECORD passthrough,
+	// never declaration, storage, or a new input provider.
+	CastSource *sqltype.Descriptor
 }
 
 // TypeNameOperation is the operation side of a type name resolution; both
@@ -75,6 +78,20 @@ func ResolveTypeName(raw parser.TypeName, name string, object parser.ObjectName,
 	}
 	if in.UnknownNull && d.ID() == 2249 && len(raw.Modifiers) == 0 && len(raw.ArrayBounds) == 0 {
 		return sqltype.DeferredRecord().Usage(), nil
+	}
+	if in.CastSource != nil && len(raw.Modifiers) == 0 {
+		actual := d
+		if len(raw.ArrayBounds) > 0 {
+			actual, _ = catalog.DefinitionArrayAt(in.Catalog, in.Definition, d)
+		}
+		if actual != nil {
+			if actual.ID() == in.CastSource.ID() && in.CastSource.Concrete() {
+				return in.CastSource.Usage(), nil
+			}
+			if recordCastPassthrough(in.CastSource, actual) {
+				return actual.Usage(), nil
+			}
+		}
 	}
 	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !in.ThresholdArrayInput || d.ID() == sqltype.Char && !in.StringInput || d.ID() == sqltype.Void {
 		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")

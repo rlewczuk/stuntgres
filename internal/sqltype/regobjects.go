@@ -57,12 +57,6 @@ func (d *Descriptor) containsRegObject(kind ID) bool {
 	return IsRegObjectAlias(physical.id) && (kind == 0 || physical.id == kind)
 }
 
-func RegObjectCastPair(source, target ID) bool {
-	integer := source == Int2 || source == Int4 || source == Int8
-	return IsRegObjectAlias(source) && (target == source || target == Oid || target == Int4 || target == Int8 || StringCategory(target)) ||
-		IsRegObjectAlias(target) && (source == Oid || integer || StringCategory(source))
-}
-
 func (d *Descriptor) regObjectInput(ctx context.Context, text string, env InputEnvironment) (Value, error) {
 	if text == "-" {
 		return RegObjectValue(d, 0)

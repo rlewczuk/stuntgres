@@ -74,10 +74,6 @@ func (d *Descriptor) ContainsACLItem() bool {
 	return physical.id == ACLItem
 }
 
-func ACLItemCastPair(source, target ID) bool {
-	return source == ACLItem && IsCharacter(target) || target == ACLItem && IsCharacter(source)
-}
-
 func aclSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f'
 }

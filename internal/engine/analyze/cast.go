@@ -12,6 +12,25 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// Capture only consulted scalar pairs, including absence. Domain declarations
+// are ignored by selection; their underlying pair owns reanalysis authority.
+func (b *Binder) selectCoercion(source, target sqltype.Usage, mode sqltype.CoercionContext) (*catalog.Cast, error) {
+	view := b.BindingCatalog()
+	selected, err := catalog.SelectCoercion(view, source, target, mode)
+	if source != target && !source.Type.IsDomain() && !target.Type.IsDomain() && !b.Params.NoParameters && !b.Consumer.frozenDefinition {
+		if b.Prepared.Casts == nil {
+			b.Prepared.Casts = make(map[catalog.CastPair]*catalog.Cast)
+		}
+		pair := catalog.CastPair{Source: source.Type.ID(), Target: target.Type.ID()}
+		observed := selected
+		if err != nil {
+			observed, _ = view.Cast(pair.Source, pair.Target)
+		}
+		b.Prepared.Casts[pair] = observed
+	}
+	return selected, err
+}
+
 // declaredCoercion constructs only the winning declaration. No routine is bound,
 // checked for EXECUTE or evaluated during candidate feasibility.
 func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sqltype.CoercionContext, pos parser.Position, raw parser.Expr) (expr.Expr, bool, error) {
@@ -22,7 +41,7 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 	}
 	if child.ResultUsage().Type.IsDomain() || target.Type.IsDomain() {
 		baseSource, baseTarget := child.ResultUsage().BaseUsage(), target.BaseUsage()
-		if d, e := catalog.SelectCoercion(b.BindingCatalog(), baseSource, baseTarget, mode); d != nil || e != nil {
+		if d, e := b.selectCoercion(baseSource, baseTarget, mode); d != nil || e != nil {
 			if e != nil {
 				return nil, true, e
 			}
@@ -39,15 +58,7 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 		}
 	}
 	view := b.BindingCatalog()
-	d, err := catalog.SelectCoercion(view, child.ResultUsage(), target, mode)
-	if !b.Params.NoParameters && !b.Consumer.frozenDefinition {
-		if b.Prepared.Casts == nil {
-			b.Prepared.Casts = make(map[catalog.CastPair]*catalog.Cast)
-		}
-		pair := catalog.CastPair{Source: child.ResultUsage().Type.ID(), Target: target.Type.ID()}
-		observed, _ := view.Cast(pair.Source, pair.Target)
-		b.Prepared.Casts[pair] = observed
-	}
+	d, err := b.selectCoercion(child.ResultUsage(), target, mode)
 	if err != nil {
 		return nil, true, err
 	}
@@ -58,6 +69,9 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 			from.Typmod, to.Typmod = source.Typmod, target.Typmod
 			from.Collation, to.Collation = source.Collation, target.Collation
 			if err := catalog.CanCoerce(view, from, to, mode); err != nil {
+				if mode == sqltype.Explicit {
+					return nil, true, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), pos)
+				}
 				return nil, true, err
 			}
 			if selected, selectionErr := catalog.SelectCoercion(view, from.BaseUsage(), to.BaseUsage(), mode); selected != nil || selectionErr != nil {

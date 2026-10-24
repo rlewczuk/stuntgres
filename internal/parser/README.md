@@ -67,6 +67,11 @@ Scratch reuse is an allocation optimization, not a parsed-result cache.
 - `JSON_TABLE` is a dedicated FROM item; its column types use the signature
   declaration grammar, and `Expressions`/`WithExpressions` visit and replace
   document, PASSING and DEFAULT children without aliasing the original slices.
+- Numeric-leading `date`, `timetz` and `timestamptz` calls remain ordinary
+  calls unless the complete signed/numeric precision, `)` and string-literal
+  continuation is present. A fixed raw-token buffer preserves positions and
+  scans each token once, including qualified temporal literal continuations;
+  it never advances returned-token depth or changes prewalk policy.
 - Qualified-operator lookahead preserves scanner errors (message and
   position) instead of replacing them with a later syntax error at `OPERATOR`.
 - Type/function-name keywords (`authorization`, `join`, `like`, ...) use the

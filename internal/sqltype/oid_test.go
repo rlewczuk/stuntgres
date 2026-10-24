@@ -134,8 +134,8 @@ func TestOIDCasts(t *testing.T) {
 			t.Fatal("transitive cast")
 		}
 	}
-	if _, err := PlanCoercion(ts[Int2].Usage(), ts[Text].Usage(), Explicit); err == nil {
-		t.Fatal("unrelated cast broadened")
+	if _, err := PlanCoercion(ts[Int2].Usage(), ts[Text].Usage(), Explicit); err != nil {
+		t.Fatal("released integer output I/O refused", err)
 	}
 }
 

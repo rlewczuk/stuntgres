@@ -96,7 +96,7 @@ func TestMACADDR8Datum(t *testing.T) {
 			t.Fatal(bits, err)
 		}
 	}
-	for _, pair := range [][2]ID{{Macaddr, Macaddr8}, {Macaddr8, Macaddr}, {Int8, Macaddr8}, {Macaddr8, Int8}} {
+	for _, pair := range [][2]ID{{Int8, Macaddr8}, {Macaddr8, Int8}} {
 		if _, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit); err == nil {
 			t.Fatal(pair)
 		}

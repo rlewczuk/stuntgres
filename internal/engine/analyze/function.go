@@ -17,6 +17,7 @@ func (b *Binder) BindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
+	raw = b.elideVoidParameters(raw)
 	if node, handled, err := b.BindSQLCallable(raw); handled {
 		return node, err
 	}

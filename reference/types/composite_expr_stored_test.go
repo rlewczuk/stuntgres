@@ -215,13 +215,13 @@ func TestReferenceCompositeExprBoundaries(t *testing.T) {
 				compositeExprBoth(t, p, b, c, `SELECT k,(v).* FROM holder ORDER BY k`, []string{"k", "i", "t"}, []string{"INT4", "INT4", "TEXT"}, [][]any{{int64(1), int64(7), "z"}})
 			})
 		}
+		compositeExprBoth(t, p, b, c, `SELECT ARRAY[ROW(1,2)]::text AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{`{"(1,2)"}`}})
 		for _, x := range []struct {
 			q      string
 			pg     fixture.Step
 			native fixture.Diagnostic
 			base   string
 		}{
-			{`SELECT ARRAY[ROW(1,2)]::text AS v`, fixture.Select(`SELECT ARRAY[ROW(1,2)]::text AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{`{"(1,2)"}`}}), fixture.CompositeReferenceDiagnostic("0A000", "unsupported array element type"), "ARRAY"},
 			{`MERGE INTO holder h USING (VALUES(3,30)) s(k,i) ON h.k=s.k WHEN NOT MATCHED THEN INSERT(k,v.i) VALUES(s.k,s.i)`, fixture.Exec(`MERGE INTO holder h USING (VALUES(3,30)) s(k,i) ON h.k=s.k WHEN NOT MATCHED THEN INSERT(k,v.i) VALUES(s.k,s.i)`, 0), fixture.CompositeReferenceDiagnostic("0A000", "MERGE partial insertion targets are unsupported"), "v.i"},
 		} {
 			t.Run(x.q, func(t *testing.T) {

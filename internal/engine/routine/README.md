@@ -70,6 +70,14 @@ package or the engine.
   Materialization rejects missing facts; the display inventory never creates rows.
   SQL/PL creation records original quoted source or empty SQL-standard source
   on the descriptor. Identity changes preserve those immutable facts.
+  `cast_inventory.go` joins only real executable cast-procedure references to
+  released procedure identity/result facts, deduplicating shared procedures.
+  Their `CastRoutineProvider` association executes the retained conversion
+  kernel and ordinary typmod/explicitness operands; generic IO/domain/array
+  coercions do not manufacture procedure rows.
+  Every registered conversion/constructor also owns explicit released display
+  facts in `display_inventory.go`; registration cannot bypass the complete
+  materialization guard or invent argument names for unnamed inputs.
 - **Operator inventory and metadata** (`operator_*.go`): released operator
   identities, their routine associations (`OperatorRoutine`,
   `OperatorRoutines`), `SeededOperatorNames`, `SupportedOperatorMetadata` and

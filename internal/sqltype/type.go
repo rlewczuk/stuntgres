@@ -814,6 +814,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.jsonInput(ctx, text)
 	case JSONPath:
 		return d.jsonpathInput(ctx, text)
+	case Void:
+		return Value{}, failure("0A000", "input of type void is not supported")
 	case PgSnapshot:
 		return d.snapshotInput(text)
 	case Oid, Xid, Cid, Xid8:
@@ -1519,6 +1521,14 @@ const (
 	jsonFormattedInput
 	jsonReturningOutput
 	timeIntervalConversion
+	integerByteaConversion
+	integerBitConversion
+	internalCharConversion
+	macConversion
+	jsonbScalarConversion
+	intervalTimeConversion
+	geometryCastConversion
+	rangeMultirangeConversion
 )
 
 type CoercionPlan struct {
@@ -1528,6 +1538,7 @@ type CoercionPlan struct {
 	logicalSource, logicalTarget *Descriptor
 	element                      *CoercionPlan
 	binary                       BinaryCoercionPlan
+	geometry                     GeometryConversionPlan
 	jsonEncoding                 string
 	jsonUnique                   bool
 	// jsonReturning owns a constructor output conversion, not an enclosing assignment.
@@ -1566,7 +1577,19 @@ func (p CoercionPlan) RequiresCatalogOutput() bool {
 // FunctionCastShortcut reports the existing relabel/I/O paths admitted by
 // PostgreSQL's type-name-call step, distinct from ordinary function casts.
 func (p CoercionPlan) FunctionCastShortcut() bool {
-	return p.method == identity || p.method == viaIO
+	switch p.method {
+	case identity, bitStringConversion:
+		return true
+	case viaIO:
+		return !p.source.Type.IsComposite()
+	case oidConversion:
+		return p.source.Type.id != Int2 && p.source.Type.id != Int8 && p.target.Type.id != Int8
+	case networkConversion:
+		return p.source.Type.id == Cidr && p.target.Type.id == Inet
+	case stringConversion:
+		return p.source.Type.id != BPChar && p.source.Type.id != Name
+	}
+	return false
 }
 
 // FunctionExpression reports a cast/typmod function in the selected coercion.
@@ -1580,6 +1603,8 @@ func (p CoercionPlan) FunctionExpression() bool {
 		return false
 	case identity:
 		return p.target.Typmod >= 0 && p.target.Typmod != p.source.Typmod
+	case bitStringConversion:
+		return p.target.Typmod >= 0
 	case networkConversion:
 		return !(p.source.Type.id == Cidr && p.target.Type.id == Inet)
 	case oidConversion:
@@ -1590,7 +1615,7 @@ func (p CoercionPlan) FunctionExpression() bool {
 		// TEXT/VARCHAR are binary relabels except for a requested typmod;
 		// BPCHAR removal and NAME conversion use real functions.
 		return p.source.Type.id == BPChar || p.source.Type.id == Name ||
-			p.target.Type.id == BPChar || p.target.Typmod >= 0
+			p.target.Typmod >= 0
 	default:
 		return true
 	}
@@ -1609,10 +1634,7 @@ func (p CoercionPlan) EvaluationFunctionCount() int {
 	if p.method == viaIO {
 		return 2
 	}
-	if p.method == identity {
-		if p.target.Typmod >= 0 && p.target.Typmod != p.source.Typmod {
-			return 1
-		}
+	if !p.FunctionExpression() {
 		return 0
 	}
 	return 1
@@ -1778,405 +1800,80 @@ func StoredScalarCastType(id ID) bool {
 	return false
 }
 
-func StoredNumericCastPair(source, target ID) bool {
-	numeric := func(id ID) bool {
-		return id == Int2 || id == Int4 || id == Int8 || id == Numeric || id == Float4 || id == Float8
-	}
-	if !numeric(source) || !numeric(target) {
-		return false
-	}
-	for _, spec := range baselineCasts {
-		if spec.source == source && spec.target == target {
-			return true
-		}
-	}
-	return false
-}
-
-func TemporalCastType(id ID) bool {
-	return id == Date || id == Time || id == Timestamp || id == Timestamptz || id == Timetz
-}
-
-func TemporalCastPair(source, target ID) bool {
-	return TemporalCastType(source) && (TemporalCastType(target) || target == Text) ||
-		source == Text && TemporalCastType(target) ||
-		source == Interval && target == Text
-}
-
-// OIDCastPair admits only OID-related explicit syntax, including unsupported
-// integer directions so the binder can report the normal cannot-cast diagnostic.
-func OIDCastPair(source, target ID) bool {
-	integer := func(id ID) bool { return id == Int2 || id == Int4 || id == Int8 }
-	return source == Oid && (target == Oid || target == Text || integer(target)) ||
-		target == Oid && (source == Text || integer(source)) ||
-		source == Regclass && (target == Regclass || target == Oid || target == Text || integer(target)) ||
-		target == Regclass && (source == Oid || source == Text || source == VarChar || integer(source))
-}
-
-// PlanCoercion admits only bounded directional edges, never transitive casts.
+// PlanCoercion selects a direct released edge before generic array or string I/O
+// rules. An ineligible direct edge is a barrier, never a transitive invitation.
 func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, error) {
 	if !source.Valid() || !target.Valid() {
 		return CoercionPlan{}, fmt.Errorf("invalid coercion usage")
 	}
 	if source.Type.IsDomain() || target.Type.IsDomain() {
-		from, to := source.BaseUsage(), target.BaseUsage()
-		p, err := PlanCoercion(from, to, context)
-		if err != nil && context == Explicit && (source.Type.IsDomain() && to.Type.id == Text || target.Type.IsDomain() && from.Type.id == Text) {
-			p = CoercionPlan{source: from, target: to, context: context, method: viaIO}
-			err = nil
-		}
+		p, err := PlanCoercion(source.BaseUsage(), target.BaseUsage(), context)
 		p.logicalSource, p.logicalTarget = source.Type, target.Type
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
-	if source.Type.id == Refcursor || target.Type.id == Refcursor {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
+	if source.Type == target.Type {
+		return p, nil
 	}
 	if source.Type.IsCitext() || target.Type.IsCitext() {
 		return p.planCitext()
 	}
-	// Selected circle/polygon typename calls with known TEXT use the ordinary
-	// input codec. Keep this directional and explicit: no reverse, assignment
-	// or cross-geometry admission follows from constructor availability.
-	if context == Explicit && source.Type.id == Text && (target.Type.id == Circle || target.Type.id == Polygon) {
-		p.method = viaIO
-		return p, nil
-	}
-	if source.Type.id == Box || source.Type.id == Point || source.Type.id == Line || source.Type.id == Lseg || source.Type.id == Path || target.Type.id == Box || target.Type.id == Point || target.Type.id == Line || target.Type.id == Lseg || target.Type.id == Path {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) ||
-			context == Assignment && (source.Type.id == Box || source.Type.id == Point || source.Type.id == Line || source.Type.id == Lseg || source.Type.id == Path) && IsCharacter(target.Type.id) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if IsFTS(source.Type.id) || IsFTS(target.Type.id) {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if source.Type.id == Tid || target.Type.id == Tid {
-		switch {
-		case source.Type == target.Type:
-			return p, nil
-		case context == Explicit && IsCharacter(source.Type.id) && target.Type.id == Tid,
-			context >= Assignment && source.Type.id == Tid && IsCharacter(target.Type.id):
-			p.method = viaIO
-			return p, nil
-		default:
-			return p, failure("42804", "incompatible source and destination types")
-		}
-	}
-	if source.Type.id == Macaddr || target.Type.id == Macaddr || source.Type.id == Macaddr8 || target.Type.id == Macaddr8 {
-		switch {
-		case source.Type == target.Type:
-			return p, nil
-		case context == Explicit && source.Type.id == Text && (target.Type.id == Macaddr || target.Type.id == Macaddr8),
-			context >= Assignment && (source.Type.id == Macaddr || source.Type.id == Macaddr8) && IsCharacter(target.Type.id):
-			p.method = viaIO
-			return p, nil
-		default:
-			return p, failure("42804", "incompatible source and destination types")
-		}
-	}
-	if source.Type.IsQueryInt() || target.Type.IsQueryInt() || source.Type.IsCube() || target.Type.IsCube() || source.Type.IsEan13() || target.Type.IsEan13() {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) ||
-			context == Assignment && (source.Type.IsQueryInt() || source.Type.IsCube() || source.Type.IsEan13()) && IsCharacter(target.Type.id) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if source.Type.id == PgSnapshot || target.Type.id == PgSnapshot {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && IsCharacter(source.Type.id) && target.Type.id == PgSnapshot ||
-			context >= Assignment && source.Type.id == PgSnapshot && IsCharacter(target.Type.id) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if IsTransactionIdentifier(source.Type.id) || IsTransactionIdentifier(target.Type.id) {
-		switch {
-		case source.Type == target.Type:
-			return p, nil
-		case context == Explicit && source.Type.id == Xid8 && target.Type.id == Xid:
-			p.method = xid8Conversion
-		case context == Explicit && IsCharacter(source.Type.id) && IsTransactionIdentifier(target.Type.id),
-			context >= Assignment && IsTransactionIdentifier(source.Type.id) && IsCharacter(target.Type.id):
-			p.method = viaIO
-		default:
-			return p, failure("42804", "incompatible source and destination types")
-		}
-		return p, nil
-	}
-	if source.Type.id == ACLItem || target.Type.id == ACLItem {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && ACLItemCastPair(source.Type.id, target.Type.id) || context == Assignment && source.Type.id == ACLItem && IsCharacter(target.Type.id) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
 	if IsRoutineAlias(source.Type.id) || IsRoutineAlias(target.Type.id) {
-		switch {
-		case source.Type == target.Type:
-			return p, nil
-		case IsRoutineAlias(source.Type.id) && (target.Type.id == Oid || IsRoutineAlias(target.Type.id)),
-			IsRoutineAlias(target.Type.id) && (source.Type.id == Oid || source.Type.id == Int2 || source.Type.id == Int4 || source.Type.id == Int8):
+		from, to := source.Type.id, target.Type.id
+		if from == Oid || from == Int2 || from == Int4 || from == Int8 {
 			p.method = oidConversion
-		case IsRoutineAlias(source.Type.id) && (target.Type.id == Int4 || target.Type.id == Int8) && context >= Assignment:
+			return p, nil
+		}
+		if to == Oid || context >= Assignment && (to == Int4 || to == Int8) {
 			p.method = oidConversion
-		case IsRoutineAlias(source.Type.id) && IsCharacter(target.Type.id) && context >= Assignment,
-			IsRoutineAlias(target.Type.id) && IsCharacter(source.Type.id) && context == Explicit:
-			p.method = viaIO
-		default:
-			return p, failure("42804", "incompatible source and destination types")
-		}
-		return p, nil
-	}
-	if IsNetwork(source.Type.id) || IsNetwork(target.Type.id) {
-		switch {
-		case source.Type == target.Type:
-			return p, nil
-		case source.Type.id == Cidr && target.Type.id == Inet,
-			source.Type.id == Inet && target.Type.id == Cidr && context >= Assignment:
-			p.method = networkConversion
-		case context == Explicit && source.Type.id == Text && IsNetwork(target.Type.id):
-			p.method = viaIO
-		case context == Explicit && IsNetwork(source.Type.id) && target.Type.id == Text:
-			p.method = networkTextConversion
-		case context == Assignment && IsNetwork(source.Type.id) && IsCharacter(target.Type.id):
-			p.method = viaIO
-		default:
-			return p, failure("42804", "incompatible source and destination types")
-		}
-		return p, nil
-	}
-	sourceFamily, targetFamily := source.Type.RangeType(), target.Type.RangeType()
-	if sourceFamily != nil && sourceFamily.customRange != nil || targetFamily != nil && targetFamily.customRange != nil {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) ||
-			context == Assignment && (source.Type.IsRange() || source.Type.IsMultirange()) && IsCharacter(target.Type.id) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if source.Type.IsComposite() || target.Type.IsComposite() {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) ||
-			context == Assignment && source.Type.IsComposite() && IsCharacter(target.Type.id) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if source.Type.IsEnum() || target.Type.IsEnum() {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
-			p.method = viaIO
-			return p, nil
-		}
-		if context == Assignment && source.Type.IsEnum() && IsCharacter(target.Type.id) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if source.Type.IsArray() || target.Type.IsArray() {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if source.Type.IsArray() && target.Type.IsArray() {
-			from, to := source.Type.Element().Usage(), target.Type.Element().Usage()
-			from.Typmod, to.Typmod = source.Typmod, target.Typmod
-			from.Collation, to.Collation = source.Collation, target.Collation
-			child, err := PlanCoercion(from, to, context)
-			if err != nil {
-				return p, err
-			}
-			p.method, p.element = arrayConversion, &child
-			return p, nil
-		}
-		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if source.Type.id == JSONPath || target.Type.id == JSONPath {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if source.Type.id == JSON || target.Type.id == JSON || source.Type.id == JSONB || target.Type.id == JSONB {
-		if source.Type == target.Type {
-			return p, nil
-		}
-		if context != Implicit && (source.Type.id == JSON && target.Type.id == JSONB || source.Type.id == JSONB && target.Type.id == JSON) {
-			p.method = viaIO
-			return p, nil
-		}
-		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if source.Type.id == PgNodeTree || target.Type.id == PgNodeTree {
-		if source.Type.id == target.Type.id {
-			return p, nil
-		}
-		if source.Type.id == PgNodeTree && target.Type.id == Text {
-			p.method = viaIO
-			return p, nil
-		}
-		return p, failure("42804", "incompatible source and destination types")
-	}
-	if source.Type.id == Char && target.Type.id == Text {
-		p.method = charTextConversion
-		return p, nil
-	}
-	if source.Type.id == Time && target.Type.id == Interval {
-		p.method = timeIntervalConversion
-		return p, nil
-	}
-	if context == Explicit && (source.Type.id == Regtype && (target.Type.id == Text || target.Type.id == VarChar) || target.Type.id == Regtype && (source.Type.id == Text || source.Type.id == VarChar)) {
-		p.method = viaIO
-		return p, nil
-	}
-	if context == Explicit && (source.Type.id == Regrole && (target.Type.id == Text || target.Type.id == VarChar) || target.Type.id == Regrole && (source.Type.id == Text || source.Type.id == VarChar)) {
-		p.method = viaIO
-		return p, nil
-	}
-	if context == Explicit && (IsOperatorAlias(source.Type.id) && IsCharacter(target.Type.id) || IsOperatorAlias(target.Type.id) && (source.Type.id == Text || source.Type.id == VarChar)) || context == Assignment && IsOperatorAlias(source.Type.id) && IsCharacter(target.Type.id) {
-		p.method = viaIO
-		return p, nil
-	}
-	if context == Explicit && (IsRegObjectAlias(source.Type.id) || IsRegObjectAlias(target.Type.id)) {
-		if !RegObjectCastPair(source.Type.id, target.Type.id) {
-			return p, failure("42846", "cannot cast type "+source.Type.DiagnosticName()+" to "+target.Type.DiagnosticName())
-		}
-		if StringCategory(source.Type.id) || StringCategory(target.Type.id) {
-			p.method = viaIO
 			return p, nil
 		}
 	}
-	if context == Explicit && (IsRegTS(source.Type.id) && IsCharacter(target.Type.id) || IsRegTS(target.Type.id) && (source.Type.id == Text || source.Type.id == VarChar)) || context == Assignment && IsRegTS(source.Type.id) && IsCharacter(target.Type.id) {
-		p.method = viaIO
-		return p, nil
-	}
-	if context == Explicit && (source.Type.id == Float4 || source.Type.id == Float8) && (target.Type.id == Text || target.Type.id == VarChar || target.Type.id == BPChar) {
-		p.method = viaIO
-		return p, nil
-	}
-	if context == Explicit && (source.Type.id == Money || target.Type.id == Money) {
-		if IsCharacter(source.Type.id) || IsCharacter(target.Type.id) {
-			p.method = viaIO
-			return p, nil
-		}
-		if source.Type == target.Type {
-			return p, nil
-		}
-		for _, spec := range baselineCasts {
+	for _, specs := range [][]castSpec{baselineCasts[:], releasedCasts[:]} {
+		for _, spec := range specs {
 			if spec.source == source.Type.id && spec.target == target.Type.id {
+				if context < spec.minimum {
+					return p, failure("42804", "incompatible source and destination types")
+				}
 				p.method = spec.method
+				if p.method == geometryCastConversion {
+					for op := BoxCircle; op <= PolygonPath; op++ {
+						if op.Arity() == 1 && op.Formal(0) == source.Type.id && op.ResultID() == target.Type.id {
+							bound, err := BindGeometryConversion(op, target.Type.Usage(), [2]Usage{source.Type.Usage()})
+							p.geometry = bound
+							return p, err
+						}
+					}
+					return p, fmt.Errorf("missing geometry cast provider")
+				}
 				return p, nil
 			}
 		}
+	}
+	if source.Type.IsRange() && target.Type.IsMultirange() && source.Type.multirangeCompanion == target.Type && target.Type.validMultirangeAuthority() {
+		if context == Explicit {
+			p.method = rangeMultirangeConversion
+			return p, nil
+		}
 		return p, failure("42804", "incompatible source and destination types")
 	}
-	// VOID remains a non-storable result pseudotype. Its explicit text output
-	// permits legal compositions of side-effecting scalar functions.
-	if context == Explicit && source.Type.id == Void && target.Type.id == Text {
+	if source.Type.IsArray() && target.Type.IsArray() {
+		from, to := source.Type.Element().Usage(), target.Type.Element().Usage()
+		from.Typmod, to.Typmod = source.Typmod, target.Typmod
+		from.Collation, to.Collation = source.Collation, target.Collation
+		child, err := PlanCoercion(from, to, context)
+		if err != nil {
+			return p, err
+		}
+		p.method, p.element = arrayConversion, &child
+		return p, nil
+	}
+	if context >= Assignment && castStringCategory(target.Type) || context == Explicit && castStringCategory(source.Type) {
+		if target.Type.id == Void {
+			return p, failure("0A000", "input of type void is not supported")
+		}
 		p.method = viaIO
 		return p, nil
-	}
-	if context == Explicit {
-		if !(source.Type == target.Type && StoredScalarCastType(source.Type.id)) && !StoredNumericCastPair(source.Type.id, target.Type.id) && !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !(source.Type.id == Bytea && target.Type.id == Text) && !OIDCastPair(source.Type.id, target.Type.id) && !RegtypeCastPair(source.Type.id, target.Type.id) && !RegroleCastPair(source.Type.id, target.Type.id) && !OperatorCastPair(source.Type.id, target.Type.id) && !RegObjectCastPair(source.Type.id, target.Type.id) && !RegTSCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
-			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
-		}
-		switch {
-		case source.Type.id == Text && !IsCharacter(target.Type.id):
-			p.method = viaIO
-			return p, nil
-		case source.Type.id == Int4 && target.Type.id == Bool:
-			p.method = integerBoolean
-			return p, nil
-		case source.Type.id == Bool && target.Type.id == Int4:
-			p.method = booleanInteger
-			return p, nil
-		}
-	}
-	if source.Type == target.Type {
-		return p, nil
-	}
-	if isBitString(source.Type.id) && isBitString(target.Type.id) {
-		p.method = bitStringConversion
-		return p, nil
-	}
-	if target.Type.id == Name && IsCharacter(source.Type.id) {
-		p.method = nameConversion
-		return p, nil
-	}
-	if source.Type.id == Name && (target.Type.id == Text || context == Assignment && IsCharacter(target.Type.id)) {
-		p.method = stringConversion
-		return p, nil
-	}
-	if context == Assignment && target.Type.id == Name {
-		p.method = viaIO
-		return p, nil
-	}
-	if IsCharacter(source.Type.id) && IsCharacter(target.Type.id) {
-		p.method = stringConversion
-		return p, nil
-	}
-	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && (BaselineCastType(source.Type.id) || source.Type.id == Bytea || source.Type.id == Oid || source.Type.id == Regclass || TemporalCastType(source.Type.id) || source.Type.id == Interval) {
-		p.method = viaIO
-		if source.Type.id == Bool {
-			p.method = booleanText
-		}
-		return p, nil
-	}
-	for _, spec := range baselineCasts {
-		if spec.source == source.Type.id && spec.target == target.Type.id && context >= spec.minimum {
-			p.method = spec.method
-			return p, nil
-		}
 	}
 	return p, failure("42804", "incompatible source and destination types")
 }
@@ -2201,6 +1898,10 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		return Null(p.target.Type), nil
 	}
 	switch p.method {
+	case integerByteaConversion, integerBitConversion, internalCharConversion,
+		macConversion, jsonbScalarConversion, intervalTimeConversion,
+		geometryCastConversion, rangeMultirangeConversion:
+		return p.applyReleased(ctx, v, input, output)
 	case xid8Conversion:
 		return XIDValue(p.target.Type, uint32(v.integer))
 	case jsonFormattedInput:
@@ -2245,7 +1946,7 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		}
 		return v, nil
 	case networkTextConversion:
-		return String(p.target.Type, v.network.output(true)), nil
+		return sizeCharacter(String(p.target.Type, v.network.output(true)), p.target.Typmod, p.context == Explicit)
 	case moneyConversion:
 		return moneyCoercion(v, p.target, input.MonetaryLocale)
 	case arrayConversion:
@@ -2254,7 +1955,7 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		})
 	case bitStringConversion:
 		v.typ = p.target.Type
-		return sizeBitString(v, p.target.Typmod)
+		return sizeCastBits(v, p.target.Typmod, p.context == Explicit)
 	case timeIntervalConversion:
 		return IntervalValue(p.target.Type, 0, 0, v.integer)
 	case charTextConversion:
@@ -2283,7 +1984,7 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 			return adjustInterval(v, p.target.Typmod)
 		}
 		if isBitString(p.target.Type.id) {
-			return sizeBitString(v, p.target.Typmod)
+			return sizeCastBits(v, p.target.Typmod, p.context == Explicit)
 		}
 		if IsCharacter(p.target.Type.id) {
 			return sizeCharacter(v, p.target.Typmod, p.context == Explicit)
@@ -2348,17 +2049,15 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		if err != nil {
 			return Value{}, err
 		}
-		if p.context == Explicit && (p.source.Type.id == Float4 || p.source.Type.id == Float8 || IsTransactionIdentifier(p.source.Type.id) || IsRegObjectAlias(p.source.Type.id)) && IsCharacter(p.target.Type.id) {
-			// Explicit character casts size the captured output with cast semantics.
-			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, true)
+		value, err := p.target.Type.InputWithEnvironment(ctx, text, -1, input)
+		if err != nil {
+			return Value{}, err
 		}
-		if (p.source.Type.id == Box || p.source.Type.id == Point || p.source.Type.id == Line || p.source.Type.id == Lseg || p.source.Type.id == Path || p.source.Type.id == Tid || p.source.Type.id == Macaddr || p.source.Type.id == Macaddr8 || p.source.Type.id == JSONPath || p.source.Type.id == ACLItem) && IsCharacter(p.target.Type.id) {
-			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, p.context == Explicit)
-		}
-		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
+		sizing := CoercionPlan{source: p.target, target: p.target, context: p.context}
+		return sizing.applyBaseUnchecked(ctx, value, input, output)
 	case booleanText:
 		// Boolean string conversion uses true/false rather than boolout's t/f.
-		return sizeCharacter(String(p.target.Type, strconv.FormatBool(v.boolean)), p.target.Typmod, false)
+		return sizeCharacter(String(p.target.Type, strconv.FormatBool(v.boolean)), p.target.Typmod, p.context == Explicit)
 	}
 	return Value{}, fmt.Errorf("invalid coercion plan")
 }

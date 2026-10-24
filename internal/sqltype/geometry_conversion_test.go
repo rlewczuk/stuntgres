@@ -179,9 +179,14 @@ func TestCircleConstructorReplay(t *testing.T) {
 				t.Fatal("selected typename input widened coercion context", mode)
 			}
 		}
-		for _, pair := range [][2]ID{{Circle, Text}, {VarChar, Circle}, {Point, Circle}, {Float8, Circle}} {
+		for _, pair := range [][2]ID{{Point, Circle}, {Float8, Circle}} {
 			if _, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit); err == nil {
 				t.Fatal("selected input widened adjacent edge", pair)
+			}
+		}
+		for _, pair := range [][2]ID{{Circle, Text}, {VarChar, Circle}} {
+			if _, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit); err != nil {
+				t.Fatal("released string-category I/O refused", pair, err)
 			}
 		}
 		fresh := testTypes()

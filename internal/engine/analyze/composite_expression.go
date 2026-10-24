@@ -107,6 +107,14 @@ func (b *Binder) assignCompositeMember(node expr.Expr, target sqltype.Usage, mod
 	if node.ResultUsage() == target {
 		return node, nil
 	}
+	if err := b.CaptureTypeDiagnosticInput(target.Type); err != nil {
+		return nil, err
+	}
+	if target.Type.ContainsCatalogIdentifier() {
+		if err := b.captureElementInput(); err != nil {
+			return nil, err
+		}
+	}
 	// Structural conversion is an anonymous RECORD authority, not permission
 	// to reinterpret a named constructor or a domain's underlying members.
 	if row, ok := node.(plan.RowExpr); ok && row.Usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {

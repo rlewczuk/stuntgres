@@ -27,12 +27,34 @@ type irBuiltinFact struct {
 	name, source, language, security string
 }
 
+func irBuiltinInventoryStep(facts []irBuiltinFact) fixture.Step {
+	identities := make([]string, 0, len(facts))
+	want := make([][]any, 0, len(facts))
+	for _, fact := range facts {
+		suffix := "_" + strconv.FormatUint(uint64(fact.oid), 10)
+		prefix := []rune(fact.name)
+		for len(string(prefix))+len(suffix) > 63 {
+			prefix = prefix[:len(prefix)-1]
+		}
+		identity := string(prefix) + suffix
+		identities = append(identities, "'"+strings.ReplaceAll(identity, "'", "''")+"'")
+		want = append(want, []any{"pg_catalog", identity, fact.name, fact.source, fact.language, fact.security})
+	}
+	query := "SELECT specific_schema::text,specific_name::text,routine_name::text,routine_definition::text,external_language::text,security_type::text FROM information_schema.routines WHERE specific_schema='pg_catalog' AND specific_name IN (" + strings.Join(identities, ",") + ")"
+	step := fixture.Select(query,
+		[]string{"specific_schema", "specific_name", "routine_name", "routine_definition", "external_language", "security_type"},
+		[]string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}, want)
+	step.Bag = true
+	return step
+}
+
 func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 	facts := append([]irBuiltinFact(nil), irBuiltinFacts1...)
 	facts = append(facts, irBuiltinFacts2...)
 	facts = append(facts, irBuiltinFacts3...)
-	if len(facts) != 1585 {
-		t.Fatalf("released represented inventory: got %d, want 1585", len(facts))
+	facts = append(facts, irBuiltinCastFacts...)
+	if len(facts) != 1684 {
+		t.Fatalf("released represented inventory: got %d, want 1684", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {
@@ -48,23 +70,7 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		end := min(start+batch, len(facts))
 		t.Run(fmt.Sprintf("%04d-%04d", start, end-1), func(t *testing.T) {
 			irScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, _ string) {
-				identities := make([]string, 0, end-start)
-				want := make([][]any, 0, end-start)
-				for _, fact := range facts[start:end] {
-					suffix := "_" + strconv.FormatUint(uint64(fact.oid), 10)
-					prefix := []rune(fact.name)
-					for len(string(prefix))+len(suffix) > 63 {
-						prefix = prefix[:len(prefix)-1]
-					}
-					identity := string(prefix) + suffix
-					identities = append(identities, "'"+strings.ReplaceAll(identity, "'", "''")+"'")
-					want = append(want, []any{"pg_catalog", identity, fact.name, fact.source, fact.language, fact.security})
-				}
-				query := "SELECT specific_schema::text,specific_name::text,routine_name::text,routine_definition::text,external_language::text,security_type::text FROM information_schema.routines WHERE specific_schema='pg_catalog' AND specific_name IN (" + strings.Join(identities, ",") + ")"
-				step := fixture.Select(query,
-					[]string{"specific_schema", "specific_name", "routine_name", "routine_definition", "external_language", "security_type"},
-					[]string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}, want)
-				step.Bag = true
+				step := irBuiltinInventoryStep(facts[start:end])
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(step))
 			})

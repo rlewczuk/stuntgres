@@ -64,16 +64,9 @@ func TestReferenceBitwiseSmallintCasts(t *testing.T) {
 	p.Step(t, fixture.Exec("CREATE TABLE one(v INTEGER,s SMALLINT)", 0))
 	p.Step(t, fixture.Exec("INSERT INTO one VALUES(1,1)", 1))
 	query := "SELECT CAST('1'::text AS smallint) & 1 FROM one"
-	failure := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: "8"})
-	failure.SelectRows, failure.ErrorStage = true, "execute"
-	fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, failure)
-	failure.ErrorStage = "prepare"
-	fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Prepared(failure))
-	if p.Postgres != nil {
-		success := fixture.Select(query, []string{"?column?"}, []string{"INT4"}, [][]any{{int64(1)}})
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, success)
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Prepared(success))
-	}
+	success := fixture.Select(query, []string{"?column?"}, []string{"INT4"}, [][]any{{int64(1)}})
+	p.Step(t, success)
+	p.Step(t, fixture.Prepared(success))
 	for _, prepared := range []bool{false, true} {
 		step := fixture.Select("SELECT ~CAST(1 AS smallint),CAST(32767 AS smallint) << CAST(1 AS smallint),CAST(32767::smallint << 1 AS bigint),~NULL::smallint FROM one", []string{"?column?", "?column?", "int8", "?column?"}, []string{"INT2", "INT2", "INT8", "INT2"}, [][]any{{int64(-2), int64(-2), int64(-2), nil}})
 		step.Prepared = prepared

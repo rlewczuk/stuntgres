@@ -363,6 +363,9 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
 			return "citext,citext", true
 		}
+		if name == "citext" && slot >= CitextConversionProcedureStart && slot < CitextMemberCount {
+			return []string{"1042", "16", "869"}[slot-CitextConversionProcedureStart], true
+		}
 		if slot == 1 {
 			return "2275", true
 		}
@@ -397,7 +400,7 @@ func ownerOperatorIdentity(extension string, slot int) (string, string, bool) {
 	case "cube":
 		return cubeOwnerOperatorIdentity(slot)
 	case "citext":
-		if slot >= CitextComparisonOperatorStart && slot < CitextMemberCount {
+		if slot >= CitextComparisonOperatorStart && slot < CitextConversionProcedureStart {
 			return citextOperatorNames[slot-CitextComparisonOperatorStart], "citext,citext", true
 		}
 	case "earthdistance":

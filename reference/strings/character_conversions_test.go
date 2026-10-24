@@ -70,12 +70,9 @@ func TestReferenceCharacterExplicitCastsAndConversions(t *testing.T) {
 		s.ErrorStage = "prepare"
 		p.Step(t, fixture.Prepared(s))
 	}
-	stmt, err := p.Memory.PrepareContext(p.Ctx, "SELECT CAST(1 AS varchar(2)) FROM seed")
-	if stmt != nil {
-		stmt.Close()
-		t.Fatal("unsupported native cast prepared")
-	}
-	fixture.State(t, err, "0A000")
+	success := fixture.Select("SELECT CAST(1 AS varchar(2)) FROM seed", []string{"varchar"}, []string{"VARCHAR"}, [][]any{{"1"}})
+	p.Step(t, success)
+	p.Step(t, fixture.Prepared(success))
 }
 
 func TestReferenceCharacterTimestampCastConsumers(t *testing.T) {

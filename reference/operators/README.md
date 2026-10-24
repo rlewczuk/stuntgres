@@ -74,6 +74,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   with fresh bounded contexts even after failed assertions (dependent casts
   before their adapter functions). Replay phases remove these pairs before the
   next backend phase.
+  `DeclaredTypeNameAuthority` uses the same cleanup and held-statement seams to
+  distinguish function-method CAST from binary/INOUT typename shortcuts,
+  including consulted enum/domain base pairs and existing backend lifetimes.
 - Cast transaction cases reuse those declarations with `SequenceCoreConn` and
   `HeldStatement` across autocommit, SQL BEGIN and Go BeginTx. Couple actual
   explicit/assignment/implicit coercion to directed-pair/function metadata,
@@ -110,6 +113,7 @@ Add `REFERENCE=1` for the oracle.
 - `regoperator` external boundary: `RUN='^TestReferenceRegOperatorExternalBoundary$'`
 - <a id="routine-parameter-binding"></a>Routine parameter binding: `RUN='^TestReferenceRoutineParameters'`
 - <a id="cast-definitions"></a>CREATE CAST definitions: `RUN='^TestReferenceCastDefinition'`
+- Declared CAST/typename authority: `RUN='^TestReferenceCastImplementedDeclaredTypeNameAuthority$'`
 - Row-level triggers: `RUN='^TestReferenceTriggerCore'`
 - Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`
 - Transactional trigger integration and protocol: `RUN='^TestReferenceTransactionalTrigger'`

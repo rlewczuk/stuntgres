@@ -181,7 +181,21 @@ func (p CoercionPlan) Rebind(source, target Usage, mode CoercionContext) (Coerci
 		}
 		return PlanJSONFormattedInput(source, target, p.jsonEncoding)
 	default:
-		return PlanCoercion(source, target, mode)
+		next, err := PlanCoercion(source, target, mode)
+		if err != nil {
+			return CoercionPlan{}, err
+		}
+		before, after := &p, &next
+		for before != nil && after != nil {
+			if before.method != after.method {
+				return CoercionPlan{}, fmt.Errorf("coercion operation changed")
+			}
+			before, after = before.element, after.element
+		}
+		if before != nil || after != nil {
+			return CoercionPlan{}, fmt.Errorf("coercion element operation changed")
+		}
+		return next, nil
 	}
 }
 

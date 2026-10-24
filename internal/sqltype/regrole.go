@@ -46,12 +46,6 @@ func (d *Descriptor) ContainsRegrole() bool {
 	return physical.id == Regrole
 }
 
-func RegroleCastPair(source, target ID) bool {
-	integer := func(id ID) bool { return id == Int2 || id == Int4 || id == Int8 }
-	stringType := func(id ID) bool { return id == Text || id == VarChar }
-	return source == Regrole && (target == Regrole || target == Oid || target == Int4 || target == Int8 || stringType(target)) || target == Regrole && (source == Oid || integer(source) || stringType(source))
-}
-
 func (d *Descriptor) regroleInput(ctx context.Context, text string, env InputEnvironment) (Value, error) {
 	if text == "-" {
 		return RegroleValue(d, 0)

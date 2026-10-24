@@ -25092,7 +25092,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
 			sqlVAL.typ = TypeName{Name: sqlDollar[3].tok.text, Quoted: columnType(sqlDollar[3].tok).Quoted, Schema: &Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Pos: sqlDollar[1].tok.pos}
-			if sqlDollar[1].tok.text == "pg_catalog" && (sqlDollar[3].tok.text == "timestamptz" || sqlDollar[3].tok.text == "timetz") {
+			if sqlDollar[1].tok.text == "pg_catalog" && (sqlDollar[3].tok.text == "timestamptz" || sqlDollar[3].tok.text == "timetz") && sqllex.(*lexer).temporalLiteralAhead() {
 				sqllex.(*lexer).genericModifier = true
 				sqllex.(*lexer).dateLiteralModifier = true
 			}

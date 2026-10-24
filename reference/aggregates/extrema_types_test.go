@@ -47,10 +47,6 @@ func TestReferenceExtremaTypes(t *testing.T) {
 					}
 					t.Run(query, func(t *testing.T) {
 						s := fixture.Select(query, []string{"min", "max"}, []string{"TEXT", "TEXT"}, rows)
-						if !pg && extremaTextCastExcluded(extremaFamilyType(tc.name)) {
-							s = fixture.Error(query, "0A000")
-							s.SelectRows = true
-						}
 						extremaBoth(t, p, conn, recorder, s)
 					})
 				}
@@ -76,14 +72,6 @@ func extremaFamilyType(name string) string {
 		return "TEXT"
 	}
 	return strings.ToUpper(name)
-}
-
-func extremaTextCastExcluded(typ string) bool {
-	switch typ {
-	case "INT2", "NUMERIC":
-		return true
-	}
-	return false
 }
 
 // Raw contracts use the pinned 18.0 observations and the existing public native

@@ -45,6 +45,8 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
   diagnostic; nothing falls back to text while claiming binary format.
+  VOID has runtime identity and output authority but no input provider; non-NULL
+  text import owns `0A000`, while input-free identity needs no input capability.
 - `CitextComparison` binds only genuine same-generation citext operands to the
   six strict Boolean predicates. It folds lazily with database C ctype, preserves
   spelling, compares folded bytes directly for equality without an input
@@ -111,6 +113,8 @@ catalog replacement; ordinary `Retag` never changes logical type identity.
 `RangeFromValues`, `MultirangeFromValues` and `MultirangeFromArray` construct
 through the same comparison and normalization authority without endpoint text
 conversion. NULL bounds are unbounded; a NULL member is not an empty range.
+Multirange constructors share this authority across builtin and custom families;
+zero members construct an empty non-NULL value without invoking an input codec.
 `RangeBounds` and `VisitRangeEndpoints` expose only immutable typed leaves for
 the existing reference/output/dump visitors. Identity mappings preserve owned
 payloads; destination generation changes allocate and rebind fresh pairs.
@@ -138,10 +142,12 @@ or widen it.
 
 ## Coercion and operator resolution
 
-- `PlanCoercion(source, target, context)` admits only bounded directional
-  edges, never transitive casts, and returns an immutable `CoercionPlan` whose
-  `Rebind` keeps the admitted operation across descriptor generations without
-  consulting a later catalog edge.
+- `PlanCoercion(source, target, context)` selects released direct providers before
+  same-context array element conversion and restricted PostgreSQL string-category
+  I/O. Ineligible direct declarations block fallback; there is no transitive
+  search. I/O inputs at typmod -1 before destination sizing. Same-type sizing,
+  domain entry checks and typed NULL ownership remain part of the immutable plan.
+  `Rebind` remints its operation with coherent descriptor generations.
 - `SelectCommonUsage` is the single domain/type/typmod fold for common
   expressions and anycompatible inference.
 - `ResolveOperator` and `ResolveOperatorWithCoercion` share one ranking body;

@@ -18,11 +18,6 @@ type RegTSFormatter interface {
 
 func IsRegTS(id ID) bool { return id == Regconfig || id == Regdictionary }
 
-// RegTSCastPair admits only released carrier edges and explicit character I/O.
-func RegTSCastPair(source, target ID) bool {
-	return IsRegTS(source) && (source == target || target == Oid || target == Int4 || target == Int8 || IsCharacter(target)) ||
-		IsRegTS(target) && (source == Oid || source == Int2 || source == Int4 || source == Int8 || source == Text || source == VarChar)
-}
 func RegTSValue(d *Descriptor, id uint32) (Value, error) {
 	if d == nil || !IsRegTS(d.id) || !d.Concrete() {
 		return Value{}, fmt.Errorf("invalid text search alias descriptor")

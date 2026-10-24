@@ -17,11 +17,6 @@ type OperatorFormatter interface {
 
 func IsOperatorAlias(id ID) bool { return id == Regoper || id == Regoperator }
 
-// OperatorCastPair admits released direct scalar edges and explicit string IO.
-func OperatorCastPair(source, target ID) bool {
-	return IsOperatorAlias(source) && (IsOperatorAlias(target) || target == Oid || target == Int4 || target == Int8 || IsCharacter(target)) ||
-		IsOperatorAlias(target) && (source == Oid || source == Int2 || source == Int4 || source == Int8 || source == Text || source == VarChar)
-}
 func OperatorValue(d *Descriptor, id uint32) (Value, error) {
 	if d == nil || !IsOperatorAlias(d.id) || !d.Concrete() {
 		return Value{}, fmt.Errorf("invalid operator alias descriptor")

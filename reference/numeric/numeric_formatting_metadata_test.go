@@ -145,17 +145,6 @@ func TestReferenceNumericFormattingParametersAndCoercions(t *testing.T) {
 				if !strings.Contains(q, "$2") {
 					args = args[:1]
 				}
-				// This repeated occurrence demands an inherited NUMERIC→TEXT
-				// explicit conversion that native has not implemented. Keep the
-				// independently observed PG success and exact native boundary,
-				// without expanding the adjacent cast provider.
-				if !b.PG && q == "SELECT to_char($1::numeric,$1::text) AS result" {
-					d := numericFormattingDiagnostic("0A000", "explicit casts are supported only for int4, int8, text and bool", "", "", "30")
-					s := numericFormattingError(q, d, args...)
-					s.Prepared, s.ErrorStage = true, "prepare"
-					fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-					return
-				}
 				if strings.Contains(q, "to_number($1::text,$1::text)") {
 					s := numericFormattingError(q, numericFormattingDiagnostic("22P02", `invalid input syntax for type numeric: " "`, "", "", ""), args...)
 					s.Prepared = true

@@ -6,6 +6,8 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -14,15 +16,35 @@ import (
 // identity; unchanged provider formatting remains byte-for-byte unchanged.
 func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Rendering) (expr.Rendering, error) {
 	captured, err := exec.ExpressionRoutineDescriptor(node)
-	if err != nil || captured == nil || captured.Builtin == nil {
+	if err != nil || captured == nil {
 		return spec, err
+	}
+	cast, installedCast := node.(functions.CastRoutine)
+	if captured.Builtin == nil && !installedCast {
+		return spec, nil
 	}
 	current, err := exec.ValidateStoredRoutineDescriptor(view, captured)
 	if err != nil {
 		return spec, err
 	}
-	if current.Name() == current.Builtin.Identity.Name && current.Namespace() == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
-		return spec, nil
+	if captured.Builtin != nil {
+		if current.Name() == current.Builtin.Identity.Name && current.Namespace() == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
+			return spec, nil
+		}
+	} else {
+		symbol, err := extension.ProcedureSymbol(view, current)
+		if err != nil {
+			return spec, err
+		}
+		if extension.CitextProviderOf(current) != extension.StockCitext || symbol != "citext" || cast.Count != 1 || current.Signature != extension.CitextSignature(cast.Formals[0]) || current.Result != ids.OID(cast.Result) {
+			return spec, fmt.Errorf("stuntgres: invalid installed cast rendering identity")
+		}
+		if err := extension.StockCitext.ValidateProcedure(view, current); err != nil {
+			return spec, err
+		}
+		if err := cast.ValidateStoredProvider(); err != nil {
+			return spec, err
+		}
 	}
 	namespace, ok := view.Namespace(current.Namespace())
 	if !ok {

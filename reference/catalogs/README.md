@@ -302,3 +302,8 @@ See [producer ownership](../../internal/engine/pgcatalog/README.md#information-s
   facts, queried in serial batches under the ordinary scenario deadline. Extension
   witnesses include citext's INTERNAL I/O and C comparison declarations with
   independently specified source symbols.
+  `RUN='^TestReferenceInfoRoutinesCastInventory$'` selects the added 99 real
+  cast/multirange declarations plus three installed citext conversions. It
+  checks exact released display facts and SQL-NULL argument names using fixed
+  builtin OIDs or independently resolved installed signatures, without adding
+  execution providers or a Cartesian runtime matrix.

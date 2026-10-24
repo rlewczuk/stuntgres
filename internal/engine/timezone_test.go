@@ -128,9 +128,3 @@ func TestTimezoneStrictNullAndExpressionOperands(t *testing.T) {
 		})
 	}
 }
-
-func TestTimezoneCastScopeRetainsCharacterExclusion(t *testing.T) {
-	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	_, err := binder.Bind(castTarget(t, "SELECT CAST(1 AS varchar(2)) FROM t"), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-	state(t, err, "0A000")
-}

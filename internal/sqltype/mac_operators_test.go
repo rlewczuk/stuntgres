@@ -201,8 +201,8 @@ func TestMACUnaryProvider(t *testing.T) {
 		t.Fatal("zero unary provider admitted")
 	}
 	for _, pair := range [][2]*Descriptor{{types[Macaddr], types[Macaddr8]}, {types[Macaddr8], types[Macaddr]}} {
-		if _, err := PlanCoercion(pair[0].Usage(), pair[1].Usage(), Implicit); err == nil {
-			t.Fatal("function-local expansion enabled a general cast")
+		if _, err := PlanCoercion(pair[0].Usage(), pair[1].Usage(), Implicit); err != nil {
+			t.Fatal("released implicit MAC conversion refused", err)
 		}
 	}
 }

@@ -85,12 +85,6 @@ func TestBitstringFormatLiteralReplay(t *testing.T) {
 		if err != nil || text != want {
 			t.Fatal(text, want, err)
 		}
-		// Rendering literal identity must not enable even an explicit BIT
-		// identity cast; serialization fixes the owning seam instead.
-		bit := b.Type(sqltype.Bit).Usage()
-		if _, err := sqltype.PlanCoercion(bit, bit, sqltype.Explicit); err == nil {
-			t.Fatal("BIT cast admission widened")
-		}
 	}
 }
 

@@ -25,7 +25,7 @@ func (v Value) RemapCitext(target *Descriptor) (Value, error) {
 
 func (p CoercionPlan) planCitext() (CoercionPlan, error) {
 	from, to := p.source.Type, p.target.Type
-	if from.IsArray() || to.IsArray() || from.IsComposite() || to.IsComposite() {
+	if !from.Concrete() || !to.Concrete() {
 		return p, failure("42804", "incompatible source and destination types")
 	}
 	switch {
@@ -48,7 +48,10 @@ func (p CoercionPlan) planCitext() (CoercionPlan, error) {
 	case from.IsCitext() && (to.id == Text || to.id == VarChar || to.id == BPChar && p.context >= Assignment):
 		p.method = stringConversion
 		return p, nil
-	case from.IsCitext() && p.context == Explicit:
+	case from.IsCitext() && (p.context == Explicit || p.context >= Assignment && castStringCategory(to)):
+		if to.id == Void {
+			return p, failure("0A000", "input of type void is not supported")
+		}
 		p.method = viaIO
 		return p, nil
 	}

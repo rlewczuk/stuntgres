@@ -46,14 +46,6 @@ func (d *Descriptor) ContainsRegtype() bool {
 	return physical.id == Regtype
 }
 
-// RegtypeCastPair admits only released direct edges and explicit string IO.
-func RegtypeCastPair(source, target ID) bool {
-	integer := func(id ID) bool { return id == Int2 || id == Int4 || id == Int8 }
-	stringType := func(id ID) bool { return id == Text || id == VarChar }
-	return source == Regtype && (target == Regtype || target == Oid || target == Int4 || target == Int8 || stringType(target)) ||
-		target == Regtype && (source == Oid || integer(source) || stringType(source))
-}
-
 // ContainsCatalogIdentifier marks recursive catalog-dependent input/output.
 func (d *Descriptor) ContainsCatalogIdentifier() bool {
 	return d.ContainsRegclass() || d.ContainsRegtype() || d.ContainsRegproc() || d.ContainsRegrole() || d.ContainsOperatorAlias() || d.ContainsRegObject() || d.ContainsRegTS() || d.ContainsACLItem()

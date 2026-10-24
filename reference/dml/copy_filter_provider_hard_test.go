@@ -83,17 +83,7 @@ func TestReferenceCopyFilterProviderHardErrors(t *testing.T) {
 									if route == "domain" {
 										typ = "copy_provider_check"
 										statement := "CREATE DOMAIN " + typ + " AS text CHECK(VALUE::" + family.typ + " IS NOT NULL)"
-										result, err := c.conn.ExecContext(c.ctx, statement)
-										if !c.pg && family.name == "int4range" {
-											if result != nil {
-												t.Fatalf("unsupported domain cast returned result %v", result)
-											}
-											want := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool"}
-											fixture.AssertDiagnostic(t, err, &want)
-											c.selectRows(t, "SELECT count(*) AS n FROM pg_type WHERE typname='copy_provider_check'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}})
-											copyFilterNotices(t, *notices)
-											return
-										}
+										_, err := c.conn.ExecContext(c.ctx, statement)
 										if err != nil {
 											t.Fatal(statement, err)
 										}
@@ -116,11 +106,6 @@ func TestReferenceCopyFilterProviderHardErrors(t *testing.T) {
 										want.Context = fmt.Sprintf("COPY %s, line 2: \"%s\"", table, raw)
 										if failure.prefix != "" {
 											want.Context = failure.prefix + "\n" + want.Context
-										}
-										if !c.pg && family.name == "int4range" {
-											// Existing cast admission fails before COPY demand, not
-											// a recoverable range conversion or runtime WHERE error.
-											want = fixture.Diagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: copyFilterPosition(query, "::")}
 										}
 									}
 									copyFilterFailure(t, c, query, input, want)

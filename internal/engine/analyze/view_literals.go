@@ -448,6 +448,25 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return child(r.Child, n.Child)
 		}
 	case parser.CastExpr:
+		_, typeNameShortcut := b.Prepared.Types[PreparedTypeKey{Offset: r.Pos.Offset, Kind: TypeNameCast}]
+		if r.Syntax == parser.FunctionCast && !typeNameShortcut {
+			procedure, err := exec.ExpressionRoutineDescriptor(bound)
+			if err != nil {
+				return err
+			}
+			if procedure != nil {
+				parts := []parser.Identifier{{Text: r.Callee, Pos: r.Pos}}
+				if r.TypeName.Schema != nil {
+					parts = []parser.Identifier{*r.TypeName.Schema, parts[0]}
+				}
+				call := parser.FunctionExpr{Name: parser.ObjectName{Parts: parts}, Args: []parser.Expr{r.Child}, Pos: r.Pos}
+				ref := b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), procedure.Address())
+				if err := b.captureProviderReference(path, call, procedure, ref); err != nil {
+					return err
+				}
+				return protocol(expr.CaptureFunction, call.Args)
+			}
+		}
 		// Domain casts retain top annotations outside their executable coercion.
 		// Capture their original syntactic paths by mirroring them around the
 		// coercion input, without changing the executable or frozen AST.

@@ -410,7 +410,10 @@ func TestJSONBIOCastContexts(t *testing.T) {
 	d := types[JSONB]
 	for _, context := range []CoercionContext{Implicit, Assignment, Explicit} {
 		for _, pair := range [][2]ID{{JSON, JSONB}, {JSONB, JSON}, {Text, JSONB}, {JSONB, Text}, {Bool, JSONB}, {Int4, JSONB}, {JSONB, Bool}} {
-			want := (pair[0] == JSON || pair[1] == JSON) && context != Implicit || (pair[0] == Text || pair[1] == Text) && context == Explicit
+			want := (pair[0] == JSON || pair[1] == JSON) && context != Implicit ||
+				pair[0] == Text && context == Explicit ||
+				pair[1] == Text && context >= Assignment ||
+				pair[0] == JSONB && pair[1] == Bool && context == Explicit
 			_, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), context)
 			if (err == nil) != want {
 				t.Fatal(pair, context, err)

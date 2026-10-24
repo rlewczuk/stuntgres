@@ -40,4 +40,5 @@ const (
 	FTSQueryRoutineProvider
 	GeometryConversionRoutineProvider
 	GeometryMeasureRoutineProvider
+	CastRoutineProvider
 )

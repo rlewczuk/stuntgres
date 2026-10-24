@@ -3,7 +3,6 @@ package reference_test
 import (
 	"database/sql"
 	"reflect"
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -45,27 +44,6 @@ func jsonpathReferenceStep(t *testing.T, b fixture.Backend, s fixture.Step) fixt
 		}
 	}
 	return s
-}
-
-// Catalog inquiries are shared. Existing explicit NAME/CHAR-to-TEXT cast
-// boundaries remain independent of pg_type source availability.
-func jsonpathReferenceInquiry(b fixture.Backend, s fixture.Step) fixture.Step {
-	if b.PG {
-		return s
-	}
-	if strings.Contains(s.Query, " FROM pg_catalog.pg_attribute") || strings.Contains(s.Query, " FROM pg_catalog.pg_type") {
-		if !strings.Contains(s.Query, "::text") {
-			return s
-		}
-		diagnostic := fixture.Diagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: fixture.Position(strings.Index(s.Query, "::text") + 1)}
-		boundary := fixture.ImplicitError(s.Query, diagnostic, s.Args...)
-		boundary.SelectRows, boundary.Prepared, boundary.ErrorStage = true, s.Prepared, "execute"
-		if s.Prepared {
-			boundary.ErrorStage = "prepare"
-		}
-		return boundary
-	}
-	panic("JSONPath identity inquiry must name a recognized catalog relation")
 }
 
 // Shared direct/prepared literal and bind routes use independent case outputs.

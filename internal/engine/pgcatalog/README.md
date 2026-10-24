@@ -82,6 +82,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
   providers, including nominal-only domains and reciprocal arrays. Metadata
   admission does not grant executable codec or storage authority; foreign
   same-OID base generations are not interchangeable.
+  Installed scalar I/O identities come from the provider-validated extension
+  manifest; additional real conversion members do not alter the I/O slots.
 - `routines` reads only actual captured Procedure descriptors. Immutable provider
   display facts are separate from execution-language authority. Enabled ownership
   or effective EXECUTE exposes the row; only enabled ownership exposes source,

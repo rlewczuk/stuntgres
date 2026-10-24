@@ -154,6 +154,22 @@ library, and never the root engine or `session`. The engine, the root driver
   ordinary inputs. A missing signature is resolved against visible catalog
   operators and implicit coercions before reporting a missing operator; hidden
   installed operators supply no signature or execution authority.
+- **Explicit casts.** `Cast` uses descriptor capabilities and the directional
+  coercion planner after declared-pair selection. Supported pairs without a
+  path report cast diagnostics, not a type whitelist. Input-free identity can
+  retain an existing concrete source even when its SQL input/declaration role
+  is unavailable. Named composite-to-record and composite-array-to-record[]
+  passthrough includes domains over composites and preserves source descriptors,
+  domain identities and result metadata.
+  Exact callable signatures precede typename shortcuts; unknown constants,
+  binary compatibility and restricted IO are distinct from unresolved Params
+  and array element conversion. Declared base-type pairs determine shortcut
+  eligibility before generic fallback: function-method casts are not typename
+  calls. Winning binary/IO conversions use the ordinary coercion owner, whose
+  held captures include consulted domain-base pair presence or absence.
+  External VOID Params are omitted only from effective function arguments,
+  not the protocol frame. Selected typename identities use the ordinary
+  held/stored capture lifetime and recheck current cast authority on reanalysis.
 - **Bound operands** keep their position, usage and properties through
   conversion instead of being rebound.
 - **PL assignment** keeps the reached lexical frame and full destination Usage.

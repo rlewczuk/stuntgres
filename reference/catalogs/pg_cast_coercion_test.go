@@ -104,19 +104,20 @@ func TestReferencePGCastExclusions(t *testing.T) {
 		fixture.PgDescriptionRows(t, p, b, s)
 		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
 		fact := []any{int64(3802), int64(23), int64(3451), "e", "f"}
-		want := [][]any{}
-		if b.PG {
-			want = append(want, fact)
-		}
+		want := [][]any{fact}
 		s = fixture.Select("SELECT castsource,casttarget,castfunc,castcontext,castmethod FROM pg_catalog.pg_cast"+fixture.PgCastPredicate([][]any{fact}), fixture.PgCastFactColumns, fixture.PgCastFactTypes, want)
 		fixture.PgDescriptionRows(t, p, b, s)
 		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
-		if !b.PG {
-			// Unchanged NAME, REGCLASS and BIT/VARBIT catalog omissions do
-			// not imply that PostgreSQL lacks these casts.
-			pairs := [][]any{{int64(19), int64(25)}, {int64(25), int64(19)}, {int64(26), int64(2205)}, {int64(2205), int64(26)}, {int64(1560), int64(1562)}, {int64(1562), int64(1560)}, {int64(1560), int64(1560)}, {int64(1562), int64(1562)}}
-			fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT castsource,casttarget FROM pg_catalog.pg_cast"+fixture.PgCastPredicate(pairs), []string{"castsource", "casttarget"}, []string{"OID", "OID"}, [][]any{}))
+		pairs := [][]any{{int64(19), int64(25)}, {int64(25), int64(19)}, {int64(26), int64(2205)}, {int64(2205), int64(26)}, {int64(1560), int64(1562)}, {int64(1562), int64(1560)}, {int64(1560), int64(1560)}, {int64(1562), int64(1562)}}
+		expectedPairs := make([][]any, 0, len(pairs))
+		for _, fact := range fixture.PgCastOrdered(pgCastFacts()) {
+			for _, pair := range pairs {
+				if fact[0] == pair[0] && fact[1] == pair[1] {
+					expectedPairs = append(expectedPairs, []any{fact[0], fact[1]})
+				}
+			}
 		}
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT castsource,casttarget FROM pg_catalog.pg_cast"+fixture.PgCastPredicate(pairs)+" ORDER BY castsource,casttarget", []string{"castsource", "casttarget"}, []string{"OID", "OID"}, expectedPairs))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE DOMAIN pgcast_domain AS INT", 0))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE pgcast_domain_seed(v pgcast_domain)", 0))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO pgcast_domain_seed VALUES(7)", 1))

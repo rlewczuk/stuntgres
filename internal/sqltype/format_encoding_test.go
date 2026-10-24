@@ -128,8 +128,8 @@ func TestFormatEncodingDomainArrayCapture(t *testing.T) {
 			t.Fatal(got, err)
 		}
 	}
-	if _, err := PlanCoercion(types[Numeric].Usage(), types[Text].Usage(), Explicit); err == nil {
-		t.Fatal("unrelated numeric cast admitted")
+	if _, err := PlanCoercion(types[Numeric].Usage(), types[Text].Usage(), Explicit); err != nil {
+		t.Fatal("released numeric output I/O refused", err)
 	}
 }
 

@@ -39,7 +39,34 @@ func TestDateNamesLiteralsAndModifiers(t *testing.T) {
 	if literal, ok := stmts[0].(*Select).Targets[0].(TypedLiteralExpr); !ok || literal.TypeName.Name != "date" {
 		t.Fatal(stmts)
 	}
-	for _, q := range []string{"SELECT DATE 'epoch' FROM date; SELECT date FROM", "SELECT date(3) FROM date", "SELECT date('epoch') FROM date", "SELECT date($1) FROM date", "SELECT date((3)) 'epoch' FROM date"} {
+	for _, tc := range []struct {
+		head, argument string
+		argumentOffset int
+	}{
+		{"date", "3", 0}, {"date", "+3", 0}, {"date", "-3", 0},
+		{"date", "1 + DATE '2000-01-01'", 2},
+		{"pg_catalog.timetz", "3", 0}, {"pg_catalog.timestamptz", "3", 0},
+	} {
+		q := "/*é*/ SELECT " + tc.head + "(" + tc.argument + "), DATE(3) 'epoch', int4('7') FROM date; SELECT date(4)"
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 2 {
+			t.Fatal(q, statements, err)
+		}
+		targets := statements[0].(*Select).Targets
+		call, ok := targets[0].(CastExpr)
+		if !ok || call.Syntax != FunctionCast || call.Pos.Character != 14 || call.Child.SourcePosition().Character != 15+len(tc.head)+tc.argumentOffset {
+			t.Fatal("numeric argument became temporal precision", q, targets[0])
+		}
+		literal, ok := targets[1].(TypedLiteralExpr)
+		if !ok || literal.TypeName.Name != "date" || len(literal.TypeName.Modifiers) != 1 || targets[2].(CastExpr).Syntax != FunctionCast {
+			t.Fatal("call/literal mode leaked", q, targets)
+		}
+		next, ok := statements[1].(*Select).Targets[0].(CastExpr)
+		if !ok || next.Syntax != FunctionCast || next.Child.(LiteralExpr).Value.Integer != 4 {
+			t.Fatal("temporal mode leaked into next statement", q, next)
+		}
+	}
+	for _, q := range []string{"SELECT DATE 'epoch' FROM date; SELECT date FROM", "SELECT date((3)) 'epoch' FROM date"} {
 		stmts, err := Parse(q)
 		if err == nil || stmts != nil {
 			t.Fatal("excluded syntax accepted", q, stmts, err)
@@ -74,6 +101,7 @@ func TestDateLiteralTemporalDisambiguationAndPositions(t *testing.T) {
 		{"DATE", "date"}, {`"date"`, "date"}, {`U&"d\0061te"`, "date"},
 		{"TIME", "time"}, {"TIMESTAMP", "timestamp"},
 		{"TIME(3)", "time"}, {"TIMESTAMP(3)", "timestamp"}, {"DATE(3)", "date"},
+		{"pg_catalog.timetz(3)", "timetz"}, {"pg_catalog.timestamptz(3)", "timestamptz"},
 	} {
 		q := "/*é*/ SELECT " + tc.head + " 'epoch' FROM date"
 		stmts, err := Parse(q)

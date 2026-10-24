@@ -48,6 +48,27 @@ carry the `reference` build tag (PostgreSQL-only complements).
   dependencies through container removal, exact RESTRICT diagnostics and CASCADE
   retirement of retained types, companions and views.
 
+### Cast coverage
+
+The cast inventory and released directional facts are independent expected data.
+Runtime families use deterministic provider, direct-edge, generic-rule and
+diagnostic witnesses rather than Cartesian route products. `DirectEdges` batches
+typed column conversions by source and input; family `Matrix` and `Functions`
+definitions cover distinct codecs and actual signatures. Focused cases retain
+context, sizing, domains, shapes, environments, atomicity and lifecycle behavior.
+`ProtocolRoles` shares one real server fixture for nonstorage/input roles.
+The SERVICE_CERTIFICATES public and server regressions retain all five arguments,
+repeated/NULL/error frames and protocol metadata independently of matrix sizing.
+Focused review regressions retain numeric-leading temporal callable resolution
+versus precision literals (`NumericTemporalCalls`) and actual installed citext
+default rendering across schema rename, old-name shadowing and native replay
+(`InstalledCastRendering`). `DeclaredTypeNameAuthority` lives in
+`reference/operators` to reuse declared builtin-pair cleanup; it distinguishes
+function, binary and INOUT authority and preserves the established explicit
+PostgreSQL-held/native-reanalysis lifetime expectations.
+Its stored binary typename view retains the selected method after the current
+pair is replaced by INOUT; this is not a fresh-call or dumped-row surrogate.
+
 ### OID aliases and identifiers
 
 - Normalized `oid` cells are int64 natively and strings through lib/pq. lib/pq
@@ -91,6 +112,10 @@ Add `REFERENCE=1` for the oracle.
 - Conversions, boundaries, diagnostics: `RUN='^TestReferenceComparison(Core|Catalog|Unknown|Boundaries|Diagnostic|PredicateSyntax|Anyarray|InstalledQueryInt)'`
 - Comparison lifecycle and stored routes: `RUN='^TestReferenceComparison(PreparedLifecycle|Stored)'`
 - Explicit casts: `RUN='^TestReferenceCastExplicit'`
+- Cast families (expand to one suffix): `RUN='^TestReferenceCastImplemented(Matrix|Functions)Numeric$'`
+- Cast rules and lifecycle: `RUN='^TestReferenceCastImplemented(Contexts|GenericShapes|Typmods|UnknownParameters|Metadata|Environments|Consumers|Lifecycle)$'`
+- Cast protocol and reported INSERT: `RUN='^TestReferenceCastImplemented(ProtocolRoles|ServiceCertificatesSmoke)$'`
+- Cast review regressions: `RUN='^TestReferenceCastImplemented(DeclaredTypeNameAuthority|NumericTemporalCalls|InstalledCastRendering)$'`
 - NAME, OID, type core: `RUN='^TestReference(Name[A-Z]|OID|TypeCore)'`
 - Diagnostic field records: `RUN='^TestReference(ErrorFields|ConditionalErrorFields|PermissionAndCancellationFields)'`
 - `regclass`: `RUN='^TestReferenceRegclass'`

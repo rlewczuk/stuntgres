@@ -63,15 +63,9 @@ func TestReferenceExtremaTransitions(t *testing.T) {
 				value := extremaRawDatum(t, pg, tc.typ, tc.retained)
 				extremaResult(t, p, conn, recorder, pg, "SELECT min(v),max(v) FROM extrema_ties", []string{"min", "max"}, []string{tc.typ, tc.typ}, [][]any{{value, value}})
 				query := "SELECT min(v),max(v),min(v)::text,max(v)::text FROM extrema_ties"
-				if !pg && extremaTextCastExcluded(tc.typ) {
-					s := fixture.Error(query, "0A000")
-					s.SelectRows = true
-					extremaBoth(t, p, conn, recorder, s)
-				} else {
-					// Only the first two columns are extrema. The TEXT casts are
-					// scalar wrappers, whose Nullable metadata is not this contract.
-					extremaResult(t, p, conn, recorder, pg, query, []string{"min", "max", "min", "max"}, []string{tc.typ, tc.typ, "TEXT", "TEXT"}, [][]any{{value, value, tc.text, tc.text}}, 2)
-				}
+				// Only the first two columns are extrema. The TEXT casts are
+				// scalar wrappers, whose Nullable metadata is not this contract.
+				extremaResult(t, p, conn, recorder, pg, query, []string{"min", "max", "min", "max"}, []string{tc.typ, tc.typ, "TEXT", "TEXT"}, [][]any{{value, value, tc.text, tc.text}}, 2)
 			})
 		})
 	}

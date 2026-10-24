@@ -140,20 +140,12 @@ func pgAttributeMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	}
 }
 
-// Preserve the original released NAME-to-TEXT inquiry and its exact native cast
-// exclusion, then independently exercise metadata without that adjacent codec.
+// Cast and raw NAME inquiries retain their independent result metadata.
 func pgAttributeNameCastWitness(t *testing.T, p *fixture.Pair, b fixture.Backend, original fixture.Step) {
 	t.Helper()
 	for _, prepared := range []bool{false, true} {
 		step := original
 		step.Prepared = prepared
-		if !b.PG {
-			step = fixture.ImplicitError(original.Query, fixture.Diagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: fixture.Position(strings.Index(original.Query, "::text") + 1)})
-			step.SelectRows, step.Prepared, step.ErrorStage = true, prepared, "execute"
-			if prepared {
-				step.ErrorStage = "prepare"
-			}
-		}
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, step)
 	}
 	raw := original

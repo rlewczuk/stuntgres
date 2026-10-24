@@ -259,9 +259,14 @@ func TestGeometryConversionCAuthority(t *testing.T) {
 				t.Fatal("polygon input widened coercion context", mode)
 			}
 		}
-		for _, pair := range [][2]ID{{Polygon, Text}, {VarChar, Polygon}, {Point, Polygon}, {Float8, Polygon}} {
+		for _, pair := range [][2]ID{{Point, Polygon}, {Float8, Polygon}} {
 			if _, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit); err == nil {
 				t.Fatal("polygon input widened adjacent edge", pair)
+			}
+		}
+		for _, pair := range [][2]ID{{Polygon, Text}, {VarChar, Polygon}} {
+			if _, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit); err != nil {
+				t.Fatal("released string-category I/O refused", pair, err)
 			}
 		}
 		rebound, err := p.Rebind(foreign[Text].Usage(), foreign[Polygon].Usage(), Explicit)

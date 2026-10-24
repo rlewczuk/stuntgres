@@ -143,28 +143,16 @@ func TestReferenceDeleteReturningRegclassBoundary(t *testing.T) {
 					query          string
 					columns, types []string
 					values         []any
-					want           fixture.Diagnostic
 				}{
-					{"DELETE FROM rt RETURNING old.v::regclass,new.v::regclass", []string{"v", "v"}, []string{"REGCLASS", "REGCLASS"}, []any{nil, nil}, fixture.Diagnostic{Code: "0A000", Message: "qualified column references are unsupported", Position: "26"}},
-					{"DELETE FROM rt RETURNING new.v::regclass", []string{"v"}, []string{"REGCLASS"}, []any{nil}, fixture.Diagnostic{Code: "0A000", Message: "qualified column references are unsupported", Position: "26"}},
-					{"DELETE FROM rt RETURNING v::regclass", []string{"v"}, []string{"REGCLASS"}, []any{nil}, fixture.Diagnostic{}},
-					{"DELETE FROM rt RETURNING CAST(v AS regclass)", []string{"v"}, []string{"REGCLASS"}, []any{nil}, fixture.Diagnostic{}},
+					{"DELETE FROM rt RETURNING old.v::regclass,new.v::regclass", []string{"v", "v"}, []string{"REGCLASS", "REGCLASS"}, []any{nil, nil}},
+					{"DELETE FROM rt RETURNING new.v::regclass", []string{"v"}, []string{"REGCLASS"}, []any{nil}},
+					{"DELETE FROM rt RETURNING v::regclass", []string{"v"}, []string{"REGCLASS"}, []any{nil}},
+					{"DELETE FROM rt RETURNING CAST(v AS regclass)", []string{"v"}, []string{"REGCLASS"}, []any{nil}},
 				} {
 					fixture.LockExec(t, p.Ctx, db, "INSERT INTO rt VALUES(NULL)", 1)
-					if backend.PG || tc.want.Code == "" {
-						s := fixture.Select(tc.query, tc.columns, tc.types, [][]any{tc.values})
-						s.Prepared = prepared
-						fixture.RunStep(t, p.Ctx, db, r, s)
-					} else {
-						s := fixture.ImplicitError(tc.query, tc.want)
-						s.Prepared, s.SelectRows, s.ErrorStage = prepared, true, "execute"
-						if prepared {
-							s.ErrorStage = "prepare"
-						}
-						fixture.RunStep(t, p.Ctx, db, r, s)
-						fixture.RunStep(t, p.Ctx, db, r, fixture.Select("SELECT v FROM rt", []string{"v"}, []string{"TEXT"}, [][]any{{nil}}))
-						fixture.LockExec(t, p.Ctx, db, "DELETE FROM rt", 1)
-					}
+					s := fixture.Select(tc.query, tc.columns, tc.types, [][]any{tc.values})
+					s.Prepared = prepared
+					fixture.RunStep(t, p.Ctx, db, r, s)
 				}
 			}
 		})

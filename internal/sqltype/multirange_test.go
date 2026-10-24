@@ -29,6 +29,43 @@ func TestMultirangeDescriptors(t *testing.T) {
 	}
 }
 
+func TestMultirangeTypedConstructors(t *testing.T) {
+	ctx := context.Background()
+	types, foreign := testTypes(), testTypes()
+	for _, id := range []ID{Int4Multirange, Int8Multirange, NumMultirange} {
+		d := types[id]
+		empty, err := MultirangeFromValues(ctx, d, nil)
+		if err != nil || empty.IsNull() || empty.Type() != d || !empty.validMultirange() {
+			t.Fatal("zero-argument multirange constructor", id, empty, err)
+		}
+		castUnitOutput(t, empty, OutputEnvironment{}, "{}")
+		first := castUnitValue(t, d.RangeType(), "[1,3)", InputEnvironment{})
+		second := castUnitValue(t, d.RangeType(), "[3,5)", InputEnvironment{})
+		members := []Value{second, first}
+		value, err := MultirangeFromValues(ctx, d, members)
+		if err != nil || value.Type() != d {
+			t.Fatal("typed multirange constructor", id, value, err)
+		}
+		castUnitOutput(t, value, OutputEnvironment{}, "{[1,5)}")
+		if members[0] != second || members[1] != first {
+			t.Fatal("constructor mutated borrowed members")
+		}
+		members[0] = Null(d.RangeType())
+		castUnitOutput(t, value, OutputEnvironment{}, "{[1,5)}")
+		_, err = MultirangeFromValues(ctx, d, members)
+		castUnitError(t, err, "22004", "multirange values cannot contain null members")
+		wrong := castUnitValue(t, foreign[id].RangeType(), "[1,3)", InputEnvironment{})
+		if _, err := MultirangeFromValues(ctx, d, []Value{wrong}); err == nil {
+			t.Fatal("constructor admitted foreign member generation")
+		}
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		if _, err := MultirangeFromValues(canceled, d, nil); !errors.Is(err, context.Canceled) {
+			t.Fatal("empty constructor masked cancellation", err)
+		}
+	}
+}
+
 func TestMultirangeCanonicalDatum(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range []ID{Int4Multirange, Int8Multirange, NumMultirange} {

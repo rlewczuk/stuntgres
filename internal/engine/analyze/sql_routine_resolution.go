@@ -67,7 +67,8 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	providerOverride := b.hasProviderProcedureOverride(name)
-	if !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !b.BindingCatalog().HasCasts() {
+	typeName := cast != nil || b.typeNameCallable(raw.Name)
+	if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -112,7 +113,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			}
 		}
 	}
-	if !providerOverride && !hasSQL && !hasCube && !b.BindingCatalog().HasCasts() {
+	if !typeName && !providerOverride && !hasSQL && !hasCube && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	issue := functions.FunctionLabels(raw)
@@ -184,15 +185,24 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	if exact >= 0 {
 		selection.SQLCallable = candidates[exact]
 	} else {
-		if cast != nil {
-			if _, _, ok := b.sqlFunctionCastTarget(cast.TypeName, operands[0]); ok {
-				selection.args = []expr.Expr{operands[0].Node}
-				return selection, true, nil
-			}
-		} else if len(operands) == 1 && (name == "box" || name == "circle" || name == "lseg" || name == "path" || name == "point" || name == "polygon" || name == "cube") && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
-			annotation := parser.TypeName{Name: name, Pos: raw.Pos}
+		if len(operands) == 1 && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
+			annotation := parser.TypeName{Name: name, Quoted: true, Pos: raw.Pos}
 			if len(raw.Name.Parts) == 2 {
 				annotation.Schema = &raw.Name.Parts[0]
+			}
+			if cast != nil {
+				annotation = cast.TypeName
+			}
+			if literal, ok := operands[0].raw.(parser.LiteralExpr); ok && b.typeNameCallable(raw.Name) && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+				var resolveErr error
+				if annotation.Quoted && annotation.Name == "char" {
+					_, resolveErr = b.Host.ResolveStringAnnotationType(annotation, literal.Value.Kind == parser.NullValue)
+				} else {
+					_, resolveErr = b.Host.ResolveAnnotationType(annotation, literal.Value.Kind == parser.NullValue)
+				}
+				if resolveErr != nil {
+					return selection, true, resolveErr
+				}
 			}
 			if target, coercion, ok := b.sqlFunctionCastTarget(annotation, operands[0]); ok {
 				selection.typeNameTarget, selection.typeNamePlan, selection.typeNameOperand = target, coercion, operands[0]
@@ -223,7 +233,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		if selection.Targets != nil {
 			target = selection.Targets[i]
 		}
-		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || extension.CubeProviderOf(selection.Procedure) == extension.StockCube || extension.EarthdistanceProviderOf(selection.Procedure) == extension.StockEarthdistance || o.descriptor() != nil) {
+		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || extension.CitextProviderOf(selection.Procedure) == extension.StockCitext || selection.Procedure.Builtin != nil && selection.Procedure.Builtin.Providers&functions.CastRoutineProvider != 0 || extension.CubeProviderOf(selection.Procedure) == extension.StockCube || extension.EarthdistanceProviderOf(selection.Procedure) == extension.StockEarthdistance || o.descriptor() != nil) {
 			selection.args[i], err = b.CoerceConditional(o, target, "function")
 			if err != nil {
 				return selection, true, err
@@ -419,6 +429,72 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true, TypeNameCallPosition: raw.Pos})
 	}
 	d := selected.Procedure
+	if _, loweredCast := original.(parser.CastExpr); loweredCast && d != nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+		if b.Stored.Syntax == nil {
+			b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+		}
+		b.Stored.Syntax[b.storedExpressionSyntaxKey(original)] = raw
+	}
+	var castResult *sqltype.Descriptor
+	citextConversion := false
+	if d != nil && extension.CitextProviderOf(d) == extension.StockCitext {
+		switch d.Signature {
+		case "1042", "16", "869":
+			var ok bool
+			castResult, ok = b.authorityType(selected.auth, sqltype.ID(d.Result))
+			if !ok || !castResult.IsCitext() {
+				return nil, fmt.Errorf("invalid installed citext conversion result")
+			}
+			symbol, err := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+			if err != nil {
+				return nil, err
+			}
+			if symbol != "citext" {
+				return nil, fmt.Errorf("invalid installed citext conversion identity")
+			}
+			citextConversion = true
+		}
+	}
+	if d != nil && (citextConversion || d.Builtin != nil && d.Builtin.Providers&functions.CastRoutineProvider != 0) {
+		result := castResult
+		if result == nil {
+			result = b.Type(sqltype.ID(d.Result))
+		}
+		if err := b.CaptureTypeDiagnosticInput(result); err != nil {
+			return nil, err
+		}
+		if result.ContainsCatalogIdentifier() {
+			if err := b.captureElementInput(); err != nil {
+				return nil, err
+			}
+		}
+		if err := functions.ValidateCallSyntax(b, raw); err != nil {
+			return nil, err
+		}
+		if err := functions.CallDecorationError(raw); err != nil {
+			return nil, err
+		}
+		info, err := b.CollatedInfo(b.Info(result.Usage(), raw.Pos, selected.properties), selected.args...)
+		if err != nil {
+			return nil, err
+		}
+		if citextConversion {
+			info.RoutineReference = d
+			ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
+			b.dependency(ref, d.Revision())
+		} else {
+			var err error
+			info, err = b.selectedBuiltinRoutineInfo(info, d.Builtin)
+			if err != nil {
+				return nil, err
+			}
+		}
+		namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
+		if !ok {
+			return nil, fmt.Errorf("missing cast routine namespace")
+		}
+		return functions.NewCastRoutine(info, d.Name(), namespace.Name(), selected.args, d.Volatility)
+	}
 	if d != nil && d.RangeConstructor != nil {
 		if err := functions.ValidateCallSyntax(b, raw); err != nil {
 			return nil, err
@@ -610,17 +686,6 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if arg != nil {
 			args[i] = parser.ParameterExpr{Number: -i - 1, Pos: arg.SourcePosition()}
 		}
-	}
-	if cast, ok := original.(parser.CastExpr); ok {
-		if legacyFunctionCastPredicate(cast.Child) {
-			return nil, expr.ErrorAt("0A000", "functions are unsupported", cast.Pos)
-		}
-		cast.Child = args[0]
-		if d != nil {
-			namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
-			cast.TypeName.Schema = &parser.Identifier{Text: namespace.Name()}
-		}
-		return b.Bind(cast, policy)
 	}
 	if aggregate, ok := original.(parser.AggregateExpr); ok {
 		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())

@@ -147,11 +147,11 @@ func TestQueryIntIdentity(t *testing.T) {
 		}
 	}
 	for _, context := range []CoercionContext{Implicit, Assignment} {
-		if _, err := PlanCoercion((&Descriptor{id: Text, name: "text", sql: "TEXT"}).Usage(), d.Usage(), context); err == nil {
+		if _, err := PlanCoercion(testTypes()[Text].Usage(), d.Usage(), context); err == nil {
 			t.Fatal("typed TEXT implicit input")
 		}
 	}
-	text := &Descriptor{id: Text, name: "text", sql: "TEXT"}
+	text := testTypes()[Text]
 	plan, err := PlanCoercion(text.Usage(), d.Usage(), Explicit)
 	if err != nil {
 		t.Fatal(err)
@@ -171,10 +171,8 @@ func TestQueryIntCoercion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, character := range []*Descriptor{
-		{id: Text, name: "text", sql: "TEXT"},
-		{id: VarChar, name: "varchar", sql: "VARCHAR"},
-	} {
+	types := testTypes()
+	for _, character := range []*Descriptor{types[Text], types[VarChar]} {
 		for _, mode := range []CoercionContext{Assignment, Explicit} {
 			plan, err := PlanCoercion(query.Usage(), character.Usage(), mode)
 			if err != nil || plan.method != viaIO {

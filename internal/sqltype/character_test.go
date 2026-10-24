@@ -177,8 +177,28 @@ func TestCharacterSizingContextsConversionsAndComparisons(t *testing.T) {
 	for _, character := range []ID{BPChar, VarChar} {
 		for _, baseline := range []ID{Int4, Int8, Bool} {
 			for _, pair := range [][2]ID{{baseline, character}, {character, baseline}} {
-				if _, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit); err == nil {
-					t.Fatal("nonstring character cast admitted", pair)
+				p, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit)
+				if err != nil {
+					t.Fatal("released character conversion refused", pair, err)
+				}
+				input, want := "12", "12"
+				if baseline == Bool {
+					input, want = "true", "true"
+					if pair[1] == Bool {
+						want = "t"
+					}
+				}
+				source, err := types[pair[0]].Input(ctx, input, -1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := p.Apply(ctx, source, InputEnvironment{}, OutputEnvironment{})
+				if err != nil {
+					t.Fatal(pair, err)
+				}
+				output, err := types[pair[1]].Output(ctx, got)
+				if err != nil || output != want || got.Type() != types[pair[1]] {
+					t.Fatal("character conversion value/identity", pair, output, want, err)
 				}
 			}
 		}

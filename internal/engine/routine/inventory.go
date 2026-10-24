@@ -13,7 +13,7 @@ import (
 // are independent of physical child usages and specialized result descriptors.
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
-var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
+var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDeclaration{
 	// Selected REL_18_6 Table 9.36 operators; names do not grant call admission.
 	{catalog.RoutineIdentity{1441, ids.PGCatalogNamespaceOID, "point_add", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{1442, ids.PGCatalogNamespaceOID, "point_sub", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
@@ -1611,7 +1611,7 @@ var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{3033, ids.PGCatalogNamespaceOID, "set_bit", "1560,23,23"}, catalog.FunctionRoutine, 1560, true, expr.Immutable, 's', false, 0, 0, functions.BinaryRoutineProvider},
 	{catalog.RoutineIdentity{4549, ids.PGCatalogNamespaceOID, "unicode_version", ""}, catalog.FunctionRoutine, 25, true, expr.Immutable, 's', false, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{6099, ids.PGCatalogNamespaceOID, "icu_unicode_version", ""}, catalog.FunctionRoutine, 25, true, expr.Immutable, 's', false, 0, 0, functions.CatalogRoutineProvider},
-}
+})
 
 var builtinRoutineByOID = indexBuiltinRoutineDeclarations()
 

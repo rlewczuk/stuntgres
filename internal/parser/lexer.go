@@ -75,15 +75,20 @@ type lexer struct {
 	backslashEscapes bool
 	// Failure-only query recognition defers its capability error until the
 	// entire script is syntactically valid. It never publishes a query AST.
-	pendingMessage     string
-	pendingOffset      int
-	lookahead          rawToken
-	hasLookahead       bool
-	rawUnicode         bool
-	floatPrecision     bool
-	characterPrecision bool
-	characterGeneric   bool
-	bitModifier        bool // Bit modifiers retain nonsimple arithmetic for provider diagnostics.
+	pendingMessage string
+	pendingOffset  int
+	lookahead      rawToken
+	hasLookahead   bool
+	// Temporal call/literal disambiguation retains at most sign, number,
+	// closing parenthesis and string. Raw scanning and callbacks run once.
+	temporalPending      [4]rawToken
+	temporalPendingIndex int
+	temporalPendingCount int
+	rawUnicode           bool
+	floatPrecision       bool
+	characterPrecision   bool
+	characterGeneric     bool
+	bitModifier          bool // Bit modifiers retain nonsimple arithmetic for provider diagnostics.
 	// Temporal keyword forms retain their unsigned-Iconst grammar; generic
 	// descriptor modifiers retain numeric spellings for subsequent int4 input.
 	temporalLead        bool
@@ -752,9 +757,46 @@ func (l *lexer) nextRaw() rawToken {
 		l.hasLookahead = false
 		return l.lookahead
 	}
+	if l.temporalPendingIndex < l.temporalPendingCount {
+		token := l.temporalPending[l.temporalPendingIndex]
+		l.temporalPendingIndex++
+		return token
+	}
 	var v sqlSymType
 	code := l.scan(&v)
 	return rawToken{code: code, lexeme: l.current, unicode: l.rawUnicode, end: l.offset}
+}
+
+// Only a complete precision-literal continuation changes numeric tokenization.
+// Keep the raw tokens so even a large string is decoded once, without changing
+// returned-token depth, grammar state or the opener used by parser diagnostics.
+func (l *lexer) temporalLiteralAhead() bool {
+	current := l.current
+	var pending [4]rawToken
+	pending[0] = l.nextRaw()
+	count, number := 1, 0
+	if pending[0].code == '+' || pending[0].code == '-' {
+		pending[count] = l.nextRaw()
+		number = count
+		count++
+	}
+	literal := false
+	if pending[number].code == NUMBER {
+		pending[count] = l.nextRaw()
+		count++
+		if pending[count-1].code == ')' {
+			pending[count] = l.nextRaw()
+			count++
+			literal = pending[count-1].code == STRING
+		}
+	}
+	if literal {
+		pending[number].lexeme.generic = true
+	}
+	copy(l.temporalPending[:], pending[:count])
+	l.temporalPendingIndex, l.temporalPendingCount = 0, count
+	l.current = current
+	return literal
 }
 
 // filterUnicodeToken keeps parser-facing lexing and procedural name scans on
@@ -815,7 +857,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.insertScalarEntry = false
 		return INSERT_SCALAR_VALUES
 	}
-	if l.insertScalarEnd != 0 && !l.hasLookahead && l.offset >= l.insertScalarEnd {
+	if l.insertScalarEnd != 0 && !l.hasLookahead && l.temporalPendingIndex == l.temporalPendingCount && l.offset >= l.insertScalarEnd {
 		return 0
 	}
 	token := l.nextRaw()
@@ -1433,15 +1475,8 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = LOCAL
 		}
 	}
-	if l.dateLiteralModifier {
-		switch token.code {
-		case NUMBER:
-			token.code = DATE_MODIFIER_NUMBER
-		case int('+'), int('-'), int(')'):
-		default:
-			l.syntax(token.lexeme)
-			return 0
-		}
+	if l.dateLiteralModifier && token.code == NUMBER {
+		token.code = DATE_MODIFIER_NUMBER
 	}
 	// MAC helper calls (including trunc's existing numeric owner) use the
 	// ordinary scalar envelope for DEFAULTs and failure-only decorations.

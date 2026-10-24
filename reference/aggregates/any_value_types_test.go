@@ -33,16 +33,6 @@ func TestReferenceAnyValueTypes(t *testing.T) {
 					run(fixture.Exec("INSERT INTO "+table+" VALUES(NULL),('"+tc.literal+"'),(NULL)", 3))
 					textQuery := "SELECT any_value(v)::text AS retained FROM " + table
 					textStep := fixture.Select(textQuery, []string{"retained"}, []string{"TEXT"}, [][]any{{tc.text}})
-					if !backend.PG {
-						switch tc.typeName {
-						case "INT2", "NUMERIC", "UUID", "NAME":
-							// These existing carriers have no explicit cast to
-							// TEXT. The raw aggregate assertion below remains
-							// the native exact-datum/codec witness.
-							textStep = fixture.Error(textQuery, "0A000")
-							textStep.SelectRows = true
-						}
-					}
 					fixture.AnyValueRoutes(t, p, backend,
 						textStep,
 						fixture.Select("SELECT any_value(v) FROM "+table+" WHERE FALSE", []string{"any_value"}, []string{tc.typeName}, [][]any{{nil}}),

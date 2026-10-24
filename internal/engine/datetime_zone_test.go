@@ -154,10 +154,9 @@ func TestDatetimeZoneSelectedCastDiagnosticAndScopeRestoration(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42846" || diagnostic.Message != "cannot cast type timestamp with time zone to interval" || diagnostic.Position != "35" || b.Consumer.DatetimeZoneOperands {
 			t.Fatal(nested, err, b.Consumer.DatetimeZoneOperands)
 		}
-		// The same failed pair outside selected analysis retains the existing
-		// adjacent unsupported-cast boundary; no new coercion was admitted.
+		// Failure must restore scope; ordinary casts retain the same diagnostic.
 		_, err = b.Cast(span, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || b.Consumer.DatetimeZoneOperands {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42846" || diagnostic.Position != "35" || b.Consumer.DatetimeZoneOperands {
 			t.Fatal("scope leaked", err, b.Consumer.DatetimeZoneOperands)
 		}
 	}

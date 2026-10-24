@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Stage allocates the scalar, codecs and six scalar comparison pairs atomically.
+// Stage allocates the scalar, codecs, comparison pairs and conversions atomically.
 func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "citext")
 	if err != nil {
@@ -26,7 +26,7 @@ func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 		class := ids.ProcedureClassID
 		if i == 0 {
 			class = ids.TypeClassID
-		} else if i >= CitextComparisonOperatorStart {
+		} else if i >= CitextComparisonOperatorStart && i < CitextConversionProcedureStart {
 			class = ids.OperatorClassID
 		}
 		oid, err := stage.AllocateOID()
@@ -95,5 +95,18 @@ func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helpers[i].Name, args), Context: "SQL statement \"CREATE TYPE citext (\n    INPUT          = citextin,\n    OUTPUT         = citextout,\n    RECEIVE        = citextrecv,\n    SEND           = citextsend,\n    INTERNALLENGTH = VARIABLE,\n    STORAGE        = extended,\n    -- make it a non-preferred member of string type category\n    CATEGORY       = 'S',\n    PREFERRED      = false,\n    COLLATABLE     = true\n)\"\nextension script file \"citext--1.4.sql\", near line 46"}
 		}
 	}
-	return p.stageComparisons(stage, ext, owner, typ)
+	if err := p.stageComparisons(stage, ext, owner, typ); err != nil {
+		return err
+	}
+	for i, signature := range []catalog.ProcedureSignature{"1042", "16", "869"} {
+		revision, err := stage.Revision()
+		if err != nil {
+			return err
+		}
+		proc := &catalog.Procedure{ObjectAddress: ext.Members[CitextConversionProcedureStart+i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: "citext", Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: ids.OID(typ.ID()), Volatility: expr.Immutable, Strict: true, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: [3]string{"rtrim1", "booltext", "network_show"}[i]}, Implementation: p}
+		if err := stage.Create(proc); err != nil {
+			return err
+		}
+	}
+	return nil
 }

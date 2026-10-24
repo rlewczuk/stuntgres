@@ -57,11 +57,11 @@ func TestGeometryConversionCTypeNameCapture(t *testing.T) {
 	}
 	sibling := raw
 	sibling.Pos = parser.Position{Offset: 40, Character: 41}
-	if _, handled, err := next.BindSQLCallable(sibling); err != nil || handled {
-		t.Fatal("sibling borrowed retained target", handled, err)
+	if node, handled, err := next.BindSQLCallable(sibling); err != nil || !handled || node.ResultUsage() != captured.Base || next.Prepared.Types[analyze.PreparedTypeKey{Offset: 40, Kind: analyze.TypeNameCast}].Base != captured.Base {
+		t.Fatal("sibling did not acquire its own occurrence", handled, err)
 	}
 	foreign := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, expected)
-	if _, handled, err := foreign.BindSQLCallable(raw); err != nil || handled {
+	if node, handled, err := foreign.BindSQLCallable(raw); err != nil || !handled || node.ResultUsage().Type != foreign.Type(sqltype.Polygon) || node.ResultUsage().Type == captured.Base.Type {
 		t.Fatal("foreign owner reused retained target", handled, err)
 	}
 	bad := *expected
@@ -72,7 +72,7 @@ func TestGeometryConversionCTypeNameCapture(t *testing.T) {
 	}
 	expected.retireAnalysisTypeCasts()
 	retired := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
-	if _, handled, err := retired.BindSQLCallable(raw); err != nil || handled {
-		t.Fatal("retired analysis occurrence revived", handled, err)
+	if node, handled, err := retired.BindSQLCallable(raw); err != nil || !handled || node.ResultUsage() != retired.Type(sqltype.Polygon).Usage() {
+		t.Fatal("retired occurrence failed fresh selection", handled, err)
 	}
 }

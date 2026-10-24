@@ -59,14 +59,7 @@ func TestExplicitCoercionMatrix(t *testing.T) {
 	for _, id := range []ID{Int2, Float4, Float8, Numeric, UUID} {
 		for _, pair := range [][2]ID{{id, Text}, {Text, id}} {
 			_, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit)
-			if (pair[0] == Float4 || pair[0] == Float8) && pair[1] == Text {
-				if err != nil {
-					t.Fatal(pair, err)
-				}
-				continue
-			}
-			var d *sqlstate.Error
-			if !errors.As(err, &d) || d.Code != "0A000" {
+			if err != nil {
 				t.Fatal(pair, err)
 			}
 		}
@@ -157,5 +150,39 @@ func TestExplicitVoidTextCoercion(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatalf("forbidden cast %v→%v mode=%v: diagnostic=%#v error=%v want=%s", tc.source, tc.target, tc.mode, diagnostic, err, tc.code)
 		}
+	}
+}
+
+func TestVoidInputCapability(t *testing.T) {
+	d := testTypes()[Void]
+	ctx := context.Background()
+	for _, text := range []string{"", "nonempty"} {
+		value, err := d.InputWithEnvironment(ctx, text, -1, InputEnvironment{})
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" ||
+			diagnostic.Message != "input of type void is not supported" ||
+			diagnostic.Severity != "ERROR" || diagnostic.SeverityUnlocalized != "ERROR" ||
+			diagnostic.Position != "" || diagnostic.Context != "" || value.Type() != nil {
+			t.Fatalf("VOID input capability diagnostic/value: %#v %#v", value, err)
+		}
+	}
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := d.InputWithEnvironment(canceled, "", -1, InputEnvironment{}); !errors.Is(err, context.Canceled) {
+		t.Fatal("input capability masked cancellation", err)
+	}
+	// An existing runtime VOID still has its real output provider. Refusing
+	// input must not invalidate its non-NULL result or input-free identity.
+	p, err := PlanCoercion(d.Usage(), d.Usage(), Explicit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := p.Apply(ctx, VoidValue(d), InputEnvironment{}, OutputEnvironment{})
+	if err != nil || value.Type() != d || value.IsNull() {
+		t.Fatal("input-free VOID identity", value, err)
+	}
+	text, err := d.Output(ctx, value)
+	if err != nil || text != "" {
+		t.Fatal("VOID output provider", text, err)
 	}
 }

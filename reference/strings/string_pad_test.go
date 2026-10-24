@@ -162,24 +162,7 @@ func TestReferenceStringPadSignatures(t *testing.T) {
 		for _, tc := range []struct{ arg, want any }{{"ab", "ba"}, {"é🙂", "🙂é"}, {nil, nil}, {"ab", "ba"}} {
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(q, []string{"reverse"}, []string{"TEXT"}, [][]any{{tc.want}}, tc.arg))
 		}
-		// Reusing an already-TEXT parameter in a BYTEA cast is a distinct
-		// existing cast capability boundary, not reverse overload resolution.
 		mixed := "SELECT reverse($1),reverse($1::bytea)"
-		if b.PG {
-			stringPadBoth(t, p, b, c, fixture.Select(mixed, []string{"reverse", "reverse"}, []string{"TEXT", "BYTEA"}, [][]any{{"ba", "ba"}}, "ab"))
-		} else {
-			d := fixture.ControlsReferenceDiagnostic("0A000", "explicit casts are supported only for int4, int8, text and bool")
-			d.Position = "30"
-			for _, prepared := range []bool{false, true} {
-				s := fixture.ErrorDiagnostic(mixed, d, "ab")
-				s.SelectRows = true
-				s.ErrorStage = "execute"
-				if prepared {
-					s = fixture.Prepared(s)
-					s.ErrorStage = "prepare"
-				}
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-			}
-		}
+		stringPadBoth(t, p, b, c, fixture.Select(mixed, []string{"reverse", "reverse"}, []string{"TEXT", "BYTEA"}, [][]any{{"ba", "ba"}}, "ab"))
 	})
 }
