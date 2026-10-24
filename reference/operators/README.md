@@ -55,6 +55,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   with fresh bounded contexts even after failed assertions (dependent casts
   before their adapter functions). Replay phases remove these pairs before the
   next backend phase.
+- Retained aggregate binary lifecycle tests publish immutable source Dump bytes
+  only after the source subtest and its cleanup succeed. Fresh-native and
+  PostgreSQL replay consume those original bytes unchanged. A separate native
+  replay owner restores the source, dumps its own state, then resets and restores
+  that same engine from its own emitted Dump. The semantic lifecycle and full
+  final assertions stay shared across owners.
 - Never drop a released `pg_cast` row; declare an absent pair instead.
 - On PostgreSQL the reset `public` schema (a plain CREATE SCHEMA) has no PUBLIC
   USAGE grant: authority cases GRANT schema USAGE to their reader explicitly.

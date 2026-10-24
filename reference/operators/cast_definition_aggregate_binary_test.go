@@ -68,8 +68,8 @@ func TestReferenceCastDefinitionAggregateBinary(t *testing.T) {
 
 	for _, final := range []string{"absent", "inout"} {
 		t.Run("retained_"+final, func(t *testing.T) {
-			var snapshot []byte
-			t.Run("memory", func(t *testing.T) {
+			var candidate []byte
+			sourceOK := t.Run("source", func(t *testing.T) {
 				p := fixture.NewFixture(t, false, true)
 				b := p.Backends()[0]
 				castDefinitionCleanup(t, p, b, [2]string{"text", "bytea"})
@@ -77,27 +77,45 @@ func TestReferenceCastDefinitionAggregateBinary(t *testing.T) {
 				castBinaryLifecycle(t, p.Ctx, b, final)
 				var dump bytes.Buffer
 				if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
-					t.Fatal(err)
+					t.Fatalf("aggregate binary source Dump: %v", err)
+				}
+				candidate = dump.Bytes()
+			})
+			if !sourceOK {
+				t.Fatal("aggregate binary source lifecycle, Dump or cleanup failed; downstream replay has no valid snapshot")
+			}
+			if len(candidate) == 0 {
+				t.Fatal("aggregate binary source Dump produced an empty snapshot")
+			}
+			// t.Run has completed source cleanup; publish its immutable Dump bytes.
+			sourceSnapshot := candidate
+			t.Run("same_native", func(t *testing.T) {
+				p := fixture.NewFixture(t, false, true)
+				b := p.Backends()[0]
+				castDefinitionCleanup(t, p, b, [2]string{"text", "bytea"})
+				castAggregateBinaryCleanup(t, p, b)
+				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(sourceSnapshot)); err != nil {
+					t.Fatalf("aggregate binary same-native initial Restore: %v\n%s", err, sourceSnapshot)
+				}
+				var dump bytes.Buffer
+				if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+					t.Fatalf("aggregate binary same-native Dump: %v", err)
 				}
 				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-					t.Fatal(err)
+					t.Fatalf("aggregate binary same-native Reset: %v", err)
 				}
 				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
-					t.Fatalf("aggregate binary Restore: %v\n%s", err, dump.String())
+					t.Fatalf("aggregate binary same-native re-Restore: %v\n%s", err, dump.String())
 				}
 				castBinaryFinal(t, p.Ctx, b.DB, b, final)
-				snapshot = dump.Bytes()
 			})
-			if len(snapshot) == 0 {
-				t.Fatal("native lifecycle did not produce a snapshot")
-			}
 			t.Run("fresh_native", func(t *testing.T) {
 				p := fixture.NewFixture(t, false, true)
 				b := p.Backends()[0]
 				castDefinitionCleanup(t, p, b, [2]string{"text", "bytea"})
 				castAggregateBinaryCleanup(t, p, b)
-				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(snapshot)); err != nil {
-					t.Fatal(err)
+				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(sourceSnapshot)); err != nil {
+					t.Fatalf("aggregate binary fresh-native Restore: %v\n%s", err, sourceSnapshot)
 				}
 				castBinaryFinal(t, p.Ctx, b.DB, b, final)
 			})
@@ -107,8 +125,8 @@ func TestReferenceCastDefinitionAggregateBinary(t *testing.T) {
 					b := p.Backends()[1]
 					castDefinitionCleanup(t, p, b, [2]string{"text", "bytea"})
 					castAggregateBinaryCleanup(t, p, b)
-					if _, err := b.DB.ExecContext(p.Ctx, string(snapshot)); err != nil {
-						t.Fatalf("actual aggregate binary SQL PostgreSQL replay: %v\n%s", err, snapshot)
+					if _, err := b.DB.ExecContext(p.Ctx, string(sourceSnapshot)); err != nil {
+						t.Fatalf("actual aggregate binary SQL PostgreSQL replay: %v\n%s", err, sourceSnapshot)
 					}
 					castBinaryFinal(t, p.Ctx, b.DB, b, final)
 				})
