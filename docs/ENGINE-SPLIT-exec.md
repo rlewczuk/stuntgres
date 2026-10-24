@@ -71,4 +71,15 @@ producer" paragraph from the root README.
 
 ## Status
 
-- 174: not started.
+- 174: done (`62c06ce5a`, `e72db642f`, `9d71907ee`, docs commit).
+  `exec.OpenNestedQueryRows` (`nested_query_rows.go`), `exec.CTEOwnedRows`
+  (`cte_owned_rows.go`) and `exec.ConsumeRewriteRules` with
+  `exec.RewriteSQLDiagnostic` (`fts_rewrite_rules.go`) moved; the producer reads
+  `Host.Environments()`. Deviations: `CTEOwnedRows` has exported `Owner`,
+  `Previous` and `Source` fields because the root builds it. The pure
+  retained-CTE and close-failure units and the batch demand units moved to
+  `exec` (the exec test keeps the name `TestPLpgSQLQueryLoopLifetime`); the
+  root loop units observe the producer's close through a test wrapper. Bench:
+  5480 allocations per open before and after, about 2.0 ms/op on both sides;
+  `-gcflags=-m` escapes are unchanged (one heap allocation per opened producer
+  and per CTE owner, as on master).

@@ -16,17 +16,15 @@ closing review, did these things:
 - it planned the sixth round, items 168–180;
 - it reset these docs.
 
-Last verified against `master` at `850203e30` (item 173 rebased on it;
-`850203e30` and `49c23b98b` added root production code since item 172's
-check, a finding for item 180).
+Last verified against `master` at `861442188` (item 174 rebased on it; no
+feature commit added root production code since item 173's check).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches. None of them is broad.
 
-- 174, 175 and 176. Item 174 rebases over item 170's rewritten
-  PL/pgSQL query-loop unit tests.
+- 175 and 176.
 
 ## Linear plan
 
@@ -86,8 +84,13 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      quickcheck, quick and `REFERENCE=1` selections and deps passed; bench
      skipped (Restore-only path); racecheck and finalcheck skipped (user
      decision)
-174. [ ] Exec: row owners —
+174. [x] Exec: row owners —
      [exec](ENGINE-SPLIT-exec.md#item-174--row-owners) · needs — · 0.17k
+     (`62c06ce5a`, `e72db642f`, `9d71907ee`, docs commit) · the nested
+     producer, `exec.CTEOwnedRows` and the `ts_rewrite` rule batches and
+     diagnostic mapping moved to `exec`; quickcheck, quick and `REFERENCE=1`
+     selections, `RACE=1` cancellation units, bench (allocations unchanged)
+     and deps passed; racecheck and finalcheck skipped (user decision)
 175. [ ] Table: prepared DROP log —
      [table](ENGINE-SPLIT-table.md#item-175--prepared-drop-log) · needs — ·
      0.37k

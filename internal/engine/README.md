@@ -60,12 +60,10 @@ before lexical scratch activation. Query-loop producer execute/fetch/close range
 exclude body execution, so a body message does not gain a spurious FOR frame.
 No callback stack or rendered context is allocated when a range is empty; error
 unwinding and later adapter callback delivery remain separate.
-Static query loops borrow a private all-row producer (`plQueryRows`, reused per
-nesting depth) under a live lexical activation that spans the body. Pure SELECT
-CTE resources transfer to the returned row owner, whose main stage closes before
-its CTE chain and captured sources. Borrowed CTE scope pointers restore
-independently of retained resource ownership. DML and modifying CTEs complete
-eagerly and settle command effects before body execution, with no second result
+Static query loops (`plQueryRows`, reused per nesting depth) borrow the
+[`exec`](exec/README.md) nested producer and CTE row owner under a live lexical
+activation that spans the body. DML and modifying CTEs complete eagerly and
+settle command effects before body execution, with no second result
 materialization. Its `Close` closes the producers, formats their failures and
 then ends the activation; open failures are already formatted.
 
