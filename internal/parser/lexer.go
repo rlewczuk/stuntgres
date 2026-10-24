@@ -857,6 +857,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = PL_OPEN
 			case "loop":
 				token.code = PL_LOOP
+			case "exit":
+				token.code = PL_EXIT
+			case "continue":
+				token.code = PL_CONTINUE
 			case "next":
 				token.code = PL_NEXT
 			case "prior":

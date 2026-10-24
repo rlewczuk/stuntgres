@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 )
 
-func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, returned bool, err error) {
+func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow plFlow, err error) {
 	raw := in.Syntax.Cursor
 	var failure plDiagnosticQuery
 	action := "OPEN"
@@ -38,12 +38,12 @@ func (s *StatementScope) executePLCursor(d *catalog.Procedure, f *proc.PLFrame, 
 	case parser.PLForCursor:
 		return s.forPLCursor(d, f, in, read)
 	default:
-		return value, false, fmt.Errorf("stuntgres: invalid PL cursor instruction")
+		return value, plFlow{}, fmt.Errorf("stuntgres: invalid PL cursor instruction")
 	}
 	if err != nil {
 		err = plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at "+action, failure)
 	}
-	return value, returned, err
+	return value, flow, err
 }
 
 func plCursorName(f *proc.PLFrame, slot int) (string, error) {
@@ -322,13 +322,13 @@ func (s *StatementScope) assignPLCursorTargets(f *proc.PLFrame, targets []proc.P
 	return nil
 }
 
-func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, returned bool, err error) {
+func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow plFlow, err error) {
 	original := f.Values[in.Cursor.Slot]
 	wasNull := original.Type() == nil || original.IsNull()
 	var failure plDiagnosticQuery
 	cursor, name, err := s.openPLCursor(f, in.Cursor, in.Syntax.Cursor, read, &failure)
 	if err != nil {
-		return value, false, plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at FOR over cursor", failure)
+		return value, plFlow{}, plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at FOR over cursor", failure)
 	}
 	cursor.pinned = true
 	defer func() {
@@ -336,7 +336,7 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in p
 		r := payloadOf(s.op.Session).cursors
 		if r.entries[name] == cursor {
 			delete(r.entries, name)
-			cleanupErr := cursor.dispose(s.op.Context())
+			cleanupErr := cursor.dispose(context.WithoutCancel(s.op.Context()))
 			if err == nil {
 				err = cleanupErr
 			}
@@ -349,28 +349,38 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, f *proc.PLFrame, in p
 	iterated := false
 	fetch := &parser.FetchCursor{Name: parser.Identifier{Text: name}, Count: 1}
 	targets := []proc.PLTarget{{Slot: in.Cursor.LoopSlot}}
+	owner := in.Cursor.Loop.Statements[0].Block.Control
 	for {
 		if err = s.op.Context().Err(); err != nil {
-			return value, false, err
+			return value, plFlow{}, err
 		}
 		previousFound := f.Values[f.Program.FoundSlot]
 		err = s.movePLCursorPortal(f, targets, cursor, fetch, read)
 		found, _ := f.Values[f.Program.FoundSlot].Boolean()
 		f.Values[f.Program.FoundSlot] = previousFound
 		if err != nil {
-			return value, false, plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, in.Syntax.Pos, "at FOR over cursor", false)
+			return value, plFlow{}, plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, in.Syntax.Pos, "at FOR over cursor", false)
 		}
 		if !found {
 			break
 		}
 		iterated = true
-		value, returned, err = s.executePLBlock(d, f, in.Cursor.Loop, read)
-		if err != nil || returned {
-			return value, returned, err
+		value, flow, err = s.executePLBlock(d, f, in.Cursor.Loop, read)
+		if err != nil {
+			return value, flow, err
 		}
+		if flow.kind == plNormal || flow.kind == plContinue && flow.target == owner {
+			continue
+		}
+		f.SetFound(iterated)
+		if flow.kind == plExit && flow.target == owner {
+			return value, plFlow{}, nil
+		}
+		return value, flow, nil
+
 	}
 	f.SetFound(iterated)
-	return value, false, nil
+	return value, plFlow{}, nil
 }
 
 func plCursorExpressionDiagnostic(err error, source string, start, end parser.Position) plDiagnosticQuery {

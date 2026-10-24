@@ -112,9 +112,11 @@ production dependency is involved.
   the world, so after a miss it waits 1 ms on a reusable timer. Native admission
   matches function names, so **update the probes when renaming or moving a
   provider or worker**; a stale name makes the observer wait on a runaway query.
-  - `SleepActiveCancelWithContext` also accepts an independently observed
-    PostgreSQL diagnostic Context; the other helpers require it empty. Native
-    cancellation returns `context.Canceled`.
+  - `SleepActiveCancelWithContext` and `PLpgSQLLoopActiveCancel` accept an
+    independently observed PostgreSQL diagnostic Context. The loop wrapper admits
+    the actual `executePLLoop` worker, including an empty body, without a sleep wait
+    event. Other helpers require empty Context. Native cancellation returns
+    `context.Canceled`.
   - `BinaryConversionActiveCancelAfter` runs a progress callback after admission
     and before cancellation, on the supplied context and a different connection;
     consumers assert a real progress transition, not a timer.

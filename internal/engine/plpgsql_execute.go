@@ -30,9 +30,17 @@ func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame
 	}
 	f := proc.NewPLFrame(d.SQL.PL, d.SQL, input, collation)
 	defer f.Close()
-	result, returned, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
+	result, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
 	if err != nil {
 		return sqltype.Value{}, err
+	}
+	if flow.kind == plExit && flow.target == d.SQL.PL.Root.Control {
+		diagnostic := sqlError("2F005", "control reached end of function without RETURN").(*sqlstate.Error)
+		diagnostic.Context = "PL/pgSQL function " + plRoutineDiagnosticIdentity(read, d)
+		return sqltype.Value{}, diagnostic
+	}
+	if flow.kind != plNormal && flow.kind != plReturn {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: unconsumed PL control transfer")
 	}
 	if d.SQL.PL.Procedure {
 		return sqltype.Value{}, nil
@@ -43,7 +51,7 @@ func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame
 	if d.SQL.Void() {
 		return sqltype.VoidValue(d.SQL.Result.Type), nil
 	}
-	if !returned {
+	if flow.kind != plReturn {
 		diagnostic := sqlError("2F005", "control reached end of function without RETURN").(*sqlstate.Error)
 		diagnostic.Context = "PL/pgSQL function " + plRoutineDiagnosticIdentity(read, d)
 		return sqltype.Value{}, diagnostic
@@ -60,12 +68,17 @@ func (e *plExpressionBindingError) Unwrap() error { return e.error }
 
 func (*plExpressionBindingError) plCallback() bool { return true }
 
-func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, block *proc.PLBlock, read catalog.Read) (sqltype.Value, bool, error) {
+func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, block *proc.PLBlock, read catalog.Read) (value sqltype.Value, flow plFlow, err error) {
 	f.Enter(block)
 	defer f.Leave(block)
+	defer func() {
+		if err == nil && flow.kind == plExit && flow.target == block.Control && block.Control != nil && !block.Control.Loop && !block.FunctionScope {
+			flow = plFlow{}
+		}
+	}()
 	for _, initializer := range block.Declarations {
 		if err := s.op.Context().Err(); err != nil {
-			return sqltype.Value{}, false, err
+			return sqltype.Value{}, plFlow{}, err
 		}
 		variable := f.Program.Variables[initializer.Slot]
 		f.Values[initializer.Slot] = sqltype.Value{}
@@ -89,7 +102,7 @@ func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, b
 			if initializer.Expression != nil {
 				origin = initializer.Start
 			}
-			return sqltype.Value{}, false, plRuntimeError(err, read, d, initializer.Start, initializer.End, origin, "during statement block local variable initialization", false)
+			return sqltype.Value{}, plFlow{}, plRuntimeError(err, read, d, initializer.Start, initializer.End, origin, "during statement block local variable initialization", false)
 		}
 	}
 	if len(block.Handlers) == 0 {
@@ -97,68 +110,82 @@ func (s *StatementScope) executePLBlock(d *catalog.Procedure, f *proc.PLFrame, b
 	}
 	checkpoint, err := s.beginPLException()
 	if err != nil {
-		return sqltype.Value{}, false, err
+		return sqltype.Value{}, plFlow{}, err
 	}
-	value, returned, bodyErr := s.executePLStatements(d, f, block.Statements, read)
+	value, flow, bodyErr := s.executePLStatements(d, f, block.Statements, read)
 	if err := s.endPLException(checkpoint, bodyErr != nil, bodyErr); err != nil {
-		return sqltype.Value{}, false, err
+		return sqltype.Value{}, plFlow{}, err
 	}
 	if bodyErr == nil {
-		return value, returned, nil
+		return value, flow, nil
 	}
 	var cleanup *plExceptionCleanupError
 	var diagnostic *sqlstate.Error
 	if errors.As(bodyErr, &cleanup) || !errors.As(bodyErr, &diagnostic) {
-		return sqltype.Value{}, false, bodyErr
+		return sqltype.Value{}, plFlow{}, bodyErr
 	}
 	handler := block.MatchException(diagnostic)
 	if handler == nil {
-		return sqltype.Value{}, false, bodyErr
+		return sqltype.Value{}, plFlow{}, bodyErr
 	}
 	previous := f.EnterHandler(block.HandlerScope, diagnostic)
 	defer f.LeaveHandler(block.HandlerScope, previous)
 	return s.executePLStatements(d, f, handler.Statements, read)
 }
 
-func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFrame, statements []proc.PLInstruction, read catalog.Read) (sqltype.Value, bool, error) {
+func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFrame, statements []proc.PLInstruction, read catalog.Read) (sqltype.Value, plFlow, error) {
 	for _, instruction := range statements {
 		if err := s.op.Context().Err(); err != nil {
-			return sqltype.Value{}, false, err
+			return sqltype.Value{}, plFlow{}, err
 		}
 		if instruction.Block != nil {
-			value, returned, err := s.executePLBlock(d, f, instruction.Block, read)
-			if err != nil || returned {
-				return value, returned, err
+			value, flow, err := s.executePLBlock(d, f, instruction.Block, read)
+			if err != nil || flow.kind != plNormal {
+				return value, flow, err
 			}
 			continue
 		}
 		if instruction.If != nil || instruction.Case != nil {
-			value, returned, err := s.executePLConditional(d, f, instruction, read)
-			if err != nil || returned {
-				return value, returned, err
+			value, flow, err := s.executePLConditional(d, f, instruction, read)
+			if err != nil || flow.kind != plNormal {
+				return value, flow, err
 			}
 			continue
 		}
 		if instruction.Cursor != nil {
-			value, returned, err := s.executePLCursor(d, f, instruction, read)
-			if err != nil || returned {
-				return value, returned, err
+			value, flow, err := s.executePLCursor(d, f, instruction, read)
+			if err != nil || flow.kind != plNormal {
+				return value, flow, err
+			}
+			continue
+		}
+		if instruction.Loop != nil {
+			value, flow, err := s.executePLLoop(d, f, instruction.Loop, read)
+			if err != nil || flow.kind != plNormal {
+				return value, flow, err
+			}
+			continue
+		}
+		if instruction.Transfer != nil {
+			value, flow, err := s.executePLTransfer(d, f, instruction, read)
+			if err != nil || flow.kind != plNormal {
+				return value, flow, err
 			}
 			continue
 		}
 		statement := instruction.Syntax
 		if statement.Rethrow {
 			if diagnostic := f.HandledError(); diagnostic != nil {
-				return sqltype.Value{}, false, diagnostic
+				return sqltype.Value{}, plFlow{}, diagnostic
 			}
 			diagnostic := sqlError("0Z002", "RAISE without parameters cannot be used outside an exception handler").(*sqlstate.Error)
 			line := strings.Count(d.SQL.Source[:statement.Pos.Offset], "\n") + 1
 			diagnostic.Context = fmt.Sprintf("PL/pgSQL function %s line %d at RAISE", plRoutineDiagnosticIdentity(read, d), line)
-			return sqltype.Value{}, false, diagnostic
+			return sqltype.Value{}, plFlow{}, diagnostic
 		}
 		if statement.Return {
 			if statement.Expression == nil {
-				return sqltype.Value{}, true, nil
+				return sqltype.Value{}, plFlow{kind: plReturn}, nil
 			}
 			value, _, _, err := s.evaluatePLExpression(f, instruction.Query, read, nil)
 			expressionError := err != nil
@@ -172,13 +199,13 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 				}
 			}
 			if err != nil {
-				return sqltype.Value{}, false, plRuntimeError(err, read, d, statement.ExpressionStart, statement.ExpressionEnd, statement.Pos, "at RETURN", expressionError)
+				return sqltype.Value{}, plFlow{}, plRuntimeError(err, read, d, statement.ExpressionStart, statement.ExpressionEnd, statement.Pos, "at RETURN", expressionError)
 			}
-			return value, true, nil
+			return value, plFlow{kind: plReturn}, nil
 		}
 		if len(instruction.Target.Steps) != 0 {
 			if _, err := s.assignPLTarget(f, instruction.Target, statement.Target, instruction.Query, read); err != nil {
-				return sqltype.Value{}, false, plAssignmentError(err, read, d, statement)
+				return sqltype.Value{}, plFlow{}, plAssignmentError(err, read, d, statement)
 			}
 			continue
 		}
@@ -201,10 +228,10 @@ func (s *StatementScope) executePLStatements(d *catalog.Procedure, f *proc.PLFra
 			} else if expressionError && !d.SQL.Trigger && plExpressionCallback(err) {
 				query = plBodyDiagnostic(d.SQL.Source, statement.Pos, statement.ExpressionEnd, plAssignmentCallback)
 			}
-			return sqltype.Value{}, false, plRuntimeQueryError(err, read, d, statement.Pos, "at assignment", query)
+			return sqltype.Value{}, plFlow{}, plRuntimeQueryError(err, read, d, statement.Pos, "at assignment", query)
 		}
 	}
-	return sqltype.Value{}, false, nil
+	return sqltype.Value{}, plFlow{}, nil
 }
 
 type plExpressionPlanningError struct{ error }

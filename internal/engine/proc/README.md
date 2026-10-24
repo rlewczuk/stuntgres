@@ -137,7 +137,12 @@ The higher root owns reached SQL binding, conversion, handler admission and
 execution. PL VOID uses non-NULL `VoidValue`; procedure completion is separate.
 PL nesting borrows the same balanced SQL-body/root guard, not a second counter.
 Conditional statement lists reuse their enclosing lexical scopes; only BEGIN
-creates a scope. Checked ordered branches cache syntax queries, never bound
+introduces declarations. Loop scopes retain label identity without new local slots.
+Immutable acyclic control tokens identify each executable block/loop and the
+hidden function namespace; transfers retain the exact enclosing target token.
+Validation reconstructs owner order, kind, ancestry and condition queries, including
+positioned projection aliases. No invocation flow or evaluated WHEN value persists.
+Checked ordered branches cache syntax queries, never bound
 evaluators. Simple CASE search slots are separate invocation-private Value/Usage
 pairs, not declarations, formals or persisted type dependencies. Their canonical
 private names cannot occur in SQL source. Provider validation checks exact query,
@@ -202,4 +207,5 @@ make check RACE=1 RUN='^(TestSQLRoutine|TestRoutineParameterLayout)'
 make check RUN='^TestReferenceRoutine(Core|SQLBodies|Review|Parameters)'
 make check RACE=1 RUN='^TestPLException(Matcher|ProgramValidation)$'
 make check RACE=1 RUN='^TestPLpgSQLConditional(Compiler|Validation|Frame|Remap)$'
+make check RACE=1 RUN='^TestPLpgSQLLoop(Compiler|Validation|Frame|Remap|Cancellation)$'
 ```

@@ -29,6 +29,13 @@ before the boundary. Success releases it; failure restores effects before matchi
 and runs the handler outside the failed mark. Provider callbacks run unlocked,
 cleanup ignores cancellation, and failed cleanup prevents further handler execution
 while preserving the originating diagnostic and secondary failure.
+RETURN/EXIT/CONTINUE use compact non-error flow, so successful protected transfers
+release checkpoints rather than invoking handlers. Blocks and loops consume only
+their own transfers; cursor-FOR publishes FOUND and retires its owned portal before
+propagating outward flow, restoring initially NULL cursor variables. Loop iteration
+checks the admitted operation context even for an empty body, without allocating a
+control signal per iteration. The hidden function namespace is not a block-exit
+consumer; an escaping EXIT reaches the routine's missing-RETURN diagnostic.
 PL and SQL context decoration uses `sqlstate.WithDiagnostic`: the decorated
 primary diagnostic is visible through `errors.As`, while the original cause,
 fatal cleanup classification and secondary failure remain traversable across calls.

@@ -17,6 +17,9 @@ backward behavior independently of cost-selected PostgreSQL strategies.
 Ownership scenarios exercise promoted FETCH/MOVE inside enclosing writes, retained
 FOR identity under variable reassignment, and pinned-portal CLOSE errors with
 cleanup. User drop protection is distinct from terminal transaction/session cleanup.
+Loop-transfer scenarios observe owned portal cleanup before transaction end,
+including outward EXIT/CONTINUE, cursor-FOR label targets, FOUND publication and
+initially NULL cursor restoration.
 Source/phase scenarios compare complete diagnostics for static, bound and dynamic
 OPEN plus count expressions, including Unicode/grouping and independent action
 lines. Bound arguments bind/evaluate as a whole first-row projection before formal
@@ -72,7 +75,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - SCROLL and motion (FETCH/MOVE directions): `RUN='^TestReferenceSQLCursor(Scroll|Move|Motion|NoScroll|ZeroAndDirections)'`
 - `pg_cursors`: `RUN='^TestReferencePGCursors'`
 - PL/pgSQL cursors: `RUN='^TestReferencePLpgSQLCursor'`
-- PL publication/loop ownership: `RUN='^TestReferencePLpgSQLCursorPortalOwnership$'`
+- PL publication/loop ownership: `RUN='^TestReferencePLpgSQLCursor(For|PortalOwnership|LoopTransfers)$'`
 - PL source/phase, count precedence and nested identities: `RUN='^TestReferencePLpgSQLCursor(ErrorProvenance|CountPrecedence|NestedOpenNames)$'`
 - PL cursor/CASE diagnostic ledger: `RUN='^TestReferencePLpgSQLCursorDiagnosticLedger$'`
 - PL FOUND/name publication: `RUN='^TestReferencePLpgSQLCursor(FoundPublication|ConstantOpen)$'`

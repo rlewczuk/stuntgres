@@ -73,7 +73,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 				defer cancel()
 				s.op.Ctx = conditionalFrameCancel{Context: ctx, cancel: cancel, frame: f}
 			}
-			value, returned, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
+			value, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
 			if tc.cancel {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal("active search cancellation lost", err)
@@ -89,8 +89,8 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 				}
 			} else {
 				n, failure := value.Integer()
-				if err != nil || failure != nil || !returned || n != 7 {
-					t.Fatal("nested RETURN did not propagate", value, returned, err)
+				if err != nil || failure != nil || flow.kind != plReturn || n != 7 {
+					t.Fatal("nested RETURN did not propagate", value, flow, err)
 				}
 			}
 			if len(f.Scopes) != 0 || s.sqlRoutine.lexical != nil || s.activeSQLRoutineDepth != 0 {

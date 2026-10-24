@@ -35,6 +35,7 @@ type PLVariable struct {
 }
 type PLBlock struct {
 	Syntax        *parser.PLBlock
+	Control       *PLControl
 	Label         string
 	FunctionScope bool // Implicit FOUND overlay; Bindings remains the canonical formal namespace.
 	Bindings      map[string]int
@@ -42,6 +43,13 @@ type PLBlock struct {
 	Statements    []PLInstruction
 	HandlerScope  *PLBlock
 	Handlers      []PLHandler
+}
+
+// Control is an immutable, acyclic owner token. Targets retain identity without
+// retaining an enclosing instruction/block graph or any invocation state.
+type PLControl struct {
+	ID   int
+	Loop bool
 }
 type PLCondition struct {
 	Codes  []string
@@ -66,13 +74,15 @@ type PLTarget struct {
 	Steps []parser.TargetStep
 }
 type PLInstruction struct {
-	Syntax *parser.PLStatement
-	Query  *parser.Select
-	Block  *PLBlock
-	Target PLTarget
-	If     *PLConditional
-	Case   *PLConditional
-	Cursor *PLCursorInstruction
+	Syntax   *parser.PLStatement
+	Query    *parser.Select
+	Block    *PLBlock
+	Target   PLTarget
+	If       *PLConditional
+	Case     *PLConditional
+	Cursor   *PLCursorInstruction
+	Loop     *PLBlock
+	Transfer *PLControl
 }
 type PLConditional struct {
 	Search     *parser.Select
@@ -142,7 +152,7 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 	p := &PLProgram{Syntax: syntax, FormalCount: len(definition.Formals), Function: definition.Name, Procedure: procedure, Source: definition.Source}
 	returnPolicy := PLReturnPolicy(definition.Result, len(definition.OutputFormals), procedure)
 	var diagnostics plDiagnosticDatums
-	outer := &PLBlock{Label: definition.Name, Bindings: make(map[string]int), FunctionScope: true}
+	outer := &PLBlock{Label: definition.Name, Bindings: make(map[string]int), FunctionScope: true, Control: &PLControl{ID: 1}}
 	p.Root = outer
 	if definition.Trigger {
 		if procedure || len(definition.Formals) != 0 || definition.Result.Type == nil || definition.Result.Type.ID() != 2279 {
@@ -179,6 +189,7 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 	}
 	p.FoundSlot = len(p.Variables)
 	p.Variables = append(p.Variables, PLVariable{Name: "found", Usage: found, Role: PLFoundSlot})
+	nextControl := 2
 	var compile func(*parser.PLBlock, []*PLBlock) (*PLBlock, error)
 	var compileStatements func([]parser.PLStatement, []*PLBlock) ([]PLInstruction, error)
 	var compileConditional func(*parser.PLConditional, bool, []*PLBlock) (*PLConditional, error)
@@ -275,6 +286,13 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 					loopScope.Statements = []PLInstruction{{Block: loop}}
 					cursor.Loop, cursor.LoopSlot = loopScope, loopSlot
 				}
+			case statement.Loop != nil:
+				instruction.Loop, err = compile(statement.Loop, scopes)
+			case statement.Transfer != nil:
+				instruction.Transfer, err = resolvePLControl(statement.Transfer, statement.Pos, scopes)
+				if statement.Transfer.Alias.Text != "" && instruction.Query != nil {
+					instruction.Query.Labels = []parser.Identifier{statement.Transfer.Alias}
+				}
 			case statement.Block != nil:
 				instruction.Block, err = compile(statement.Block, scopes)
 			case statement.If != nil:
@@ -315,7 +333,8 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 		return instructions, nil
 	}
 	compile = func(raw *parser.PLBlock, scopes []*PLBlock) (*PLBlock, error) {
-		block := &PLBlock{Syntax: raw, Label: raw.Label.Text, Bindings: make(map[string]int)}
+		block := &PLBlock{Syntax: raw, Label: raw.Label.Text, Bindings: make(map[string]int), Control: &PLControl{ID: nextControl, Loop: raw.IsLoop}}
+		nextControl++
 		scopes = append(scopes, block)
 		for _, decl := range raw.Declarations {
 			if _, exists := block.Bindings[decl.Name.Text]; exists {

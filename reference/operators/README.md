@@ -100,6 +100,9 @@ Parameter-dependent WHEN failures retain execution-only context, contrasting
 with constant-folding failures. Native cleanup-provider units also exercise
 simple CASE WHEN through called PL and SQL wrappers without admitting OTHERS
 after fatal cleanup failure.
+Loop scenarios reuse the same direct/prepared, held and replay helpers for bounded
+iteration, nested label transfers, reached WHEN evaluation, complete diagnostics,
+protected effects and actively admitted cancellation.
 
 ```sh
 make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRecords|Returns|LazyBinding|LanguageAuthority|Persistence|CompositeNull|RecordClear|CompositeDomain|CopiedCollation|InvocationCollation|FormalNamespace)$'
@@ -110,6 +113,7 @@ make check RUN='^TestSQLRoutineDumpEventsUseResolver$'
 
 ```sh
 make check RUN='^TestReferencePLpgSQLConditional(If|Conversion|SearchedCase|SimpleCase|Nested|Diagnostics|Atomicity|Persistence|ReviewProvenance)$'
+make check RUN='^TestReferencePLpgSQLLoop(Bounded|Continue|Conditions|Labels|Diagnostics|HiddenLabel|Atomicity|Cancellation|Persistence)$'
 ```
 
 ### PL/pgSQL exception blocks

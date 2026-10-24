@@ -38,6 +38,8 @@ type PLDeclaration struct {
 }
 type PLStatement struct {
 	Block               *PLBlock
+	Loop                *PLBlock
+	Transfer            *PLTransfer
 	Target              Expr
 	Expression          Expr
 	Return              bool
@@ -52,10 +54,18 @@ type PLStatement struct {
 }
 type PLBlock struct {
 	Label        Identifier
+	EndLabel     Identifier
+	IsLoop       bool
 	Declarations []PLDeclaration
 	Statements   []PLStatement
 	Handlers     []PLHandler
 	Pos          Position
+}
+
+type PLTransfer struct {
+	Continue bool
+	Label    Identifier
+	Alias    Identifier // Optional scalar projection alias in WHEN.
 }
 
 type PLCondition struct {
@@ -81,6 +91,7 @@ const (
 	plThenBoundary
 	plWhenBoundary
 	plWhenItemBoundary
+	plSemicolonBoundary
 )
 
 func (l *lexer) plBeginExpression(boundary plExpressionBoundary) {
@@ -106,6 +117,8 @@ func (l *lexer) plExpressionToken(token rawToken) rawToken {
 			code = PL_WHEN
 		case token.code == ',' && l.plBoundary == plWhenItemBoundary:
 			code = PL_WHEN_COMMA
+		case token.code == ';' && l.plBoundary == plSemicolonBoundary:
+			code = ';'
 		}
 		if code != 0 {
 			token.code = code
@@ -148,6 +161,7 @@ func PLBodyError(err error, origin Position) error {
 // procedural delimiter, retaining grouping and excluding trailing trivia.
 type PLExpression struct {
 	Expression Expr
+	Alias      Identifier
 	Start      Position
 	End        Position
 	Delimiter  Position
@@ -242,13 +256,19 @@ func ParsePLpgSQL(source string, returns PLReturnPolicy) (*PLBlock, error) {
 
 func (l *lexer) plBlock(label Identifier, declarations []PLDeclaration, statements []PLStatement, end Identifier, pos Position) *PLBlock {
 	if end.Text != "" && end.Text != label.Text {
-		message := fmt.Sprintf("end label %q differs from block's label %q", end.Text, label.Text)
+		message := fmt.Sprintf(`end label "%s" differs from block's label "%s"`, end.Text, label.Text)
 		if label.Text == "" {
-			message = fmt.Sprintf("end label %q specified for unlabeled block", end.Text)
+			message = fmt.Sprintf(`end label "%s" specified for unlabeled block`, end.Text)
 		}
 		l.failAt("42601", message, end.Pos.Offset)
 	}
-	return &PLBlock{Label: label, Declarations: declarations, Statements: statements, Pos: pos}
+	return &PLBlock{Label: label, EndLabel: end, Declarations: declarations, Statements: statements, Pos: pos}
+}
+
+func (l *lexer) plLoop(label Identifier, statements []PLStatement, end Identifier, pos Position) *PLBlock {
+	block := l.plBlock(label, nil, statements, end, pos)
+	block.IsLoop = true
+	return block
 }
 
 // PLExpressionSource is diagnostic provenance only, never reparsed or rewritten.

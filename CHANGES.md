@@ -1,3 +1,7 @@
+PL/pgSQL supports unconditional LOOP, labeled EXIT/CONTINUE and WHEN conditions,
+including nested block/cursor transfers, cancellation and stored-definition replay.
+Quoted label diagnostics preserve literal identifier contents.
+
 Trigger rename, extension dependencies and table-qualified DROP preserve installed
 definitions and partition clone identities, participate in transactions, and
 survive native Dump/Restore.

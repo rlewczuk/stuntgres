@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFrame, instruction proc.PLInstruction, read catalog.Read) (sqltype.Value, bool, error) {
+func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFrame, instruction proc.PLInstruction, read catalog.Read) (sqltype.Value, plFlow, error) {
 	checked, raw, action := instruction.If, instruction.Syntax.If, "at IF"
 	isCase := instruction.Case != nil
 	if isCase {
@@ -17,22 +17,22 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 	}
 	if checked.Search != nil {
 		if err := s.op.Context().Err(); err != nil {
-			return sqltype.Value{}, false, err
+			return sqltype.Value{}, plFlow{}, err
 		}
 		value, usage, _, err := s.evaluatePLExpression(f, checked.Search, read, nil)
 		if err != nil {
-			return sqltype.Value{}, false, plRuntimeError(err, read, d, raw.Search.Start, raw.Search.End, instruction.Syntax.Pos, action, true)
+			return sqltype.Value{}, plFlow{}, plRuntimeError(err, read, d, raw.Search.Start, raw.Search.End, instruction.Syntax.Pos, action, true)
 		}
 		f.Searches[checked.SearchSlot] = proc.PLSearch{Value: value, Usage: usage}
 		defer func() { f.Searches[checked.SearchSlot] = proc.PLSearch{} }()
 	}
 	boolean, ok := read.LookupType(sqltype.Bool)
 	if !ok {
-		return sqltype.Value{}, false, errors.New("stuntgres: missing PL condition Boolean type")
+		return sqltype.Value{}, plFlow{}, errors.New("stuntgres: missing PL condition Boolean type")
 	}
 	for i, branch := range checked.Arms {
 		if err := s.op.Context().Err(); err != nil {
-			return sqltype.Value{}, false, err
+			return sqltype.Value{}, plFlow{}, err
 		}
 		value, _, _, err := s.evaluatePLExpression(f, branch.Query, read, nil)
 		expressionError := err != nil
@@ -45,14 +45,14 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 			if checked.Search != nil && expressionError {
 				err = plCaseExpressionError(err, branch, first.Start)
 			}
-			return sqltype.Value{}, false, plRuntimeError(err, read, d, first.Start, arm.Conditions[len(arm.Conditions)-1].End, instruction.Syntax.Pos, action, expressionError && checked.Search == nil)
+			return sqltype.Value{}, plFlow{}, plRuntimeError(err, read, d, first.Start, arm.Conditions[len(arm.Conditions)-1].End, instruction.Syntax.Pos, action, expressionError && checked.Search == nil)
 		}
 		if value.IsNull() {
 			continue
 		}
 		truth, err := value.Boolean()
 		if err != nil {
-			return sqltype.Value{}, false, err
+			return sqltype.Value{}, plFlow{}, err
 		}
 		if truth {
 			return s.executePLStatements(d, f, branch.Statements, read)
@@ -61,7 +61,7 @@ func (s *StatementScope) executePLConditional(d *catalog.Procedure, f *proc.PLFr
 	if isCase && !checked.HasElse {
 		err := sqlError("20000", "case not found").(*sqlstate.Error)
 		err.Hint = "CASE statement is missing ELSE part."
-		return sqltype.Value{}, false, plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, instruction.Syntax.Pos, action, false)
+		return sqltype.Value{}, plFlow{}, plRuntimeError(err, read, d, parser.Position{}, parser.Position{}, instruction.Syntax.Pos, action, false)
 	}
 	return s.executePLStatements(d, f, checked.Else, read)
 }

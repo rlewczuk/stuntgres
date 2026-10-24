@@ -91,9 +91,9 @@ func TestPLExceptionParticipants(t *testing.T) {
 		ownerExtensionOf(s.owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}}}}
-		_, returned, err := s.executePLBlock(nil, frame, block, e.CatalogRead())
-		if returned || !errors.Is(err, failure) || len(s.owner.Savepoints) != 0 || !reflect.DeepEqual(tx.calls, []string{"save:stuntgres_sql_1", "rollback"}) {
-			t.Fatal("failed acquisition ran body/retained provider mark", returned, err, tx.calls)
+		_, flow, err := s.executePLBlock(nil, frame, block, e.CatalogRead())
+		if flow.kind != plNormal || !errors.Is(err, failure) || len(s.owner.Savepoints) != 0 || !reflect.DeepEqual(tx.calls, []string{"save:stuntgres_sql_1", "rollback"}) {
+			t.Fatal("failed acquisition ran body/retained provider mark", flow, err, tx.calls)
 		}
 	})
 	t.Run("rollback_failure_preserves_primary_and_skips_handler", func(t *testing.T) {
@@ -119,11 +119,11 @@ func TestPLExceptionParticipants(t *testing.T) {
 		frame.EnterHandler(scope, original)
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Rethrow: true}}}, HandlerScope: scope, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
 		enclosing := &proc.PLBlock{Statements: []proc.PLInstruction{{Block: block}}, HandlerScope: scope, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
-		_, returned, err := s.executePLBlock(nil, frame, enclosing, e.CatalogRead())
+		_, flow, err := s.executePLBlock(nil, frame, enclosing, e.CatalogRead())
 		var diagnostic *sqlstate.Error
 		var cleanup *plExceptionCleanupError
-		if returned || !errors.As(err, &cleanup) || !errors.As(err, &diagnostic) || diagnostic != original || !errors.Is(err, failure) {
-			t.Fatal("cleanup failure swallowed/replaced origin or ran handler", returned, err)
+		if flow.kind != plNormal || !errors.As(err, &cleanup) || !errors.As(err, &diagnostic) || diagnostic != original || !errors.Is(err, failure) {
+			t.Fatal("cleanup failure swallowed/replaced origin or ran handler", flow, err)
 		}
 	})
 	t.Run("cancellation_independent_cleanup", func(t *testing.T) {
@@ -152,9 +152,9 @@ func TestPLExceptionParticipants(t *testing.T) {
 		s.op.Ctx = ctx
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
-		_, returned, err := s.executePLBlock(nil, frame, block, e.CatalogRead())
-		if returned || !errors.Is(err, context.Canceled) || len(s.owner.Savepoints) != 0 {
-			t.Fatal("OTHERS swallowed ordinary context error", returned, err)
+		_, flow, err := s.executePLBlock(nil, frame, block, e.CatalogRead())
+		if flow.kind != plNormal || !errors.Is(err, context.Canceled) || len(s.owner.Savepoints) != 0 {
+			t.Fatal("OTHERS swallowed ordinary context error", flow, err)
 		}
 	})
 }

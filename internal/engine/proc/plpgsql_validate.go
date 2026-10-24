@@ -22,6 +22,11 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 	if p.Root.Label != p.Function || len(p.Root.Declarations) != 0 || len(p.Root.Handlers) != 0 || p.Root.HandlerScope != nil || p.Root.Statements[0].Syntax != nil || !emptyPLInstructionPayload(p.Root.Statements[0]) {
 		return invalid()
 	}
+	if p.Root.Control == nil || p.Root.Control.ID != 1 || p.Root.Control.Loop || p.Syntax.IsLoop {
+		return invalid()
+	}
+	nextControl := 2
+	controls := map[*PLControl]bool{p.Root.Control: true}
 	bindings := p.FormalCount
 	formalBindings := make(map[string]int)
 	if p.Trigger != d.Trigger || d.Trigger && (p.Procedure || len(d.Formals) != 0 || d.Result.Type == nil || d.Result.Type.ID() != 2279 || len(p.Variables) < TriggerSlotCount) {
@@ -74,11 +79,11 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 	var walk func(*PLBlock, *parser.PLBlock, []*PLBlock) error
 	searches := 0
 	queries := make(map[*parser.Select]bool)
-	query := func(checked *parser.Select, raw parser.Expr) bool {
+	query := func(checked *parser.Select, raw parser.Expr, alias ...parser.Identifier) bool {
 		if raw == nil {
-			return checked == nil
+			return checked == nil && (len(alias) == 0 || alias[0] == (parser.Identifier{}))
 		}
-		if checked == nil || queries[checked] || !plQueryShape(checked, raw.SourcePosition()) || !reflect.DeepEqual(checked.Targets[0], raw) || !plPrivateReferences(checked, "") {
+		if checked == nil || queries[checked] || !plQueryShape(checked, raw.SourcePosition(), alias...) || !reflect.DeepEqual(checked.Targets[0], raw) || !plPrivateReferences(checked, "") {
 			return false
 		}
 		queries[checked] = true
@@ -169,6 +174,9 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			if instruction.Syntax != raw || raw.Pos.Offset < 0 || raw.Pos.Offset >= len(d.Source) || raw.Pos.Character <= 0 || !plSourceSpan(d.Source, raw.Expression, raw.ExpressionStart, raw.ExpressionEnd, raw.ExpressionDelimiter) {
 				return invalid()
 			}
+			if (instruction.Loop != nil) != (raw.Loop != nil) || (instruction.Transfer != nil) != (raw.Transfer != nil) {
+				return invalid()
+			}
 			if err := diagnostics.target(p, d.Source, raw, scopes); err != nil {
 				return invalid()
 			}
@@ -176,7 +184,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			variants := 0
-			for _, present := range []bool{raw.Block != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
+			for _, present := range []bool{raw.Block != nil, raw.Loop != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
 				if present {
 					variants++
 				}
@@ -185,6 +193,15 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			switch {
+			case raw.Loop != nil:
+				if !raw.Loop.IsLoop || instruction.Block != nil || instruction.Query != nil || instruction.If != nil || instruction.Case != nil || instruction.Cursor != nil || instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 || raw.Expression != nil || walk(instruction.Loop, raw.Loop, scopes) != nil {
+					return invalid()
+				}
+			case raw.Transfer != nil:
+				target, err := resolvePLControl(raw.Transfer, raw.Pos, scopes)
+				if err != nil || target != instruction.Transfer || instruction.Block != nil || instruction.If != nil || instruction.Case != nil || instruction.Cursor != nil || instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 || !query(instruction.Query, raw.Expression, raw.Transfer.Alias) {
+					return invalid()
+				}
 			case raw.Cursor != nil:
 				if instruction.Block != nil || instruction.If != nil || instruction.Case != nil || instruction.Query != nil || instruction.Cursor == nil || instruction.Target.Slot != 0 || len(instruction.Target.Steps) != 0 || raw.Expression != nil {
 					return invalid()
@@ -202,6 +219,9 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 					queries[query] = true
 				}
 				if raw.Cursor.Loop != nil {
+					if !raw.Cursor.Loop.IsLoop || instruction.Cursor.Loop == nil || instruction.Cursor.Loop.Control != nil {
+						return invalid()
+					}
 					loop := instruction.Cursor.Loop
 					if slot >= len(p.Variables) || instruction.Cursor.LoopSlot != slot || loop == nil || loop.FunctionScope || loop.Syntax != nil || loop.Label != "" || len(loop.Declarations) != 0 || len(loop.Statements) != 1 || loop.Statements[0].Syntax != nil || !emptyPLInstructionPayload(loop.Statements[0]) || len(loop.Bindings) != 1 || loop.Bindings[raw.Cursor.LoopName.Text] != slot || loop.HandlerScope != nil || len(loop.Handlers) != 0 {
 						return invalid()
@@ -218,7 +238,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 					return invalid()
 				}
 			case raw.Block != nil:
-				if !emptyPLInstructionPayload(instruction) || walk(instruction.Block, raw.Block, scopes) != nil {
+				if raw.Block.IsLoop || !emptyPLInstructionPayload(instruction) || walk(instruction.Block, raw.Block, scopes) != nil {
 					return invalid()
 				}
 			case raw.If != nil || raw.Case != nil:
@@ -268,7 +288,12 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 		if block == nil || raw == nil || block.FunctionScope || block.Syntax != raw || block.Label != raw.Label.Text || len(block.Statements) != len(raw.Statements) {
 			return invalid()
 		}
-		visible := &PLBlock{Label: block.Label, Bindings: make(map[string]int)}
+		if block.Control == nil || controls[block.Control] || block.Control.ID != nextControl || block.Control.Loop != raw.IsLoop || raw.EndLabel.Text != "" && raw.EndLabel.Text != raw.Label.Text || raw.IsLoop && (len(raw.Declarations) != 0 || len(raw.Handlers) != 0) {
+			return invalid()
+		}
+		controls[block.Control] = true
+		nextControl++
+		visible := &PLBlock{Label: block.Label, Bindings: make(map[string]int), Control: block.Control}
 		scopes = append(scopes, visible)
 		initial := 0
 		for _, decl := range raw.Declarations {
@@ -396,7 +421,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			return nil
 		}
 		scope := block.HandlerScope
-		if scope == nil || scope.FunctionScope || scope.Syntax != nil || scope.Label != "" || len(scope.Bindings) != 2 || len(scope.Declarations) != 0 || len(scope.Statements) != 0 || len(scope.Handlers) != 0 || scope.HandlerScope != nil {
+		if scope == nil || scope.Control != nil || scope.FunctionScope || scope.Syntax != nil || scope.Label != "" || len(scope.Bindings) != 2 || len(scope.Declarations) != 0 || len(scope.Statements) != 0 || len(scope.Handlers) != 0 || scope.HandlerScope != nil {
 			return invalid()
 		}
 		for _, name := range []string{"sqlstate", "sqlerrm"} {
@@ -437,11 +462,14 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 	return nil
 }
 
-func plQueryShape(query *parser.Select, pos parser.Position) bool {
+func plQueryShape(query *parser.Select, pos parser.Position, alias ...parser.Identifier) bool {
 	if query == nil || len(query.Targets) != 1 {
 		return false
 	}
 	expected := parser.Select{Targets: query.Targets, Pos: pos}
+	if len(alias) != 0 && alias[0].Text != "" {
+		expected.Labels = alias
+	}
 	return reflect.DeepEqual(query, &expected)
 }
 
@@ -504,7 +532,7 @@ func samePLTargetStep(a, b parser.TargetStep) bool {
 }
 
 func samePLScope(a, b *PLBlock) bool {
-	return a != nil && b != nil && a.Label == b.Label && a.FunctionScope == b.FunctionScope && a.Syntax == nil && len(a.Declarations) == 0 && len(a.Statements) == 0 && a.HandlerScope == nil && len(a.Handlers) == 0 && maps.Equal(a.Bindings, b.Bindings)
+	return a != nil && b != nil && a.Control == nil && a.Label == b.Label && a.FunctionScope == b.FunctionScope && a.Syntax == nil && len(a.Declarations) == 0 && len(a.Statements) == 0 && a.HandlerScope == nil && len(a.Handlers) == 0 && maps.Equal(a.Bindings, b.Bindings)
 }
 
 // SameLayout excludes typed Usage, which the caller compares through its mapping
@@ -525,6 +553,9 @@ func (p *PLProgram) SameLayout(other *PLProgram) bool {
 }
 
 func (p *PLProgram) validCursorInstruction(raw *parser.PLCursorStatement, in *PLCursorInstruction, scopes []*PLBlock) bool {
+	if (raw.Action == parser.PLForCursor) != (raw.Loop != nil) {
+		return false
+	}
 	if !plQuerySpan(p.Source, raw.Query, raw.QueryStart, raw.QueryEnd, raw.QueryDelimiter) ||
 		!plSourceSpan(p.Source, raw.Command, raw.CommandStart, raw.CommandEnd, raw.CommandDelimiter) ||
 		!plSourceSpan(p.Source, raw.Motion.Count, raw.Motion.CountStart, raw.Motion.CountEnd, raw.Motion.CountDelimiter) {
@@ -600,5 +631,5 @@ func (p *PLProgram) validCursorInstruction(raw *parser.PLCursorStatement, in *PL
 }
 
 func emptyPLInstructionPayload(in PLInstruction) bool {
-	return in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
+	return in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
 }

@@ -71,12 +71,12 @@ func newPLTriggerFrame(d *catalog.Procedure, read catalog.Read, relation *catalo
 // invokePLTrigger is reached only by the admitted trigger payload entry, never
 // by ordinary SQL routine dispatch. Its caller owns depth and live provenance.
 func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, read catalog.Read, relation *catalog.Relation) (sqltype.Value, error) {
-	result, returned, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
+	result, flow, err := s.executePLBlock(d, f, d.SQL.PL.Root, read)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	identity := "PL/pgSQL function " + plRoutineDiagnosticIdentity(read, d)
-	if !returned {
+	if flow.kind != plReturn {
 		return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2F005", Message: "control reached end of trigger procedure without RETURN", Context: identity}
 	}
 	shape, ok := read.LookupType(relation.RowType)
