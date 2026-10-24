@@ -10,17 +10,16 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `f2a0a9f65`.
+Last verified against `master` at `249501c80`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 162 (session, statement data views), 164 (session, settings, DISCARD and
-  setting calls) and 166 (ddl, CREATE DATABASE). 162 and 164 both edit
-  `transaction_isolation.go`; expect a small rebase conflict if run in
-  parallel.
+- 162 (session, statement data views) and 164 (session, settings, DISCARD
+  and setting calls). Both edit `transaction_isolation.go`; expect a small
+  rebase conflict if run in parallel.
 
 ## Linear plan
 
@@ -137,9 +136,13 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      paths · targeted units, quickcheck, `make deps` and the quick and
      `REFERENCE=1` server extended, portal, protocol and LIKE binary-parameter
      selections passed; racecheck/finalcheck skipped at user request
-166. [ ] DDL: CREATE DATABASE decisions —
+166. [x] DDL: CREATE DATABASE decisions —
      [ddl](ENGINE-SPLIT-ddl.md#item-166--create-database-decisions) · needs —
-     · 0.16k
+     · 0.16k (`e560d7aa2`, `3271a36c6`, then the docs commit) · root 400
+     files and 49.2k → 49.0k lines · targeted units (also `RACE=1`),
+     quickcheck, `make deps` and the quick and `REFERENCE=1`
+     `TestReferenceDatabaseCreate` selection passed; racecheck/finalcheck
+     skipped at user request
 167. [ ] Closing review 3 (docs only): re-measure, then plan a sixth round or
      close the split — [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-167--closing-review-3)
      · needs 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163,

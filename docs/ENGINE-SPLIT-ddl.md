@@ -53,4 +53,20 @@ capability, duplicate and the context check.
 
 ## Status
 
-- 166: not started.
+- 166: done (`e560d7aa2`, `3271a36c6`, then the docs commit).
+  - On `ddl` (`database.go`): `CreateDatabaseOptions`,
+    `ParseCreateDatabaseOptions`, `CreateDatabaseOwner(roles, current, name)`
+    and `CheckCreateDatabase(name, options, exists)`. The root keeps
+    `databaseCreateOwnerLocked` as the authority capture plus one call (two
+    callers), and `executeCreateDatabase` answers `exists` from
+    `e.cluster.targets` under `Engine.mu`, then checks the context.
+  - Deviations: none. DROP and ALTER DATABASE have not landed, so there was
+    nothing more to take. The context check stays in the root.
+  - Root 400 files and 49.2k → 49.0k lines (−0.15k); `ddl` gains 0.18k
+    production lines.
+  - Tests: none moved (no unit test named the moved code). New:
+    `TestCheckCreateDatabaseOrder` pins the admission order and the `exists`
+    seam.
+  - For item 167: `createDatabaseTarget` and `publishDatabaseTargetLocked`
+    still reach `Engine` by design (private construction, the owner re-check
+    and publication).

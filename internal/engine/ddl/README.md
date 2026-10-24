@@ -4,7 +4,8 @@ The contract every package that stages catalog changes shares with the
 engine: the statement authority, the stage, the allocator and the host
 methods `routine`, `typedef`, `extension`, `fdw` and `role` need. Feature
 hosts embed these instead of declaring their own. The package also holds the
-schema-level DDL decisions and the tablespace and LOAD validators.
+schema-level DDL decisions, the CREATE DATABASE decisions and the tablespace
+and LOAD validators.
 
 It sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
@@ -84,6 +85,15 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   or allocates catalog identities. The engine's `executeLoad` owns the
   argument count, the mutex and fresh authority capture; Prepare performs none
   of these execution checks.
+- **CREATE DATABASE** (`database.go`): `ParseCreateDatabaseOptions` checks
+  the option list (duplicates, unknown names, malformed values) with nothing
+  held and before any authority check, and returns `CreateDatabaseOptions`.
+  `CreateDatabaseOwner(roles, current, name)` resolves the owner over the
+  captured `authorization.Read` and checks CREATEDB or SUPERUSER and the SET
+  ROLE rule. `CheckCreateDatabase(name, options, exists)` runs the admission
+  checks in PostgreSQL's order: template, encoding, LC_COLLATE/LC_CTYPE, the
+  unsupported capability, then the duplicate name. `exists` answers whether a
+  database name is registered. Both run under `Engine.mu` and take no lock.
 
 ## Lock rule
 
@@ -127,6 +137,11 @@ check, the lock and the authority capture; `alterAllTablespaceLocked` keeps
 the argument count check and the deferred `Engine.mu` unlock, and
 `statementHost.TablespaceLocation`/`TablespaceDatabase` keep the retained
 snapshot and owner check and emit the returned warning.
+`executeCreateDatabase` keeps the argument count check, `Engine.mu`, the
+authority capture (`databaseCreateOwnerLocked`), the `exists` answer from
+`e.cluster.targets` and the context check; `createDatabaseTarget` (private
+construction and the owner re-check), `publishDatabaseTargetLocked` and the
+cluster registry stay with it.
 
 ## Testing
 
@@ -134,17 +149,19 @@ The package tests build a catalog owner, a seeded role root and a TEMP
 namespace without an engine, and pin that `Check` uses the authority as the
 environment, that `ObjectRef` stamps the catalog epoch, that `Notice` emits
 NOTICE level, creation error positions, which relation kinds SET
-TABLESPACE accepts and that `TablespaceDatabase` returns its warning. Engine tests pin the adapter (`TestDDLHost*` in
+TABLESPACE accepts, that `TablespaceDatabase` returns its warning and the
+CREATE DATABASE admission order (`TestCheckCreateDatabaseOrder`). Engine tests pin the adapter (`TestDDLHost*` in
 `ddl_host_test.go`; `TestDDLHostStageSchemaTableKeepsAuthority` checks that
 `StageSchemaTable` leaves the caller's authority unchanged and stages the
 table with the given owner and namespace), LOAD validation and executor
-non-publication, CREATE TABLESPACE non-publication and the tablespace
-inquiry adapter (`TestTablespaceInfo*`).
+non-publication, CREATE TABLESPACE non-publication, the tablespace
+inquiry adapter (`TestTablespaceInfo*`) and CREATE DATABASE publication
+(`TestDatabaseCreate*`).
 
 ```sh
-make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|CreationErrorPositionsAtFirstNamePart|AlterTablespaceKind|TablespaceDatabaseReturnsWarning)$$'
+make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|CreationErrorPositionsAtFirstNamePart|AlterTablespaceKind|TablespaceDatabaseReturnsWarning|CheckCreateDatabaseOrder)$$'
 make check RUN='^Test(DDLHost|Load(Validation|ExecutorNoPublication)$$|TablespaceExecutorNoPublication$$)'
-make check RUN='^TestReference((Alter)?Schema|.*Tablespace|Load)'
+make check RUN='^TestReference((Alter)?Schema|.*Tablespace|Load|DatabaseCreate)'
 ```
 
 Public LOAD scenarios are in
