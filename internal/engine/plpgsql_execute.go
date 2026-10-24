@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/regobj"
@@ -598,21 +597,4 @@ func plTriggerExpressionBinding(err error) bool {
 	default:
 		return false
 	}
-}
-
-func plSimpleExpression(root plan.Node) bool {
-	project, ok := root.(*plan.ProjectNode)
-	if !ok || len(project.Expressions) != 1 || project.HasTargetSet {
-		return false
-	}
-	if _, ok := project.Child.(*plan.SingletonNode); !ok {
-		return false
-	}
-	simple := true
-	plan.WalkExpression(project.Expressions[0], func(node expr.Expr) {
-		if _, subquery := node.(plan.SubqueryExpr); subquery || node.Properties().StageDependent {
-			simple = false
-		}
-	})
-	return simple
 }

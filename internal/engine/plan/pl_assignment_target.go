@@ -15,6 +15,9 @@ type PLAssignmentProjectionError struct{ Err error }
 func (e *PLAssignmentProjectionError) Error() string { return e.Err.Error() }
 func (e *PLAssignmentProjectionError) Unwrap() error { return e.Err }
 
+// PLAssignmentProjection marks a set-projection row error for proc's formatter.
+func (*PLAssignmentProjectionError) PLAssignmentProjection() {}
+
 // PLAssignmentTargetExpr reconstructs one semantic assignment datum per query
 // output row. ProjectSet owns zero/many-row scheduling; this node never publishes
 // activation values and always reads the same immutable original datum.

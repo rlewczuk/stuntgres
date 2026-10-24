@@ -474,7 +474,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		t.Fatal(bindErr)
 	}
 	root := &plan.ProjectNode{QuerySchema: []catalog.Column{{Name: "v", Usage: integer.Usage()}}, Expressions: []expr.Expr{call}}
-	decorated, err := plAssignmentProjection(root)
+	decorated, err := plan.PLAssignmentProjection(root)
 	if err != nil {
 		t.Fatal(err)
 	}

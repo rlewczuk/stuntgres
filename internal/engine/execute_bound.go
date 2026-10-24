@@ -150,7 +150,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		} else if b.Query != nil {
 			root := b.Query.Root
 			if scope.sqlRoutine.assignmentPlanning {
-				root, err = plAssignmentProjection(root)
+				root, err = plan.PLAssignmentProjection(root)
 			}
 			if err == nil {
 				if scope.sqlRoutine.lexical != nil && scope.sqlRoutine.cursor == nil {
@@ -165,7 +165,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 							// coercion reaches it during query preflight. Constants
 							// and admission failures retain their planning callback.
 							scope.sqlRoutine.plPlanning = false
-							err = &plExpressionExecutionError{error: err, simple: !scope.sqlRoutine.plArgumentRow && plSimpleExpression(b.Query.Root)}
+							err = &plExpressionExecutionError{error: err, simple: !scope.sqlRoutine.plArgumentRow && plan.PLSimpleExpression(b.Query.Root)}
 						}
 					}
 				} else {
@@ -474,7 +474,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	// query callback; complex query expressions retain that callback. Record
 	// this actual boundary only on failure, without changing error identity.
 	plExpression := scope.sqlRoutine.lexical != nil && scope.sqlRoutine.cursor == nil
-	simplePL := plExpression && !scope.sqlRoutine.plArgumentRow && execution.binding.Query != nil && plSimpleExpression(execution.binding.Query.Root)
+	simplePL := plExpression && !scope.sqlRoutine.plArgumentRow && execution.binding.Query != nil && plan.PLSimpleExpression(execution.binding.Query.Root)
 	defer func() {
 		if failure != nil && plExpression {
 			failure = &plExpressionExecutionError{error: failure, simple: simplePL}

@@ -30,6 +30,9 @@ type AssignmentDomainError struct{ Err error }
 func (e *AssignmentDomainError) Error() string { return e.Err.Error() }
 func (e *AssignmentDomainError) Unwrap() error { return e.Err }
 
+// PLAssignmentDomain marks a containing-domain error for proc's formatter.
+func (*AssignmentDomainError) PLAssignmentDomain() {}
+
 func (t *ArrayAssignmentTarget) reapply(ctx expr.Context, value sqltype.Value) (sqltype.Value, error) {
 	value, err := t.Reapply.Apply(ctx.FunctionContext(), value, ctx.FunctionInput(), ctx.FunctionOutput())
 	if err != nil && t.DomainErrorOrigin && t.Container.Type.IsDomain() {

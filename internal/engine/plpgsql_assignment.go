@@ -3,7 +3,6 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -167,19 +166,4 @@ func plAssignmentError(err error, read catalog.Read, d *catalog.Procedure, state
 		query = plBodyDiagnostic(d.SQL.Source, statement.Pos, statement.ExpressionEnd, callback)
 	}
 	return plRuntimeQueryError(err, read, d, statement.Pos, "at assignment", query)
-}
-
-// Only the execution-private projection borrows the caller's diagnostic origin.
-// The checked SQL body and its analyzed dependencies remain unchanged.
-func plAssignmentProjection(root plan.Node) (plan.Node, error) {
-	project, ok := root.(*plan.ProjectNode)
-	if !ok {
-		return nil, fmt.Errorf("stuntgres: invalid SQL routine assignment projection")
-	}
-	copy := *project
-	copy.Expressions = slices.Clone(project.Expressions)
-	for i, child := range copy.Expressions {
-		copy.Expressions[i] = plan.PLAssignmentExpr{Info: expr.InfoOf(child), Child: child}
-	}
-	return &copy, nil
 }
