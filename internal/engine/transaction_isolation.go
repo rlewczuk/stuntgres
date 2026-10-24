@@ -244,7 +244,7 @@ func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error
 	return session.ReadOnlyRefusal(stmt, t.ReadOnly)
 }
 func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
-	if !session.ExplicitUtility(stmt) || transactionalSchemaUtility(stmt) || s.partitionIndexTransaction(stmt) {
+	if !session.ExplicitUtility(stmt) || transactionalSchemaUtility(stmt) || transactionalIndexMaintenance(stmt) || s.partitionIndexTransaction(stmt) {
 		return nil
 	}
 	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character == 0 {
@@ -254,4 +254,16 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 	return session.ExplicitUtilityRefusal(stmt, t.State, t.InBlock())
+}
+
+// Only shipped metadata maintenance is transactional here. CREATE and REINDEX
+// retain their own admission boundaries.
+func transactionalIndexMaintenance(stmt parser.Statement) bool {
+	switch s := stmt.(type) {
+	case *parser.DropIndex:
+		return s.Concurrent.Character == 0
+	case *parser.AlterIndex:
+		return s.Action == "rename" || s.Action == "set" || s.Action == "reset"
+	}
+	return false
 }

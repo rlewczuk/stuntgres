@@ -67,26 +67,9 @@ func TestReferenceIndexMaintenanceOptions(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE t(n INT)", 0))
 				run(fixture.Exec("INSERT INTO t VALUES(1),(1),(NULL)", 3))
 				run(fixture.Exec("CREATE INDEX ix ON t(n)", 0))
-				var before bytes.Buffer
-				if !b.PG {
-					if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
-						t.Fatal(err)
-					}
-				}
 				q := "ALTER INDEX ix " + c.clause
-				s := fixture.Exec(q, 0)
-				if !b.PG {
-					s = fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "index storage parameters are unsupported"})
-				}
-				run(fixture.Prepared(s))
-				if b.PG {
-					run(fixture.Select("SELECT reloptions::text,pg_get_indexdef(oid) FROM pg_class WHERE relname='ix'", []string{"reloptions", "pg_get_indexdef"}, []string{"TEXT", "TEXT"}, [][]any{{c.reloptions, "CREATE INDEX ix ON public.t USING btree (n)" + c.options}}))
-				} else {
-					var after bytes.Buffer
-					if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil || before.String() != after.String() {
-						t.Fatal("physical request changed native state", err, after.String())
-					}
-				}
+				run(fixture.Prepared(fixture.Exec(q, 0)))
+				run(fixture.Select("SELECT reloptions::text,pg_get_indexdef(oid) FROM pg_class WHERE relname='ix'", []string{"reloptions", "pg_get_indexdef"}, []string{"TEXT", "TEXT"}, [][]any{{c.reloptions, "CREATE INDEX ix ON public.t USING btree (n)" + c.options}}))
 				run(fixture.Select("SELECT n FROM t ORDER BY n NULLS LAST", []string{"n"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}, {nil}}))
 			})
 		})
@@ -102,8 +85,8 @@ func TestReferenceIndexMaintenanceOptionControls(t *testing.T) {
 		nativeMessage, nativeToken string
 		statistics                 bool
 	}{
-		{query: "ALTER INDEX ix SET(toast.fillfactor=80)", nativeMessage: "index storage parameters are unsupported"},
-		{query: "ALTER INDEX ix RESET(toast.fillfactor)", nativeMessage: "index storage parameters are unsupported"},
+		{query: "ALTER INDEX ix SET(toast.fillfactor=80)"},
+		{query: "ALTER INDEX ix RESET(toast.fillfactor)"},
 		{query: "REINDEX (verbose 'bad') INDEX ix", diagnostic: fixture.Diagnostic{Code: "42601", Message: "verbose requires a Boolean value"}},
 		{query: "REINDEX (verbose '0') INDEX ix", diagnostic: fixture.Diagnostic{Code: "42601", Message: "verbose requires a Boolean value"}},
 		{query: "REINDEX (tablespace) INDEX ix", diagnostic: fixture.Diagnostic{Code: "42601", Message: "tablespace requires a parameter"}},

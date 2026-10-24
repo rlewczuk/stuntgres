@@ -24,6 +24,7 @@ const (
 	fenceExtensionAuthority = session.FenceRootKinds + iota // extensionAuthorityFence
 	fenceTruncateGraph                                      // truncateGraphFence
 	fenceMaterializedSource                                 // materializedSourceFence
+	fenceCatalogRoleRead                                    // catalogRoleReadFence
 )
 
 // catalogFencesCurrentLocked checks the fences of each kind in turn, each kind

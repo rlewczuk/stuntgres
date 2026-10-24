@@ -71,7 +71,7 @@ func TestReferenceIndexMaintenancePreparedAdmission(t *testing.T) {
 						}
 						want := fixture.ControlsReferenceDiagnostic("25006", "cannot execute "+tag+" in a read-only transaction")
 						fixture.AssertDiagnostic(t, err, &want)
-					} else if !b.PG {
+					} else if !b.PG && (q == "REINDEX INDEX missing" || q == "REINDEX TABLE missing") {
 						want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported in an explicit transaction")
 						fixture.AssertDiagnostic(t, err, &want)
 					} else {
@@ -99,7 +99,7 @@ func TestReferenceIndexMaintenanceTransactionalRollback(t *testing.T) {
 				run(fixture.Exec("CREATE INDEX ix ON t(n)", 0))
 				run(fixture.Exec("BEGIN", 0))
 				s := fixture.Exec(q, 0)
-				if !b.PG {
+				if !b.PG && (q == "REINDEX INDEX ix" || q == "REINDEX TABLE t") {
 					s = fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
 				}
 				run(fixture.Prepared(s))

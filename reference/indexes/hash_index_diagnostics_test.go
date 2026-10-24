@@ -242,12 +242,13 @@ func TestReferenceHashIndexOptions(t *testing.T) {
 			hashIndexSemanticFailure(t, p, b, run, "ALTER INDEX ix SET(fillfactor=9)", fixture.Diagnostic{Code: "22023", Message: `value 9 out of bounds for option "fillfactor"`, Detail: `Valid values are between "10" and "100".`})
 			hashIndexSemanticFailure(t, p, b, run, "ALTER INDEX ix RESET(fillfactor=80)", fixture.Diagnostic{Code: "42601", Message: "RESET must not include values for parameters"})
 			for _, q := range []string{"ALTER INDEX ix SET(fillfactor=80)", "ALTER INDEX ix RESET(fillfactor)", "ALTER INDEX ix SET(toast.fillfactor=80)", "ALTER INDEX ix RESET(toast.fillfactor)", "ALTER INDEX ix RESET(deduplicate_items)", "ALTER INDEX ix RESET(unknown)", "ALTER INDEX ix RESET(fillfactor,fillfactor)"} {
-				if b.PG {
-					run(fixture.Exec(q, 0))
-					run(fixture.Prepared(fixture.Exec(q, 0)))
-				} else {
-					hashIndexSemanticFailure(t, p, b, run, q, fixture.Diagnostic{Code: "0A000", Message: "index storage parameters are unsupported"})
+				run(fixture.Exec(q, 0))
+				run(fixture.Prepared(fixture.Exec(q, 0)))
+				var options any
+				if q == "ALTER INDEX ix SET(fillfactor=80)" {
+					options = "{fillfactor=80}"
 				}
+				run(fixture.Select("SELECT reloptions::text FROM pg_class WHERE relname='ix'", []string{"reloptions"}, []string{"TEXT"}, [][]any{{options}}))
 			}
 			run(fixture.DeparseRelationsTextStep(t, b, "SELECT pg_get_indexdef('ix'::regclass) AS definition", "CREATE INDEX ix ON public.t USING hash (n)"))
 		})

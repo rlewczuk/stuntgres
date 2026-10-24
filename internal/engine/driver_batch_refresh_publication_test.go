@@ -237,3 +237,149 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 		}
 	}
 }
+
+func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
+	for _, tc := range []struct {
+		name, query string
+		producer    bool
+	}{
+		{"table", "CREATE TABLE produced AS SELECT v FROM refresh_source", true},
+		{"empty_table", "CREATE TABLE produced AS SELECT v FROM refresh_source WHERE false", true},
+		{"table_no_data", "CREATE TABLE produced AS SELECT v FROM refresh_source WITH NO DATA", false},
+		{"materialized", "CREATE MATERIALIZED VIEW produced AS SELECT v FROM refresh_source", true},
+		{"empty_materialized", "CREATE MATERIALIZED VIEW produced AS SELECT v FROM refresh_source WHERE false", true},
+		{"materialized_no_data", "CREATE MATERIALIZED VIEW produced AS SELECT v FROM refresh_source WITH NO DATA", false},
+		{"refresh", "REFRESH MATERIALIZED VIEW refresh_target", true},
+		{"refresh_no_data", "REFRESH MATERIALIZED VIEW refresh_target WITH NO DATA", true},
+	} {
+		for _, own := range []bool{false, true} {
+			t.Run(tc.name+map[bool]string{false: "/peer", true: "/own"}[own], func(t *testing.T) {
+				e := New()
+				s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+				for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
+					sessionSQL(t, s, q)
+				}
+				base, roles, frontier := e.catalog.state, e.roles.published, e.visibility.CommitSeq()
+				target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
+				original := e.storage.Relations[target.Address]
+				m := batchUnitStart(t, s, context.Background())
+				defer m.end(context.Canceled)
+				if _, err := m.step(statement(t, tc.query)); err != nil {
+					t.Fatal(err)
+				}
+				journal := s.Transactions.Catalog
+				if journal == nil || journal.RolesBase != nil || journal.Roles != nil {
+					t.Fatal("producer read acquired private role-write authority")
+				}
+				fenced := false
+				for _, fence := range journal.Fences {
+					if read, ok := fence.(catalogRoleReadFence); ok {
+						fenced = true
+						if read.roles != roles {
+							t.Fatal("producer recaptured its role predecessor")
+						}
+					}
+				}
+				if fenced != tc.producer {
+					t.Fatal("role read lifetime does not match pending producer", fenced)
+				}
+				if own {
+					if _, err := m.step(statement(t, "CREATE ROLE producer_own")); err != nil {
+						t.Fatal(err)
+					}
+					if journal.RolesBase != nil || s.Transactions.Catalog.RolesBase != roles || s.Transactions.Catalog.Roles == nil {
+						t.Fatal("real role write lost baseline or mutated retained producer journal")
+					}
+				} else {
+					sessionSQL(t, peer, "CREATE ROLE producer_peer")
+					roles, frontier = e.roles.published, e.visibility.CommitSeq()
+				}
+				err := m.end(nil)
+				if !own && tc.producer {
+					if err == nil || e.catalog.state != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original {
+						t.Fatal("stale producer role read published or overwrote peer", err)
+					}
+					if _, ok := e.Roles().Lookup("producer_peer"); !ok {
+						t.Fatal("producer conflict lost peer role")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal("compatible publication rejected", err)
+				}
+				role := map[bool]string{false: "producer_peer", true: "producer_own"}[own]
+				if _, ok := e.Roles().Lookup(role); !ok {
+					t.Fatal("successful publication lost role", role)
+				}
+				if e.catalog.state == base || e.visibility.CommitSeq() != frontier+1 {
+					t.Fatal("producer catalog did not publish once")
+				}
+				name := "produced"
+				if tc.name == "refresh" || tc.name == "refresh_no_data" {
+					name = "refresh_target"
+				}
+				want := []int64{1}
+				if !tc.producer || tc.name == "empty_table" || tc.name == "empty_materialized" || tc.name == "refresh_no_data" {
+					want = nil
+				}
+				if tc.name == "materialized_no_data" || tc.name == "refresh_no_data" {
+					if e.CatalogRead().MustRelation(catalogRef(t, e, e.CatalogRead(), name).Address).Populated {
+						t.Fatal("NO DATA published a populated materialized view")
+					}
+				} else {
+					transactionRows(t, peer, "SELECT v FROM "+name, want...)
+				}
+			})
+		}
+	}
+}
+
+func TestDriverBatchProducerRoleAuthoritySavepoint(t *testing.T) {
+	e := New()
+	s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	for _, q := range []string{"CREATE TABLE source(v INT)", "INSERT INTO source VALUES(1)", "CREATE INDEX source_idx ON source(v)", "BEGIN", "ALTER INDEX source_idx SET(fillfactor=80)", "SAVEPOINT before_producer"} {
+		sessionSQL(t, s, q)
+	}
+	metadata := s.Transactions.Catalog
+	sessionSQL(t, s, "CREATE TABLE discarded AS SELECT v FROM source")
+	producer := s.Transactions.Catalog
+	if producer == metadata {
+		t.Fatal("producer mutated metadata journal")
+	}
+	sessionSQL(t, s, "ROLLBACK TO before_producer")
+	if s.Transactions.Catalog != metadata {
+		t.Fatal("savepoint did not restore producer-free journal")
+	}
+	// The discarded immutable journal still owns its producer read; it must
+	// neither leak into restored metadata nor be cleared by rollback.
+	found := false
+	for _, fence := range producer.Fences {
+		if fence.Kind() == fenceCatalogRoleRead {
+			found = true
+		}
+	}
+	if !found || producer.RolesBase != nil {
+		t.Fatal("discarded producer lost read authority or acquired a role write")
+	}
+	for _, fence := range metadata.Fences {
+		if fence.Kind() == fenceCatalogRoleRead {
+			t.Fatal("producer read escaped its savepoint lifetime")
+		}
+	}
+	sessionSQL(t, peer, "INSERT INTO source VALUES(2)")
+	sessionSQL(t, peer, "CREATE ROLE after_discard")
+	sessionSQL(t, s, "INSERT INTO source VALUES(3)")
+	sessionSQL(t, s, "COMMIT")
+	transactionRows(t, peer, "SELECT v FROM source ORDER BY v", 1, 2, 3)
+	view := e.CatalogRead()
+	idx := view.MustRelation(catalogRef(t, e, view, "source_idx").Address)
+	if len(idx.StorageOptions.Base) != 1 || idx.StorageOptions.Base[0].Text != "80" {
+		t.Fatal("producer rollback discarded earlier maintenance")
+	}
+	if _, ok := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: idx.Namespace(), Name: "discarded"}); ok {
+		t.Fatal("discarded producer table published")
+	}
+	if _, ok := e.Roles().Lookup("after_discard"); !ok {
+		t.Fatal("metadata commit overwrote peer role")
+	}
+}

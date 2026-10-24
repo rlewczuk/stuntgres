@@ -94,8 +94,15 @@ Entry points:
   predicate without exposing other private definitions. Named explicit
   post-capture catalog uniqueness errors, including IF NOT EXISTS, propagate
   unchanged; preexisting-name behavior and autocommit recovery stay distinct.
-- ATTACH PARTITION and REINDEX: `StageMaintenance`, `ValidateMaintenance`;
-  binding: `LookupClass`, `BindKey`, `BindAttributes`, `RejectVirtualUses`.
+- DROP INDEX, ALTER INDEX SET/RESET, ATTACH PARTITION and REINDEX:
+  `StageMaintenance`, `ValidateMaintenance`; rename delegates to the shared
+  relation rename owner. Ordinary DROP/rename/options use the existing private
+  Journal and combined DDL/DML publication path in explicit and retained
+  transactions. REINDEX retains its separate transaction boundary.
+  `TransformIndexOptions` owns immutable logical option validation/ordering;
+  metadata-only edits retain identity/providers/key roots and do not rebuild
+  pages or change enforcement. Binding: `LookupClass`, `BindKey`,
+  `BindAttributes`, `RejectVirtualUses`.
 - Constraint indexes, called by `table`: `StageUniqueDefinitions`,
   `StageCreateUniques`, `StageExclusion`, `StageCreateExclusions`,
   `RebuildAlter{Uniques,Exclusions}`, `CaptureUsingIndexes`,
@@ -156,6 +163,10 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
   immutable roots and candidate pins. Savepoint marks retain older journals.
   Rollback-to restores the catalog/row prefix and lock checkpoint; full rollback
   discards private index names, descriptors, dependencies and roots.
+  DROP removes only selected private descriptors/dependencies/root candidates;
+  rename/options preserve key semantics. Dump sees committed state and replays
+  persistent options with qualified ALTER after final names and attachments,
+  including indexes declared by constraints, without broadening CREATE syntax.
 - **Savepoint exclusion mark.** `ExclusionMark` implements
   `session.ExclusionMarkSlot`; `ExclusionMarkSlotOf` keeps zero state as a nil
   slot, so most savepoints allocate nothing.

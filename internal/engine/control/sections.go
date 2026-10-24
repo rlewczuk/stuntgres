@@ -9,6 +9,8 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
@@ -35,6 +37,7 @@ var dumpSections = [...]dumpSection{
 	{"sequence creation", emitDumpSequenceCreation},
 	{"collations and conversions", emitDumpTypeStatements},
 	{"events", emitDumpEvents},
+	{"index options", emitDumpIndexOptions},
 	{"sequence completion", emitDumpSequenceCompletion},
 	{"large objects", emitDumpLargeObjects},
 	{"materialized snapshots", emitDumpMaterializedSnapshots},
@@ -125,6 +128,46 @@ func emitDumpTypeStatements(_ context.Context, s *dumpScript, w *dumpWriter) err
 			if err := w.emit(declaration.SQL); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// All final names and implicit backing indexes exist after the event stream.
+// Replay options separately so canonical CREATE stays within its own capability.
+func emitDumpIndexOptions(ctx context.Context, s *dumpScript, w *dumpWriter) error {
+	var indexes []*catalog.Relation
+	for _, descriptor := range s.OriginalCatalog.Descriptors() {
+		r, ok := descriptor.(*catalog.Relation)
+		if !ok || r.SQLIndex == nil || len(r.StorageOptions.Base) == 0 {
+			continue
+		}
+		ns, ok := s.OriginalCatalog.Namespace(r.Namespace())
+		if !ok || ns.Temporary != (ids.SessionToken{}) {
+			continue
+		}
+		indexes = append(indexes, r)
+	}
+	slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
+		if order := strings.Compare(s.OriginalCatalog.Get(a.Namespace()).Name(), s.OriginalCatalog.Get(b.Namespace()).Name()); order != 0 {
+			return order
+		}
+		return strings.Compare(a.Name(), b.Name())
+	})
+	for _, r := range indexes {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		owner, err := s.DomainRoles.Descriptor(r.Owner)
+		if err != nil {
+			return err
+		}
+		if err := w.setOwner(owner.Name); err != nil {
+			return err
+		}
+		qualified := catalog.QuoteIdentifier(s.OriginalCatalog.Get(r.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Name())
+		if err := w.emit("ALTER INDEX " + qualified + " SET (" + index.OptionsSQL(r.StorageOptions.Base) + ");\n"); err != nil {
+			return err
 		}
 	}
 	return nil

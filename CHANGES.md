@@ -2,6 +2,16 @@ View and materialized-view definitions now participate in SQL and Go transaction
 as well as autocommit, with private definitions and stored rows, identity-preserving
 alterations, savepoints and atomic commit or rollback. REFRESH remains separate.
 
+Ordinary DROP INDEX and ALTER INDEX rename/SET/RESET now participate in SQL,
+Go and retained protocol transactions, with private metadata/dependencies,
+savepoint recovery and atomic index/row publication. Logical index options
+preserve identities and key semantics and survive native Dump/Restore, including
+constraint-backed indexes. Completed metadata-only maintenance permits compatible
+peer DML and unrelated role changes without retaining stale statement authority
+at commit. Pending query-derived producers and materialized replacements retain
+their separate role-read publication guard; actual role writes keep their own
+baseline conflict fence. REINDEX and concurrent-operation boundaries remain.
+
 PL/pgSQL static query FOR loops assign existing RECORD and row variables,
 preserve query ordering and duplicates, retain VOID query-result members,
 shape empty results as NULL fields, stream SELECT demand across CTE lifetimes,

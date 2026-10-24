@@ -3,29 +3,51 @@
 ## Supported contract and boundaries
 
 Ordinary `DROP INDEX [IF EXISTS] name [, ...] [CASCADE|RESTRICT]`,
-`ALTER INDEX [IF EXISTS] name RENAME TO destination`, `REINDEX INDEX name` and
-`REINDEX TABLE name` operate on the existing substantive logical B-trees. Names
-use the shared relation namespace and ordinary schema/search-path authority.
+`ALTER INDEX [IF EXISTS] name RENAME TO destination`, and index `SET`/`RESET`
+operate in autocommit, SQL BEGIN, Go BeginTx and retained protocol transactions.
+`REINDEX INDEX name` and `REINDEX TABLE name` retain their existing autocommit
+behavior and writable-explicit 0A000 boundary. Names use the shared relation
+namespace and ordinary schema/search-path authority.
 Utilities return zero affected rows and no result columns. Describe is
 syntax-only, including absent targets and explicit transactions; full-input
 parsing precedes all script effects.
 
-There is no new optimizer, physical B-tree, tablespace, PostgreSQL storage
-parameter, statistics subsystem, transactional utility implementation or SQL
-catalog source. Native read-only execution rejects the canonical utility with
-25006 before lookup, ACL checks or waits. Writable explicit native execution
-rejects these utilities with 0A000 before lookup/waits. PostgreSQL permits the
-corresponding transactional operations; PostgreSQL REINDEX also resolves and
-locks a target before its read-only gate. Reference definitions retain these
-explicit differences rather than normalizing the oracle.
+There is no new optimizer, physical B-tree, tablespace, statistics subsystem or
+SQL catalog source. Native read-only execution rejects the canonical utility
+with25006 before lookup, ACL checks or waits. PostgreSQL REINDEX resolves and
+locks a target before its read-only gate; that intentional difference remains.
+CREATE INDEX uses its separately owned creation contract; enabling maintenance
+does not broaden creation or REINDEX syntax/capabilities. CONCURRENTLY remains
+excluded and returns25001 in transaction blocks.
 
-Valid physical SET/RESET requests fail `index storage parameters are
-unsupported`, with no Position or state change. SET validates integer/Boolean
-values and duplicates in input order; RESET values fail42601 while unknown and
-repeated RESET names remain valid requests followed by the native boundary.
-`fillfactor=80.0`, Boolean reloption spellings and ignored PostgreSQL toast
-namespace requests are not rejected as malformed options. Missing ALTER IF
-EXISTS targets skip semantic option checks after syntax parsing.
+SET/RESET stores immutable logical `Relation.StorageOptions`: fillfactor for
+shipped methods and deduplicate_items for B-tree. It does not repack pages,
+rebuild keys or change uniqueness, NULL, predicate or provider semantics.
+Namespace/name transformation precedes input-order duplicate/value validation.
+Untouched options retain order; SET appends requested values with their original
+text, including `fillfactor=80.0` and accepted Boolean spellings. RESET removes
+explicit values, with an empty result represented as SQL NULL; unknown/repeated
+names succeed, while RESET values fail42601. ALTER toast namespace requests are
+ignored. Missing ALTER IF EXISTS targets skip semantic checks after parsing.
+
+Maintenance uses the existing captured grants, CatalogStage, session.Journal
+and combined DDL/DML publisher. Owners see private names/options/removals;
+peers and Dump see committed state until atomic commit. Rollback and savepoints
+restore descriptors, dependencies, roots and private rows, releasing postmark
+locks. Metadata-only changes retain key roots and exact object identities.
+Completed metadata-only work retains exact descriptor/name/provider/dependency
+predecessors, not its statement authorization's whole role root or a parent heap
+read frontier. Compatible peer DML and unrelated role changes may commit before
+the owner's combined catalog/row publication; newest selected and sibling roots
+remain authoritative. Actual private role-root writes retain their committed
+baseline fence, and each executing statement still checks current authorization.
+This completed-maintenance lifetime does not release a pending query producer's
+role-read fence: detached query-derived rows and materialized replacements keep
+their committed role predecessor through final publication in the same journal.
+Dump emits canonical CREATE followed by qualified ALTER INDEX SET after final
+names/attachments, including constraint-backed indexes; Restore replays options
+without adding CREATE WITH support. Invalid ordinary-index Dump exclusions
+remain unchanged.
 
 REINDEX options use whitespace, not `=`. Their original scalar kinds are retained:
 Boolean true/false and integer0/1 are distinct from quoted '0'/'yes'. Unknown
@@ -62,9 +84,11 @@ before any wait. Repeated addresses are deduplicated, not repeatedly removed.
 - REINDEX INDEX takes parent Share, then selected index AX. REINDEX TABLE takes
   parent Share, then every implemented simple/expression/UNIQUE index AX. MAINTAIN
   is checked on the parent, with denied diagnostics naming the requested target.
-- Index rename takes SUE on the index. The PostgreSQL-compatible table, sequence
-  and view rename aliases delegate to shared relation rename under AX. Rename
-  requires target ownership and schema CREATE, not schema ownership alone.
+- Index rename, SET and RESET take SUE on an ordinary index, compatible with
+  parent DML. Partitioned targets retain their existing AX modes and dependency
+  rules. The PostgreSQL-compatible table, sequence and view rename aliases
+  delegate to shared relation rename under AX. Rename requires target ownership
+  and schema CREATE, not schema ownership alone.
 
 These are resources in the existing ticket/queue/timeouts/deadlock/epoch manager,
 not a second lock authority. Grants reauthorize the current principal and retain
@@ -219,14 +243,14 @@ expanding the stored type surface.
 ## Public definitions and executable checks
 
 Untagged shared public definitions under reference/indexes/index_maintenance*_test.go
-cover lifecycle, UNIQUE enforcement, full diagnostics/notices/options/precedence,
-held preparation/admission/routes, privileges, real lock waits/cancellation,
-retained rows, native controls/foreign restore, metadata/provider controls and
-actual populated-table feature smoke, including explicit compatible/pattern
-classes, repeated INCLUDE/JSON payload and enum/nested-domain maintenance. Internal
-TestIndexMaintenance units cover real root/membership/publication/grant, complete
-key/payload vectors and decoration equivalence; TestOrderingBtreeIdentity covers
-independently pinned default/actual class identities and original enum consumers.
+and transactional_index_maintenance*_test.go cover lifecycle, UNIQUE enforcement,
+full diagnostics/notices/options/precedence, direct/held routes, private/peer
+visibility, combined DDL/DML, savepoints, dependencies, native controls/replay,
+privileges and deterministic lock waits/cancellation. The session definitions
+exercise retained simple messages and named extended Parse/Describe/Bind/Execute.
+Internal TestIndexMaintenance and TestTransactionalIndexMaintenance units cover
+real root/membership/publication/grant/epoch behavior and immutable captures;
+TestOrderingBtreeIdentity covers independently pinned provider identities.
 
 Root runs generation/formatting and these selective gates; each selected check has
 one 900-second deadline. Commands describe required verification, not a claim that
@@ -240,12 +264,16 @@ make check RUN='^TestReference(IndexMaintenance|IndexClauses|BtreeIndex|Expressi
 make check REFERENCE=1 RUN='^TestReference(IndexMaintenance|IndexClauses|BtreeIndex|ExpressionIndex|Unique|DeparseRelations)'
 make check RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders|UniqueDomains)'
 make check REFERENCE=1 RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders|UniqueDomains)'
+make check RUN='^TestReferenceTransactionalIndexMaintenance'
+make check REFERENCE=1 RUN='^TestReferenceTransactionalIndexMaintenance'
+make check RACE=1 RUN='^TestTransactionalIndexMaintenance'
 ```
 
-Smoke checks actual new rename/INDEX/TABLE rebuild/drop behavior, current names,
-exact ordered rows/duplicate bags, backing enforcement/dependencies, explicit
-provider semantics and repeated/non-orderable payloads, unavailable physical
-options without changes, and Dump/Restore/DML/control invariants.
+Smoke checks rename/INDEX/TABLE rebuild/drop behavior, current names, ordered
+rows/duplicate bags, backing enforcement/dependencies, providers and payloads.
+Standalone database/sql and real TCP simple/named-extended consumers exercise
+transactional maintenance, private/peer visibility, options, savepoint/rollback/
+commit, Dump/Restore and healthy reuse through public APIs.
 Ordinary quickcheck and the root's post-integration finalcheck remain required;
 finalcheck has one 1800-second deadline. Readiness is not verification evidence.
 

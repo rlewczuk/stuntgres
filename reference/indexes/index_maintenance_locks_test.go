@@ -170,9 +170,7 @@ func TestReferenceIndexMaintenanceLockCancellation(t *testing.T) {
 }
 
 func TestReferenceIndexMaintenanceLockModesOracle(t *testing.T) {
-	// Ordinary PG utilities hold transaction-scoped locks. Native utilities are
-	// intentionally excluded in writable explicit transactions; internal barrier
-	// units must establish their instantaneous lock modes/order, not emulate PG.
+	// REINDEX retains its separate native explicit-transaction boundary.
 	for _, q := range []string{"ALTER INDEX ix RENAME TO fresh", "DROP INDEX ix", "REINDEX INDEX ix", "REINDEX TABLE t"} {
 		t.Run(q, func(t *testing.T) {
 			indexMaintenanceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
@@ -180,17 +178,19 @@ func TestReferenceIndexMaintenanceLockModesOracle(t *testing.T) {
 				fixture.LockExec(t, p.Ctx, a, "CREATE TABLE t(n INT)", 0)
 				fixture.LockExec(t, p.Ctx, a, "CREATE INDEX ix ON t(n)", 0)
 				fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
-				if b.PG {
+				if b.PG || q == "ALTER INDEX ix RENAME TO fresh" || q == "DROP INDEX ix" {
 					fixture.LockExec(t, p.Ctx, a, q, 0)
-					pid := fixture.LockPID(t, p.Ctx, a)
-					wantLocks := [][]any{{"ix", "AccessExclusiveLock", true}, {"t", "ShareLock", true}}
-					if q == "ALTER INDEX ix RENAME TO fresh" {
-						wantLocks = [][]any{{"ix", "ShareUpdateExclusiveLock", true}}
+					if b.PG {
+						pid := fixture.LockPID(t, p.Ctx, a)
+						wantLocks := [][]any{{"ix", "AccessExclusiveLock", true}, {"t", "ShareLock", true}}
+						if q == "ALTER INDEX ix RENAME TO fresh" {
+							wantLocks = [][]any{{"ix", "ShareUpdateExclusiveLock", true}}
+						}
+						if q == "DROP INDEX ix" {
+							wantLocks = [][]any{{"ix", "AccessExclusiveLock", true}, {"t", "AccessExclusiveLock", true}}
+						}
+						fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT c.relname,l.mode,l.granted FROM pg_locks l JOIN pg_class c ON c.oid=l.relation WHERE l.pid="+fixture.Position(pid)+" AND c.relname IN ('t','ix','fresh') ORDER BY c.relname,l.mode", []string{"relname", "mode", "granted"}, []string{"NAME", "TEXT", "BOOL"}, wantLocks))
 					}
-					if q == "DROP INDEX ix" {
-						wantLocks = [][]any{{"ix", "AccessExclusiveLock", true}, {"t", "AccessExclusiveLock", true}}
-					}
-					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT c.relname,l.mode,l.granted FROM pg_locks l JOIN pg_class c ON c.oid=l.relation WHERE l.pid="+fixture.Position(pid)+" AND c.relname IN ('t','ix','fresh') ORDER BY c.relname,l.mode", []string{"relname", "mode", "granted"}, []string{"NAME", "TEXT", "BOOL"}, wantLocks))
 					fixture.LockExec(t, p.Ctx, c, "SET lock_timeout='50ms'", 0)
 					if q == "DROP INDEX ix" {
 						s := fixture.ImplicitError("SELECT n FROM t", fixture.Diagnostic{Code: "55P03", Message: "canceling statement due to lock timeout", Position: "15"})

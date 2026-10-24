@@ -84,8 +84,9 @@ ordinary SQL errors leave the connection reusable.
   Deferrability uses the session default (`sql.TxOptions` has no field for it).
 - SQL transaction controls and `BeginTx` share transactional relation/schema DDL:
   permanent CREATE/DROP TABLE, CTAS/SELECT INTO, CREATE/ALTER/DROP SCHEMA,
-  supported ALTER TABLE forms, ALTER/DROP TRIGGER, CREATE/OR REPLACE/ALTER/DROP
-  VIEW and CREATE/ALTER/DROP MATERIALIZED VIEW see earlier successful own changes.
+  supported ALTER TABLE forms, ALTER/DROP TRIGGER, ordinary DROP INDEX and
+  ALTER INDEX rename/SET/RESET, CREATE/OR REPLACE/ALTER/DROP VIEW and
+  CREATE/ALTER/DROP MATERIALIZED VIEW see earlier successful own changes.
   Peers see the complete definitions and rows only after commit.
   Rollback/savepoints restore definitions, dependencies and data together;
   sequence counters are not rewound. Autocommit uses the same supported forms.

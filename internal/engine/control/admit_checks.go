@@ -105,10 +105,11 @@ func CheckCreateQueryTable(s *parser.CreateQueryTable) error {
 	return nil
 }
 
-// CheckAlterIndex admits an index rename or partition attachment.
+// CheckAlterIndex admits the index definitions' final names, attachments and
+// qualified option replay, but no other ALTER capability.
 func CheckAlterIndex(s *parser.AlterIndex) error {
-	if s.Action != "rename" && s.Action != "attach" {
-		return sqlError("0A000", "restore accepts only index rename and partition attachment")
+	if s.Action != "rename" && s.Action != "attach" && !(s.Action == "set" && len(s.Name.Parts) == 2 && !s.IfExists && !stagesTemporary("", s.Name)) {
+		return sqlError("0A000", "restore accepts only index rename, partition attachment and qualified options")
 	}
 	return nil
 }

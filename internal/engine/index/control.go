@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -196,6 +197,9 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 	if index.SQLIndex.NullsNotDistinct {
 		sql.WriteString(" NULLS NOT DISTINCT")
 	}
+	if !presentation.Dump && len(index.StorageOptions.Base) != 0 {
+		sql.WriteString(" WITH (" + OptionsSQL(index.StorageOptions.Base) + ")")
+	}
 	if predicate := index.SQLIndex.Predicate; predicate != nil {
 		var text string
 		var err error
@@ -230,6 +234,26 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 		sql.WriteString(";\n")
 	}
 	return sql.String(), nil
+}
+
+// OptionsSQL renders reloption values like PostgreSQL's flatten_reloptions:
+// identifier-safe values stay bare, all others are SQL string literals.
+// It is also accepted by ALTER INDEX replay, without widening CREATE WITH.
+func OptionsSQL(options []catalog.RelationOption) string {
+	var sql strings.Builder
+	for i, option := range options {
+		if i != 0 {
+			sql.WriteString(", ")
+		}
+		sql.WriteString(catalog.Identifier(option.Name))
+		sql.WriteByte('=')
+		if parser.IdentifierNeedsQuotes(option.Text) {
+			sql.WriteString("'" + strings.ReplaceAll(option.Text, "'", "''") + "'")
+		} else {
+			sql.WriteString(option.Text)
+		}
+	}
+	return sql.String()
 }
 
 // PostgreSQL looks_like_function accepts func_expr_windowless, including its

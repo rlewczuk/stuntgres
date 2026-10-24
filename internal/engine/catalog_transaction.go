@@ -79,6 +79,9 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 	if c.RolesBase != nil && e.roles.published != c.RolesBase {
 		return catalog.Conflict{}
 	}
+	if err := e.catalogFencesCurrentLocked(c, fenceCatalogRoleRead); err != nil {
+		return err
+	}
 	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.DefaultReads) {
 		return catalog.Conflict{}
 	}

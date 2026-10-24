@@ -20,21 +20,77 @@ func Capability(message string, pos parser.Position) error {
 	return d
 }
 
-// Validate reloptions in input order. A first malformed value wins over a later
-// duplicate; RESET has a different contract and accepts unknown/repeated names.
+// ValidateIndexOptions preserves transform-before-AM validation and RESET's
+// permissive unknown/repeated-name contract.
 func ValidateIndexOptions(s *parser.AlterIndex, method catalog.IndexMethod) error {
+	for _, o := range s.Options {
+		if s.Action == "reset" && o.HasValue {
+			return sqlError("42601", "RESET must not include values for parameters")
+		}
+		if s.Action == "reset" || o.Namespace == "toast" {
+			continue
+		}
+		if strings.Contains(o.Name.Text, "=") {
+			return sqlError("22023", fmt.Sprintf(`invalid option name "%s": must not contain "="`, o.Name.Text))
+		}
+		if o.Namespace != "" && o.Namespace != "toast" {
+			return sqlError("22023", fmt.Sprintf(`unrecognized parameter namespace "%s"`, o.Namespace))
+		}
+	}
 	if s.Action == "reset" {
-		for _, o := range s.Options {
-			if o.HasValue {
-				return sqlError("42601", "RESET must not include values for parameters")
+		return nil
+	}
+	return ValidateIndexReloptions(s.Options, method, true)
+}
+
+// TransformIndexOptions returns owned immutable slices; untouched keys retain
+// their order and SET appends the supplied lexical values in request order.
+func TransformIndexOptions(old catalog.RelationOptions, s *parser.AlterIndex, method catalog.IndexMethod) (catalog.RelationOptions, error) {
+	if err := ValidateIndexOptions(s, method); err != nil {
+		return catalog.RelationOptions{}, err
+	}
+	next := catalog.RelationOptions{Toast: old.Toast}
+	for _, option := range old.Base {
+		touched := false
+		for _, request := range s.Options {
+			if request.Namespace == "" && request.Name.Text == option.Name {
+				touched = true
+				break
 			}
 		}
-		return Capability("index storage parameters are unsupported", parser.Position{})
+		if !touched {
+			next.Base = append(next.Base, option)
+		}
 	}
-	if err := ValidateIndexReloptions(s.Options, method, true); err != nil {
-		return err
+	if s.Action == "set" {
+		for _, request := range s.Options {
+			if request.Namespace != "" {
+				continue
+			}
+			option := catalog.RelationOption{Name: request.Name.Text, Text: indexOptionText(request.Value)}
+			if option.Name == "fillfactor" {
+				option.Kind = catalog.RelationOptionInteger
+				n := float64(request.Value.Integer)
+				if request.Value.Kind != parser.IntegerValue {
+					n, _, _ = settings.ParseNumber(request.Value.Text, true)
+				}
+				option.Integer = int64(math.RoundToEven(n))
+			} else {
+				option.Kind = catalog.RelationOptionBoolean
+				switch request.Value.Kind {
+				case parser.BooleanValue:
+					option.Boolean = request.Value.Boolean
+				case parser.IntegerValue:
+					option.Boolean = request.Value.Integer == 1
+				default:
+					value, _ := (settings.Definition{Name: option.Name, Type: settings.Boolean}).Parse(request.Value.Text)
+					option.Boolean = value.Boolean
+				}
+			}
+			next.Base = append(next.Base, option)
+		}
 	}
-	return Capability("index storage parameters are unsupported", parser.Position{})
+	return next, nil
 }
 
 // CREATE rejects namespaces; ALTER retains PostgreSQL's toast-ignore policy.

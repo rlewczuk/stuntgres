@@ -134,11 +134,7 @@ func TestReferenceIndexMaintenanceSmoke(t *testing.T) {
 		run(fixture.Prepared(fixture.Exec("REINDEX INDEX u_new", 0)))
 		run(fixture.ErrorDiagnostic("INSERT INTO q VALUES(1)", fixture.UniqueReferenceDuplicate("q", "u_new", "Key (n)=(1) already exists.")))
 		run(fixture.ImplicitError("DROP INDEX u_new CASCADE", fixture.Diagnostic{Code: "2BP01", Message: "cannot drop index u_new because constraint u_new on table q requires it", Hint: "You can drop constraint u_new on table q instead."}))
-		s := fixture.Exec("ALTER INDEX si SET(fillfactor=80)", 0)
-		if !b.PG {
-			s = fixture.ImplicitError(s.Query, fixture.Diagnostic{Code: "0A000", Message: "index storage parameters are unsupported"})
-		}
-		run(s)
+		run(fixture.Exec("ALTER INDEX si SET(fillfactor=80)", 0))
 	})
 }
 

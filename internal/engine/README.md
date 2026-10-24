@@ -254,8 +254,17 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   is admitted separately at Execute. It uses the same private catalog/storage,
   journal, Finish and combined publication path as table/schema DDL. Its canonical
   owner-authorized Share grant is retained through transaction end; savepoints
-  restore only postmark contributions and locks. CONCURRENTLY and standalone
-  index maintenance keep their existing independent boundaries.
+  restore only postmark contributions and locks. CONCURRENTLY retains its
+  independent boundary.
+- Ordinary DROP INDEX and ALTER INDEX rename/SET/RESET use bounded maintenance
+  eligibility at Execute and the same CatalogStage/Journal/Finish/combined
+  publication path, including retained simple/extended transactions. Exact
+  captured grants fence identity through waits; owner-private descriptor,
+  dependency and root changes commit with rows or restore at rollback/savepoint.
+  Ordinary ALTER holds SUE on the index, permitting parent DML; DROP retains AX
+  on parent and index. Partition DROP/ATTACH rules remain unchanged. Describe
+  stays syntax-only and held Execute refreshes authority. REINDEX keeps its
+  writable-explicit refusal; no blanket utility exemption is introduced.
 
 View and materialized definitions resolve against the owner's private catalog,
 including private source relations and providers. Materialized producers consume
@@ -266,6 +275,14 @@ attribute layouts, authorization and population state; retained results stay
 immutable. Empty catalog-provider rows remain an owned empty anonymous source,
 not a missing physical source. Finish, savepoints and combined commit retain or
 discard these paired catalog/data roots through the existing publication path.
+Demanded query-derived producers (including empty results) and materialized
+replacements retain their committed role predecessor as a journal read fence
+until final publication. This is separate from `RolesBase` for private role
+writes and from execution authorization, which is checked through Finish.
+Creation WITH NO DATA has no demanded producer; REFRESH WITH NO DATA still has
+a pending replacement. Completed metadata-only index maintenance owns neither
+producer state and does not retain this role-read fence. Savepoints restore
+producer fences with the same journal as their rows and storage predecessors.
 
 - `session.ExplicitUtility` admits the shipped COMMENT kinds (TABLE, COLUMN,
   FOREIGN TABLE, SCHEMA, ROLE and SEQUENCE) in SQL BEGIN and Go BeginTx.

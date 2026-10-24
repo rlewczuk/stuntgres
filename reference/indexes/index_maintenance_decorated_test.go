@@ -101,11 +101,7 @@ func TestReferenceIndexMaintenanceDecoratedLifecycle(t *testing.T) {
 		indexMaintenanceDecoratedRows(run, true)
 		run(fixture.Exec("REINDEX TABLE t", 0))
 		for _, q := range []string{"ALTER INDEX renamed_unsigned SET(fillfactor=70,deduplicate_items=off)", "ALTER INDEX renamed_unsigned RESET(fillfactor,deduplicate_items)"} {
-			step := fixture.Exec(q, 0)
-			if !b.PG {
-				step = fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "index storage parameters are unsupported"})
-			}
-			run(step)
+			run(fixture.Exec(q, 0))
 		}
 		run(fixture.ImplicitError("DROP INDEX renamed_unsigned,missing", fixture.Diagnostic{Code: "42704", Message: `index "missing" does not exist`}))
 		run(fixture.Prepared(fixture.ImplicitError("DROP INDEX renamed_mixed,missing", fixture.Diagnostic{Code: "42704", Message: `index "missing" does not exist`})))

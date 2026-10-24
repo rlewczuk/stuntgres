@@ -8,11 +8,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// StageMaintenance stages ALTER INDEX ATTACH PARTITION and REINDEX, and the
-// observations every index utility publishes against: the parents and index
-// sets the grant saw, and every observed descriptor as a domain base. REINDEX
-// records its rebuilds and makes an index that is not ready, valid and live
-// so again. RENAME and DROP stay with the caller.
+// StageMaintenance stages options, partition attachment and REINDEX, together
+// with the exact descriptor observations every index utility publishes against.
+// RENAME and DROP stay with the caller.
 func StageMaintenance(h Host, g *MaintenanceGrant, stmt parser.Statement) error {
 	st := h.IndexStage()
 	st.Parents = make(map[ids.ObjectAddress]*catalog.Relation, len(g.Parents))
@@ -44,6 +42,20 @@ func StageMaintenance(h Host, g *MaintenanceGrant, stmt parser.Statement) error 
 				}
 			}
 		}
+	}
+	if s, ok := stmt.(*parser.AlterIndex); ok && (s.Action == "set" || s.Action == "reset") {
+		original := g.Descriptors[g.Targets[0].Address]
+		options, err := TransformIndexOptions(original.StorageOptions, s, original.SQLIndex.Method)
+		if err != nil {
+			return err
+		}
+		next := *original
+		next.StorageOptions = options
+		if next.Revision() == ids.DefinitionRevision(^uint64(0)) {
+			return fmt.Errorf("stuntgres: index revision exhausted")
+		}
+		next.ObjectRevision++
+		return h.Stage().Replace(&next)
 	}
 	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "attach" {
 		parent := g.Descriptors[g.Targets[0].Address]

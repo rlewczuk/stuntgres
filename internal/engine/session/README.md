@@ -126,6 +126,11 @@ implement its slots, so either import would form a cycle.
   wrappers pass the published base under `Engine.mu`.
   Role comments use the same immutable role overlay and committed `RolesBase`;
   savepoint marks restore that authority along with descriptors and locks.
+  `RolesBase` fences actual private role-root writes, not the authorization
+  consulted by a completed catalog statement; execution authority ends at Finish.
+  Pending query-derived rows and materialized replacements separately retain a
+  root-owned role-read fence until publication. Journal clones and savepoint
+  marks retain or discard that fence with its producer, not as a role overlay.
   `StorageChange.MergeFills` merges added-column fills and drops those of
   removed attributes, replacing the shared fill map instead of mutating it.
 - **Journal capture** (`journal_capture.go`): `JournalCapture` turns a

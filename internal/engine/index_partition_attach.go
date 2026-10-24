@@ -18,7 +18,7 @@ func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
 		return v.Action == "attach"
 	}
 	drop, ok := stmt.(*parser.DropIndex)
-	if !ok {
+	if !ok || drop.Concurrent.Character != 0 {
 		return false
 	}
 	e := s.engine()

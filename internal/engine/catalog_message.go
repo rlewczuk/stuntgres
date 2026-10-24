@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -45,6 +46,23 @@ func (e *Engine) catalogReadPreflightLocked(c *session.Journal) error {
 		}
 	}
 	return e.catalogFencesCurrentLocked(c, session.FenceStorageRead, session.FenceIndexSet, session.FenceNamespace)
+}
+
+// catalogRoleReadFence retains a pending producer's committed role predecessor
+// until its rows/catalog publish. It is not a private role write: later own role
+// changes use RolesBase independently, and completed metadata-only statements
+// retain neither this read fence nor their execution authorization.
+type catalogRoleReadFence struct {
+	roles *access.RoleRecord
+}
+
+func (catalogRoleReadFence) Kind() session.FenceKind { return fenceCatalogRoleRead }
+
+func (f catalogRoleReadFence) currentLocked(e *Engine, _ *session.Journal) error {
+	if e.roles.published != f.roles {
+		return catalog.Conflict{}
+	}
+	return nil
 }
 
 // Capture committed predecessor fences while checking the exact private roots
@@ -158,8 +176,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		captureStorage(index.SQLIndex.Parent)
 	}
 	c.Dependencies = append(c.Dependencies, s.sequence.IdentityDependencyList()...)
-	if s.authSession != nil && c.RolesBase == nil {
-		c.RolesBase = e.roles.published
+	// Detached producer rows are still pending publication after statement
+	// Finish. Keep their role read separate from actual private role writes.
+	if s.initialTx != (ids.TxRef{}) || s.materializedOrZero().Replacement != nil {
+		c.AddFence(catalogRoleReadFence{roles: e.roles.published})
 	}
 	c.DomainChanged = c.DomainChanged || len(s.domainTargets) != 0
 	for _, d := range s.Descriptors() {

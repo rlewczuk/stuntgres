@@ -149,13 +149,13 @@ func TestIndexMaintenanceBackingRenameAndRoots(t *testing.T) {
 	lockEmpty(t, e)
 }
 
-func TestIndexMaintenanceAtomicFailuresAndUnsupportedStorage(t *testing.T) {
+func TestIndexMaintenanceAtomicFailuresAndStorageBoundaries(t *testing.T) {
 	e := New()
 	for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(1),(1),(NULL)", "CREATE INDEX ix ON t(n)"} {
 		run(t, e, q)
 	}
 	before := indexMaintenanceCapture(e)
-	for _, q := range []string{"DROP INDEX ix,missing", "DROP INDEX ix,t", "ALTER INDEX ix RENAME TO t", "ALTER INDEX ix SET(fillfactor=9)", "ALTER INDEX ix SET(fillfactor=80.0)", "ALTER INDEX ix RESET(unknown)", "ALTER INDEX ix RESET(fillfactor=80)", "REINDEX (parallel -1) INDEX ix", "REINDEX (concurrently false) INDEX ix", "ALTER INDEX ix SET TABLESPACE pg_default", "ALTER INDEX ix ALTER COLUMN 1 SET STATISTICS 10"} {
+	for _, q := range []string{"DROP INDEX ix,missing", "DROP INDEX ix,t", "ALTER INDEX ix RENAME TO t", "ALTER INDEX ix SET(fillfactor=9)", "ALTER INDEX ix SET(fillfactor=80,deduplicate_items='bad')", "ALTER INDEX ix RESET(fillfactor=80)", "REINDEX (parallel -1) INDEX ix", "REINDEX (concurrently false) INDEX ix", "ALTER INDEX ix SET TABLESPACE pg_default", "ALTER INDEX ix ALTER COLUMN 1 SET STATISTICS 10"} {
 		_, err := testExecute(e, context.Background(), statement(t, q), nil)
 		if err == nil {
 			t.Fatal("invalid/unavailable request succeeded", q)

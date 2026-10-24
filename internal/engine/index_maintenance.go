@@ -88,10 +88,6 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	if err != nil {
 		return Result{}, err
 	}
-	if scope.partitionIndexTransaction(stmt) {
-		err := e.stageCatalogOverlay(scope, stage, scope.owner.Catalog.Clone())
-		return Result{}, err
-	}
 	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 	if err != nil {
 		return Result{}, err

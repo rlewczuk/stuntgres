@@ -50,11 +50,10 @@ func TestReferenceIndexMaintenanceDiagnostics(t *testing.T) {
 // Complete records below were acquired from the pinned PG18 root oracle.
 func TestReferenceIndexMaintenanceDiagnosticPrecedence(t *testing.T) {
 	cases := []struct {
-		query         string
-		diagnostic    fixture.Diagnostic
-		parse         bool
-		nativeStorage bool
-		changed       string
+		query      string
+		diagnostic fixture.Diagnostic
+		parse      bool
+		changed    string
 	}{
 		{query: "DROP INDEX ix,ix", changed: "drop"},
 		{query: "DROP INDEX ix,ix CASCADE", changed: "drop"},
@@ -77,8 +76,8 @@ func TestReferenceIndexMaintenanceDiagnosticPrecedence(t *testing.T) {
 		{query: "ALTER INDEX IF EXISTS missing RESET(fillfactor=80)"},
 		{query: "ALTER INDEX ix SET(fillfactor=9,fillfactor=80)", diagnostic: fixture.Diagnostic{Code: "22023", Message: `value 9 out of bounds for option "fillfactor"`, Detail: `Valid values are between "10" and "100".`}},
 		{query: "ALTER INDEX ix SET(fillfactor=80,fillfactor=9)", diagnostic: fixture.Diagnostic{Code: "22023", Message: `parameter "fillfactor" specified more than once`}},
-		{query: "ALTER INDEX ix RESET(unknown)", nativeStorage: true},
-		{query: "ALTER INDEX ix RESET(toast.fillfactor)", nativeStorage: true},
+		{query: "ALTER INDEX ix RESET(unknown)"},
+		{query: "ALTER INDEX ix RESET(toast.fillfactor)"},
 		{query: "REINDEX (verbose='bad') INDEX ix", parse: true, diagnostic: fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "="`, Position: "17"}},
 		{query: "REINDEX (concurrently=false) INDEX ix", parse: true, diagnostic: fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "="`, Position: "22"}},
 		{query: "REINDEX (verbose=false) INDEX ix", parse: true, diagnostic: fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "="`, Position: "17"}},
@@ -104,10 +103,6 @@ func TestReferenceIndexMaintenanceDiagnosticPrecedence(t *testing.T) {
 					s := fixture.Exec(c.query, 0)
 					if c.diagnostic.Code != "" {
 						s = fixture.ImplicitError(c.query, c.diagnostic)
-						s.ErrorStage = "execute"
-					}
-					if c.nativeStorage && !b.PG {
-						s = fixture.ImplicitError(c.query, fixture.Diagnostic{Code: "0A000", Message: "index storage parameters are unsupported"})
 						s.ErrorStage = "execute"
 					}
 					if prepared {
