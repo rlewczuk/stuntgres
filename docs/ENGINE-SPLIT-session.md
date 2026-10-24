@@ -348,7 +348,35 @@ run `make bench` before and after.
     because it must return before `t.Mu` and before the 0A000 refusal. No new
     root feature files since 165.
 - 162: not started.
-- 164: not started.
+- 164: done (`02525be60`, `5bd350fee`, then the docs commit; started at
+  master `249501c80`, rebased onto `f83d170e8`).
+  - On `session`: `SettingsStore.AdmitLocked`, `ApplyLocked`,
+    `ResetAllLocked` and `ShowAllRowsLocked` (new `setting_install.go`);
+    `SettingsStore.CurrentSettingLocked` and `SetConfigInputLocked` (new
+    `setting_calls.go`); `DiscardRoleReset`, `ValidateRoleResetLocked`,
+    `Operation.DiscardRoleResetPending` and
+    `Operation.FinishDiscardRoleResetLocked` (new `discard_role_reset.go`);
+    `SessionCharacteristicSetting`; and `PublicationOperationLocked`, which
+    shares a locked body with `TransactionAuthority`. All take the
+    `settings.Registry` and the domain as values.
+  - The root keeps every lock window and the binder. `publicationOperationLocked`
+    stays as a one-line wrapper (about 35 callers). The two publication
+    preflights call `ValidateRoleResetLocked` only when
+    `DiscardRoleResetPending`, so ordinary commits build no role read.
+  - Deviations: `AdmitLocked` is an extra dedupe of the
+    operation-plus-attachment check (4 copies). The publisher's role reset is
+    an inline guarded call rather than a session method, to keep the role read
+    lazy without a callback.
+  - Root 400 files and 49.0k → 48.8k lines (−0.16k); `session` gains 0.24k
+    production lines.
+  - Tests: none moved (all use engine fixtures). Adapted `schema_test.go`
+    (`ResetAllLocked`) and `serializable_publication_test.go`, whose context
+    barrier now matches the `session.PublicationOperationLocked` frame. New
+    session units: `setting_install_test.go`
+    (`TestSettingsResetAllLocked`, `TestSettingsShowAllRowsLocked`) and
+    `TestSessionCharacteristicSetting`.
+  - For item 167: no new root feature files since 161; item 166 added
+    `ddl/database.go` only.
 - 165: done (`1b75fbd78`, `6fb0e5f37`, then the docs commit).
   - On `session`: `ProtocolInput`, `ProtocolLogParameter`, `ProtocolContext`,
     `ProtocolField`, `ProtocolFormats`, `ProtocolFormat`,

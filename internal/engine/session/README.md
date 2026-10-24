@@ -22,7 +22,8 @@ implement its slots, so either import would form a cycle.
   resources, settings store, transaction owner, delegates, timeouts, root
   payload) with `Acquire`, `RequestEnd`, `WaitEnd`, `Reuse`, `Detach` and
   `Check`; `ValidateOperation` and `TransactionAuthority` check liveness, domain
-  and membership. `Operation` carries contexts, command budgets, lock timeouts,
+  and membership, and `PublicationOperationLocked` adds the context check
+  under `Session.Mu` for publication. `Operation` carries contexts, command budgets, lock timeouts,
   notices, the copy-input context, the statement lease and the replay and
   analysis slots; `Session.AcquireCommand` admits commands. Notice levels,
   emission and the relation skip notices (`ExistingRelation`,
@@ -40,7 +41,8 @@ implement its slots, so either import would form a cycle.
   The root runs its cursor, portal, extension, exclusion and SSI work around
   them, payload first. Checked
   handles (`owner_handles.go`) recover owners from the `ids` interfaces;
-  `AssignModes` and `CharacteristicMode` decide transaction modes
+  `AssignModes`, `CharacteristicMode` and `SessionCharacteristicSetting` decide
+  transaction modes and their session defaults
   (`transaction_characteristics.go`); `SerializableWriteSurvives` tells rollback
   which serializable write evidence survives.
   Stable isolation retains immutable tuple roots, the commit frontier, sequence
@@ -66,9 +68,17 @@ implement its slots, so either import would form a cycle.
   projections) and `SettingsMark`. Default providers run once at physical
   startup, never for metadata reads or RESET. The settings cores
   (`Presentation`, `LookupDefinition`, `ParseValue`, `SetInput`,
-  `SettingAccess`) parse and check without installing; the root keeps the
-  install windows and the authorization behind `SettingAccess`'s `allowed`
-  callback.
+  `SettingAccess`) parse and check without installing. Under the root's
+  install window, `AdmitLocked` checks the operation and attachment;
+  `ApplyLocked`, `ResetAllLocked` and `ShowAllRowsLocked` (`setting_install.go`)
+  install, reset and list values; `CurrentSettingLocked` and
+  `SetConfigInputLocked` (`setting_calls.go`) decode the setting-function
+  arguments. Each takes the `settings.Registry` and domain as values. DISCARD
+  ALL's identity reset (`discard_role_reset.go`): `DiscardRoleReset` computes
+  it, `ValidateRoleResetLocked` checks it against an `authorization.Read`, and
+  `Operation.FinishDiscardRoleResetLocked` installs it after publication. The
+  root keeps the lock windows and the authorization behind `SettingAccess`'s
+  `allowed` callback.
 - **Statement classification** (pure functions of the AST and owner values):
   command tags (`command_tag.go`); admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,
@@ -189,7 +199,9 @@ and visibility: the `Engine.mu` windows of begin, commit, rollback and CHAIN
 SSI and lock-manager calls (`transaction_prepared.go`), and of savepoints
 (`savepoints.go`, with `restoreSavepointLocked` shared by ROLLBACK TO and
 failed-statement or PL/pgSQL rollback), publication and preflight, session start,
-settings application (`setting_apply.go`, `discard.go`), the protocol Parse,
+the `Engine.mu` → `Settings.Mu` → `Session.Mu` windows of settings application,
+setting calls and DISCARD (`setting_apply.go`, `setting_calls.go`,
+`discard.go`), the protocol Parse,
 Bind, Describe, Execute and fastpath steps (`protocol_*.go`, with
 `ProtocolStatement`, `ProtocolPortalDescription` and `ProtocolExecution`,
 which carry `StatementDescription`), the `Engine.mu`
@@ -200,16 +212,17 @@ types.
 ## Testing
 
 Package units cover the journal with its fences, capture and merge, notices,
-SET LOCAL actions, the 2PC registry's claim and preflight, CHAIN modes and
+SET LOCAL actions, RESET ALL and SHOW ALL, the 2PC registry's claim and preflight, CHAIN modes and
 PREPARE refusals, the notification
-queue, registry and publication, characteristic modes, serializable write
+queue, registry and publication, characteristic modes and session
+characteristic settings, serializable write
 survival, the `lc_messages` access callback, the UUID v1 allocator, the
 protocol codec and statement classification. Engine
 tests (in `internal/engine`) cover the host and root slots, catalog fences,
 column-shape projections and settings provider capture.
 
 ```sh
-make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|StatementPhases|SerializableWriteSurvives|SettingAccessAllowedCallback|SettingsLocal|UUIDOsspTime)'
+make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|StatementPhases|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'
 make check RACE=1 RUN='^Test(SessionHost|SessionPayload|OwnerExtension|ExclusionMark|Operation(AnalysisSlot|ReplaySlot)|UUIDOsspTimeConcurrent$$)'
 make check RUN='^Test(CatalogFences|EnumProvenanceSavepoints|AlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection)$$)'
 make check RUN='^Test(PGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)|RowSecurity(SettingProvenance|ProviderLifecycle))$$'

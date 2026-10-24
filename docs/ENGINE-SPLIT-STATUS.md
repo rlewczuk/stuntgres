@@ -10,16 +10,15 @@ closing reviews. Their record is in `git log` and in this file at
 second closing review) measured the root at `fe0683b68`, planned the fifth
 round (items 152–167) and reset these docs.
 
-Last verified against `master` at `249501c80`.
+Last verified against `master` at `f83d170e8`.
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches; none of them is broad.
 
-- 162 (session, statement data views) and 164 (session, settings, DISCARD
-  and setting calls). Both edit `transaction_isolation.go`; expect a small
-  rebase conflict if run in parallel.
+- 162 (session, statement data views). Item 167 (closing review 3) is ready
+  once 162 lands.
 
 ## Linear plan
 
@@ -125,9 +124,15 @@ One item per session. Start one with "Implement Item N from Linear Plan in
      `REFERENCE=1` SQL cursor, DELETE/UPDATE CURRENT OF, server portal and
      PL/pgSQL cursor selections passed; racecheck/finalcheck skipped at user
      request
-164. [ ] Session: settings, DISCARD and setting calls —
+164. [x] Session: settings, DISCARD and setting calls —
      [session](ENGINE-SPLIT-session.md#item-164--settings-discard-and-setting-calls)
-     · needs 161, 163 · 0.16k
+     · needs 161, 163 · 0.16k (`02525be60`, `5bd350fee`, then the docs
+     commit) · root 400 files and 49.0k → 48.8k lines · no startup
+     allocation change (5.4k allocs/op, as master; ns/op unmeasurable at load
+     133) and no new escapes on the SET or publication paths · targeted units (also `RACE=1`), quickcheck,
+     `make deps` and the quick and `REFERENCE=1` `TestReferenceSettings` and
+     `TestReferenceDiscard` selections passed; racecheck/finalcheck skipped at
+     user request
 165. [x] Session: protocol value codec —
      [session](ENGINE-SPLIT-session.md#item-165--protocol-value-codec) ·
      needs — · 0.24k (`1b75fbd78`, `6fb0e5f37`, then the docs
