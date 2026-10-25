@@ -11,11 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type DomainDefaultReplayCapture struct {
-	Statement *parser.CreateDomain
-	Record    typedef.DomainDefaultSnapshot
-}
-
 // bindRestoredDomainDefault is reached only from the paired CREATE's existing
 // stage host, with Engine.mu held. The capture is operation-local and expires
 // when that statement returns; a SQL comment alone grants no engine authority.
