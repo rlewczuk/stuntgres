@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -237,43 +236,52 @@ func TestReferenceRoleOwnershipLifecycle(t *testing.T) {
 			s.t.Fatal(id, err)
 		}
 		rows.Close()
-		ctx, cancel := context.WithTimeout(s.p.Ctx, 2*time.Second)
-		defer cancel()
 		worker, err := s.backend.DB.Conn(s.p.Ctx)
 		if err != nil {
 			s.t.Fatal(err)
 		}
 		defer worker.Close()
-		execute := func() error { _, err := worker.ExecContext(ctx, q); return err }
+		var stmt *sql.Stmt
 		if s.prepared {
-			stmt, err := worker.PrepareContext(s.p.Ctx, q)
-			if err != nil {
+			if stmt, err = worker.PrepareContext(s.p.Ctx, q); err != nil {
 				s.t.Fatal(err)
 			}
 			defer stmt.Close()
-			execute = func() error { _, err := stmt.ExecContext(ctx); return err }
 		}
-		done := make(chan error, 1)
-		go func() { done <- execute() }()
-		select {
-		case err := <-done:
-			if s.backend.PG {
-				d := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to user request")
-				fixture.AssertDiagnostic(s.t, err, &d)
-			} else if !errors.Is(err, context.DeadlineExceeded) {
-				s.t.Fatal("blocked ownership cancellation", err)
+		var oid int64
+		if err := s.c.QueryRowContext(s.p.Ctx, "SELECT 'own_lifecycle'::regclass::oid::BIGINT").Scan(&oid); err != nil || oid <= 0 {
+			s.t.Fatal(oid, err)
+		}
+		workerPID, holderPID := 0, 0
+		if s.backend.PG {
+			workerPID = fixture.LockPID(s.t, s.p.Ctx, worker)
+			holderPID = fixture.LockPID(s.t, s.p.Ctx, holder)
+		}
+		ctx, cancel := context.WithCancel(s.p.Ctx)
+		defer cancel()
+		finished := make(chan struct{})
+		join := fixture.LockOperation(s.t, ctx, func(ctx context.Context) fixture.RelationOutcome {
+			defer close(finished)
+			var out fixture.RelationOutcome
+			if stmt != nil {
+				out.Result, out.Err = stmt.ExecContext(ctx)
+			} else {
+				out.Result, out.Err = worker.ExecContext(ctx, q)
 			}
-		case <-time.After(5 * time.Second):
-			cancel()
-			if _, err := holder.ExecContext(context.Background(), "ROLLBACK"); err != nil {
-				s.t.Error(err)
-			}
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				s.t.Fatal("ownership worker did not join")
-			}
-			s.t.Fatal("ownership cancellation did not complete")
+			return out
+		})
+		// Cancel only after observing the owner change queued behind AccessShare.
+		fixture.RelationLockPending(s.t, s.p, s.backend, workerPID, holderPID, oid, "AccessExclusiveLock", finished)
+		cancel()
+		out := join()
+		if out.Result != nil {
+			s.t.Fatal("canceled ownership change returned result", out.Result)
+		}
+		if s.backend.PG {
+			d := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to user request")
+			fixture.AssertDiagnostic(s.t, out.Err, &d)
+		} else if !errors.Is(out.Err, context.Canceled) {
+			s.t.Fatal("blocked ownership cancellation", out.Err)
 		}
 		if _, err = holder.ExecContext(s.p.Ctx, "ROLLBACK"); err != nil {
 			s.t.Fatal(err)

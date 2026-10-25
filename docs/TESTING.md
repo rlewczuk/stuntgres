@@ -121,10 +121,21 @@ package share one container, so **never use `t.Parallel()`**. Each package's
 - **Deadlocks.** Identify the victim from its error, not worker completion order.
   Join both workers under a bounded deadline and keep the victim, survivor and
   side-effect assertions.
+- **Speed.** Tests must run as fast as possible: aim for under 10 ms per leaf
+  case. A case that spends its time waiting rather than computing is a bug, and
+  a matrix multiplies its per-leaf cost, so check leaf count × leaf time before
+  adding a dimension. Never wait out a fixed delay (sleep, long timer or context
+  deadline) and then assert. Wait for the condition itself: poll it in a loop with
+  a very short pause (`runtime.Gosched()` or a 1 ms tick). Bound the loop by an
+  overall deadline long enough for a loaded machine (seconds), so it returns as
+  soon as the condition holds. Reuse the fixture observers (`RelationLockPending`,
+  `LockWaitBehind`, `LockWait`) where they fit.
 - **Timeouts.** Prepare held statements and finish setup at timeout 0, then arm a
-  short `statement_timeout`/`lock_timeout`. Once armed, even `SHOW` or `RESET` can
-  time out: dispose of the armed owner instead of resetting it, and never raise the
-  timer or retry.
+  short (100 ms) `statement_timeout`/`lock_timeout`. A short timer leaves no room
+  for an observer: let its exact diagnostic prove the wait, and keep the strict
+  admission observer in the matching cancellation case. Once armed, even `SHOW` or
+  `RESET` can time out: dispose of the armed owner instead of resetting it, and
+  never raise the timer or retry.
 - **Cancellation.** Native pre-canceled and expired routes return ordinary context
   errors. An operation can classify an elapsed source deadline before the source's
   Done notification: check the operation error independently, then wait for the
