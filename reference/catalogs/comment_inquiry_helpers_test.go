@@ -1,11 +1,9 @@
 package reference_test
 
 import (
-	"bytes"
 	"database/sql"
 	"math"
 	"reflect"
-	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -78,13 +76,4 @@ func commentInquiryStep(t *testing.T, p *fixture.Pair, backend fixture.Backend, 
 		}
 	}
 	fixture.RunStep(t, p.Ctx, db, backend.Recorder, s)
-}
-
-func commentInquiryDump(t *testing.T, p *fixture.Pair) string {
-	t.Helper()
-	var b bytes.Buffer
-	if err := stuntgres.Dump(p.Ctx, p.Native, &b); err != nil {
-		t.Fatal(err)
-	}
-	return b.String()
 }

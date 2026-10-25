@@ -23,10 +23,10 @@ func TestReferencePGTableViewsFailedIndexHistory(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 					// Pinned18.0 ordinary failed expression builds leave false; concurrent
 					// invalid descriptors have already been published and retain true.
-					pgTableCheck(t, p, b, b.DB, name, pgTableRow("public", name, pgTableViewsOwner(b), concurrent))
+					pgTableCheck(t, p, b, b.DB, name, fixture.PGTableRow("public", name, fixture.PGTableViewsOwner(b), concurrent))
 					if concurrent {
 						fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("DROP INDEX "+name+"_index", 0))
-						pgTableCheck(t, p, b, b.DB, name, pgTableRow("public", name, pgTableViewsOwner(b), true))
+						pgTableCheck(t, p, b, b.DB, name, fixture.PGTableRow("public", name, fixture.PGTableViewsOwner(b), true))
 					}
 				})
 			}

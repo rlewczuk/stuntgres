@@ -42,15 +42,15 @@ func TestReferenceInfoSQLSizingNativeControls(t *testing.T) {
 		}
 		c.check(c.conn, szQuery, c.want)
 		szCatalogShape(c)
-		szMetadata(c.t, columns, szColumns, szTypes, false)
-		szConsume(c, retained, szColumns, szTypes, c.want)
+		szMetadata(c.t, columns, fixture.SZColumns, szTypes, false)
+		szConsume(c, retained, fixture.SZColumns, szTypes, c.want)
 		if err := stuntgres.Restore(c.p.Ctx, c.p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			c.t.Fatal(err)
 		}
 		c.run(c.conn, fixture.Select("SELECT v FROM public.sz_user", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		c.check(c.conn, szQuery, c.want)
 		szCatalogShape(c)
-		szMetadata(c.t, columns, szColumns, szTypes, false)
+		szMetadata(c.t, columns, fixture.SZColumns, szTypes, false)
 		q := szQuery + " WHERE sizing_id=$1"
 		held := c.hold(q)
 		c.run(held, c.projection(q, [][]any{{int64(101), "MAXIMUM COLUMNS IN TABLE", int64(1600), nil}}, int64(101)))

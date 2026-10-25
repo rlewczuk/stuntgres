@@ -9,7 +9,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var pgNamespaceColumns = []string{"oid", "nspname", "nspowner", "nspacl"}
 var pgNamespaceTypes = []string{"OID", "NAME", "OID", "_ACLITEM"}
 
 func pgNamespaceScenario(t *testing.T, schemas, roles []string, body func(*testing.T, *fixture.Pair, fixture.Backend)) {
@@ -32,7 +31,7 @@ func pgNamespaceExec(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixtur
 func pgNamespaceCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, s fixture.Step) {
 	t.Helper()
 	// The common catalog recorder checks raw OID/NAME/ACL carriers before normalization.
-	pgDatabaseCheck(t, p, b, db, s)
+	fixture.PGDatabaseCheck(t, p, b, db, s)
 }
 
 func pgNamespaceID(t *testing.T, p *fixture.Pair, db fixture.Executor, name string) int64 {
@@ -60,7 +59,7 @@ func pgNamespaceID(t *testing.T, p *fixture.Pair, db fixture.Executor, name stri
 
 func pgNamespaceRow(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, name string, id, owner int64, acl any) {
 	t.Helper()
-	s := fixture.Select("SELECT * FROM pg_catalog.pg_namespace WHERE nspname=$1", pgNamespaceColumns, pgNamespaceTypes, [][]any{{id, name, owner, acl}}, name)
+	s := fixture.Select("SELECT * FROM pg_catalog.pg_namespace WHERE nspname=$1", fixture.PGNamespaceColumns, pgNamespaceTypes, [][]any{{id, name, owner, acl}}, name)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgNamespaceMetadata(t, rows, b.PG) }
 	pgNamespaceCheck(t, p, b, db, s)
 	pgNamespaceCheck(t, p, b, db, fixture.Prepared(s))
@@ -69,7 +68,7 @@ func pgNamespaceRow(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture
 func pgNamespaceMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgNamespaceColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGNamespaceColumns) {
 		t.Fatal(names, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -77,7 +76,7 @@ func pgNamespaceMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		t.Fatal(types, err)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgNamespaceColumns[i] || typ.DatabaseTypeName() != pgNamespaceTypes[i] {
+		if typ.Name() != fixture.PGNamespaceColumns[i] || typ.DatabaseTypeName() != pgNamespaceTypes[i] {
 			t.Fatal(i, typ.Name(), typ.DatabaseTypeName())
 		}
 		if nullable, known := typ.Nullable(); (pg && known) || (!pg && (!known || nullable != (i == 3))) {

@@ -37,16 +37,16 @@ func TestReferencePGConstraintExclusionSignatures(t *testing.T) {
 					checkName := prefix + "_ck"
 					excluded := prefix + "_excluded"
 					exclusionName := prefix + "_x"
-					pgClassExec(t, p, b, b.DB, "CREATE TABLE "+ordinary+"(a INT,CONSTRAINT "+checkName+" CHECK(a>0))")
+					fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE "+ordinary+"(a INT,CONSTRAINT "+checkName+" CHECK(a>0))")
 					unrelatedQuery := "SELECT conname FROM pg_constraint WHERE conrelid=$1::regclass::oid AND conname=$2"
 					unrelated := fixture.Select(unrelatedQuery, []string{"conname"}, []string{"NAME"}, [][]any{{checkName}}, ordinary, checkName)
 					heldUnrelated := fixture.ViewHold(t, p, b, unrelatedQuery)
 					pgConstraintCheck(t, p, b, heldUnrelated, unrelated)
 
 					if tc.declaration != "" {
-						pgClassExec(t, p, b, b.DB, tc.declaration)
+						fixture.PGClassExec(t, p, b, b.DB, tc.declaration)
 					}
-					pgClassExec(t, p, b, b.DB, "CREATE TABLE "+excluded+"(a "+tc.typ+",CONSTRAINT "+exclusionName+" EXCLUDE USING btree(a WITH =))")
+					fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE "+excluded+"(a "+tc.typ+",CONSTRAINT "+exclusionName+" EXCLUDE USING btree(a WITH =))")
 					q := "SELECT conname,contype,conkey::text,conexclop::text,conindid<>0::oid AS backed,conindid<>oid AS distinct_identity,conbin IS NULL AS no_tree FROM pg_constraint WHERE conrelid=$1::regclass::oid ORDER BY conname"
 					metadata := fixture.Select(q, []string{"conname", "contype", "conkey", "conexclop", "backed", "distinct_identity", "no_tree"}, []string{"NAME", "CHAR", "TEXT", "TEXT", "BOOL", "BOOL", "BOOL"}, [][]any{{exclusionName, "x", "{1}", tc.operators, true, true, true}}, excluded)
 					pgConstraintCheck(t, p, b, b.DB, metadata)

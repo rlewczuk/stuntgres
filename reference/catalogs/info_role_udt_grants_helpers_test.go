@@ -9,7 +9,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var ugColumns = []string{"grantor", "grantee", "udt_catalog", "udt_schema", "udt_name", "privilege_type", "is_grantable"}
 var ugTypes = []string{"NAME", "NAME", "NAME", "NAME", "NAME", "VARCHAR", "VARCHAR"}
 var ugRoles = []string{"ug_o", "ug_r", "ug_d", "ug_m", "ug_g", "ug_x", "ug_y", "ug_p", "ug_power"}
 
@@ -119,7 +118,7 @@ func (c *ugCase) baseline(owner, schema, name string) [][]any {
 	return [][]any{c.row(owner, owner, schema, name, "YES"), c.row(owner, "PUBLIC", schema, name, "NO")}
 }
 func (c *ugCase) step(query string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(query, ugColumns, ugTypes, want, args...)
+	s := fixture.Select(query, fixture.UGColumns, ugTypes, want, args...)
 	s.Bag = true
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { ugMetadata(t, rows, c.b.PG) }
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
@@ -169,7 +168,7 @@ func ugMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(names, ugColumns) {
+	if !reflect.DeepEqual(names, fixture.UGColumns) {
 		t.Fatal("columns", names)
 	}
 	types, err := rows.ColumnTypes()
@@ -202,7 +201,7 @@ func ugColumnTypes(t *testing.T, types []*sql.ColumnType, pg bool) {
 		n, nok := typ.Nullable()
 		l, lok := typ.Length()
 		p, s, dok := typ.DecimalSize()
-		if typ.Name() != ugColumns[i] || typ.DatabaseTypeName() != ugTypes[i] || typ.ScanType() != scan || n != !pg || nok != !pg || l != length || lok != hasLength || p != 0 || s != 0 || dok {
+		if typ.Name() != fixture.UGColumns[i] || typ.DatabaseTypeName() != ugTypes[i] || typ.ScanType() != scan || n != !pg || nok != !pg || l != length || lok != hasLength || p != 0 || s != 0 || dok {
 			t.Fatalf("column %d: name=%s type=%s scan=%v nullable=%t/%t length=%d/%t decimal=%d/%d/%t; want scan=%v nullable=%t/%t length=%d/%t", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), n, nok, l, lok, p, s, dok, scan, !pg, !pg, length, hasLength)
 		}
 	}

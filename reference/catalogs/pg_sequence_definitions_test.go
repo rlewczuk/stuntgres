@@ -21,7 +21,7 @@ func TestReferencePGSequenceDefinitions(t *testing.T) {
 				{"pgs_huge", " CACHE 9223372036854775807", []any{int64(20), int64(1), int64(1), int64(9223372036854775807), int64(1), int64(9223372036854775807), false}},
 			} {
 				pgSequenceExec(t, p, b, b.DB, "CREATE SEQUENCE "+tc.name+tc.ddl)
-				oid := pgDescriptionRelationID(t, p, b, tc.name)
+				oid := fixture.PGDescriptionRelationID(t, p, b, tc.name)
 				pgSequenceCheck(t, p, b, b.DB, oid, append([]any{oid}, tc.values...))
 			}
 			for _, tc := range []struct {
@@ -33,12 +33,12 @@ func TestReferencePGSequenceDefinitions(t *testing.T) {
 				{"pgs_as_desc", " AS SMALLINT INCREMENT -3", []any{int64(21), int64(-1), int64(-3), int64(-1), int64(-32768), int64(1), false}, []any{int64(23), int64(-1), int64(-3), int64(-1), int64(-2147483648), int64(1), false}},
 			} {
 				pgSequenceExec(t, p, b, b.DB, "CREATE SEQUENCE "+tc.name+tc.ddl)
-				oid := pgDescriptionRelationID(t, p, b, tc.name)
+				oid := fixture.PGDescriptionRelationID(t, p, b, tc.name)
 				pgSequenceCheck(t, p, b, b.DB, oid, append([]any{oid}, tc.before...))
 				pgSequenceExec(t, p, b, b.DB, "ALTER SEQUENCE "+tc.name+" AS INTEGER")
 				pgSequenceCheck(t, p, b, b.DB, oid, append([]any{oid}, tc.after...))
 			}
-			oid := pgDescriptionRelationID(t, p, b, "pgs_explicit")
+			oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_explicit")
 			row := pgSequenceCustom(oid)
 			for _, tc := range []struct {
 				clause string
@@ -55,13 +55,13 @@ func TestReferencePGSequenceDefinitions(t *testing.T) {
 				pgSequenceExec(t, p, b, b.DB, q)
 				pgSequenceCheck(t, p, b, b.DB, oid, row)
 			}
-			if fresh := pgDescriptionRelationID(t, p, b, "pgs_renamed"); fresh != oid {
+			if fresh := fixture.PGDescriptionRelationID(t, p, b, "pgs_renamed"); fresh != oid {
 				t.Fatal("ALTER changed identity", fresh, oid)
 			}
 			pgSequenceExec(t, p, b, b.DB, "DROP SEQUENCE pgs_definition_schema.pgs_renamed")
 			pgSequenceCheck(t, p, b, b.DB, oid, nil)
 			pgSequenceExec(t, p, b, b.DB, "CREATE SEQUENCE pgs_definition_schema.pgs_renamed")
-			fresh := pgDescriptionRelationID(t, p, b, "pgs_renamed")
+			fresh := fixture.PGDescriptionRelationID(t, p, b, "pgs_renamed")
 			if fresh == oid {
 				t.Fatal("recreation reused identity")
 			}
@@ -71,7 +71,7 @@ func TestReferencePGSequenceDefinitions(t *testing.T) {
 				name     string
 				typ, max int64
 			}{{"pgs_owned_serial_id_seq", 23, 2147483647}, {"pgs_owned_identity_id_seq", 20, 9223372036854775807}} {
-				id := pgDescriptionRelationID(t, p, b, tc.name)
+				id := fixture.PGDescriptionRelationID(t, p, b, tc.name)
 				r := pgSequenceDefault(id)
 				r[1], r[4] = tc.typ, tc.max
 				pgSequenceCheck(t, p, b, b.DB, id, r)
@@ -86,7 +86,7 @@ func TestReferencePGSequenceDefinitionNotState(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			c := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
 			pgSequenceExec(t, p, b, c, "CREATE SEQUENCE pgs_state AS INTEGER START 5 RESTART 9 CACHE 3")
-			oid := pgDescriptionRelationID(t, p, b, "pgs_state")
+			oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_state")
 			row := pgSequenceDefault(oid)
 			row[1], row[2], row[4], row[6] = int64(23), int64(5), int64(2147483647), int64(3)
 			pgSequenceCheck(t, p, b, c, oid, row)

@@ -55,7 +55,7 @@ func TestReferenceConversionTransactionConflicts(t *testing.T) {
 			conversionScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				c, holder := fixture.LockConnections(t, p.Ctx, b.DB)
 				run := func(x fixture.Executor, s fixture.Step) { fixture.RunStep(t, p.Ctx, x, b.Recorder, s) }
-				create := conversionCreate("queued_conv", false)
+				create := fixture.ConversionCreate("queued_conv", false)
 				var namespace, oid int64
 				if err := c.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_namespace WHERE nspname='public'").Scan(&namespace); err != nil {
 					t.Fatal(err)

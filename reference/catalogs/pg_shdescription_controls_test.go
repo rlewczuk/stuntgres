@@ -22,7 +22,7 @@ func TestReferencePGShDescriptionControls(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
 			}
 			run("CREATE SCHEMA pgsd_controls")
-			id := pgShDescriptionCreateRole(t, p, backend, "pgsd_control_role", "pgsd_controls")
+			id := fixture.PGShDescriptionCreateRole(t, p, backend, "pgsd_control_role", "pgsd_controls")
 			bootstrap := pgDescriptionSharedRoleID(t, p, backend)
 			for _, q := range []string{"COMMENT ON ROLE postgres IS 'shared bootstrap control'", "COMMENT ON ROLE pgsd_control_role IS 'shared named control'", "CREATE TABLE pgsd_controls.sentinel(a INT)", "COMMENT ON TABLE pgsd_controls.sentinel IS 'local control'", "CREATE VIEW pgsd_controls.shared_view AS SELECT objoid,classoid,description,shobj_description(objoid,'pg_authid') AS inquiry FROM pg_catalog.pg_shdescription WHERE objoid='" + pgDescriptionOIDText(id) + "'::oid AND classoid=1260"} {
 				run(q)
@@ -39,7 +39,7 @@ func TestReferencePGShDescriptionControls(t *testing.T) {
 				view := fixture.Select("SELECT * FROM pgsd_controls.shared_view", []string{"objoid", "classoid", "description", "inquiry"}, []string{"OID", "OID", "TEXT", "TEXT"}, [][]any{{id, int64(1260), "shared named control", "shared named control"}})
 				fixture.PgDescriptionRows(t, p, backend, view)
 				fixture.PgDescriptionRows(t, p, backend, fixture.Prepared(view))
-				localID := pgDescriptionRelationID(t, p, backend, "sentinel")
+				localID := fixture.PGDescriptionRelationID(t, p, backend, "sentinel")
 				fixture.PgDescriptionRows(t, p, backend, pgDescriptionSelect("SELECT * FROM pg_catalog.pg_description WHERE objoid=$1 AND classoid=1259", [][]any{{localID, int64(1259), int64(0), "local control"}}, localID))
 			}
 			checkShared()
@@ -59,7 +59,7 @@ func TestReferencePGShDescriptionControls(t *testing.T) {
 			// No native control call is outside this guarded phase. PostgreSQL
 			// independently checks the same SQL state, not an invented control API.
 			if !backend.PG {
-				dump := commentInquiryDump(t, p)
+				dump := fixture.CommentInquiryDump(t, p)
 				for _, forbidden := range []string{"COMMENT ON ROLE", "shared bootstrap control", "shared named control", "INSERT INTO \"pg_catalog\".\"pg_shdescription\""} {
 					if strings.Contains(dump, forbidden) {
 						t.Fatal("shared state leaked into local Dump", forbidden, dump)
@@ -72,7 +72,7 @@ func TestReferencePGShDescriptionControls(t *testing.T) {
 					t.Helper()
 					checkShared()
 					checkLocal()
-					if commentInquiryDump(t, p) != dump {
+					if fixture.CommentInquiryDump(t, p) != dump {
 						t.Fatal("failed control changed complete local state")
 					}
 				}

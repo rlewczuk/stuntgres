@@ -13,7 +13,6 @@ import (
 const spTable = "information_schema.sql_parts"
 const spQuery = "SELECT feature_id,feature_name,is_supported,is_verified_by,comments FROM " + spTable
 
-var spColumns = []string{"feature_id", "feature_name", "is_supported", "is_verified_by", "comments"}
 var spTypes = []string{"VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR"}
 
 // Independently prescribed by REL_18_6 information_schema.sql, section 6.60.
@@ -126,14 +125,14 @@ func spMetadata(t *testing.T, columns []*sql.ColumnType, names []string, pg bool
 }
 
 func (c *spCase) projection(q string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, spColumns, spTypes, want, args...)
+	s := fixture.Select(q, fixture.SPColumns, spTypes, want, args...)
 	s.Bag = true
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		columns, err := rows.ColumnTypes()
 		if err != nil {
 			t.Fatal(err)
 		}
-		spMetadata(t, columns, spColumns, c.b.PG)
+		spMetadata(t, columns, fixture.SPColumns, c.b.PG)
 	}
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
 		if column == 3 {

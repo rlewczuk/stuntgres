@@ -38,7 +38,7 @@ func TestReferencePGUserSecurity(t *testing.T) {
 	pgUserScenario(t, names, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		target := pgUserCreate(t, p, b, "pgu_target")
 		pgUserCreate(t, p, b, "pgu_reader")
-		group := pgShDescriptionCreateRole(t, p, b, "pgu_group", "public")
+		group := fixture.PGShDescriptionCreateRole(t, p, b, "pgu_group", "public")
 		privileged := pgUserCreate(t, p, b, "pgu_privileged")
 		for _, q := range []string{"CREATE ROLE pgu_role_default", "CREATE USER pgu_user_default", "ALTER ROLE pgu_group CREATEDB SUPERUSER REPLICATION BYPASSRLS", "GRANT pgu_group TO pgu_target", "ALTER ROLE pgu_privileged CREATEDB SUPERUSER REPLICATION BYPASSRLS", "ALTER ROLE pgu_target CREATEROLE NOINHERIT CONNECTION LIMIT 0 VALID UNTIL '-infinity'"} {
 			pgUserExec(t, p, b, q)

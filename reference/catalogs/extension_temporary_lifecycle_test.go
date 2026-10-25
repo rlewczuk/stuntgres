@@ -9,17 +9,8 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
-func extensionTempExitBarrier(t *testing.T, p *fixture.Pair, peer *sql.Conn, r *fixture.Recorder, key int64) {
-	t.Helper()
-	// Server exit completes TEMP cleanup before releasing session advisory locks.
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
-	defer cancel()
-	fixture.RunStep(t, ctx, peer, r, fixture.Select("SELECT pg_advisory_lock($1::bigint)", []string{"pg_advisory_lock"}, []string{"VOID"}, [][]any{{""}}, key))
-	fixture.RunStep(t, p.Ctx, peer, r, fixture.Select("SELECT pg_advisory_unlock($1::bigint)", []string{"pg_advisory_unlock"}, []string{"BOOL"}, [][]any{{true}}, key))
-}
 func TestReferenceExtensionTemporaryClose(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, peer *sql.Conn, r *fixture.Recorder, pg bool) {
 		fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("CREATE TEMP TABLE ext_peer_seed(v INT)", 0))
@@ -43,7 +34,7 @@ func TestReferenceExtensionTemporaryClose(t *testing.T) {
 					if !installer.close(t) {
 						t.FailNow()
 					}
-					extensionTempExitBarrier(t, p, peer, r, 30790002)
+					fixture.ExtensionTempExitBarrier(t, p, peer, r, 30790002)
 					extensionTempGone(t, p, peer, r, id)
 				} else {
 					fixture.RunStep(t, p.Ctx, peer, r, fixture.Exec("CREATE EXTENSION unaccent SCHEMA "+extensionTempIdentifier(name), 0))
@@ -59,7 +50,7 @@ func TestReferenceExtensionTemporaryClose(t *testing.T) {
 				if !o.close(t) {
 					t.FailNow()
 				}
-				extensionTempExitBarrier(t, p, peer, r, 30790001)
+				fixture.ExtensionTempExitBarrier(t, p, peer, r, 30790001)
 				extensionTempGone(t, p, peer, r, id)
 				fixture.RunStep(t, p.Ctx, peer, r, fixture.Select("SELECT v FROM ext_peer_seed", []string{"v"}, []string{"INT4"}, [][]any{{int64(73)}}))
 				fixture.RunStep(t, p.Ctx, peer, r, fixture.Select("SELECT count(*) FROM pg_views WHERE schemaname='public' AND viewname='ext_peer_late'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))

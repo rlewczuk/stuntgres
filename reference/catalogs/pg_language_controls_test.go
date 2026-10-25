@@ -120,7 +120,7 @@ func pgLanguageLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend, dump 
 	if err := old.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(columns, pgLanguageColumns) {
+	if !reflect.DeepEqual(columns, fixture.PGLanguageColumns) {
 		t.Fatal("retained language names", columns)
 	}
 	pgLanguageSavedMetadata(t, types, false)

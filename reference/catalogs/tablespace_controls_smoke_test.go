@@ -96,7 +96,7 @@ func TestReferenceTablespaceFeatureSmoke(t *testing.T) {
 	tablespaceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		tablespaceBuiltins(t, p, b, c)
 		tablespaceHeldReads(t, p, b, c)
-		pgAttributeCheck(t, p, b, c, fixture.Select("SELECT attnum,atttypid,attnotnull,attcollation FROM pg_attribute WHERE attrelid=1213 AND attname='spcacl'", []string{"attnum", "atttypid", "attnotnull", "attcollation"}, []string{"INT2", "OID", "BOOL", "OID"}, [][]any{{int64(4), int64(1034), false, int64(0)}}))
+		fixture.PGAttributeCheck(t, p, b, c, fixture.Select("SELECT attnum,atttypid,attnotnull,attcollation FROM pg_attribute WHERE attrelid=1213 AND attname='spcacl'", []string{"attnum", "atttypid", "attnotnull", "attcollation"}, []string{"INT2", "OID", "BOOL", "OID"}, [][]any{{int64(4), int64(1034), false, int64(0)}}))
 		tablespaceExec(t, p, b, c, "CREATE TABLE ts_contract_smoke_sentinel(a INT)")
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("INSERT INTO ts_contract_smoke_sentinel VALUES(19)", 1))
 		tablespaceError(t, p, b, c, tablespaceSQL("ts_contract_smoke", "", "relative"), tablespaceDiagnostic("42P17", "tablespace location must be an absolute path"), false)

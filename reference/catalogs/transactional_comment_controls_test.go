@@ -78,7 +78,7 @@ func TestReferenceTransactionalCommentClusterControls(t *testing.T) {
 					fixture.LockExec(t, p.Ctx, c, "INSERT INTO tx_comment VALUES(7)", 1)
 					var dump string
 					if !b.PG {
-						dump = commentInquiryDump(t, p)
+						dump = fixture.CommentInquiryDump(t, p)
 					}
 					tx, err := c.BeginTx(p.Ctx, nil)
 					if err != nil {
@@ -92,7 +92,7 @@ func TestReferenceTransactionalCommentClusterControls(t *testing.T) {
 					transactionalCommentValue(t, p, b, peer, transactionalCommentKinds[0], "old")
 					transactionalCommentValue(t, p, b, peer, transactionalCommentKinds[5], "old")
 					if !b.PG {
-						if got := commentInquiryDump(t, p); got != dump || strings.Contains(got, "private") || strings.Contains(got, "COMMENT ON ROLE") {
+						if got := fixture.CommentInquiryDump(t, p); got != dump || strings.Contains(got, "private") || strings.Contains(got, "COMMENT ON ROLE") {
 							t.Fatal("Dump leaked transaction", got)
 						}
 						if replacement == "failed-restore" {
@@ -104,7 +104,7 @@ func TestReferenceTransactionalCommentClusterControls(t *testing.T) {
 							}
 							transactionalCommentValue(t, p, b, peer, transactionalCommentKinds[0], "private local")
 							transactionalCommentValue(t, p, b, peer, transactionalCommentKinds[5], "private shared")
-							committed := commentInquiryDump(t, p)
+							committed := fixture.CommentInquiryDump(t, p)
 							if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(committed)); err != nil {
 								t.Fatal(err)
 							}

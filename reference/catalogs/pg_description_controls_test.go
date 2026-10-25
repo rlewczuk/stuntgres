@@ -48,7 +48,7 @@ func pgDescriptionControlsScenario(t *testing.T) {
 			for _, q := range []string{"COMMENT ON ROLE postgres IS 'control shared role'", "CREATE SCHEMA pgd_controls", "COMMENT ON SCHEMA pgd_controls IS 'control schema'", "CREATE TABLE pgd_controls.pgd_control_table(a INT,b INT,c TEXT)", "CREATE SEQUENCE pgd_controls.pgd_control_sequence", "COMMENT ON SEQUENCE pgd_controls.pgd_control_sequence IS 'control sequence'", "COMMENT ON TABLE pgd_controls.pgd_control_table IS 'control whole'", "COMMENT ON COLUMN pgd_controls.pgd_control_table.c IS 'control third'", "ALTER TABLE pgd_controls.pgd_control_table DROP b"} {
 				run(q)
 			}
-			oid := pgDescriptionRelationID(t, p, backend, "pgd_control_table")
+			oid := fixture.PGDescriptionRelationID(t, p, backend, "pgd_control_table")
 			pgDescriptionRelationBag(t, p, backend, oid, [][]any{{oid, int64(1259), int64(0), "control whole"}, {oid, int64(1259), int64(3), "control third"}})
 			query := "SELECT * FROM pg_catalog.pg_description WHERE objoid=$1 AND classoid=1259"
 			stmt, err := backend.DB.PrepareContext(p.Ctx, query)
@@ -75,7 +75,7 @@ func pgDescriptionControlsScenario(t *testing.T) {
 			run("COMMENT ON SCHEMA public IS NULL")
 		}()
 	}
-	dump := commentInquiryDump(t, p)
+	dump := fixture.CommentInquiryDump(t, p)
 	for _, fragment := range []string{"COMMENT ON TABLE", "COMMENT ON COLUMN", "COMMENT ON SCHEMA", "COMMENT ON SEQUENCE", "control third", "control catalog override"} {
 		if !strings.Contains(dump, fragment) {
 			t.Fatal("missing owning dump statement", fragment, dump)
@@ -87,7 +87,7 @@ func pgDescriptionControlsScenario(t *testing.T) {
 	native := p.Backends()[0]
 	checkNative := func() {
 		t.Helper()
-		oid := pgDescriptionRelationID(t, p, native, "pgd_control_table")
+		oid := fixture.PGDescriptionRelationID(t, p, native, "pgd_control_table")
 		pgDescriptionRelationBag(t, p, native, oid, [][]any{{oid, int64(1259), int64(0), "control whole"}, {oid, int64(1259), int64(3), "control third"}})
 	}
 	if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump+"COMMENT ON COLUMN pgd_controls.pgd_control_table.missing IS 'bad';")); err == nil {
@@ -96,7 +96,7 @@ func pgDescriptionControlsScenario(t *testing.T) {
 		fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: "column \"missing\" of relation \"pgd_controls.pgd_control_table\" does not exist"})
 	}
 	checkNative()
-	if commentInquiryDump(t, p) != dump {
+	if fixture.CommentInquiryDump(t, p) != dump {
 		t.Fatal("late failing Restore changed complete native catalog")
 	}
 	canceled, cancel := context.WithCancel(p.Ctx)
@@ -105,7 +105,7 @@ func pgDescriptionControlsScenario(t *testing.T) {
 		t.Fatal("Restore cancellation", err)
 	}
 	checkNative()
-	if commentInquiryDump(t, p) != dump {
+	if fixture.CommentInquiryDump(t, p) != dump {
 		t.Fatal("canceled Restore changed complete native catalog")
 	}
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
@@ -116,8 +116,8 @@ func pgDescriptionControlsScenario(t *testing.T) {
 	if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump)); err != nil {
 		t.Fatal(err)
 	}
-	if commentInquiryDump(t, p) != dump {
-		t.Fatal("noncanonical logical roundtrip", commentInquiryDump(t, p), dump)
+	if fixture.CommentInquiryDump(t, p) != dump {
+		t.Fatal("noncanonical logical roundtrip", fixture.CommentInquiryDump(t, p), dump)
 	}
 	if p.Postgres != nil {
 		conn, err := p.Postgres.Conn(p.Ctx)
@@ -136,9 +136,9 @@ func pgDescriptionControlsScenario(t *testing.T) {
 		}()
 	}
 	for _, backend := range p.Backends() {
-		oid := pgDescriptionRelationID(t, p, backend, "pgd_control_table")
+		oid := fixture.PGDescriptionRelationID(t, p, backend, "pgd_control_table")
 		pgDescriptionRelationBag(t, p, backend, oid, [][]any{{oid, int64(1259), int64(0), "control whole"}, {oid, int64(1259), int64(2), "control third"}})
-		sequence := pgDescriptionRelationID(t, p, backend, "pgd_control_sequence")
+		sequence := fixture.PGDescriptionRelationID(t, p, backend, "pgd_control_sequence")
 		pgDescriptionRelationBag(t, p, backend, sequence, [][]any{{sequence, int64(1259), int64(0), "control sequence"}})
 		var namespace int64
 		if err := backend.DB.QueryRowContext(p.Ctx, "SELECT objoid FROM pg_catalog.pg_description WHERE classoid=2615 AND description='control schema'").Scan(&namespace); err != nil {

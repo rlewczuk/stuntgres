@@ -10,7 +10,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var pgDefaultACLColumns = []string{"oid", "defaclrole", "defaclnamespace", "defaclobjtype", "defaclacl"}
 var pgDefaultACLTypes = []string{"OID", "OID", "OID", "CHAR", "_ACLITEM"}
 
 func pgDefaultACLScenario(t *testing.T, f func(*testing.T, *fixture.Pair, fixture.Backend)) {
@@ -27,7 +26,7 @@ func pgDefaultACLMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 		t.Fatal("five columns", types)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgDefaultACLColumns[i] || typ.DatabaseTypeName() != pgDefaultACLTypes[i] {
+		if typ.Name() != fixture.PGDefaultACLColumns[i] || typ.DatabaseTypeName() != pgDefaultACLTypes[i] {
 			t.Fatal("column", i, typ.Name(), typ.DatabaseTypeName())
 		}
 		scan := reflect.TypeFor[string]()
@@ -53,7 +52,7 @@ func pgDefaultACLMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 }
 
 func pgDefaultACLSelect(q string, pg bool, rows [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, pgDefaultACLColumns, pgDefaultACLTypes, rows, args...)
+	s := fixture.Select(q, fixture.PGDefaultACLColumns, pgDefaultACLTypes, rows, args...)
 	s.Bag = true
 	if pg {
 		s.Rows = make([][]any, len(rows))
@@ -80,7 +79,7 @@ func pgDefaultACLSelect(q string, pg bool, rows [][]any, args ...any) fixture.St
 	}
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		names, err := rows.Columns()
-		if err != nil || !reflect.DeepEqual(names, pgDefaultACLColumns) {
+		if err != nil || !reflect.DeepEqual(names, fixture.PGDefaultACLColumns) {
 			t.Fatal("labels", names, err)
 		}
 		types, err := rows.ColumnTypes()
@@ -91,7 +90,7 @@ func pgDefaultACLSelect(q string, pg bool, rows [][]any, args ...any) fixture.St
 		if !pg {
 			names[0] = "corrupted"
 			again, err := rows.Columns()
-			if err != nil || !reflect.DeepEqual(again, pgDefaultACLColumns) {
+			if err != nil || !reflect.DeepEqual(again, fixture.PGDefaultACLColumns) {
 				t.Fatal("owned labels", again, err)
 			}
 		}

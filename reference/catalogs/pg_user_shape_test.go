@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-var pgUserColumns = []string{"usename", "usesysid", "usecreatedb", "usesuper", "userepl", "usebypassrls", "passwd", "valuntil", "useconfig"}
 var pgUserTypes = []string{"NAME", "OID", "BOOL", "BOOL", "BOOL", "BOOL", "TEXT", "TIMESTAMPTZ", "_TEXT"}
 
 // Exact formatted pg_views text observed on the pinned PostgreSQL18.0 oracle.
@@ -31,7 +30,7 @@ func pgUserExec(t *testing.T, p *fixture.Pair, b fixture.Backend, q string) {
 
 func pgUserCreate(t *testing.T, p *fixture.Pair, b fixture.Backend, name string) int64 {
 	t.Helper()
-	id := pgShDescriptionCreateRole(t, p, b, name, "public")
+	id := fixture.PGShDescriptionCreateRole(t, p, b, name, "public")
 	pgUserExec(t, p, b, "ALTER ROLE "+name+" LOGIN")
 	return id
 }
@@ -41,7 +40,7 @@ func pgUserRow(name string, id int64, expiry any) []any {
 }
 
 func pgUserSelect(q string, rows [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, pgUserColumns, pgUserTypes, rows, args...)
+	s := fixture.Select(q, fixture.PGUserColumns, pgUserTypes, rows, args...)
 	s.Bag = true
 	return s
 }
@@ -55,7 +54,7 @@ func pgUserBoth(t *testing.T, p *fixture.Pair, b fixture.Backend, s fixture.Step
 func pgUserMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgUserColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGUserColumns) {
 		t.Fatal("pg_user columns", names, err)
 	}
 	meta, err := rows.ColumnTypes()
@@ -81,8 +80,8 @@ func pgUserSavedMetadata(t *testing.T, meta []*sql.ColumnType, pg bool) {
 		if pg && (i == 0 || i == 1 || i == 8) {
 			scan = reflect.TypeFor[any]()
 		}
-		if m.Name() != pgUserColumns[i] || m.DatabaseTypeName() != pgUserTypes[i] || m.ScanType() != scan {
-			t.Errorf("column %d name/type/scan=%s/%s/%v want %s/%s/%v", i, m.Name(), m.DatabaseTypeName(), m.ScanType(), pgUserColumns[i], pgUserTypes[i], scan)
+		if m.Name() != fixture.PGUserColumns[i] || m.DatabaseTypeName() != pgUserTypes[i] || m.ScanType() != scan {
+			t.Errorf("column %d name/type/scan=%s/%s/%v want %s/%s/%v", i, m.Name(), m.DatabaseTypeName(), m.ScanType(), fixture.PGUserColumns[i], pgUserTypes[i], scan)
 		}
 		nullable, known := m.Nullable()
 		if nullable != !pg || known != !pg {
@@ -122,7 +121,7 @@ func TestReferencePGUserShape(t *testing.T) {
 		pgUserBoth(t, p, b, pgUserSelect("SELECT * FROM pg_catalog.pg_user WHERE usesysid=$1", [][]any{}, nil))
 		pgUserBoth(t, p, b, fixture.Select("SELECT useconfig,usename,usesysid,usename,valuntil,passwd FROM pg_user WHERE usesysid=$1", []string{"useconfig", "usename", "usesysid", "usename", "valuntil", "passwd"}, []string{"_TEXT", "NAME", "OID", "NAME", "TIMESTAMPTZ", "TEXT"}, [][]any{{nil, "pgu_shape_login", id, "pgu_shape_login", nil, "********"}}, id))
 		pgUserBoth(t, p, b, fixture.Select("SELECT relname,relkind,relnatts FROM pg_catalog.pg_class WHERE relname='pg_user'", []string{"relname", "relkind", "relnatts"}, []string{"NAME", "CHAR", "INT2"}, [][]any{{"pg_user", "v", int64(9)}}))
-		pgUserBoth(t, p, b, fixture.Select("SELECT schemaname,viewname,viewowner,definition FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND viewname='pg_user'", []string{"schemaname", "viewname", "viewowner", "definition"}, []string{"NAME", "NAME", "NAME", "TEXT"}, [][]any{{"pg_catalog", "pg_user", pgTableViewsOwner(b), pgUserViewDefinition}}))
+		pgUserBoth(t, p, b, fixture.Select("SELECT schemaname,viewname,viewowner,definition FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND viewname='pg_user'", []string{"schemaname", "viewname", "viewowner", "definition"}, []string{"NAME", "NAME", "NAME", "TEXT"}, [][]any{{"pg_catalog", "pg_user", fixture.PGTableViewsOwner(b), pgUserViewDefinition}}))
 		pgUserBoth(t, p, b, fixture.Select("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_user'", []string{"tablename"}, []string{"NAME"}, [][]any{}))
 		for _, q := range []string{"CREATE SCHEMA pgu_shape", "CREATE TABLE pgu_shape.pg_user(marker TEXT)", "SET search_path TO pgu_shape,pg_catalog"} {
 			pgUserExec(t, p, b, q)
@@ -150,10 +149,10 @@ func TestReferencePGUserAttributeCatalog(t *testing.T) {
 		rows := [][]any{}
 		oids := []int64{19, 26, 16, 16, 16, 16, 25, 1184, 1009}
 		collations := []int64{950, 0, 0, 0, 0, 0, 100, 0, 950}
-		for i, name := range pgUserColumns {
+		for i, name := range fixture.PGUserColumns {
 			rows = append(rows, []any{name, oids[i], int64(-1), false, collations[i]})
 		}
 		s := fixture.Select("SELECT attname::text AS name,atttypid::bigint AS type_oid,atttypmod::bigint AS typmod,attnotnull,attcollation::bigint AS collation FROM pg_catalog.pg_attribute WHERE attrelid='pg_catalog.pg_user'::regclass AND attnum>0 ORDER BY attnum", []string{"name", "type_oid", "typmod", "attnotnull", "collation"}, []string{"TEXT", "INT8", "INT8", "BOOL", "INT8"}, rows)
-		pgAttributeNameCastWitness(t, p, b, s)
+		fixture.PGAttributeNameCastWitness(t, p, b, s)
 	})
 }

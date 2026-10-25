@@ -25,7 +25,7 @@ func pgSequenceControlsScenario(t *testing.T) {
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			if !b.PG {
-				oid := pgDescriptionRelationID(t, p, b, "pgs_control")
+				oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_control")
 				row := pgSequenceCustom(oid)
 				pgSequenceCheck(t, p, b, b.DB, oid, row)
 				old, err := b.DB.QueryContext(p.Ctx, pgSequenceProbe, oid)
@@ -56,7 +56,7 @@ func pgSequenceControlsScenario(t *testing.T) {
 				if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump.String())); err != nil {
 					t.Fatal(err)
 				}
-				fresh := pgDescriptionRelationID(t, p, b, "pgs_control")
+				fresh := fixture.PGDescriptionRelationID(t, p, b, "pgs_control")
 				pgSequenceCheck(t, p, b, b.DB, fresh, pgSequenceCustom(fresh))
 				pgSequenceRetained(t, old, false, row)
 			} else {
@@ -65,7 +65,7 @@ func pgSequenceControlsScenario(t *testing.T) {
 				if _, err := conn.ExecContext(p.Ctx, dump.String()); err != nil {
 					t.Fatal("PG18 rejected actual native Dump", err)
 				}
-				oid := pgDescriptionRelationID(t, p, b, "pgs_control")
+				oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_control")
 				pgSequenceCheck(t, p, b, conn, oid, pgSequenceCustom(oid))
 			}
 		})

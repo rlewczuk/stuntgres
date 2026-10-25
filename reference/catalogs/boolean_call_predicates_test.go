@@ -19,7 +19,7 @@ func booleanCallObjects(t *testing.T, p *fixture.Pair, conn *sql.Conn, b fixture
 		run("CREATE TABLE " + schema + ".bcp_object(v int)")
 		run("CREATE TYPE " + schema + ".bcp_object_enum AS ENUM ('one')")
 		run("CREATE COLLATION " + schema + `.bcp_object FROM pg_catalog."C"`)
-		run(conversionCreate(schema+".bcp_object", false))
+		run(fixture.ConversionCreate(schema+".bcp_object", false))
 	}
 	var ids [4][4]int64
 	for kind, identity := range []struct{ typ, suffix string }{

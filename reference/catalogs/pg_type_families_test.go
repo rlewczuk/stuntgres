@@ -49,7 +49,7 @@ func pgTypeDynamicArrayGolden(element []any, id int64, name string) []any {
 func pgTypeFamilyRow(t *testing.T, p *fixture.Pair, b fixture.Backend, r []any) {
 	t.Helper()
 	q := "SELECT " + pgTypeNumericProjection + " FROM pg_type WHERE oid=$1::oid"
-	s := fixture.Select(q, pgTypeColumns, pgTypeNumericTypes(), [][]any{r}, r[0])
+	s := fixture.Select(q, fixture.PGTypeColumns, pgTypeNumericTypes(), [][]any{r}, r[0])
 	fixture.PgDescriptionRows(t, p, b, s)
 	fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
 }

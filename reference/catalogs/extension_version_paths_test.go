@@ -58,7 +58,7 @@ func TestReferenceExtensionVersionPathsAndMetadata(t *testing.T) {
 		// per path; an unreachable path has an empty composite attribute.
 		records := [][]any{{"(1.0,1.1,1.0--1.1)"}, {"(1.0,1.2,1.0--1.1--1.2)"}, {"(1.1,1.0,)"}, {"(1.1,1.2,1.1--1.2)"}, {"(1.2,1.0,)"}, {"(1.2,1.1,)"}}
 		s := fixture.Select("SELECT pg_extension_update_paths('fuzzystrmatch')", []string{"pg_extension_update_paths"}, []string{"RECORD"}, records)
-		s.CheckMetadata = catalogRelationsMetadata(b.PG)
+		s.CheckMetadata = fixture.CatalogRelationsMetadata(b.PG)
 		s.Bag = true
 		extensionVersionBoth(t, p, b, c, s)
 		extensionVersionBoth(t, p, b, c, extensionVersionPaths("SELECT source,target,path FROM pg_extension_update_paths(NULL::name)", [][]any{}))

@@ -10,7 +10,6 @@ import (
 	"testing"
 )
 
-var pgAggregateColumns = []string{"aggfnoid", "aggkind", "aggnumdirectargs", "aggtransfn", "aggfinalfn", "aggcombinefn", "aggserialfn", "aggdeserialfn", "aggmtransfn", "aggminvtransfn", "aggmfinalfn", "aggfinalextra", "aggmfinalextra", "aggfinalmodify", "aggmfinalmodify", "aggsortop", "aggtranstype", "aggtransspace", "aggmtranstype", "aggmtransspace", "agginitval", "aggminitval"}
 var pgAggregateTypes = []string{"REGPROC", "CHAR", "INT2", "REGPROC", "REGPROC", "REGPROC", "REGPROC", "REGPROC", "REGPROC", "REGPROC", "REGPROC", "BOOL", "BOOL", "CHAR", "CHAR", "OID", "OID", "INT4", "OID", "INT4", "TEXT", "TEXT"}
 var pgAggregateTypeIDs = []int64{24, 18, 21, 24, 24, 24, 24, 24, 24, 24, 24, 16, 16, 18, 18, 26, 26, 23, 26, 23, 25, 25}
 
@@ -49,8 +48,8 @@ func pgAggregateSavedMetadata(t *testing.T, meta []*sql.ColumnType, pg bool) {
 				scan = reflect.TypeFor[string]()
 			}
 		}
-		if c.Name() != pgAggregateColumns[i] || c.DatabaseTypeName() != pgAggregateTypes[i] || c.ScanType() != scan {
-			t.Fatalf("column %d: %s/%s/%v want %s/%s/%v", i, c.Name(), c.DatabaseTypeName(), c.ScanType(), pgAggregateColumns[i], pgAggregateTypes[i], scan)
+		if c.Name() != fixture.PGAggregateColumns[i] || c.DatabaseTypeName() != pgAggregateTypes[i] || c.ScanType() != scan {
+			t.Fatalf("column %d: %s/%s/%v want %s/%s/%v", i, c.Name(), c.DatabaseTypeName(), c.ScanType(), fixture.PGAggregateColumns[i], pgAggregateTypes[i], scan)
 		}
 		if n, k := c.Nullable(); k != !pg || n != (!pg && i >= 20) {
 			t.Fatal("nullability", i, n, k)
@@ -71,7 +70,7 @@ func pgAggregateSavedMetadata(t *testing.T, meta []*sql.ColumnType, pg bool) {
 func pgAggregateMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgAggregateColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGAggregateColumns) {
 		t.Fatal("aggregate columns", names, err)
 	}
 	meta, err := rows.ColumnTypes()
@@ -81,7 +80,7 @@ func pgAggregateMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	pgAggregateSavedMetadata(t, meta, pg)
 }
 func pgAggregateRawStep(b fixture.Backend, q string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, pgAggregateColumns, pgAggregateTypes, want, args...)
+	s := fixture.Select(q, fixture.PGAggregateColumns, pgAggregateTypes, want, args...)
 	s.CheckMetadata = func(t *testing.T, r *sql.Rows) { pgAggregateMetadata(t, r, b.PG) }
 	return s
 }
@@ -94,11 +93,11 @@ func pgAggregateCountRaw() [][]any {
 	return [][]any{{"pg_catalog.count", "n", int64(0), "int8inc", "-", "int8pl", "-", "-", "int8inc", "int8dec", "-", false, false, "r", "r", int64(0), int64(20), int64(0), int64(20), int64(0), "0", "0"}}
 }
 func pgAggregateNumericProjection() (string, []string) {
-	fields := append([]string(nil), pgAggregateColumns...)
+	fields := append([]string(nil), fixture.PGAggregateColumns...)
 	types := append([]string(nil), pgAggregateTypes...)
 	for i, typ := range types {
 		if typ == "REGPROC" {
-			fields[i] += "::oid AS " + pgAggregateColumns[i]
+			fields[i] += "::oid AS " + fixture.PGAggregateColumns[i]
 			types[i] = "OID"
 		}
 	}
@@ -113,7 +112,7 @@ func pgAggregateAllowlist() string {
 }
 func pgAggregateDefinitionStep(q string, want [][]any) fixture.Step {
 	_, types := pgAggregateNumericProjection()
-	return fixture.Select(q, pgAggregateColumns, types, want)
+	return fixture.Select(q, fixture.PGAggregateColumns, types, want)
 }
 func pgAggregateDefinitions(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture.Executor) {
 	t.Helper()
@@ -227,7 +226,7 @@ func TestReferencePGAggregateCatalogLinks(t *testing.T) {
 	pgAggregateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		pgAggregateBoth(t, p, b, b.DB, fixture.Select("SELECT oid,relname,relnamespace,relowner,relkind,relpersistence,relnatts,relhasindex FROM pg_class WHERE oid=2600", []string{"oid", "relname", "relnamespace", "relowner", "relkind", "relpersistence", "relnatts", "relhasindex"}, []string{"OID", "NAME", "OID", "OID", "CHAR", "CHAR", "INT2", "BOOL"}, [][]any{{int64(2600), "pg_aggregate", int64(11), int64(10), "r", "p", int64(22), true}}))
 		want := make([][]any, 22)
-		for i, n := range pgAggregateColumns {
+		for i, n := range fixture.PGAggregateColumns {
 			coll := int64(0)
 			if i >= 20 {
 				coll = 950

@@ -33,7 +33,7 @@ func TestReferenceConversionMetadata(t *testing.T) {
 			conversionStep(t, p, b, fixture.Select(`SELECT oid::bigint AS oid,proargtypes::text AS args FROM pg_catalog.pg_proc WHERE oid>=4302 AND oid<=4387 AND oid<>4350 AND oid<>4351 ORDER BY oid`, []string{"oid", "args"}, []string{"INT8", "TEXT"}, signatures))
 		}
 		publicOID := conversionNamespaceOID(t, p, b, "public")
-		conversionExec(t, p, b, conversionCreate("conv_meta", false))
+		conversionExec(t, p, b, fixture.ConversionCreate("conv_meta", false))
 		oid := conversionOID(t, p, b, "conv_meta")
 		conversionStep(t, p, b, conversionMetadata(oid, "conv_meta", publicOID, false))
 		rows, err := b.DB.QueryContext(p.Ctx, `SELECT conproc,conproc::oid::bigint AS oid,conproc::text AS text FROM pg_catalog.pg_conversion WHERE conname='conv_meta'`)

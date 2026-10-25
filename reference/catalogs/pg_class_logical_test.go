@@ -7,7 +7,7 @@ import (
 
 func TestReferencePgClassRelations(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE TABLE pc18_rel_heap(id integer, note text, CHECK(id>0))",
 			"CREATE INDEX pc18_rel_idx ON pc18_rel_heap(id)",
 			"CREATE INDEX pc18_rel_hash ON pc18_rel_heap USING hash(id)",
@@ -19,7 +19,7 @@ func TestReferencePgClassRelations(t *testing.T) {
 			"CREATE TABLE pc18_rel_ctas AS SELECT id FROM pc18_rel_heap",
 			"SELECT id INTO pc18_rel_into FROM pc18_rel_heap",
 			"CREATE TABLE pc18_rel_auto(id integer GENERATED ALWAYS AS IDENTITY, serial_id serial, CONSTRAINT pc18_rel_pk PRIMARY KEY(id))")
-		q := "SELECT relname,relkind,relpersistence,relnatts,relchecks,relhasrules,relispopulated,relreplident,relispartition FROM pg_class WHERE " + pgTableViewsNames("relname", []string{"pc18_rel_child", "pc18_rel_ctas", "pc18_rel_hash", "pc18_rel_heap", "pc18_rel_idx", "pc18_rel_into", "pc18_rel_mv", "pc18_rel_pair", "pc18_rel_seq", "pc18_rel_typed", "pc18_rel_useq", "pc18_rel_view"}) + " ORDER BY relname"
+		q := "SELECT relname,relkind,relpersistence,relnatts,relchecks,relhasrules,relispopulated,relreplident,relispartition FROM pg_class WHERE " + fixture.PGTableViewsNames("relname", []string{"pc18_rel_child", "pc18_rel_ctas", "pc18_rel_hash", "pc18_rel_heap", "pc18_rel_idx", "pc18_rel_into", "pc18_rel_mv", "pc18_rel_pair", "pc18_rel_seq", "pc18_rel_typed", "pc18_rel_useq", "pc18_rel_view"}) + " ORDER BY relname"
 		want := [][]any{
 			{"pc18_rel_child", "r", "p", int64(2), int64(1), false, true, "d", false},
 			{"pc18_rel_ctas", "r", "p", int64(1), int64(0), false, true, "d", false},
@@ -85,7 +85,7 @@ func TestReferencePgClassBuiltins(t *testing.T) {
 
 func TestReferencePgClassFlags(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_flags_heap(id integer,dead text, CHECK(id>0))", "CREATE INDEX pc18_flags_idx ON pc18_flags_heap(id)", "CREATE TABLE pc18_flags_child() INHERITS(pc18_flags_heap)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_flags_heap(id integer,dead text, CHECK(id>0))", "CREATE INDEX pc18_flags_idx ON pc18_flags_heap(id)", "CREATE TABLE pc18_flags_child() INHERITS(pc18_flags_heap)")
 		q := "SELECT relhasindex,relhassubclass,relnatts,relchecks,relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname='pc18_flags_heap'"
 		held := fixture.ViewHold(t, p, b, q)
 		check := func(enabled, forced bool) {
@@ -94,13 +94,13 @@ func TestReferencePgClassFlags(t *testing.T) {
 			pgClassCheck(t, p, b, held, s)
 		}
 		check(false, false)
-		pgClassExec(t, p, b, b.DB, "DROP INDEX pc18_flags_idx", "DROP TABLE pc18_flags_child", "ALTER TABLE pc18_flags_heap DROP COLUMN dead")
+		fixture.PGClassExec(t, p, b, b.DB, "DROP INDEX pc18_flags_idx", "DROP TABLE pc18_flags_child", "ALTER TABLE pc18_flags_heap DROP COLUMN dead")
 		check(false, false)
-		pgClassExec(t, p, b, b.DB, "ALTER TABLE pc18_flags_heap ENABLE ROW LEVEL SECURITY", "ALTER TABLE pc18_flags_heap FORCE ROW LEVEL SECURITY")
+		fixture.PGClassExec(t, p, b, b.DB, "ALTER TABLE pc18_flags_heap ENABLE ROW LEVEL SECURITY", "ALTER TABLE pc18_flags_heap FORCE ROW LEVEL SECURITY")
 		check(true, true)
-		pgClassExec(t, p, b, b.DB, "ALTER TABLE pc18_flags_heap DISABLE ROW LEVEL SECURITY")
+		fixture.PGClassExec(t, p, b, b.DB, "ALTER TABLE pc18_flags_heap DISABLE ROW LEVEL SECURITY")
 		check(false, true)
-		pgClassExec(t, p, b, b.DB, "CREATE MATERIALIZED VIEW pc18_flags_mv AS SELECT id FROM pc18_flags_heap WITH NO DATA")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE MATERIALIZED VIEW pc18_flags_mv AS SELECT id FROM pc18_flags_heap WITH NO DATA")
 		mq := "SELECT relispopulated,relhasrules FROM pg_class WHERE relname='pc18_flags_mv'"
 		mh := fixture.ViewHold(t, p, b, mq)
 		for _, phase := range []struct {
@@ -108,23 +108,23 @@ func TestReferencePgClassFlags(t *testing.T) {
 			populated bool
 		}{{"", false}, {"REFRESH MATERIALIZED VIEW pc18_flags_mv WITH DATA", true}, {"REFRESH MATERIALIZED VIEW pc18_flags_mv WITH NO DATA", false}} {
 			if phase.sql != "" {
-				pgClassExec(t, p, b, b.DB, phase.sql)
+				fixture.PGClassExec(t, p, b, b.DB, phase.sql)
 			}
 			pgClassCheck(t, p, b, mh, fixture.Select(mq, []string{"relispopulated", "relhasrules"}, []string{"BOOL", "BOOL"}, [][]any{{phase.populated, true}}))
 		}
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_flags_checks(id integer NOT NULL UNIQUE, CHECK(id>0))", "ALTER TABLE pc18_flags_checks ADD CONSTRAINT pc18_flags_unvalidated CHECK(id<100) NOT VALID")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_flags_checks(id integer NOT NULL UNIQUE, CHECK(id>0))", "ALTER TABLE pc18_flags_checks ADD CONSTRAINT pc18_flags_unvalidated CHECK(id<100) NOT VALID")
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relchecks,relhassubclass FROM pg_class WHERE relname='pc18_flags_checks'", []string{"relchecks", "relhassubclass"}, []string{"INT2", "BOOL"}, [][]any{{int64(2), false}}))
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_flags_a(id integer,CONSTRAINT pc18_flags_shared CHECK(id>0))", "CREATE TABLE pc18_flags_b(id integer,CONSTRAINT pc18_flags_shared CHECK(id>0))", "CREATE TABLE pc18_flags_merged() INHERITS(pc18_flags_a,pc18_flags_b)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_flags_a(id integer,CONSTRAINT pc18_flags_shared CHECK(id>0))", "CREATE TABLE pc18_flags_b(id integer,CONSTRAINT pc18_flags_shared CHECK(id>0))", "CREATE TABLE pc18_flags_merged() INHERITS(pc18_flags_a,pc18_flags_b)")
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relchecks FROM pg_class WHERE relname='pc18_flags_merged'", []string{"relchecks"}, []string{"INT2"}, [][]any{{int64(1)}}))
 		// Failed child publication must not install sticky subclass history.
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_flags_root(id integer) PARTITION BY RANGE(id)", "CREATE TABLE pc18_flags_candidate(id integer)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_flags_root(id integer) PARTITION BY RANGE(id)", "CREATE TABLE pc18_flags_candidate(id integer)")
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO pc18_flags_candidate VALUES(99)", 1))
 		failed := fixture.ImplicitError("ALTER TABLE pc18_flags_root ATTACH PARTITION pc18_flags_candidate FOR VALUES FROM(0) TO(10)", fixture.Diagnostic{Code: "23514", Message: `partition constraint of relation "pc18_flags_candidate" is violated by some row`, Schema: "public", Table: "pc18_flags_candidate"})
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, failed)
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relhassubclass FROM pg_class WHERE relname='pc18_flags_root'", []string{"relhassubclass"}, []string{"BOOL"}, [][]any{{false}}))
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relispartition,relpartbound IS NULL AS no_bound FROM pg_class WHERE relname='pc18_flags_candidate'", []string{"relispartition", "no_bound"}, []string{"BOOL", "BOOL"}, [][]any{{false, true}}))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("DELETE FROM pc18_flags_candidate", 1))
-		pgClassExec(t, p, b, b.DB, "ALTER TABLE pc18_flags_root ATTACH PARTITION pc18_flags_candidate FOR VALUES FROM(0) TO(10)", "DROP TABLE pc18_flags_candidate")
+		fixture.PGClassExec(t, p, b, b.DB, "ALTER TABLE pc18_flags_root ATTACH PARTITION pc18_flags_candidate FOR VALUES FROM(0) TO(10)", "DROP TABLE pc18_flags_candidate")
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relhassubclass FROM pg_class WHERE relname='pc18_flags_root'", []string{"relhassubclass"}, []string{"BOOL"}, [][]any{{true}}))
 	})
 }

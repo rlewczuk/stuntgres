@@ -8,7 +8,7 @@ import (
 
 func TestReferenceConversionExecutionAndRetained(t *testing.T) {
 	conversionScenario(t, []string{"conv_exec_hidden"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		conversionExec(t, p, b, `CREATE SCHEMA conv_exec_hidden`, conversionCreate("public.conv_exec", true))
+		conversionExec(t, p, b, `CREATE SCHEMA conv_exec_hidden`, fixture.ConversionCreate("public.conv_exec", true))
 		conversionHideSeed(t, p, b, "conv_exec_hidden")
 		conn := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
 		fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(`SET search_path=public,pg_catalog`, 0))
@@ -59,7 +59,7 @@ func TestReferenceConversionExecutionAndRetained(t *testing.T) {
 		missing.SelectRows, missing.ErrorStage = true, "execute"
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}, b.Recorder, missing)
 		conversionError(t, p, b, `SELECT v FROM conv_exec_view`, conversionMissingDefault(), false)
-		conversionExec(t, p, b, conversionCreate("public.conv_exec_recovery", true))
+		conversionExec(t, p, b, fixture.ConversionCreate("public.conv_exec_recovery", true))
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}, b.Recorder, fixture.Select(q, []string{"v"}, []string{"BYTEA"}, [][]any{{"\xe9"}}, "é"))
 	})
 }

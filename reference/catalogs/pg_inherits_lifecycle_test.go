@@ -7,7 +7,7 @@ import (
 
 func TestReferencePGInheritsTransactions(t *testing.T) {
 	pgInheritsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE TABLE pi_tx_root(k INT,payload TEXT,CONSTRAINT pi_tx_key UNIQUE(k,payload)) PARTITION BY RANGE(k)",
 			"CREATE TABLE pi_tx_child(k INT,payload TEXT,CONSTRAINT pi_tx_child_idx UNIQUE(k,payload))")
 		r, c := pgInheritsID(t, p, b.DB, "pi_tx_root"), pgInheritsID(t, p, b.DB, "pi_tx_child")
@@ -30,29 +30,29 @@ func TestReferencePGInheritsTransactions(t *testing.T) {
 			}
 		}
 		check(false, false)
-		pgClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pi_attach", "ALTER TABLE pi_tx_root ATTACH PARTITION pi_tx_child FOR VALUES FROM(0) TO(5)")
+		fixture.PGClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pi_attach", "ALTER TABLE pi_tx_root ATTACH PARTITION pi_tx_child FOR VALUES FROM(0) TO(5)")
 		check(true, false)
-		pgClassExec(t, p, b, a, "ROLLBACK TO pi_attach")
+		fixture.PGClassExec(t, p, b, a, "ROLLBACK TO pi_attach")
 		check(false, false)
-		pgClassExec(t, p, b, a, "ALTER TABLE pi_tx_root ATTACH PARTITION pi_tx_child FOR VALUES FROM(0) TO(5)", "COMMIT")
+		fixture.PGClassExec(t, p, b, a, "ALTER TABLE pi_tx_root ATTACH PARTITION pi_tx_child FOR VALUES FROM(0) TO(5)", "COMMIT")
 		check(true, true)
-		pgClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pi_detach", "ALTER TABLE pi_tx_root DETACH PARTITION pi_tx_child")
+		fixture.PGClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pi_detach", "ALTER TABLE pi_tx_root DETACH PARTITION pi_tx_child")
 		check(false, true)
-		pgClassExec(t, p, b, a, "ROLLBACK TO pi_detach")
+		fixture.PGClassExec(t, p, b, a, "ROLLBACK TO pi_detach")
 		check(true, true)
-		pgClassExec(t, p, b, a, "ALTER TABLE pi_tx_root DETACH PARTITION pi_tx_child", "COMMIT")
+		fixture.PGClassExec(t, p, b, a, "ALTER TABLE pi_tx_root DETACH PARTITION pi_tx_child", "COMMIT")
 		check(false, false)
 
 		pgInheritsManualTree(t, p, b)
 		mi, ai := pgInheritsID(t, p, a, "pi_manual_idx"), pgInheritsID(t, p, a, "pi_a_idx")
-		pgClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pi_index", "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_a_idx")
+		fixture.PGClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pi_index", "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_a_idx")
 		pgInheritsHeldRows(t, p, b, ha, ai, [][]any{pgInheritsEdge(ai, mi, 1)})
 		pgInheritsHeldRows(t, p, b, hb, ai, nil)
-		pgClassExec(t, p, b, a, "ROLLBACK TO pi_index")
+		fixture.PGClassExec(t, p, b, a, "ROLLBACK TO pi_index")
 		pgInheritsHeldRows(t, p, b, ha, ai, nil)
-		pgClassExec(t, p, b, a, "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_a_idx", "COMMIT")
+		fixture.PGClassExec(t, p, b, a, "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_a_idx", "COMMIT")
 		pgInheritsHeldRows(t, p, b, hb, ai, [][]any{pgInheritsEdge(ai, mi, 1)})
-		pgClassExec(t, p, b, a, "CREATE UNIQUE INDEX pi_wrong_idx ON pi_b(payload,k)")
+		fixture.PGClassExec(t, p, b, a, "CREATE UNIQUE INDEX pi_wrong_idx ON pi_b(payload,k)")
 		fail := fixture.ImplicitError("ALTER INDEX pi_manual_idx ATTACH PARTITION pi_wrong_idx", fixture.Diagnostic{Code: "42P17", Message: `cannot attach index "pi_wrong_idx" as a partition of index "pi_manual_idx"`, Detail: "The index definitions do not match."})
 		for _, prepared := range []bool{false, true} {
 			fail.Prepared, fail.ErrorStage = prepared, "execute"
@@ -60,11 +60,11 @@ func TestReferencePGInheritsTransactions(t *testing.T) {
 			pgInheritsHeldRows(t, p, b, ha, ai, [][]any{pgInheritsEdge(ai, mi, 1)})
 			pgInheritsBag(t, p, b, a, []string{"pi_wrong_idx"}, nil)
 		}
-		pgClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pi_failure")
+		fixture.PGClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pi_failure")
 		fixture.RunStep(t, p.Ctx, a, b.Recorder, fail)
-		pgClassExec(t, p, b, a, "ROLLBACK TO pi_failure")
+		fixture.PGClassExec(t, p, b, a, "ROLLBACK TO pi_failure")
 		pgInheritsHeldRows(t, p, b, ha, ai, [][]any{pgInheritsEdge(ai, mi, 1)})
-		pgClassExec(t, p, b, a, "COMMIT")
+		fixture.PGClassExec(t, p, b, a, "COMMIT")
 		if pgInheritsID(t, p, a, "pi_a_idx") != ai || pgInheritsID(t, p, a, "pi_manual_idx") != mi {
 			t.Fatal("index attachment changed identity")
 		}
@@ -74,7 +74,7 @@ func TestReferencePGInheritsTransactions(t *testing.T) {
 func TestReferencePGInheritsIdentityAndDrop(t *testing.T) {
 	fixture.SchemaReferenceCleanup(t, "pi_move")
 	pgInheritsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE SCHEMA pi_move", "CREATE TABLE pi_p(a INT)", "CREATE TABLE pi_c() INHERITS(pi_p)", "CREATE TABLE pi_other(a INT)", "CREATE TABLE pi_survivor() INHERITS(pi_other)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE SCHEMA pi_move", "CREATE TABLE pi_p(a INT)", "CREATE TABLE pi_c() INHERITS(pi_p)", "CREATE TABLE pi_other(a INT)", "CREATE TABLE pi_survivor() INHERITS(pi_other)")
 		parent, child := pgInheritsID(t, p, b.DB, "pi_p"), pgInheritsID(t, p, b.DB, "pi_c")
 		other, survivor := pgInheritsID(t, p, b.DB, "pi_other"), pgInheritsID(t, p, b.DB, "pi_survivor")
 		owner := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
@@ -87,21 +87,21 @@ func TestReferencePGInheritsIdentityAndDrop(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, owner, b.Recorder, s)
 			pgInheritsHeldRows(t, p, b, held, child, want)
 		}
-		pgClassExec(t, p, b, owner, "ALTER TABLE pi_p RENAME TO pi_renamed", "ALTER TABLE pi_renamed SET SCHEMA pi_move")
+		fixture.PGClassExec(t, p, b, owner, "ALTER TABLE pi_p RENAME TO pi_renamed", "ALTER TABLE pi_renamed SET SCHEMA pi_move")
 		if pgInheritsID(t, p, owner, "pi_move.pi_renamed") != parent {
 			t.Fatal("rename changed identity")
 		}
 		pgInheritsHeldRows(t, p, b, held, child, want)
-		pgClassExec(t, p, b, owner, "DROP TABLE pi_c", "CREATE TABLE pi_c() INHERITS(pi_move.pi_renamed)")
+		fixture.PGClassExec(t, p, b, owner, "DROP TABLE pi_c", "CREATE TABLE pi_c() INHERITS(pi_move.pi_renamed)")
 		fresh := pgInheritsID(t, p, owner, "pi_c")
 		if fresh == child {
 			t.Fatal("recreated child reused identity")
 		}
 		pgInheritsHeldRows(t, p, b, held, child, nil)
 		pgInheritsHeldRows(t, p, b, held, fresh, [][]any{pgInheritsEdge(fresh, parent, 1)})
-		pgClassExec(t, p, b, owner, "DROP TABLE pi_move.pi_renamed CASCADE")
+		fixture.PGClassExec(t, p, b, owner, "DROP TABLE pi_move.pi_renamed CASCADE")
 		pgInheritsHeldRows(t, p, b, held, fresh, nil)
 		pgInheritsHeldRows(t, p, b, held, survivor, [][]any{pgInheritsEdge(survivor, other, 1)})
-		pgClassExec(t, p, b, owner, "DROP SCHEMA pi_move")
+		fixture.PGClassExec(t, p, b, owner, "DROP SCHEMA pi_move")
 	})
 }

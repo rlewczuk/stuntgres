@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-var pgTypeColumns = []string{"oid", "typname", "typnamespace", "typowner", "typlen", "typbyval", "typtype", "typcategory", "typispreferred", "typisdefined", "typdelim", "typrelid", "typsubscript", "typelem", "typarray", "typinput", "typoutput", "typreceive", "typsend", "typmodin", "typmodout", "typanalyze", "typalign", "typstorage", "typnotnull", "typbasetype", "typtypmod", "typndims", "typcollation", "typdefaultbin", "typdefault", "typacl"}
 var pgTypeTypes = []string{"OID", "NAME", "OID", "OID", "INT2", "BOOL", "CHAR", "CHAR", "BOOL", "BOOL", "CHAR", "OID", "REGPROC", "OID", "OID", "REGPROC", "REGPROC", "REGPROC", "REGPROC", "REGPROC", "REGPROC", "REGPROC", "CHAR", "CHAR", "BOOL", "OID", "INT4", "INT4", "OID", "PG_NODE_TREE", "TEXT", "_ACLITEM"}
 var pgTypeRoutineColumns = []int{12, 15, 16, 17, 18, 19, 20, 21}
 
@@ -21,7 +20,7 @@ func pgTypeScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.B
 	}
 }
 func pgTypeStep(b fixture.Backend, q string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, pgTypeColumns, pgTypeTypes, want, args...)
+	s := fixture.Select(q, fixture.PGTypeColumns, pgTypeTypes, want, args...)
 	s.CheckMetadata = func(t *testing.T, r *sql.Rows) {
 		c, err := r.ColumnTypes()
 		if err != nil {
@@ -50,7 +49,7 @@ func pgTypeStep(b fixture.Backend, q string, want [][]any, args ...any) fixture.
 			}
 		}
 		if reflect.TypeOf(v) != expected {
-			t.Errorf("raw row=%d column=%d/%s dbtype=%s got=%T/%#v want=%v", row, col, pgTypeColumns[col], pgTypeTypes[col], v, v, expected)
+			t.Errorf("raw row=%d column=%d/%s dbtype=%s got=%T/%#v want=%v", row, col, fixture.PGTypeColumns[col], pgTypeTypes[col], v, v, expected)
 		}
 		return true
 	}
@@ -104,7 +103,7 @@ func TestReferencePGTypeShape(t *testing.T) {
 			steps := []fixture.Step{
 				fixture.Select("SELECT oid,relnamespace,reltype,relnatts,relkind,relhasindex FROM pg_class WHERE oid=1247", []string{"oid", "relnamespace", "reltype", "relnatts", "relkind", "relhasindex"}, []string{"OID", "OID", "OID", "INT2", "CHAR", "BOOL"}, [][]any{{int64(1247), int64(11), int64(71), int64(32), "r", true}}),
 				fixture.Select("SELECT oid,typname,typrelid,typelem,typarray FROM pg_type WHERE oid IN (71,210) ORDER BY oid", []string{"oid", "typname", "typrelid", "typelem", "typarray"}, []string{"OID", "NAME", "OID", "OID", "OID"}, [][]any{{int64(71), "pg_type", int64(1247), int64(0), int64(210)}, {int64(210), "_pg_type", int64(0), int64(71), int64(0)}}),
-				fixture.Select("SELECT * FROM pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_type'", pgTableColumns, pgTableTypes, [][]any{pgTableRow("pg_catalog", "pg_type", pgTableViewsOwner(b), true)}),
+				fixture.Select("SELECT * FROM pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_type'", fixture.PGTableColumns, fixture.PGTableTypes, [][]any{fixture.PGTableRow("pg_catalog", "pg_type", fixture.PGTableViewsOwner(b), true)}),
 			}
 			for _, s := range steps {
 				fixture.PgDescriptionRows(t, p, b, s)
@@ -114,7 +113,7 @@ func TestReferencePGTypeShape(t *testing.T) {
 		t.Run("attributes", func(t *testing.T) {
 			ids := []int64{26, 19, 26, 26, 21, 16, 18, 18, 16, 16, 18, 26, 24, 26, 26, 24, 24, 24, 24, 24, 24, 24, 18, 18, 16, 26, 23, 23, 26, 194, 25, 1034}
 			var want [][]any
-			for i, name := range pgTypeColumns {
+			for i, name := range fixture.PGTypeColumns {
 				collation := int64(0)
 				if i == 1 || i == 29 || i == 30 {
 					collation = 950

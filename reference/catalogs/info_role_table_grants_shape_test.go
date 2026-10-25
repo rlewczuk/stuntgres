@@ -45,13 +45,13 @@ func TestReferenceInfoRoleTableGrantsShape(t *testing.T) {
 			rtgConsume(c.t, rows, c.b.PG, nil)
 		}
 		q = "SELECT g.* FROM (SELECT 1 AS witness) w LEFT JOIN information_schema.role_table_grants g ON g.table_name='rtg_missing'"
-		s := fixture.Select(q, rtgColumns, rtgTypes, [][]any{make([]any, 8)})
+		s := fixture.Select(q, fixture.RTGColumns, rtgTypes, [][]any{make([]any, 8)})
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { rtgMetadata(t, rows, c.b.PG) }
 		c.run(c.conn, s)
 		c.run(c.conn, fixture.Prepared(s))
 		q = `SELECT a.attnum,a.attname,tn.nspname,t.typname,bn.nspname,b.typname,b.oid::bigint,a.attcollation::bigint,a.atttypmod,a.attndims,a.attnotnull,t.typnotnull,t.typtypmod FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace AND n.nspname='information_schema' AND c.relname='role_table_grants' JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 JOIN pg_type t ON t.oid=a.atttypid JOIN pg_namespace tn ON tn.oid=t.typnamespace JOIN pg_type b ON b.oid=t.typbasetype JOIN pg_namespace bn ON bn.oid=b.typnamespace ORDER BY a.attnum`
 		logical := make([][]any, 8)
-		for i, name := range rtgColumns {
+		for i, name := range fixture.RTGColumns {
 			domain, base, oid, modifier := "sql_identifier", "name", int64(19), int64(-1)
 			if i == 5 {
 				domain, base, oid = "character_data", "varchar", 1043
@@ -69,7 +69,7 @@ func TestReferenceInfoRoleTableGrantsShape(t *testing.T) {
 		c.run(c.conn, s)
 		c.run(c.conn, fixture.Prepared(s))
 		var columns [][]any
-		for i, name := range rtgColumns {
+		for i, name := range fixture.RTGColumns {
 			columns = append(columns, []any{name, int64(i + 1), "YES", "information_schema", []string{"sql_identifier", "sql_identifier", "sql_identifier", "sql_identifier", "sql_identifier", "character_data", "yes_or_no", "yes_or_no"}[i]})
 		}
 		s = fixture.Select("SELECT column_name,ordinal_position,is_nullable,domain_schema,domain_name FROM information_schema.columns WHERE table_schema='information_schema' AND table_name='role_table_grants' ORDER BY ordinal_position", []string{"column_name", "ordinal_position", "is_nullable", "domain_schema", "domain_name"}, []string{"NAME", "INT4", "VARCHAR", "NAME", "NAME"}, columns)

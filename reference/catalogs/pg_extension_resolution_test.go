@@ -13,7 +13,7 @@ func pgExtensionHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture
 		if b.PG && name == "plpgsql" {
 			want = [][]any{{oid, "plpgsql", int64(10), int64(11), false, "1.0", nil, nil}}
 		}
-		s := fixture.Select(pgExtensionProbe, pgExtensionColumns, pgExtensionTypes, want, name)
+		s := fixture.Select(pgExtensionProbe, fixture.PGExtensionColumns, pgExtensionTypes, want, name)
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgExtensionMetadata(t, rows, b.PG) }
 		fixture.PgDescriptionExecutorRows(t, p, b, e, s)
 	}

@@ -41,7 +41,7 @@ func TestReferencePGGroupControls(t *testing.T) {
 			q := "SELECT * FROM pg_group WHERE grosysid=$1"
 			old, record, meta := pgGroupOpenRetained(t, p, b, q, id)
 			defer old.Close()
-			dump = commentInquiryDump(t, p)
+			dump = fixture.CommentInquiryDump(t, p)
 			for _, forbidden := range []string{"CREATE ROLE", "CREATE USER", "CREATE GROUP", "group-control-private-password", "SCRAM-SHA-256$", "INSERT INTO \"pg_catalog\".\"pg_group\""} {
 				if strings.Contains(dump, forbidden) {
 					t.Fatal("cluster state or credential leaked into Dump")
@@ -56,7 +56,7 @@ func TestReferencePGGroupControls(t *testing.T) {
 			want.Position = fixture.Position(utf8.RuneCountInString(prefix) + 1)
 			fixture.AssertDiagnostic(t, err, &want)
 			check()
-			if commentInquiryDump(t, p) != dump {
+			if fixture.CommentInquiryDump(t, p) != dump {
 				t.Fatal("failed staged Restore changed catalog")
 			}
 			canceled, cancel := context.WithCancel(p.Ctx)
@@ -71,7 +71,7 @@ func TestReferencePGGroupControls(t *testing.T) {
 				t.Fatal("canceled Restore", err)
 			}
 			check()
-			if commentInquiryDump(t, p) != dump {
+			if fixture.CommentInquiryDump(t, p) != dump {
 				t.Fatal("canceled controls changed catalog")
 			}
 			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {

@@ -62,7 +62,7 @@ func TestReferenceInfoConstraintColumnUsageIdentity(t *testing.T) {
 	ccuScenario(t, func(c *ccuCase) {
 		q := `SELECT a.attnum,a.attname,tn.nspname,t.typname,bn.nspname,b.typname,b.oid::bigint,a.attcollation::bigint,a.atttypmod,a.attndims,a.attnotnull,t.typnotnull FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace AND n.nspname='information_schema' AND c.relname='constraint_column_usage' JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 JOIN pg_type t ON t.oid=a.atttypid JOIN pg_namespace tn ON tn.oid=t.typnamespace JOIN pg_type b ON b.oid=t.typbasetype JOIN pg_namespace bn ON bn.oid=b.typnamespace ORDER BY a.attnum`
 		want := make([][]any, 7)
-		for i, name := range ccuColumns {
+		for i, name := range fixture.CCUColumns {
 			want[i] = []any{int64(i + 1), name, "information_schema", "sql_identifier", "pg_catalog", "name", int64(19), int64(950), int64(-1), int64(0), false, false}
 		}
 		s := fixture.Select(q, []string{"attnum", "attname", "nspname", "typname", "nspname", "typname", "oid", "attcollation", "atttypmod", "attndims", "attnotnull", "typnotnull"}, []string{"INT2", "NAME", "NAME", "NAME", "NAME", "NAME", "INT8", "INT8", "INT4", "INT2", "BOOL", "BOOL"}, want)

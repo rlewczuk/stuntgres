@@ -26,7 +26,7 @@ func TestReferenceExtensionVersionControls(t *testing.T) {
 				base := fixture.Select("SELECT id,v,code FROM ev_base_view ORDER BY id", []string{"id", "v", "code"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(1), "J500", "KM"}, {int64(2), "J500", "KM"}})
 				extensionVersionBoth(t, p, b, c, base)
 				before := extensionVersionInventory(t, p, b, c, "1.1")
-				owner := catalogRelationsRoleOID(t, p, c, "ev_owner")
+				owner := fixture.CatalogRelationsRoleOID(t, p, c, "ev_owner")
 				if before.Owner != owner {
 					t.Fatal("named extension owner", before.Owner, owner)
 				}

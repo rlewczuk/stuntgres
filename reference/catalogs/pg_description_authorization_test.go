@@ -18,7 +18,7 @@ func TestReferencePGDescriptionAuthorization(t *testing.T) {
 			for _, q := range []string{"CREATE ROLE pgd_reader", "CREATE SCHEMA pgd_private", "CREATE TABLE pgd_private.pgd_secret(a INT)", "COMMENT ON TABLE pgd_private.pgd_secret IS 'public description of private object'", "COMMENT ON COLUMN pgd_private.pgd_secret.a IS 'private attribute description'", "COMMENT ON ROLE postgres IS 'shared reader description'"} {
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
 			}
-			oid := pgDescriptionRelationID(t, p, backend, "pgd_secret")
+			oid := fixture.PGDescriptionRelationID(t, p, backend, "pgd_secret")
 			roleOID := pgDescriptionSharedRoleID(t, p, backend)
 			conn, err := backend.DB.Conn(p.Ctx)
 			if err != nil {

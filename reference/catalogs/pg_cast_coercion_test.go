@@ -89,7 +89,7 @@ func pgCastCoercion(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	} {
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(heldQuery, []string{"wide", "words", "binary", "short"}, []string{"INT8", "TEXT", "JSONB", "VARCHAR"}, [][]any{tc.row}, tc.args...))
 	}
-	s = pgCastParameterError(heldQuery, "integer", "bad", "bad", true, "{}", "ok")
+	s = fixture.PGCastParameterError(heldQuery, "integer", "bad", "bad", true, "{}", "ok")
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(heldQuery, []string{"wide", "words", "binary", "short"}, []string{"INT8", "TEXT", "JSONB", "VARCHAR"}, [][]any{{int64(11), "true", "{}", "ok"}}, 11, true, "{}", "ok"))
 }

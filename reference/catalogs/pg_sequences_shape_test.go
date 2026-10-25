@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-var pgSequencesColumns = []string{"schemaname", "sequencename", "sequenceowner", "data_type", "start_value", "min_value", "max_value", "increment_by", "cycle", "cache_size", "last_value"}
 var pgSequencesTypes = []string{"NAME", "NAME", "NAME", "REGTYPE", "INT8", "INT8", "INT8", "INT8", "BOOL", "INT8", "INT8"}
 
 const pgSequencesProbe = "SELECT * FROM pg_catalog.pg_sequences WHERE sequencename=$1"
@@ -15,7 +14,7 @@ const pgSequencesProbe = "SELECT * FROM pg_catalog.pg_sequences WHERE sequencena
 func pgSequencesMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	cols, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(cols, pgSequencesColumns) {
+	if err != nil || !reflect.DeepEqual(cols, fixture.PGSequencesColumns) {
 		t.Fatal("view columns", cols, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -50,7 +49,7 @@ func pgSequencesMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 }
 
 func pgSequencesSelect(b fixture.Backend, q string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, pgSequencesColumns, pgSequencesTypes, want, args...)
+	s := fixture.Select(q, fixture.PGSequencesColumns, pgSequencesTypes, want, args...)
 	s.Bag = true
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgSequencesMetadata(t, rows, b.PG) }
 	s.CheckRaw = func(t *testing.T, col, row int, v any) bool {

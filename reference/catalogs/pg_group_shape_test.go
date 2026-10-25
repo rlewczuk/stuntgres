@@ -12,7 +12,6 @@ import (
 	"testing"
 )
 
-var pgGroupColumns = []string{"groname", "grosysid", "grolist"}
 var pgGroupTypes = []string{"NAME", "OID", "_OID"}
 
 // Pinned PostgreSQL18.0 pg_views reconstruction, independently observed by root.
@@ -73,7 +72,7 @@ func pgGroupArray(t *testing.T, value any) string {
 func pgGroupMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !slices.Equal(names, pgGroupColumns) {
+	if err != nil || !slices.Equal(names, fixture.PGGroupColumns) {
 		t.Fatal("exact three group columns", names, err)
 	}
 	meta, err := rows.ColumnTypes()
@@ -94,7 +93,7 @@ func pgGroupSavedMetadata(t *testing.T, meta []*sql.ColumnType, pg bool) {
 		if pg {
 			scan = reflect.TypeFor[any]()
 		}
-		if m.Name() != pgGroupColumns[i] || m.DatabaseTypeName() != pgGroupTypes[i] || m.ScanType() != scan {
+		if m.Name() != fixture.PGGroupColumns[i] || m.DatabaseTypeName() != pgGroupTypes[i] || m.ScanType() != scan {
 			t.Fatalf("metadata %d=%s/%s/%v", i, m.Name(), m.DatabaseTypeName(), m.ScanType())
 		}
 		if n, known := m.Nullable(); n != !pg || known != !pg {
@@ -175,7 +174,7 @@ func pgGroupConsume(t *testing.T, rows *sql.Rows, b fixture.Backend, q string, w
 	}
 	columns, closed, closeErr := slices.Clone(op.Columns), op.Closed, op.CloseErr
 	b.Recorder.Mu.Unlock()
-	if !slices.Equal(columns, pgGroupColumns) || !closed || closeErr != nil || !slices.Equal(pgGroupCanonical(t, captured, b.PG, true), expected) {
+	if !slices.Equal(columns, fixture.PGGroupColumns) || !closed || closeErr != nil || !slices.Equal(pgGroupCanonical(t, captured, b.PG, true), expected) {
 		t.Fatal("middleware group buffers or closure differ")
 	}
 	pgGroupSavedMetadata(t, meta, b.PG)
@@ -221,7 +220,7 @@ func TestReferencePGGroupShape(t *testing.T) {
 		}
 		pgGroupBoth(t, p, b, "SELECT * FROM pg_group WHERE groname='pggmixed'", nil)
 		pgRolesBoth(t, p, b, fixture.Select("SELECT relname,relkind,relnatts FROM pg_class WHERE relname='pg_group'", []string{"relname", "relkind", "relnatts"}, []string{"NAME", "CHAR", "INT2"}, [][]any{{"pg_group", "v", int64(3)}}))
-		pgRolesBoth(t, p, b, fixture.Select("SELECT schemaname,viewname,viewowner,definition FROM pg_views WHERE schemaname='pg_catalog' AND viewname='pg_group'", []string{"schemaname", "viewname", "viewowner", "definition"}, []string{"NAME", "NAME", "NAME", "TEXT"}, [][]any{{"pg_catalog", "pg_group", pgTableViewsOwner(b), pgGroupViewDefinition}}))
+		pgRolesBoth(t, p, b, fixture.Select("SELECT schemaname,viewname,viewowner,definition FROM pg_views WHERE schemaname='pg_catalog' AND viewname='pg_group'", []string{"schemaname", "viewname", "viewowner", "definition"}, []string{"NAME", "NAME", "NAME", "TEXT"}, [][]any{{"pg_catalog", "pg_group", fixture.PGTableViewsOwner(b), pgGroupViewDefinition}}))
 		pgRolesBoth(t, p, b, fixture.Select("SELECT tablename FROM pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_group'", []string{"tablename"}, []string{"NAME"}, nil))
 		for _, q := range []string{"CREATE SCHEMA pgg_shape", "CREATE TABLE pgg_shape.pg_group(marker TEXT)", "SET search_path TO pgg_shape,pg_catalog"} {
 			pgRolesExec(t, p, b, q)
@@ -245,6 +244,6 @@ func TestReferencePGGroupOracleCatalog(t *testing.T) {
 func TestReferencePGGroupAttributeCatalog(t *testing.T) {
 	pgGroupScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		s := fixture.Select("SELECT attname::text AS name,atttypid::bigint AS type_oid,atttypmod::bigint AS typmod,attnotnull,attcollation::bigint AS collation,attnum::bigint AS number FROM pg_attribute WHERE attrelid='pg_catalog.pg_group'::regclass AND attnum>0 ORDER BY attnum", []string{"name", "type_oid", "typmod", "attnotnull", "collation", "number"}, []string{"TEXT", "INT8", "INT8", "BOOL", "INT8", "INT8"}, [][]any{{"groname", int64(19), int64(-1), false, int64(950), int64(1)}, {"grosysid", int64(26), int64(-1), false, int64(0), int64(2)}, {"grolist", int64(1028), int64(-1), false, int64(0), int64(3)}})
-		pgAttributeNameCastWitness(t, p, b, s)
+		fixture.PGAttributeNameCastWitness(t, p, b, s)
 	})
 }

@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-var pgRolesColumns = []string{"rolname", "rolsuper", "rolinherit", "rolcreaterole", "rolcreatedb", "rolcanlogin", "rolreplication", "rolconnlimit", "rolpassword", "rolvaliduntil", "rolbypassrls", "rolconfig", "oid"}
 var pgRolesTypes = []string{"NAME", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "INT4", "TEXT", "TIMESTAMPTZ", "BOOL", "_TEXT", "OID"}
 
 // Pinned PostgreSQL18.0 pg_views reconstruction, independently observed by root.
@@ -31,7 +30,7 @@ func pgRolesExec(t *testing.T, p *fixture.Pair, b fixture.Backend, q string) {
 
 func pgRolesCreate(t *testing.T, p *fixture.Pair, b fixture.Backend, name string) int64 {
 	t.Helper()
-	return pgShDescriptionCreateRole(t, p, b, name, "public")
+	return fixture.PGShDescriptionCreateRole(t, p, b, name, "public")
 }
 
 func pgRolesRow(name string, id int64, expiry any) []any {
@@ -39,7 +38,7 @@ func pgRolesRow(name string, id int64, expiry any) []any {
 }
 
 func pgRolesSelect(q string, rows [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, pgRolesColumns, pgRolesTypes, rows, args...)
+	s := fixture.Select(q, fixture.PGRolesColumns, pgRolesTypes, rows, args...)
 	s.Bag = true
 	return s
 }
@@ -53,7 +52,7 @@ func pgRolesBoth(t *testing.T, p *fixture.Pair, b fixture.Backend, s fixture.Ste
 func pgRolesMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgRolesColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGRolesColumns) {
 		t.Fatal("pg_roles columns", names, err)
 	}
 	meta, err := rows.ColumnTypes()
@@ -82,8 +81,8 @@ func pgRolesSavedMetadata(t *testing.T, meta []*sql.ColumnType, pg bool) {
 		if pg && i == 7 {
 			scan = reflect.TypeFor[int32]()
 		}
-		if m.Name() != pgRolesColumns[i] || m.DatabaseTypeName() != pgRolesTypes[i] || m.ScanType() != scan {
-			t.Errorf("column %d name/type/scan=%s/%s/%v want %s/%s/%v", i, m.Name(), m.DatabaseTypeName(), m.ScanType(), pgRolesColumns[i], pgRolesTypes[i], scan)
+		if m.Name() != fixture.PGRolesColumns[i] || m.DatabaseTypeName() != pgRolesTypes[i] || m.ScanType() != scan {
+			t.Errorf("column %d name/type/scan=%s/%s/%v want %s/%s/%v", i, m.Name(), m.DatabaseTypeName(), m.ScanType(), fixture.PGRolesColumns[i], pgRolesTypes[i], scan)
 		}
 		nullable, known := m.Nullable()
 		if nullable != !pg || known != !pg {
@@ -137,7 +136,7 @@ func TestReferencePGRolesShape(t *testing.T) {
 		pgRolesExec(t, p, b, "DROP ROLE \"PgrMixed\"")
 		pgRolesBoth(t, p, b, fixture.Select("SELECT rolconfig,rolname,oid,rolname,rolvaliduntil,rolpassword FROM pg_roles WHERE oid=$1", []string{"rolconfig", "rolname", "oid", "rolname", "rolvaliduntil", "rolpassword"}, []string{"_TEXT", "NAME", "OID", "NAME", "TIMESTAMPTZ", "TEXT"}, [][]any{{nil, "pgr_shape_login", id, "pgr_shape_login", nil, "********"}}, id))
 		pgRolesBoth(t, p, b, fixture.Select("SELECT relname,relkind,relnatts FROM pg_catalog.pg_class WHERE relname='pg_roles'", []string{"relname", "relkind", "relnatts"}, []string{"NAME", "CHAR", "INT2"}, [][]any{{"pg_roles", "v", int64(13)}}))
-		pgRolesBoth(t, p, b, fixture.Select("SELECT schemaname,viewname,viewowner,definition FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND viewname='pg_roles'", []string{"schemaname", "viewname", "viewowner", "definition"}, []string{"NAME", "NAME", "NAME", "TEXT"}, [][]any{{"pg_catalog", "pg_roles", pgTableViewsOwner(b), pgRolesViewDefinition}}))
+		pgRolesBoth(t, p, b, fixture.Select("SELECT schemaname,viewname,viewowner,definition FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND viewname='pg_roles'", []string{"schemaname", "viewname", "viewowner", "definition"}, []string{"NAME", "NAME", "NAME", "TEXT"}, [][]any{{"pg_catalog", "pg_roles", fixture.PGTableViewsOwner(b), pgRolesViewDefinition}}))
 		pgRolesBoth(t, p, b, fixture.Select("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_roles'", []string{"tablename"}, []string{"NAME"}, [][]any{}))
 		for _, q := range []string{"CREATE SCHEMA pgr_shape", "CREATE TABLE pgr_shape.pg_roles(marker TEXT)", "SET search_path TO pgr_shape,pg_catalog"} {
 			pgRolesExec(t, p, b, q)
@@ -164,10 +163,10 @@ func TestReferencePGRolesAttributeCatalog(t *testing.T) {
 		var expected [][]any
 		oids := []int64{19, 16, 16, 16, 16, 16, 16, 23, 25, 1184, 16, 1009, 26}
 		collations := []int64{950, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 950, 0}
-		for i, name := range pgRolesColumns {
+		for i, name := range fixture.PGRolesColumns {
 			expected = append(expected, []any{name, oids[i], int64(-1), false, collations[i]})
 		}
 		s := fixture.Select("SELECT attname::text AS name,atttypid::bigint AS type_oid,atttypmod::bigint AS typmod,attnotnull,attcollation::bigint AS collation FROM pg_catalog.pg_attribute WHERE attrelid='pg_catalog.pg_roles'::regclass AND attnum>0 ORDER BY attnum", []string{"name", "type_oid", "typmod", "attnotnull", "collation"}, []string{"TEXT", "INT8", "INT8", "BOOL", "INT8"}, expected)
-		pgAttributeNameCastWitness(t, p, b, s)
+		fixture.PGAttributeNameCastWitness(t, p, b, s)
 	})
 }

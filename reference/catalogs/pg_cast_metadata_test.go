@@ -175,7 +175,7 @@ func pgCastHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, ids map[[2]int
 		fixture.PgDescriptionExecutorRows(t, p, b, held, s)
 	}
 	for _, value := range []string{"bad", ""} {
-		s := pgCastParameterError(pgCastProbe, "oid", value, value, int64(20))
+		s := fixture.PGCastParameterError(pgCastProbe, "oid", value, value, int64(20))
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 	}
 	fixture.PgDescriptionExecutorRows(t, p, b, held, fixture.Select(pgCastProbe, fixture.PgCastColumns, fixture.PgCastTypes,

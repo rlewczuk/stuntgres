@@ -23,7 +23,7 @@ func TestReferenceConversionTransactions(t *testing.T) {
 					for _, x := range []*sql.Conn{c, peer} {
 						fixture.RunStep(t, p.Ctx, x, b.Recorder, fixture.Exec("SET search_path=public", 0))
 					}
-					queries := []string{conversionCreate("conv_tx", true), "ALTER CONVERSION conv_tx RENAME TO conv_tx_renamed", "ALTER CONVERSION conv_tx_renamed SET SCHEMA conv_tx_dest", "DROP CONVERSION conv_tx_dest.conv_tx_renamed"}
+					queries := []string{fixture.ConversionCreate("conv_tx", true), "ALTER CONVERSION conv_tx RENAME TO conv_tx_renamed", "ALTER CONVERSION conv_tx_renamed SET SCHEMA conv_tx_dest", "DROP CONVERSION conv_tx_dest.conv_tx_renamed"}
 					statements := map[string]*sql.Stmt{}
 					if held {
 						for _, q := range append(append([]string{}, queries...), conversionValue().Query) {
@@ -149,10 +149,10 @@ func TestReferenceConversionTransactionAuthority(t *testing.T) {
 	conversionScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		c := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
 		defer c.ExecContext(p.Ctx, "ROLLBACK")
-		conversionExec(t, p, b, conversionCreate("conv_tx_existing", false))
+		conversionExec(t, p, b, fixture.ConversionCreate("conv_tx_existing", false))
 		oid := conversionOID(t, p, b, "conv_tx_existing")
 		publicOID := conversionNamespaceOID(t, p, b, "public")
-		for _, q := range []string{conversionCreate("conv_tx_readonly", false), "ALTER CONVERSION conv_tx_existing RENAME TO conv_tx_renamed", "DROP CONVERSION conv_tx_existing"} {
+		for _, q := range []string{fixture.ConversionCreate("conv_tx_readonly", false), "ALTER CONVERSION conv_tx_existing RENAME TO conv_tx_renamed", "DROP CONVERSION conv_tx_existing"} {
 			stmt, err := c.PrepareContext(p.Ctx, q)
 			if err != nil {
 				t.Fatal(err)

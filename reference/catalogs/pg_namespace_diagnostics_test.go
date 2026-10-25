@@ -42,11 +42,11 @@ func TestReferencePGNamespaceDiagnostics(t *testing.T) {
 		held := fixture.ViewHold(t, p, b, q)
 		for _, value := range []string{"bad", ""} {
 			for _, prepared := range []bool{false, true} {
-				s := pgCastParameterError(q, "oid", value, value)
+				s := fixture.PGCastParameterError(q, "oid", value, value)
 				s.Prepared = prepared
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 			}
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgCastParameterError(q, "oid", value, value))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGCastParameterError(q, "oid", value, value))
 			pgNamespaceCheck(t, p, b, held, fixture.Select(q, []string{"nspname"}, []string{"NAME"}, [][]any{{"pg_catalog"}}, int64(11)))
 		}
 		for _, prepared := range []bool{false, true} {

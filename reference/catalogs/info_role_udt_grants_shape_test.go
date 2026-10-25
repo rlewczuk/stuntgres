@@ -15,7 +15,7 @@ func TestReferenceInfoRoleUdtGrantsShape(t *testing.T) {
 		held := c.hold(c.conn, ugQuery)
 		c.check(c.conn, "public", "ug_t", want...)
 		c.check(held, "public", "ug_t", want...)
-		q := "SELECT " + strings.Join(ugColumns, ",") + " FROM information_schema.role_udt_grants WHERE udt_schema=$1 AND udt_name=$2"
+		q := "SELECT " + strings.Join(fixture.UGColumns, ",") + " FROM information_schema.role_udt_grants WHERE udt_schema=$1 AND udt_name=$2"
 		c.run(c.conn, c.step(q, want, "public", "ug_t"))
 		c.run(c.conn, fixture.Prepared(c.step(q, want, "public", "ug_t")))
 		for _, predicate := range []string{"false", "udt_name=NULL", "udt_name='ug_missing'", "udt_name IS NULL", "udt_name=$1", "udt_name=''"} {
@@ -57,7 +57,7 @@ func TestReferenceInfoRoleUdtGrantsShape(t *testing.T) {
 			ugColumnTypes(c.t, saved, c.b.PG)
 		}
 		q = "SELECT g.* FROM (SELECT 1 AS witness) w LEFT JOIN information_schema.role_udt_grants g ON g.udt_name='ug_missing'"
-		s := fixture.Select(q, ugColumns, ugTypes, [][]any{make([]any, 7)})
+		s := fixture.Select(q, fixture.UGColumns, ugTypes, [][]any{make([]any, 7)})
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { ugMetadata(t, rows, c.b.PG) }
 		s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
 			if value != nil {
@@ -93,7 +93,7 @@ func TestReferenceInfoRoleUdtGrantsShape(t *testing.T) {
 		c.run(c.hold(c.conn, q), s)
 		q = `SELECT a.attnum,a.attname,tn.nspname,t.typname,bn.nspname,b.typname,b.oid::bigint,a.attcollation::bigint,a.atttypmod,a.attndims,a.attnotnull,t.typnotnull,t.typtypmod FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace AND n.nspname='information_schema' AND c.relname='role_udt_grants' JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 JOIN pg_type t ON t.oid=a.atttypid JOIN pg_namespace tn ON tn.oid=t.typnamespace JOIN pg_type b ON b.oid=t.typbasetype JOIN pg_namespace bn ON bn.oid=b.typnamespace ORDER BY a.attnum`
 		var logical, columns [][]any
-		for i, name := range ugColumns {
+		for i, name := range fixture.UGColumns {
 			domain, base, oid, modifier := "sql_identifier", "name", int64(19), int64(-1)
 			if i == 5 {
 				domain, base, oid = "character_data", "varchar", 1043

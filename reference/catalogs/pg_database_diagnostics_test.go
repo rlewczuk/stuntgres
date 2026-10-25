@@ -49,14 +49,14 @@ func TestReferencePGDatabaseDiagnostics(t *testing.T) {
 		}
 		for _, value := range []string{"bad", ""} {
 			for _, prepared := range []bool{false, true} {
-				s := pgCastParameterError(q, "oid", value, value)
+				s := fixture.PGCastParameterError(q, "oid", value, value)
 				s.Prepared = prepared
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 			}
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgCastParameterError(q, "oid", value, value))
-			pgDatabaseCheck(t, p, b, held, fixture.Select(q, []string{"same_name"}, []string{"BOOL"}, [][]any{{true}}, oid))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGCastParameterError(q, "oid", value, value))
+			fixture.PGDatabaseCheck(t, p, b, held, fixture.Select(q, []string{"same_name"}, []string{"BOOL"}, [][]any{{true}}, oid))
 		}
-		pgDatabaseCheck(t, p, b, held, fixture.Select(q, []string{"same_name"}, []string{"BOOL"}, nil, nil))
+		fixture.PGDatabaseCheck(t, p, b, held, fixture.Select(q, []string{"same_name"}, []string{"BOOL"}, nil, nil))
 		if b.PG {
 			return
 		}
@@ -102,6 +102,6 @@ func TestReferencePGDatabaseDiagnostics(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		pgDatabaseCheck(t, p, b, held, fixture.Select(q, []string{"same_name"}, []string{"BOOL"}, [][]any{{true}}, oid))
+		fixture.PGDatabaseCheck(t, p, b, held, fixture.Select(q, []string{"same_name"}, []string{"BOOL"}, [][]any{{true}}, oid))
 	})
 }

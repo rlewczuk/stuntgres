@@ -98,13 +98,13 @@ func TestReferencePGDatabaseControls(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pgdb18_portable(id integer)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pgdb18_portable(id integer)")
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO pgdb18_portable VALUES(18)", 1))
 		dump := fixture.ViewDump(t, p)
 		if strings.Contains(string(dump), "CREATE DATABASE") || strings.Contains(string(dump), "INSERT INTO pg_database") {
 			t.Fatal("dump serialized attachment/catalog source", string(dump))
 		}
-		pgClassExec(t, p, b, b.DB, "GRANT CREATE ON DATABASE \""+escapeDatabaseIdentifier(name)+"\" TO PUBLIC")
+		fixture.PGClassExec(t, p, b, b.DB, "GRANT CREATE ON DATABASE \""+escapeDatabaseIdentifier(name)+"\" TO PUBLIC")
 		want[17] = "{=CTc/postgres,postgres=CTc/postgres}"
 		check(held)
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(string(dump)+"CREATE SEQUENCE pgdb18_bad CACHE 0;")); err == nil {
@@ -128,7 +128,7 @@ func TestReferencePGDatabaseControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		check(held)
-		pgDatabaseCheck(t, p, b, b.DB, fixture.Select("SELECT id FROM pgdb18_portable", []string{"id"}, []string{"INT4"}, [][]any{{int64(18)}}))
+		fixture.PGDatabaseCheck(t, p, b, b.DB, fixture.Select("SELECT id FROM pgdb18_portable", []string{"id"}, []string{"INT4"}, [][]any{{int64(18)}}))
 		if !old.Next() {
 			t.Fatal("retained row absent", old.Err())
 		}
@@ -151,7 +151,7 @@ func TestReferencePGDatabaseControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		for i, typ := range saved {
-			if typ.Name() != pgDatabaseColumns[i] || typ.DatabaseTypeName() != pgDatabaseTypes[i] {
+			if typ.Name() != fixture.PGDatabaseColumns[i] || typ.DatabaseTypeName() != pgDatabaseTypes[i] {
 				t.Fatal("saved metadata after EOF/Close", i, typ)
 			}
 		}

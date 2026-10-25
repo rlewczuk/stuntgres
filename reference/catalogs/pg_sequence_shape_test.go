@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-var pgSequenceColumns = []string{"seqrelid", "seqtypid", "seqstart", "seqincrement", "seqmax", "seqmin", "seqcache", "seqcycle"}
 var pgSequenceTypes = []string{"OID", "OID", "INT8", "INT8", "INT8", "INT8", "INT8", "BOOL"}
 
 const pgSequenceProbe = "SELECT * FROM pg_catalog.pg_sequence WHERE seqrelid=$1::oid"
@@ -15,7 +14,7 @@ const pgSequenceProbe = "SELECT * FROM pg_catalog.pg_sequence WHERE seqrelid=$1:
 func pgSequenceMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	cols, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(cols, pgSequenceColumns) {
+	if err != nil || !reflect.DeepEqual(cols, fixture.PGSequenceColumns) {
 		t.Fatal("sequence columns", cols, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -29,7 +28,7 @@ func pgSequenceMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		} else if pg && i < 2 {
 			scan = reflect.TypeFor[any]()
 		}
-		if typ.Name() != pgSequenceColumns[i] || typ.DatabaseTypeName() != pgSequenceTypes[i] || typ.ScanType() != scan {
+		if typ.Name() != fixture.PGSequenceColumns[i] || typ.DatabaseTypeName() != pgSequenceTypes[i] || typ.ScanType() != scan {
 			t.Fatal("sequence descriptor", i, typ)
 		}
 		nullable, known := typ.Nullable()
@@ -46,7 +45,7 @@ func pgSequenceMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 }
 
 func pgSequenceSelect(backend fixture.Backend, query string, rows [][]any, args ...any) fixture.Step {
-	s := fixture.Select(query, pgSequenceColumns, pgSequenceTypes, rows, args...)
+	s := fixture.Select(query, fixture.PGSequenceColumns, pgSequenceTypes, rows, args...)
 	s.Bag = true
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgSequenceMetadata(t, rows, backend.PG) }
 	return s
@@ -80,8 +79,8 @@ func TestReferencePGSequenceShape(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			pgSequenceExec(t, p, b, b.DB, "CREATE SEQUENCE pgs_shape_sequence")
 			pgSequenceExec(t, p, b, b.DB, "CREATE TABLE pgs_shape_table(a INT)")
-			oid := pgDescriptionRelationID(t, p, b, "pgs_shape_sequence")
-			table := pgDescriptionRelationID(t, p, b, "pgs_shape_table")
+			oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_shape_sequence")
+			table := fixture.PGDescriptionRelationID(t, p, b, "pgs_shape_table")
 			pgSequenceCheck(t, p, b, b.DB, oid, pgSequenceDefault(oid))
 			for _, s := range []fixture.Step{
 				pgSequenceSelect(b, pgSequenceProbe, [][]any{}, int64(4294967295)),

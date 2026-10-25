@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-var pgDescriptionColumns = []string{"objoid", "classoid", "objsubid", "description"}
 var pgDescriptionTypes = []string{"OID", "OID", "INT4", "TEXT"}
 
 func pgDescriptionOIDText(oid int64) string { return strconv.FormatInt(oid, 10) }
@@ -17,7 +16,7 @@ func pgDescriptionOIDText(oid int64) string { return strconv.FormatInt(oid, 10) 
 func pgDescriptionMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	columns, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(columns, pgDescriptionColumns) {
+	if err != nil || !reflect.DeepEqual(columns, fixture.PGDescriptionColumns) {
 		t.Fatal("description columns", columns, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -33,7 +32,7 @@ func pgDescriptionMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		} else if pg {
 			scan = reflect.TypeFor[int32]()
 		}
-		if typ.Name() != pgDescriptionColumns[i] || typ.DatabaseTypeName() != pgDescriptionTypes[i] || typ.ScanType() != scan {
+		if typ.Name() != fixture.PGDescriptionColumns[i] || typ.DatabaseTypeName() != pgDescriptionTypes[i] || typ.ScanType() != scan {
 			t.Fatal("description descriptor", i, typ)
 		}
 		nullable, known := typ.Nullable()
@@ -55,7 +54,7 @@ func pgDescriptionMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 }
 
 func pgDescriptionSelect(query string, rows [][]any, args ...any) fixture.Step {
-	s := fixture.Select(query, pgDescriptionColumns, pgDescriptionTypes, rows, args...)
+	s := fixture.Select(query, fixture.PGDescriptionColumns, pgDescriptionTypes, rows, args...)
 	s.Bag = true
 	return s
 }

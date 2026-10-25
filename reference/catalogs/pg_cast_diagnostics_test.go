@@ -9,16 +9,6 @@ import (
 	"testing"
 )
 
-func pgCastParameterError(query, typ, value string, args ...any) fixture.Step {
-	portal := "unnamed portal parameter $1 = '...'"
-	if value == "" {
-		portal = "unnamed portal parameter $1 = ''"
-	}
-	s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "22P02", Message: "invalid input syntax for type " + typ + ": \"" + value + "\"", Context: portal}, args...)
-	s.SelectRows, s.ErrorStage = true, "execute"
-	return s
-}
-
 func pgCastMissing(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
 	s := fixture.ImplicitError("SELECT /*é*/ missing FROM pg_catalog.pg_cast", fixture.Diagnostic{Code: "42703", Message: "column \"missing\" does not exist", Position: "14"})
@@ -51,7 +41,7 @@ func TestReferencePGCastDiagnostics(t *testing.T) {
 		}
 		for _, value := range []string{"bad", ""} {
 			for _, prepared := range []bool{false, true} {
-				s := pgCastParameterError(pgCastProbe, "oid", value, value, int64(20))
+				s := fixture.PGCastParameterError(pgCastProbe, "oid", value, value, int64(20))
 				s.Prepared = prepared
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 			}

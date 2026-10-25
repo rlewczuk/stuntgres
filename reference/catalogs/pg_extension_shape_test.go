@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-var pgExtensionColumns = []string{"oid", "extname", "extowner", "extnamespace", "extrelocatable", "extversion", "extconfig", "extcondition"}
 var pgExtensionTypes = []string{"OID", "NAME", "OID", "OID", "BOOL", "TEXT", "_OID", "_TEXT"}
 
 const pgExtensionProbe = "SELECT * FROM pg_catalog.pg_extension WHERE extname=$1"
@@ -27,7 +26,7 @@ func pgExtensionScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixt
 func pgExtensionMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	columns, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(columns, pgExtensionColumns) {
+	if err != nil || !reflect.DeepEqual(columns, fixture.PGExtensionColumns) {
 		t.Fatal("extension columns", columns, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -54,8 +53,8 @@ func pgExtensionRetainedMetadata(t *testing.T, types []*sql.ColumnType, pg bool)
 		if pg && i != 4 && i != 5 {
 			scan = reflect.TypeFor[any]()
 		}
-		if typ.Name() != pgExtensionColumns[i] || typ.DatabaseTypeName() != pgExtensionTypes[i] || typ.ScanType() != scan {
-			t.Fatalf("extension descriptor %d: name=%q type=%q scan=%v; want %q %q %v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), pgExtensionColumns[i], pgExtensionTypes[i], scan)
+		if typ.Name() != fixture.PGExtensionColumns[i] || typ.DatabaseTypeName() != pgExtensionTypes[i] || typ.ScanType() != scan {
+			t.Fatalf("extension descriptor %d: name=%q type=%q scan=%v; want %q %q %v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), fixture.PGExtensionColumns[i], pgExtensionTypes[i], scan)
 		}
 		nullable, known := typ.Nullable()
 		if pg {
@@ -88,7 +87,7 @@ func pgExtensionBoth(t *testing.T, p *fixture.Pair, b fixture.Backend, s fixture
 
 func pgExtensionEmpty(t *testing.T, p *fixture.Pair, b fixture.Backend, query string, args ...any) {
 	t.Helper()
-	s := fixture.Select(query, pgExtensionColumns, pgExtensionTypes, [][]any{}, args...)
+	s := fixture.Select(query, fixture.PGExtensionColumns, pgExtensionTypes, [][]any{}, args...)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgExtensionMetadata(t, rows, b.PG) }
 	pgExtensionBoth(t, p, b, s)
 }
@@ -129,7 +128,7 @@ func TestReferencePGExtensionShape(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, owner, b.Recorder, fixture.Exec("CREATE ROLE pgext_shape_reader", 0))
 		fixture.RunStep(t, p.Ctx, reader, b.Recorder, fixture.Exec("SET ROLE pgext_shape_reader", 0))
 		defer reader.ExecContext(p.Ctx, "RESET ROLE")
-		s := fixture.Select("SELECT * FROM pg_catalog.pg_extension WHERE FALSE", pgExtensionColumns, pgExtensionTypes, [][]any{})
+		s := fixture.Select("SELECT * FROM pg_catalog.pg_extension WHERE FALSE", fixture.PGExtensionColumns, pgExtensionTypes, [][]any{})
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgExtensionMetadata(t, rows, b.PG) }
 		fixture.PgDescriptionExecutorRows(t, p, b, reader, s)
 		fixture.PgDescriptionExecutorRows(t, p, b, reader, fixture.Prepared(s))

@@ -7,7 +7,7 @@ import (
 
 func TestReferencePGAttributeTypes(t *testing.T) {
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE DOMAIN pa18_type_domain AS integer",
 			"CREATE TYPE pa18_type_enum AS ENUM('one','two')",
 			"CREATE TYPE pa18_type_composite AS(x integer)",
@@ -51,33 +51,33 @@ func TestReferencePGAttributeTypes(t *testing.T) {
 
 func TestReferencePGAttributeDeclarations(t *testing.T) {
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE DOMAIN pa18_rank_domain AS integer[][]",
 			"CREATE TYPE pa18_rank_composite AS(a integer[][])",
 			"CREATE TABLE pa18_rank(a integer[],b integer[][],c integer[2][3],d pa18_rank_domain)")
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO pa18_rank(a,b,c,d) VALUES('{1}','{2}','{3}','{4}')", 1))
-		pgClassExec(t, p, b, b.DB, "CREATE VIEW pa18_rank_view AS SELECT b FROM pa18_rank")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE VIEW pa18_rank_view AS SELECT b FROM pa18_rank")
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE pa18_rank_ctas AS SELECT b FROM pa18_rank", 1))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE MATERIALIZED VIEW pa18_rank_mv AS SELECT b FROM pa18_rank", 1))
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE TABLE pa18_rank_like(LIKE pa18_rank)",
 			"CREATE TABLE pa18_rank_child() INHERITS(pa18_rank)",
 			"CREATE TABLE pa18_rank_merged(b integer[][]) INHERITS(pa18_rank)",
 			"CREATE TABLE pa18_rank_typed OF pa18_rank_composite")
 		indexDDL := "CREATE INDEX pa18_rank_index ON pa18_rank(b) INCLUDE(c)"
 		if b.PG {
-			pgClassExec(t, p, b, b.DB, indexDDL)
+			fixture.PGClassExec(t, p, b, b.DB, indexDDL)
 		} else {
 			for _, prepared := range []bool{false, true} {
 				boundary := fixture.ImplicitError(indexDDL, fixture.Diagnostic{Code: "42704", Message: "data type integer[] has no default operator class for access method \"btree\"", Hint: "You must specify an operator class for the index or define a default operator class for the data type."})
 				boundary.Prepared, boundary.ErrorStage = prepared, "execute"
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, boundary)
-				pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT c.relname,a.attname FROM pg_class c JOIN pg_attribute a ON a.attrelid=c.oid WHERE c.relname='pa18_rank_index'", []string{"relname", "attname"}, []string{"NAME", "NAME"}, nil))
+				fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT c.relname,a.attname FROM pg_class c JOIN pg_attribute a ON a.attrelid=c.oid WHERE c.relname='pa18_rank_index'", []string{"relname", "attname"}, []string{"NAME", "NAME"}, nil))
 			}
 		}
 		// An admitted scalar key independently proves native INCLUDE rank without
 		// implementing the adjacent array btree operator-class provider.
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pa18_rank_include_heap(id integer,matrix integer[][])", "CREATE INDEX pa18_rank_include ON pa18_rank_include_heap(id) INCLUDE(matrix)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pa18_rank_include_heap(id integer,matrix integer[][])", "CREATE INDEX pa18_rank_include ON pa18_rank_include_heap(id) INCLUDE(matrix)")
 		includeID := pgAttributeID(t, p, b.DB, "pa18_rank_include")
 		pgAttributeRead(t, p, b, b.DB, includeID, "", [][]any{pgAttributeRow(includeID, "id", 23, 4, 1, -1, 0, true, "i", "p", false, 0), pgAttributeRow(includeID, "matrix", 1007, -1, 2, -1, 2, false, "i", "x", false, 0)})
 		id := pgAttributeID(t, p, b.DB, "pa18_rank")
@@ -100,23 +100,23 @@ func TestReferencePGAttributeDeclarations(t *testing.T) {
 					return
 				}
 				q := "SELECT atttypid,atttypmod,attndims FROM pg_attribute WHERE attrelid='" + tc.relation + "'::regclass::oid AND attname='" + tc.column + "'"
-				pgAttributeCheck(t, p, b, b.DB, fixture.Select(q, []string{"atttypid", "atttypmod", "attndims"}, []string{"OID", "INT4", "INT2"}, [][]any{{int64(1007), int64(-1), tc.rank}}))
+				fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select(q, []string{"atttypid", "atttypmod", "attndims"}, []string{"OID", "INT4", "INT2"}, [][]any{{int64(1007), int64(-1), tc.rank}}))
 			})
 		}
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pa18_rank_alter(a integer[])")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pa18_rank_alter(a integer[])")
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO pa18_rank_alter(a) VALUES('{7,8}')", 1))
-		pgClassExec(t, p, b, b.DB, "ALTER TABLE pa18_rank_alter ALTER a TYPE integer[][]")
+		fixture.PGClassExec(t, p, b, b.DB, "ALTER TABLE pa18_rank_alter ALTER a TYPE integer[][]")
 		alter := pgAttributeID(t, p, b.DB, "pa18_rank_alter")
 		pgAttributeRead(t, p, b, b.DB, alter, " AND attnum>0", [][]any{pgAttributeRow(alter, "a", 1007, -1, 1, -1, 2, false, "i", "x", false, 0)})
-		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT a FROM pa18_rank_alter", []string{"a"}, []string{"_INT4"}, [][]any{{"{7,8}"}}))
-		pgClassExec(t, p, b, b.DB, "ALTER TABLE pa18_rank_alter ADD b integer[2][3]")
+		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT a FROM pa18_rank_alter", []string{"a"}, []string{"_INT4"}, [][]any{{"{7,8}"}}))
+		fixture.PGClassExec(t, p, b, b.DB, "ALTER TABLE pa18_rank_alter ADD b integer[2][3]")
 		pgAttributeRead(t, p, b, b.DB, alter, " AND attnum>0", [][]any{pgAttributeRow(alter, "a", 1007, -1, 1, -1, 2, false, "i", "x", false, 0), pgAttributeRow(alter, "b", 1007, -1, 2, -1, 2, false, "i", "x", false, 0)})
 	})
 }
 
 func TestReferencePGAttributeFlags(t *testing.T) {
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE DOMAIN pa18_flags_domain AS integer",
 			"CREATE TABLE pa18_flags(a integer,b integer NOT NULL,c integer PRIMARY KEY,d integer DEFAULT 7,e integer GENERATED ALWAYS AS IDENTITY,f integer GENERATED BY DEFAULT AS IDENTITY,g integer GENERATED ALWAYS AS(a+1) STORED,h integer GENERATED ALWAYS AS(a+2) VIRTUAL,i pa18_flags_domain,j serial)",
 			"CREATE TABLE pa18_inh_a(x integer)", "CREATE TABLE pa18_inh_b(x integer)",
@@ -141,7 +141,7 @@ func TestReferencePGAttributeFlags(t *testing.T) {
 		want[3][12], want[6][12], want[7][12], want[9][12] = true, true, true, true
 		want[4][14], want[5][14], want[6][15], want[7][15] = "a", "d", "s", "v"
 		pgAttributeRead(t, p, b, b.DB, id, " AND attnum>0", want)
-		pgClassExec(t, p, b, b.DB, "CREATE DOMAIN pa18_nn_domain AS integer NOT NULL", "CREATE TABLE pa18_nn_table(a pa18_nn_domain,b pa18_nn_domain NOT NULL)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE DOMAIN pa18_nn_domain AS integer NOT NULL", "CREATE TABLE pa18_nn_table(a pa18_nn_domain,b pa18_nn_domain NOT NULL)")
 		var nnDomain int64
 		if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'pa18_nn_domain'::regtype::oid").Scan(&nnDomain); err != nil {
 			t.Fatal(err)
@@ -161,9 +161,9 @@ func TestReferencePGAttributeFlags(t *testing.T) {
 			row[17], row[18] = tc.local, tc.parents
 			pgAttributeRead(t, p, b, b.DB, id, " AND attnum>0", [][]any{row})
 		}
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pa18_missing(a integer)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pa18_missing(a integer)")
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO pa18_missing(a) VALUES(1)", 1))
-		pgClassExec(t, p, b, b.DB, "ALTER TABLE pa18_missing ADD b integer DEFAULT 7")
+		fixture.PGClassExec(t, p, b, b.DB, "ALTER TABLE pa18_missing ADD b integer DEFAULT 7")
 		// PG's fast-default history and native materialized fills are distinct.
 		missing := [][]any{{false, nil}}
 		if b.PG {
@@ -182,55 +182,55 @@ func TestReferencePGAttributeFlags(t *testing.T) {
 			}
 			return true
 		}
-		pgAttributeCheck(t, p, b, b.DB, s)
+		fixture.PGAttributeCheck(t, p, b, b.DB, s)
 	})
 }
 
 func TestReferencePGAttributeACL(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"pa18_acl_owner", "pa18_acl_reader", "pa18_acl_observer"})
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE ROLE pa18_acl_owner", "CREATE ROLE pa18_acl_reader", "CREATE ROLE pa18_acl_observer", "CREATE TABLE pa18_acl(a integer,b text)", "ALTER TABLE pa18_acl OWNER TO pa18_acl_owner")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE ROLE pa18_acl_owner", "CREATE ROLE pa18_acl_reader", "CREATE ROLE pa18_acl_observer", "CREATE TABLE pa18_acl(a integer,b text)", "ALTER TABLE pa18_acl OWNER TO pa18_acl_owner")
 		id := pgAttributeID(t, p, b.DB, "pa18_acl")
 		q := "SELECT attname,attacl FROM pg_attribute WHERE attrelid=$1 AND attnum>0 ORDER BY attnum"
 		held := fixture.ViewHold(t, p, b, q)
 		check := func(db fixture.Executor, acl any) {
-			pgAttributeCheck(t, p, b, db, fixture.Select(q, []string{"attname", "attacl"}, []string{"NAME", "_ACLITEM"}, [][]any{{"a", acl}, {"b", nil}}, id))
+			fixture.PGAttributeCheck(t, p, b, db, fixture.Select(q, []string{"attname", "attacl"}, []string{"NAME", "_ACLITEM"}, [][]any{{"a", acl}, {"b", nil}}, id))
 		}
 		check(b.DB, nil)
-		pgClassExec(t, p, b, b.DB, "GRANT SELECT(a),UPDATE(a) ON pa18_acl TO pa18_acl_reader WITH GRANT OPTION", "GRANT SELECT(a) ON pa18_acl TO PUBLIC")
+		fixture.PGClassExec(t, p, b, b.DB, "GRANT SELECT(a),UPDATE(a) ON pa18_acl TO pa18_acl_reader WITH GRANT OPTION", "GRANT SELECT(a) ON pa18_acl TO PUBLIC")
 		acl := "{pa18_acl_reader=r*w*/pa18_acl_owner,=r/pa18_acl_owner}"
 		check(b.DB, acl)
 		check(held, acl)
-		pgAttributeCheck(t, p, b, b.DB, fixture.Prepared(fixture.Select(q, []string{"attname", "attacl"}, []string{"NAME", "_ACLITEM"}, [][]any{{"a", acl}, {"b", nil}}, id)))
+		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Prepared(fixture.Select(q, []string{"attname", "attacl"}, []string{"NAME", "_ACLITEM"}, [][]any{{"a", acl}, {"b", nil}}, id)))
 		owner := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
-		pgClassExec(t, p, b, owner, "SET ROLE pa18_acl_observer")
+		fixture.PGClassExec(t, p, b, owner, "SET ROLE pa18_acl_observer")
 		defer owner.ExecContext(p.Ctx, "RESET ROLE")
 		check(owner, acl)
-		pgClassExec(t, p, b, owner, "RESET ROLE")
-		pgClassExec(t, p, b, b.DB, "REVOKE UPDATE(a) ON pa18_acl FROM pa18_acl_reader")
+		fixture.PGClassExec(t, p, b, owner, "RESET ROLE")
+		fixture.PGClassExec(t, p, b, b.DB, "REVOKE UPDATE(a) ON pa18_acl FROM pa18_acl_reader")
 		check(held, "{pa18_acl_reader=r*/pa18_acl_owner,=r/pa18_acl_owner}")
-		pgClassExec(t, p, b, b.DB, "REVOKE SELECT(a) ON pa18_acl FROM pa18_acl_reader", "REVOKE SELECT(a) ON pa18_acl FROM PUBLIC")
+		fixture.PGClassExec(t, p, b, b.DB, "REVOKE SELECT(a) ON pa18_acl FROM pa18_acl_reader", "REVOKE SELECT(a) ON pa18_acl FROM PUBLIC")
 		check(held, nil)
 	})
 }
 
 func TestReferencePGAttributeSystem(t *testing.T) {
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pa18_system(a integer)", "CREATE TABLE pa18_zero()", "CREATE TABLE pa18_system_root(a integer) PARTITION BY RANGE(a)", "CREATE SEQUENCE pa18_system_seq", "CREATE MATERIALIZED VIEW pa18_system_mv AS SELECT a FROM pa18_system")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pa18_system(a integer)", "CREATE TABLE pa18_zero()", "CREATE TABLE pa18_system_root(a integer) PARTITION BY RANGE(a)", "CREATE SEQUENCE pa18_system_seq", "CREATE MATERIALIZED VIEW pa18_system_mv AS SELECT a FROM pa18_system")
 		for _, name := range []string{"pa18_system", "pa18_zero", "pa18_system_root", "pa18_system_seq", "pa18_system_mv", "pg_catalog.pg_attribute"} {
 			id := pgAttributeID(t, p, b.DB, name)
 			pgAttributeRead(t, p, b, b.DB, id, " AND attnum<0", pgAttributeSystemRows(id))
-			pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT attname FROM pg_attribute WHERE attrelid=$1 AND (attnum=0 OR (attnum<0 AND attname='oid'))", []string{"attname"}, []string{"NAME"}, nil, id))
+			fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT attname FROM pg_attribute WHERE attrelid=$1 AND (attnum=0 OR (attnum<0 AND attname='oid'))", []string{"attname"}, []string{"NAME"}, nil, id))
 		}
 	})
 }
 
 func TestReferencePGAttributeKinds(t *testing.T) {
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pa18_kinds(id integer NOT NULL,label varchar(7) COLLATE \"C\",matrix integer[][])", "CREATE VIEW pa18_kinds_view AS SELECT id,label,matrix FROM pa18_kinds", "CREATE TABLE pa18_kinds_ctas AS SELECT id,label,matrix FROM pa18_kinds", "CREATE MATERIALIZED VIEW pa18_kinds_mv AS SELECT id,label,matrix FROM pa18_kinds", "CREATE INDEX pa18_kinds_idx ON pa18_kinds(id) INCLUDE(label)", "CREATE INDEX pa18_kinds_expr ON pa18_kinds((id+1))", "CREATE TYPE pa18_kinds_composite AS(id integer)", "CREATE SEQUENCE pa18_kinds_seq", "CREATE TABLE pa18_kinds_root(id integer) PARTITION BY RANGE(id)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pa18_kinds(id integer NOT NULL,label varchar(7) COLLATE \"C\",matrix integer[][])", "CREATE VIEW pa18_kinds_view AS SELECT id,label,matrix FROM pa18_kinds", "CREATE TABLE pa18_kinds_ctas AS SELECT id,label,matrix FROM pa18_kinds", "CREATE MATERIALIZED VIEW pa18_kinds_mv AS SELECT id,label,matrix FROM pa18_kinds", "CREATE INDEX pa18_kinds_idx ON pa18_kinds(id) INCLUDE(label)", "CREATE INDEX pa18_kinds_expr ON pa18_kinds((id+1))", "CREATE TYPE pa18_kinds_composite AS(id integer)", "CREATE SEQUENCE pa18_kinds_seq", "CREATE TABLE pa18_kinds_root(id integer) PARTITION BY RANGE(id)")
 		partitionIndexDDL := "CREATE INDEX pa18_kinds_pidx ON pa18_kinds_root(id)"
 		if b.PG {
-			pgClassExec(t, p, b, b.DB, partitionIndexDDL)
+			fixture.PGClassExec(t, p, b, b.DB, partitionIndexDDL)
 			partitionIndexID := pgAttributeID(t, p, b.DB, "pa18_kinds_pidx")
 			pgAttributeRead(t, p, b, b.DB, partitionIndexID, " AND attnum<0", nil)
 			pgAttributeRead(t, p, b, b.DB, partitionIndexID, " AND attnum>0", [][]any{pgAttributeRow(partitionIndexID, "id", 23, 4, 1, -1, 0, true, "i", "p", false, 0)})
@@ -242,7 +242,7 @@ func TestReferencePGAttributeKinds(t *testing.T) {
 				boundary.Prepared, boundary.ErrorStage = prepared, "execute"
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, boundary)
 				pgAttributeRead(t, p, b, b.DB, rootID, "", rootRows)
-				pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT c.relname,a.attname FROM pg_class c JOIN pg_attribute a ON a.attrelid=c.oid WHERE c.relname='pa18_kinds_pidx'", []string{"relname", "attname"}, []string{"NAME", "NAME"}, nil))
+				fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT c.relname,a.attname FROM pg_class c JOIN pg_attribute a ON a.attrelid=c.oid WHERE c.relname='pa18_kinds_pidx'", []string{"relname", "attname"}, []string{"NAME", "NAME"}, nil))
 			}
 		}
 		for _, name := range []string{"pa18_kinds_view", "pa18_kinds_composite", "pa18_kinds_idx", "pa18_kinds_expr"} {
@@ -269,26 +269,26 @@ func TestReferencePGAttributeDeclarationsCopiedRoutes(t *testing.T) {
 				id := pgAttributeID(t, p, b.DB, relation)
 				q := "SELECT atttypid,atttypmod,attndims FROM pg_attribute WHERE attrelid=$1 AND attname=$2"
 				s := fixture.Select(q, []string{"atttypid", "atttypmod", "attndims"}, []string{"OID", "INT4", "INT2"}, [][]any{{int64(1007), int64(-1), rank}}, id, column)
-				pgAttributeCheck(t, p, b, b.DB, s)
-				pgAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
+				fixture.PGAttributeCheck(t, p, b, b.DB, s)
+				fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
 			})
 		}
 		t.Run("PartitionOf", func(t *testing.T) {
-			pgClassExec(t, p, b, b.DB, "CREATE TABLE pa18_copy_root(id integer,matrix integer[][]) PARTITION BY RANGE(id)", "CREATE TABLE pa18_copy_leaf PARTITION OF pa18_copy_root FOR VALUES FROM(0) TO(10)")
+			fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pa18_copy_root(id integer,matrix integer[][]) PARTITION BY RANGE(id)", "CREATE TABLE pa18_copy_leaf PARTITION OF pa18_copy_root FOR VALUES FROM(0) TO(10)")
 			check("pa18_copy_root", "matrix", 2)
 			check("pa18_copy_leaf", "matrix", 0)
 		})
 		t.Run("TypedAlter", func(t *testing.T) {
-			pgClassExec(t, p, b, b.DB, "CREATE TYPE pa18_copy_composite AS(a integer[][])", "CREATE TABLE pa18_copy_typed OF pa18_copy_composite")
+			fixture.PGClassExec(t, p, b, b.DB, "CREATE TYPE pa18_copy_composite AS(a integer[][])", "CREATE TABLE pa18_copy_typed OF pa18_copy_composite")
 			check("pa18_copy_composite", "a", 2)
 			check("pa18_copy_typed", "a", 0)
-			pgClassExec(t, p, b, b.DB, "ALTER TYPE pa18_copy_composite ALTER ATTRIBUTE a TYPE integer[][] CASCADE")
+			fixture.PGClassExec(t, p, b, b.DB, "ALTER TYPE pa18_copy_composite ALTER ATTRIBUTE a TYPE integer[][] CASCADE")
 			check("pa18_copy_composite", "a", 2)
 			check("pa18_copy_typed", "a", 2)
-			pgClassExec(t, p, b, b.DB, "ALTER TYPE pa18_copy_composite ADD ATTRIBUTE b integer[][] CASCADE")
+			fixture.PGClassExec(t, p, b, b.DB, "ALTER TYPE pa18_copy_composite ADD ATTRIBUTE b integer[][] CASCADE")
 			check("pa18_copy_composite", "b", 2)
 			check("pa18_copy_typed", "b", 2)
-			pgClassExec(t, p, b, b.DB, "ALTER TYPE pa18_copy_composite ALTER ATTRIBUTE a TYPE integer[][][] CASCADE")
+			fixture.PGClassExec(t, p, b, b.DB, "ALTER TYPE pa18_copy_composite ALTER ATTRIBUTE a TYPE integer[][][] CASCADE")
 			check("pa18_copy_composite", "a", 3)
 			check("pa18_copy_typed", "a", 3)
 		})

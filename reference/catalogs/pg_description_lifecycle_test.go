@@ -17,15 +17,6 @@ func pgDescriptionSharedRoleID(t *testing.T, p *fixture.Pair, backend fixture.Ba
 	return oid
 }
 
-func pgDescriptionRelationID(t *testing.T, p *fixture.Pair, backend fixture.Backend, name string) int64 {
-	t.Helper()
-	var oid int64
-	if err := backend.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_catalog.pg_class WHERE relname=$1", name).Scan(&oid); err != nil || oid <= 0 || oid > 4294967295 {
-		t.Fatal("relation identity", name, oid, err)
-	}
-	return oid
-}
-
 func pgDescriptionRelationBag(t *testing.T, p *fixture.Pair, backend fixture.Backend, oid int64, rows [][]any) {
 	t.Helper()
 	s := pgDescriptionSelect("SELECT * FROM pg_catalog.pg_description WHERE objoid=$1 AND classoid=1259", rows, oid)
@@ -52,7 +43,7 @@ func TestReferencePGDescriptionLifecycle(t *testing.T) {
 					for _, q := range []string{"CREATE ROLE pgd_lifecycle_owner", "CREATE SCHEMA pgd_lifecycle", "CREATE TABLE pgd_life(a INT,b INT,c TEXT)", "COMMENT ON TABLE pgd_life IS 'whole'", "COMMENT ON COLUMN pgd_life.b IS 'middle'", "COMMENT ON COLUMN pgd_life.c IS 'third'", "COMMENT ON SCHEMA pgd_lifecycle IS 'pgd lifecycle schema'"} {
 						run(q)
 					}
-					oid := pgDescriptionRelationID(t, p, backend, "pgd_life")
+					oid := fixture.PGDescriptionRelationID(t, p, backend, "pgd_life")
 					whole := []any{oid, int64(1259), int64(0), "whole"}
 					third := []any{oid, int64(1259), int64(3), "third"}
 					pgDescriptionRelationBag(t, p, backend, oid, [][]any{whole, {oid, int64(1259), int64(2), "middle"}, third})
@@ -60,7 +51,7 @@ func TestReferencePGDescriptionLifecycle(t *testing.T) {
 						run(q)
 						pgDescriptionRelationBag(t, p, backend, oid, [][]any{whole, third})
 					}
-					if current := pgDescriptionRelationID(t, p, backend, "pgd_life_renamed"); current != oid {
+					if current := fixture.PGDescriptionRelationID(t, p, backend, "pgd_life_renamed"); current != oid {
 						t.Fatal("ALTER reminted address", oid, current)
 					}
 					var namespace int64
@@ -78,7 +69,7 @@ func TestReferencePGDescriptionLifecycle(t *testing.T) {
 					// Retain the independent sequence comment/owner lifecycle too.
 					run("CREATE SEQUENCE pgd_lifecycle.pgd_life_sequence")
 					run("COMMENT ON SEQUENCE pgd_lifecycle.pgd_life_sequence IS 'owner-stable sequence'")
-					sequenceOID := pgDescriptionRelationID(t, p, backend, "pgd_life_sequence")
+					sequenceOID := fixture.PGDescriptionRelationID(t, p, backend, "pgd_life_sequence")
 					sequenceBag := [][]any{{sequenceOID, int64(1259), int64(0), "owner-stable sequence"}}
 					pgDescriptionRelationBag(t, p, backend, sequenceOID, sequenceBag)
 					var oldOwner, newOwner int64
@@ -117,7 +108,7 @@ func TestReferencePGDescriptionLifecycle(t *testing.T) {
 					fixture.PgDescriptionRows(t, p, backend, s)
 					fixture.PgDescriptionRows(t, p, backend, fixture.Prepared(s))
 					run("CREATE TABLE pgd_life_renamed(a INT)")
-					fresh := pgDescriptionRelationID(t, p, backend, "pgd_life_renamed")
+					fresh := fixture.PGDescriptionRelationID(t, p, backend, "pgd_life_renamed")
 					if fresh == oid {
 						t.Fatal("recreation reused old address")
 					}

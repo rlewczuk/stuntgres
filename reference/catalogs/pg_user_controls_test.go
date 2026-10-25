@@ -47,7 +47,7 @@ func TestReferencePGUserControls(t *testing.T) {
 			if _, err := b.DB.ExecContext(p.Ctx, "ALTER ROLE pgu_controls PASSWORD 'pgu-control-private-password'"); err != nil {
 				t.Fatal("password fixture setup failed")
 			}
-			dump = commentInquiryDump(t, p)
+			dump = fixture.CommentInquiryDump(t, p)
 			for _, forbidden := range []string{"CREATE ROLE", "pgu-control-private-password", "SCRAM-SHA-256$", "INSERT INTO \"pg_catalog\".\"pg_user\""} {
 				if strings.Contains(dump, forbidden) {
 					t.Fatal("credential or cluster state leaked into Dump")
@@ -62,7 +62,7 @@ func TestReferencePGUserControls(t *testing.T) {
 				fixture.AssertDiagnostic(t, err, &want)
 			}
 			check()
-			if commentInquiryDump(t, p) != dump {
+			if fixture.CommentInquiryDump(t, p) != dump {
 				t.Fatal("failed Restore changed catalog")
 			}
 			canceled, cancel := context.WithCancel(p.Ctx)

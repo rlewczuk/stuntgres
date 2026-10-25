@@ -36,7 +36,7 @@ func kcuRoundtrip(c *kcuCase, pattern string, want [][]any) {
 	c.check(c.conn, pattern)
 	kcuAssertRows(c.t, old, want)
 	for i, typ := range saved {
-		if typ.Name() != kcuColumns[i] || typ.DatabaseTypeName() != kcuTypes[i] {
+		if typ.Name() != fixture.KCUColumns[i] || typ.DatabaseTypeName() != kcuTypes[i] {
 			c.t.Fatal("retained metadata changed")
 		}
 	}

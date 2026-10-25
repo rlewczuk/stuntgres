@@ -22,11 +22,11 @@ func TestReferenceCatalogRelationsRoles(t *testing.T) {
 		run(fixture.Exec("CREATE ROLE cr_roles_nologin NOLOGIN", 0))
 		run(fixture.Exec(`CREATE ROLE "Cr odd é""role" NOLOGIN`, 0))
 		for _, name := range names {
-			oid := catalogRelationsRoleOID(t, p, conn, name)
+			oid := fixture.CatalogRelationsRoleOID(t, p, conn, name)
 			for _, prepared := range []bool{false, true} {
 				s := fixture.Select("SELECT pg_catalog.pg_get_userbyid($1) AS n", []string{"n"}, []string{"NAME"}, [][]any{{name}}, oid)
 				s.Prepared = prepared
-				s.CheckMetadata = catalogRelationsMetadata(b.PG)
+				s.CheckMetadata = fixture.CatalogRelationsMetadata(b.PG)
 				run(s)
 			}
 		}
@@ -49,7 +49,7 @@ func TestReferenceCatalogRelationsRoles(t *testing.T) {
 		}
 		defer stmt.Close()
 		held := fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: heldSQL}
-		oid := catalogRelationsRoleOID(t, p, conn, names[1])
+		oid := fixture.CatalogRelationsRoleOID(t, p, conn, names[1])
 		for _, sample := range []struct {
 			arg  any
 			want any
@@ -89,7 +89,7 @@ func catalogRelationsHeld(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(held.SQL, []string{"n"}, []string{"NAME"}, [][]any{{name}}, oid))
 	}
 	run(fixture.Exec("CREATE ROLE cr_held_role NOLOGIN", 0))
-	old := catalogRelationsRoleOID(t, p, b.DB, "cr_held_role")
+	old := fixture.CatalogRelationsRoleOID(t, p, b.DB, "cr_held_role")
 	lookup(old, "cr_held_role")
 	// A separate physical borrower avoids pq's same-connection streaming protocol.
 	// Native eagerly retained rows must retain the old NAME after later publication.
@@ -123,7 +123,7 @@ func catalogRelationsHeld(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	run(fixture.Exec("DROP ROLE cr_held_role", 0))
 	lookup(old, fmt.Sprintf("unknown (OID=%d)", old))
 	run(fixture.Exec("CREATE ROLE cr_held_role NOLOGIN", 0))
-	fresh := catalogRelationsRoleOID(t, p, b.DB, "cr_held_role")
+	fresh := fixture.CatalogRelationsRoleOID(t, p, b.DB, "cr_held_role")
 	if fresh == old {
 		t.Fatal("recreated role reused dropped identity", old)
 	}
@@ -136,7 +136,7 @@ func catalogRelationsHeld(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	defer conn.ExecContext(p.Ctx, "ROLLBACK")
 	utility := "CREATE ROLE cr_held_rollback NOLOGIN"
 	fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(utility, 0))
-	rolled := catalogRelationsRoleOID(t, p, conn, "cr_held_rollback")
+	rolled := fixture.CatalogRelationsRoleOID(t, p, conn, "cr_held_rollback")
 	lookup(rolled, "cr_held_rollback")
 	fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select("SELECT pg_get_userbyid(oid)=rolname AS same FROM pg_catalog.pg_roles WHERE rolname='cr_held_rollback'", []string{"same"}, []string{"BOOL"}, [][]any{{true}}))
 	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT count(*) AS n FROM pg_catalog.pg_roles WHERE rolname='cr_held_rollback'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))

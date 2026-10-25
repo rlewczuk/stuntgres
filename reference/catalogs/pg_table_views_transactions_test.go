@@ -74,9 +74,9 @@ func TestReferencePGTableViewsAtomicity(t *testing.T) {
 			run(fixture.Exec("CREATE TABLE pgtv_atomic(n INT)", 0))
 			run(fixture.Exec("INSERT INTO pgtv_atomic VALUES(4)", 1))
 			run(fixture.Exec("CREATE VIEW pgtv_atomic_view AS SELECT n FROM pgtv_atomic", 0))
-			before := pgViewSummary(t, p, b, b.DB, "public", "pgtv_atomic_view", pgTableViewsOwner(b), "pgtv_atomic")
+			before := pgViewSummary(t, p, b, b.DB, "public", "pgtv_atomic_view", fixture.PGTableViewsOwner(b), "pgtv_atomic")
 			run(fixture.ImplicitError("CREATE OR REPLACE VIEW pgtv_atomic_view AS SELECT n::BIGINT AS n FROM pgtv_atomic", fixture.Diagnostic{Code: "42P16", Message: `cannot change data type of view column "n" from integer to bigint`}))
-			after := pgViewSummary(t, p, b, b.DB, "public", "pgtv_atomic_view", pgTableViewsOwner(b), "pgtv_atomic")
+			after := pgViewSummary(t, p, b, b.DB, "public", "pgtv_atomic_view", fixture.PGTableViewsOwner(b), "pgtv_atomic")
 			if after != before {
 				t.Fatal("failed replacement changed definition", before, after)
 			}
@@ -85,13 +85,13 @@ func TestReferencePGTableViewsAtomicity(t *testing.T) {
 			if _, err := b.DB.ExecContext(canceled, "CREATE OR REPLACE VIEW pgtv_atomic_view AS SELECT n+1 AS n FROM pgtv_atomic"); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if got := pgViewSummary(t, p, b, b.DB, "public", "pgtv_atomic_view", pgTableViewsOwner(b), "pgtv_atomic"); got != before {
+			if got := pgViewSummary(t, p, b, b.DB, "public", "pgtv_atomic_view", fixture.PGTableViewsOwner(b), "pgtv_atomic"); got != before {
 				t.Fatal("canceled replacement changed definition", got)
 			}
 			if _, err := b.DB.ExecContext(canceled, "CREATE INDEX pgtv_atomic_index ON pgtv_atomic(n)"); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			pgTableCheck(t, p, b, b.DB, "pgtv_atomic", pgTableRow("public", "pgtv_atomic", pgTableViewsOwner(b), false))
+			pgTableCheck(t, p, b, b.DB, "pgtv_atomic", fixture.PGTableRow("public", "pgtv_atomic", fixture.PGTableViewsOwner(b), false))
 			run(fixture.Select("SELECT n FROM pgtv_atomic_view", []string{"n"}, []string{"INT4"}, [][]any{{int64(4)}}))
 		})
 	}

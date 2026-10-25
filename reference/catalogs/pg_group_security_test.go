@@ -19,7 +19,7 @@ func TestReferencePGGroupVisibility(t *testing.T) {
 		if _, err := b.DB.ExecContext(p.Ctx, "ALTER ROLE pgg_visible PASSWORD 'group-private-credential' VALID UNTIL '-infinity'"); err != nil {
 			t.Fatal("credential setup failed")
 		}
-		q := "SELECT * FROM pg_catalog.pg_group WHERE "+pgTableViewsNames("groname", []string{"pgg_visible", "pgg_privileged", "pgg_reader", "pgg_login_member", "pgg_nologin_member", "public"})
+		q := "SELECT * FROM pg_catalog.pg_group WHERE "+fixture.PGTableViewsNames("groname", []string{"pgg_visible", "pgg_privileged", "pgg_reader", "pgg_login_member", "pgg_nologin_member", "public"})
 		want := [][]any{pgGroupRow("pgg_visible", group, login), pgGroupRow("pgg_privileged", priv, nologin), pgGroupRow("pgg_nologin_member", nologin)}
 		pgGroupBoth(t, p, b, q, want)
 		conn, err := b.DB.Conn(p.Ctx)

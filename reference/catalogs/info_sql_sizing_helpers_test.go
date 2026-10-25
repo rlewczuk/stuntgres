@@ -14,7 +14,6 @@ const szTable = "information_schema.sql_sizing"
 const szQuery = "SELECT sizing_id,sizing_name,supported_value,comments FROM " + szTable
 const szComment = "Might be less, depending on character set."
 
-var szColumns = []string{"sizing_id", "sizing_name", "supported_value", "comments"}
 var szTypes = []string{"INT4", "VARCHAR", "INT4", "VARCHAR"}
 
 // Independently prescribed from REL_18_6 information_schema.sql and the native
@@ -191,14 +190,14 @@ func szRaw(t *testing.T, typ string, value any) {
 }
 
 func (c *szCase) projection(q string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, szColumns, szTypes, want, args...)
+	s := fixture.Select(q, fixture.SZColumns, szTypes, want, args...)
 	s.Bag = true
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		columns, err := rows.ColumnTypes()
 		if err != nil {
 			t.Fatal(err)
 		}
-		szMetadata(t, columns, szColumns, szTypes, c.b.PG)
+		szMetadata(t, columns, fixture.SZColumns, szTypes, c.b.PG)
 	}
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
 		szRaw(t, szTypes[column], value)

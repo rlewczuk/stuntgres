@@ -13,7 +13,6 @@ import (
 const siiTable = "information_schema.sql_implementation_info"
 const siiQuery = "SELECT implementation_info_id,implementation_info_name,integer_value,character_value,comments FROM " + siiTable
 
-var siiColumns = []string{"implementation_info_id", "implementation_info_name", "integer_value", "character_value", "comments"}
 var siiTypes = []string{"VARCHAR", "VARCHAR", "INT4", "VARCHAR", "VARCHAR"}
 
 // Independently specified product identities, not native-derived oracle goldens.
@@ -129,14 +128,14 @@ func siiMetadata(t *testing.T, columns []*sql.ColumnType, names []string, pg boo
 }
 
 func (c *siiCase) projection(q string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, siiColumns, siiTypes, want, args...)
+	s := fixture.Select(q, fixture.SIIColumns, siiTypes, want, args...)
 	s.Bag = true
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		columns, err := rows.ColumnTypes()
 		if err != nil {
 			t.Fatal(err)
 		}
-		siiMetadata(t, columns, siiColumns, c.b.PG)
+		siiMetadata(t, columns, fixture.SIIColumns, c.b.PG)
 	}
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
 		if value != nil {

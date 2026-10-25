@@ -10,7 +10,7 @@ import (
 func siiCatalogShape(c *siiCase) {
 	c.t.Helper()
 	var attributes, declared [][]any
-	for i, name := range siiColumns {
+	for i, name := range fixture.SIIColumns {
 		domain, datatype, base, collation := "character_data", "character varying", int64(1043), int64(950)
 		if i == 2 {
 			domain, datatype, base, collation = "cardinal_number", "integer", 23, 0
@@ -38,7 +38,7 @@ func TestReferenceInfoSQLImplementationInfoIdentity(t *testing.T) {
 func TestReferenceInfoSQLImplementationInfoShape(t *testing.T) {
 	siiScenario(t, false, func(c *siiCase) {
 		for _, q := range []string{siiQuery, "SELECT * FROM " + siiTable, siiQuery + " WHERE FALSE", "SELECT * FROM " + siiTable + " WHERE FALSE", "SELECT integer_value FROM " + siiTable + " WHERE implementation_info_id='17'", "SELECT character_value FROM " + siiTable + " WHERE implementation_info_id='23'", "SELECT comments FROM " + siiTable + " WHERE implementation_info_id='17'"} {
-			names := siiColumns
+			names := fixture.SIIColumns
 			want := c.want
 			switch q {
 			case "SELECT integer_value FROM " + siiTable + " WHERE implementation_info_id='17'":

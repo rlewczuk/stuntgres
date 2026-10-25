@@ -4,13 +4,11 @@ import (
 	"database/sql"
 	"math"
 	"reflect"
-	"strconv"
 	"testing"
 
 	"stuntgres/reference/fixture"
 )
 
-var pgDatabaseColumns = []string{"oid", "datname", "datdba", "encoding", "datlocprovider", "datistemplate", "datallowconn", "dathasloginevt", "datconnlimit", "datfrozenxid", "datminmxid", "dattablespace", "datcollate", "datctype", "datlocale", "daticurules", "datcollversion", "datacl"}
 var pgDatabaseTypes = []string{"OID", "NAME", "OID", "INT4", "CHAR", "BOOL", "BOOL", "BOOL", "INT4", "XID", "XID", "OID", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "_ACLITEM"}
 var pgDatabaseNullable = []bool{false, false, false, false, false, false, false, false, false, true, true, true, false, false, true, true, true, true}
 
@@ -26,62 +24,10 @@ func pgDatabaseBackends(t *testing.T, p *fixture.Pair, f func(*testing.T, *fixtu
 	}
 }
 
-func pgDatabaseCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, s fixture.Step) {
-	t.Helper()
-	rows := make([][]any, len(s.Rows))
-	for i, row := range s.Rows {
-		rows[i] = append([]any(nil), row...)
-		for j, v := range row {
-			if b.PG && s.Types[j] == "OID" && v != nil {
-				rows[i][j] = strconv.FormatInt(v.(int64), 10)
-			}
-		}
-	}
-	s.Rows = rows
-	s.CheckRaw = func(t *testing.T, col, row int, v any) bool {
-		if v == nil {
-			return false
-		}
-		switch s.Types[col] {
-		case "XID":
-			bytes, ok := v.([]byte)
-			if !ok {
-				t.Fatalf("XID raw: %T %#v", v, v)
-			}
-			if _, err := strconv.ParseUint(string(bytes), 10, 32); err != nil {
-				t.Fatal(err)
-			}
-			return true
-		case "OID":
-			if b.PG {
-				if _, ok := v.([]byte); !ok {
-					t.Fatalf("pq OID raw: %T", v)
-				}
-			} else if _, ok := v.(int64); !ok {
-				t.Fatalf("native OID raw: %T", v)
-			}
-		case "TEXT", "CHAR":
-			if _, ok := v.(string); !ok {
-				t.Fatalf("column %d %s raw: %T", col+1, s.Types[col], v)
-			}
-		case "NAME", "_ACLITEM":
-			if b.PG {
-				if _, ok := v.([]byte); !ok {
-					t.Fatalf("pq column %d %s raw: %T", col+1, s.Types[col], v)
-				}
-			} else if _, ok := v.(string); !ok {
-				t.Fatalf("native column %d %s raw: %T", col+1, s.Types[col], v)
-			}
-		}
-		return false
-	}
-	fixture.RunStep(t, p.Ctx, db, b.Recorder, s)
-}
-
 func pgDatabaseMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgDatabaseColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGDatabaseColumns) {
 		t.Fatal("18 labels", names, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -89,7 +35,7 @@ func pgDatabaseMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		t.Fatal("18 types", types, err)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgDatabaseColumns[i] || typ.DatabaseTypeName() != pgDatabaseTypes[i] {
+		if typ.Name() != fixture.PGDatabaseColumns[i] || typ.DatabaseTypeName() != pgDatabaseTypes[i] {
 			t.Fatalf("column %d: %s/%s", i+1, typ.Name(), typ.DatabaseTypeName())
 		}
 		if nullable, known := typ.Nullable(); (pg && known) || (!pg && (!known || nullable != pgDatabaseNullable[i])) {
@@ -130,7 +76,7 @@ func pgDatabaseMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	if !pg {
 		names[0] = "corrupted"
 		again, err := rows.Columns()
-		if err != nil || !reflect.DeepEqual(again, pgDatabaseColumns) {
+		if err != nil || !reflect.DeepEqual(again, fixture.PGDatabaseColumns) {
 			t.Fatal("owned labels", again, err)
 		}
 	}
@@ -149,17 +95,17 @@ func TestReferencePGDatabaseShape(t *testing.T) {
 			{"SELECT * FROM pg_database WHERE oid=$1", []any{int64(4294967295)}},
 			{"SELECT * FROM pg_database WHERE oid=$1", []any{nil}},
 		} {
-			s := fixture.Select(tc.q, pgDatabaseColumns, pgDatabaseTypes, nil, tc.args...)
+			s := fixture.Select(tc.q, fixture.PGDatabaseColumns, pgDatabaseTypes, nil, tc.args...)
 			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgDatabaseMetadata(t, rows, b.PG) }
 			for _, plain := range []bool{false, true} {
 				s.NonContext = plain
-				pgDatabaseCheck(t, p, b, b.DB, s)
-				pgDatabaseCheck(t, p, b, b.DB, fixture.Prepared(s))
+				fixture.PGDatabaseCheck(t, p, b, b.DB, s)
+				fixture.PGDatabaseCheck(t, p, b, b.DB, fixture.Prepared(s))
 			}
 			s.NonContext = false
 			held := fixture.ViewHold(t, p, b, tc.q)
-			pgDatabaseCheck(t, p, b, held, s)
-			pgDatabaseCheck(t, p, b, held, s)
+			fixture.PGDatabaseCheck(t, p, b, held, s)
+			fixture.PGDatabaseCheck(t, p, b, held, s)
 		}
 	})
 }

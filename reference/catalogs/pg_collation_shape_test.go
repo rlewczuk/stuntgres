@@ -9,7 +9,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var pgCollationColumns = []string{"oid", "collname", "collnamespace", "collowner", "collprovider", "collisdeterministic", "collencoding", "collcollate", "collctype", "colllocale", "collicurules", "collversion"}
 var pgCollationTypes = []string{"OID", "NAME", "OID", "OID", "CHAR", "BOOL", "INT4", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}
 
 func pgCollationScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend)) {
@@ -20,7 +19,7 @@ func pgCollationScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixt
 func pgCollationMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgCollationColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGCollationColumns) {
 		t.Fatal("twelve labels", names, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -28,7 +27,7 @@ func pgCollationMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		t.Fatal("twelve types", types, err)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgCollationColumns[i] || typ.DatabaseTypeName() != pgCollationTypes[i] {
+		if typ.Name() != fixture.PGCollationColumns[i] || typ.DatabaseTypeName() != pgCollationTypes[i] {
 			t.Fatal("column identity", i, typ.Name(), typ.DatabaseTypeName())
 		}
 		if nullable, known := typ.Nullable(); (pg && known) || (!pg && (!known || nullable != (i >= 7))) {
@@ -67,7 +66,7 @@ func pgCollationMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	// Obtained descriptors remain independently usable after the cursor closes.
 	t.Cleanup(func() {
 		for i, typ := range types {
-			if typ.Name() != pgCollationColumns[i] || typ.DatabaseTypeName() != pgCollationTypes[i] {
+			if typ.Name() != fixture.PGCollationColumns[i] || typ.DatabaseTypeName() != pgCollationTypes[i] {
 				t.Error("retained metadata changed", i, typ)
 			}
 		}
@@ -79,7 +78,7 @@ func pgCollationStep(t *testing.T, p *fixture.Pair, b fixture.Backend, x fixture
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgCollationMetadata(t, rows, b.PG) }
 	// The shared database-catalog runner preserves pq's raw OID string contract
 	// while asserting both the scanned and recorded native unsigned carriers.
-	pgDatabaseCheck(t, p, b, x, s)
+	fixture.PGDatabaseCheck(t, p, b, x, s)
 }
 
 func pgCollationRow(oid int64, name string, namespace, owner int64, provider string, encoding int64, collate, ctype, locale, version any) []any {
@@ -98,7 +97,7 @@ func TestReferencePGCollationShape(t *testing.T) {
 			{"SELECT * FROM pg_catalog.pg_collation WHERE oid=$1", []any{int64(4294967295)}, nil},
 			{"SELECT * FROM pg_catalog.pg_collation WHERE oid=$1", []any{nil}, nil},
 		} {
-			s := fixture.Select(tc.query, pgCollationColumns, pgCollationTypes, tc.rows, tc.args...)
+			s := fixture.Select(tc.query, fixture.PGCollationColumns, pgCollationTypes, tc.rows, tc.args...)
 			for _, plain := range []bool{false, true} {
 				s.NonContext = plain
 				pgCollationStep(t, p, b, b.DB, s)
@@ -111,7 +110,7 @@ func TestReferencePGCollationShape(t *testing.T) {
 		}
 		q := "SELECT * FROM pg_catalog.pg_collation WHERE oid=$1"
 		held := fixture.ViewHold(t, p, b, q)
-		pgCollationStep(t, p, b, held, fixture.Select(q, pgCollationColumns, pgCollationTypes, [][]any{pgCollationRow(811, "pg_c_utf8", 11, 10, "b", 6, nil, nil, "C.UTF-8", "1")}, int64(811)))
+		pgCollationStep(t, p, b, held, fixture.Select(q, fixture.PGCollationColumns, pgCollationTypes, [][]any{pgCollationRow(811, "pg_c_utf8", 11, 10, "b", 6, nil, nil, "C.UTF-8", "1")}, int64(811)))
 		if b.PG {
 			// REL_18_0 pg_collation.h and genbki.pl prescribe this vector,
 			// independently of the implementation descriptor under test.
@@ -119,7 +118,7 @@ func TestReferencePGCollationShape(t *testing.T) {
 			collations := []int64{0, 950, 0, 0, 0, 0, 0, 950, 950, 950, 950, 950}
 			want := make([][]any, 12)
 			for i := range want {
-				want[i] = []any{int64(i + 1), pgCollationColumns[i], ids[i], int64(-1), i < 7, collations[i]}
+				want[i] = []any{int64(i + 1), fixture.PGCollationColumns[i], ids[i], int64(-1), i < 7, collations[i]}
 			}
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT attnum::bigint AS n,attname::text AS name,atttypid::bigint AS type,atttypmod::bigint AS mod,attnotnull,attcollation::bigint AS collation FROM pg_catalog.pg_attribute WHERE attrelid=3456 AND attnum>0 AND NOT attisdropped ORDER BY attnum", []string{"n", "name", "type", "mod", "attnotnull", "collation"}, []string{"INT8", "TEXT", "INT8", "INT8", "BOOL", "INT8"}, want))
 		}

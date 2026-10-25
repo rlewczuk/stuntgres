@@ -11,12 +11,12 @@ import (
 
 func TestReferenceConversionFeatureSmoke(t *testing.T) {
 	conversionScenario(t, []string{"conv_smoke_hidden", "conv_smoke_moved"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		conversionExec(t, p, b, `CREATE SCHEMA conv_smoke_hidden`, `CREATE SCHEMA conv_smoke_moved`, conversionCreate("public.conv_smoke_plain", false))
+		conversionExec(t, p, b, `CREATE SCHEMA conv_smoke_hidden`, `CREATE SCHEMA conv_smoke_moved`, fixture.ConversionCreate("public.conv_smoke_plain", false))
 		publicOID := conversionNamespaceOID(t, p, b, "public")
 		destinationOID := conversionNamespaceOID(t, p, b, "conv_smoke_moved")
 		conversionHideSeed(t, p, b, "conv_smoke_hidden")
 		conversionError(t, p, b, conversionValue().Query, conversionMissingDefault(), false)
-		conversionExec(t, p, b, conversionCreate("public.conv_smoke_default", true))
+		conversionExec(t, p, b, fixture.ConversionCreate("public.conv_smoke_default", true))
 		oid := conversionOID(t, p, b, "conv_smoke_default")
 		conversionStep(t, p, b, conversionMetadata(oid, "conv_smoke_default", publicOID, true))
 		conversionStep(t, p, b, conversionValue())

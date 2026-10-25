@@ -10,7 +10,7 @@ import (
 
 func TestReferencePGAttributeRankRepairGraphs(t *testing.T) {
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE USER pa18_graph_owner", "CREATE SCHEMA pa18_graph AUTHORIZATION pa18_graph_owner")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE USER pa18_graph_owner", "CREATE SCHEMA pa18_graph AUTHORIZATION pa18_graph_owner")
 		func() {
 			owner, err := b.DB.Conn(p.Ctx)
 			if err != nil {
@@ -18,7 +18,7 @@ func TestReferencePGAttributeRankRepairGraphs(t *testing.T) {
 			}
 			defer owner.Close()
 			defer owner.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
-			pgClassExec(t, p, b, owner,
+			fixture.PGClassExec(t, p, b, owner,
 				"SET SESSION AUTHORIZATION pa18_graph_owner",
 				"CREATE TYPE pa18_graph.source AS(id integer,a integer[][],b integer[])",
 				"CREATE TABLE pa18_graph.root OF pa18_graph.source",
@@ -84,13 +84,13 @@ func TestReferencePGAttributeRankRepairGraphs(t *testing.T) {
 					want = append(want, note)
 				}
 				pgAttributeRead(t, p, backend, backend.DB, id, " AND attnum>0", want)
-				pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT oid::bigint,relname,relnamespace::bigint,relowner::bigint,relacl,relhassubclass FROM pg_class WHERE oid=$1", []string{"oid", "relname", "relnamespace", "relowner", "relacl", "relhassubclass"}, []string{"INT8", "NAME", "INT8", "INT8", "_ACLITEM", "BOOL"}, [][]any{{id, relation.name, namespaceID, ownerID, nil, relation.children}}, id))
+				fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT oid::bigint,relname,relnamespace::bigint,relowner::bigint,relacl,relhassubclass FROM pg_class WHERE oid=$1", []string{"oid", "relname", "relnamespace", "relowner", "relacl", "relhassubclass"}, []string{"INT8", "NAME", "INT8", "INT8", "_ACLITEM", "BOOL"}, [][]any{{id, relation.name, namespaceID, ownerID, nil, relation.children}}, id))
 			}
 			// Native does not expose pg_namespace. Its admitted relation rows
 			// above retain the exact owner/ACL and common qualified namespace
 			// relationship; retain PostgreSQL's independent schema witness too.
 			if backend.PG {
-				pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT nspowner::bigint,nspacl FROM pg_namespace WHERE nspname='pa18_graph'", []string{"nspowner", "nspacl"}, []string{"INT8", "_ACLITEM"}, [][]any{{ownerID, nil}}))
+				fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT nspowner::bigint,nspacl FROM pg_namespace WHERE nspname='pa18_graph'", []string{"nspowner", "nspacl"}, []string{"INT8", "_ACLITEM"}, [][]any{{ownerID, nil}}))
 			}
 			for _, relation := range []struct {
 				name string
@@ -102,12 +102,12 @@ func TestReferencePGAttributeRankRepairGraphs(t *testing.T) {
 				for i, id := range relation.ids {
 					rows[i] = []any{id, "{{1,2}}", "{3,4}"}
 				}
-				pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,a,b FROM pa18_graph."+relation.name+" ORDER BY id", []string{"id", "a", "b"}, []string{"INT4", "_INT4", "_INT4"}, rows))
+				fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,a,b FROM pa18_graph."+relation.name+" ORDER BY id", []string{"id", "a", "b"}, []string{"INT4", "_INT4", "_INT4"}, rows))
 			}
-			pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id FROM pa18_graph.other ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}, {int64(4)}, {int64(5)}}))
-			pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,a,b FROM pa18_graph.typed_late", []string{"id", "a", "b"}, []string{"INT4", "_INT4", "_INT4"}, [][]any{{int64(6), "{{9,10}}", "{11,12}"}}))
-			pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,note FROM pa18_graph.early ORDER BY id", []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(3), "early"}, {int64(4), "early"}}))
-			pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,note FROM pa18_graph.late", []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(5), "late"}}))
+			fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id FROM pa18_graph.other ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}, {int64(4)}, {int64(5)}}))
+			fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,a,b FROM pa18_graph.typed_late", []string{"id", "a", "b"}, []string{"INT4", "_INT4", "_INT4"}, [][]any{{int64(6), "{{9,10}}", "{11,12}"}}))
+			fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,note FROM pa18_graph.early ORDER BY id", []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(3), "early"}, {int64(4), "early"}}))
+			fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,note FROM pa18_graph.late", []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(5), "late"}}))
 		}
 		check(b)
 		if b.PG {

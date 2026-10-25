@@ -10,7 +10,7 @@ import (
 func TestReferencePGNamespaceShape(t *testing.T) {
 	pgNamespaceScenario(t, nil, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		for _, q := range []string{"SELECT * FROM pg_catalog.pg_namespace WHERE FALSE", "SELECT * FROM pg_namespace WHERE nspname=$1"} {
-			s := fixture.Select(q, pgNamespaceColumns, pgNamespaceTypes, nil)
+			s := fixture.Select(q, fixture.PGNamespaceColumns, pgNamespaceTypes, nil)
 			if q != "SELECT * FROM pg_catalog.pg_namespace WHERE FALSE" {
 				s.Args = []any{"ns18_missing_shape"}
 			}

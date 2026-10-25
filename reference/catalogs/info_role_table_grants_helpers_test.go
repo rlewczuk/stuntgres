@@ -11,7 +11,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var rtgColumns = []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}
 var rtgTypes = []string{"NAME", "NAME", "NAME", "NAME", "NAME", "VARCHAR", "VARCHAR", "VARCHAR"}
 var rtgPrivileges = []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"}
 var rtgRoles = []string{"rtg_o", "rtg_r", "rtg_d", "rtg_e", "rtg_p", "rtg_m", "rtg_g", "rtg_x", "rtg_y", "rtg_power", "rtg_renamed"}
@@ -123,7 +122,7 @@ func (c *rtgCase) baseline(owner, table string) [][]any {
 	return rows
 }
 func (c *rtgCase) step(query string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(query, rtgColumns, rtgTypes, want, args...)
+	s := fixture.Select(query, fixture.RTGColumns, rtgTypes, want, args...)
 	s.Bag = true
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { rtgMetadata(t, rows, c.b.PG) }
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
@@ -152,7 +151,7 @@ func rtgMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(names, rtgColumns) {
+	if !reflect.DeepEqual(names, fixture.RTGColumns) {
 		t.Fatal("columns", names)
 	}
 	types, err := rows.ColumnTypes()
@@ -185,7 +184,7 @@ func rtgColumnTypes(t *testing.T, types []*sql.ColumnType, pg bool) {
 		n, ok := typ.Nullable()
 		l, lok := typ.Length()
 		p, s, dok := typ.DecimalSize()
-		if typ.Name() != rtgColumns[i] || typ.DatabaseTypeName() != rtgTypes[i] || typ.ScanType() != scan || n != !pg || ok != !pg || l != length || lok != hasLength || p != 0 || s != 0 || dok {
+		if typ.Name() != fixture.RTGColumns[i] || typ.DatabaseTypeName() != rtgTypes[i] || typ.ScanType() != scan || n != !pg || ok != !pg || l != length || lok != hasLength || p != 0 || s != 0 || dok {
 			t.Fatalf("column %d: name=%s type=%s scan=%v nullable=%t/%t length=%d/%t decimal=%d/%d/%t; want scan=%v length=%d/%t nullable=%t/%t", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), n, ok, l, lok, p, s, dok, scan, length, hasLength, !pg, !pg)
 		}
 	}

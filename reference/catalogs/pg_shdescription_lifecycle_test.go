@@ -20,7 +20,7 @@ func pgShDescriptionLifecycleScenario(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
 			}
 			run("CREATE SCHEMA pgsd_lifecycle")
-			id := pgShDescriptionCreateRole(t, p, backend, "pgsd_lifecycle_role", "pgsd_lifecycle")
+			id := fixture.PGShDescriptionCreateRole(t, p, backend, "pgsd_lifecycle_role", "pgsd_lifecycle")
 			pgShDescriptionCheck(t, p, backend, backend.DB, id, nil)
 			fixture.PgDescriptionRows(t, p, backend, fixture.Select("SELECT oid,relnatts FROM pg_catalog.pg_class WHERE oid=2396", []string{"oid", "relnatts"}, []string{"OID", "INT2"}, [][]any{{int64(2396), int64(3)}}))
 			query := "SELECT * FROM pg_catalog.pg_shdescription WHERE objoid=$1 AND classoid=1260"
@@ -64,7 +64,7 @@ func pgShDescriptionLifecycleScenario(t *testing.T) {
 			}()
 			run("DROP ROLE pgsd_lifecycle_role")
 			pgShDescriptionCheck(t, p, backend, backend.DB, id, nil)
-			newID := pgShDescriptionCreateRole(t, p, backend, "pgsd_lifecycle_role", "pgsd_lifecycle")
+			newID := fixture.PGShDescriptionCreateRole(t, p, backend, "pgsd_lifecycle_role", "pgsd_lifecycle")
 			if newID == id {
 				t.Fatal("same-name role reused identity", id)
 			}
@@ -90,12 +90,12 @@ func TestReferencePGShDescriptionLocalSeparation(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
 			}
 			run("CREATE SCHEMA pgsd_separation")
-			id := pgShDescriptionCreateRole(t, p, backend, "pgsd_separation_role", "pgsd_separation")
+			id := fixture.PGShDescriptionCreateRole(t, p, backend, "pgsd_separation_role", "pgsd_separation")
 			for _, q := range []string{"COMMENT ON ROLE pgsd_separation_role IS 'shared only'", "CREATE TABLE pgsd_separation.pgsd_local_table(a INT)", "CREATE SEQUENCE pgsd_separation.pgsd_local_sequence", "COMMENT ON TABLE pgsd_separation.pgsd_local_table IS 'local table'", "COMMENT ON COLUMN pgsd_separation.pgsd_local_table.a IS 'local column'", "COMMENT ON SEQUENCE pgsd_separation.pgsd_local_sequence IS 'local sequence'", "COMMENT ON SCHEMA pgsd_separation IS 'local schema'"} {
 				run(q)
 			}
-			table := pgDescriptionRelationID(t, p, backend, "pgsd_local_table")
-			sequence := pgDescriptionRelationID(t, p, backend, "pgsd_local_sequence")
+			table := fixture.PGDescriptionRelationID(t, p, backend, "pgsd_local_table")
+			sequence := fixture.PGDescriptionRelationID(t, p, backend, "pgsd_local_sequence")
 			var namespace int64
 			if err := backend.DB.QueryRowContext(p.Ctx, "SELECT relnamespace FROM pg_catalog.pg_class WHERE oid=$1", table).Scan(&namespace); err != nil {
 				t.Fatal(err)

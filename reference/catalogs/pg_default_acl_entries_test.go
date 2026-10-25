@@ -98,18 +98,18 @@ func TestReferencePGDefaultACLEntries(t *testing.T) {
 		}
 		pgDefaultACLRead(t, p, b, query, [][]any{{scopedID, creatorID, schemaID, "r", pgDefaultACLText(t, creator, pgDefaultACLEntry{readerID, reader, "r*"})}}, creatorID, schemaID, "r")
 		explode := fixture.Select("SELECT x.grantee,x.grantor,x.privilege_type,x.is_grantable FROM pg_default_acl d CROSS JOIN LATERAL aclexplode(d.defaclacl) x WHERE d.oid=$1", []string{"grantee", "grantor", "privilege_type", "is_grantable"}, []string{"OID", "OID", "TEXT", "BOOL"}, [][]any{{readerID, creatorID, "SELECT", true}}, scopedID)
-		pgDatabaseCheck(t, p, b, b.DB, explode)
+		fixture.PGDatabaseCheck(t, p, b, b.DB, explode)
 		var ownerPrivileges [][]any
 		for _, privilege := range []string{"DELETE", "INSERT", "MAINTAIN", "REFERENCES", "SELECT", "TRIGGER", "TRUNCATE", "UPDATE"} {
 			ownerPrivileges = append(ownerPrivileges, []any{creatorID, creatorID, privilege, false})
 		}
 		ownerExplode := fixture.Select("SELECT x.grantee,x.grantor,x.privilege_type,x.is_grantable FROM pg_default_acl d CROSS JOIN LATERAL aclexplode(d.defaclacl) x WHERE d.oid=$1 AND x.grantee=$2 ORDER BY x.privilege_type", []string{"grantee", "grantor", "privilege_type", "is_grantable"}, []string{"OID", "OID", "TEXT", "BOOL"}, ownerPrivileges, tableID, creatorID)
-		pgDatabaseCheck(t, p, b, b.DB, ownerExplode)
-		pgDatabaseCheck(t, p, b, b.DB, fixture.Prepared(ownerExplode))
+		fixture.PGDatabaseCheck(t, p, b, b.DB, ownerExplode)
+		fixture.PGDatabaseCheck(t, p, b, b.DB, fixture.Prepared(ownerExplode))
 		run(fixture.Exec(prefix+"REVOKE ALL ON ROUTINES FROM "+creator+",PUBLIC,"+reader, 0))
 		routineID := pgDefaultACLOID(t, p, b, "SELECT oid FROM pg_default_acl WHERE defaclrole=$1 AND defaclobjtype='f'", creatorID)
 		pgDefaultACLRead(t, p, b, query, [][]any{{routineID, creatorID, int64(0), "f", "{}"}}, creatorID, int64(0), "f")
-		pgDatabaseCheck(t, p, b, b.DB, fixture.Select("SELECT defaclacl IS NOT NULL AS nonnull FROM pg_default_acl WHERE oid=$1", []string{"nonnull"}, []string{"BOOL"}, [][]any{{true}}, routineID))
+		fixture.PGDatabaseCheck(t, p, b, b.DB, fixture.Select("SELECT defaclacl IS NOT NULL AS nonnull FROM pg_default_acl WHERE oid=$1", []string{"nonnull"}, []string{"BOOL"}, [][]any{{true}}, routineID))
 		run(fixture.Exec(prefix+"GRANT EXECUTE ON FUNCTIONS TO "+creator+",PUBLIC", 0))
 		pgDefaultACLRead(t, p, b, query, nil, creatorID, int64(0), "f")
 		run(fixture.Exec(prefix+"IN SCHEMA "+schema+" REVOKE ALL ON TABLES FROM "+reader, 0))

@@ -11,10 +11,10 @@ func TestReferencePgClassLifecycle(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"pc18_life_owner", "pc18_life_reader"})
 	fixture.SchemaReferenceCleanup(t, "pc18_life_moved", "pc18_life_shadow")
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE ROLE pc18_life_owner", "CREATE ROLE pc18_life_reader", "CREATE SCHEMA pc18_life_moved", "CREATE TABLE pc18_life_moved.pc18_life_anchor(id integer)", "CREATE TABLE pc18_life_heap(id integer)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE ROLE pc18_life_owner", "CREATE ROLE pc18_life_reader", "CREATE SCHEMA pc18_life_moved", "CREATE TABLE pc18_life_moved.pc18_life_anchor(id integer)", "CREATE TABLE pc18_life_heap(id integer)")
 		q := "SELECT relname,relkind,relowner,relhasindex FROM pg_class WHERE oid=$1"
 		var oid, owner int64
-		if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'pc18_life_heap'::regclass::oid,(SELECT oid FROM pg_roles WHERE rolname=$1)", pgTableViewsOwner(b)).Scan(&oid, &owner); err != nil {
+		if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'pc18_life_heap'::regclass::oid,(SELECT oid FROM pg_roles WHERE rolname=$1)", fixture.PGTableViewsOwner(b)).Scan(&oid, &owner); err != nil {
 			t.Fatal(err)
 		}
 		held := fixture.ViewHold(t, p, b, q)
@@ -36,25 +36,25 @@ func TestReferencePgClassLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		pgClassExec(t, p, b, b.DB, "CREATE INDEX pc18_life_idx ON pc18_life_heap(id)", "DROP INDEX pc18_life_idx", "ALTER TABLE pc18_life_heap RENAME TO pc18_life_renamed", "ALTER TABLE pc18_life_renamed SET SCHEMA pc18_life_moved", "ALTER TABLE pc18_life_moved.pc18_life_renamed OWNER TO pc18_life_owner")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE INDEX pc18_life_idx ON pc18_life_heap(id)", "DROP INDEX pc18_life_idx", "ALTER TABLE pc18_life_heap RENAME TO pc18_life_renamed", "ALTER TABLE pc18_life_renamed SET SCHEMA pc18_life_moved", "ALTER TABLE pc18_life_moved.pc18_life_renamed OWNER TO pc18_life_owner")
 		var newOwner int64
 		if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_roles WHERE rolname='pc18_life_owner'").Scan(&newOwner); err != nil {
 			t.Fatal(err)
 		}
 		check("pc18_life_renamed", newOwner, true)
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT oid=$1 AS same_identity,relnamespace=(SELECT relnamespace FROM pg_class WHERE oid='pc18_life_moved.pc18_life_anchor'::regclass::oid) AS user_namespace,relowner=$2 AS owner FROM pg_class WHERE oid='pc18_life_moved.pc18_life_renamed'::regclass::oid", []string{"same_identity", "user_namespace", "owner"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}, oid, newOwner))
-		pgClassExec(t, p, b, b.DB, "DROP TABLE pc18_life_moved.pc18_life_renamed")
+		fixture.PGClassExec(t, p, b, b.DB, "DROP TABLE pc18_life_moved.pc18_life_renamed")
 		pgClassCheck(t, p, b, held, fixture.Select(q, []string{"relname", "relkind", "relowner", "relhasindex"}, []string{"NAME", "CHAR", "OID", "BOOL"}, nil, oid))
 		if old != nil {
 			pgClassRetained(t, old, types, []string{"relname", "relkind", "relowner", "relhasindex"}, []string{"NAME", "CHAR", "OID", "BOOL"}, []any{"pc18_life_heap", "r", owner, false})
 		}
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_life_moved.pc18_life_renamed(id integer)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_life_moved.pc18_life_renamed(id integer)")
 		pgClassCheck(t, p, b, held, fixture.Select(q, []string{"relname", "relkind", "relowner", "relhasindex"}, []string{"NAME", "CHAR", "OID", "BOOL"}, nil, oid))
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT oid=$1 AS old_identity FROM pg_class WHERE oid='pc18_life_moved.pc18_life_renamed'::regclass::oid", []string{"old_identity"}, []string{"BOOL"}, [][]any{{false}}, oid))
 		// Catalog privilege, not referenced table privilege, is checked on each
 		// execution, including empty-result handles prepared before REVOKE.
 		a, reader := fixture.LockConnections(t, p.Ctx, b.DB)
-		pgClassExec(t, p, b, reader, "SET ROLE pc18_life_reader")
+		fixture.PGClassExec(t, p, b, reader, "SET ROLE pc18_life_reader")
 		defer reader.ExecContext(p.Ctx, "RESET ROLE")
 		empty := "SELECT * FROM pg_catalog.pg_class WHERE FALSE"
 		stmt, err := reader.PrepareContext(p.Ctx, empty)
@@ -63,14 +63,14 @@ func TestReferencePgClassLifecycle(t *testing.T) {
 		}
 		defer stmt.Close()
 		readerHeld := fixture.HeldStatement{Executor: reader, Statement: stmt, SQL: empty}
-		pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, pgClassColumns, pgClassTypes, nil))
+		pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
 		if b.PG {
-			pgClassExec(t, p, b, a, "REVOKE SELECT ON pg_catalog.pg_class FROM PUBLIC")
+			fixture.PGClassExec(t, p, b, a, "REVOKE SELECT ON pg_catalog.pg_class FROM PUBLIC")
 			defer a.ExecContext(context.Background(), "GRANT SELECT ON pg_catalog.pg_class TO PUBLIC")
 			denied := fixture.ImplicitError(empty, fixture.Diagnostic{Code: "42501", Message: "permission denied for table pg_class"})
 			denied.SelectRows, denied.ErrorStage = true, "execute"
 			fixture.RunStep(t, p.Ctx, readerHeld, b.Recorder, denied)
-			pgClassExec(t, p, b, a, "GRANT SELECT ON pg_catalog.pg_class TO PUBLIC")
+			fixture.PGClassExec(t, p, b, a, "GRANT SELECT ON pg_catalog.pg_class TO PUBLIC")
 		} else {
 			// Catalog-source grant SQL remains outside native admission. The
 			// actual SetObjectACL recheck is covered by TestPgClassCatalogACLRecheck.
@@ -78,22 +78,22 @@ func TestReferencePgClassLifecycle(t *testing.T) {
 				unsupported := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"})
 				unsupported.ErrorStage = "execute"
 				fixture.RunStep(t, p.Ctx, a, b.Recorder, unsupported)
-				pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, pgClassColumns, pgClassTypes, nil))
+				pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
 			}
 		}
-		pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, pgClassColumns, pgClassTypes, nil))
+		pgClassCheck(t, p, b, readerHeld, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
 		// Unqualified source binding obeys existing explicit path semantics.
-		pgClassExec(t, p, b, a, "CREATE SCHEMA pc18_life_shadow", "CREATE TABLE pc18_life_shadow.pg_class(marker integer)", "SET search_path=pc18_life_shadow,pg_catalog")
+		fixture.PGClassExec(t, p, b, a, "CREATE SCHEMA pc18_life_shadow", "CREATE TABLE pc18_life_shadow.pg_class(marker integer)", "SET search_path=pc18_life_shadow,pg_catalog")
 		pgClassCheck(t, p, b, a, fixture.Select("SELECT * FROM pg_class WHERE FALSE", []string{"marker"}, []string{"INT4"}, nil))
-		pgClassCheck(t, p, b, a, fixture.Select(empty, pgClassColumns, pgClassTypes, nil))
-		pgClassExec(t, p, b, a, "RESET search_path")
+		pgClassCheck(t, p, b, a, fixture.Select(empty, fixture.PGClassColumns, pgClassTypes, nil))
+		fixture.PGClassExec(t, p, b, a, "RESET search_path")
 	})
 }
 
 func TestReferencePgClassTransactions(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		a, peer := fixture.LockConnections(t, p.Ctx, b.DB)
-		pgClassExec(t, p, b, a, "CREATE SEQUENCE pc18_tx_seq", "CREATE VIEW pc18_tx_view AS SELECT last_value FROM pc18_tx_seq")
+		fixture.PGClassExec(t, p, b, a, "CREATE SEQUENCE pc18_tx_seq", "CREATE VIEW pc18_tx_view AS SELECT last_value FROM pc18_tx_seq")
 		q := "SELECT relname FROM pg_class WHERE relname='pc18_tx_seq' OR relname='pc18_tx_view' ORDER BY relname"
 		check := func(db fixture.Executor, present bool) {
 			var want [][]any
@@ -116,25 +116,25 @@ func TestReferencePgClassTransactions(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		pgClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pc18_tx_save", "DROP SEQUENCE pc18_tx_seq CASCADE")
+		fixture.PGClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pc18_tx_save", "DROP SEQUENCE pc18_tx_seq CASCADE")
 		defer a.ExecContext(p.Ctx, "ROLLBACK")
 		check(a, false)
 		check(peer, true)
-		pgClassExec(t, p, b, a, "ROLLBACK TO pc18_tx_save")
+		fixture.PGClassExec(t, p, b, a, "ROLLBACK TO pc18_tx_save")
 		check(a, true)
-		pgClassExec(t, p, b, a, "ROLLBACK")
+		fixture.PGClassExec(t, p, b, a, "ROLLBACK")
 		check(peer, true)
-		pgClassExec(t, p, b, a, "BEGIN", "DROP SEQUENCE pc18_tx_seq CASCADE", "COMMIT")
+		fixture.PGClassExec(t, p, b, a, "BEGIN", "DROP SEQUENCE pc18_tx_seq CASCADE", "COMMIT")
 		check(peer, false)
 		if retained != nil {
 			pgClassRetained(t, retained, retainedTypes, []string{"relname"}, []string{"NAME"}, []any{"pc18_tx_seq"})
 		}
-		pgClassExec(t, p, b, a, "BEGIN", "CREATE TEMP TABLE pc18_tx_temp(id integer)")
+		fixture.PGClassExec(t, p, b, a, "BEGIN", "CREATE TEMP TABLE pc18_tx_temp(id integer)")
 		pgClassCheck(t, p, b, a, fixture.Select("SELECT relpersistence FROM pg_class WHERE relname='pc18_tx_temp'", []string{"relpersistence"}, []string{"CHAR"}, [][]any{{"t"}}))
 		pgClassCheck(t, p, b, peer, fixture.Select("SELECT relpersistence FROM pg_class WHERE relname='pc18_tx_temp'", []string{"relpersistence"}, []string{"CHAR"}, nil))
-		pgClassExec(t, p, b, a, "ROLLBACK")
+		fixture.PGClassExec(t, p, b, a, "ROLLBACK")
 		pgClassCheck(t, p, b, a, fixture.Select("SELECT relpersistence FROM pg_class WHERE relname='pc18_tx_temp'", []string{"relpersistence"}, []string{"CHAR"}, nil))
-		pgClassExec(t, p, b, peer, "CREATE TABLE pc18_tx_old(id integer)")
+		fixture.PGClassExec(t, p, b, peer, "CREATE TABLE pc18_tx_old(id integer)")
 		q = "SELECT relname FROM pg_class WHERE relname='pc18_tx_old' OR relname='pc18_tx_added' ORDER BY relname"
 		stmt, err := a.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -149,24 +149,24 @@ func TestReferencePgClassTransactions(t *testing.T) {
 			}
 			pgClassCheck(t, p, b, db, fixture.Select(q, []string{"relname"}, []string{"NAME"}, want))
 		}
-		pgClassExec(t, p, b, a, "BEGIN ISOLATION LEVEL REPEATABLE READ")
+		fixture.PGClassExec(t, p, b, a, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 		rr(a, false)
 		rr(held, false)
-		pgClassExec(t, p, b, peer, "CREATE TABLE pc18_tx_added(id integer)")
+		fixture.PGClassExec(t, p, b, peer, "CREATE TABLE pc18_tx_added(id integer)")
 		rr(a, !b.PG)
 		rr(held, !b.PG)
 		rr(peer, true)
-		pgClassExec(t, p, b, a, "COMMIT")
+		fixture.PGClassExec(t, p, b, a, "COMMIT")
 		rr(a, true)
 		rr(held, true)
-		pgClassExec(t, p, b, a, "BEGIN")
+		fixture.PGClassExec(t, p, b, a, "BEGIN")
 		missing := fixture.ImplicitError("SELECT missing FROM pg_class", fixture.Diagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "8"})
 		missing.SelectRows, missing.ErrorStage = true, "execute"
 		fixture.RunStep(t, p.Ctx, a, b.Recorder, missing)
 		aborted := fixture.ImplicitError(q, fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
 		aborted.SelectRows, aborted.ErrorStage = true, "execute"
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, aborted)
-		pgClassExec(t, p, b, a, "ROLLBACK")
+		fixture.PGClassExec(t, p, b, a, "ROLLBACK")
 		rr(held, true)
 	})
 }
@@ -186,8 +186,8 @@ func TestReferencePgClassTemporary(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer peer.Close()
-		pgClassExec(t, p, b, owner, "CREATE TEMP TABLE pc18_temp_heap(id integer)", "CREATE INDEX pc18_temp_idx ON pc18_temp_heap(id)", "CREATE TEMP SEQUENCE pc18_temp_seq", "CREATE TEMP VIEW pc18_temp_view AS SELECT id FROM pc18_temp_heap")
-		q := "SELECT relname,relpersistence,relnamespace=(SELECT relnamespace FROM pg_class WHERE relname='pc18_temp_heap') AS same_namespace FROM pg_class WHERE " + pgTableViewsNames("relname", []string{"pc18_temp_heap", "pc18_temp_idx", "pc18_temp_seq", "pc18_temp_view"}) + " ORDER BY relname"
+		fixture.PGClassExec(t, p, b, owner, "CREATE TEMP TABLE pc18_temp_heap(id integer)", "CREATE INDEX pc18_temp_idx ON pc18_temp_heap(id)", "CREATE TEMP SEQUENCE pc18_temp_seq", "CREATE TEMP VIEW pc18_temp_view AS SELECT id FROM pc18_temp_heap")
+		q := "SELECT relname,relpersistence,relnamespace=(SELECT relnamespace FROM pg_class WHERE relname='pc18_temp_heap') AS same_namespace FROM pg_class WHERE " + fixture.PGTableViewsNames("relname", []string{"pc18_temp_heap", "pc18_temp_idx", "pc18_temp_seq", "pc18_temp_view"}) + " ORDER BY relname"
 		want := [][]any{{"pc18_temp_heap", "t", true}, {"pc18_temp_idx", "t", true}, {"pc18_temp_seq", "t", true}, {"pc18_temp_view", "t", true}}
 		s := fixture.Select(q, []string{"relname", "relpersistence", "same_namespace"}, []string{"NAME", "CHAR", "BOOL"}, want)
 		pgClassCheck(t, p, b, owner, s)

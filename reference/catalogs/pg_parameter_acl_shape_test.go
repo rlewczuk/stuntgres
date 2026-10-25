@@ -10,7 +10,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var pgParameterACLColumns = []string{"oid", "parname", "paracl"}
 var pgParameterACLTypes = []string{"OID", "TEXT", "_ACLITEM"}
 
 func pgParameterACLScenario(t *testing.T, f func(*testing.T, *fixture.Pair, fixture.Backend)) {
@@ -27,7 +26,7 @@ func pgParameterACLMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 		t.Fatalf("three columns: %v", types)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgParameterACLColumns[i] || typ.DatabaseTypeName() != pgParameterACLTypes[i] {
+		if typ.Name() != fixture.PGParameterACLColumns[i] || typ.DatabaseTypeName() != pgParameterACLTypes[i] {
 			t.Fatalf("column %d: %s/%s", i+1, typ.Name(), typ.DatabaseTypeName())
 		}
 		scan := reflect.TypeFor[string]()
@@ -57,8 +56,8 @@ func pgParameterACLMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 }
 
 func pgParameterACLSelect(q string, pg bool, rows [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, pgParameterACLColumns, pgParameterACLTypes, rows, args...)
-	// Match pgDatabaseCheck's backend transport contract without changing the
+	s := fixture.Select(q, fixture.PGParameterACLColumns, pgParameterACLTypes, rows, args...)
+	// Match fixture.PGDatabaseCheck's backend transport contract without changing the
 	// independently checked uint32 identity or the public OID database type.
 	if pg {
 		s.Rows = make([][]any, len(rows))
@@ -83,7 +82,7 @@ func pgParameterACLSelect(q string, pg bool, rows [][]any, args ...any) fixture.
 	}
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		names, err := rows.Columns()
-		if err != nil || !reflect.DeepEqual(names, pgParameterACLColumns) {
+		if err != nil || !reflect.DeepEqual(names, fixture.PGParameterACLColumns) {
 			t.Fatal("labels", names, err)
 		}
 		types, err := rows.ColumnTypes()
@@ -94,7 +93,7 @@ func pgParameterACLSelect(q string, pg bool, rows [][]any, args ...any) fixture.
 		if !pg {
 			names[0] = "corrupted"
 			again, err := rows.Columns()
-			if err != nil || !reflect.DeepEqual(again, pgParameterACLColumns) {
+			if err != nil || !reflect.DeepEqual(again, fixture.PGParameterACLColumns) {
 				t.Fatal("owned labels", again, err)
 			}
 		}

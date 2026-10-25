@@ -32,7 +32,7 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 			if b.PG {
 				q += " WHERE cfgname='simple'"
 			}
-			pgTSConfigBoth(t, p, b, b.DB, fixture.Select(q, pgTSConfigColumns, pgTSConfigTypes, pgTSConfigSimple(b)))
+			pgTSConfigBoth(t, p, b, b.DB, fixture.Select(q, fixture.PGTSConfigColumns, pgTSConfigTypes, pgTSConfigSimple(b)))
 			s := fixture.Select("SELECT v FROM public.ptsc_control_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}})
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Prepared(s))

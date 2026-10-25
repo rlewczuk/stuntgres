@@ -18,7 +18,7 @@ func pgRolesRetainedRow(t *testing.T, rows *sql.Rows, expected []any) {
 	if !rows.Next() {
 		t.Fatal("missing retained role", rows.Err())
 	}
-	cells := make([]any, len(pgRolesColumns))
+	cells := make([]any, len(fixture.PGRolesColumns))
 	dest := make([]any, len(cells))
 	for i := range cells {
 		dest[i] = &cells[i]

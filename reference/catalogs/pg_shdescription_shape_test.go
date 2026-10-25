@@ -8,11 +8,10 @@ import (
 	"testing"
 )
 
-var pgShDescriptionColumns = []string{"objoid", "classoid", "description"}
 var pgShDescriptionTypes = []string{"OID", "OID", "TEXT"}
 
 func pgShDescriptionSelect(query string, rows [][]any, args ...any) fixture.Step {
-	s := fixture.Select(query, pgShDescriptionColumns, pgShDescriptionTypes, rows, args...)
+	s := fixture.Select(query, fixture.PGShDescriptionColumns, pgShDescriptionTypes, rows, args...)
 	s.Bag = true
 	return s
 }
@@ -20,7 +19,7 @@ func pgShDescriptionSelect(query string, rows [][]any, args ...any) fixture.Step
 func pgShDescriptionMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	t.Helper()
 	columns, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(columns, pgShDescriptionColumns) {
+	if err != nil || !reflect.DeepEqual(columns, fixture.PGShDescriptionColumns) {
 		t.Fatal(columns, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -40,7 +39,7 @@ func pgShDescriptionSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool
 		} else if pg {
 			scan = reflect.TypeFor[any]()
 		}
-		if typ.Name() != pgShDescriptionColumns[i] || typ.DatabaseTypeName() != pgShDescriptionTypes[i] || typ.ScanType() != scan {
+		if typ.Name() != fixture.PGShDescriptionColumns[i] || typ.DatabaseTypeName() != pgShDescriptionTypes[i] || typ.ScanType() != scan {
 			t.Fatal("shared descriptor", i, typ)
 		}
 		if nullable, known := typ.Nullable(); nullable || known == pg {
@@ -70,20 +69,6 @@ func pgShDescriptionCheck(t *testing.T, p *fixture.Pair, backend fixture.Backend
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgShDescriptionMetadata(t, rows, backend.PG) }
 	fixture.PgDescriptionExecutorRows(t, p, backend, executor, s)
 	fixture.PgDescriptionExecutorRows(t, p, backend, executor, fixture.Prepared(s))
-}
-
-// Identity comes from a separately owned relation, never the catalog under test.
-func pgShDescriptionCreateRole(t *testing.T, p *fixture.Pair, backend fixture.Backend, name, schema string) int64 {
-	t.Helper()
-	for _, q := range []string{"CREATE ROLE " + name, "CREATE SEQUENCE " + schema + "." + name + "_identity", "ALTER SEQUENCE " + schema + "." + name + "_identity OWNER TO " + name} {
-		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
-	}
-	var id int64
-	if err := backend.DB.QueryRowContext(p.Ctx, "SELECT relowner FROM pg_catalog.pg_class WHERE relname=$1", name+"_identity").Scan(&id); err != nil || id <= 0 || id > math.MaxUint32 {
-		t.Fatal("independent role identity", id, err)
-	}
-	fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("DROP SEQUENCE "+schema+"."+name+"_identity", 0))
-	return id
 }
 
 func TestReferencePGShDescriptionShape(t *testing.T) {

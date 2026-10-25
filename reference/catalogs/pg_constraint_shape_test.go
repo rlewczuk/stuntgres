@@ -8,7 +8,7 @@ import (
 
 func TestReferencePGConstraintShape(t *testing.T) {
 	pgConstraintScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc_shape(a INT CONSTRAINT pc_shape_u UNIQUE)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc_shape(a INT CONSTRAINT pc_shape_u UNIQUE)")
 		for _, q := range []string{"SELECT * FROM pg_catalog.pg_constraint WHERE FALSE", "SELECT * FROM pg_constraint WHERE conrelid='pc_shape'::regclass::oid"} {
 			check := func(rows *sql.Rows) {
 				defer rows.Close()
@@ -126,7 +126,7 @@ func TestReferencePGConstraintShape(t *testing.T) {
 		if b.PG {
 			want := make([][]any, 28)
 			for i := range want {
-				want[i] = []any{int64(i + 1), pgConstraintColumns[i], i < 20}
+				want[i] = []any{int64(i + 1), fixture.PGConstraintColumns[i], i < 20}
 			}
 			pgConstraintCheck(t, p, b, b.DB, fixture.Select("SELECT attnum,attname,attnotnull FROM pg_attribute WHERE attrelid='pg_constraint'::regclass::oid AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attnotnull"}, []string{"INT2", "NAME", "BOOL"}, want))
 		}

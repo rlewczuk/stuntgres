@@ -77,7 +77,7 @@ func TestReferenceCommentInquiryConstantNullViews(t *testing.T) {
 							}
 							check()
 							if !backend.PG {
-								before := commentInquiryDump(t, p)
+								before := fixture.CommentInquiryDump(t, p)
 								if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 									t.Fatal(err)
 								}
@@ -85,7 +85,7 @@ func TestReferenceCommentInquiryConstantNullViews(t *testing.T) {
 									t.Fatal(err)
 								}
 								check()
-								if commentInquiryDump(t, p) != before {
+								if fixture.CommentInquiryDump(t, p) != before {
 									t.Fatal("noncanonical strict-NULL view replay")
 								}
 							}

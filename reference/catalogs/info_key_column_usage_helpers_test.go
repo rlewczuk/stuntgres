@@ -10,7 +10,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var kcuColumns = []string{"constraint_catalog", "constraint_schema", "constraint_name", "table_catalog", "table_schema", "table_name", "column_name", "ordinal_position", "position_in_unique_constraint"}
 var kcuTypes = []string{"NAME", "NAME", "NAME", "NAME", "NAME", "NAME", "NAME", "INT4", "INT4"}
 
 const kcuQuery = "SELECT * FROM information_schema.key_column_usage WHERE table_name LIKE $1 ORDER BY table_schema,table_name,constraint_name,ordinal_position"
@@ -82,7 +81,7 @@ func kcuSorted(rows [][]any) [][]any {
 	return result
 }
 func (c *kcuCase) step(pattern any, rows [][]any) fixture.Step {
-	s := fixture.Select(kcuQuery, kcuColumns, kcuTypes, kcuSorted(rows), pattern)
+	s := fixture.Select(kcuQuery, fixture.KCUColumns, kcuTypes, kcuSorted(rows), pattern)
 	s.CheckMetadata = func(t *testing.T, r *sql.Rows) { kcuMetadata(t, r, c.b.PG) }
 	s.CheckScan = func(t *testing.T, r *sql.Rows, index int) {
 		values, targets := make([]any, 9), make([]any, 9)
@@ -136,7 +135,7 @@ func kcuMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(names, kcuColumns) {
+	if !reflect.DeepEqual(names, fixture.KCUColumns) {
 		t.Fatal("columns", names)
 	}
 	types, err := rows.ColumnTypes()
@@ -165,7 +164,7 @@ func kcuColumnTypes(t *testing.T, types []*sql.ColumnType, pg bool) {
 		nullable, known := typ.Nullable()
 		length, hasLength := typ.Length()
 		precision, scale, hasDecimal := typ.DecimalSize()
-		if typ.Name() != kcuColumns[i] || typ.DatabaseTypeName() != kcuTypes[i] || typ.ScanType() != scan || nullable != !pg || known != !pg || length != 0 || hasLength || precision != 0 || scale != 0 || hasDecimal {
+		if typ.Name() != fixture.KCUColumns[i] || typ.DatabaseTypeName() != kcuTypes[i] || typ.ScanType() != scan || nullable != !pg || known != !pg || length != 0 || hasLength || precision != 0 || scale != 0 || hasDecimal {
 			t.Fatalf("metadata %d: %s %s scan=%v nullable=%v/%v length=%d/%v decimal=%d/%d/%v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), nullable, known, length, hasLength, precision, scale, hasDecimal)
 		}
 	}

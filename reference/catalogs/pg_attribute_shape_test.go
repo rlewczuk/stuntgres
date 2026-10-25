@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-var pgAttributeColumns = []string{"attrelid", "attname", "atttypid", "attlen", "attnum", "atttypmod", "attndims", "attbyval", "attalign", "attstorage", "attcompression", "attnotnull", "atthasdef", "atthasmissing", "attidentity", "attgenerated", "attisdropped", "attislocal", "attinhcount", "attcollation", "attstattarget", "attacl", "attoptions", "attfdwoptions", "attmissingval"}
 var pgAttributeTypes = []string{"OID", "NAME", "OID", "INT2", "INT2", "INT4", "INT2", "BOOL", "CHAR", "CHAR", "CHAR", "BOOL", "BOOL", "BOOL", "CHAR", "CHAR", "BOOL", "BOOL", "INT2", "OID", "INT2", "_ACLITEM", "_TEXT", "_TEXT", "ANYARRAY"}
 
 func pgAttributeScenario(t *testing.T, f func(*testing.T, *fixture.Pair, fixture.Backend)) {
@@ -60,34 +59,19 @@ func pgAttributeSystemRows(rel int64) [][]any {
 	}
 }
 
-func pgAttributeCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, s fixture.Step) {
-	t.Helper()
-	want := make([][]any, len(s.Rows))
-	for i, row := range s.Rows {
-		want[i] = append([]any(nil), row...)
-		for j, v := range row {
-			if b.PG && s.Types[j] == "OID" && v != nil {
-				want[i][j] = strconv.FormatInt(v.(int64), 10)
-			}
-		}
-	}
-	s.Rows = want
-	fixture.RunStep(t, p.Ctx, db, b.Recorder, s)
-}
-
 func pgAttributeRead(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, id int64, predicate string, want [][]any) {
 	t.Helper()
 	q := "SELECT * FROM pg_catalog.pg_attribute WHERE attrelid=$1" + predicate + " ORDER BY attnum"
-	s := fixture.Select(q, pgAttributeColumns, pgAttributeTypes, want, id)
+	s := fixture.Select(q, fixture.PGAttributeColumns, pgAttributeTypes, want, id)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgAttributeMetadata(t, rows, b.PG) }
-	pgAttributeCheck(t, p, b, db, s)
-	pgAttributeCheck(t, p, b, db, fixture.Prepared(s))
+	fixture.PGAttributeCheck(t, p, b, db, s)
+	fixture.PGAttributeCheck(t, p, b, db, fixture.Prepared(s))
 }
 
 func pgAttributeMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgAttributeColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGAttributeColumns) {
 		t.Fatal("25 labels", names, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -95,8 +79,8 @@ func pgAttributeMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		t.Fatal("25 descriptors", types, err)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgAttributeColumns[i] || typ.DatabaseTypeName() != pgAttributeTypes[i] {
-			t.Fatalf("attribute %d descriptor %s/%s want %s/%s", i+1, typ.Name(), typ.DatabaseTypeName(), pgAttributeColumns[i], pgAttributeTypes[i])
+		if typ.Name() != fixture.PGAttributeColumns[i] || typ.DatabaseTypeName() != pgAttributeTypes[i] {
+			t.Fatalf("attribute %d descriptor %s/%s want %s/%s", i+1, typ.Name(), typ.DatabaseTypeName(), fixture.PGAttributeColumns[i], pgAttributeTypes[i])
 		}
 		if nullable, known := typ.Nullable(); (!pg && (!known || nullable != (i >= 20))) || (pg && known) {
 			t.Fatal("nullability", i, nullable, known)
@@ -134,27 +118,10 @@ func pgAttributeMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	if !pg {
 		names[0] = "corrupted"
 		again, err := rows.Columns()
-		if err != nil || !reflect.DeepEqual(again, pgAttributeColumns) {
+		if err != nil || !reflect.DeepEqual(again, fixture.PGAttributeColumns) {
 			t.Fatal("owned labels", again, err)
 		}
 	}
-}
-
-// Cast and raw NAME inquiries retain their independent result metadata.
-func pgAttributeNameCastWitness(t *testing.T, p *fixture.Pair, b fixture.Backend, original fixture.Step) {
-	t.Helper()
-	for _, prepared := range []bool{false, true} {
-		step := original
-		step.Prepared = prepared
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, step)
-	}
-	raw := original
-	raw.Query = strings.Replace(original.Query, "attname::text AS name", "attname AS name", 1)
-	raw.Query = strings.Replace(raw.Query, "::regclass AND", "::regclass::oid AND", 1)
-	raw.Types = append([]string(nil), original.Types...)
-	raw.Types[0] = "NAME"
-	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, raw)
-	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Prepared(raw))
 }
 
 func TestReferencePGAttributeShape(t *testing.T) {
@@ -162,24 +129,24 @@ func TestReferencePGAttributeShape(t *testing.T) {
 	for i, q := range []string{"SELECT * FROM pg_catalog.pg_attribute WHERE FALSE", "SELECT * FROM pg_attribute WHERE attrelid=4294967295::oid"} {
 		t.Run("empty-"+strconv.Itoa(i+1), func(t *testing.T) {
 			pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-				s := fixture.Select(q, pgAttributeColumns, pgAttributeTypes, nil)
+				s := fixture.Select(q, fixture.PGAttributeColumns, pgAttributeTypes, nil)
 				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgAttributeMetadata(t, rows, b.PG) }
 				for _, plain := range []bool{false, true} {
 					s.NonContext = plain
-					pgAttributeCheck(t, p, b, b.DB, s)
-					pgAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
+					fixture.PGAttributeCheck(t, p, b, b.DB, s)
+					fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
 				}
 				s.NonContext = false
 				held := fixture.ViewHold(t, p, b, q)
-				pgAttributeCheck(t, p, b, held, s)
-				pgAttributeCheck(t, p, b, held, s)
+				fixture.PGAttributeCheck(t, p, b, held, s)
+				fixture.PGAttributeCheck(t, p, b, held, s)
 			})
 		})
 	}
 	tableCase := func(name string, body func(*testing.T, *fixture.Pair, fixture.Backend, int64)) {
 		t.Run(name, func(t *testing.T) {
 			pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-				pgClassExec(t, p, b, b.DB, "CREATE TABLE public.pa18_shape(a integer)")
+				fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE public.pa18_shape(a integer)")
 				id := pgAttributeID(t, p, b.DB, "public.pa18_shape")
 				body(t, p, b, id)
 			})
@@ -198,25 +165,25 @@ func TestReferencePGAttributeShape(t *testing.T) {
 	} {
 		tableCase("anyarray-"+strconv.Itoa(i+1), func(t *testing.T, p *fixture.Pair, b fixture.Backend, id int64) {
 			s := fixture.Select(q, []string{"missing"}, []string{"ANYARRAY"}, [][]any{{nil}}, id)
-			pgAttributeCheck(t, p, b, b.DB, s)
-			pgAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
+			fixture.PGAttributeCheck(t, p, b, b.DB, s)
+			fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
 			held := fixture.ViewHold(t, p, b, q)
-			pgAttributeCheck(t, p, b, held, s)
+			fixture.PGAttributeCheck(t, p, b, held, s)
 		})
 	}
 	tableCase("null-aggregates", func(t *testing.T, p *fixture.Pair, b fixture.Backend, id int64) {
-		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT COUNT(attmissingval) AS present FROM pg_attribute WHERE attrelid=$1", []string{"present"}, []string{"INT8"}, [][]any{{int64(0)}}, id))
-		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT attmissingval IS NULL AS absent FROM pg_attribute WHERE attrelid=$1 AND attnum=1", []string{"absent"}, []string{"BOOL"}, [][]any{{true}}, id))
+		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT COUNT(attmissingval) AS present FROM pg_attribute WHERE attrelid=$1", []string{"present"}, []string{"INT8"}, [][]any{{int64(0)}}, id))
+		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT attmissingval IS NULL AS absent FROM pg_attribute WHERE attrelid=$1 AND attnum=1", []string{"absent"}, []string{"BOOL"}, [][]any{{true}}, id))
 	})
 	tableCase("rejected-ctas", func(t *testing.T, p *fixture.Pair, b fixture.Backend, id int64) {
 		rejected := fixture.ImplicitError("CREATE TABLE pa18_shape_missing_copy AS SELECT attmissingval AS a FROM pg_attribute WHERE attrelid=$1 AND attnum=1", fixture.Diagnostic{Code: "42P16", Message: "column \"a\" has pseudo-type anyarray"}, id)
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, rejected)
-		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT relname FROM pg_class WHERE relname='pa18_shape_missing_copy'", []string{"relname"}, []string{"NAME"}, nil))
+		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT relname FROM pg_class WHERE relname='pa18_shape_missing_copy'", []string{"relname"}, []string{"NAME"}, nil))
 	})
 	t.Run("builtin-identities", func(t *testing.T) {
 		pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-			pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT oid,reltype FROM pg_class WHERE oid=1249", []string{"oid", "reltype"}, []string{"OID", "OID"}, [][]any{{int64(1249), int64(75)}}))
-			pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT 'pg_catalog.pg_attribute[]'::regtype::oid AS array_type", []string{"array_type"}, []string{"OID"}, [][]any{{int64(270)}}))
+			fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT oid,reltype FROM pg_class WHERE oid=1249", []string{"oid", "reltype"}, []string{"OID", "OID"}, [][]any{{int64(1249), int64(75)}}))
+			fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT 'pg_catalog.pg_attribute[]'::regtype::oid AS array_type", []string{"array_type"}, []string{"OID"}, [][]any{{int64(270)}}))
 		})
 	})
 }
@@ -225,7 +192,7 @@ func TestReferencePGAttributeIdentity(t *testing.T) {
 	fixture.SchemaReferenceCleanup(t, "pa18_identity_a")
 	fixture.SchemaReferenceCleanup(t, "pa18_identity_b")
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE SCHEMA pa18_identity_a", "CREATE SCHEMA pa18_identity_b", "CREATE TABLE pa18_identity_a.pa18_same(\"Mixed Label\" integer NOT NULL)", "CREATE TABLE pa18_identity_b.pa18_same(\"Mixed Label\" text)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE SCHEMA pa18_identity_a", "CREATE SCHEMA pa18_identity_b", "CREATE TABLE pa18_identity_a.pa18_same(\"Mixed Label\" integer NOT NULL)", "CREATE TABLE pa18_identity_b.pa18_same(\"Mixed Label\" text)")
 		a := pgAttributeID(t, p, b.DB, "pa18_identity_a.pa18_same")
 		z := pgAttributeID(t, p, b.DB, "pa18_identity_b.pa18_same")
 		if a == z {
@@ -234,8 +201,8 @@ func TestReferencePGAttributeIdentity(t *testing.T) {
 		pgAttributeRead(t, p, b, b.DB, a, " AND attnum>0", [][]any{pgAttributeRow(a, "Mixed Label", 23, 4, 1, -1, 0, true, "i", "p", true, 0)})
 		pgAttributeRead(t, p, b, b.DB, z, " AND attnum>0", [][]any{pgAttributeRow(z, "Mixed Label", 25, -1, 1, -1, 0, false, "i", "x", false, 100)})
 		owner := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
-		pgClassExec(t, p, b, owner, "CREATE TABLE public.pg_attribute(shadow integer)", "SET search_path TO public,pg_catalog")
-		pgAttributeCheck(t, p, b, owner, fixture.Select("SELECT * FROM pg_attribute", []string{"shadow"}, []string{"INT4"}, nil))
+		fixture.PGClassExec(t, p, b, owner, "CREATE TABLE public.pg_attribute(shadow integer)", "SET search_path TO public,pg_catalog")
+		fixture.PGAttributeCheck(t, p, b, owner, fixture.Select("SELECT * FROM pg_attribute", []string{"shadow"}, []string{"INT4"}, nil))
 		pgAttributeRead(t, p, b, owner, a, " AND attnum>0", [][]any{pgAttributeRow(a, "Mixed Label", 23, 4, 1, -1, 0, true, "i", "p", true, 0)})
 	})
 }
@@ -255,12 +222,12 @@ func TestReferencePGAttributeBuiltins(t *testing.T) {
 			{"pg_class", []string{"relpartbound"}, [][]any{{"relpartbound", int64(34), int64(194), false, int64(950)}}},
 		} {
 			q := "SELECT attname,attnum,atttypid,attnotnull,attcollation FROM pg_attribute WHERE attrelid='pg_catalog." + tc.rel + "'::regclass::oid AND attname IN ('" + strings.Join(tc.names, "','") + "') ORDER BY attnum"
-			pgAttributeCheck(t, p, b, b.DB, fixture.Select(q, []string{"attname", "attnum", "atttypid", "attnotnull", "attcollation"}, []string{"NAME", "INT2", "OID", "BOOL", "OID"}, tc.rows))
+			fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select(q, []string{"attname", "attnum", "atttypid", "attnotnull", "attcollation"}, []string{"NAME", "INT2", "OID", "BOOL", "OID"}, tc.rows))
 		}
 		want := make([][]any, 25)
-		for i, name := range pgAttributeColumns {
+		for i, name := range fixture.PGAttributeColumns {
 			want[i] = []any{name, int64(i + 1), i < 20}
 		}
-		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT attname,attnum,attnotnull FROM pg_attribute WHERE attrelid=1249 AND attnum>0 ORDER BY attnum", []string{"attname", "attnum", "attnotnull"}, []string{"NAME", "INT2", "BOOL"}, want))
+		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT attname,attnum,attnotnull FROM pg_attribute WHERE attrelid=1249 AND attnum>0 ORDER BY attnum", []string{"attname", "attnum", "attnotnull"}, []string{"NAME", "INT2", "BOOL"}, want))
 	})
 }

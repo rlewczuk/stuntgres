@@ -16,7 +16,7 @@ const pgRulesProbe = "SELECT * FROM pg_catalog.pg_rules WHERE schemaname=$1 AND 
 func pgRulesCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, query string, want [][]any, args ...any) {
 	t.Helper()
 	for _, prepared := range []bool{false, true} {
-		s := pgTableViewSelect(b, query, pgRulesColumns, pgRulesTypes, want, args...)
+		s := fixture.PGTableViewSelect(b, query, pgRulesColumns, pgRulesTypes, want, args...)
 		if prepared {
 			s = fixture.Prepared(s)
 		}
@@ -27,12 +27,12 @@ func pgRulesCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.E
 func pgRulesRetained(t *testing.T, rows *sql.Rows, types []*sql.ColumnType, want []any) {
 	t.Helper()
 	defer rows.Close()
-	pgTableViewMetadata(t, types, pgRulesColumns, pgRulesTypes, false)
+	fixture.PGTableViewMetadata(t, types, pgRulesColumns, pgRulesTypes, false)
 	current, err := rows.ColumnTypes()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pgTableViewMetadata(t, current, pgRulesColumns, pgRulesTypes, false)
+	fixture.PGTableViewMetadata(t, current, pgRulesColumns, pgRulesTypes, false)
 	if !rows.Next() {
 		t.Fatal("retained rule missing", rows.Err())
 	}

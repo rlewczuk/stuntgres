@@ -169,7 +169,7 @@ func TestReferenceExtensionTemporaryLookup(t *testing.T) {
 		if !installer.close(t) {
 			t.FailNow()
 		}
-		extensionTempExitBarrier(t, p, peer, r, 30790002)
+		fixture.ExtensionTempExitBarrier(t, p, peer, r, 30790002)
 		id := extensionTempCapture(t, p, o.conn)
 		extensionTempPresent(t, p, peer, r, id)
 		extensionTempCall(t, p, o.conn, o.recorder, name)

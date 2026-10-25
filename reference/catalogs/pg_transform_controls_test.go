@@ -32,7 +32,7 @@ func TestReferencePGTransformLifecycle(t *testing.T) {
 			catalog()
 			// View expressions may have unknown nullability; their type identities
 			// and complete empty result are still exact.
-			pgTransformBoth(t, p, b, conn, fixture.Select("SELECT * FROM public.ptr_control_view", pgTransformColumns, pgTransformTypes, [][]any{}))
+			pgTransformBoth(t, p, b, conn, fixture.Select("SELECT * FROM public.ptr_control_view", fixture.PGTransformColumns, pgTransformTypes, [][]any{}))
 			fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select("SELECT v FROM public.ptr_control_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		}
 		check()

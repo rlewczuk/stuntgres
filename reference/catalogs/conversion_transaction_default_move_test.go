@@ -13,7 +13,7 @@ func TestReferenceConversionTransactionDefaultMove(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			conversionScenario(t, []string{"conv_tx_old", "conv_tx_new"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-				conversionExec(t, p, b, "CREATE SCHEMA conv_tx_old", "CREATE SCHEMA conv_tx_new", conversionCreate("conv_tx_old.a", true), conversionCreate("conv_tx_new.b", true))
+				conversionExec(t, p, b, "CREATE SCHEMA conv_tx_old", "CREATE SCHEMA conv_tx_new", fixture.ConversionCreate("conv_tx_old.a", true), fixture.ConversionCreate("conv_tx_new.b", true))
 				oid := conversionOID(t, p, b, "a")
 				old := conversionNamespaceOID(t, p, b, "conv_tx_old")
 				dest := conversionNamespaceOID(t, p, b, "conv_tx_new")

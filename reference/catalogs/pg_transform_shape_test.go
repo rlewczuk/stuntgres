@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-var pgTransformColumns = []string{"oid", "trftype", "trflang", "trffromsql", "trftosql"}
 var pgTransformTypes = []string{"OID", "OID", "OID", "REGPROC", "REGPROC"}
 
 const pgTransformOIDProbe = "SELECT * FROM pg_catalog.pg_transform WHERE oid=$1"
@@ -34,8 +33,8 @@ func pgTransformSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 		if pg {
 			scan = reflect.TypeFor[any]()
 		}
-		if typ.Name() != pgTransformColumns[i] || typ.DatabaseTypeName() != pgTransformTypes[i] || typ.ScanType() != scan {
-			t.Fatalf("transform descriptor %d: %q/%q/%v, want %q/%q/%v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), pgTransformColumns[i], pgTransformTypes[i], scan)
+		if typ.Name() != fixture.PGTransformColumns[i] || typ.DatabaseTypeName() != pgTransformTypes[i] || typ.ScanType() != scan {
+			t.Fatalf("transform descriptor %d: %q/%q/%v, want %q/%q/%v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), fixture.PGTransformColumns[i], pgTransformTypes[i], scan)
 		}
 		if nullable, known := typ.Nullable(); nullable || known != !pg {
 			t.Fatal("transform nullability", i, nullable, known)
@@ -52,7 +51,7 @@ func pgTransformSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 func pgTransformMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	t.Helper()
 	columns, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(columns, pgTransformColumns) {
+	if err != nil || !reflect.DeepEqual(columns, fixture.PGTransformColumns) {
 		t.Fatal("transform columns", columns, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -64,7 +63,7 @@ func pgTransformMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnTyp
 }
 
 func pgTransformStep(b fixture.Backend, q string, args ...any) fixture.Step {
-	s := fixture.Select(q, pgTransformColumns, pgTransformTypes, [][]any{}, args...)
+	s := fixture.Select(q, fixture.PGTransformColumns, pgTransformTypes, [][]any{}, args...)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgTransformMetadata(t, rows, b.PG) }
 	return s
 }

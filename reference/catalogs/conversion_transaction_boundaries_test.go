@@ -20,10 +20,10 @@ func TestReferenceConversionTransactionDefaults(t *testing.T) {
 				run := func(x fixture.Executor, s fixture.Step) { fixture.RunStep(t, p.Ctx, x, b.Recorder, s) }
 				run(a, fixture.Exec("BEGIN", 0))
 				run(c, fixture.Exec("BEGIN", 0))
-				run(a, fixture.Exec(conversionCreate("conv_pair.a", true), 0))
+				run(a, fixture.Exec(fixture.ConversionCreate("conv_pair.a", true), 0))
 				// This is deliberately not a serial uniqueness assertion: neither
 				// transaction can see the other's row. The released index includes OID.
-				run(c, fixture.Exec(conversionCreate("conv_pair.b", true), 0))
+				run(c, fixture.Exec(fixture.ConversionCreate("conv_pair.b", true), 0))
 				if reverseCommit {
 					run(c, fixture.Exec("COMMIT", 0))
 					run(a, fixture.Exec("COMMIT", 0))
@@ -34,7 +34,7 @@ func TestReferenceConversionTransactionDefaults(t *testing.T) {
 				run(a, fixture.Select("SELECT conname,conforencoding,contoencoding,condefault FROM pg_conversion WHERE connamespace='conv_pair'::regnamespace ORDER BY conname", []string{"conname", "conforencoding", "contoencoding", "condefault"}, []string{"NAME", "INT4", "INT4", "BOOL"}, [][]any{{"a", int64(6), int64(8), true}, {"b", int64(6), int64(8), true}}))
 				run(a, fixture.Exec("BEGIN", 0))
 				run(a, fixture.Exec("SAVEPOINT duplicate", 0))
-				run(a, fixture.ErrorDiagnostic(conversionCreate("conv_pair.c", true), conversionDiagnostic("42710", "default conversion for UTF8 to LATIN1 already exists")))
+				run(a, fixture.ErrorDiagnostic(fixture.ConversionCreate("conv_pair.c", true), conversionDiagnostic("42710", "default conversion for UTF8 to LATIN1 already exists")))
 				run(a, fixture.Exec("ROLLBACK TO duplicate", 0))
 				run(a, conversionCount("c", 0))
 				run(a, fixture.Exec("ROLLBACK", 0))
@@ -54,14 +54,14 @@ func TestReferenceConversionTransactionConsumers(t *testing.T) {
 		run(fixture.Exec("SET search_path=public", 0))
 		run(fixture.Exec("BEGIN", 0))
 		run(fixture.Exec("CREATE SCHEMA conv_private", 0))
-		run(fixture.Exec(conversionCreate("conv_private.nondefault", false), 0))
+		run(fixture.Exec(fixture.ConversionCreate("conv_private.nondefault", false), 0))
 		run(fixture.Exec("SET LOCAL search_path=conv_private,public", 0))
 		run(fixture.Exec("SAVEPOINT missing", 0))
 		missing := fixture.ErrorDiagnostic(conversionValue().Query, conversionMissingDefault())
 		missing.SelectRows = true
 		run(missing)
 		run(fixture.Exec("ROLLBACK TO missing", 0))
-		run(fixture.Exec(conversionCreate("conv_private.forward", true), 0))
+		run(fixture.Exec(fixture.ConversionCreate("conv_private.forward", true), 0))
 		run(fixture.Exec("CREATE DEFAULT CONVERSION conv_private.reverse FOR 'LATIN1' TO 'UTF8' FROM pg_catalog.iso8859_1_to_utf8", 0))
 		run(conversionValue())
 		run(fixture.Select("SELECT convert_from(decode('e9','hex'),'LATIN1') AS text,convert(decode('e9','hex'),'LATIN1','UTF8') AS bytes", []string{"text", "bytes"}, []string{"TEXT", "BYTEA"}, [][]any{{"é", "é"}}))
@@ -90,11 +90,11 @@ func TestReferenceConversionTransactionConsumers(t *testing.T) {
 func TestReferenceConversionTransactionHeldAuthority(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"conv_tx_actor", "conv_tx_other"})
 	conversionScenario(t, []string{"conv_tx_auth"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		conversionExec(t, p, b, "CREATE ROLE conv_tx_actor NOSUPERUSER", "CREATE ROLE conv_tx_other NOSUPERUSER", "CREATE SCHEMA conv_tx_auth", "GRANT USAGE,CREATE ON SCHEMA conv_tx_auth TO conv_tx_actor", conversionCreate("conv_tx_auth.existing", false), "ALTER CONVERSION conv_tx_auth.existing OWNER TO conv_tx_actor")
+		conversionExec(t, p, b, "CREATE ROLE conv_tx_actor NOSUPERUSER", "CREATE ROLE conv_tx_other NOSUPERUSER", "CREATE SCHEMA conv_tx_auth", "GRANT USAGE,CREATE ON SCHEMA conv_tx_auth TO conv_tx_actor", fixture.ConversionCreate("conv_tx_auth.existing", false), "ALTER CONVERSION conv_tx_auth.existing OWNER TO conv_tx_actor")
 		c := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
 		defer c.ExecContext(p.Ctx, "RESET ROLE")
 		defer c.ExecContext(p.Ctx, "ROLLBACK")
-		for _, q := range []string{conversionCreate("conv_tx_auth.fresh", false), "ALTER CONVERSION conv_tx_auth.existing RENAME TO stolen", "DROP CONVERSION conv_tx_auth.existing"} {
+		for _, q := range []string{fixture.ConversionCreate("conv_tx_auth.fresh", false), "ALTER CONVERSION conv_tx_auth.existing RENAME TO stolen", "DROP CONVERSION conv_tx_auth.existing"} {
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET ROLE conv_tx_actor", 0))
 			stmt, err := c.PrepareContext(p.Ctx, q)
 			if err != nil {
@@ -131,7 +131,7 @@ func TestReferenceConversionTransactionHeldAuthority(t *testing.T) {
 				}
 			})
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET ROLE conv_tx_actor", 0))
-			q := conversionCreate("conv_tx_auth.noexecute", false)
+			q := fixture.ConversionCreate("conv_tx_auth.noexecute", false)
 			stmt, err := c.PrepareContext(p.Ctx, q)
 			if err != nil {
 				t.Fatal(err)

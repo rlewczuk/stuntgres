@@ -106,7 +106,7 @@ func TestReferencePGTypeInstalledDomains(t *testing.T) {
 				// Full32 literals include domain input2597/receive2598/send0,
 				// immediate base identity at both levels, and canonical companions.
 				pgTypeFamilyRow(t, p, b, row)
-				step := fixture.Select(numericQuery, pgTypeColumns, pgTypeNumericTypes(), [][]any{row}, row[0])
+				step := fixture.Select(numericQuery, fixture.PGTypeColumns, pgTypeNumericTypes(), [][]any{row}, row[0])
 				fixture.PgDescriptionExecutorRows(t, p, b, numericHeld, step)
 				raw := fixture.Select(rawQuery, []string{"typinput", "typoutput", "typreceive", "typsend"}, []string{"REGPROC", "REGPROC", "REGPROC", "REGPROC"}, [][]any{routines[i]}, row[0])
 				fixture.PgDescriptionExecutorRows(t, p, b, rawConn, raw)
@@ -150,7 +150,7 @@ func TestReferencePGTypeInstalledDomains(t *testing.T) {
 		}
 		t.Run("removed", func(t *testing.T) {
 			for _, row := range initial {
-				fixture.PgDescriptionExecutorRows(t, p, b, numericHeld, fixture.Select(numericQuery, pgTypeColumns, pgTypeNumericTypes(), nil, row[0]))
+				fixture.PgDescriptionExecutorRows(t, p, b, numericHeld, fixture.Select(numericQuery, fixture.PGTypeColumns, pgTypeNumericTypes(), nil, row[0]))
 				fixture.PgDescriptionExecutorRows(t, p, b, rawHeld, fixture.Select(rawQuery, []string{"typinput", "typoutput", "typreceive", "typsend"}, []string{"REGPROC", "REGPROC", "REGPROC", "REGPROC"}, nil, row[0]))
 			}
 		})
@@ -159,13 +159,13 @@ func TestReferencePGTypeInstalledDomains(t *testing.T) {
 		t.Run("reinstalled", func(t *testing.T) { check(t, reinstalled, "") })
 		t.Run("retained", func(t *testing.T) {
 			frozen := fixture.SequenceFrozenRows{Executor: b.DB, Rows: retained, Query: snapshotQuery}
-			fixture.PgDescriptionExecutorRows(t, p, b, frozen, fixture.Select(snapshotQuery, pgTypeColumns, pgTypeNumericTypes(), [][]any{initial[4]}, initial[4][0]))
+			fixture.PgDescriptionExecutorRows(t, p, b, frozen, fixture.Select(snapshotQuery, fixture.PGTypeColumns, pgTypeNumericTypes(), [][]any{initial[4]}, initial[4][0]))
 			types := pgTypeNumericTypes()
-			if len(saved) != len(pgTypeColumns) {
+			if len(saved) != len(fixture.PGTypeColumns) {
 				t.Fatal("retained column count changed", saved)
 			}
 			for i, column := range saved {
-				if column.Name() != pgTypeColumns[i] || column.DatabaseTypeName() != types[i] {
+				if column.Name() != fixture.PGTypeColumns[i] || column.DatabaseTypeName() != types[i] {
 					t.Fatal("retained description changed", i, column)
 				}
 			}

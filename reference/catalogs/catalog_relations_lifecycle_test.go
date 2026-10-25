@@ -56,7 +56,7 @@ func catalogRelationsLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend,
 			s.Prepared = prepared
 			fixture.PgDescriptionExecutorRows(t, p, b, b.DB, s)
 		}
-		oid := catalogRelationsRoleOID(t, p, b.DB, "cr_lifecycle_role")
+		oid := fixture.CatalogRelationsRoleOID(t, p, b.DB, "cr_lifecycle_role")
 		run(fixture.Select("SELECT pg_get_userbyid($1) AS n", []string{"n"}, []string{"NAME"}, [][]any{{"cr_lifecycle_role"}}, oid))
 	}
 	check()
@@ -138,7 +138,7 @@ func catalogRelationsLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend,
 	if err := stuntgres.Restore(p.Ctx, fresh, bytes.NewReader(dump)); err != nil {
 		t.Fatal(err)
 	}
-	freshOID := catalogRelationsRoleOID(t, p, fresh, "cr_lifecycle_role")
+	freshOID := fixture.CatalogRelationsRoleOID(t, p, fresh, "cr_lifecycle_role")
 	var got string
 	if err := fresh.QueryRowContext(p.Ctx, "SELECT pg_get_userbyid($1)", freshOID).Scan(&got); err != nil || got != "cr_lifecycle_role" {
 		t.Fatal(got, err)

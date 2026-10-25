@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-var pgAMColumns = []string{"oid", "amname", "amhandler", "amtype"}
 var pgAMTypes = []string{"OID", "NAME", "REGPROC", "CHAR"}
 
 const pgAMProbe = "SELECT * FROM pg_catalog.pg_am WHERE oid=$1::oid"
@@ -54,8 +53,8 @@ func pgAMSavedMetadata(t *testing.T, columns []*sql.ColumnType, pg, nullable boo
 		if pg {
 			scan = reflect.TypeFor[any]()
 		}
-		if c.Name() != pgAMColumns[i] || c.DatabaseTypeName() != pgAMTypes[i] || c.ScanType() != scan {
-			t.Fatalf("column %d: %q/%q/%v want %q/%q/%v", i, c.Name(), c.DatabaseTypeName(), c.ScanType(), pgAMColumns[i], pgAMTypes[i], scan)
+		if c.Name() != fixture.PGAMColumns[i] || c.DatabaseTypeName() != pgAMTypes[i] || c.ScanType() != scan {
+			t.Fatalf("column %d: %q/%q/%v want %q/%q/%v", i, c.Name(), c.DatabaseTypeName(), c.ScanType(), fixture.PGAMColumns[i], pgAMTypes[i], scan)
 		}
 		if n, known := c.Nullable(); n != (!pg && nullable) || known != !pg {
 			t.Fatal("nullability", i, n, known)
@@ -72,7 +71,7 @@ func pgAMSavedMetadata(t *testing.T, columns []*sql.ColumnType, pg, nullable boo
 func pgAMMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	columns, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(columns, pgAMColumns) {
+	if err != nil || !reflect.DeepEqual(columns, fixture.PGAMColumns) {
 		t.Fatal("pg_am columns", columns, err)
 	}
 	meta, err := rows.ColumnTypes()
@@ -83,7 +82,7 @@ func pgAMMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 }
 
 func pgAMStep(b fixture.Backend, q string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, pgAMColumns, pgAMTypes, want, args...)
+	s := fixture.Select(q, fixture.PGAMColumns, pgAMTypes, want, args...)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgAMMetadata(t, rows, b.PG) }
 	s.CheckRaw = func(t *testing.T, col, row int, value any) bool {
 		typ := reflect.TypeFor[string]()
@@ -152,7 +151,7 @@ func pgAMInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		for _, relation := range []string{"pg_catalog.pg_am", "pg_am"} {
 			pgAMRows(t, p, b, b.DB, "SELECT * FROM "+relation+" ORDER BY oid", pgAMFacts(b.PG, false), prepared)
 		}
-		s := fixture.Select("SELECT oid,amname,amhandler::oid AS amhandler,amtype FROM pg_catalog.pg_am ORDER BY oid", pgAMColumns, []string{"OID", "NAME", "OID", "CHAR"}, pgAMFacts(b.PG, true))
+		s := fixture.Select("SELECT oid,amname,amhandler::oid AS amhandler,amtype FROM pg_catalog.pg_am ORDER BY oid", fixture.PGAMColumns, []string{"OID", "NAME", "OID", "CHAR"}, pgAMFacts(b.PG, true))
 		s.Prepared = prepared
 		fixture.PgDescriptionRows(t, p, b, s)
 		pgAMRows(t, p, b, b.DB, "SELECT * FROM pg_am WHERE oid IN (2,403,405,783) ORDER BY oid", pgAMFacts(false, false), prepared)

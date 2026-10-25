@@ -9,7 +9,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var ccuColumns = []string{"table_catalog", "table_schema", "table_name", "column_name", "constraint_catalog", "constraint_schema", "constraint_name"}
 var ccuTypes = []string{"NAME", "NAME", "NAME", "NAME", "NAME", "NAME", "NAME"}
 
 const ccuQuery = "SELECT * FROM information_schema.constraint_column_usage WHERE table_name LIKE $1 ORDER BY table_catalog,table_schema,table_name,column_name,constraint_catalog,constraint_schema,constraint_name"
@@ -71,7 +70,7 @@ func (c *ccuCase) pub(table, column, constraint string) []any {
 func ccuSorted(rows [][]any) [][]any {
 	result := append([][]any(nil), rows...)
 	sort.SliceStable(result, func(i, j int) bool {
-		for n := range ccuColumns {
+		for n := range fixture.CCUColumns {
 			if result[i][n] != result[j][n] {
 				return result[i][n].(string) < result[j][n].(string)
 			}
@@ -82,7 +81,7 @@ func ccuSorted(rows [][]any) [][]any {
 }
 func (c *ccuCase) step(pattern any, rows [][]any) fixture.Step {
 	want := ccuSorted(rows)
-	s := fixture.Select(ccuQuery, ccuColumns, ccuTypes, want, pattern)
+	s := fixture.Select(ccuQuery, fixture.CCUColumns, ccuTypes, want, pattern)
 	s.CheckMetadata = func(t *testing.T, r *sql.Rows) { ccuMetadata(t, r, c.b.PG) }
 	s.CheckScan = func(t *testing.T, r *sql.Rows, index int) {
 		values, targets := make([]any, 7), make([]any, 7)
@@ -118,8 +117,8 @@ func ccuMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(names, ccuColumns) {
-		t.Fatal("columns", names, "want", ccuColumns)
+	if !reflect.DeepEqual(names, fixture.CCUColumns) {
+		t.Fatal("columns", names, "want", fixture.CCUColumns)
 	}
 	types, err := rows.ColumnTypes()
 	if err != nil {
@@ -141,7 +140,7 @@ func ccuColumnTypes(t *testing.T, types []*sql.ColumnType, pg bool) {
 		nullable, known := typ.Nullable()
 		length, hasLength := typ.Length()
 		precision, scale, hasDecimal := typ.DecimalSize()
-		if typ.Name() != ccuColumns[i] || typ.DatabaseTypeName() != "NAME" || typ.ScanType() != scan || nullable != !pg || known != !pg || length != 0 || hasLength || precision != 0 || scale != 0 || hasDecimal {
+		if typ.Name() != fixture.CCUColumns[i] || typ.DatabaseTypeName() != "NAME" || typ.ScanType() != scan || nullable != !pg || known != !pg || length != 0 || hasLength || precision != 0 || scale != 0 || hasDecimal {
 			t.Fatalf("metadata %d: %s %s scan=%v nullable=%v/%v length=%d/%v decimal=%d/%d/%v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), nullable, known, length, hasLength, precision, scale, hasDecimal)
 		}
 	}

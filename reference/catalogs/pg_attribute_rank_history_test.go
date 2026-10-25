@@ -29,7 +29,7 @@ func pgAttributeRankHistory(t *testing.T, kind string) {
 				parentColumns = "id integer,matrix integer[][]"
 				childColumns = "id integer,matrix integer[][][]"
 			}
-			pgClassExec(t, p, b, b.DB,
+			fixture.PGClassExec(t, p, b, b.DB,
 				"CREATE TABLE pa18_hist_parent("+parentColumns+") PARTITION BY RANGE(id)",
 				"CREATE TABLE pa18_hist_attached("+childColumns+")",
 				"ALTER TABLE pa18_hist_parent ATTACH PARTITION pa18_hist_attached FOR VALUES FROM(0) TO(10)",
@@ -41,7 +41,7 @@ func pgAttributeRankHistory(t *testing.T, kind string) {
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(insert, 2))
 			cleanup = "DROP TABLE pa18_hist_parent CASCADE"
 		} else {
-			pgClassExec(t, p, b, b.DB,
+			fixture.PGClassExec(t, p, b, b.DB,
 				"CREATE TYPE pa18_hist_type AS(id integer,a integer[][])",
 				"CREATE TABLE pa18_hist_old OF pa18_hist_type",
 				"ALTER TABLE pa18_hist_old ALTER id SET DEFAULT 11",
@@ -85,14 +85,14 @@ func pgAttributeRankHistory(t *testing.T, kind string) {
 					pgAttributeRead(t, p, backend, backend.DB, id, " AND attnum>0", want)
 				}
 				rows := fixture.Select("SELECT id,matrix FROM pa18_hist_parent ORDER BY id", []string{"id", "matrix"}, []string{"INT4", "_INT4"}, [][]any{{int64(2), "{{1,2},{3,4}}"}, {int64(12), "{{1,2},{3,4}}"}})
-				pgAttributeCheck(t, p, backend, backend.DB, rows)
+				fixture.PGAttributeCheck(t, p, backend, backend.DB, rows)
 				for _, leaf := range []struct {
 					name string
 					id   int64
 				}{{"pa18_hist_attached", 2}, {"pa18_hist_copied", 12}} {
-					pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,matrix FROM "+leaf.name, []string{"id", "matrix"}, []string{"INT4", "_INT4"}, [][]any{{leaf.id, "{{1,2},{3,4}}"}}))
+					fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,matrix FROM "+leaf.name, []string{"id", "matrix"}, []string{"INT4", "_INT4"}, [][]any{{leaf.id, "{{1,2},{3,4}}"}}))
 				}
-				pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT relname,relispartition,relhassubclass FROM pg_class WHERE relname IN ('pa18_hist_parent','pa18_hist_attached','pa18_hist_copied') ORDER BY relname", []string{"relname", "relispartition", "relhassubclass"}, []string{"NAME", "BOOL", "BOOL"}, [][]any{{"pa18_hist_attached", true, false}, {"pa18_hist_copied", true, false}, {"pa18_hist_parent", false, true}}))
+				fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT relname,relispartition,relhassubclass FROM pg_class WHERE relname IN ('pa18_hist_parent','pa18_hist_attached','pa18_hist_copied') ORDER BY relname", []string{"relname", "relispartition", "relhassubclass"}, []string{"NAME", "BOOL", "BOOL"}, [][]any{{"pa18_hist_attached", true, false}, {"pa18_hist_copied", true, false}, {"pa18_hist_parent", false, true}}))
 			} else {
 				for _, relation := range []struct {
 					name                                 string
@@ -134,21 +134,21 @@ func pgAttributeRankHistory(t *testing.T, kind string) {
 					{"pa18_hist_late", [][]any{{int64(4), "{{1,2}}"}}},
 					{"pa18_hist_typed_late", [][]any{{int64(5), "{{5,6}}"}}},
 				} {
-					pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,a FROM "+relation.name+" ORDER BY id", []string{"id", "a"}, []string{"INT4", "_INT4"}, relation.rows))
+					fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,a FROM "+relation.name+" ORDER BY id", []string{"id", "a"}, []string{"INT4", "_INT4"}, relation.rows))
 				}
 				for _, relation := range []struct {
 					name string
 					id   int64
 					note string
 				}{{"pa18_hist_early", 2, "early"}, {"pa18_hist_grand", 3, "early"}, {"pa18_hist_late", 4, "late"}} {
-					pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,note FROM ONLY "+relation.name, []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{relation.id, relation.note}}))
+					fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,note FROM ONLY "+relation.name, []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{relation.id, relation.note}}))
 				}
 				typeRelation := pgAttributeID(t, p, backend.DB, "pa18_hist_type")
 				var typeID int64
 				if err := backend.DB.QueryRowContext(p.Ctx, "SELECT reltype::bigint FROM pg_class WHERE oid=$1", typeRelation).Scan(&typeID); err != nil || typeID <= 0 {
 					t.Fatal("own composite type identity", typeID, err)
 				}
-				pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT relname,reloftype::bigint,relhassubclass FROM pg_class WHERE relname IN ('pa18_hist_old','pa18_hist_typed_late','pa18_hist_early','pa18_hist_grand','pa18_hist_late') ORDER BY relname", []string{"relname", "reloftype", "relhassubclass"}, []string{"NAME", "INT8", "BOOL"}, [][]any{{"pa18_hist_early", int64(0), true}, {"pa18_hist_grand", int64(0), false}, {"pa18_hist_late", int64(0), false}, {"pa18_hist_old", typeID, true}, {"pa18_hist_typed_late", typeID, false}}))
+				fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT relname,reloftype::bigint,relhassubclass FROM pg_class WHERE relname IN ('pa18_hist_old','pa18_hist_typed_late','pa18_hist_early','pa18_hist_grand','pa18_hist_late') ORDER BY relname", []string{"relname", "reloftype", "relhassubclass"}, []string{"NAME", "INT8", "BOOL"}, [][]any{{"pa18_hist_early", int64(0), true}, {"pa18_hist_grand", int64(0), false}, {"pa18_hist_late", int64(0), false}, {"pa18_hist_old", typeID, true}, {"pa18_hist_typed_late", typeID, false}}))
 			}
 		}
 		check(b)

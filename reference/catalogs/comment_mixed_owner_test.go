@@ -42,14 +42,14 @@ func TestReferenceCommentMixedOwnerRoundtrip(t *testing.T) {
 							}
 						}
 						if !b.PG {
-							dump := commentInquiryDump(t, p)
+							dump := fixture.CommentInquiryDump(t, p)
 							if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 								t.Fatal(err)
 							}
 							if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump)); err != nil {
 								t.Fatal(err)
 							}
-							if got := commentInquiryDump(t, p); got != dump {
+							if got := fixture.CommentInquiryDump(t, p); got != dump {
 								t.Fatal("canonical replay changed", got, dump)
 							}
 						}

@@ -42,11 +42,11 @@ func pgParameterACLControls(t *testing.T, p *fixture.Pair, b fixture.Backend, fa
 		steps := pgParameterACLFactSteps(b)
 		for _, index := range facts {
 			s := steps[index]
-			pgDatabaseCheck(t, p, b, b.DB, s)
-			pgDatabaseCheck(t, p, b, b.DB, fixture.Prepared(s))
+			fixture.PGDatabaseCheck(t, p, b, b.DB, s)
+			fixture.PGDatabaseCheck(t, p, b, b.DB, fixture.Prepared(s))
 			held := fixture.ViewHold(t, p, b, s.Query)
-			pgDatabaseCheck(t, p, b, held, s)
-			pgDatabaseCheck(t, p, b, held, s)
+			fixture.PGDatabaseCheck(t, p, b, held, s)
+			fixture.PGDatabaseCheck(t, p, b, held, s)
 		}
 	}
 	const name = "pacl18_control.value"

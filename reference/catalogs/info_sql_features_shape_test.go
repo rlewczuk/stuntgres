@@ -11,7 +11,7 @@ func sfCatalogShape(c *sfCase) {
 	c.t.Helper()
 	var attributes [][]any
 	var declared [][]any
-	for i, name := range sfColumns {
+	for i, name := range fixture.SFColumns {
 		domain, baseMod := "character_data", int64(-1)
 		var maximum any
 		if i == 4 {
@@ -42,7 +42,7 @@ func TestReferenceInfoSQLFeaturesShape(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					sfScenario(t, false, func(c *sfCase) {
 						t := c.t
-						q, names, want := sfQuery, sfColumns, c.release
+						q, names, want := sfQuery, fixture.SFColumns, c.release
 						if star {
 							q = "SELECT * FROM " + sfTable
 						}

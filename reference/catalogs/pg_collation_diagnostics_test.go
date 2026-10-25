@@ -27,12 +27,12 @@ func TestReferencePGCollationDiagnostics(t *testing.T) {
 		for _, value := range []string{"bad", ""} {
 			for _, plain := range []bool{false, true} {
 				for _, prepared := range []bool{false, true} {
-					s := pgCastParameterError(q, "oid", value, value)
+					s := fixture.PGCastParameterError(q, "oid", value, value)
 					s.Prepared, s.NonContext = prepared, plain
 					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 				}
 			}
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgCastParameterError(q, "oid", value, value))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGCastParameterError(q, "oid", value, value))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(q, []string{"collname"}, []string{"NAME"}, [][]any{{"pg_c_utf8"}}, int64(811)))
 		}
 		for _, value := range []any{nil, int64(4294967295)} {

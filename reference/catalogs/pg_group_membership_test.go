@@ -15,7 +15,7 @@ func TestReferencePGGroupMembership(t *testing.T) {
 			pgRolesExec(t, p, b, q)
 		}
 		check := func(members ...int64) {
-			pgGroupBoth(t, p, b, "SELECT * FROM pg_group WHERE "+pgTableViewsNames("groname", []string{"pgg_parent", "pgg_middle", "pgg_empty", "pgg_leaf"}), [][]any{pgGroupRow("pgg_parent", parent, members...), pgGroupRow("pgg_middle", middle, leaf), pgGroupRow("pgg_empty", empty)})
+			pgGroupBoth(t, p, b, "SELECT * FROM pg_group WHERE "+fixture.PGTableViewsNames("groname", []string{"pgg_parent", "pgg_middle", "pgg_empty", "pgg_leaf"}), [][]any{pgGroupRow("pgg_parent", parent, members...), pgGroupRow("pgg_middle", middle, leaf), pgGroupRow("pgg_empty", empty)})
 		}
 		check(middle)
 		for _, q := range []string{"ALTER ROLE pgg_parent SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS NOINHERIT CONNECTION LIMIT 0 VALID UNTIL '-infinity'", "GRANT pgg_parent TO pgg_middle WITH ADMIN TRUE, INHERIT TRUE, SET TRUE", "REVOKE ADMIN OPTION FOR pgg_parent FROM pgg_middle", "GRANT pgg_parent TO pgg_middle WITH INHERIT FALSE, SET FALSE"} {
@@ -35,7 +35,7 @@ func TestReferencePGGroupMembership(t *testing.T) {
 		if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_roles WHERE rolname='pgg_group_default'").Scan(&groupDefault); err != nil {
 			t.Fatal(err)
 		}
-		pgGroupBoth(t, p, b, "SELECT * FROM pg_group WHERE "+pgTableViewsNames("groname", []string{"pgg_user", "pgg_user_override", "pgg_role_override", "pgg_group_default"}), [][]any{pgGroupRow("pgg_user_override", userOverride), pgGroupRow("pgg_group_default", groupDefault)})
+		pgGroupBoth(t, p, b, "SELECT * FROM pg_group WHERE "+fixture.PGTableViewsNames("groname", []string{"pgg_user", "pgg_user_override", "pgg_role_override", "pgg_group_default"}), [][]any{pgGroupRow("pgg_user_override", userOverride), pgGroupRow("pgg_group_default", groupDefault)})
 		creator := pgGroupCreate(t, p, b, "pgg_creator", "LOGIN CREATEROLE")
 		conn, err := b.DB.Conn(p.Ctx)
 		if err != nil {

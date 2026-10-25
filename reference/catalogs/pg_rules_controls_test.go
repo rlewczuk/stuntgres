@@ -45,7 +45,7 @@ func TestReferencePGRulesNativeControls(t *testing.T) {
 			}
 			held := fixture.ViewHold(t, p, b, pgRulesProbe)
 			check(b.DB)
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTableViewSelect(b, pgRulesProbe, pgRulesColumns, pgRulesTypes, [][]any{want}, "public", "pgr_control_current", "r"))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGTableViewSelect(b, pgRulesProbe, pgRulesColumns, pgRulesTypes, [][]any{want}, "public", "pgr_control_current", "r"))
 			old, err := b.DB.QueryContext(p.Ctx, pgRulesProbe, "public", "pgr_control_current", "r")
 			if err != nil {
 				t.Fatal(err)
@@ -71,13 +71,13 @@ func TestReferencePGRulesNativeControls(t *testing.T) {
 			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 				t.Fatal(err)
 			}
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTableViewSelect(b, pgRulesProbe, pgRulesColumns, pgRulesTypes, nil, "public", "pgr_control_current", "r"))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGTableViewSelect(b, pgRulesProbe, pgRulesColumns, pgRulesTypes, nil, "public", "pgr_control_current", "r"))
 			builtin()
 			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)); err != nil {
 				t.Fatal(err)
 			}
 			check(b.DB)
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTableViewSelect(b, pgRulesProbe, pgRulesColumns, pgRulesTypes, [][]any{want}, "public", "pgr_control_current", "r"))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGTableViewSelect(b, pgRulesProbe, pgRulesColumns, pgRulesTypes, [][]any{want}, "public", "pgr_control_current", "r"))
 			builtin()
 			pgRulesRetained(t, old, types, want)
 			if redump := fixture.ViewDump(t, p); !bytes.Equal(dump, redump) {

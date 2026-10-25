@@ -32,7 +32,7 @@ func TestReferencePGCollationSeeds(t *testing.T) {
 			pgCollationRow(963, "unicode", 11, 10, "i", -1, nil, nil, "und", unicodeVersion),
 			pgCollationRow(6411, "pg_unicode_fast", 11, 10, "b", 6, nil, nil, "PG_UNICODE_FAST", "1"),
 		}
-		s := fixture.Select("SELECT * FROM pg_catalog.pg_collation WHERE oid IN (100,811,950,951,962,963,6411) ORDER BY oid", pgCollationColumns, pgCollationTypes, want)
+		s := fixture.Select("SELECT * FROM pg_catalog.pg_collation WHERE oid IN (100,811,950,951,962,963,6411) ORDER BY oid", fixture.PGCollationColumns, pgCollationTypes, want)
 		for _, plain := range []bool{false, true} {
 			s.NonContext = plain
 			pgCollationStep(t, p, b, b.DB, s)
@@ -55,7 +55,7 @@ func pgCollationFresh(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		if row != nil {
 			want = [][]any{row}
 		}
-		pgCollationStep(t, p, b, held, fixture.Select(q, pgCollationColumns, pgCollationTypes, want, oid))
+		pgCollationStep(t, p, b, held, fixture.Select(q, fixture.PGCollationColumns, pgCollationTypes, want, oid))
 	}
 	check(4294967295, nil)
 	fixture.CollationExec(t, p, b, `CREATE COLLATION pgc_fresh_copy FROM pg_catalog."C"`)
@@ -160,8 +160,8 @@ func TestReferencePGCollationPublicRead(t *testing.T) {
 			if _, err := db.ExecContext(p.Ctx, "SET search_path=pg_catalog,public"); err != nil {
 				t.Fatal(err)
 			}
-			pgCollationStep(t, p, b, db, fixture.Select(q, pgCollationColumns, pgCollationTypes, want, oid))
-			pgCollationStep(t, p, b, db, fixture.Prepared(fixture.Select(q, pgCollationColumns, pgCollationTypes, want, oid)))
+			pgCollationStep(t, p, b, db, fixture.Select(q, fixture.PGCollationColumns, pgCollationTypes, want, oid))
+			pgCollationStep(t, p, b, db, fixture.Prepared(fixture.Select(q, fixture.PGCollationColumns, pgCollationTypes, want, oid)))
 			fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Select("SELECT pg_collation_is_visible($1)", []string{"pg_collation_is_visible"}, []string{"BOOL"}, [][]any{{false}}, oid))
 		}
 		fixture.CollationExec(t, p, b, "DROP COLLATION pgc_public_hidden.pgc_public_copy", "DROP SCHEMA pgc_public_hidden")
@@ -171,13 +171,13 @@ func TestReferencePGCollationPublicRead(t *testing.T) {
 func TestReferencePGCollationFeatureSmoke(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"pgc_fresh_owner"})
 	pgCollationScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgCollationStep(t, p, b, b.DB, fixture.Select("SELECT * FROM pg_catalog.pg_collation WHERE oid=811", pgCollationColumns, pgCollationTypes, [][]any{pgCollationRow(811, "pg_c_utf8", 11, 10, "b", 6, nil, nil, "C.UTF-8", "1")}))
+		pgCollationStep(t, p, b, b.DB, fixture.Select("SELECT * FROM pg_catalog.pg_collation WHERE oid=811", fixture.PGCollationColumns, pgCollationTypes, [][]any{pgCollationRow(811, "pg_c_utf8", 11, 10, "b", 6, nil, nil, "C.UTF-8", "1")}))
 		pgCollationFresh(t, p, b)
 		pgCollationAttributeProbe(t, p, b)
 		var unicodeVersion any
 		if b.PG {
 			unicodeVersion = "153.120"
 		}
-		pgCollationStep(t, p, b, b.DB, fixture.Select("SELECT * FROM pg_catalog.pg_collation WHERE oid=963", pgCollationColumns, pgCollationTypes, [][]any{pgCollationRow(963, "unicode", 11, 10, "i", -1, nil, nil, "und", unicodeVersion)}))
+		pgCollationStep(t, p, b, b.DB, fixture.Select("SELECT * FROM pg_catalog.pg_collation WHERE oid=963", fixture.PGCollationColumns, pgCollationTypes, [][]any{pgCollationRow(963, "unicode", 11, 10, "i", -1, nil, nil, "und", unicodeVersion)}))
 	})
 }

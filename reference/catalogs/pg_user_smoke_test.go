@@ -11,7 +11,7 @@ func TestReferencePGUserFeatureSmoke(t *testing.T) {
 	pgUserScenario(t, []string{"pgu_smoke_target", "pgu_smoke_reader", "pgu_smoke_group"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		id := pgUserCreate(t, p, b, "pgu_smoke_target")
 		pgUserCreate(t, p, b, "pgu_smoke_reader")
-		group := pgShDescriptionCreateRole(t, p, b, "pgu_smoke_group", "public")
+		group := fixture.PGShDescriptionCreateRole(t, p, b, "pgu_smoke_group", "public")
 		pgUserExec(t, p, b, "ALTER ROLE pgu_smoke_target VALID UNTIL '2030-01-02 03:04:05+00'")
 		if _, err := b.DB.ExecContext(p.Ctx, "ALTER ROLE pgu_smoke_target PASSWORD 'pgu-smoke-private-password'"); err != nil {
 			t.Fatal("password fixture setup failed")

@@ -73,7 +73,7 @@ func TestReferenceInfoSQLSizingShape(t *testing.T) {
 		for _, route := range []string{"direct", "prepared", "held"} {
 			t.Run(boundary+"/"+route, func(t *testing.T) {
 				szScenario(t, false, func(c *szCase) {
-					q, names, types, want := szQuery, szColumns, szTypes, c.want
+					q, names, types, want := szQuery, fixture.SZColumns, szTypes, c.want
 					switch boundary {
 					case "star":
 						q = "SELECT * FROM " + szTable

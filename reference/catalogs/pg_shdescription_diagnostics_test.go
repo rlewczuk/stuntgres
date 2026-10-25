@@ -19,7 +19,7 @@ func TestReferencePGShDescriptionVisibilityAndRoleErrors(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
 			}
 			run("CREATE SCHEMA pgsd_errors")
-			id := pgShDescriptionCreateRole(t, p, backend, "pgsd_error_role", "pgsd_errors")
+			id := fixture.PGShDescriptionCreateRole(t, p, backend, "pgsd_error_role", "pgsd_errors")
 			run("CREATE ROLE pgsd_error_reader")
 			run("COMMENT ON ROLE pgsd_error_role IS 'unchanged'")
 			conn, err := backend.DB.Conn(p.Ctx)
@@ -128,7 +128,7 @@ func TestReferencePGShDescriptionDiagnosticsAndTransactions(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
 			}
 			run("CREATE SCHEMA pgsd_tx")
-			id := pgShDescriptionCreateRole(t, p, backend, "pgsd_tx_role", "pgsd_tx")
+			id := fixture.PGShDescriptionCreateRole(t, p, backend, "pgsd_tx_role", "pgsd_tx")
 			run("COMMENT ON ROLE pgsd_tx_role IS 'original'")
 			run("CREATE TABLE pgsd_tx.sentinel(a INT)")
 			fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("INSERT INTO pgsd_tx.sentinel VALUES(7)", 1))

@@ -19,10 +19,10 @@ func TestReferenceConversionOwnership(t *testing.T) {
 		otherDB := fixture.RoleScenarioLoginPool(t, p.NativeConnector.Driver().(*stuntgres.Driver), b.PG, dsn, "conv_other")
 		owner, other := b, b
 		owner.DB, other.DB = ownerDB, otherDB
-		conversionExec(t, p, owner, conversionCreate("conv_owner_schema.conv_owned", false))
+		conversionExec(t, p, owner, fixture.ConversionCreate("conv_owner_schema.conv_owned", false))
 		oid := conversionOID(t, p, b, "conv_owned")
 		conversionStep(t, p, b, fixture.Select(`SELECT c.conowner=r.oid AS owned FROM pg_catalog.pg_conversion c JOIN pg_catalog.pg_roles r ON r.rolname='conv_owner' WHERE c.oid=$1`, []string{"owned"}, []string{"BOOL"}, [][]any{{true}}, oid))
-		conversionError(t, p, other, conversionCreate("conv_owner_schema.conv_rejected", false), conversionDiagnostic("42501", `permission denied for schema conv_owner_schema`), false)
+		conversionError(t, p, other, fixture.ConversionCreate("conv_owner_schema.conv_rejected", false), conversionDiagnostic("42501", `permission denied for schema conv_owner_schema`), false)
 		if b.PG {
 			conversionExec(t, p, b, `GRANT USAGE ON SCHEMA conv_owner_schema TO conv_other`)
 		} else {
@@ -104,7 +104,7 @@ func TestReferenceConversionOwnership(t *testing.T) {
 				_, _ = b.DB.Exec(`GRANT EXECUTE ON FUNCTION pg_catalog.utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean) TO PUBLIC`)
 			})
 			conversionExec(t, p, b, `REVOKE EXECUTE ON FUNCTION pg_catalog.utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean) FROM PUBLIC`)
-			conversionError(t, p, other, conversionCreate("conv_other_schema.conv_noexecute", false), conversionDiagnostic("42501", `permission denied for function pg_catalog.utf8_to_iso8859_1`), false)
+			conversionError(t, p, other, fixture.ConversionCreate("conv_other_schema.conv_noexecute", false), conversionDiagnostic("42501", `permission denied for function pg_catalog.utf8_to_iso8859_1`), false)
 		}
 	})
 }

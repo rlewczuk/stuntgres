@@ -55,7 +55,7 @@ func TestReferencePGDatabaseACL(t *testing.T) {
 		}
 		owner := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
 		peer := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
-		pgClassExec(t, p, b, owner, "CREATE ROLE pgdb18_acl_reader", "CREATE ROLE pgdb18_acl_owner")
+		fixture.PGClassExec(t, p, b, owner, "CREATE ROLE pgdb18_acl_reader", "CREATE ROLE pgdb18_acl_owner")
 		var name string
 		if err := owner.QueryRowContext(p.Ctx, "SELECT current_database()").Scan(&name); err != nil {
 			t.Fatal(err)
@@ -66,14 +66,14 @@ func TestReferencePGDatabaseACL(t *testing.T) {
 		peerHeld := fixture.ViewHold(t, p, b, q)
 		ownerQuery := "SELECT datdba=(SELECT oid FROM pg_roles WHERE rolname='pgdb18_acl_owner') AS successor,datname=current_database() AS same_database FROM pg_database WHERE datname=current_database()"
 		ownerHeld := fixture.ViewHold(t, p, b, ownerQuery)
-		pgDatabaseCheck(t, p, b, ownerHeld, fixture.Select(ownerQuery, []string{"successor", "same_database"}, []string{"BOOL", "BOOL"}, [][]any{{false, true}}))
+		fixture.PGDatabaseCheck(t, p, b, ownerHeld, fixture.Select(ownerQuery, []string{"successor", "same_database"}, []string{"BOOL", "BOOL"}, [][]any{{false, true}}))
 		var base any
 		check := func(db fixture.Executor, acl any) {
-			pgDatabaseCheck(t, p, b, db, fixture.Select(q, []string{"datacl"}, []string{"_ACLITEM"}, [][]any{{acl}}))
+			fixture.PGDatabaseCheck(t, p, b, db, fixture.Select(q, []string{"datacl"}, []string{"_ACLITEM"}, [][]any{{acl}}))
 		}
 		check(owner, base)
 		check(held, base)
-		who := pgTableViewsOwner(b)
+		who := fixture.PGTableViewsOwner(b)
 		ownerEntry := who + "=CTc/" + who
 		prefix := "{=Tc/" + who + "," + ownerEntry
 		granted := prefix + ",pgdb18_acl_reader=C/" + who + "}"
@@ -81,39 +81,39 @@ func TestReferencePGDatabaseACL(t *testing.T) {
 		materialized := prefix + "}"
 		grant := "GRANT CREATE ON DATABASE " + database + " TO pgdb18_acl_reader"
 		revoke := "REVOKE CREATE ON DATABASE " + database + " FROM pgdb18_acl_reader"
-		pgClassExec(t, p, b, owner, grant)
+		fixture.PGClassExec(t, p, b, owner, grant)
 		check(held, granted)
-		pgClassExec(t, p, b, owner, grant+" WITH GRANT OPTION")
+		fixture.PGClassExec(t, p, b, owner, grant+" WITH GRANT OPTION")
 		check(held, option)
-		pgClassExec(t, p, b, owner, "REVOKE GRANT OPTION FOR CREATE ON DATABASE "+database+" FROM pgdb18_acl_reader")
+		fixture.PGClassExec(t, p, b, owner, "REVOKE GRANT OPTION FOR CREATE ON DATABASE "+database+" FROM pgdb18_acl_reader")
 		check(held, granted)
-		pgClassExec(t, p, b, owner, revoke)
+		fixture.PGClassExec(t, p, b, owner, revoke)
 		check(held, materialized)
-		pgClassExec(t, p, b, owner, "GRANT CREATE ON DATABASE "+database+" TO PUBLIC")
+		fixture.PGClassExec(t, p, b, owner, "GRANT CREATE ON DATABASE "+database+" TO PUBLIC")
 		publicACL := "{=CTc/" + who + "," + ownerEntry + "}"
 		check(held, publicACL)
-		pgClassExec(t, p, b, owner, "REVOKE CREATE ON DATABASE "+database+" FROM PUBLIC")
+		fixture.PGClassExec(t, p, b, owner, "REVOKE CREATE ON DATABASE "+database+" FROM PUBLIC")
 		check(held, materialized)
-		pgClassExec(t, p, b, owner, "BEGIN", grant)
+		fixture.PGClassExec(t, p, b, owner, "BEGIN", grant)
 		defer owner.ExecContext(context.Background(), "ROLLBACK")
 		check(owner, granted)
 		check(peer, materialized)
 		check(peerHeld, materialized)
-		pgClassExec(t, p, b, owner, "SAVEPOINT pgdb18_acl_save", revoke)
+		fixture.PGClassExec(t, p, b, owner, "SAVEPOINT pgdb18_acl_save", revoke)
 		check(owner, materialized)
-		pgClassExec(t, p, b, owner, "ROLLBACK TO pgdb18_acl_save")
+		fixture.PGClassExec(t, p, b, owner, "ROLLBACK TO pgdb18_acl_save")
 		check(owner, granted)
-		pgClassExec(t, p, b, owner, "ROLLBACK")
+		fixture.PGClassExec(t, p, b, owner, "ROLLBACK")
 		check(held, materialized)
-		pgClassExec(t, p, b, owner, "BEGIN", grant, "COMMIT")
+		fixture.PGClassExec(t, p, b, owner, "BEGIN", grant, "COMMIT")
 		check(peerHeld, granted)
-		pgClassExec(t, p, b, owner, "ALTER DATABASE "+database+" OWNER TO pgdb18_acl_owner")
-		pgDatabaseCheck(t, p, b, ownerHeld, fixture.Select(ownerQuery, []string{"successor", "same_database"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+		fixture.PGClassExec(t, p, b, owner, "ALTER DATABASE "+database+" OWNER TO pgdb18_acl_owner")
+		fixture.PGDatabaseCheck(t, p, b, ownerHeld, fixture.Select(ownerQuery, []string{"successor", "same_database"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 		successorACL := strings.ReplaceAll(granted, who, "pgdb18_acl_owner")
 		check(held, successorACL)
-		pgClassExec(t, p, b, owner, "ALTER DATABASE "+database+" OWNER TO "+who, revoke)
+		fixture.PGClassExec(t, p, b, owner, "ALTER DATABASE "+database+" OWNER TO "+who, revoke)
 		check(held, materialized)
-		pgDatabaseCheck(t, p, b, ownerHeld, fixture.Select(ownerQuery, []string{"successor", "same_database"}, []string{"BOOL", "BOOL"}, [][]any{{false, true}}))
+		fixture.PGDatabaseCheck(t, p, b, ownerHeld, fixture.Select(ownerQuery, []string{"successor", "same_database"}, []string{"BOOL", "BOOL"}, [][]any{{false, true}}))
 	})
 }
 

@@ -8,7 +8,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var iumColumns = []string{"authorization_identifier", "foreign_server_catalog", "foreign_server_name"}
 var iumTypes = []string{"NAME", "NAME", "NAME"}
 var iumRoles = []string{"ium_owner", "ium_member", "ium_reader", "ium_usage_member", "ium_set", "ium_mapped", "ium_other", "IUM Mixed Role", "IUM Renamed Role"}
 
@@ -66,14 +65,14 @@ func iumMetadata(t *testing.T, columns []*sql.ColumnType, pg bool) {
 		if pg {
 			scan = reflect.TypeFor[any]()
 		}
-		if c.Name() != iumColumns[i] || c.DatabaseTypeName() != "NAME" || c.ScanType() != scan || length != 0 || lengthOK || precision != 0 || scale != 0 || decimalOK || nullable != !pg || nullableOK != !pg {
+		if c.Name() != fixture.IUMColumns[i] || c.DatabaseTypeName() != "NAME" || c.ScanType() != scan || length != 0 || lengthOK || precision != 0 || scale != 0 || decimalOK || nullable != !pg || nullableOK != !pg {
 			t.Fatalf("column %d name=%s type=%s scan=%v length=%d/%t decimal=%d/%d/%t nullable=%t/%t", i, c.Name(), c.DatabaseTypeName(), c.ScanType(), length, lengthOK, precision, scale, decimalOK, nullable, nullableOK)
 		}
 	}
 }
 
 func iumProjection(pg bool, where string, want [][]any) fixture.Step {
-	s := fixture.Select("SELECT * FROM information_schema.user_mappings WHERE "+where, iumColumns, iumTypes, want)
+	s := fixture.Select("SELECT * FROM information_schema.user_mappings WHERE "+where, fixture.IUMColumns, iumTypes, want)
 	s.Bag = true
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		columns, err := rows.ColumnTypes()

@@ -39,7 +39,7 @@ func TestReferencePGDescriptionSnapshots(t *testing.T) {
 			}
 			run("CREATE TABLE pgd_snapshot(a INT)")
 			run("COMMENT ON TABLE pgd_snapshot IS 'old'")
-			oid := pgDescriptionRelationID(t, p, backend, "pgd_snapshot")
+			oid := fixture.PGDescriptionRelationID(t, p, backend, "pgd_snapshot")
 			query := "SELECT * FROM pg_catalog.pg_description WHERE objoid=$1 AND classoid=1259"
 			stmt, err := backend.DB.PrepareContext(p.Ctx, query)
 			if err != nil {

@@ -10,7 +10,7 @@ import (
 func spCatalogShape(c *spCase) {
 	c.t.Helper()
 	var attributes, declared [][]any
-	for i, name := range spColumns {
+	for i, name := range fixture.SPColumns {
 		domain, typmod := "character_data", int64(-1)
 		var maximum any
 		if i == 2 {
@@ -100,8 +100,8 @@ func TestReferenceInfoSQLPartsShape(t *testing.T) {
 			empties = append(empties, []any{""})
 		}
 		for _, prepared := range []bool{false, true} {
-			spCursor(c, spQuery, spColumns, spRows(), prepared)
-			spCursor(c, spQuery+" WHERE FALSE", spColumns, nil, prepared)
+			spCursor(c, spQuery, fixture.SPColumns, spRows(), prepared)
+			spCursor(c, spQuery+" WHERE FALSE", fixture.SPColumns, nil, prepared)
 			spCursor(c, "SELECT is_verified_by FROM "+spTable, []string{"is_verified_by"}, nulls, prepared)
 			spCursor(c, "SELECT comments FROM "+spTable, []string{"comments"}, empties, prepared)
 		}

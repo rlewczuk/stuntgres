@@ -39,7 +39,7 @@ func TestReferenceCommentInquiryBuiltinRemovalControls(t *testing.T) {
 						check(nil)
 						run(fixture.Exec("COMMENT ON ROLE postgres IS 'shared'", 0))
 						if !backend.PG {
-							text := commentInquiryDump(t, p)
+							text := fixture.CommentInquiryDump(t, p)
 							if !strings.Contains(text, "COMMENT ON SCHEMA \""+tc.name+"\" IS NULL;") {
 								t.Fatal(text)
 							}
@@ -53,7 +53,7 @@ func TestReferenceCommentInquiryBuiltinRemovalControls(t *testing.T) {
 							check(nil)
 							rows, err := db.QueryContext(p.Ctx, "SELECT shobj_description(10,'pg_authid')")
 							commentInquiryRows(t, rows, err, false, false, "shobj_description", []any{"shared"})
-							if commentInquiryDump(t, p) != text {
+							if fixture.CommentInquiryDump(t, p) != text {
 								t.Fatal("noncanonical removal replay")
 							}
 						} else if tc.seed != nil {
@@ -93,10 +93,10 @@ func TestReferenceCommentInquiryControls(t *testing.T) {
 						run(fixture.Exec(q, count))
 					}
 					if !backend.PG {
-						before := commentInquiryDump(t, p)
+						before := fixture.CommentInquiryDump(t, p)
 						err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(before+"COMMENT ON COLUMN t.missing IS 'bad';"))
 						fixture.State(t, err, "42703")
-						if commentInquiryDump(t, p) != before {
+						if fixture.CommentInquiryDump(t, p) != before {
 							t.Fatal("failed replay changed state")
 						}
 						if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
@@ -105,7 +105,7 @@ func TestReferenceCommentInquiryControls(t *testing.T) {
 						if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(before)); err != nil {
 							t.Fatal(err)
 						}
-						if commentInquiryDump(t, p) != before {
+						if fixture.CommentInquiryDump(t, p) != before {
 							t.Fatal("noncanonical comment replay")
 						}
 					} else {

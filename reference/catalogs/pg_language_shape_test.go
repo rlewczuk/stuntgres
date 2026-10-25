@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-var pgLanguageColumns = []string{"oid", "lanname", "lanowner", "lanispl", "lanpltrusted", "lanplcallfoid", "laninline", "lanvalidator", "lanacl"}
 var pgLanguageTypes = []string{"OID", "NAME", "OID", "BOOL", "BOOL", "OID", "OID", "OID", "_ACLITEM"}
 
 const pgLanguageProbe = "SELECT * FROM pg_catalog.pg_language WHERE lanname=$1"
@@ -31,7 +30,7 @@ func pgLanguageScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixtu
 
 func pgLanguageSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 	t.Helper()
-	if len(types) != len(pgLanguageColumns) {
+	if len(types) != len(fixture.PGLanguageColumns) {
 		t.Fatal("language descriptor width", len(types))
 	}
 	for i, typ := range types {
@@ -45,8 +44,8 @@ func pgLanguageSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 		if i == 3 || i == 4 {
 			scan = reflect.TypeFor[bool]()
 		}
-		if typ.Name() != pgLanguageColumns[i] || typ.DatabaseTypeName() != pgLanguageTypes[i] || typ.ScanType() != scan {
-			t.Fatalf("language descriptor %d: %q/%q/%v, want %q/%q/%v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), pgLanguageColumns[i], pgLanguageTypes[i], scan)
+		if typ.Name() != fixture.PGLanguageColumns[i] || typ.DatabaseTypeName() != pgLanguageTypes[i] || typ.ScanType() != scan {
+			t.Fatalf("language descriptor %d: %q/%q/%v, want %q/%q/%v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), fixture.PGLanguageColumns[i], pgLanguageTypes[i], scan)
 		}
 		if nullable, known := typ.Nullable(); known != !pg || nullable != (!pg && i == 8) {
 			t.Fatal("language nullability", i, nullable, known)
@@ -63,7 +62,7 @@ func pgLanguageSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 func pgLanguageMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	columns, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(columns, pgLanguageColumns) {
+	if err != nil || !reflect.DeepEqual(columns, fixture.PGLanguageColumns) {
 		t.Fatal("language columns", columns, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -74,7 +73,7 @@ func pgLanguageMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 }
 
 func pgLanguageStep(b fixture.Backend, query string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(query, pgLanguageColumns, pgLanguageTypes, want, args...)
+	s := fixture.Select(query, fixture.PGLanguageColumns, pgLanguageTypes, want, args...)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgLanguageMetadata(t, rows, b.PG) }
 	return s
 }

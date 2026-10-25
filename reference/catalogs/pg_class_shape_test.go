@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-var pgClassColumns = []string{"oid", "relname", "relnamespace", "reltype", "reloftype", "relowner", "relam", "relfilenode", "reltablespace", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relhasindex", "relisshared", "relpersistence", "relkind", "relnatts", "relchecks", "relhasrules", "relhastriggers", "relhassubclass", "relrowsecurity", "relforcerowsecurity", "relispopulated", "relreplident", "relispartition", "relrewrite", "relfrozenxid", "relminmxid", "relacl", "reloptions", "relpartbound"}
 var pgClassTypes = []string{"OID", "NAME", "OID", "OID", "OID", "OID", "OID", "OID", "OID", "INT4", "FLOAT4", "INT4", "INT4", "OID", "BOOL", "BOOL", "CHAR", "CHAR", "INT2", "INT2", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "CHAR", "BOOL", "OID", "XID", "XID", "_ACLITEM", "_TEXT", "PG_NODE_TREE"}
 
 func pgClassScenario(t *testing.T, f func(*testing.T, *fixture.Pair, fixture.Backend)) {
@@ -52,17 +51,10 @@ func pgClassCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.E
 	fixture.RunStep(t, p.Ctx, db, b.Recorder, s)
 }
 
-func pgClassExec(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, queries ...string) {
-	t.Helper()
-	for _, q := range queries {
-		fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Exec(q, 0))
-	}
-}
-
 func pgClassMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgClassColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGClassColumns) {
 		t.Fatal("34 labels", names, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -70,8 +62,8 @@ func pgClassMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		t.Fatal("34 descriptors", types, err)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgClassColumns[i] || typ.DatabaseTypeName() != pgClassTypes[i] {
-			t.Fatalf("descriptor %d: %s/%s want %s/%s", i+1, typ.Name(), typ.DatabaseTypeName(), pgClassColumns[i], pgClassTypes[i])
+		if typ.Name() != fixture.PGClassColumns[i] || typ.DatabaseTypeName() != pgClassTypes[i] {
+			t.Fatalf("descriptor %d: %s/%s want %s/%s", i+1, typ.Name(), typ.DatabaseTypeName(), fixture.PGClassColumns[i], pgClassTypes[i])
 		}
 		if nullable, known := typ.Nullable(); (!pg && (!known || nullable != (i >= 31))) || (pg && known) {
 			t.Fatal("nullability", i, nullable, known)
@@ -113,7 +105,7 @@ func pgClassMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	if !pg {
 		names[0] = "corrupted"
 		again, err := rows.Columns()
-		if err != nil || !reflect.DeepEqual(again, pgClassColumns) {
+		if err != nil || !reflect.DeepEqual(again, fixture.PGClassColumns) {
 			t.Fatal("detached labels", again, err)
 		}
 	}
@@ -122,7 +114,7 @@ func pgClassMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 func TestReferencePgClassShape(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		for _, q := range []string{"SELECT * FROM pg_catalog.pg_class WHERE FALSE", "SELECT * FROM pg_class WHERE oid=4294967295::oid"} {
-			s := fixture.Select(q, pgClassColumns, pgClassTypes, nil)
+			s := fixture.Select(q, fixture.PGClassColumns, pgClassTypes, nil)
 			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgClassMetadata(t, rows, b.PG) }
 			for _, plain := range []bool{false, true} {
 				s.NonContext = plain
@@ -134,11 +126,11 @@ func TestReferencePgClassShape(t *testing.T) {
 			pgClassCheck(t, p, b, held, s)
 			pgClassCheck(t, p, b, held, s)
 		}
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_shape_heap(id integer)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_shape_heap(id integer)")
 		q := "SELECT relacl,reloptions,relpartbound FROM pg_class WHERE oid='pc18_shape_heap'::regclass::oid"
-		pgClassCheck(t, p, b, b.DB, fixture.Select(q, pgClassColumns[31:], pgClassTypes[31:], [][]any{{nil, nil, nil}}))
+		pgClassCheck(t, p, b, b.DB, fixture.Select(q, fixture.PGClassColumns[31:], pgClassTypes[31:], [][]any{{nil, nil, nil}}))
 		// Fixed-field NULL detection is independent of physical counter values.
-		for _, column := range pgClassColumns[:31] {
+		for _, column := range fixture.PGClassColumns[:31] {
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT "+column+" IS NULL AS absent FROM pg_class WHERE oid='pc18_shape_heap'::regclass::oid", []string{"absent"}, []string{"BOOL"}, [][]any{{false}}))
 		}
 	})

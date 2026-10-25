@@ -14,10 +14,10 @@ import (
 func TestReferencePgClassControls(t *testing.T) {
 	p := fixture.NewScenario(t)
 	seed := p.Backends()[0]
-	pgClassExec(t, p, seed, seed.DB, "CREATE TABLE pc18_ctl_heap(id integer)", "CREATE INDEX pc18_ctl_idx ON pc18_ctl_heap(id)", "CREATE TABLE pc18_ctl_former(id integer)", "CREATE INDEX pc18_ctl_former_idx ON pc18_ctl_former(id)", "DROP INDEX pc18_ctl_former_idx", "CREATE VIEW pc18_ctl_view WITH(security_invoker=false) AS SELECT id FROM pc18_ctl_heap", "CREATE TABLE pc18_ctl_root(id integer) PARTITION BY RANGE(id)", "CREATE TABLE pc18_ctl_leaf PARTITION OF pc18_ctl_root FOR VALUES FROM(0) TO(10)")
+	fixture.PGClassExec(t, p, seed, seed.DB, "CREATE TABLE pc18_ctl_heap(id integer)", "CREATE INDEX pc18_ctl_idx ON pc18_ctl_heap(id)", "CREATE TABLE pc18_ctl_former(id integer)", "CREATE INDEX pc18_ctl_former_idx ON pc18_ctl_former(id)", "DROP INDEX pc18_ctl_former_idx", "CREATE VIEW pc18_ctl_view WITH(security_invoker=false) AS SELECT id FROM pc18_ctl_heap", "CREATE TABLE pc18_ctl_root(id integer) PARTITION BY RANGE(id)", "CREATE TABLE pc18_ctl_leaf PARTITION OF pc18_ctl_root FOR VALUES FROM(0) TO(10)")
 	dump := fixture.ViewDump(t, p)
 	pgClassBackends(t, p, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		q := "SELECT relname,relkind,relhasindex,relhassubclass,reloptions,relpartbound IS NULL AS no_bound FROM pg_class WHERE " + pgTableViewsNames("relname", []string{"pc18_ctl_former", "pc18_ctl_heap", "pc18_ctl_idx", "pc18_ctl_leaf", "pc18_ctl_root", "pc18_ctl_view"}) + " ORDER BY relname"
+		q := "SELECT relname,relkind,relhasindex,relhassubclass,reloptions,relpartbound IS NULL AS no_bound FROM pg_class WHERE " + fixture.PGTableViewsNames("relname", []string{"pc18_ctl_former", "pc18_ctl_heap", "pc18_ctl_idx", "pc18_ctl_leaf", "pc18_ctl_root", "pc18_ctl_view"}) + " ORDER BY relname"
 		want := func(history bool) [][]any {
 			return [][]any{{"pc18_ctl_former", "r", history, false, nil, true}, {"pc18_ctl_heap", "r", true, false, nil, true}, {"pc18_ctl_idx", "i", false, false, nil, true}, {"pc18_ctl_leaf", "r", false, false, nil, false}, {"pc18_ctl_root", "p", false, true, nil, true}, {"pc18_ctl_view", "v", false, false, "{security_invoker=false}", true}}
 		}
@@ -36,11 +36,11 @@ func TestReferencePgClassControls(t *testing.T) {
 			// when the actual native Dump witness above fails. Do not rewrite
 			// emitted Dump SQL or repin its unwanted default-option expansion.
 			t.Run("InstalledOptions", func(t *testing.T) {
-				pgClassExec(t, p, b, b.DB, "CREATE VIEW pc18_ctl_oracle_view WITH(security_invoker=false) AS SELECT id FROM pc18_ctl_heap")
+				fixture.PGClassExec(t, p, b, b.DB, "CREATE VIEW pc18_ctl_oracle_view WITH(security_invoker=false) AS SELECT id FROM pc18_ctl_heap")
 				probe := "SELECT reloptions FROM pg_class WHERE relname='pc18_ctl_oracle_view'"
 				held := fixture.ViewHold(t, p, b, probe)
 				pgClassCheck(t, p, b, held, fixture.Select(probe, []string{"reloptions"}, []string{"_TEXT"}, [][]any{{"{security_invoker=false}"}}))
-				pgClassExec(t, p, b, b.DB, "ALTER VIEW pc18_ctl_oracle_view SET(security_invoker=true)")
+				fixture.PGClassExec(t, p, b, b.DB, "ALTER VIEW pc18_ctl_oracle_view SET(security_invoker=true)")
 				pgClassCheck(t, p, b, held, fixture.Select(probe, []string{"reloptions"}, []string{"_TEXT"}, [][]any{{"{security_invoker=true}"}}))
 			})
 			return
@@ -81,7 +81,7 @@ func TestReferencePgClassControls(t *testing.T) {
 		}
 		check(held, true)
 		owner := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
-		pgClassExec(t, p, b, owner, "CREATE TEMP TABLE pc18_ctl_temp(id integer)", "CREATE INDEX pc18_ctl_tidx ON pc18_ctl_temp(id)", "DROP INDEX pc18_ctl_tidx", "CREATE TEMP TABLE pc18_ctl_tchild() INHERITS(pc18_ctl_temp)", "DROP TABLE pc18_ctl_tchild", "CREATE TEMP VIEW pc18_ctl_tview WITH(security_invoker=false) AS SELECT id FROM pc18_ctl_temp")
+		fixture.PGClassExec(t, p, b, owner, "CREATE TEMP TABLE pc18_ctl_temp(id integer)", "CREATE INDEX pc18_ctl_tidx ON pc18_ctl_temp(id)", "DROP INDEX pc18_ctl_tidx", "CREATE TEMP TABLE pc18_ctl_tchild() INHERITS(pc18_ctl_temp)", "DROP TABLE pc18_ctl_tchild", "CREATE TEMP VIEW pc18_ctl_tview WITH(security_invoker=false) AS SELECT id FROM pc18_ctl_temp")
 		var tempOID int64
 		if err := owner.QueryRowContext(p.Ctx, "SELECT 'pc18_ctl_temp'::regclass::oid").Scan(&tempOID); err != nil {
 			t.Fatal(err)
@@ -92,7 +92,7 @@ func TestReferencePgClassControls(t *testing.T) {
 		}
 		// Unsupported retained dependencies and prepared transactions refuse
 		// replacement atomically, not merely the failed SQL replay path.
-		pgClassExec(t, p, b, owner, "CREATE TABLE pc18_ctl_boundary(id integer)", "CREATE TEMP TABLE pc18_ctl_block() INHERITS(pc18_ctl_boundary)")
+		fixture.PGClassExec(t, p, b, owner, "CREATE TABLE pc18_ctl_boundary(id integer)", "CREATE TEMP TABLE pc18_ctl_block() INHERITS(pc18_ctl_boundary)")
 		for _, control := range []func() error{
 			func() error { return stuntgres.Reset(p.Ctx, p.Native) },
 			func() error { return stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)) },
@@ -101,7 +101,7 @@ func TestReferencePgClassControls(t *testing.T) {
 			check(held, true)
 			temp()
 		}
-		pgClassExec(t, p, b, owner, "DROP TABLE pc18_ctl_block", "BEGIN", "PREPARE TRANSACTION 'pc18_ctl_prepared'")
+		fixture.PGClassExec(t, p, b, owner, "DROP TABLE pc18_ctl_block", "BEGIN", "PREPARE TRANSACTION 'pc18_ctl_prepared'")
 		defer owner.ExecContext(context.Background(), "ROLLBACK PREPARED 'pc18_ctl_prepared'")
 		for _, control := range []func() error{
 			func() error { return stuntgres.Reset(p.Ctx, p.Native) },
@@ -111,7 +111,7 @@ func TestReferencePgClassControls(t *testing.T) {
 			check(held, true)
 			temp()
 		}
-		pgClassExec(t, p, b, owner, "ROLLBACK PREPARED 'pc18_ctl_prepared'")
+		fixture.PGClassExec(t, p, b, owner, "ROLLBACK PREPARED 'pc18_ctl_prepared'")
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}
@@ -134,19 +134,19 @@ func TestReferencePgClassControls(t *testing.T) {
 
 func TestReferencePgClassSmoke(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		s := fixture.Select("SELECT * FROM pg_catalog.pg_class WHERE FALSE", pgClassColumns, pgClassTypes, nil)
+		s := fixture.Select("SELECT * FROM pg_catalog.pg_class WHERE FALSE", fixture.PGClassColumns, pgClassTypes, nil)
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgClassMetadata(t, rows, b.PG) }
 		pgClassCheck(t, p, b, b.DB, s)
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_smoke_heap(id integer CHECK(id>0))", "CREATE INDEX pc18_smoke_idx ON pc18_smoke_heap(id)", "CREATE SEQUENCE pc18_smoke_seq", "CREATE VIEW pc18_smoke_view WITH(security_invoker=false) AS SELECT id FROM pc18_smoke_heap", "CREATE TABLE pc18_smoke_root(id integer) PARTITION BY RANGE(id)", "CREATE TABLE pc18_smoke_leaf PARTITION OF pc18_smoke_root FOR VALUES FROM(0) TO(10)", "GRANT SELECT ON pc18_smoke_heap TO PUBLIC")
-		q := "SELECT relname,relkind,relhasindex,relhassubclass,reloptions,relpartbound IS NULL AS no_bound FROM pg_class WHERE " + pgTableViewsNames("relname", []string{"pc18_smoke_heap", "pc18_smoke_idx", "pc18_smoke_seq", "pc18_smoke_view", "pc18_smoke_root", "pc18_smoke_leaf"}) + " ORDER BY relname"
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_smoke_heap(id integer CHECK(id>0))", "CREATE INDEX pc18_smoke_idx ON pc18_smoke_heap(id)", "CREATE SEQUENCE pc18_smoke_seq", "CREATE VIEW pc18_smoke_view WITH(security_invoker=false) AS SELECT id FROM pc18_smoke_heap", "CREATE TABLE pc18_smoke_root(id integer) PARTITION BY RANGE(id)", "CREATE TABLE pc18_smoke_leaf PARTITION OF pc18_smoke_root FOR VALUES FROM(0) TO(10)", "GRANT SELECT ON pc18_smoke_heap TO PUBLIC")
+		q := "SELECT relname,relkind,relhasindex,relhassubclass,reloptions,relpartbound IS NULL AS no_bound FROM pg_class WHERE " + fixture.PGTableViewsNames("relname", []string{"pc18_smoke_heap", "pc18_smoke_idx", "pc18_smoke_seq", "pc18_smoke_view", "pc18_smoke_root", "pc18_smoke_leaf"}) + " ORDER BY relname"
 		held := fixture.ViewHold(t, p, b, q)
 		want := [][]any{{"pc18_smoke_heap", "r", true, false, nil, true}, {"pc18_smoke_idx", "i", false, false, nil, true}, {"pc18_smoke_leaf", "r", false, false, nil, false}, {"pc18_smoke_root", "p", false, true, nil, true}, {"pc18_smoke_seq", "S", false, false, nil, true}, {"pc18_smoke_view", "v", false, false, "{security_invoker=false}", true}}
 		check := func() {
 			pgClassCheck(t, p, b, held, fixture.Select(q, []string{"relname", "relkind", "relhasindex", "relhassubclass", "reloptions", "no_bound"}, []string{"NAME", "CHAR", "BOOL", "BOOL", "_TEXT", "BOOL"}, want))
 		}
 		check()
-		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relacl FROM pg_class WHERE relname='pc18_smoke_heap'", []string{"relacl"}, []string{"_ACLITEM"}, [][]any{{"{" + pgTableViewsOwner(b) + "=arwdDxtm/" + pgTableViewsOwner(b) + ",=r/" + pgTableViewsOwner(b) + "}"}}))
-		pgClassExec(t, p, b, b.DB, "DROP INDEX pc18_smoke_idx", "ALTER VIEW pc18_smoke_view SET(security_invoker=true)")
+		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relacl FROM pg_class WHERE relname='pc18_smoke_heap'", []string{"relacl"}, []string{"_ACLITEM"}, [][]any{{"{" + fixture.PGTableViewsOwner(b) + "=arwdDxtm/" + fixture.PGTableViewsOwner(b) + ",=r/" + fixture.PGTableViewsOwner(b) + "}"}}))
+		fixture.PGClassExec(t, p, b, b.DB, "DROP INDEX pc18_smoke_idx", "ALTER VIEW pc18_smoke_view SET(security_invoker=true)")
 		want = append(want[:1], want[2:]...)
 		want[len(want)-1][4] = "{security_invoker=true}"
 		check()

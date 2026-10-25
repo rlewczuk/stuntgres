@@ -8,7 +8,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var pgDBRoleSettingColumns = []string{"setdatabase", "setrole", "setconfig"}
 var pgDBRoleSettingTypes = []string{"OID", "OID", "_TEXT"}
 
 func pgDBRoleSettingScenario(t *testing.T, f func(*testing.T, *fixture.Pair, fixture.Backend)) {
@@ -25,7 +24,7 @@ func pgDBRoleSettingMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 		t.Fatalf("three columns: %v", types)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgDBRoleSettingColumns[i] || typ.DatabaseTypeName() != pgDBRoleSettingTypes[i] {
+		if typ.Name() != fixture.PGDBRoleSettingColumns[i] || typ.DatabaseTypeName() != pgDBRoleSettingTypes[i] {
 			t.Fatalf("column %d: %s/%s", i+1, typ.Name(), typ.DatabaseTypeName())
 		}
 		scan := reflect.TypeFor[int64]()
@@ -51,10 +50,10 @@ func pgDBRoleSettingMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 }
 
 func pgDBRoleSettingEmpty(q string, pg bool, args ...any) fixture.Step {
-	s := fixture.Select(q, pgDBRoleSettingColumns, pgDBRoleSettingTypes, nil, args...)
+	s := fixture.Select(q, fixture.PGDBRoleSettingColumns, pgDBRoleSettingTypes, nil, args...)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		names, err := rows.Columns()
-		if err != nil || !reflect.DeepEqual(names, pgDBRoleSettingColumns) {
+		if err != nil || !reflect.DeepEqual(names, fixture.PGDBRoleSettingColumns) {
 			t.Fatal("labels", names, err)
 		}
 		types, err := rows.ColumnTypes()
@@ -65,7 +64,7 @@ func pgDBRoleSettingEmpty(q string, pg bool, args ...any) fixture.Step {
 		if !pg {
 			names[0] = "corrupted"
 			again, err := rows.Columns()
-			if err != nil || !reflect.DeepEqual(again, pgDBRoleSettingColumns) {
+			if err != nil || !reflect.DeepEqual(again, fixture.PGDBRoleSettingColumns) {
 				t.Fatal("owned labels", again, err)
 			}
 		}

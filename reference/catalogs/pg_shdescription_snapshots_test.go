@@ -16,7 +16,7 @@ func TestReferencePGShDescriptionSnapshotsAndViews(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
 			}
 			run("CREATE SCHEMA pgsd_snapshot")
-			id := pgShDescriptionCreateRole(t, p, backend, "pgsd_snapshot_role", "pgsd_snapshot")
+			id := fixture.PGShDescriptionCreateRole(t, p, backend, "pgsd_snapshot_role", "pgsd_snapshot")
 			run("COMMENT ON ROLE pgsd_snapshot_role IS 'old'")
 			query := "SELECT * FROM pg_catalog.pg_shdescription WHERE objoid=$1 AND classoid=1260"
 			stmt, err := backend.DB.PrepareContext(p.Ctx, query)
@@ -108,7 +108,7 @@ func TestReferencePGShDescriptionSnapshotsAndViews(t *testing.T) {
 			run("DROP ROLE pgsd_snapshot_role")
 			pgDescriptionRetainedText(t, beforeDrop, "before drop")
 			checkHeld(nil)
-			newID := pgShDescriptionCreateRole(t, p, backend, "pgsd_snapshot_role", "pgsd_snapshot")
+			newID := fixture.PGShDescriptionCreateRole(t, p, backend, "pgsd_snapshot_role", "pgsd_snapshot")
 			if newID == id {
 				t.Fatal("reused dropped identity")
 			}

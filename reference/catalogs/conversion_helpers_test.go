@@ -41,14 +41,6 @@ func conversionExec(t *testing.T, p *fixture.Pair, b fixture.Backend, queries ..
 	}
 }
 
-func conversionCreate(name string, def bool) string {
-	marker := ""
-	if def {
-		marker = "DEFAULT "
-	}
-	return "CREATE " + marker + "CONVERSION " + name + " FOR 'UTF8' TO 'LATIN1' FROM pg_catalog.utf8_to_iso8859_1"
-}
-
 func conversionDiagnostic(code, message string) fixture.Diagnostic {
 	return fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }

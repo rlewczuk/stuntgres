@@ -45,7 +45,7 @@ func TestReferenceInfoKeyColumnUsageIdentity(t *testing.T) {
 	kcuScenario(t, func(c *kcuCase) {
 		q := `SELECT a.attnum,a.attname,tn.nspname,t.typname,bn.nspname,b.typname,b.oid::bigint,a.attcollation::bigint,a.atttypmod,a.attndims,a.attnotnull,t.typnotnull FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace AND n.nspname='information_schema' AND c.relname='key_column_usage' JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 JOIN pg_type t ON t.oid=a.atttypid JOIN pg_namespace tn ON tn.oid=t.typnamespace JOIN pg_type b ON b.oid=t.typbasetype JOIN pg_namespace bn ON bn.oid=b.typnamespace ORDER BY a.attnum`
 		want := make([][]any, 9)
-		for i, name := range kcuColumns {
+		for i, name := range fixture.KCUColumns {
 			domain, base, oid, collation := "sql_identifier", "name", int64(19), int64(950)
 			if i >= 7 {
 				domain, base, oid, collation = "cardinal_number", "int4", 23, 0

@@ -30,7 +30,7 @@ func TestReferencePGAMShape(t *testing.T) {
 		checks := []fixture.Step{
 			fixture.Select("SELECT oid,relnamespace,reltype,relnatts,relkind,relpersistence,relhasindex,relam FROM pg_class WHERE oid=2601", []string{"oid", "relnamespace", "reltype", "relnatts", "relkind", "relpersistence", "relhasindex", "relam"}, []string{"OID", "OID", "OID", "INT2", "CHAR", "CHAR", "BOOL", "OID"}, [][]any{{int64(2601), int64(11), int64(10015), int64(4), "r", "p", true, int64(2)}}),
 			fixture.Select("SELECT 'pg_catalog.pg_am'::regtype::oid AS rowtype,'pg_catalog.pg_am[]'::regtype::oid AS arraytype", []string{"rowtype", "arraytype"}, []string{"OID", "OID"}, [][]any{{int64(10015), int64(10014)}}),
-			fixture.Select("SELECT * FROM pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_am'", pgTableColumns, pgTableTypes, [][]any{pgTableRow("pg_catalog", "pg_am", pgTableViewsOwner(b), true)}),
+			fixture.Select("SELECT * FROM pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_am'", fixture.PGTableColumns, fixture.PGTableTypes, [][]any{fixture.PGTableRow("pg_catalog", "pg_am", fixture.PGTableViewsOwner(b), true)}),
 			fixture.Select("SELECT viewname FROM pg_views WHERE schemaname='pg_catalog' AND viewname='pg_am'", []string{"viewname"}, []string{"NAME"}, nil),
 		}
 		attrs := [][]any{

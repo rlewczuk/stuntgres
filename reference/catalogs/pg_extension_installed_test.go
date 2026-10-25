@@ -23,7 +23,7 @@ func pgExtensionInstalled(t *testing.T, p *fixture.Pair, b fixture.Backend) int6
 	if oid <= 0 || oid > 4294967295 {
 		t.Fatal("generated extension identity", oid)
 	}
-	s := fixture.Select(pgExtensionProbe, pgExtensionColumns, pgExtensionTypes, [][]any{{oid, "plpgsql", int64(10), int64(11), false, "1.0", nil, nil}}, "plpgsql")
+	s := fixture.Select(pgExtensionProbe, fixture.PGExtensionColumns, pgExtensionTypes, [][]any{{oid, "plpgsql", int64(10), int64(11), false, "1.0", nil, nil}}, "plpgsql")
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgExtensionMetadata(t, rows, true) }
 	pgExtensionBoth(t, p, b, s)
 	return oid

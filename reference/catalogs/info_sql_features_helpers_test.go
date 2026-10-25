@@ -12,7 +12,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-var sfColumns = []string{"feature_id", "feature_name", "sub_feature_id", "sub_feature_name", "is_supported", "is_verified_by", "comments"}
 var sfTypes = []string{"VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR", "VARCHAR"}
 
 const sfTable = "information_schema.sql_features"
@@ -143,14 +142,14 @@ func sfMetadata(t *testing.T, columns []*sql.ColumnType, names []string, pg bool
 }
 
 func (c *sfCase) projection(q string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, sfColumns, sfTypes, want, args...)
+	s := fixture.Select(q, fixture.SFColumns, sfTypes, want, args...)
 	s.Bag = true
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		columns, err := rows.ColumnTypes()
 		if err != nil {
 			t.Fatal(err)
 		}
-		sfMetadata(t, columns, sfColumns, c.b.PG)
+		sfMetadata(t, columns, fixture.SFColumns, c.b.PG)
 	}
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
 		if column == 5 {

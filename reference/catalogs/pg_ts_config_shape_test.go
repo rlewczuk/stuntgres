@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-var pgTSConfigColumns = []string{"oid", "cfgname", "cfgnamespace", "cfgowner", "cfgparser"}
 var pgTSConfigTypes = []string{"OID", "NAME", "OID", "OID", "OID"}
 
 const pgTSConfigAbsent = "ptsc_absent_scenario"
@@ -31,7 +30,7 @@ func pgTSConfigSimple(b fixture.Backend) [][]any {
 
 func pgTSConfigSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 	t.Helper()
-	if len(types) != len(pgTSConfigColumns) {
+	if len(types) != len(fixture.PGTSConfigColumns) {
 		t.Fatal("configuration descriptor width", len(types))
 	}
 	for i, typ := range types {
@@ -42,8 +41,8 @@ func pgTSConfigSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 		if pg {
 			scan = reflect.TypeFor[any]()
 		}
-		if typ.Name() != pgTSConfigColumns[i] || typ.DatabaseTypeName() != pgTSConfigTypes[i] || typ.ScanType() != scan {
-			t.Fatalf("configuration descriptor %d: %q/%q/%v, want %q/%q/%v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), pgTSConfigColumns[i], pgTSConfigTypes[i], scan)
+		if typ.Name() != fixture.PGTSConfigColumns[i] || typ.DatabaseTypeName() != pgTSConfigTypes[i] || typ.ScanType() != scan {
+			t.Fatalf("configuration descriptor %d: %q/%q/%v, want %q/%q/%v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), fixture.PGTSConfigColumns[i], pgTSConfigTypes[i], scan)
 		}
 		if nullable, known := typ.Nullable(); nullable || known != !pg {
 			t.Fatal("configuration nullability", i, nullable, known)
@@ -60,7 +59,7 @@ func pgTSConfigSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 func pgTSConfigMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType {
 	t.Helper()
 	columns, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(columns, pgTSConfigColumns) {
+	if err != nil || !reflect.DeepEqual(columns, fixture.PGTSConfigColumns) {
 		t.Fatal("configuration columns", columns, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -72,7 +71,7 @@ func pgTSConfigMetadata(t *testing.T, rows *sql.Rows, pg bool) []*sql.ColumnType
 }
 
 func pgTSConfigStep(b fixture.Backend, q string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(q, pgTSConfigColumns, pgTSConfigTypes, want, args...)
+	s := fixture.Select(q, fixture.PGTSConfigColumns, pgTSConfigTypes, want, args...)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgTSConfigMetadata(t, rows, b.PG) }
 	return s
 }

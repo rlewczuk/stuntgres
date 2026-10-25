@@ -25,22 +25,22 @@ func TestReferencePGTableViewsControls(t *testing.T) {
 	}
 	query := "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='pgtv_control_schema' ORDER BY tablename"
 	expected := func(history bool) [][]any {
-		return [][]any{pgTableRow("pgtv_control_schema", "pgtv_current", "pgtv_control_owner", true), pgTableRow("pgtv_control_schema", "pgtv_former", "pgtv_control_owner", history), pgTableRow("pgtv_control_schema", "pgtv_never", "pgtv_control_owner", false)}
+		return [][]any{fixture.PGTableRow("pgtv_control_schema", "pgtv_current", "pgtv_control_owner", true), fixture.PGTableRow("pgtv_control_schema", "pgtv_former", "pgtv_control_owner", history), fixture.PGTableRow("pgtv_control_schema", "pgtv_never", "pgtv_control_owner", false)}
 	}
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			check := func(db fixture.Executor, history bool) {
-				fixture.RunStep(t, p.Ctx, db, b.Recorder, pgTableViewSelect(b, query, pgTableColumns, pgTableTypes, expected(history)))
+				fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.PGTableViewSelect(b, query, fixture.PGTableColumns, fixture.PGTableTypes, expected(history)))
 			}
 			data := func(db fixture.Executor) {
 				fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Select("SELECT n FROM pgtv_control_schema.pgtv_control_view", []string{"n"}, []string{"INT4"}, [][]any{{int64(9)}}))
 			}
 			builtin := func(db fixture.Executor) {
 				var expected [][]any
-				for _, name := range pgViewBuiltinNames {
+				for _, name := range fixture.PGViewBuiltinNames {
 					expected = append(expected, []any{name})
 				}
-				fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Select("SELECT viewname FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND "+pgTableViewsNames("viewname", pgViewBuiltinNames)+" ORDER BY viewname", []string{"viewname"}, []string{"NAME"}, expected))
+				fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Select("SELECT viewname FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND "+fixture.PGTableViewsNames("viewname", fixture.PGViewBuiltinNames)+" ORDER BY viewname", []string{"viewname"}, []string{"NAME"}, expected))
 			}
 			if b.PG {
 				conn := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
@@ -86,7 +86,7 @@ func TestReferencePGTableViewsControls(t *testing.T) {
 			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 				t.Fatal(err)
 			}
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTableViewSelect(b, query, pgTableColumns, pgTableTypes, nil))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGTableViewSelect(b, query, fixture.PGTableColumns, fixture.PGTableTypes, nil))
 			builtin(b.DB)
 			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)); err != nil {
 				t.Fatal(err)
@@ -99,7 +99,7 @@ func TestReferencePGTableViewsControls(t *testing.T) {
 			if redump := fixture.ViewDump(t, p); !bytes.Equal(redump, dump) {
 				t.Fatal("logical redump changed", string(dump), string(redump))
 			}
-			pgTableRetained(t, old, types, pgTableRow("pgtv_control_schema", "pgtv_former", "pgtv_control_owner", true))
+			pgTableRetained(t, old, types, fixture.PGTableRow("pgtv_control_schema", "pgtv_former", "pgtv_control_owner", true))
 		})
 	}
 }

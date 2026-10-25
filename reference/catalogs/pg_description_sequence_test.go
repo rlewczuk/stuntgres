@@ -12,7 +12,7 @@ func TestReferencePGDescriptionSequenceTransactions(t *testing.T) {
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("CREATE SEQUENCE pgd_sequence", 0))
-			oid := pgDescriptionRelationID(t, p, backend, "pgd_sequence")
+			oid := fixture.PGDescriptionRelationID(t, p, backend, "pgd_sequence")
 			check := func(executor fixture.Executor, text string) {
 				t.Helper()
 				want := [][]any{}
@@ -81,7 +81,7 @@ func TestReferencePGDescriptionSequenceTransactions(t *testing.T) {
 			temp.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgDescriptionMetadata(t, rows, backend.PG) }
 			fixture.PgDescriptionExecutorRows(t, p, backend, conn, temp)
 			if !backend.PG {
-				text := commentInquiryDump(t, p)
+				text := fixture.CommentInquiryDump(t, p)
 				if strings.Contains(text, "pgd_temp_sequence") {
 					t.Fatal("TEMP comment leaked into Dump", text)
 				}
