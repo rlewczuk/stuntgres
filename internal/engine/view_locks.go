@@ -3,7 +3,6 @@ package engine
 import (
 	"sort"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -96,10 +95,6 @@ func (s *StatementScope) AcquireViewSources(retainProviders bool) (providers []e
 	return providers, nil
 }
 
-func acquireBoundViewRelations(s *StatementScope, refs []ids.ObjectRef) error {
-	return s.acquireBoundViewRelationModes(refs, nil)
-}
-
 func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]lock.Mode) error {
 	e := s.Engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
@@ -153,8 +148,4 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		}
 	}
 	return nil
-}
-
-func acquireViewDefinitionReferences(s *StatementScope, b analyze.Binding) error {
-	return acquireBoundViewRelations(s, view.DefinitionReferences(b, s.LockedRef, s.QuerySources))
 }

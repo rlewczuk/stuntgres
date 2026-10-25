@@ -7,10 +7,6 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-func defaultACLChangeLocked(e *Engine, c *session.Journal, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
-	c.RecordDefaultACL(e.Catalog.State, key, record)
-}
-
 func (e *Engine) CreationACLChangesLocked(c *session.Journal, view catalog.Read, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	return c.ObserveCreationACL(e.Catalog.State, view, owner, schema, class)
 }

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -127,4 +128,8 @@ func stageDefaultPrivilegesLocked(e *Engine, scope *StatementScope, auth Authori
 	scope.CatalogAuthority.ACLRoles = auth.RoleRecord
 	scope.CatalogAuthority.ACLPublishedRoles = publishedRoles
 	return Result{}, nil
+}
+
+func defaultACLChangeLocked(e *Engine, c *session.Journal, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
+	c.RecordDefaultACL(e.Catalog.State, key, record)
 }

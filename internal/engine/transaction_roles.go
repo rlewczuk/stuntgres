@@ -53,15 +53,6 @@ func installOperationRolesLocked(e *Engine, op *session.Operation, next *access.
 	return nil
 }
 
-// Session.mu is held, and all revision checks have reserved rollback capacity.
-func touchOperationIdentityLocked(op *session.Operation) {
-	t := op.Session.Transactions
-	if (t.RetainsTransaction() || t.State == session.TxActive) && !t.IdentityCaptured {
-		t.IdentityEntry = op.Session.Authorization.State
-		t.IdentityCaptured = true
-	}
-}
-
 // Called only at final publication under Engine.mu, with the prepared combined
 // catalog validated against the current committed root. Shared-role retirement
 // must also reject dependencies in the other registered databases.
@@ -224,21 +215,4 @@ func (e *Engine) journalRolePublicationLocked(c *session.Journal, materialize bo
 	published := current.Advance()
 	published.Revision = revision
 	return published, nil
-}
-
-// A selected ACL tail on a private actual-role root is a mixed journal. Reserve
-// its fresh record through the existing allocator, just like actual role
-// installation; ACL-only journals retain their unreserved logical delta.
-// Caller owns Engine.mu and this statement's newly cloned role record.
-func reserveMixedACLRevisionLocked(e *Engine, c *session.Journal) error {
-	if c.Roles.SameAuthority(c.RolesBase) {
-		return nil
-	}
-	revision, err := e.RoleStore.RevisionCandidateLocked()
-	if err != nil {
-		return err
-	}
-	c.Roles.Revision = max(c.Roles.Revision, revision)
-	e.RoleStore.AdvanceRevisionFrontierLocked(c.Roles.Revision)
-	return nil
 }

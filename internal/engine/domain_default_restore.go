@@ -8,22 +8,12 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-// This transport is operation-owned, immutable after construction, and only the
-// exact INSERT's destination binder consumes it. It is never a session setting,
-// generic parameter importer, or expression-binder exception.
-type DomainReplayCapture struct {
-	Statement *parser.Insert
-	Relation  *catalog.Relation
-	Cells     map[int]typedef.DomainReplayLiteral // actual explicit VALUES slot, not raw SQL offsets
-}
 
 // domainReplayEnv reconstructs captured cells for auth under the evaluation
 // context c. Its scalar leaf binds the captured expression as a column default
@@ -151,19 +141,4 @@ func executeDomainReplayInsert(e *Engine, op *session.Operation, s *parser.Inser
 	OperationReplay(op).DomainReplay = capture
 	defer func() { OperationReplay(op).DomainReplay = nil }()
 	return scope.Execute(s, 0, nil)
-}
-
-func capturedDomainReplayCell(b *analyze.Binding, op *session.Operation, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
-	if op == nil || OperationReplayOrZero(op).DomainReplay == nil || OperationReplayOrZero(op).DomainReplay.Statement != s {
-		return nil, false, nil
-	}
-	capture := OperationReplayOrZero(op).DomainReplay
-	literal, ok := capture.Cells[column]
-	if !ok {
-		return nil, false, nil
-	}
-	if row != 0 || capture.Relation != b.Relation || column >= len(b.Targets) || literal.ResultUsage() != b.Relation.Columns[b.Targets[column]].Usage {
-		return nil, true, fmt.Errorf("stuntgres: native domain replay destination changed")
-	}
-	return plan.LiteralExpr{Info: literal.Info, Value: literal.Value}, true, nil
 }

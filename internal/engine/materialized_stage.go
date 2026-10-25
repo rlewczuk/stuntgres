@@ -5,14 +5,6 @@ import (
 	"stuntgres/internal/engine/view"
 )
 
-// materializedStage returns the materialized slot, allocating it on first use.
-func materializedStage(s *CatalogStage) *view.MaterializedStage {
-	if s.MaterializedSlot == nil {
-		s.MaterializedSlot = new(view.MaterializedStage)
-	}
-	return s.MaterializedSlot
-}
-
 // MaterializedOrZero reads the materialized slot; a nil slot reads as zero.
 func (s *CatalogStage) MaterializedOrZero() view.MaterializedStage {
 	if s.MaterializedSlot == nil {
