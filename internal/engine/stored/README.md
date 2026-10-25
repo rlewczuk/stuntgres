@@ -67,7 +67,11 @@ host methods.
 - **Routine recipes.** `RoutineProgram` owns checked SQL-standard actions.
   `RoutineDefaults` owns an immutable input-indexed declaration-default recipe
   and its source-domain/epoch manifest, never evaluated values. Default
-  dependencies are hard even for quoted bodies.
+  dependencies are hard even for quoted bodies. Named composite fields retain
+  their exact stable attribute address and owning relation's captured revision;
+  only descriptor lookup normalizes to the whole owner. Capture honors staged
+  definitions, and validation, rendering and remapping preserve the original
+  provenance and revision while using checked current labels.
   Routine public name/namespace/owner are mutable presentation. Same-address
   declaration checks retain kind, exact signature/result, SQL/default/body and
   provider association. Installed captures validate their real manifest slot

@@ -1,3 +1,8 @@
+Routine declaration defaults now retain exact named-composite and table-row
+attribute dependencies for quoted and SQL-standard bodies. Captured defaults
+preserve their original authority through rename, schema moves and native
+Dump/Reset/Restore, including independent Driver ownership.
+
 Installed amcheck 1.5 provides verify_heapam with ordinary named/default
 arguments, record-set metadata, live EXECUTE authority and native logical
 row/version consistency findings. Logical findings preserve exact row/version

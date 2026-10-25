@@ -658,6 +658,20 @@ func RestrictError(r DropReader, targets []ids.ObjectAddress, edges []table.Doma
 				continue
 			}
 			target := edge.Target
+			// A rowtype field default carries both the named type and its
+			// backing attribute. When DROP retires the whole owning relation,
+			// report that relation rather than whichever edge DFS found first.
+			if routine, ok := r.RetirementDescriptor(edge.Address).(*catalog.Procedure); ok && routine.SQLDefaults != nil {
+				if typ, ok := r.RetirementDescriptor(target).(*catalog.Type); ok && typ.OwningRelation == primary && r.Removed(primary) {
+					for _, dependency := range routine.SQLDefaults.Dependencies() {
+						address := dependency.Ref.Address
+						if address.ClassID == primary.ClassID && address.ObjectID == primary.ObjectID && address.SubID != 0 {
+							target = primary
+							break
+						}
+					}
+				}
+			}
 			if edge.Address.ClassID == 2606 && edge.Relation != nil {
 				for _, f := range edge.Relation.Constraints.ForeignKeys {
 					if f.OID == edge.Address.ObjectID && edge.Root.ClassID == f.Target.ClassID && edge.Root.ObjectID == f.Target.ObjectID {

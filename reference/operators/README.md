@@ -112,6 +112,7 @@ Add `REFERENCE=1` for the oracle.
 - Polymorphic operator selection: `RUN='^TestReferenceUserOperatorPolymorphic'`
 - `regoperator` external boundary: `RUN='^TestReferenceRegOperatorExternalBoundary$'`
 - <a id="routine-parameter-binding"></a>Routine parameter binding: `RUN='^TestReferenceRoutineParameters'`
+- Routine declaration-default attribute capture: `RUN='^TestReferenceRoutineDefaultAttribute'`
 - <a id="cast-definitions"></a>CREATE CAST definitions: `RUN='^TestReferenceCastDefinition'`
 - Declared CAST/typename authority: `RUN='^TestReferenceCastImplementedDeclaredTypeNameAuthority$'`
 - Row-level triggers: `RUN='^TestReferenceTriggerCore'`

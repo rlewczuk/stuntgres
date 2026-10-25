@@ -28,7 +28,10 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 		}
 		binder := analyze.Binder{Host: e.analysisHost(nil)}
 		base := plan.LiteralExpr{Info: expr.Info{Usage: current.Usage()}, Value: sqltype.Null(current)}
-		node := binder.RetainedCompositeField(base, key, capture, parser.Position{})
+		node, err := binder.RetainedCompositeField(base, key, capture, parser.Position{})
+		if err != nil {
+			t.Fatal(err)
+		}
 		literal, ok := node.(plan.LiteralExpr)
 		if !ok || !literal.Value.IsNull() || node.ResultUsage() != original.CompositeMember(1).Usage {
 			t.Fatal("retired field retargeted", node)
@@ -40,7 +43,11 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 	}
 	binder := analyze.Binder{Host: e.analysisHost(nil)}
 	base := plan.LiteralExpr{Info: expr.Info{Usage: original.Usage()}, Value: sqltype.Null(original)}
-	if field, ok := binder.RetainedCompositeField(base, key, capture, parser.Position{}).(plan.FieldExpr); !ok || field.Attribute != source.Attributes[1] {
+	node, err := binder.RetainedCompositeField(base, key, capture, parser.Position{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field, ok := node.(plan.FieldExpr); !ok || field.Attribute != source.Attributes[1] {
 		t.Fatal("live identity lost")
 	}
 }

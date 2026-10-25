@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -166,7 +167,7 @@ func (b *Binder) SelectCompositeField(base expr.Expr, name string, pos parser.Po
 		return nil, err
 	}
 	if found {
-		return b.compositeFieldAt(base, index, pos), nil
+		return b.compositeFieldAt(base, index, pos)
 	}
 	message := fmt.Sprintf("column %q not found in data type %s", name, b.DiagnosticTypeName(typ))
 	if shape.ID() == 2249 {
@@ -177,8 +178,29 @@ func (b *Binder) SelectCompositeField(base expr.Expr, name string, pos parser.Po
 	}
 	return nil, expr.ErrorAt("42703", message, pos)
 }
-func (b *Binder) compositeFieldAt(base expr.Expr, index int, pos parser.Position) expr.Expr {
-	member := base.ResultUsage().Type.BaseType().CompositeMember(index)
+func (b *Binder) compositeFieldAt(base expr.Expr, index int, pos parser.Position) (expr.Expr, error) {
+	shape := base.ResultUsage().Type.BaseType()
+	member := shape.CompositeMember(index)
+	if shape.ID() != 2249 {
+		descriptor, _ := b.definitionDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(shape.ID())})
+		typ, ok := descriptor.(*catalog.Type)
+		if !ok || typ.SQLType != shape || typ.OwningRelation == (ids.ObjectAddress{}) {
+			return nil, fmt.Errorf("stuntgres: invalid composite field type")
+		}
+		descriptor, _ = b.definitionDescriptor(typ.OwningRelation)
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || relation.RowType != shape.ID() {
+			return nil, fmt.Errorf("stuntgres: invalid composite field owner")
+		}
+		slot := relation.IndexForAttribute(member.Attribute)
+		if slot < 0 || relation.Columns[slot].Name != member.Name || relation.Columns[slot].Usage != member.Usage {
+			return nil, fmt.Errorf("stuntgres: invalid composite attribute")
+		}
+		address := relation.Address()
+		address.SubID = member.Attribute
+		read := b.BindingCatalog()
+		b.dependency(read.Owner().Domain.Ref(read.Epoch(), address), relation.Revision())
+	}
 	var field expr.Expr
 	switch row := base.(type) {
 	case plan.RowExpr:
@@ -195,29 +217,29 @@ func (b *Binder) compositeFieldAt(base expr.Expr, index int, pos parser.Position
 		case plan.ReturningColumnExpr:
 			if value.Merge {
 				value.Pos = pos
-				return value
+				return value, nil
 			}
 			if value.Value != nil {
 				value.Old, value.Absent = false, false
 				value.Pos = pos
-				return value
+				return value, nil
 			}
 			column = value.ColumnExpr
 		default:
-			return plan.FieldExpr{Info: b.Info(member.Usage, pos, base.Properties()), Base: base, Attribute: member.Attribute, Index: index}
+			return plan.FieldExpr{Info: b.Info(member.Usage, pos, base.Properties()), Base: base, Attribute: member.Attribute, Index: index}, nil
 		}
 		column.Pos = pos
-		return column
+		return column, nil
 	}
-	return plan.FieldExpr{Info: b.Info(member.Usage, pos, base.Properties()), Base: base, Attribute: member.Attribute, Index: index}
+	return plan.FieldExpr{Info: b.Info(member.Usage, pos, base.Properties()), Base: base, Attribute: member.Attribute, Index: index}, nil
 }
-func (b *Binder) RetainedCompositeField(base expr.Expr, key PreparedTypeKey, captured TypeOccurrence, pos parser.Position) expr.Expr {
+func (b *Binder) RetainedCompositeField(base expr.Expr, key PreparedTypeKey, captured TypeOccurrence, pos parser.Position) (expr.Expr, error) {
 	index, exists := base.ResultUsage().Type.BaseType().CompositeAttributeIndex(captured.Attributes[0])
 	b.Prepared.CaptureComposite(key, captured.Base, captured.Attributes)
 	if !exists {
 		oldIndex, _ := captured.Base.Type.BaseType().CompositeAttributeIndex(captured.Attributes[0])
 		usage := captured.Base.Type.BaseType().CompositeMember(oldIndex).Usage
-		return plan.LiteralExpr{Info: b.Info(usage, pos, expr.Properties{}), Value: sqltype.Null(usage.Type)}
+		return plan.LiteralExpr{Info: b.Info(usage, pos, expr.Properties{}), Value: sqltype.Null(usage.Type)}, nil
 	}
 	return b.compositeFieldAt(base, index, pos)
 }
@@ -237,7 +259,7 @@ func (b *Binder) bindField(raw parser.FieldExpr) (expr.Expr, error) {
 		if captured.Kind == CompositeDotBuiltin {
 			return b.bindDotBuiltin(raw, key)
 		}
-		return b.RetainedCompositeField(base, key, captured, raw.Pos), nil
+		return b.RetainedCompositeField(base, key, captured, raw.Pos)
 	}
 	node, err := b.SelectCompositeField(base, raw.Field.Text, raw.Pos)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42703" || diagnostic.Code == "42809") && functions.NullCountFunctionKind(raw.Field.Text) != 0 {
@@ -297,7 +319,10 @@ func (b *Binder) ExpandComposite(raw parser.FieldExpr) (plan.CompositeExpansionB
 		} else {
 			result.Names[i] = shape.CompositeMember(index).Name
 		}
-		result.Fields[i] = b.compositeFieldAt(base, index, raw.Pos)
+		result.Fields[i], err = b.compositeFieldAt(base, index, raw.Pos)
+		if err != nil {
+			return plan.CompositeExpansionBinding{}, err
+		}
 		if row, ok := base.(plan.RowExpr); ok && row.WholeNames != nil {
 			result.Names[i] = row.WholeNames[index]
 		}
@@ -562,7 +587,7 @@ func (b *Binder) BindFunction(raw parser.FunctionExpr) (result expr.Expr, failur
 	}
 	shape := base.ResultUsage().Type.BaseType()
 	if retained {
-		return b.RetainedCompositeField(base, key, captured, raw.Pos), nil
+		return b.RetainedCompositeField(base, key, captured, raw.Pos)
 	}
 	index, found, failure := compositeFieldIndex(base, raw.Name.Parts[0].Text, raw.Pos)
 	if failure != nil {
@@ -571,7 +596,7 @@ func (b *Binder) BindFunction(raw parser.FunctionExpr) (result expr.Expr, failur
 	if found {
 		member := shape.CompositeMember(index)
 		b.Prepared.CaptureComposite(key, base.ResultUsage(), []int32{member.Attribute})
-		return b.compositeFieldAt(base, index, raw.Pos), nil
+		return b.compositeFieldAt(base, index, raw.Pos)
 	}
 	return nil, err
 }

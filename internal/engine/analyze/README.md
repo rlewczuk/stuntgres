@@ -164,6 +164,10 @@ library, and never the root engine or `session`. The engine, the root driver
   never Go argument kinds. Analyzed trees and their dependencies are immutable;
   conditional planning keeps every analyzed dependency and authorization even
   when execution removes a branch.
+  Named composite field selection captures the exact stable backing attribute
+  and owning revision through the coherent definition reader. Fresh, retained
+  and expanded live fields validate the same type/relation/member ownership;
+  retired retained fields keep their existing typed-NULL behavior.
 - **Frozen syntax keys.** Every capture writer and reader keys an occurrence by
   the node's own `Pos` (a postfix cast's `::`), never `SourcePosition`.
 - **Column visibility.** Every row consumer installs its namespace explicitly.

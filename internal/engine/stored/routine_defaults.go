@@ -37,9 +37,17 @@ func routineDefaultsWithChecks(ctx context.Context, view catalog.Read, reader ca
 			return nil, err
 		}
 		for _, ref := range refs {
-			d, ok := catalog.DescriptorAt(view, reader, ref.Address)
+			owner := ref.Address
+			owner.SubID = 0
+			d, ok := catalog.DescriptorAt(view, reader, owner)
 			if !ok {
 				return nil, fmt.Errorf("missing routine default dependency")
+			}
+			if ref.Address.SubID != 0 {
+				relation, ok := d.(*catalog.Relation)
+				if !ok || !relation.HasAttribute(ref.Address.SubID) {
+					return nil, fmt.Errorf("missing routine default dependency attribute")
+				}
 			}
 			revision := d.Revision()
 			for _, check := range checks {
@@ -66,6 +74,9 @@ func (p *RoutineDefaults) DefaultSQL(ctx context.Context, view catalog.Read, slo
 	if !ok {
 		return "", fmt.Errorf("missing routine declaration default")
 	}
+	if err := p.Validate(view); err != nil {
+		return "", err
+	}
 	return (ScalarRenderer{RoutineDefault: true, CapturedChecks: p.dependencies}).SQL(ctx, view, node)
 }
 func (p *RoutineDefaults) ValidateDefinition(d *catalog.Procedure) error {
@@ -87,17 +98,17 @@ func (p *RoutineDefaults) Validate(view catalog.Read) error {
 	if view.Owner() == nil || p.domain != view.Owner().Domain || p.epoch != view.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
+	for _, dependency := range p.dependencies {
+		if dependency.Ref.Domain() != view.Owner().Domain || dependency.Ref.Epoch != view.Epoch() {
+			return ids.ErrCatalogReplaced
+		}
+	}
 	next, err := routineDefaultsWithChecks(context.Background(), view, nil, p.entries, p.dependencies)
 	if err != nil {
 		return err
 	}
 	if !slices.Equal(next.dependencies, p.dependencies) {
 		return fmt.Errorf("foreign routine default capture")
-	}
-	for _, dependency := range p.dependencies {
-		if dependency.Ref.Domain() != view.Owner().Domain || dependency.Ref.Epoch != view.Epoch() {
-			return ids.ErrCatalogReplaced
-		}
 	}
 	return nil
 }
