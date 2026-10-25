@@ -4,7 +4,8 @@ The root is the composition layer ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SP
 §3, L17): the engine constructors, the family statement dispatch behind
 [`core`](core/README.md)'s `Statements` hook, the engine factory, `Reset`,
 `Dump` and `Restore` with the Restore hooks, and, until each moves to its
-`*cmds` package, the family statement code and its hosts. Runtime state,
+`*cmds` package, the family statement code and its hosts; table statements
+are [`tablecmds`](tablecmds/README.md)'s. Runtime state,
 admission, publication and the transaction lifecycle are core's. No package
 imports the root except tests and `enginetest`.
 
@@ -18,16 +19,13 @@ implements `Execute` and `ExecuteLocked` in the historical case order, and
 and `Restore(ctx, e, src)` (`control.go`) are composition functions over a
 `*core.Engine`.
 
-Family statement code (tables, indexes, partitions, inheritance, sequences,
-identity, VACUUM, types, views, rules, policies, triggers, roles, schema
-objects, routines, extensions and FDW) is written as receiver-first functions
-over core types (`alterTableLocked(e, scope, ...)`, `tableStage(stage)`,
-`executeSchema(e, ...)`), so that it can leave with its family; it names only
-exported core members. A root file holds one family's declarations and nothing
-else. `Engine` (`inheritance_alter_admission.go`) is a root defined type over
-`core.Engine` that carries only `admitInheritanceAlter`, whose
-`(*Engine).admitInheritanceAlter(` frame a read-only reference cancellation
-fixture matches.
+Family statement code still in the root (indexes, partitions, inheritance
+Restore, sequences, identity, VACUUM, types, views, rules, policies, triggers,
+roles, schema objects, routines, extensions and FDW) is written as
+receiver-first functions over core types (`attachPartitionLocked(e, scope,
+...)`, `typedStage(stage)`, `executeSchema(e, ...)`), so that it can leave
+with its family; it names only exported core and `tablecmds` members. A root
+file holds one family's declarations and nothing else.
 
 Trigger definitions and lifecycle utilities publish immutable relation payloads
 through the ordinary catalog stage and transaction journal. Definitions,
@@ -50,16 +48,15 @@ rename/drop utilities.
 
 Each family host embeds core's `DDLHost` with its `{E, Op, CatalogStage}`
 layout and is built by family code; each carries a compile-time assertion.
+`TableHost` and `AlterHost` are [`tablecmds`](tablecmds/README.md#hosts)'s.
 
 | Root type | Implements |
 | --- | --- |
-| `TableHost` (`table_host.go`, `index_host.go`, `partition_host.go`, `fdw_host.go`) | `table.Host`, `index.Host`, `partition.Host`, `fdw.Host` |
-| `TypeHost` (over `TableHost`; `typedef_host.go`) | `typedef.StageHost` |
-| `ViewHost` (over `TableHost`; `view_host.go`, `policy_expression.go`) | `view.Host`, `view.StageHost` |
+| `TypeHost` (over `tablecmds.TableHost`; `typedef_host.go`) | `typedef.StageHost` |
+| `ViewHost` (over `tablecmds.TableHost`; `view_host.go`, `policy_expression.go`) | `view.Host`, `view.StageHost` |
 | `RoutineHost` (`routine_host.go`, `operator_family_host.go`) | `routine.DDLHost`, `index.FamilyDDLHost` |
 | `RoleHost` (`role_host.go`) | `role.Host`, `role.StageHost` |
 | `SchemaHost` (`schema_host.go`) | `ddl.SchemaHost` |
-| `alterHost` (over `TableHost`) | `table.AlterHost` |
 | `extensionHost` (`extension_host.go`) | `extension.Host`, `extension.Stage` |
 | `restoreHost` (`restore_run.go`) | `control.Host` |
 

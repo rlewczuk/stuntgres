@@ -110,10 +110,10 @@ and none waits on the lock manager. The package adds no mutex.
   (`DDLAuthorityOf` recovers it and panics on another kind). The core staging
   adapter is `DDLHost` (engine, operation, catalog stage; `ddl_host.go`): the
   `Host` methods, the methods core paths call and those unrelated family
-  hosts share. The family hosts embed it and keep its layout: `TableHost`
-  (`table.Host`, `index.Host`, `partition.Host`, `fdw.Host`), `TypeHost` and
-  `ViewHost` over `TableHost`, `RoutineHost`, `RoleHost` and `SchemaHost`
-  (`SchemaHost` in `schema_host.go`). `extensionHost` (`extension_host.go`)
+  hosts share. The family hosts embed it and keep its layout:
+  `tablecmds.TableHost` (`table.Host`, `index.Host`, `partition.Host`,
+  `fdw.Host`), `TypeHost` and `ViewHost` over `TableHost`, `RoutineHost`,
+  `RoleHost` and `SchemaHost` (`SchemaHost` in `schema_host.go`). `extensionHost` (`extension_host.go`)
   stays separate: it captures one view and implements `extension.Host` and
   `extension.Stage`. No adapter is a defined type over `CatalogStage`, so its
   unchecked `Create`/`Replace` are never promoted.

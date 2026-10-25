@@ -173,7 +173,7 @@ The stage handlers run under `Engine.Mu` without a statement scope and reach the
 engine only through `StageHost` (`stage_host.go`), which embeds
 [`ddl.Host`](../ddl/README.md) and `ddl.TypeStaging` and adds the type methods.
 The engine implements it on `TypeHost` (`typedef_host.go`), which embeds
-`TableHost` for the type staging and row-type methods it shares with tables.
+`tablecmds.TableHost` for the type staging and row-type methods it shares with tables.
 `BindDomainNotNull` takes only `ddl.Host`, so the engine's domain-check
 binding passes the core `DDLHost`.
 

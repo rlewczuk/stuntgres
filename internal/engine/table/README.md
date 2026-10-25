@@ -150,15 +150,15 @@ PARTITION OF children, ADD IDENTITY and FOREIGN KEY staging: `index.Host` (and
 through it `ddl.Host`), `ddl.TypeStaging`, type and collation resolution, the
 table and sequence stage slots, relation resolution, the binders
 `BindColumnDefaults`, `BindGenerations`, `BindCheckExpression`,
-`OperationDefinition` and `LiveEpoch`. The root `TableHost` (`table_host.go`)
-implements it; `TypedResolver` is the part core calls, on `DDLHost`. `Resolver` and `RestoreResolver` are its stage-less parts.
+`OperationDefinition` and `LiveEpoch`. The `TableHost` of
+[`tablecmds`](../tablecmds/README.md) (`table_host.go`) implements it; `TypedResolver` is the part core calls, on `DDLHost`. `Resolver` and `RestoreResolver` are its stage-less parts.
 
 `AlterHost` adds one ALTER statement's bindings: the live `Input` (captures
 mutate it, so read it again before each binding), snapshot captures, the
 binders `BindDefault`, `BindGeneration`, `RebindCheck`, `BindAlterTypeUsing`,
-`TypeChangeDependents` and `StageIdentitySequenceOptions`. The root
-`alterHost{TableHost; scope}` (`alter_host.go`) implements it, one per call,
-because the ALTER loop begins its stage lazily.
+`TypeChangeDependents` and `StageIdentitySequenceOptions`.
+`tablecmds.AlterHost{TableHost; Scope}` (`alter_host.go`) implements it, one
+per call, because the ALTER loop begins its stage lazily.
 
 **Every `Host` and `AlterHost` method runs with `Engine.Mu` held, never takes or
 releases it, and never waits.** The authority is an opaque `ddl.Authority`, so
@@ -195,11 +195,12 @@ ALTER stage.
 
 ## What stays in the engine
 
-Orchestration: `createTableLocked`, `dropTableLocked`, `alterTableLocked` with
-its pass loop, the lazy stage (`authorizedStage`), the stage-to-journal merge
-(`mergeStageJournalLocked`) and the IF EXISTS no-op
-(`skipMissingRelationLocked`), and the other statement handlers; the wrappers that take
-`Engine.Mu` across a `table` call and build the host; the row evaluation
+Orchestration ([`tablecmds`](../tablecmds/README.md)): `CreateTableLocked`,
+`DropTableLocked`, `AlterTableLocked` with its pass loop, the lazy stage
+(`authorizedStage`), the stage-to-journal merge (`mergeStageJournalLocked`)
+and the IF EXISTS no-op (`SkipMissingRelationLocked`), and the other statement
+handlers; the wrappers that take `Engine.Mu` across a `table` call and build
+the host; the row evaluation
 template; lock admission and post-wait checks (`acquireDefinitionProviders`,
 `admitInheritanceAlter`, `acquireRelationTarget` around `AdmitTarget`, ...);
 identity sequence waits; the prepare host and prepared-drop consumers; the
@@ -208,7 +209,7 @@ admission and the `consumePreparedDrop` replay into the stage, and the lock
 waits and projection of `ExpressionDependencies`); Finish;
 VACUUM's lock loop, `Engine.Mu` windows, retry, install and progress map;
 the binder bodies; and the Restore hook bodies (authorization, the `Engine.Mu`
-window, trust checks, `publishRestoreRepairLocked`, `restore_replay.go`).
+window, trust checks, `PublishRestoreRepairLocked`, `restore_replay.go`).
 
 Permanent CREATE/DROP and the shipped ALTER forms consume the owner's private
 catalog/storage and the ordinary journal. The engine claims actual destination

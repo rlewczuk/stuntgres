@@ -77,7 +77,7 @@ builds a binder.
 staging for one statement: `ddl.Host` plus object removal, diagnostics, the
 stage and its index slot, `ACLOutput`, `DefinitionReader`, `ValidityTarget` and
 the binders `BindIndexExpression`/`BindIndexPredicate` (the engine builds
-binders; this package never does). The engine's `TableHost` (`index_host.go`)
+binders; this package never does). `tablecmds.TableHost` (`index_host.go`)
 implements it. **Every method runs with `Engine.Mu` held, never takes or
 releases it, and never waits.** Narrower contracts:
 

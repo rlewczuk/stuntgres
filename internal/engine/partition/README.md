@@ -47,9 +47,9 @@ it. It never builds a binder.
 The package holds no engine state and no mutex; the root owns `Engine.Mu`, lock
 waits and publication.
 
-- `Host` is `table.Host` plus `BindKeyExpression`, implemented by the root
-  `TableHost`. Every method runs with `Engine.Mu` held, never takes or releases
-  it and never waits.
+- `Host` is `table.Host` plus `BindKeyExpression`, implemented by
+  `tablecmds.TableHost`. Every method runs with `Engine.Mu` held, never takes
+  or releases it and never waits.
 - `BoundBinder` is self-locking: callers hold nothing, it takes `Engine.Mu` for
   one window, and bound evaluation follows unlocked.
 - Under `Engine.Mu`: `RejectForeignKeys`, `StageCreate`, `BindKeys`,
@@ -84,12 +84,13 @@ provider, identity, collation or probe contracts keep the branch possible.
 ## What stays in the engine
 
 Orchestration and everything that holds `Engine`, `StatementScope` or
-`CatalogStage`: `schemaPartitionTableLocked`, `pendingPartitionDefinition`
-(checks in diagnostic order), `attachPartitionLocked`, `detachPartitionLocked`,
-lock admission (`partition_locks.go`), authorization and Restore trust checks
-(`partition*ReplayAllowed`), the Restore executors, storage-read fences and
-shared DML routing capture. `partition_host.go` holds `TableHost.BindKeyExpression`
-and the `partitionBoundBinder` adapter; `partition_info_runtime.go` holds the
+`CatalogStage`: `schemaPartitionTableLocked` and `PendingPartitionDefinition`
+(checks in diagnostic order; both in `tablecmds`), `attachPartitionLocked`,
+`detachPartitionLocked`, lock admission (`partition_locks.go`), authorization
+and Restore trust checks (`partition*ReplayAllowed`), the Restore executors,
+storage-read fences and shared DML routing capture. `partition_host.go` in
+`tablecmds` holds `TableHost.BindKeyExpression` and the `PartitionBoundBinder`
+adapter; `partition_info_runtime.go` holds the
 `statementHost` inquiry methods, which check the retained catalog's owner.
 
 ## Invariants

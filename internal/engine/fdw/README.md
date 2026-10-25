@@ -73,7 +73,7 @@ driver import it.
 - **DDL decisions** (`host.go`, `stage.go`, `stage_drop.go`, `handler.go`,
   `grant.go`, `import.go`, `table_stage.go`, `table_alter.go`). `Host` is
   `table.Host` (and through it `ddl.Host` and `AddDomainBase`) plus
-  `RemoveObject` and the utility `ResolveRelation`; the engine's `TableHost`
+  `RemoveObject` and the utility `ResolveRelation`; `tablecmds.TableHost`
   implements it.
   - `StageDDL` stages CREATE, ALTER and DROP of wrappers, servers and user
     mappings in this order: actor, owner operand, wrapper superuser gate, the

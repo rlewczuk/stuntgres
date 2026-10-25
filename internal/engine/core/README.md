@@ -194,7 +194,8 @@ the head and live listener roots; none is serialized.
 
 Each implementation carries a compile-time assertion; core code names
 subpackage types directly (no aliases). Family hosts embed `DDLHost` and live
-with their family ([root README](../README.md#family-hosts)).
+with their family ([`tablecmds`](../tablecmds/README.md#hosts), [root
+README](../README.md#family-hosts)).
 
 | Core type | Implements |
 | --- | --- |
