@@ -225,8 +225,8 @@ these roles to the actual destination descriptors, never a same-named loose type
 - **Lock contract.** The engine calls `StageCreate`, `StageUpdate`,
   `DropTargets`, `ImportOwners`, `AuthorityObservation.Current`,
   `Installer.Stage`, the update actions and `StagePath` with `Engine.Mu` held,
-  and its `Host` and `Stage` implementation (`extensionHost`) runs under that
-  lock too; nothing here may call anything that takes it. Provider validation
+  and its `Host` and `Stage` implementation (`schemacmds`' `extensionHost`)
+  runs under that lock too; nothing here may call anything that takes it. Provider validation
   (`ValidateExtension`) runs later, outside the lock. Allocation and check order
   are part of the output: installed OIDs, revisions and the first error must
   not change.
@@ -244,18 +244,19 @@ these roles to the actual destination descriptors, never a same-named loose type
 
 ## What stays in the engine
 
-The `extension.Host` and `extension.Stage` adapter `extensionHost`
-(`extension_host.go`, with `stageOf`, which gives the root its `CatalogStage`
-back); the closed-registry check of `registerExtension` and the startup list in
-`engine.go`; the snapshot check of `statementHost.OpenExtensionPaths`; the
+[`schemacmds`](../schemacmds/README.md#extensions) holds the `extension.Host`
+and `extension.Stage` adapter `extensionHost` (`extension_host.go`, with
+`stageOf`, which gives the executors their `CatalogStage` back) and the
 orchestration of the handlers (`extension_install.go`, `extension_update.go`,
 `extension_drop.go`, `extension_owner_import.go`): argument count, `Engine.Mu`,
 authorization capture, publication (`publishExtensionStage`), DROP's removal
 pipeline and its multi-target 2BP01 text and cascade notice, and the owner
-import's authority check, clone, expression reown and publish; the fence wrapper
-`extensionAuthorityFence`; `namespaceChildren` and `database_grant.go`; the
-installed expression wrappers and the `pg_extension_update_paths` node, which
-belong with `plan`; the intagg binder and view recipe methods.
+import's authority check, clone, expression reown and publish; and the fence
+wrapper `extensionAuthorityFence`. Core keeps the closed-registry check of
+`registerExtension` and the startup list in `engine.go`; the snapshot check of
+`statementHost.OpenExtensionPaths`; the installed expression wrappers and the
+`pg_extension_update_paths` node, which belong with `plan`; the intagg binder
+and view recipe methods.
 
 ## Testing
 
@@ -263,7 +264,7 @@ belong with `plan`; the intagg binder and view recipe methods.
 allocated; duplicate, nil, versionless or badly named registrations rejected
 with the registry unchanged). Every other witness needs an engine that installs
 the extension, so provider identity, conflicts, forged manifests and owner import
-are engine units. Public SQL lives in
+are engine units in `internal/engine/schemacmds`. Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing) (extension
 DDL and catalogs),
 [reference/extension_types](../../../reference/extension_types/README.md#testing)

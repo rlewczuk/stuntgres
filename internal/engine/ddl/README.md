@@ -82,7 +82,7 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   attribute, then PostgreSQL's plugin prefix/suffix restriction and
   slash-containing filename macro validation; once valid it returns 0A000
   (`LoadUnsupported`). It never expands paths, inspects files, stages objects
-  or allocates catalog identities. The engine's `executeLoad` owns the
+  or allocates catalog identities. `schemacmds.ExecuteLoad` owns the
   argument count, the mutex and fresh authority capture; Prepare performs none
   of these execution checks.
 - **CREATE DATABASE** (`database.go`): `ParseCreateDatabaseOptions` checks
@@ -112,31 +112,32 @@ and none waits on the lock manager. The package adds no mutex.
   `Host` methods, the methods core paths call and those unrelated family
   hosts share. The family hosts embed it and keep its layout:
   `tablecmds.TableHost` (`table.Host`, `index.Host`, `partition.Host`,
-  `fdw.Host`), `TypeHost` and `ViewHost` over `TableHost`, `RoutineHost`,
-  `rolecmds.RoleHost` and `SchemaHost` (`SchemaHost` in `schema_host.go`). `extensionHost` (`extension_host.go`)
-  stays separate: it captures one view and implements `extension.Host` and
-  `extension.Stage`. No adapter is a defined type over `CatalogStage`, so its
+  `fdw.Host`), `TypeHost` and `ViewHost` over `TableHost`,
+  `schemacmds.RoutineHost`, `rolecmds.RoleHost` and `schemacmds.SchemaHost`.
+  The `schemacmds` extension host (`extension_host.go`) stays separate: it
+  captures one view and implements `extension.Host` and `extension.Stage`. No adapter is a defined type over `CatalogStage`, so its
   unchecked `Create`/`Replace` are never promoted.
 - **Adding a feature host:** embed `Host` and declare no `Authority` or
-  `Stage` of your own. In the root, put the methods on the family host its
-  callers build, embedding `DDLHost` or another family host so that Go
+  `Stage` of your own. In the family package, put the methods on the family
+  host its callers build, embedding `DDLHost` or another family host so that Go
   promotes the shared methods. A method belongs on `DDLHost` only when core
   calls it or unrelated family hosts share it. Never copy a shared method
   body.
 
 ## What stays in the engine
 
-`Engine.Mu`, authority capture, stage begin and publication, and the schema
-statement dispatch (`schema.go`): `executeSchema` (partition 0A000
-pre-checks, locks, publication and the cascade notice), `stageSchemaLocked`
-(capture, the early actor read that gates every staged statement, one call
-per statement), `schemaTableLocked` (a forwarder to `table.StageCreateTable`),
-`stageSchemaDomainsLocked` and `relationDiagnosticName`.
+`Engine.Mu`, authority capture, stage begin and publication are core's. The
+schema statement executors are [`schemacmds`](../schemacmds/README.md)'s
+(`schema.go`): `ExecuteSchema` (partition 0A000 pre-checks, locks,
+publication and the cascade notice), `StageSchemaLocked` (capture, the early
+actor read that gates every staged statement, one call per statement),
+`stageSchemaDomainsLocked` and, in `tablecmds`, `SchemaTableLocked` (a
+forwarder to `table.StageCreateTable`).
 The engine owns transaction admission, namespace existence/removal locks and
 exact staged destination-name claims. It publishes schema/table/dependency
 candidates through the ordinary journal, with no separate schema undo path.
-`executeCreateTablespace` keeps the argument count
-check, the lock and the authority capture; `alterAllTablespaceLocked` keeps
+`schemacmds.ExecuteCreateTablespace` keeps the argument count
+check, the lock and the authority capture; `AlterAllTablespaceLocked` keeps
 the argument count check and the deferred `Engine.Mu` unlock, and
 `statementHost.TablespaceLocation`/`TablespaceDatabase` keep the retained
 snapshot and owner check and emit the returned warning.

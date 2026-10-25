@@ -147,7 +147,7 @@ OWNER executors and `ExecuteOwned` (the stage, lock waits,
 `StageOwnedCleanup`, the scope dependents, publication and the cascade
 notice), with the host adapter `RoleHost`. `stageCommentLocked` (the
 locked-relation check, capture, the private role record installation or
-object stage) stays with the schema statements in the root.
+object stage) is [`schemacmds`](../schemacmds/README.md)'.
 
 Generic table/type/domain/database OWNER, feature-specific view/materialized OWNER
 and REASSIGN/DROP OWNED use `session.TransactionalSchemaUtility` for the shared

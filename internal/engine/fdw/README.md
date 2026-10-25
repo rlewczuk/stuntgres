@@ -152,20 +152,24 @@ provider's own async capability policy; Dump/Restore never starts requests.
 
 ## What stays in the engine
 
-The DDL orchestration, because it holds `Engine.Mu`, begins and discards
-stages, releases `replacementMu` before callbacks and publishes:
+The DDL orchestration is [`schemacmds`](../schemacmds/README.md)'s, because it
+holds `Engine.Mu`, begins and discards stages, releases `replacementMu` before
+callbacks and publishes:
 
-- `executeForeignDDL` (DROP dependents, validations, publication) and
+- `ExecuteForeignDDL` (DROP dependents, validations, publication) and
   `stageForeignLocked` (a wrapper over `StageDDL` on `TableHost`);
 - `executeForeignImport` (the importer callback, the per-table relock,
   re-authorization and epoch check, provider acquisition);
-- `executeForeignGrant` (the journal clone, emitting the warnings and
-  `catalogChangeLocked` per change);
+- `ExecuteForeignGrant` (the journal clone, emitting the warnings and
+  `CatalogChangeLocked` per change);
 - `executeForeignTableAlter` (the OWNER, RENAME and SET SCHEMA routes to the
   shared relation executors, the stage, the phased action loop with its
-  context checks and lock windows, the table candidates through the engine's
-  ALTER wrappers, DROP COLUMN, whose candidate waits on locks, the CHECK
-  capture and rebind, OIDs, validations and publication);
+  context checks and lock windows, the table candidates through the
+  `tablecmds` ALTER candidates, DROP COLUMN, whose candidate waits on locks,
+  the CHECK capture and rebind, OIDs, validations and publication).
+
+Core keeps:
+
 - `InstallForeignDefinitions` and `RegistrationError`;
 - scan capture (`captureForeignSourceLocked`) and participant enlistment
   (`enlistForeign`, `TouchForeignScan`), which need the statement scope:
@@ -186,10 +190,10 @@ captures under `Engine.Mu` and the participant admission around
 `^TestFDW` runs this package's units (modify identity, option transforms,
 definition validation, IMPORT selection, ALTER candidates, participant
 handshake and statement end, TRUNCATE grouping) and the engine's FDW units,
-which need an `Engine`: `TestFDWStageTable` lives in
-`internal/engine/schemacmds`, the parallel foreign scan units
-(`TestFDWParallel*`) in `internal/engine/core`, and the other `fdw_*_test.go`
-and `transaction_extension_test.go` in `internal/engine`. Add
+which need an `Engine`: `TestFDWStageTable` and `TestFDWLateDependency*` live
+in `internal/engine/schemacmds`, and the parallel foreign scan units
+(`TestFDWParallel*`) and `transaction_extension_test.go` in
+`internal/engine/core`. Add
 `RACE=1` for the participant tests.
 
 ```sh

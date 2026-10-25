@@ -6,9 +6,8 @@ admission, lock waits, `CatalogStage`, publication and replacement, the
 transaction lifecycle, sessions and TEMP, the hosts and binder construction,
 protocol, prepared SQL, cursors, the bound DML and query path and the
 procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
-L15). It imports the layered subpackages and never the root or a family; family
-statement executors (in the root until their `*cmds` package exists) call its
-exported API.
+L15). It imports the layered subpackages and never the root or a family; the
+family statement executors (the `*cmds` packages) call its exported API.
 
 ## Hooks
 
@@ -184,8 +183,7 @@ the head and live listener roots; none is serialized.
 
 Each implementation carries a compile-time assertion; core code names
 subpackage types directly (no aliases). Family hosts embed `DDLHost` and live
-with their family ([`tablecmds`](../tablecmds/README.md#hosts), [root
-README](../README.md#family-hosts)).
+with their family ([root README](../README.md#hosts)).
 
 | Core type | Implements |
 | --- | --- |
@@ -204,8 +202,8 @@ embeds it, keeps its `{E, Op, CatalogStage}` layout and is built by family
 code. A statement or stage slot that one family owns is opaque:
 `StatementScope.DropsSlot` is a `StatementSlot` (core only clones it for
 PL/pgSQL exception checkpoints; `dropScopeOf` recovers the `DropScope`), and
-`CatalogStage.ExtensionSlot` holds the `extensionHost` that began the stage
-(`extensionNamespaceOf`).
+`CatalogStage.ExtensionSlot` holds the `schemacmds` extension host that began
+the stage (`extensionNamespaceOf`).
 
 `statementHost.VerifyHeapam` supplies the distinct heap-verification runtime.
 It resolves exact regclass authority, borrows and releases only its added

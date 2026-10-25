@@ -3,19 +3,21 @@
 The root is the composition layer ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SPLIT.md)
 §3, L17): the engine constructors, the family statement dispatch behind
 [`core`](core/README.md)'s `Statements` hook, the engine factory, `Reset`,
-`Dump` and `Restore` with the Restore hooks, and, until each moves to its
-`*cmds` package, the family statement code and its hosts; table, sequence,
-identity and VACUUM statements are [`tablecmds`](tablecmds/README.md)'s,
-index statements [`indexcmds`](indexcmds/README.md)'s, ATTACH and DETACH
-PARTITION with the partition and inheritance Restore repairs
+`Dump` and `Restore` with the Restore hooks. The family statement code and
+its hosts are the `*cmds` packages': table, sequence, identity and VACUUM
+statements are [`tablecmds`](tablecmds/README.md)'s, index statements
+[`indexcmds`](indexcmds/README.md)'s, ATTACH and DETACH PARTITION with the
+partition and inheritance Restore repairs
 [`partitioncmds`](partitioncmds/README.md)'s, ALTER DOMAIN, ALTER TYPE, enum
 and range DDL and ALTER TABLE OF [`typecmds`](typecmds/README.md)'s,
 view, REFRESH MATERIALIZED VIEW, rule, policy and trigger DDL with the
-materialized snapshot import [`viewcmds`](viewcmds/README.md)'s, and role,
+materialized snapshot import [`viewcmds`](viewcmds/README.md)'s, role,
 GRANT and REVOKE, default privilege, ownership and CREATE DATABASE
-statements [`rolecmds`](rolecmds/README.md)'s. Runtime
-state, admission, publication and the transaction lifecycle are core's. No
-package imports the root except tests and `enginetest`.
+statements [`rolecmds`](rolecmds/README.md)'s, and the schema-object,
+routine, COMMENT, tablespace, LOAD, extension and foreign-data statements
+with the extension owner import [`schemacmds`](schemacmds/README.md)'s.
+Runtime state, admission, publication and the transaction lifecycle are
+core's. No package imports the root except tests and `enginetest`.
 
 ## Composition
 
@@ -27,48 +29,21 @@ implements `Execute` and `ExecuteLocked` in the historical case order, and
 and `Restore(ctx, e, src)` (`control.go`) are composition functions over a
 `*core.Engine`.
 
-Family statement code still in the root (schema objects, routines,
-extensions and FDW) is written as receiver-first functions over core types
-(`executeSchema(e, ...)`, `executeExtension(e, ...)`), so that it can leave with
-its family; it names only exported core, `tablecmds` and `typecmds` members.
-A root file holds one family's declarations and nothing else.
-
 Trigger DDL is [`viewcmds`](viewcmds/README.md#triggers)'s. Each DML
 activation captures the current owner-private trigger list, not a list cached
 by its prepared handle. Dump emits current trigger definitions post-data
 followed by local dependency metadata; Restore admits only qualified positive
 trigger dependency ALTERs, never arbitrary rename/drop utilities.
 
-## Family hosts
+## Hosts
 
-Each family host embeds core's `DDLHost` with its `{E, Op, CatalogStage}`
-layout and is built by family code; each carries a compile-time assertion.
-`TableHost`, `AlterHost` and `TypeHost` are [`tablecmds`](tablecmds/README.md#hosts)'s,
-`ViewHost` is [`viewcmds`](viewcmds/README.md#entry-points)'s and `RoleHost`
-[`rolecmds`](rolecmds/README.md#entry-points)'s.
-
-| Root type | Implements |
-| --- | --- |
-| `RoutineHost` (`routine_host.go`, `operator_family_host.go`) | `routine.DDLHost`, `index.FamilyDDLHost` |
-| `SchemaHost` (`schema_host.go`) | `ddl.SchemaHost` |
-| `extensionHost` (`extension_host.go`) | `extension.Host`, `extension.Stage` |
-| `restoreHost` (`restore_run.go`) | `control.Host` |
-
-## Extensions
-
-Records, decisions and the root's orchestration are in
-[`extension`](extension/README.md). UPDATE keeps its read fences (including
-ACLs) from the staged snapshot, not from descriptors observed after outside-lock
-provider validation; CREATE and UPDATE share one final publication. Retirement
-captures the complete target set, including automatic aliases, and rejects
-incoming dependencies with `catalog.Conflict` before mutation.
-
-Identity ALTER remints citext/EAN13 values through a transient exact
-source-descriptor-to-current-descriptor map, never an OID-only permission.
-Generation reownership restores the prior import map before returning and leaves
-retained catalog/storage roots unchanged. Base rename, move and ownership do not
-change installed I/O routine namespaces or owners; canonical manifest roles own
-portable ownership records and identity replay.
+The family hosts live with their families: `TableHost`, `AlterHost` and
+`TypeHost` are [`tablecmds`](tablecmds/README.md#hosts)'s, `ViewHost` is
+[`viewcmds`](viewcmds/README.md#entry-points)'s, `RoleHost`
+[`rolecmds`](rolecmds/README.md#entry-points)'s and `RoutineHost`,
+`SchemaHost` and `extensionHost` [`schemacmds`](schemacmds/README.md#hosts)'s.
+The root keeps `restoreHost` (`restore_run.go`), which implements
+`control.Host`.
 
 ## Row mutation
 
@@ -93,29 +68,21 @@ authority.
 
 ## Testing
 
-Trigger lifecycle identity, clone, source-fence, dependency and remap units use
-`RUN='^TestTriggerDDL'` and construct metadata with the same trigger fixture.
-
-Lo provider units use `RUN='^TestLo(Provider|OwnerMetadata|ManifestAdmission)'`.
-They stage concrete domain/companion recipes through the shared extension host,
-validate immutable manifests and symbolic ownership, and exercise genuine
-collision/allocation and destination-role replacement fences without public SQL.
-
 Table-metadata producer units reuse the engine-seeded catalog and authorization
 fixture through the real producer registry. They assert source-owned domain
 cells, retained captures, typed empty results and rejection of malformed or
 foreign capture authority: `RUN='^TestInfoTables'`. Public SQL and native-control
 witnesses belong to the corresponding `reference/information_schema` family.
-Routine-metadata units use the same real capture fixture and staged extension
-constructors for declaration completeness, independent source bags, redaction,
-empty/canceled results and generation fences: `RUN='^TestInfoRoutines'`.
 
-Root tests are family tests: they reach unexported family code and name only
-exported core members, plus the inspection accessors in core's `inspect.go`.
-Tests that reach only core live in `core/`.
+Root tests name only exported core and family members, plus the inspection
+accessors in core's `inspect.go`: the Restore hook units (the ISN type owner
+replay stages through `schemacmds.StageSchemaLocked` and
+`StageExtensionLocked`) and units that reach no family internals. Tests that
+reach a family's internals live in its `*cmds` directory; tests that reach
+only core live in `core/`.
 
 ```sh
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # producers; one catalog: ^TestPG<Name>
-make check RUN='^TestIsnProvider'                      # installed identifier authority and import
+make check RUN='^Test(Ean13|Isbn|Ismn|Ismn13|Issn|Issn13)RestoreOwnerReplay|^TestUpcCoercion'  # Restore owner replay of installed ISN types
 make check RUN='^TestTransactionalSchema(Admission|PrivateProviders|Publication|DropManifest)$'  # utility policy and private catalog stages
 ```

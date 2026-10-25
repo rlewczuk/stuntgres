@@ -21,8 +21,8 @@ shares.
 
 Stays elsewhere: CREATE DOMAIN, the other CREATE TYPE forms, CREATE
 COLLATION and CONVERSION, and ALTER DOMAIN RENAME and SET SCHEMA dispatch
-through the schema statements (still in the root). `TypeHost` is
-`tablecmds`' because those build it too. Domain checks on the row path
+through the schema statements ([`schemacmds`](../schemacmds/README.md)).
+`TypeHost` is `tablecmds`' because those build it too. Domain checks on the row path
 (`StatementScope.CheckDomain`), domain input decoding, domain check
 programs, type generations and TEMP collation cleanup are core's.
 
@@ -43,8 +43,9 @@ programs, type generations and TEMP collation cleanup are core's.
   `RestoreTypeOwner` pair a created type with its captured owner. Each
   admits only a trusted private import.
 - Shared with the view family: `CaptureDomainReplay` and `DomainReplayEnv`.
-- For the root tests that stage through the schema statements: `TypedStage`,
-  `TypedMutation` and `TypedRelationMutation`.
+- For the `schemacmds` tests that stage through the schema statements and the
+  root's typed-table fixture: `TypedStage`, `TypedMutation` and
+  `TypedRelationMutation`.
 
 ## Testing
 
@@ -53,14 +54,14 @@ the root's `engine.New`, `Reset`, `Dump` and `Restore` and the
 [`enginetest`](../enginetest/README.md) helpers. `export_test.go` exports the
 internals they call; add a name there only when the test cannot assert
 through SQL or the exported API. The ALTER DOMAIN, composite, enum and
-domain replay units that stage through the root's schema statements stay in
-the root until those move. Public SQL lives in
+domain replay units that stage through the schema statements live in
+[`schemacmds`](../schemacmds/README.md#testing). Public SQL lives in
 [reference/domain_types](../../../reference/domain_types/README.md#testing)
 and [reference/types](../../../reference/types/README.md#testing).
 
 ```sh
 make check RUN='^TestTyped'                                # typed tables: ALTER TYPE rows, publication fences, admission
 make check RUN='^Test(GeometryConversionReplay|DomainDefaultReplay)'  # native domain replay
-make check RUN='^Test(DomainAlter|CompositeAlter|CompositeDomainArray|EnumInvalidLabel)'  # root units of these executors
+make check RUN='^Test(DomainAlter|CompositeAlter|CompositeDomainArray|EnumInvalidLabel)'  # their units in schemacmds
 make check RACE=1 RUN='^TestTyped(Publication|Admission)'  # typed publication and admission races
 ```

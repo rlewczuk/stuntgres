@@ -193,9 +193,9 @@ The handlers run under `Engine.Mu` without a statement scope and reach the
 engine only through `DDLHost` (`host.go`): the shared
 [`ddl.Host`](../ddl/README.md) plus `DefinitionType`, `DefinitionLookup`,
 `SelectFunction`, `SelectAggregateSupport`, `ResolveRegtype`, `BindSQLRoutine`
-and `BindSQLDefaults`. The engine implements it on `RoutineHost`, which embeds
-the core `DDLHost` and is built once per DDL statement (`routine_host.go`);
-`RoutineHost` also implements `index.FamilyDDLHost`.
+and `BindSQLDefaults`. The engine implements it on `schemacmds.RoutineHost`,
+which embeds the core `DDLHost` and is built once per DDL statement
+(`routine_host.go`); `RoutineHost` also implements `index.FamilyDDLHost`.
 
 - **`ddl.Authority`** is an opaque value kept by value. Host methods that change
   it (`CreationNamespace`, `Recapture`) return a new one, so an implicit
@@ -209,9 +209,12 @@ the core `DDLHost` and is built once per DDL statement (`routine_host.go`);
 
 ## What stays in the engine
 
-`RoutineHost` and schema statement dispatch (`routine_host.go`,
-`operator_family_host.go`, `schema.go`); SQL routine binding, Restore validation and invocation
-(`sql_routine*.go`); seed installation (`builtin_catalog.go`); call resolution
+[`schemacmds`](../schemacmds/README.md) holds `RoutineHost` and the schema
+statement executors (`routine_host.go`, `operator_family_host.go`,
+`schema.go`) and SQL routine body validation (`BindSQLRoutineLocked`,
+`sql_routine_binding.go`); the root keeps its Restore hook
+(`sql_routine_restore.go`); core keeps SQL routine invocation
+(`sql_routine*.go`), seed installation (`builtin_catalog.go`), call resolution
 (`function*.go`, `operator*_binding.go`) and routine call inquiry admission;
 `procedureReturnsSet`; the Collect entries `collectOperatorDump` and
 `collectProcedureDump`. The emit entry and dump adapters are in

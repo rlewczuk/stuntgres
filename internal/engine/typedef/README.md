@@ -226,7 +226,7 @@ binding passes the core `DDLHost`.
 validation and publication; enum journal updates; and the native replay INSERT
 (`domain_default_restore.go`, with the scalar leaf built by `DomainReplayEnv`).
 The `TypeHost` methods are [`tablecmds`](../tablecmds/README.md#hosts)'s, and
-schema dispatch is the root's. Core holds the TEMP preservation orchestrator;
+the schema statements [`schemacmds`](../schemacmds/README.md)'. Core holds the TEMP preservation orchestrator;
 publication-time reownership and domain index generations; TEMP collation
 cleanup; and domain check programs and evaluation.
 
@@ -239,9 +239,9 @@ Elsewhere: type dump graph edges (`control.ColumnPredecessors`,
 Package units pin the seeds, replay pairing, the scalar leaf callback contract
 (`TestRestoreDomainReplayScalarLeaf`), enum sort insertion, journal slot
 copy-on-write, default snapshots and storage admission. Engine witnesses in
-`internal/engine` cover the `TypeHost` side, ALTER DOMAIN publication, the replay
-walk with the real leaf and the dump statements; collation and conversion DDL
-units live in `internal/engine/schemacmds`, ALTER TYPE on typed tables and the
+`internal/engine/schemacmds` cover the `TypeHost` side, ALTER DOMAIN
+publication, the replay walk with the real leaf, the dump statements and
+collation and conversion DDL; ALTER TYPE on typed tables and the
 geometry domain replay in `internal/engine/typecmds`, CREATE TABLE OF in
 `internal/engine/tablecmds`, and
 runtime domain checks and type catalog descriptions in `internal/engine/core`.

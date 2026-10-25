@@ -48,7 +48,7 @@ match.
 - Restore hooks: `ImportMaterializedSnapshots` installs dumped materialized
   view rows into the private Restore engine in one publication; it admits
   only the trusted bootstrap import authority.
-- For a root test that stages through the schema statements:
+- For tests that import one snapshot row, here and in `schemacmds`:
   `ImportMaterializedSnapshotRow`.
 
 `ViewHost{tablecmds.TableHost}` (`view_host.go`, `policy_expression.go`)
@@ -76,8 +76,9 @@ Tests are external (`package viewcmds_test`) and run on a composed engine:
 the root's `engine.New`, `Reset`, `Dump` and `Restore` and the
 [`enginetest`](../enginetest/README.md) helpers. `export_test.go` exports the
 internals they call; add a name there only when the test cannot assert
-through SQL or the exported API. Trigger DDL units stay in the root while
-they stage extensions directly. Public SQL lives in
+through SQL or the exported API. Trigger DDL units live in
+[`schemacmds`](../schemacmds/README.md#testing), since they stage extensions
+directly. Public SQL lives in
 [reference/views](../../../reference/views/README.md#testing), RLS policies
 in [reference/roles](../../../reference/roles/README.md#testing) and trigger
 DDL in [reference/operators](../../../reference/operators/README.md#testing).

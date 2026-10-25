@@ -20,11 +20,12 @@ root or another family. The root composition (dispatch and Restore hooks),
 [`indexcmds`](../indexcmds/README.md),
 [`partitioncmds`](../partitioncmds/README.md),
 [`typecmds`](../typecmds/README.md), [`viewcmds`](../viewcmds/README.md) and
-the families still in the root import it; by rule 6 every later family except `rolecmds` may. Code that
-tables share with those families lives here: renames, SET SCHEMA, typed
-sources, the IF EXISTS skip, the ALTER column candidates and type rebinds,
-`PrepareAlterTypeLocked`, and the hosts, `TypeHost` among them (typecmds and
-the schema statements build it, with no arrow between them).
+[`schemacmds`](../schemacmds/README.md) import it; by rule 6 every family
+except `rolecmds` may. Code that tables share with those families lives here:
+renames, SET SCHEMA, typed sources, the IF EXISTS skip, the ALTER column
+candidates and type rebinds, `PrepareAlterTypeLocked`, and the hosts,
+`TypeHost` among them (`typecmds` and `schemacmds` build it, with no arrow
+between them).
 
 Stays in core: FK enforcement and actions, the DROP pipeline (`DropProvider`),
 TEMP preservation, relation admission and publication.
@@ -79,9 +80,10 @@ waiting.
 | --- | --- |
 | `TableHost` (`table_host.go`, `index_host.go`, `partition_host.go`) | `table.Host`, `index.Host`, `partition.Host`, `fdw.Host` |
 | `AlterHost{TableHost; Scope}` (`alter_host.go`) | `table.AlterHost`, one per call: the ALTER loop begins its stage lazily |
-| `TypeHost{TableHost}` (`typedef_host.go`, `domain_default_snapshot.go`) | `typedef.StageHost`, built by `typecmds` and the schema statements; `BindRestoredDomainDefault` binds a trusted Restore domain default snapshot |
+| `TypeHost{TableHost}` (`typedef_host.go`, `domain_default_snapshot.go`) | `typedef.StageHost`, built by `typecmds` and `schemacmds`; `BindRestoredDomainDefault` binds a trusted Restore domain default snapshot |
 
-`viewcmds`' `ViewHost` embeds `TableHost` too.
+`viewcmds`' `ViewHost` embeds `TableHost` too, and `schemacmds` builds
+`TableHost` for the foreign-data DDL and `AlterHost` for ALTER FOREIGN TABLE.
 
 ## Testing
 
