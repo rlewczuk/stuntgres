@@ -13,7 +13,10 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeDropExtension(e *core.Engine, scope *core.StatementScope, s *parser.DropExtension, count int) (core.Result, error) {
+// ExecuteDropExtension runs DROP EXTENSION: it removes the selected
+// extensions and their dependents in one ownership stage, after taking the
+// relation locks with Engine.Mu released.
+func ExecuteDropExtension(e *core.Engine, scope *core.StatementScope, s *parser.DropExtension, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

@@ -21,7 +21,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func executeSchema(e *core.Engine, scope *core.StatementScope, op *session.Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (core.Result, error) {
+// ExecuteSchema runs the schema-element statements: CREATE, ALTER and DROP
+// SCHEMA, TYPE, DOMAIN, COLLATION and CONVERSION, CREATE LANGUAGE, ALTER
+// DOMAIN RENAME and SET SCHEMA, and the access method, cast, operator,
+// operator family and class and routine DDL. It stages under Engine.Mu,
+// admits the definition mutation and retirement with it released, and
+// publishes one catalog stage.
+func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -73,7 +79,7 @@ func executeSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 		}
 	} else {
 		e.Mu.Lock()
-		stage, err = stageSchemaLocked(e, op, stmt, input, scope.Output)
+		stage, err = StageSchemaLocked(e, op, stmt, input, scope.Output)
 		e.Mu.Unlock()
 	}
 	if err != nil || stage == nil {
@@ -337,7 +343,9 @@ func stageSchemaDropLocked(e *core.Engine, op *session.Operation, stmt *parser.D
 	return stage, nil
 }
 
-func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*core.CatalogStage, error) {
+// StageSchemaLocked stages one schema-element statement in a new catalog
+// stage under Engine.Mu, for ExecuteSchema to admit and publish.
+func StageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*core.CatalogStage, error) {
 	auth, err := schemaAuthorizationLocked(e, op)
 	if err != nil {
 		return nil, err

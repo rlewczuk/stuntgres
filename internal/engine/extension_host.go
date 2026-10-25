@@ -23,10 +23,10 @@ import (
 // rather than being a defined type over CatalogStage, so Create and Replace
 // keep CatalogStage's lifecycle checks.
 type extensionHost struct {
-	engine    *core.Engine
-	op        *session.Operation
-	auth      core.AuthorizationView
-	stage     *core.CatalogStage
+	Engine    *core.Engine
+	Op        *session.Operation
+	Auth      core.AuthorizationView
+	Stage     *core.CatalogStage
 	namespace ids.ObjectAddress
 }
 
@@ -39,10 +39,10 @@ var (
 // stageOf returns the root stage behind a Stage that BeginStage returned.
 func stageOf(s extension.Stage) (*core.CatalogStage, error) {
 	h, ok := s.(*extensionHost)
-	if !ok || h == nil || h.stage == nil {
+	if !ok || h == nil || h.Stage == nil {
 		return nil, fmt.Errorf("stuntgres: foreign extension stage")
 	}
-	return h.stage, nil
+	return h.Stage, nil
 }
 
 // extensionNamespaceOf returns the namespace stage was begun in; a stage no
@@ -58,52 +58,52 @@ func extensionNamespaceOf(stage *core.CatalogStage) ids.ObjectAddress {
 	return h.namespace
 }
 
-func (h *extensionHost) Context() context.Context { return h.op.Context() }
-func (h *extensionHost) Notice(n sqlstate.Error)  { h.op.EmitNotice(session.LevelNotice, n) }
+func (h *extensionHost) Context() context.Context { return h.Op.Context() }
+func (h *extensionHost) Notice(n sqlstate.Error)  { h.Op.EmitNotice(session.LevelNotice, n) }
 func (h *extensionHost) CreationPath() ([]ids.ObjectAddress, error) {
-	path, _, err := core.ExplicitPath(h.auth)
+	path, _, err := core.ExplicitPath(h.Auth)
 	return path, err
 }
 func (h *extensionHost) ReplayingTableDestination() bool {
-	return core.OperationReplayOrZero(h.op).TableDestination
+	return core.OperationReplayOrZero(h.Op).TableDestination
 }
 func (h *extensionHost) BootstrapSuperuser() authorization.PrincipalRef {
-	return h.engine.RoleStore.Domain.Principal(10)
+	return h.Engine.RoleStore.Domain.Principal(10)
 }
 func (h *extensionHost) BeginStage(namespace ids.ObjectAddress) extension.Stage {
-	stage := h.engine.BeginCatalogStage(h.auth.Catalog)
-	stage.AuthorizeLocked(h.auth, h.op.Session)
-	h.stage, h.namespace = stage, namespace
+	stage := h.Engine.BeginCatalogStage(h.Auth.Catalog)
+	stage.AuthorizeLocked(h.Auth, h.Op.Session)
+	h.Stage, h.namespace = stage, namespace
 	stage.ExtensionSlot = h
 	return h
 }
 
-func (h *extensionHost) Read() catalog.Read { return h.stage.Base }
+func (h *extensionHost) Read() catalog.Read { return h.Stage.Base }
 func (h *extensionHost) LookupName(key ids.NameKey) ids.ObjectAddress {
-	return h.stage.LookupName(key)
+	return h.Stage.LookupName(key)
 }
-func (h *extensionHost) Create(d catalog.Descriptor) error  { return h.stage.Create(d) }
-func (h *extensionHost) Replace(d catalog.Descriptor) error { return h.stage.Replace(d) }
-func (h *extensionHost) AllocateOID() (ids.OID, error)      { return h.engine.Catalog.AllocateOIDLocked() }
+func (h *extensionHost) Create(d catalog.Descriptor) error  { return h.Stage.Create(d) }
+func (h *extensionHost) Replace(d catalog.Descriptor) error { return h.Stage.Replace(d) }
+func (h *extensionHost) AllocateOID() (ids.OID, error)      { return h.Engine.Catalog.AllocateOIDLocked() }
 func (h *extensionHost) Revision() (ids.DefinitionRevision, error) {
-	return h.engine.Catalog.RevisionLocked()
+	return h.Engine.Catalog.RevisionLocked()
 }
 func (h *extensionHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name string) (bool, error) {
-	return h.engine.DisplaceAssociatedArrayLocked(h.stage, namespace, name)
+	return h.Engine.DisplaceAssociatedArrayLocked(h.Stage, namespace, name)
 }
 func (h *extensionHost) AssociatedArrayName(namespace ids.ObjectAddress, name string) string {
-	return core.AssociatedArrayName(h.stage, namespace, name)
+	return core.AssociatedArrayName(h.Stage, namespace, name)
 }
 func (h *extensionHost) CreationTypeACL(owner authorization.PrincipalRef, namespace ids.ObjectAddress) (authorization.ACLValue, bool) {
-	return h.stage.CreationTypeACL(owner, namespace)
+	return h.Stage.CreationTypeACL(owner, namespace)
 }
 
 // ScriptFunctions resolves helper names against the coherent staged search
 // path, under the actual script execution principal. In particular,
 // unqualified function lookup excludes the installer's own TEMP namespace.
 func (h *extensionHost) ScriptFunctions(owner authorization.PrincipalRef, namespace ids.ObjectAddress, helpers []extension.ScriptFunction) ([]*catalog.Procedure, error) {
-	e, auth := h.engine, h.auth
-	auth.Catalog = e.StageRead(h.stage)
+	e, auth := h.Engine, h.Auth
+	auth.Catalog = e.StageRead(h.Stage)
 	auth.Recapture(auth.Catalog)
 	auth.State.CurrentUser = owner
 	if err := auth.CanUse(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), namespace)); err != nil {

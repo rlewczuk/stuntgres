@@ -30,7 +30,7 @@ func pgcryptoUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "pgcrypto"}})
+	stage, err := StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "pgcrypto"}})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

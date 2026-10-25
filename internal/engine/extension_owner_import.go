@@ -10,9 +10,12 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
+// ImportExtensionOwners applies the extension owner records of a native
+// Restore.
+//
 // Apply only to Restore's isolated catalog. Named target identities were
 // captured before reading; final replacement fences their remapping again.
-func importExtensionOwners(e *core.Engine, ctx context.Context, op *session.Operation, records []extension.OwnerRecord) error {
+func ImportExtensionOwners(e *core.Engine, ctx context.Context, op *session.Operation, records []extension.OwnerRecord) error {
 	if len(records) == 0 {
 		return nil
 	}

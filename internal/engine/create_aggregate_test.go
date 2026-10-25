@@ -23,7 +23,7 @@ func TestCreateAggregatePublicationCancellation(t *testing.T) {
 	before := e.CatalogRead()
 	raw := statement(t, "CREATE AGGREGATE aggregate_unit_cancel(integer) (SFUNC=pg_catalog.int4pl,STYPE=int4,INITCOND='0')")
 	e.Mu.Lock()
-	stage, err := stageSchemaLocked(e, op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	stage, err := StageSchemaLocked(e, op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

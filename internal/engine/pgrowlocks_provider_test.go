@@ -113,7 +113,7 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 	if replay.CatalogRead().MustProcedure(replayedExtension.Members[0]).Owner != replayedExtension.Owner {
 		t.Fatal("fresh installation did not use installation owner")
 	}
-	if err := importExtensionOwners(replay, context.Background(), replayOp, records); err != nil {
+	if err := ImportExtensionOwners(replay, context.Background(), replayOp, records); err != nil {
 		t.Fatal("owner replay", err)
 	}
 	replayedView := replay.CatalogRead()

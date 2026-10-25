@@ -13,7 +13,7 @@ func TestExtensionHostRefusesDiscardedStage(t *testing.T) {
 	e := New()
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
-	host := &extensionHost{engine: e, stage: stage}
+	host := &extensionHost{Engine: e, Stage: stage}
 	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "probe", Version: "1.0", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.RoleStore.Domain.Principal(10)}
 	if host.Read().State() != before.State() {
 		t.Fatal("host does not read the stage base")
@@ -45,7 +45,7 @@ func TestExtensionHostBeginStageHandsBackRootStage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	host := &extensionHost{engine: e, op: op, auth: auth}
+	host := &extensionHost{Engine: e, Op: op, Auth: auth}
 	if _, err := stageOf(host); err == nil {
 		t.Fatal("stageOf accepted a host without a begun stage")
 	}

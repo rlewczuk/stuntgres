@@ -30,7 +30,7 @@ func citextUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name, 
 		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
 	}
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
+	stage, err := StageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -194,7 +194,7 @@ func TestCitextProviderConflicts(t *testing.T) {
 			if err := stage.Create(conflict); err != nil {
 				return err
 			}
-			return extension.StockCitext.Stage(&extensionHost{engine: e, auth: auth, stage: stage}, ext, owner)
+			return extension.StockCitext.Stage(&extensionHost{Engine: e, Auth: auth, Stage: stage}, ext, owner)
 		}()
 		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
@@ -250,7 +250,7 @@ func TestCitextProviderConflicts(t *testing.T) {
 		extensionUnitPublish(t, e, op, stage)
 		before := e.Catalog.State
 		e.Mu.Lock()
-		_, err = stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "citext"}})
+		_, err = StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "citext"}})
 		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "citext" already exists`, Context: extension.CitextTypeContext}

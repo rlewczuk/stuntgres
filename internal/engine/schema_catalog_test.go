@@ -149,7 +149,7 @@ func TestSchemaExhaustionAndRoleRevisionFence(t *testing.T) {
 	defer adminDone()
 	before := e.CatalogRead()
 	e.Mu.Lock()
-	stage, err := stageSchemaLocked(e, op, statement(t, "CREATE SCHEMA fenced CREATE TABLE t(id INT)"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	stage, err := StageSchemaLocked(e, op, statement(t, "CREATE SCHEMA fenced CREATE TABLE t(id INT)"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

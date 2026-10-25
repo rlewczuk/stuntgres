@@ -9,7 +9,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeLoad(e *core.Engine, op *session.Operation, stmt *parser.Load, count int) (core.Result, error) {
+// ExecuteLoad runs LOAD; ddl.Load decides under Engine.Mu.
+func ExecuteLoad(e *core.Engine, op *session.Operation, stmt *parser.Load, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

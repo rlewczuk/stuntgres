@@ -66,7 +66,7 @@ func TestCitextComparisonProviderConflicts(t *testing.T) {
 				if err := stage.Create(ext); err != nil {
 					return err
 				}
-				host := &extensionHost{engine: e, auth: auth, stage: stage}
+				host := &extensionHost{Engine: e, Auth: auth, Stage: stage}
 				return extension.StockCitext.Stage(citextConflictStage{Stage: host, name: name, owner: auth.State.CurrentUser}, ext, ext.Owner)
 			}()
 			e.Mu.Unlock()

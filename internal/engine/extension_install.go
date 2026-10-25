@@ -10,12 +10,15 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeExtension(e *core.Engine, scope *core.StatementScope, s *parser.CreateExtension, count int) (core.Result, error) {
+// ExecuteExtension runs CREATE EXTENSION: it stages the bundled provider
+// under Engine.Mu and publishes the stage after its provider validation,
+// which runs with the mutex released.
+func ExecuteExtension(e *core.Engine, scope *core.StatementScope, s *parser.CreateExtension, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, scope, s)
+	stage, err := StageExtensionLocked(e, scope, s)
 	e.Mu.Unlock()
 	if err != nil || stage == nil {
 		return core.Result{}, err
@@ -59,12 +62,14 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 	return core.Result{}, nil
 }
 
-func stageExtensionLocked(e *core.Engine, scope *core.StatementScope, s *parser.CreateExtension) (*core.CatalogStage, error) {
+// StageExtensionLocked stages CREATE EXTENSION in a new catalog stage under
+// Engine.Mu, for ExecuteExtension to publish.
+func StageExtensionLocked(e *core.Engine, scope *core.StatementScope, s *parser.CreateExtension) (*core.CatalogStage, error) {
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err
 	}
-	staged, err := extension.StageCreate(&extensionHost{engine: e, op: scope.Op, auth: auth}, auth, auth.View, s)
+	staged, err := extension.StageCreate(&extensionHost{Engine: e, Op: scope.Op, Auth: auth}, auth, auth.View, s)
 	if err != nil || staged == nil {
 		return nil, err
 	}

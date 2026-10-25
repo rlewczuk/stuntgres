@@ -10,9 +10,12 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// ExecuteForeignGrant runs GRANT and REVOKE on foreign-data wrappers and
+// foreign servers.
+//
 // The class-specific target adapter uses the same role closure, grant-source,
 // ACL transformation and transactional publication authorities as other GRANTs.
-func executeForeignGrant(e *core.Engine, scope *core.StatementScope, s *parser.ObjectGrant, count int) (core.Result, error) {
+func ExecuteForeignGrant(e *core.Engine, scope *core.StatementScope, s *parser.ObjectGrant, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

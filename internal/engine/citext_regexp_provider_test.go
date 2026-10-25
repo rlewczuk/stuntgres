@@ -36,7 +36,7 @@ func (h *citextRegexpCollisionStage) LookupName(key ids.NameKey) ids.ObjectAddre
 			ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid},
 			ObjectNamespace: key.Namespace, ObjectRevision: revision,
 			ObjectName: key.Name, Signature: catalog.ProcedureSignature(key.Signature),
-			Owner: h.auth.State.CurrentUser,
+			Owner: h.Auth.State.CurrentUser,
 		})
 	}
 	return h.extensionHost.LookupName(key)
@@ -75,7 +75,7 @@ func citextRegexpLateConflict(t *testing.T) {
 		if err := stage.Create(installation); err != nil {
 			return err
 		}
-		host := &citextRegexpCollisionStage{extensionHost: &extensionHost{engine: e, auth: auth, stage: stage}}
+		host := &citextRegexpCollisionStage{extensionHost: &extensionHost{Engine: e, Auth: auth, Stage: stage}}
 		err = extension.StockCitext.Stage(host, installation, installation.Owner)
 		injected = host.injected
 		if host.err != nil {

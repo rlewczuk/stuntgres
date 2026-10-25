@@ -400,7 +400,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if err := extensionUnitExecute(t, imported, importOp, &parser.CreateExtension{Name: parser.Identifier{Text: "intagg"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := importExtensionOwners(imported, context.Background(), importOp, []extension.OwnerRecord{record}); err != nil {
+	if err := ImportExtensionOwners(imported, context.Background(), importOp, []extension.OwnerRecord{record}); err != nil {
 		t.Fatal("independent owner import", err)
 	}
 	installed := imported.Catalog.State.MustExtension(imported.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))

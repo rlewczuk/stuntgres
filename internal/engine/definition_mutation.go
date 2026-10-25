@@ -112,7 +112,7 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	// No notice from provisional construction is delivered twice. Notices from
 	// earlier statements in a retained message remain owned by that message.
 	s.Op.Notices = s.Op.Notices[:noticeMark]
-	current, err := stageSchemaLocked(e, s.Op, stmt, input, s.Output)
+	current, err := StageSchemaLocked(e, s.Op, stmt, input, s.Output)
 	if err != nil {
 		return stage, err
 	}

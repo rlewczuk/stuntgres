@@ -95,7 +95,7 @@ func TestLoProviderConflicts(t *testing.T) {
 		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.AuthorizeLocked(auth, op.Session)
 		copy := *ext
-		err = extension.StockLo.Stage(&extensionHost{engine: e, op: op, auth: auth, stage: stage}, &copy, ext.Owner)
+		err = extension.StockLo.Stage(&extensionHost{Engine: e, Op: op, Auth: auth, Stage: stage}, &copy, ext.Owner)
 		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		var diagnostic *sqlstate.Error
@@ -111,7 +111,7 @@ func TestLoProviderConflicts(t *testing.T) {
 			before := e.Catalog.State
 			e.Mu.Lock()
 			e.Catalog.InstallOIDFrontierLocked(frontier)
-			stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "lo"}})
+			stage, err := StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "lo"}})
 			e.Mu.Unlock()
 			if stage != nil {
 				e.DiscardCatalogStage(stage)
@@ -430,7 +430,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 		for i := range r.Members {
 			r.Members[i].Owner = original.Name
 		}
-		if err := importExtensionOwners(staged, context.Background(), replay, []extension.OwnerRecord{r}); err != nil {
+		if err := ImportExtensionOwners(staged, context.Background(), replay, []extension.OwnerRecord{r}); err != nil {
 			t.Fatal(err)
 		}
 		roleAttributeApply(t, target, admin, &parser.DropRole{Names: []string{original.Name}})

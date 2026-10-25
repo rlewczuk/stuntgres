@@ -13,8 +13,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func executeSQLRoutineDDL(e *core.Engine, scope *core.StatementScope, s parser.Statement, count int) (core.Result, error) {
-	result, err := executeSchema(e, scope, scope.Op, s, count, scope.Input)
+// ExecuteSQLRoutineDDL runs CREATE FUNCTION, CREATE PROCEDURE and CREATE
+// AGGREGATE through ExecuteSchema.
+func ExecuteSQLRoutineDDL(e *core.Engine, scope *core.StatementScope, s parser.Statement, count int) (core.Result, error) {
+	result, err := ExecuteSchema(e, scope, scope.Op, s, count, scope.Input)
 	if err == nil {
 		scope.Completed = true
 	}

@@ -7,7 +7,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeComment(e *core.Engine, scope *core.StatementScope, s *parser.Comment, count int) (core.Result, error) {
+// ExecuteComment runs COMMENT ON for every object kind except sequences,
+// whose comments are tablecmds.ExecuteSequenceComment's.
+func ExecuteComment(e *core.Engine, scope *core.StatementScope, s *parser.Comment, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

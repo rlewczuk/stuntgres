@@ -30,7 +30,7 @@ func cubeUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name, sc
 		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
 	}
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
+	stage, err := StageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -267,7 +267,7 @@ func TestCubeProviderConflicts(t *testing.T) {
 				if err := stage.Create(conflict); err != nil {
 					return err
 				}
-				return extension.StockCube.Stage(&extensionHost{engine: e, auth: auth, stage: stage}, ext, owner)
+				return extension.StockCube.Stage(&extensionHost{Engine: e, Auth: auth, Stage: stage}, ext, owner)
 			}()
 			e.Mu.Unlock()
 			var diagnostic *sqlstate.Error
@@ -324,7 +324,7 @@ func TestCubeProviderConflicts(t *testing.T) {
 		extensionUnitPublish(t, e, op, stage)
 		before := e.Catalog.State
 		e.Mu.Lock()
-		_, err = stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "cube"}})
+		_, err = StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "cube"}})
 		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: extension.CubeTypeContext}

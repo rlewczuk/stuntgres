@@ -47,7 +47,7 @@ func admitDefinitionRetirement(s *core.StatementScope, stage *core.CatalogStage,
 			return stage, ids.ErrCatalogReplaced
 		}
 	}
-	fresh, err := stageSchemaLocked(e, s.Op, stmt, input, s.Output)
+	fresh, err := StageSchemaLocked(e, s.Op, stmt, input, s.Output)
 	if err != nil {
 		return stage, err
 	}

@@ -118,7 +118,7 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 	}
 	originalValue := *original
 	e.Mu.Lock()
-	failed, err := stageExtensionLocked(e, &core.StatementScope{Op: installer}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
+	failed, err := StageExtensionLocked(e, &core.StatementScope{Op: installer}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
 	e.Mu.Unlock()
 	if failed != nil {
 		e.DiscardCatalogStage(failed)

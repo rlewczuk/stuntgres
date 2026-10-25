@@ -21,7 +21,7 @@ func (h *citextStringCollisionStage) LookupName(key ids.NameKey) ids.ObjectAddre
   h.injected=true
   oid,err:=h.AllocateOID();if err!=nil {h.err=err;return ids.ObjectAddress{}}
   revision,err:=h.Revision();if err!=nil {h.err=err;return ids.ObjectAddress{}}
-  h.err=h.Create(&catalog.Procedure{ObjectAddress:ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:oid},ObjectNamespace:key.Namespace,ObjectRevision:revision,ObjectName:key.Name,Signature:catalog.ProcedureSignature(key.Signature),Owner:h.auth.State.CurrentUser})
+  h.err=h.Create(&catalog.Procedure{ObjectAddress:ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:oid},ObjectNamespace:key.Namespace,ObjectRevision:revision,ObjectName:key.Name,Signature:catalog.ProcedureSignature(key.Signature),Owner:h.Auth.State.CurrentUser})
  }
  return h.extensionHost.LookupName(key)
 }
@@ -38,7 +38,7 @@ func citextStringLateConflict(t *testing.T) {
   revision,err:=e.Catalog.RevisionLocked();if err!=nil {return err}
   installation:=&catalog.Extension{ObjectAddress:ids.ObjectAddress{ClassID:ids.ExtensionClassID,ObjectID:oid},ObjectRevision:revision,ObjectName:"citext",Version:"1.8",TargetNamespace:namespace,Owner:auth.State.CurrentUser}
   if err:=stage.Create(installation);err!=nil {return err}
-  host:=&citextStringCollisionStage{extensionHost:&extensionHost{engine:e,auth:auth,stage:stage}}
+  host:=&citextStringCollisionStage{extensionHost:&extensionHost{Engine:e,Auth:auth,Stage:stage}}
   err=extension.StockCitext.Stage(host,installation,installation.Owner);injected=host.injected
   if host.err!=nil {return host.err};return err
  }()

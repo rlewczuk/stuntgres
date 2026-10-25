@@ -153,7 +153,7 @@ func TestCastDefinitionDropBuiltinProtection(t *testing.T) {
 	defer done()
 	base := e.CatalogRead()
 	e.Mu.Lock()
-	stage, err := stageSchemaLocked(e, op, statement(t, "DROP CAST (integer AS bigint) CASCADE"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	stage, err := StageSchemaLocked(e, op, statement(t, "DROP CAST (integer AS bigint) CASCADE"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.Mu.Unlock()
 	if stage != nil {
 		defer e.DiscardCatalogStage(stage)

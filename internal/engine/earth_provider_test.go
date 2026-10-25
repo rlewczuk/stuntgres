@@ -78,7 +78,7 @@ func TestEarthProviderConflicts(t *testing.T) {
 	defer done()
 	before := e.Catalog.State
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
+	stage, err := StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || stage != nil || e.Catalog.State != before {
@@ -96,7 +96,7 @@ func TestEarthProviderConflicts(t *testing.T) {
 	s := e.BeginCatalogStage(auth.Catalog)
 	s.AuthorizeLocked(auth, op2.Session)
 	copy := *ext
-	err = extension.StockEarthdistance.Stage(&extensionHost{engine: e, op: op2, auth: auth, stage: s}, &copy, ext.Owner)
+	err = extension.StockEarthdistance.Stage(&extensionHost{Engine: e, Op: op2, Auth: auth, Stage: s}, &copy, ext.Owner)
 	e.Mu.Unlock()
 	e.DiscardCatalogStage(s)
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42710" || diagnostic.Context == "" {

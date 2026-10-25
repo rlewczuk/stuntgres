@@ -95,7 +95,7 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *core.Engine, scope *core.StatementS
 			_, roots, err = stageForeignLocked(e, scope, auth, stage, foreign)
 		}
 	} else {
-		stage, err = stageSchemaLocked(e, scope.Op, stmt, sqltype.InputEnvironment{}, scope.Output)
+		stage, err = StageSchemaLocked(e, scope.Op, stmt, sqltype.InputEnvironment{}, scope.Output)
 	}
 	e.Mu.Unlock()
 	if err != nil {

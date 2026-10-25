@@ -10,7 +10,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeForeignDDL(e *core.Engine, scope *core.StatementScope, s *parser.ForeignDDL, count int) (core.Result, error) {
+// ExecuteForeignDDL runs the foreign-data DDL: FOREIGN DATA WRAPPER, SERVER
+// and USER MAPPING statements, CREATE, ALTER and DROP FOREIGN TABLE, and
+// IMPORT FOREIGN SCHEMA. Wrapper validations run with Engine.Mu released,
+// before one publication.
+func ExecuteForeignDDL(e *core.Engine, scope *core.StatementScope, s *parser.ForeignDDL, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

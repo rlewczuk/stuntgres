@@ -81,7 +81,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				host := &extensionHost{engine: e, op: op, auth: auth}
+				host := &extensionHost{Engine: e, Op: op, Auth: auth}
 				var reserved [24]ids.OID
 				for i := range reserved {
 					reserved[i], err = host.AllocateOID()
@@ -152,7 +152,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 				if err := stage.Create(ext); err != nil {
 					return err
 				}
-				host.stage = stage
+				host.Stage = stage
 				return extension.StockIsn.Stage(&isnReservedStage{Stage: host, reserved: reserved[:]}, ext, original.Owner)
 			}()
 			if original == nil {
@@ -247,10 +247,10 @@ func TestIsnGeneratedArrayDisplacement(t *testing.T) {
 					return err
 				}
 				auth.Recapture(e.StageRead(seed))
-				host := &extensionHost{engine: e, op: op, auth: auth}
+				host := &extensionHost{Engine: e, Op: op, Auth: auth}
 				staged, err := extension.StageCreate(host, auth, auth.View, &parser.CreateExtension{Name: parser.Identifier{Text: "isn"}})
 				// BeginStage may have allocated a private stage even on failure.
-				stage = host.stage
+				stage = host.Stage
 				if err != nil {
 					return err
 				}

@@ -7,7 +7,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeExtensionUpdate(e *core.Engine, scope *core.StatementScope, s *parser.AlterExtensionUpdate, count int) (core.Result, error) {
+// ExecuteExtensionUpdate runs ALTER EXTENSION UPDATE and publishes through
+// the same path as ExecuteExtension.
+func ExecuteExtensionUpdate(e *core.Engine, scope *core.StatementScope, s *parser.AlterExtensionUpdate, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -28,7 +30,7 @@ func stageExtensionUpdateLocked(e *core.Engine, scope *core.StatementScope, s *p
 	if err != nil {
 		return nil, err
 	}
-	staged, err := extension.StageUpdate(&extensionHost{engine: e, op: scope.Op, auth: auth}, auth, auth.View, s)
+	staged, err := extension.StageUpdate(&extensionHost{Engine: e, Op: scope.Op, Auth: auth}, auth, auth.View, s)
 	if err != nil || staged == nil {
 		return nil, err
 	}

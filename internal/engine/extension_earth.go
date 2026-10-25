@@ -15,7 +15,7 @@ import (
 // Recipes use normal CHECK records and the same renderer/dependency authority
 // as SQL-created domains; execution remains EvaluateDomainChecks.
 func (h *extensionHost) EarthChecks(d *catalog.Type) error {
-	view := h.engine.StageRead(h.stage)
+	view := h.Engine.StageRead(h.Stage)
 	base := d.SQLType.DomainBase()
 	boolean, ok := view.LookupType(sqltype.Bool)
 	if !ok || !base.Type.IsCube() || len(d.DomainChecks) != 0 {
@@ -47,7 +47,7 @@ func (h *extensionHost) EarthChecks(d *catalog.Type) error {
 				return fmt.Errorf("stuntgres: missing earth CHECK provider")
 			}
 			check.Dependencies = append(check.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: provider.Revision()})
-			h.stage.DomainBases = append(h.stage.DomainBases, provider)
+			h.Stage.DomainBases = append(h.Stage.DomainBases, provider)
 		}
 		d.DomainChecks = append(d.DomainChecks, check)
 	}
