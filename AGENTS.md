@@ -36,8 +36,8 @@
 - Root and internal `*_test.go`: non-SQL adapter and package unit tests only.
   `smoke/`: legacy; do not add tests there.
 
-Production dependencies: standard library and this module only. goyacc is
-generation-only; pq, pgx, sqlmw and testcontainers are test-only. Reuse existing
+Production dependencies: standard library and this module only; `cmd/stuntgres`
+may also use cobra and viper (with their dependencies). goyacc is generation-only; pq, pgx, sqlmw and testcontainers are test-only. Reuse existing
 seams, binders and storage paths; do not build parallel implementations.
 
 ## Development rules
@@ -93,7 +93,7 @@ make quickcheck                   # full Docker-free suite before review/merge
 make racecheck                    # full quick suite with -race
 make finalcheck                   # generate, startup benchmark, deps
 make bench                        # BenchmarkOpenDatabase, 5 runs with allocations
-make deps                         # non-standard production dependencies
+make deps                         # non-standard library and cmd dependencies
 ```
 
 - **Deadlines.** Agents set external deadlines: 900 s for `check`, `racecheck` and
@@ -109,5 +109,5 @@ make deps                         # non-standard production dependencies
   blocked checks.
 - **Oracle and dependencies.** The pinned PostgreSQL 18.6 image (UTF8, C locale) is
   documented in [reference/fixture/README.md](reference/fixture/README.md#postgresql-oracle-policy-and-provenance).
-  `make deps` output may contain only this module's paths. The startup benchmark
+  `make deps` library output may contain only this module's paths. The startup benchmark
   target is under 1 ms per fresh engine (Ping and Close).

@@ -15,6 +15,16 @@ stuntgres dump|stop [-p PIDFILE]
 stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
 ```
 
+- **Configuration.** Each option resolves from its flag, then the
+  `STUNTGRES_<OPTION>` environment variable (`STUNTGRES_LISTEN`,
+  `STUNTGRES_USERFILE`, `STUNTGRES_RESTORE=true`, ...), then `--config FILE`, then
+  its default. The config file is YAML, TOML or JSON (by extension) keyed by long
+  option names (`listen`, `dumpdir`, `logdir`, `userfile`, `pidfile`, `restore`,
+  `verbose`, `background`, `querylog`); unknown keys and malformed booleans are
+  errors, and one file can serve every command (each uses only its own keys).
+  `--databases` is flag-only. `start` hands the daemon its resolved options as
+  arguments, never through the environment or config file.
+
 - **Accounts.** `passwd` prompts twice without echo. New accounts require
   `--databases`; omitting it keeps an existing account's grants. Changes apply
   after restart. The userfile stores PBKDF2-SHA256 verifiers (600000 iterations,
@@ -61,6 +71,9 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
 
 ## Contract
 
+- Command parsing (cobra) and option resolution (viper) build fresh instances per
+  invocation; `parseCLI` only resolves and validates, `runCLI` acts.
+
 - Protocol 3.0, 3.1 and 3.2 share one session authority; newer 3.x minors
   negotiate 3.2. Cancel keys are 4 bytes (3.0/3.1) or 32 opaque bytes (3.2),
   compared in constant time; a cancel never stays pending for a later command.
@@ -103,5 +116,5 @@ this package keeps command, filesystem, process, framing and log mechanics.
 
 ```sh
 make check RUN='^TestServer(ProtocolFraming|ProtocolCancellation|PreparedLogValues|StartupParameters)$'
-make check RUN='^TestServer(Framing|Logging|QueryLogDecode|CLI|PID|StartupFailure|PIDSocketLifecycle)$'
+make check RUN='^TestServer(Framing|Logging|QueryLogDecode|CLI.*|PID|StartupFailure|PIDSocketLifecycle)$'
 ```
