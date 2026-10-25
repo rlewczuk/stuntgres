@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `d1cbb60a0` (item 201 rebased on it).
+Last verified against `master` at `faf3a9a7d` (item 202 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 202.
+- 203.
 
 ## Linear plan
 
@@ -332,8 +332,26 @@ ENGINE-SPLIT.md §4.
      and `^TestReference(RLSPolicy|TriggerDDL)` passed in the merge chain; bench
      skipped (moved code unchanged; the escape diff is empty), racecheck and
      finalcheck skipped at user request
-202. [ ] `rolecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-202--rolecmds) · needs
-     201 · S
+202. [x] `rolecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-202--rolecmds) · needs
+     201 · S (`e9e537b7a`, `c4890f698`, `c240f4bcf`, docs commit) · the role
+     executors (14 root production files, 1,398 file lines: CREATE and ALTER
+     ROLE, role membership GRANT and REVOKE, SET ROLE and SESSION AUTHORIZATION,
+     DROP ROLE with its retirement locks, object and database GRANT and REVOKE,
+     ALTER DEFAULT PRIVILEGES, ALTER ... OWNER TO for types, domains and
+     databases, REASSIGN and DROP OWNED, CREATE DATABASE, and `RoleHost`) moved
+     to `rolecmds`, which imports no other family, by `cmdmv` after 9 names were
+     exported in place; the code shared with the schema statements was already
+     core's (item 195); 16 root test files moved as `rolecmds_test` external
+     tests (six `export_test.go` aliases), none deleted; root production 42
+     files and 0.15 MB (−0.05 MB), root tests 399 files and 2.40 MB (−0.18 MB);
+     the family selectors, each `rolecmds` test alone, the `RACE=1` ownership,
+     role transaction, role switch and CREATE DATABASE tests, quickcheck, the §3
+     `go list` check and the library deps check passed; `REFERENCE=1`
+     `^TestReference(RoleOwnership|RoleMembership|RoleGrant|RoleDefault|RoleRevoke|RoleSwitch|RoleAttributes|RoleTransactional|RoleRetained|PredefinedMaintain)`,
+     `^TestReference(ObjectGrant|ObjectRevoke)` and
+     `^TestReferenceDatabaseCreate` passed in the merge chain; bench skipped
+     (moved code unchanged; the escape diff is empty), racecheck and finalcheck
+     skipped at user request
 203. [ ] `schemacmds` — [cmds](ENGINE-SPLIT-cmds.md#item-203--schemacmds) ·
      needs 202 · S · 1.65 MB
 204. [ ] Composition cleanup —
