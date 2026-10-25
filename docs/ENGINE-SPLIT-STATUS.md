@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `b54364789` (item 197 rebased on it).
+Last verified against `master` at `916cac243` (item 198 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 198.
+- 199.
 
 ## Linear plan
 
@@ -259,8 +259,23 @@ ENGINE-SPLIT.md §4.
      `^TestReference(Vacuum|CommentInquiryComposition|PGDescriptionLifecycle|TransactionalComment)`
      passed in the merge chain; bench skipped (moved code unchanged), racecheck
      and finalcheck skipped at user request
-198. [ ] `indexcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-198--indexcmds) ·
-     needs 197 · S
+198. [x] `indexcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-198--indexcmds) · needs
+     197 · S (`9ef4a85bd`, `82ba9ff17`, `7d9d9a388`, docs commit) · the index
+     statement executors (6 root production files, 555 file lines: CREATE INDEX
+     with its publication-conflict retry and CONCURRENTLY phases, writer and
+     older-snapshot waits with the build wait registration, and ALTER INDEX,
+     DROP INDEX and REINDEX with the partition index validity pass) moved to
+     `indexcmds`, which imports `tablecmds` for `TableHost` and ALTER INDEX
+     RENAME, by `cmdmv` after 2 entries were exported in place; 3 root test
+     files moved as `indexcmds_test` external tests (one `export_test.go`
+     alias), none deleted; root production 89 files and 0.33 MB (−0.02 MB), root
+     tests 448 files and 2.93 MB (−0.05 MB); the family selectors, the `RACE=1`
+     CONCURRENTLY and index lock tests, quickcheck, the §3 `go list` check and
+     the library deps check passed; `REFERENCE=1`
+     `^TestReference(ConcurrentIndex|IndexMaintenance)` and
+     `^TestReference(BtreeIndex|IndexClauses|TransactionalIndex)` passed in the
+     merge chain; bench skipped (moved code unchanged; the escape diff is
+     empty), racecheck and finalcheck skipped at user request
 199. [ ] `partitioncmds` —
      [cmds](ENGINE-SPLIT-cmds.md#item-199--partitioncmds) · needs 198 · S
 200. [ ] `typecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-200--typecmds) · needs
