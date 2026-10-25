@@ -184,8 +184,8 @@ without aliases.
 Package units cover cast IO/binary sizing, multibyte boundaries, NULL, retained
 Rebuild, IO volatility and the walk through installed-routine wrappers. The
 evaluation prologue is pinned by an `exec` unit (it needs the concrete context)
-and generation admission by an engine unit; public evaluation lives in the
-query reference packages and cast definitions in
+and generation admission by an `enginetests/` test; public evaluation lives in
+the query reference packages and cast definitions in
 [reference/operators](../../../reference/operators/README.md#testing). Add
 `REFERENCE=1` for the oracle.
 

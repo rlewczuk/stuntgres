@@ -734,7 +734,6 @@ empty/canceled results and generation fences: `RUN='^TestInfoRoutines'`.
 
 ```sh
 make check RUN='^TestPreparedRebind'                  # prepared analysis identity
-make check RUN='^TestRangeType(Parser|Providers|Bounds|Multirange|Atomicity|IdentityRemap|DependencyClosure|Adapter|Constructors|ExactEndpoints)$'
 make check RUN='^TestDatabaseCreate'                   # registry, template, publication, target authority
 make check RUN='^TestSetting'                         # settings registry
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # producers; one catalog: ^TestPG<Name>

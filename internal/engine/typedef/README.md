@@ -240,10 +240,12 @@ copy-on-write, default snapshots and storage admission. Engine witnesses in
 walk with the real leaf and the dump statements.
 Lifecycle units cover provider/companion ownership, pending-root protection,
 retained immutable graphs, publication fences and replay-name cycles.
-Family selector: `RUN='^TestTypeLifecycle'`.
-
+Family selector: `RUN='^TestTypeLifecycle'`. Range-type provider, bound,
+multirange, constructor and remap tests run on a composed engine in
+`enginetests/`.
 
 ```sh
+make check RUN='^TestRangeType(Parser|Providers|Bounds|Multirange|Atomicity|IdentityRemap|DependencyClosure|Adapter|Constructors|ExactEndpoints)$'
 make check RUN='^Test(BuiltinConversionProcedures|BuiltinDomainSeeds|DomainDefaultReplayPairingInternal|DomainAlterDefaultReplayInternal|PGEnumSortInsertion|CatalogTypeJournalSlotsCopyOnWrite|RestoreDomainReplayScalarLeaf|MACADDR8?StorageAdmission)$$'
 make check RUN='^TestDDLHost'
 make check RACE=1 RUN='^TestDomainAlter(DefaultSnapshotsInternal|NotNullMetadataInternal|DefaultNullabilityPublication|ConstraintPublication)$$'
