@@ -213,6 +213,27 @@ parameters and the exact responses in `query.log`. Add
 commands to a real PostgreSQL server too and log its responses with their
 differences beside stuntgres's.
 
+A sample `stuntgres.yaml` that compares database `app` with a local
+PostgreSQL (other databases in the userfile run on stuntgres alone):
+
+```yaml
+listen: 127.0.0.1:5434
+userfile: ./users
+logdir: ./logs
+querylog: true                  # dual-backend mode requires the query log
+reference:
+  - app=postgres://app_user:app_password@127.0.0.1:5432/app_reference?sslmode=disable
+reference-timeout: 30s
+```
+
+```sh
+./stuntgres serve --config ./stuntgres.yaml
+```
+
+The URL password may be omitted; it is then read from `PGPASSFILE` (or
+`~/.pgpass`), for example `127.0.0.1:5432:app_reference:app_user:app_password`.
+Prefer that for `start`, which passes the URL to the daemon on its command line.
+
 ## Building from source and contributing
 
 From the repository root, with Go 1.26 or later:
