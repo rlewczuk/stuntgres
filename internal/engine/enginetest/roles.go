@@ -2,11 +2,14 @@ package enginetest
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqlstate"
 )
 
 // RoleOperation starts a session authenticated as the login role name and
@@ -32,6 +35,27 @@ func RoleOperation(t testing.TB, e *engine.Engine, name string) (*session.Operat
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
+	}
+}
+
+// RoleError requires that sql fails on op with exactly the diagnostic code,
+// message and detail, at no position.
+func RoleError(t testing.TB, e *engine.Engine, op *session.Operation, sql, code, message, detail string) {
+	t.Helper()
+	RoleErrorPosition(t, e, op, sql, code, message, detail, "")
+}
+
+// RoleErrorPosition is RoleError with an expected position.
+func RoleErrorPosition(t testing.TB, e *engine.Engine, op *session.Operation, sql, code, message, detail, position string) {
+	t.Helper()
+	_, err := e.Execute(op, Statement(t, sql), 0, nil)
+	var d *sqlstate.Error
+	if !errors.As(err, &d) {
+		t.Fatalf("%s: %T %v", sql, err, err)
+	}
+	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail, Position: position}
+	if !reflect.DeepEqual(d, want) {
+		t.Fatalf("%s: %#v want %#v", sql, d, want)
 	}
 }
 
