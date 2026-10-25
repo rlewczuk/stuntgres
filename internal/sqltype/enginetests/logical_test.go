@@ -1,0 +1,244 @@
+package enginetests_test
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"sync"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func TestLogicalTypedTruthAndFrames(t *testing.T) {
+	e := engine.New()
+	typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
+	values := []sqltype.Value{sqltype.Boolean(typ, true), sqltype.Boolean(typ, false), sqltype.Null(typ)}
+	// Each row explicitly specifies AND, OR and NOT for an ordered input pair.
+	cases := []struct {
+		a, b         int
+		and, or, not plan.Truth
+	}{
+		{0, 0, plan.True, plan.True, plan.False}, {0, 1, plan.False, plan.True, plan.False}, {0, 2, plan.Unknown, plan.True, plan.False},
+		{1, 0, plan.False, plan.True, plan.True}, {1, 1, plan.False, plan.False, plan.True}, {1, 2, plan.False, plan.Unknown, plan.True},
+		{2, 0, plan.Unknown, plan.True, plan.Unknown}, {2, 1, plan.False, plan.Unknown, plan.Unknown}, {2, 2, plan.Unknown, plan.Unknown, plan.Unknown},
+	}
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	rawParam := func(n int) parser.Expr {
+		return parser.ParameterExpr{Number: n, Pos: parser.Position{Character: n + 7}}
+	}
+	nodes := make([]expr.Expr, 3)
+	for i, op := range []parser.LogicalOperator{parser.LogicalAnd, parser.LogicalOr, parser.LogicalNot} {
+		raw := parser.LogicalExpr{Op: op, Left: rawParam(1), Pos: parser.Position{Character: 10}}
+		if op != parser.LogicalNot {
+			raw.Right = rawParam(2)
+		}
+		var err error
+		nodes[i], err = binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if nodes[i].ResultUsage() != typ.Usage() || !nodes[i].Properties().ParameterDependent || nodes[i].Properties().RowDependent {
+			t.Fatal(nodes[i])
+		}
+	}
+	info, err := binder.Finish()
+	if err != nil || info.Count != 2 || !reflect.DeepEqual(info.Types, []sqltype.Usage{typ.Usage(), typ.Usage()}) {
+		t.Fatal(info, err)
+	}
+	check := func(tc struct {
+		a, b         int
+		and, or, not plan.Truth
+	}) {
+		for i, want := range []plan.Truth{tc.and, tc.or, tc.not} {
+			v, err := nodes[i].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{values[tc.a], values[tc.b]}}})
+			if err != nil || v.Type() != typ || v.IsNull() != (want == plan.Unknown) {
+				t.Error(v, err, want)
+				continue
+			}
+			if want != plan.Unknown {
+				actual, err := v.Boolean()
+				if err != nil || actual != (want == plan.True) {
+					t.Error(actual, err, want)
+				}
+			}
+		}
+	}
+	for _, tc := range cases {
+		check(tc)
+	}
+	var wg sync.WaitGroup
+	for _, tc := range cases {
+		wg.Go(func() { check(tc) })
+	}
+	wg.Wait()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := nodes[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if _, err := nodes[0].Eval((*exec.Context)(nil)); err == nil {
+		t.Fatal("missing context")
+	}
+	if _, err := nodes[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err == nil {
+		t.Fatal("missing parameter frame")
+	}
+	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
+	if _, err := nodes[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{sqltype.Null(integer), values[0]}}}); err == nil {
+		t.Fatal("wrong typed frame")
+	}
+}
+
+func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
+	e := engine.New()
+	pos := parser.Position{Character: 17}
+	literal := func(kind parser.ValueKind) parser.Expr {
+		return parser.LiteralExpr{Value: parser.Value{Kind: kind, Integer: 1, Boolean: true, Pos: pos}}
+	}
+	for _, op := range []parser.LogicalOperator{parser.LogicalAnd, parser.LogicalOr, parser.LogicalNot} {
+		construct := map[parser.LogicalOperator]string{parser.LogicalAnd: "AND", parser.LogicalOr: "OR", parser.LogicalNot: "NOT"}[op]
+		for _, exprContext := range []analyze.ExpressionContext{analyze.ProjectionContext, analyze.FilterContext} {
+			b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+			raw := parser.LogicalExpr{Op: op, Left: literal(parser.IntegerValue), Pos: parser.Position{Character: 8}}
+			if op != parser.LogicalNot {
+				raw.Right = literal(parser.BooleanValue)
+			}
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: exprContext})
+			var diagnostic *sqlstate.Error
+			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "argument of " + construct + " must be type boolean, not type integer", Position: "17"}
+			if node != nil || !errors.As(err, &diagnostic) || *diagnostic != want {
+				t.Fatal(node, err, diagnostic, want)
+			}
+		}
+	}
+	for _, raw := range []parser.LogicalExpr{
+		{Op: parser.LogicalAnd, Left: literal(parser.BooleanValue)},
+		{Op: parser.LogicalNot, Left: literal(parser.BooleanValue), Right: literal(parser.BooleanValue)},
+		{Op: parser.LogicalOperator(99), Left: literal(parser.BooleanValue)},
+		{Op: parser.LogicalNot},
+	} {
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		if _, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
+			t.Fatal("invalid raw logical node", raw)
+		}
+	}
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	_, err := b.Bind(parser.ParameterExpr{Number: 1, Pos: pos}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: b.Type(sqltype.Int4).Usage()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = b.BindBoolean(parser.ParameterExpr{Number: 1, Pos: pos}, analyze.ProjectionContext, "AND")
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42804" || diagnostic.Message != "argument of AND must be type boolean, not type integer" || diagnostic.Position != "17" {
+		t.Fatal(err)
+	}
+	// Stage dependence is preserved from each child without any row-time allocation.
+	typ := b.Type(sqltype.Bool)
+	child := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{StageDependent: true}}, Value: sqltype.Boolean(typ, true)}
+	invalid := plan.LogicalExpr{Info: expr.Info{Usage: typ.Usage()}, Op: parser.LogicalOperator(99), Left: child, Right: child}
+	if _, err := invalid.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err == nil {
+		t.Fatal("invalid bound operator")
+	}
+}
+
+func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE TABLE t(id INT,a BOOL,b BOOL)")
+	op, done, err := enginetest.Operation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		e.Mu.Unlock()
+		t.Fatal(err)
+	}
+	ast := enginetest.Statement(t, "SELECT FALSE AND a,TRUE OR b,$1 AND a,TRUE OR pg_type_is_visible(id) FROM t WHERE NOT id=1")
+	ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+	if err != nil {
+		e.Mu.Unlock()
+		t.Fatal(err)
+	}
+	bound, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bound.Parameters.Count != 1 || bound.Parameters.Types[0] != eType(t, e, sqltype.Bool).Usage() {
+		t.Fatal(bound.Parameters)
+	}
+	project := bound.Query.Root.(*plan.ProjectNode)
+	for i, node := range project.Expressions {
+		p := node.Properties()
+		volatility := expr.Immutable
+		if i == 3 {
+			volatility = expr.Stable
+		}
+		if !p.RowDependent || p.ParameterDependent != (i == 2) || p.Volatility != volatility {
+			t.Fatal(p)
+		}
+		if node.ResultUsage().Type.ID() != sqltype.Bool || node.ResultUsage().Typmod != -1 {
+			t.Fatal(node.ResultUsage())
+		}
+	}
+	for _, column := range project.Schema() {
+		if column.Name != "?column?" || column.Usage != eType(t, e, sqltype.Bool).Usage() || column.OriginTable != 0 || column.OriginAttribute != 0 || column.NullabilityKnown {
+			t.Fatal("logical computed schema", column)
+		}
+	}
+	refs := map[ids.ObjectRef]bool{}
+	for _, dependency := range bound.Dependencies {
+		refs[dependency.Ref] = true
+	}
+	for _, sub := range []int32{1, 2, 3} {
+		column := ref
+		column.Address.SubID = sub
+		if !refs[column] {
+			t.Fatal("logical dependency omitted", sub, bound.Dependencies)
+		}
+	}
+	// The same actual-use authorization applies to decisive logical branches.
+	aclEngine := engine.New()
+	owner, finish := enginetest.RoleOperation(t, aclEngine, "postgres")
+	defer finish()
+	enginetest.RoleExecute(t, aclEngine, owner, "CREATE USER reader")
+	enginetest.RoleExecute(t, aclEngine, owner, "CREATE TABLE secret(a BOOL,b BOOL)")
+	enginetest.RoleExecute(t, aclEngine, owner, "INSERT INTO secret VALUES(TRUE,TRUE)")
+	column := enginetest.RoleTableRef(t, aclEngine, "secret")
+	column.Address.SubID = 1
+	reader, _ := aclEngine.Roles().Lookup("reader")
+	if err := enginetest.SetObjectACL(aclEngine, context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: aclEngine.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+		t.Fatal(err)
+	}
+	enginetest.RoleExecute(t, aclEngine, owner, "SET SESSION AUTHORIZATION reader")
+	for _, q := range []string{"SELECT FALSE AND a FROM secret", "SELECT TRUE OR a FROM secret", "SELECT TRUE FROM secret WHERE FALSE AND a", "SELECT TRUE OR num_nulls(a)>0 FROM secret"} {
+		r := enginetest.RoleExecute(t, aclEngine, owner, q)
+		if r.Rows != nil {
+			r.Rows.Close()
+		}
+	}
+	for _, q := range []string{"SELECT FALSE AND b FROM secret", "SELECT TRUE OR b FROM secret", "SELECT TRUE FROM secret WHERE TRUE OR b", "SELECT TRUE OR num_nulls(b)>0 FROM secret"} {
+		enginetest.RoleError(t, aclEngine, owner, q, "42501", "permission denied for table secret", "")
+	}
+}
+
+func eType(t *testing.T, e *engine.Engine, id sqltype.ID) *sqltype.Descriptor {
+	t.Helper()
+	typ, ok := e.CatalogRead().LookupType(id)
+	if !ok {
+		t.Fatal(id)
+	}
+	return typ
+}

@@ -1,0 +1,145 @@
+package enginetests_test
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
+	ctx := context.Background()
+	eng := engine.New()
+	view := eng.CatalogRead()
+	for _, tc := range []struct {
+		q   string
+		ids []sqltype.ID
+	}{
+		{"SELECT $1::json -> $2", []sqltype.ID{sqltype.JSON, sqltype.Text}},
+		{"SELECT $1::json #> $2", []sqltype.ID{sqltype.JSON, 1009}},
+		{"SELECT json_extract_path($1,$2,$3)", []sqltype.ID{sqltype.JSON, sqltype.Text, sqltype.Text}},
+		{"SELECT json_extract_path_text($1,VARIADIC $2)", []sqltype.ID{sqltype.JSON, 1009}},
+	} {
+		b := enginetest.ExpressionBinder(t, ctx, eng, sqltype.InputEnvironment{}, nil)
+		node := jsonbSetUnitBind(t, b, tc.q)
+		for i, id := range tc.ids {
+			if b.Params.Parameters[i+1].Type.ID() != id {
+				t.Fatal(tc.q, i, b.Params.Parameters)
+			}
+		}
+		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || exec.PlannedVolatility(node) != expr.Immutable {
+			t.Fatal(node.Properties())
+		}
+		count := 0
+		plan.ExpressionChildren(node, func(expr.Expr) { count++ })
+		if count != len(tc.ids) {
+			t.Fatal("lost children", count, tc.q)
+		}
+	}
+	b := enginetest.ExpressionBinder(t, ctx, eng, sqltype.InputEnvironment{}, nil)
+	original := jsonbSetUnitBind(t, b, `SELECT json_extract_path_text(from_json => '{"a":"x"}',VARIADIC path_elems => '{a}'::text[])`).(functions.JSONExtract)
+	if err := original.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	fresh := jsonObjectUnitTypes()
+	next, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	if err != nil || !changed {
+		t.Fatal(next, changed, err)
+	}
+	n := next.(functions.JSONExtract)
+	for i, arg := range n.Args {
+		if arg.ResultUsage().Type != fresh[original.Args[i].ResultUsage().Type.ID()] || arg.ResultUsage().Type == original.Args[i].ResultUsage().Type {
+			t.Fatal("lost descriptor ownership", i)
+		}
+	}
+	value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := fresh[sqltype.Text].Output(ctx, value)
+	if err != nil || text != "x" {
+		t.Fatal(text, err)
+	}
+	mapped, err := stored.RemapExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	if err != nil || !analyze.SameGroupExpression(original, mapped) {
+		t.Fatal(mapped, err)
+	}
+	if !n.Variadic || n.Labels[0] != "from_json" || n.Labels[1] != "path_elems" {
+		t.Fatal("lost replay presentation", n)
+	}
+	spec, err := original.Render()
+	if err != nil || spec.Form != expr.FormCall || !spec.Variadic || len(spec.Args) == 0 || spec.Args[len(spec.Args)-1].Label != "path_elems" {
+		t.Fatal("replay presentation", spec, err)
+	}
+	// Reconstruct and copy-on-change mapping cannot mutate a held source tree.
+	copied, did, err := expr.Map(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, false, nil })
+	if err != nil || did || &copied.(functions.JSONExtract).Args[0] != &original.Args[0] {
+		t.Fatal("unchanged mapper copied", err)
+	}
+	copied, did, err = expr.Map(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, true, nil })
+	if err != nil || !did || &copied.(functions.JSONExtract).Args[0] == &original.Args[0] {
+		t.Fatal("changed mapper aliased source", err)
+	}
+	bad := original
+	bad.Variadic = false
+	if err := bad.Validate(); err == nil {
+		t.Fatal("invalid node admitted")
+	}
+}
+
+func TestJSONExtractStoredVariadicProvenance(t *testing.T) {
+	ctx := context.Background()
+	eng := engine.New()
+	view := eng.CatalogRead()
+	for _, name := range []string{"json_extract_path", "json_extract_path_text"} {
+		for _, named := range []bool{false, true} {
+			q := "SELECT " + name + `('{"a":"x"}',VARIADIC '{a}'::text[])`
+			if named {
+				q = "SELECT " + name + `(from_json => '{"a":"x"}',VARIADIC path_elems => '{a}'::text[])`
+			}
+			t.Run(q, func(t *testing.T) {
+				b := enginetest.ExpressionBinder(t, ctx, eng, sqltype.InputEnvironment{}, nil)
+				raw := enginetest.Statement(t, q).(*parser.Select).Targets[0]
+				node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+					t.Fatal(err)
+				}
+				renderer := stored.QueryRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
+				replaySQL, err := renderer.ExpressionSQL(ctx, view, raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(replaySQL, "VARIADIC ") || named && !strings.Contains(replaySQL, "path_elems") {
+					t.Fatal("lost written call provenance", replaySQL)
+				}
+				replayed := jsonbSetUnitBind(t, enginetest.ExpressionBinder(t, ctx, eng, sqltype.InputEnvironment{}, nil), "SELECT "+replaySQL)
+				value, err := replayed.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := value.Type().Output(ctx, value)
+				want := `"x"`
+				if name == "json_extract_path_text" {
+					want = "x"
+				}
+				if err != nil || got != want {
+					t.Fatal(replaySQL, got, err)
+				}
+			})
+		}
+	}
+}

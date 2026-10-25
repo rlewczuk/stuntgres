@@ -1,0 +1,132 @@
+package enginetests_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/sqltype"
+)
+
+func TestTimezoneBoundSessionSensitiveOperations(t *testing.T) {
+	ctx := context.Background()
+	e := engine.New()
+	ny, err := sqltype.ResolveZone("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock := time.Date(2020, 7, 1, 12, 0, 0, 0, time.UTC)
+	for _, query := range []string{
+		"SELECT TIMESTAMP '2004-07-01 12:00' AT LOCAL FROM t",
+		"SELECT DATE '2004-10-19'::TIMESTAMPTZ FROM t",
+		"SELECT TIMESTAMPTZ '2004-10-19 04:00+00'::TIMESTAMP FROM t",
+		"SELECT TIMESTAMPTZ '2004-10-19 04:00+00'::TEXT FROM t",
+		"SELECT CAST('now' AS TEXT)::TIME FROM t",
+		"SELECT DATE '2004-10-19'=TIMESTAMPTZ '2004-10-19 04:00+00' FROM t",
+		"SELECT DATE '2004-10-19' IS DISTINCT FROM TIMESTAMPTZ '2004-10-19 04:00+00' FROM t",
+	} {
+		binder := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{TransactionStart: clock}, nil)
+		node, err := binder.Bind(castTarget(t, query), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err != nil {
+			t.Fatal(query, err)
+		}
+		if node.Properties().Volatility != expr.Stable {
+			t.Fatal(query, node.Properties())
+		}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{Zone: ny, TransactionStart: clock}, Output: sqltype.OutputEnvironment{Zone: ny}}}
+		planned, _, err := exec.PreflightCoercions(&evaluation, node)
+		if err != nil {
+			t.Fatal(query, err)
+		}
+		if _, folded := planned.(plan.LiteralExpr); folded {
+			t.Fatal("session-sensitive operation folded", query)
+		}
+		if _, err := planned.Eval(&evaluation); err != nil {
+			t.Fatal(query, err)
+		}
+	}
+}
+func TestTimezonePreparedTemporalPayloads(t *testing.T) {
+	ctx := context.Background()
+	e := engine.New()
+	for _, tc := range []struct{ zone, query, want string }{
+		{"America/New_York", "SELECT TIMESTAMPTZ(3) '2004-07-01 12:00' FROM t", "2004-07-01 16:00:00+00"},
+		{"UTC167:59:60", "SELECT TIMETZ(3) '12:00' FROM t", "12:00:00-168"},
+		{"UTC-167:59:60DST", "SELECT TIMETZ(3) '12:00' FROM t", "12:00:00+169"},
+	} {
+		zone, err := sqltype.ResolveZone(tc.zone)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 7, 1, 0, 0, 0, 0, time.UTC)}, nil)
+		raw := castTarget(t, tc.query)
+		original, err := first.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err != nil {
+			t.Fatal(tc, err)
+		}
+		expected := &engine.StatementDescription{Temporals: first.Prepared.Temporals}
+		second := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{TransactionStart: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)}, expected)
+		replayed, err := second.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err != nil {
+			t.Fatal(tc, err)
+		}
+		a, err := original.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := replayed.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
+		if err != nil || !sqltype.SameDatum(a, b) {
+			t.Fatal(tc, a, b, err)
+		}
+		got, err := b.Type().Output(ctx, b)
+		if err != nil || got != tc.want || replayed.ResultUsage().Typmod != 3 {
+			t.Fatal(tc, got, err)
+		}
+	}
+}
+
+func TestTimezoneStrictNullAndExpressionOperands(t *testing.T) {
+	ctx := context.Background()
+	e := engine.New()
+	for _, tc := range []struct {
+		query string
+		id    sqltype.ID
+		null  bool
+		text  string
+	}{
+		{"SELECT NULL::TIMESTAMP AT TIME ZONE 'No/Such_Zone' FROM t", sqltype.Timestamptz, true, ""},
+		{"SELECT NULL::TIMESTAMPTZ AT LOCAL FROM t", sqltype.Timestamp, true, ""},
+		{"SELECT NULL::TIMETZ AT TIME ZONE 'UTC' FROM t", sqltype.Timetz, true, ""},
+		{"SELECT TIMESTAMP 'epoch' AT TIME ZONE NULL::TEXT FROM t", sqltype.Timestamptz, true, ""},
+		{"SELECT CASE WHEN TRUE THEN TIMETZ '05:34:17-05' ELSE TIMETZ '10:00+00' AT TIME ZONE 'No/Such_Zone' END FROM t", sqltype.Timetz, false, "05:34:17-05"},
+		{"SELECT (TIMETZ '05:34:17-05' AT TIME ZONE 'UTC')=TIMETZ '10:34:17+00' FROM t", sqltype.Bool, false, "t"},
+		{"SELECT (NULL::TIMESTAMP AT TIME ZONE 'No/Such_Zone') IS DISTINCT FROM NULL::TIMESTAMPTZ FROM t", sqltype.Bool, false, "f"},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			binder := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+			node, err := binder.Bind(castTarget(t, tc.query), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+			if err != nil {
+				t.Fatal(err)
+			}
+			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if node.ResultUsage().Type.ID() != tc.id || value.Type() != node.ResultUsage().Type || value.IsNull() != tc.null {
+				t.Fatal(node.ResultUsage(), value)
+			}
+			if !tc.null {
+				text, err := value.Type().Output(ctx, value)
+				if err != nil || text != tc.text {
+					t.Fatal(text, err)
+				}
+			}
+		})
+	}
+}

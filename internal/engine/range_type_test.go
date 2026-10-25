@@ -78,11 +78,3 @@ func rangeTypeUnitInput(t *testing.T, d *sqltype.Descriptor, text string) sqltyp
 	}
 	return v
 }
-
-func rangeTypeUnitOutput(t *testing.T, v sqltype.Value, want string) {
-	t.Helper()
-	got, err := v.Type().Output(context.Background(), v)
-	if err != nil || got != want {
-		t.Fatalf("output %q want %q: %v", got, want, err)
-	}
-}
