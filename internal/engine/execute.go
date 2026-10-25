@@ -30,34 +30,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
-	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger:
-		return e.executeTrigger(scope, stmt, count)
-	case *parser.CreateFunction, *parser.CreateAggregate:
-		return e.executeSQLRoutineDDL(scope, stmt, count)
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return scope.executeNotification(stmt, count)
-	case *parser.ForeignDDL:
-		result, err := e.executeForeignDDL(scope, stmt.(*parser.ForeignDDL), count)
-		if err == nil {
-			scope.Completed = true
-		}
-		return result, err
-	case *parser.CreateDatabaseStmt:
-		return e.executeCreateDatabase(scope, stmt.(*parser.CreateDatabaseStmt), count)
-	case *parser.CreateTablespace:
-		return e.executeCreateTablespace(op, stmt.(*parser.CreateTablespace), count)
-	case *parser.Load:
-		return e.executeLoad(op, stmt.(*parser.Load), count)
-	case *parser.Vacuum:
-		return e.executeVacuum(scope, stmt.(*parser.Vacuum), count)
 	case *parser.Truncate:
 		return Result{}, scope.stageTruncate()
-	case *parser.CreateExtension:
-		return e.executeExtension(scope, stmt.(*parser.CreateExtension), count)
-	case *parser.DropExtension:
-		return e.executeDropExtension(scope, stmt.(*parser.DropExtension), count)
-	case *parser.AlterExtensionUpdate:
-		return e.executeExtensionUpdate(scope, stmt.(*parser.AlterExtensionUpdate), count)
 	case *parser.Discard:
 		return scope.executeDiscard(stmt.(*parser.Discard), count)
 	case *parser.PrepareSQL:
@@ -83,105 +59,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, SQLError("42P03", fmt.Sprintf("cursor %q already exists", name))
 			}
 		}
-	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
-		return e.executeRule(scope, stmt, count)
-	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
-		return e.executePolicy(scope, stmt, count)
-	case *parser.CreateIndex:
-		return e.executeCreateIndex(scope, stmt.(*parser.CreateIndex), count)
-	case *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
-		return e.executeIndexMaintenance(scope, stmt, count)
-	case *parser.CreateView:
-		return e.executeCreateView(scope, stmt.(*parser.CreateView), count)
-	case *parser.AlterOwner:
-		return e.executeOwnership(scope, stmt.(*parser.AlterOwner), count)
-	case *parser.ReassignOwned, *parser.DropOwned:
-		return e.executeOwned(scope, stmt, count)
-	case *parser.AlterView:
-		if owner := stmt.(*parser.AlterView); owner.Action == "owner" {
-			kind := "view"
-			if owner.Materialized {
-				kind = "materialized view"
-			}
-			return e.executeRelationOwnership(scope, owner.Name, owner.Target.Text, owner.OwnerIdentity, kind, owner.IfExists, count)
-		}
-		return e.executeAlterView(scope, stmt.(*parser.AlterView), count)
-	case *parser.DropView:
-		return e.executeDropView(scope, stmt.(*parser.DropView), count)
-	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
-		return e.executeSequenceDDL(scope, stmt, count)
-	case *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum:
-		return e.executeEnumDDL(scope, stmt, count)
-	case *parser.AlterDomain:
-		domain := stmt.(*parser.AlterDomain)
-		var result Result
-		var err error
-		if domain.Action == parser.DomainRename || domain.Action == parser.DomainSetSchema {
-			result, err = e.executeSchema(scope, op, stmt, count, scope.Input)
-		} else {
-			result, err = e.executeAlterDomain(scope, domain, count)
-		}
-		if err == nil {
-			scope.Completed = true
-		}
-		return result, err
-	case *parser.AlterComposite:
-		return e.executeAlterComposite(scope, op, stmt.(*parser.AlterComposite), count)
-	case *parser.Comment:
-		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
-			return e.executeSequenceComment(scope, c, count)
-		}
-		result, err := e.executeComment(scope, stmt.(*parser.Comment), count)
-		if err == nil {
-			scope.Completed = true
-		}
-		return result, err
-	case *parser.CreateSchema, *parser.CreateLanguage, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.AlterType, *parser.DropType, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
-		result, err := e.executeSchema(scope, op, stmt, count, scope.Input)
-		if err == nil {
-			scope.Completed = true
-		}
-		return result, err
-	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
-		result, err := e.executeSchema(scope, op, stmt, count, scope.Input)
-		if err == nil {
-			scope.Completed = true
-		}
-		return result, err
-	case *parser.CreateCast, *parser.DropCast, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
-		result, err := e.executeSchema(scope, op, stmt, count, scope.Input)
-		if err == nil {
-			scope.Completed = true
-		}
-		return result, err
-	case *parser.CreateRole, *parser.AlterRole:
-		result, err := e.executeRoleAttributes(scope, stmt, count)
-		if err == nil {
-			scope.Completed = true
-		}
-		return result, err
-	case *parser.ObjectGrant:
-		grant := stmt.(*parser.ObjectGrant)
-		if session.ForeignGrantKind(grant.Kind) {
-			return e.executeForeignGrant(scope, grant, count)
-		}
-		if grant.Kind == "database" {
-			return e.executeDatabaseGrant(scope, grant, count)
-		}
-		return e.executeObjectGrant(scope, grant, count)
-	case *parser.AlterDefaultPrivileges:
-		return e.executeDefaultPrivileges(scope, stmt.(*parser.AlterDefaultPrivileges), count)
-	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership:
-		if drop, ok := stmt.(*parser.DropRole); ok && count == 0 {
-			if err := scope.acquireRoleRetirementLocks(drop); err != nil {
-				return Result{}, err
-			}
-		}
-		result, err := e.executeRole(op, stmt, count, !scope.Owner.InBlock())
-		if err == nil {
-			scope.Completed = true
-		}
-		return result, err
 	case *parser.Set, *parser.Show, *parser.Reset:
 		result, err := e.executeSetting(op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {
@@ -194,6 +71,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.Completed = true
 		}
 		return result, err
+	default:
+		if result, handled, err := e.Statements.Execute(e, scope, stmt, count); handled {
+			return result, err
+		}
 	}
 	e.Mu.Lock()
 	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
@@ -228,37 +109,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	if s, ok := stmt.(*parser.AlterTable); ok {
-		return e.alterTableLocked(scope, op, auth, s, count)
-	}
-	if s, ok := stmt.(*parser.AlterTableDefault); ok {
-		return e.alterDefaultLocked(scope, op, auth, s, count)
-	}
-	switch s := stmt.(type) {
-	case *parser.AlterTableAllInTablespace:
-		return e.alterAllTablespaceLocked(scope, auth, s, count)
-	case *parser.RefreshMaterializedView:
-		return e.refreshMaterializedLocked(scope, auth, s, count)
-	case *parser.AlterTableOf:
-		return e.alterTableOfLocked(scope, op, auth, s, count)
-	case *parser.AlterTableAttachPartition:
-		return e.attachPartitionLocked(scope, op, auth, s, count)
-	case *parser.AlterTableDetachPartition:
-		return e.detachPartitionLocked(scope, op, auth, s, count)
-	case *parser.AlterTableRenameConstraint:
-		return e.renameConstraintLocked(scope, op, auth, s, count)
-	case *parser.AlterTableSetSchema:
-		return e.alterSchemaLocked(scope, op, auth, s, count)
-	case *parser.AlterTableRenameColumn:
-		return e.renameRelationLocked(scope, op, auth, s.Name, s.Column.Text, s.NewName.Text, s.IfExists, true, false, s.Only, count)
-	case *parser.AlterTableRenameTable:
-		return e.renameRelationLocked(scope, op, auth, s.Name, "", s.NewName.Text, s.IfExists, false, false, false, count)
-	}
-	if s, ok := stmt.(*parser.DropTable); ok {
-		return e.dropTableLocked(scope, op, auth, s, count)
-	}
-	if s, ok := stmt.(*parser.CreateTable); ok {
-		return e.createTableLocked(scope, op, auth, s, count)
+	if result, handled, err := e.Statements.ExecuteLocked(e, scope, auth, stmt, count); handled {
+		return result, err
 	}
 	expected := scope.Expected
 	var candidate StatementDescription

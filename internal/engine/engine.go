@@ -63,6 +63,7 @@ type Engine struct {
 	Foreign           fdw.Registry
 	DatabaseFrozenXID uint64
 	VacuumProgress    map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
+	Statements        Statements                   // Family dispatch; set by the composition, shared by every target.
 }
 type Result struct {
 	CommandTag string
@@ -98,7 +99,12 @@ func NewWithSettings(definitions []settings.Definition, database string, trackCo
 // newEngine is the composition: it seeds the state with NewEngine and then
 // registers what the root composes.
 func newEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
-	return NewEngine(providers, definitions, database, trackCommitTimestamp)
+	e, err := NewEngine(providers, definitions, database, trackCommitTimestamp)
+	if err != nil {
+		return nil, err
+	}
+	e.Statements = familyStatements{}
+	return e, nil
 }
 
 // NewEngine seeds one engine's state: the catalog, storage and role stores,
