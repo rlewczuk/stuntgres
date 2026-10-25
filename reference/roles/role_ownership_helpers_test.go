@@ -16,7 +16,12 @@ var ownershipRoles = []string{"own_source", "own_target", "own_actor", "own_othe
 
 func ownershipCases(t *testing.T, body func(*membershipScenario)) {
 	t.Helper()
-	membershipCases(t, ownershipRoles, func(s *membershipScenario) {
+	ownershipCasesFor(t, []bool{false, true}, body)
+}
+
+func ownershipCasesFor(t *testing.T, modes []bool, body func(*membershipScenario)) {
+	t.Helper()
+	membershipCasesFor(t, ownershipRoles, modes, func(s *membershipScenario) {
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()

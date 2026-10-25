@@ -16,7 +16,11 @@ import (
 )
 
 func ownershipProviderCases(t *testing.T, body func(*membershipScenario, string)) {
-	ownershipCases(t, func(s *membershipScenario) {
+	ownershipProviderCasesFor(t, []bool{false, true}, body)
+}
+
+func ownershipProviderCasesFor(t *testing.T, modes []bool, body func(*membershipScenario, string)) {
+	ownershipCasesFor(t, modes, func(s *membershipScenario) {
 		database := ownershipDatabaseName(s)
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
