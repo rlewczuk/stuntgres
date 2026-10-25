@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 
 // Restore hook entries owned by inheritance: inherited foreign keys,
 // generation recipes, historical constraint facts and inherited owners.
-// Each calls the existing Engine method on the restore stage.
+// Each calls its partitioncmds repair on the restore stage.
 
 // beforeRestoreInheritedForeignKey captures an inherited foreign key ALTER
 // for binding at finish, consuming the statement.
@@ -22,7 +23,7 @@ func beforeRestoreInheritedForeignKey(r *restoreRun, op *session.Operation, stmt
 	if !ok || r.cur.physicalConstructor != nil {
 		return false, nil
 	}
-	declaration, admitted, err := CaptureInheritedForeignKey(r.stage, op, alteration, r.historicalRefs)
+	declaration, admitted, err := partitioncmds.CaptureInheritedForeignKey(r.stage, op, alteration, r.historicalRefs)
 	if err != nil || !admitted {
 		return false, err
 	}
@@ -40,7 +41,7 @@ func prepareRestoreRecipeData(r *restoreRun, op *session.Operation, stmt parser.
 		return nil
 	}
 	var err error
-	r.generationRepairs, err = CloseRestoredRecipesForData(r.stage, op, insertion, r.generationRepairs)
+	r.generationRepairs, err = partitioncmds.CloseRestoredRecipesForData(r.stage, op, insertion, r.generationRepairs)
 	return err
 }
 
@@ -48,7 +49,7 @@ func prepareRestoreRecipeData(r *restoreRun, op *session.Operation, stmt parser.
 // placeholder.
 func prepareRestoreGenerationPair(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
 	if alteration, ok := restoreSetExpression(stmt); ok {
-		return PairRestoredGeneration(r.stage, op, alteration, r.placeholderOrigins)
+		return partitioncmds.PairRestoredGeneration(r.stage, op, alteration, r.placeholderOrigins)
 	}
 	return nil
 }
@@ -80,7 +81,7 @@ func afterRestoreInheritedOwner(r *restoreRun, op *session.Operation, stmt parse
 		return nil
 	}
 	var err error
-	r.pairedOwner, err = CaptureInheritedOwner(r.stage, op, outcome.Created, r.cur.ownerForCreate)
+	r.pairedOwner, err = partitioncmds.CaptureInheritedOwner(r.stage, op, outcome.Created, r.cur.ownerForCreate)
 	return err
 }
 
@@ -102,7 +103,7 @@ func afterRestoreGeneration(r *restoreRun, op *session.Operation, stmt parser.St
 	if !ok {
 		return nil
 	}
-	record, err := CaptureRestoredGeneration(r.stage, op, alteration)
+	record, err := partitioncmds.CaptureRestoredGeneration(r.stage, op, alteration)
 	if err != nil {
 		return err
 	}

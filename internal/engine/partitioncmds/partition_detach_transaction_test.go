@@ -1,4 +1,4 @@
-package engine
+package partitioncmds_test
 
 import (
 	"context"
@@ -8,11 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -183,7 +185,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 						f.e.Mu.Unlock()
 						return err
 					}
-					_, err = DetachPartitionLocked(f.e, worker, op, auth, raw, 0)
+					_, err = partitioncmds.DetachPartitionLocked(f.e, worker, op, auth, raw, 0)
 					return err
 				})
 				partitionAttachUnitQueued(t, f.e, ref, worker.LockTicket, lock.AccessExclusive)
@@ -191,7 +193,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				case "cancel":
 					op.Cancel(context.Canceled)
 				case "epoch":
-					if err := Reset(context.Background(), f.e); err != nil {
+					if err := engine.Reset(context.Background(), f.e); err != nil {
 						t.Fatal(err)
 					}
 				case "revision":
@@ -236,4 +238,31 @@ func TestPartitionDetachLockFences(t *testing.T) {
 			})
 		}
 	}
+}
+
+func transactionEnd(t *testing.T, s *session.Session, ref ids.TxRef, commit bool) core.EndResult {
+	t.Helper()
+	op := transactionOperation(t, s)
+	defer op.Done()
+	var r core.EndResult
+	var err error
+	if commit {
+		r, err = core.EngineOf(s).Commit(op, ref)
+	} else {
+		r, err = core.EngineOf(s).Rollback(op, ref)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func transactionOperation(t *testing.T, s *session.Session) *session.Operation {
+	t.Helper()
+	op, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(op.Done)
+	return op
 }

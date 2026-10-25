@@ -1,4 +1,4 @@
-package engine
+package partitioncmds_test
 
 import (
 	"bytes"
@@ -11,9 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -28,7 +31,7 @@ func retiredRow(kind, lifetime, oid string) string {
 }
 func retiredRaw(t *testing.T, q string) *parser.Update {
 	t.Helper()
-	return statement(t, q).(*parser.Update)
+	return enginetest.Statement(t, q).(*parser.Update)
 }
 
 func TestRestoreConstraintHistorySyntax(t *testing.T) {
@@ -130,7 +133,7 @@ func TestRestoreConstraintHistorySyntax(t *testing.T) {
 
 func retiredImportFixture(t *testing.T) (*core.Engine, *session.Operation, *table.RestoredHistoryAuthority) {
 	t.Helper()
-	source := New()
+	source := engine.New()
 	ownershipUnitExec(t, source, "CREATE ROLE history_reader LOGIN")
 	e := source.RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
@@ -181,7 +184,7 @@ func retiredReject(t *testing.T, e *core.Engine, op *session.Operation, q string
 	stores := maps.Clone(e.Storage.Relations)
 	capture := retiredAuthorityClone(a)
 	resources := retiredResourceCounts(e)
-	if err := RestoreRetiredConstraint(e, op, retiredRaw(t, q), a); err == nil {
+	if err := partitioncmds.RestoreRetiredConstraint(e, op, retiredRaw(t, q), a); err == nil {
 		t.Fatal("forged repair gained authority", q)
 	}
 	if e.Catalog.State != before || !reflect.DeepEqual(stores, e.Storage.Relations) || !retiredAuthorityEqual(a, capture) || retiredResourceCounts(e) != resources {
@@ -195,7 +198,9 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	old := retiredUnitTable(t, e, "c")
 	oid := old.Constraints.NotNull[0].OID
 	for name, mutate := range map[string]func(*table.RestoredHistoricalFact){
-		"epoch": func(f *table.RestoredHistoricalFact) { f.Ref.Epoch++ }, "owner": func(f *table.RestoredHistoricalFact) { f.Ref = New().Catalog.Domain.Ref(f.Ref.Epoch, f.Ref.Address) },
+		"epoch": func(f *table.RestoredHistoricalFact) { f.Ref.Epoch++ }, "owner": func(f *table.RestoredHistoricalFact) {
+			f.Ref = engine.New().Catalog.Domain.Ref(f.Ref.Epoch, f.Ref.Address)
+		},
 		"oid": func(f *table.RestoredHistoricalFact) { f.OID++ }, "name": func(f *table.RestoredHistoricalFact) { f.Name = "wrong" },
 		"kind": func(f *table.RestoredHistoricalFact) { f.Check = true }, "key": func(f *table.RestoredHistoricalFact) { f.Attributes = []int32{1} },
 		"validity": func(f *table.RestoredHistoricalFact) { f.NotValid = true }, "noinherit": func(f *table.RestoredHistoricalFact) { f.NoInherit = true },
@@ -229,7 +234,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	e.ImportTargets = nil
 	retiredReject(t, e, op, q, a)
 	e.ImportTargets = targets
-	foreign := New()
+	foreign := engine.New()
 	other, done := roleOperation(t, foreign, "postgres")
 	defer done()
 	retiredReject(t, e, other, q, a)
@@ -265,17 +270,17 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 		t.Fatal("public catalog UPDATE gained historical repair authority", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	canceled, cancelDone, err := testOperation(e, ctx)
+	canceled, cancelDone, err := enginetest.Operation(e, ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cancelDone()
 	cancel()
 	before := e.Catalog.State
-	if err := RestoreRetiredConstraint(e, canceled, retiredRaw(t, q), a); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
+	if err := partitioncmds.RestoreRetiredConstraint(e, canceled, retiredRaw(t, q), a); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
 		t.Fatal("canceled importer repair published", err)
 	}
-	if err := RestoreRetiredConstraint(e, op, retiredRaw(t, q), a); err != nil {
+	if err := partitioncmds.RestoreRetiredConstraint(e, op, retiredRaw(t, q), a); err != nil {
 		t.Fatal("actual paired NN repair rejected", err)
 	}
 	current := retiredUnitTable(t, e, "c")
@@ -297,7 +302,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	} {
 		retiredReject(t, e, op, strings.Replace(sibling, change[0], change[1], 1), a)
 	}
-	if err := RestoreRetiredConstraint(e, op, retiredRaw(t, sibling), a); err != nil {
+	if err := partitioncmds.RestoreRetiredConstraint(e, op, retiredRaw(t, sibling), a); err != nil {
 		t.Fatal("consistent shared source rejected", err)
 	}
 	d := retiredUnitTable(t, e, "d")
@@ -322,13 +327,13 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 			retiredReject(t, e, op, check, bad)
 		})
 	}
-	if err := RestoreRetiredConstraint(e, op, retiredRaw(t, check), a); err != nil {
+	if err := partitioncmds.RestoreRetiredConstraint(e, op, retiredRaw(t, check), a); err != nil {
 		t.Fatal(err)
 	}
 	ck := retiredUnitTable(t, e, "c").Constraints.Check[0]
 	saved := a.Facts[retiredUnitTable(t, e, "f").Constraints.NotNull[0].OID]
 	distinct := retiredRepairSQL("f", "nn", "n", false, false, 1, retiredRow("n", "0:8", fmt.Sprint(liveQ))+", "+retiredRow("n", "0:9", fmt.Sprint(liveQ)))
-	if err := RestoreRetiredConstraint(e, op, retiredRaw(t, distinct), a); err != nil {
+	if err := partitioncmds.RestoreRetiredConstraint(e, op, retiredRaw(t, distinct), a); err != nil {
 		t.Fatal("archival identities falsely aliased current OID namespace", err)
 	}
 	f := retiredUnitTable(t, e, "f")
@@ -349,7 +354,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 	roleExecute(t, e, op, "INSERT INTO c(a,b) VALUES(2,20)")
 	roleExecute(t, e, op, "ALTER TABLE p DROP COLUMN a")
 	var dump bytes.Buffer
-	if err := Dump(context.Background(), e, &dump); err != nil {
+	if err := engine.Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	before := e.Catalog.State
@@ -364,7 +369,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 		"late_enforcement":      dump.String() + "; INSERT INTO public.c(a,b) VALUES(0,20)",
 	} {
 		t.Run(name, func(t *testing.T) {
-			if err := Restore(context.Background(), e, strings.NewReader(stream)); err == nil {
+			if err := engine.Restore(context.Background(), e, strings.NewReader(stream)); err == nil {
 				t.Fatal("late invalid import succeeded")
 			}
 			if e.Catalog.State != before || !reflect.DeepEqual(stores, e.Storage.Relations) || retiredResourceCounts(e) != resources {
@@ -379,14 +384,14 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := Restore(ctx, e, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) || e.Catalog.State != before || retiredResourceCounts(e) != resources {
+	if err := engine.Restore(ctx, e, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) || e.Catalog.State != before || retiredResourceCounts(e) != resources {
 		t.Fatal("canceled actual history stream replaced catalog/resources", err)
 	}
 	// Every actual redump/import receives fresh archival namespace authority, while
 	// archived fields remain old and current references/own identities are remapped.
 	var prior uint64
 	for range 2 {
-		if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
+		if err := engine.Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
 		c := retiredUnitTable(t, e, "c")
@@ -396,7 +401,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 		}
 		prior = h.Archive
 		dump.Reset()
-		if err := Dump(context.Background(), e, &dump); err != nil {
+		if err := engine.Dump(context.Background(), e, &dump); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -411,7 +416,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	table.CaptureHistoricalRelation(e.CatalogRead(), ref, a.Facts)
 	before := a.Facts[oid]
 	q := retiredRepairSQL("d", "nn", "n", false, before.Local, before.Count, retiredRow("n", "0:7", "77"))
-	if err := RestoreRetiredConstraint(e, op, retiredRaw(t, q), a); err != nil {
+	if err := partitioncmds.RestoreRetiredConstraint(e, op, retiredRaw(t, q), a); err != nil {
 		t.Fatal("ordinary validated NN with genuine primary support rejected", err)
 	}
 	current := retiredUnitTable(t, e, "d")
@@ -421,4 +426,20 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	if err := table.ValidateInheritance(e.CatalogRead(), current); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func retiredRuntimeFixture(t *testing.T) (*core.Engine, *session.Operation) {
+	t.Helper()
+	e := engine.New()
+	op, done := roleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	for _, q := range []string{
+		"CREATE TABLE p(a INT CONSTRAINT nn NOT NULL,b INT,CONSTRAINT ck CHECK(a>0))",
+		"CREATE TABLE q(a INT CONSTRAINT nn NOT NULL,CONSTRAINT ck CHECK(a>0))",
+		"CREATE TABLE c() INHERITS(p,q)",
+		"CREATE TABLE leaf() INHERITS(c)",
+	} {
+		roleExecute(t, e, op, q)
+	}
+	return e, op
 }

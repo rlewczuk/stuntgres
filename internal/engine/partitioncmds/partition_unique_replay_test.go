@@ -1,18 +1,20 @@
-package engine
+package partitioncmds_test
 
 import (
 	"context"
 	"slices"
 	"strconv"
-	"stuntgres/internal/engine/control"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
@@ -22,7 +24,7 @@ import (
 
 func partitionUniqueReplayUnit(t *testing.T, primary bool) (*core.Engine, *catalog.Relation, *catalog.Relation, *parser.AlterTable) {
 	t.Helper()
-	e := New().RestoreStage()
+	e := engine.New().RestoreStage()
 	root := partitionAttachUnitRoot(t, e, "unique_replay_root", 47200)
 	mid := partitionAttachUnitRoot(t, e, "unique_replay_mid", 47201)
 	leaf := inheritanceUnitRelation(e, "unique_replay_leaf", 47202, "k")
@@ -67,7 +69,7 @@ func TestPartitionDetachUniqueReplayAuthority(t *testing.T) {
 	e, mid, leaf, raw := partitionUniqueReplayUnit(t, true)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	if err := BeginPartitionUniqueReplay(e, op, raw); err != nil {
+	if err := partitioncmds.BeginPartitionUniqueReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
 	auth, err := core.OperationAuthorization(op)
@@ -109,7 +111,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 			t.Run(map[bool]string{false: "unique", true: "primary"}[primary]+map[bool]string{false: "/publish", true: "/cancel"}[cancel], func(t *testing.T) {
 				e, mid, leaf, raw := partitionUniqueReplayUnit(t, primary)
 				scope, op := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-				if err := BeginPartitionUniqueReplay(e, op, raw); err != nil {
+				if err := partitioncmds.BeginPartitionUniqueReplay(e, op, raw); err != nil {
 					t.Fatal(err)
 				}
 				if err := scope.AcquireRelation(raw, true); err != nil {
@@ -167,7 +169,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	e, mid, leaf, raw := partitionUniqueReplayUnit(t, true)
 	scope, op := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-	if err := BeginPartitionUniqueReplay(e, op, raw); err != nil {
+	if err := partitioncmds.BeginPartitionUniqueReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
 	if err := scope.AcquireRelation(raw, true); err != nil {

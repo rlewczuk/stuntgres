@@ -1,4 +1,4 @@
-package engine
+package partitioncmds_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
@@ -86,7 +87,7 @@ func partitionAttachUnitValues(t *testing.T, view *visibility.View, ref ids.Obje
 
 func TestPartitionAttachTransactionOverlay(t *testing.T) {
 	t.Run("latest_validation_preserves_rr_and_owner_effects", func(t *testing.T) {
-		e := New()
+		e := engine.New()
 		child := inheritanceUnitRelation(e, "attach_rr_child", 46200, "k")
 		child.RelationKind = catalog.TableRelation
 		partitionAttachUnitInstall(t, e, child)
@@ -166,7 +167,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 	})
 	for _, end := range []string{"rollback", "savepoint", "commit"} {
 		t.Run(end, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			parent := partitionAttachUnitRoot(t, e, "attach_tx_parent", 46210)
 			child := inheritanceUnitRelation(e, "attach_tx_child", 46211, "k")
 			child.RelationKind = catalog.TableRelation
@@ -252,5 +253,13 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			}
 			lockEmpty(t, e)
 		})
+	}
+}
+
+func lockEmpty(t *testing.T, e *core.Engine) {
+	t.Helper()
+	lockState := e.Locks.Inspect()
+	if len(lockState.Owners) != 0 || len(lockState.Resources) != 0 {
+		t.Fatalf("residual lock state: owners=%d entries=%d", len(lockState.Owners), len(lockState.Resources))
 	}
 }

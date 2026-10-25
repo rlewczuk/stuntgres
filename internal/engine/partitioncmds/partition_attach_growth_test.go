@@ -1,4 +1,4 @@
-package engine
+package partitioncmds_test
 
 import (
 	"context"
@@ -8,13 +8,18 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -97,7 +102,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 	t.Run("descendant_admission", partitionAttachUnitDescendantAdmission)
 	for _, replacement := range []bool{false, true} {
 		t.Run(map[bool]string{false: "append_keeps_admitted_branch", true: "replacement_is_fenced"}[replacement], func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			parent := partitionAttachUnitRoot(t, e, "attach_growth_parent", 46100)
 			old := inheritanceUnitRelation(e, "attach_growth_old", 46101, "k")
 			old.RelationKind = catalog.TableRelation
@@ -195,7 +200,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 func partitionAttachUnitDescendantAdmission(t *testing.T) {
 	for _, mode := range []string{"candidate_proven", "default_proven", "default_unproven"} {
 		t.Run(mode, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			parent := partitionAttachUnitRoot(t, e, "attach_frontier_parent", 46110)
 			target := partitionAttachUnitRoot(t, e, "attach_frontier_target", 46111)
 			leaf := inheritanceUnitRelation(e, "attach_frontier_leaf", 46112, "k")
@@ -204,7 +209,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			target.Partition.Children = []ids.ObjectAddress{leaf.Address()}
 			target.Partition.DefaultChild = leaf.Address()
 			view := inheritanceUnitView(e, parent, target, leaf)
-			usage, boolean := target.Columns[0].Usage, testUsage(e, sqltype.Bool)
+			usage, boolean := target.Columns[0].Usage, enginetest.Usage(e, sqltype.Bool)
 			ref := e.Catalog.Domain.Ref(view.Epoch(), target.Address())
 			ref.Address.SubID = 1
 			key := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
@@ -267,7 +272,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				}
 				var lockChild func(catalog.Read, ids.ObjectAddress) (catalog.Read, *catalog.Relation, error)
 				if mode != "candidate_proven" {
-					lockChild = lockPartitionAttachChild(scope)
+					lockChild = partitioncmds.LockPartitionAttachChild(scope)
 				}
 				var err error
 				scans, err = partition.AttachFrontier(scope.Op.Context(), scope.Input, e.CatalogRead(), parent, target, bound, mode != "candidate_proven", lockChild)
@@ -297,4 +302,24 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			}
 		})
 	}
+}
+
+func sessionStart(t *testing.T, e *core.Engine, p settings.SessionDefaultProvider) *session.Session {
+	t.Helper()
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		s.RequestEnd(session.CleanClose)
+		if err := s.WaitEnd(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	return s
+}
+
+// publishCatalog publishes p outside any operation or statement.
+func publishCatalog(e *core.Engine, p *core.PreparedCatalogPublication, token core.PublicationToken) (core.ChangeSet, error) {
+	return e.PublishPreparedCatalog(nil, nil, p, token)
 }

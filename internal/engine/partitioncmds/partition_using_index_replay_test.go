@@ -1,19 +1,21 @@
-package engine
+package partitioncmds_test
 
 import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
-	source := New()
+	source := engine.New()
 	e := source.RestoreStage()
 	parent := partitionAttachUnitRoot(t, e, "using_replay_parent", 46800)
 	child := inheritanceUnitRelation(e, "using_replay_child", 46801, "k")
@@ -32,7 +34,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.Name()}}}, Actions: []parser.AlterTableAction{{Action: parser.AddUsingIndex, UsingIndex: &parser.UsingIndexConstraint{Name: parser.Identifier{Text: index.Name()}, Index: parser.Identifier{Text: index.Name()}}}}}
-	if err := BeginPartitionUsingIndexReplay(e, op, raw); err != nil {
+	if err := partitioncmds.BeginPartitionUsingIndexReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
 	auth, err := core.OperationAuthorization(op)
@@ -82,7 +84,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	}
 	publicOp, publicDone := roleOperation(t, source, "postgres")
 	defer publicDone()
-	if err := BeginPartitionUsingIndexReplay(source, publicOp, raw); err == nil {
+	if err := partitioncmds.BeginPartitionUsingIndexReplay(source, publicOp, raw); err == nil {
 		t.Fatal("public bootstrap forged import origin")
 	}
 	done()

@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/indexcmds"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
@@ -158,9 +159,9 @@ func (familyStatements) ExecuteLocked(e *core.Engine, scope *core.StatementScope
 	case *parser.AlterTableOf:
 		return dispatched(alterTableOfLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableAttachPartition:
-		return dispatched(AttachPartitionLocked(e, scope, op, auth, s, count))
+		return dispatched(partitioncmds.AttachPartitionLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableDetachPartition:
-		return dispatched(DetachPartitionLocked(e, scope, op, auth, s, count))
+		return dispatched(partitioncmds.DetachPartitionLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableRenameConstraint:
 		return dispatched(tablecmds.RenameConstraintLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableSetSchema:

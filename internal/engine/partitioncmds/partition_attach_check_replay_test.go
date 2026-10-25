@@ -1,16 +1,19 @@
-package engine
+package partitioncmds_test
 
 import (
+	"testing"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/parser"
-	"testing"
 )
 
 func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
-	source := New()
+	source := engine.New()
 	e := source.RestoreStage()
 	parent := partitionAttachUnitRoot(t, e, "replay_parent", 34000)
 	child := inheritanceUnitRelation(e, "replay_child", 34001, "k")
@@ -23,7 +26,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.Name()}}}, Actions: []parser.AlterTableAction{{Action: parser.AddCheck, Check: &parser.CheckConstraint{Name: parser.Identifier{Text: "local"}, NotValid: true, Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}}}}}
-	if err := BeginPartitionCheckReplay(e, op, raw); err != nil {
+	if err := partitioncmds.BeginPartitionCheckReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
 	auth, err := core.OperationAuthorization(op)
@@ -67,7 +70,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	core.OperationReplay(op).PartitionCheck = nil
 	publicOp, publicDone := roleOperation(t, source, "postgres")
 	defer publicDone()
-	if err := BeginPartitionCheckReplay(source, publicOp, raw); err == nil {
+	if err := partitioncmds.BeginPartitionCheckReplay(source, publicOp, raw); err == nil {
 		t.Fatal("public bootstrap forged private import")
 	}
 	core.OperationReplay(op).PartitionCheck = child

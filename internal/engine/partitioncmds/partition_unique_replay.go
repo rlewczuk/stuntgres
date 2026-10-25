@@ -1,4 +1,4 @@
-package engine
+package partitioncmds
 
 import (
 	"fmt"

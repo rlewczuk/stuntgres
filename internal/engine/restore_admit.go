@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/largeobject"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
@@ -115,7 +116,7 @@ func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.Alte
 	if s.Kind == "type" {
 		return admitRestoreInstalledTypeOwner(r, op, s)
 	}
-	return RestoreInheritedOwner(r.stage, op, s, r.cur.ownerPair)
+	return partitioncmds.RestoreInheritedOwner(r.stage, op, s, r.cur.ownerPair)
 }
 
 func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
@@ -181,7 +182,7 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 		return nil // Execution uses the ordinary bounded validator and private stage.
 	}
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.AddCheck && s.Actions[0].Check != nil && !s.Actions[0].Check.NotValid {
-		return RestoreCheck(r.stage, op, s, r.generationRepairs)
+		return partitioncmds.RestoreCheck(r.stage, op, s, r.generationRepairs)
 	}
 	return table.RestoreAlterConstraints(s)
 }
@@ -192,7 +193,7 @@ func admitRestoreDetachPartition(r *restoreRun, op *session.Operation, s *parser
 	if s.IfExists || s.Only || len(s.Name.Parts) != 2 || len(s.Partition.Parts) != 2 {
 		return core.SQLError("0A000", "restore accepts only unconditional qualified partition detachments")
 	}
-	record, err := CapturePartitionReplayTeardown(r.stage, op, s)
+	record, err := partitioncmds.CapturePartitionReplayTeardown(r.stage, op, s)
 	if err != nil {
 		return err
 	}
@@ -207,7 +208,7 @@ func admitRestoreDropTable(r *restoreRun, op *session.Operation, s *parser.DropT
 	if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, partition.ReplayStem) {
 		return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
-	return ValidatePartitionReplayTeardown(r.stage, op, s.Names[0], r.partitionTeardowns)
+	return partitioncmds.ValidatePartitionReplayTeardown(r.stage, op, s.Names[0], r.partitionTeardowns)
 }
 
 // admitRestoreAlterSequence admits OWNED BY, or an identity configuration
@@ -243,7 +244,7 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 		return restoreObjectACL(r.stage, op, s)
 	}
 	if table.RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
-		err = RestoreRetiredConstraint(r.stage, op, s, r.historicalAuthority)
+		err = partitioncmds.RestoreRetiredConstraint(r.stage, op, s, r.historicalAuthority)
 	} else if table.RestoreCatalogName(s.Name, "pg_constraint") {
 		err = tablecmds.RestoreNoInheritNotNull(r.stage, op, s, r.pairedNotNull)
 		if err == nil {

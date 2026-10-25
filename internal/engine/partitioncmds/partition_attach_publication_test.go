@@ -1,4 +1,4 @@
-package engine
+package partitioncmds_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
@@ -102,7 +103,7 @@ func partitionAttachUnitScope(t *testing.T, e *core.Engine, session *session.Ses
 func TestPartitionAttachPublicationFences(t *testing.T) {
 	for _, change := range []string{"store", "length", "ends", "generation", "provider", "cancel"} {
 		t.Run(change, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			parent := partitionAttachUnitRoot(t, e, "attach_fence_parent", 46000)
 			child := inheritanceUnitRelation(e, "attach_fence_child", 46001, "k")
 			child.RelationKind = catalog.TableRelation

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -62,7 +63,7 @@ func decodeRestoreMaterializedSnapshot(r *restoreRun, comment string, _ parser.P
 // target an ALTER TABLE replays into.
 func prepareRestorePartitionCheck(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
 	if alteration, ok := stmt.(*parser.AlterTable); ok {
-		return BeginPartitionCheckReplay(r.stage, op, alteration)
+		return partitioncmds.BeginPartitionCheckReplay(r.stage, op, alteration)
 	}
 	return nil
 }
@@ -71,7 +72,7 @@ func prepareRestorePartitionCheck(r *restoreRun, op *session.Operation, stmt par
 // an ALTER TABLE ... USING INDEX replay.
 func prepareRestorePartitionUsingIndex(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
 	if alteration, ok := stmt.(*parser.AlterTable); ok {
-		return BeginPartitionUsingIndexReplay(r.stage, op, alteration)
+		return partitioncmds.BeginPartitionUsingIndexReplay(r.stage, op, alteration)
 	}
 	return nil
 }
@@ -84,7 +85,7 @@ func prepareRestorePartitionUnique(r *restoreRun, op *session.Operation, stmt pa
 	if !ok {
 		return nil
 	}
-	if err := BeginPartitionUniqueReplay(r.stage, op, alteration); err != nil {
+	if err := partitioncmds.BeginPartitionUniqueReplay(r.stage, op, alteration); err != nil {
 		return err
 	}
 	if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && core.OperationReplayOrZero(op).PartitionUnique == nil && r.cur.physicalConstructor == nil {

@@ -1,8 +1,9 @@
-package engine
+package partitioncmds_test
 
 import (
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
@@ -15,7 +16,7 @@ type partitionDetachUnit struct {
 
 func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 	t.Helper()
-	e := New()
+	e := engine.New()
 	parent := partitionAttachUnitRoot(t, e, "detach_unit_parent", 46500)
 	child := inheritanceUnitRelation(e, "detach_unit_child", 46501, "k")
 	child.RelationKind = catalog.TableRelation
