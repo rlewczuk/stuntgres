@@ -14,7 +14,8 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
+// ExecuteOwned runs REASSIGN OWNED and DROP OWNED in one ownership stage.
+func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

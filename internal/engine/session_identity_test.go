@@ -257,7 +257,7 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: op.Session, cancel: cancel}
 	op.Ctx = boundary
-	_, err := executeRole(e, op, statement(t, "SET ROLE identity_cancel_target"), 0, false)
+	_, err := ExecuteRole(e, op, statement(t, "SET ROLE identity_cancel_target"), 0, false)
 	if !boundary.observed || ctx.Err() != context.Canceled || !errors.Is(err, context.Canceled) {
 		t.Fatal(boundary.observed, err)
 	}

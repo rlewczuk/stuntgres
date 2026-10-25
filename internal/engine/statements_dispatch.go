@@ -31,7 +31,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		}
 		return result, true, err
 	case *parser.CreateDatabaseStmt:
-		return dispatched(executeCreateDatabase(e, scope, stmt.(*parser.CreateDatabaseStmt), count))
+		return dispatched(ExecuteCreateDatabase(e, scope, stmt.(*parser.CreateDatabaseStmt), count))
 	case *parser.CreateTablespace:
 		return dispatched(executeCreateTablespace(e, op, stmt.(*parser.CreateTablespace), count))
 	case *parser.Load:
@@ -55,9 +55,9 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.CreateView:
 		return dispatched(viewcmds.ExecuteCreateView(e, scope, stmt.(*parser.CreateView), count))
 	case *parser.AlterOwner:
-		return dispatched(executeOwnership(e, scope, stmt.(*parser.AlterOwner), count))
+		return dispatched(ExecuteOwnership(e, scope, stmt.(*parser.AlterOwner), count))
 	case *parser.ReassignOwned, *parser.DropOwned:
-		return dispatched(executeOwned(e, scope, stmt, count))
+		return dispatched(ExecuteOwned(e, scope, stmt, count))
 	case *parser.AlterView:
 		if owner := stmt.(*parser.AlterView); owner.Action == "owner" {
 			kind := "view"
@@ -116,7 +116,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		}
 		return result, true, err
 	case *parser.CreateRole, *parser.AlterRole:
-		result, err := executeRoleAttributes(e, scope, stmt, count)
+		result, err := ExecuteRoleAttributes(e, scope, stmt, count)
 		if err == nil {
 			scope.Completed = true
 		}
@@ -127,18 +127,18 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 			return dispatched(executeForeignGrant(e, scope, grant, count))
 		}
 		if grant.Kind == "database" {
-			return dispatched(executeDatabaseGrant(e, scope, grant, count))
+			return dispatched(ExecuteDatabaseGrant(e, scope, grant, count))
 		}
-		return dispatched(executeObjectGrant(e, scope, grant, count))
+		return dispatched(ExecuteObjectGrant(e, scope, grant, count))
 	case *parser.AlterDefaultPrivileges:
-		return dispatched(executeDefaultPrivileges(e, scope, stmt.(*parser.AlterDefaultPrivileges), count))
+		return dispatched(ExecuteDefaultPrivileges(e, scope, stmt.(*parser.AlterDefaultPrivileges), count))
 	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership:
 		if drop, ok := stmt.(*parser.DropRole); ok && count == 0 {
-			if err := acquireRoleRetirementLocks(scope, drop); err != nil {
+			if err := AcquireRoleRetirementLocks(scope, drop); err != nil {
 				return core.Result{}, true, err
 			}
 		}
-		result, err := executeRole(e, op, stmt, count, !scope.Owner.InBlock())
+		result, err := ExecuteRole(e, op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {
 			scope.Completed = true
 		}

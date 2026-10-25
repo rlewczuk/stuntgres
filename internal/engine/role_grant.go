@@ -12,9 +12,12 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// ExecuteObjectGrant runs GRANT and REVOKE on objects other than databases
+// and foreign-data objects.
+//
 // Object grants own only their statement candidate. Finish decides whether to
 // retain it privately or publish it with the transaction's other effects.
-func executeObjectGrant(e *core.Engine, scope *core.StatementScope, statement *parser.ObjectGrant, count int) (core.Result, error) {
+func ExecuteObjectGrant(e *core.Engine, scope *core.StatementScope, statement *parser.ObjectGrant, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

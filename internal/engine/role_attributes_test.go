@@ -294,7 +294,7 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 			if create {
 				stmt = &parser.CreateRole{Name: parser.Identifier{Text: "cancel_created"}}
 			}
-			_, err := executeRoleAttributes(fixture, &core.StatementScope{Op: actor}, stmt, 0)
+			_, err := ExecuteRoleAttributes(fixture, &core.StatementScope{Op: actor}, stmt, 0)
 			if !fence.observed || !errors.Is(err, context.Canceled) || fixture.RoleStore.Published != beforePublication || fixture.RoleStore.NextPrincipal() != next || fixture.RoleStore.NextRevision() != revision {
 				t.Fatal("final cancellation leaked catalog, edge, allocator", fence.observed, err)
 			}

@@ -10,7 +10,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeDatabaseGrant(e *core.Engine, scope *core.StatementScope, s *parser.ObjectGrant, count int) (core.Result, error) {
+// ExecuteDatabaseGrant runs GRANT and REVOKE ON DATABASE, one named database
+// at a time, emitting the partial-grant warnings in statement order.
+func ExecuteDatabaseGrant(e *core.Engine, scope *core.StatementScope, s *parser.ObjectGrant, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

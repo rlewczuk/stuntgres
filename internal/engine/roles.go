@@ -11,7 +11,10 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeRole(e *core.Engine, op *session.Operation, stmt parser.Statement, count int, implicit bool) (core.Result, error) {
+// ExecuteRole runs GRANT and REVOKE of role membership, SET ROLE, SET
+// SESSION AUTHORIZATION and DROP ROLE under Engine.Mu. implicit marks a
+// statement outside a transaction block, where SET LOCAL ROLE warns.
+func ExecuteRole(e *core.Engine, op *session.Operation, stmt parser.Statement, count int, implicit bool) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

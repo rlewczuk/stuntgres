@@ -12,7 +12,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeDefaultPrivileges(e *core.Engine, scope *core.StatementScope, statement *parser.AlterDefaultPrivileges, count int) (core.Result, error) {
+// ExecuteDefaultPrivileges runs ALTER DEFAULT PRIVILEGES.
+func ExecuteDefaultPrivileges(e *core.Engine, scope *core.StatementScope, statement *parser.AlterDefaultPrivileges, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

@@ -33,7 +33,10 @@ func validateRoleAttributesLocked(e *core.Engine, op *session.Operation, stmt pa
 	return v, actor, target, o, op.Context().Err()
 }
 
-func executeRoleAttributes(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
+// ExecuteRoleAttributes runs CREATE ROLE and ALTER ROLE. The password and
+// VALID UNTIL inputs are prepared with no lifecycle lock held; the
+// attributes are then revalidated and installed under Engine.Mu.
+func ExecuteRoleAttributes(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

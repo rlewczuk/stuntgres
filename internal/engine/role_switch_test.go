@@ -255,7 +255,7 @@ func TestRoleSwitchCanceledJournalPublication(t *testing.T) {
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: s, cancel: cancel}
 	op.Ctx = boundary
-	_, err = executeRole(e, op, &parser.RoleSelection{Name: "switch_b", Local: true}, 0, false)
+	_, err = ExecuteRole(e, op, &parser.RoleSelection{Name: "switch_b", Local: true}, 0, false)
 	if !boundary.observed || !errors.Is(err, context.Canceled) || op.RoleState() != before || s.Settings.RoleAction != action || s.Authorization.Revision != revision {
 		t.Fatal("canceled publication", err)
 	}

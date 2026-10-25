@@ -59,7 +59,9 @@ func acquireRoleAttributeLocks(s *core.StatementScope, stmt parser.Statement, ta
 	return roleTupleUnchanged(s, target)
 }
 
-func acquireRoleRetirementLocks(s *core.StatementScope, statement *parser.DropRole) error {
+// AcquireRoleRetirementLocks takes the DROP ROLE principal locks before
+// ExecuteRole, rechecking each target after its waits.
+func AcquireRoleRetirementLocks(s *core.StatementScope, statement *parser.DropRole) error {
 	if s.Owner.State != session.TxActive && s.Owner.RetainsTransaction() {
 		return nil
 	}

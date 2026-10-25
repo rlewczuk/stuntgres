@@ -21,7 +21,10 @@ func databaseCreateOwnerLocked(e *core.Engine, scope *core.StatementScope, name 
 	return ddl.CreateDatabaseOwner(auth.Roles, auth.State.CurrentUser, name)
 }
 
-func executeCreateDatabase(e *core.Engine, scope *core.StatementScope, statement *parser.CreateDatabaseStmt, count int) (core.Result, error) {
+// ExecuteCreateDatabase runs CREATE DATABASE: it builds the target from the
+// private template1 seed that Engine.Factory constructs once per cluster and
+// registers it in one publication.
+func ExecuteCreateDatabase(e *core.Engine, scope *core.StatementScope, statement *parser.CreateDatabaseStmt, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

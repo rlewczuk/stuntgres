@@ -235,7 +235,7 @@ func TestRoleAttributesValidityInput(t *testing.T) {
 		{"2000-01-01 02:00:00", 0}, {"02/01/2000 02:00:00", 86400000000}, {"2000-01-01 09:30 CST", 0}, {"now", 0},
 	} {
 		scope := &core.StatementScope{Op: op, Input: captured}
-		if _, err := executeRoleAttributes(e, scope, roleAttributeAlter("expiry", parser.RoleOptions{Present: parser.RoleValidUntil, ValidUntil: tc.text}), 0); err != nil {
+		if _, err := ExecuteRoleAttributes(e, scope, roleAttributeAlter("expiry", parser.RoleOptions{Present: parser.RoleValidUntil, ValidUntil: tc.text}), 0); err != nil {
 			t.Fatal(tc, err)
 		}
 		got, _ := e.Roles().Lookup("expiry")

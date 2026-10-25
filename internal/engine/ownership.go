@@ -11,7 +11,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeOwnership(e *core.Engine, scope *core.StatementScope, s *parser.AlterOwner, count int) (core.Result, error) {
+// ExecuteOwnership runs ALTER ... OWNER TO for types, domains and databases,
+// and hands the relation kinds to core.ExecuteRelationOwnership.
+func ExecuteOwnership(e *core.Engine, scope *core.StatementScope, s *parser.AlterOwner, count int) (core.Result, error) {
 	name, identity := access.OwnershipRoleOperand(s.Target)
 	if s.Kind == "database" {
 		return executeDatabaseOwnership(e, scope, s, name, identity, count)
