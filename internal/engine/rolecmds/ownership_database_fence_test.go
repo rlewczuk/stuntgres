@@ -1,13 +1,15 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -16,8 +18,8 @@ import (
 func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 	for _, private := range []bool{false, true} {
 		t.Run(map[bool]string{false: "committed", true: "private"}[private], func(t *testing.T) {
-			e := New()
-			op, done := roleOperation(t, e, "postgres")
+			e := engine.New()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
 			e.Mu.Lock()
 			defer e.Mu.Unlock()

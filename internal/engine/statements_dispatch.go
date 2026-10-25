@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/indexcmds"
 	"stuntgres/internal/engine/partitioncmds"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typecmds"
@@ -31,7 +32,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		}
 		return result, true, err
 	case *parser.CreateDatabaseStmt:
-		return dispatched(ExecuteCreateDatabase(e, scope, stmt.(*parser.CreateDatabaseStmt), count))
+		return dispatched(rolecmds.ExecuteCreateDatabase(e, scope, stmt.(*parser.CreateDatabaseStmt), count))
 	case *parser.CreateTablespace:
 		return dispatched(executeCreateTablespace(e, op, stmt.(*parser.CreateTablespace), count))
 	case *parser.Load:
@@ -55,9 +56,9 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.CreateView:
 		return dispatched(viewcmds.ExecuteCreateView(e, scope, stmt.(*parser.CreateView), count))
 	case *parser.AlterOwner:
-		return dispatched(ExecuteOwnership(e, scope, stmt.(*parser.AlterOwner), count))
+		return dispatched(rolecmds.ExecuteOwnership(e, scope, stmt.(*parser.AlterOwner), count))
 	case *parser.ReassignOwned, *parser.DropOwned:
-		return dispatched(ExecuteOwned(e, scope, stmt, count))
+		return dispatched(rolecmds.ExecuteOwned(e, scope, stmt, count))
 	case *parser.AlterView:
 		if owner := stmt.(*parser.AlterView); owner.Action == "owner" {
 			kind := "view"
@@ -116,7 +117,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		}
 		return result, true, err
 	case *parser.CreateRole, *parser.AlterRole:
-		result, err := ExecuteRoleAttributes(e, scope, stmt, count)
+		result, err := rolecmds.ExecuteRoleAttributes(e, scope, stmt, count)
 		if err == nil {
 			scope.Completed = true
 		}
@@ -127,18 +128,18 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 			return dispatched(executeForeignGrant(e, scope, grant, count))
 		}
 		if grant.Kind == "database" {
-			return dispatched(ExecuteDatabaseGrant(e, scope, grant, count))
+			return dispatched(rolecmds.ExecuteDatabaseGrant(e, scope, grant, count))
 		}
-		return dispatched(ExecuteObjectGrant(e, scope, grant, count))
+		return dispatched(rolecmds.ExecuteObjectGrant(e, scope, grant, count))
 	case *parser.AlterDefaultPrivileges:
-		return dispatched(ExecuteDefaultPrivileges(e, scope, stmt.(*parser.AlterDefaultPrivileges), count))
+		return dispatched(rolecmds.ExecuteDefaultPrivileges(e, scope, stmt.(*parser.AlterDefaultPrivileges), count))
 	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership:
 		if drop, ok := stmt.(*parser.DropRole); ok && count == 0 {
-			if err := AcquireRoleRetirementLocks(scope, drop); err != nil {
+			if err := rolecmds.AcquireRoleRetirementLocks(scope, drop); err != nil {
 				return core.Result{}, true, err
 			}
 		}
-		result, err := ExecuteRole(e, op, stmt, count, !scope.Owner.InBlock())
+		result, err := rolecmds.ExecuteRole(e, op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {
 			scope.Completed = true
 		}

@@ -1,30 +1,34 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestSessionIdentityTypedStableBinding(t *testing.T) {
-	e := New()
-	op, cleanup, err := testOperation(e, context.Background())
+	e := engine.New()
+	op, cleanup, err := enginetest.Operation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	desc, err := e.Describe(op, statement(t, "SELECT current_catalog,current_user,system_user"))
+	desc, err := e.Describe(op, enginetest.Statement(t, "SELECT current_catalog,current_user,system_user"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,18 +48,18 @@ func TestSessionIdentityTypedStableBinding(t *testing.T) {
 }
 
 func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
-	e := New()
+	e := engine.New()
 	for _, q := range []string{"CREATE USER a", "CREATE ROLE b", "CREATE ROLE c"} {
-		run(t, e, q)
+		enginetest.Run(t, e, q)
 	}
-	op, cleanup, err := testOperation(e, context.Background())
+	op, cleanup, err := enginetest.Operation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cleanup()
 	execute := func(q string) {
 		t.Helper()
-		if _, err := e.Execute(op, statement(t, q), 0, nil); err != nil {
+		if _, err := e.Execute(op, enginetest.Statement(t, q), 0, nil); err != nil {
 			t.Fatal(q, err)
 		}
 	}
@@ -73,13 +77,13 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 	execute("SET SESSION AUTHORIZATION a")
 	before = op.RoleState()
 	revision = op.Session.Authorization.Revision
-	_, err = e.Execute(op, statement(t, "SET ROLE b"), 0, nil)
-	state(t, err, "42501")
+	_, err = e.Execute(op, enginetest.Statement(t, "SET ROLE b"), 0, nil)
+	enginetest.State(t, err, "42501")
 	if op.RoleState() != before || op.Session.Authorization.Revision != revision {
 		t.Fatal("denied mutation")
 	}
-	_, err = e.Execute(op, statement(t, "SET ROLE absent_identity_role"), 0, nil)
-	state(t, err, "22023")
+	_, err = e.Execute(op, enginetest.Statement(t, "SET ROLE absent_identity_role"), 0, nil)
+	enginetest.State(t, err, "22023")
 	if op.RoleState() != before || op.Session.Authorization.Revision != revision {
 		t.Fatal("missing mutation")
 	}
@@ -100,45 +104,45 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 }
 
 func TestSessionIdentityNamespaceKeywordIndependence(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	for _, q := range []string{"CREATE USER identity_namespace_reader", "CREATE SCHEMA identity_hidden", "CREATE SCHEMA identity_visible"} {
-		roleExecute(t, e, op, q)
+		enginetest.RoleExecute(t, e, op, q)
 	}
-	roleExecute(t, e, op, "SET SESSION AUTHORIZATION identity_namespace_reader")
+	enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION identity_namespace_reader")
 	for _, q := range []string{"SELECT identity_hidden.current_database()", "SELECT identity_hidden.current_user()"} {
-		_, err := e.Describe(op, statement(t, q))
-		state(t, err, "42501")
+		_, err := e.Describe(op, enginetest.Statement(t, q))
+		enginetest.State(t, err, "42501")
 	}
 	for _, q := range []string{"SELECT missing_identity_schema.current_database()", "SELECT missing_identity_schema.current_user()"} {
-		_, err := e.Describe(op, statement(t, q))
-		state(t, err, "3F000")
+		_, err := e.Describe(op, enginetest.Statement(t, q))
+		enginetest.State(t, err, "3F000")
 	}
-	roleExecute(t, e, op, "SELECT current_user,session_user,current_catalog,system_user")
+	enginetest.RoleExecute(t, e, op, "SELECT current_user,session_user,current_catalog,system_user")
 }
 
 func TestSessionIdentityConfiguredResetRole(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	for _, q := range []string{"CREATE ROLE identity_reset", "CREATE ROLE identity_selected"} {
-		roleExecute(t, e, op, q)
+		enginetest.RoleExecute(t, e, op, q)
 	}
 	reset, _ := e.Roles().Lookup("identity_reset")
-	s := sessionStart(t, e, roleSwitchDefaultProvider{value: "identity_reset"})
+	s := enginetest.StartSession(t, e, roleSwitchDefaultProvider{value: "identity_reset"})
 	configured, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer configured.Done()
 	op = configured
-	roleExecute(t, e, op, "SET ROLE identity_selected")
-	roleExecute(t, e, op, "RESET ROLE")
+	enginetest.RoleExecute(t, e, op, "SET ROLE identity_selected")
+	enginetest.RoleExecute(t, e, op, "RESET ROLE")
 	if op.RoleState().CurrentUser != reset.Ref || op.RoleState().ResetRole != reset.Ref {
 		t.Fatal(op.RoleState())
 	}
-	roleExecute(t, e, op, "SET ROLE NONE")
+	enginetest.RoleExecute(t, e, op, "SET ROLE NONE")
 	if op.RoleState().CurrentUser != op.RoleState().SessionUser || op.RoleState().ResetRole != reset.Ref {
 		t.Fatal(op.RoleState())
 	}
@@ -146,7 +150,7 @@ func TestSessionIdentityConfiguredResetRole(t *testing.T) {
 
 func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 	ctx := context.Background()
-	e := NewWithSettings(nil, "unit identity", false)
+	e := engine.NewWithSettings(nil, "unit identity", false)
 	sess, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
@@ -163,11 +167,11 @@ func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	result, err := e.Execute(op, statement(t, "SELECT current_catalog,current_database(),system_user"), 0, nil)
+	result, err := e.Execute(op, enginetest.Statement(t, "SELECT current_catalog,current_database(),system_user"), 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := independentFinalRows(result.Rows)
+	rows := enginetest.IndependentFinalRows(result.Rows)
 	defer rows.Close()
 	values := make([]sqltype.Value, 3)
 	present, err := rows.Next(ctx, values)
@@ -184,18 +188,18 @@ func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 		t.Fatal(values[2])
 	}
 	sess.RequestEnd(session.Terminated)
-	if _, err := e.Execute(op, statement(t, "SELECT current_user"), 0, nil); err == nil {
+	if _, err := e.Execute(op, enginetest.Statement(t, "SELECT current_user"), 0, nil); err == nil {
 		t.Fatal("terminated identity operation admitted")
 	}
-	if _, err := e.Execute(op, statement(t, "RESET ROLE"), 0, nil); err == nil {
+	if _, err := e.Execute(op, enginetest.Statement(t, "RESET ROLE"), 0, nil); err == nil {
 		t.Fatal("terminated role mutation admitted")
 	}
 }
 
 func TestSessionIdentityNameArithmeticSignatures(t *testing.T) {
-	e := New()
-	run(t, e, "CREATE TABLE identity_name_operand(n NAME)")
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE TABLE identity_name_operand(n NAME)")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	for _, tc := range []struct{ query, signature, position string }{
 		{"SELECT n+1 FROM identity_name_operand", "name + integer", "9"},
@@ -204,7 +208,7 @@ func TestSessionIdentityNameArithmeticSignatures(t *testing.T) {
 		{"SELECT -n FROM identity_name_operand", "- name", "8"},
 	} {
 		for _, describe := range []bool{false, true} {
-			stmt := statement(t, tc.query)
+			stmt := enginetest.Statement(t, tc.query)
 			var err error
 			if describe {
 				_, err = e.Describe(op, stmt)
@@ -247,9 +251,9 @@ func (c *identityRolePublicationContext) Err() error {
 }
 
 func TestSessionIdentityCanceledRolePublication(t *testing.T) {
-	e := New()
-	run(t, e, "CREATE ROLE identity_cancel_target")
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE ROLE identity_cancel_target")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	before := op.RoleState()
 	revision, roles, catalog := op.Session.Authorization.Revision, e.RoleStore.Published, e.Catalog.State
@@ -257,7 +261,7 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: op.Session, cancel: cancel}
 	op.Ctx = boundary
-	_, err := ExecuteRole(e, op, statement(t, "SET ROLE identity_cancel_target"), 0, false)
+	_, err := rolecmds.ExecuteRole(e, op, enginetest.Statement(t, "SET ROLE identity_cancel_target"), 0, false)
 	if !boundary.observed || ctx.Err() != context.Canceled || !errors.Is(err, context.Canceled) {
 		t.Fatal(boundary.observed, err)
 	}
@@ -267,12 +271,12 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 }
 
 func TestSessionIdentityCanceledDefaultWriteFinish(t *testing.T) {
-	e := New()
-	run(t, e, "CREATE TABLE identity_stage(id INT,who TEXT DEFAULT current_user,auth TEXT DEFAULT system_user)")
-	run(t, e, "INSERT INTO identity_stage VALUES(1,'sentinel','retained')")
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE TABLE identity_stage(id INT,who TEXT DEFAULT current_user,auth TEXT DEFAULT system_user)")
+	enginetest.Run(t, e, "INSERT INTO identity_stage VALUES(1,'sentinel','retained')")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	op, done, err := testOperation(e, ctx)
+	op, done, err := enginetest.Operation(e, ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +285,7 @@ func TestSessionIdentityCanceledDefaultWriteFinish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := scope.Execute(statement(t, "INSERT INTO identity_stage(id) VALUES(2),(3)"), 0, nil)
+	result, err := scope.Execute(enginetest.Statement(t, "INSERT INTO identity_stage(id) VALUES(2),(3)"), 0, nil)
 	if err != nil || result.Count != 2 {
 		_ = scope.Finish(err)
 		t.Fatal(result, err)
@@ -292,22 +296,22 @@ func TestSessionIdentityCanceledDefaultWriteFinish(t *testing.T) {
 	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	current := run(t, e, "SELECT id,who,auth FROM identity_stage")
+	current := enginetest.Run(t, e, "SELECT id,who,auth FROM identity_stage")
 	defer current.Rows.Close()
-	if !reflect.DeepEqual(tuples(current), [][]driver.Value{{int64(1), "sentinel", "retained"}}) {
+	if !reflect.DeepEqual(enginetest.Tuples(current), [][]driver.Value{{int64(1), "sentinel", "retained"}}) {
 		t.Fatal("canceled identity defaults published rows")
 	}
 }
 
 func TestSessionIdentityLaterRowDefaultFailureIsAtomic(t *testing.T) {
-	e := New()
-	run(t, e, "CREATE TABLE identity_stage(id INT,who TEXT DEFAULT current_user,auth TEXT DEFAULT system_user,n INT)")
-	run(t, e, "INSERT INTO identity_stage VALUES(1,'sentinel','retained',1)")
-	_, err := testExecute(e, context.Background(), statement(t, "INSERT INTO identity_stage(id,n) VALUES(2,1),(3,1/0)"), nil)
-	state(t, err, "22012")
-	current := run(t, e, "SELECT id,who,auth,n FROM identity_stage")
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE TABLE identity_stage(id INT,who TEXT DEFAULT current_user,auth TEXT DEFAULT system_user,n INT)")
+	enginetest.Run(t, e, "INSERT INTO identity_stage VALUES(1,'sentinel','retained',1)")
+	_, err := enginetest.Execute(e, context.Background(), enginetest.Statement(t, "INSERT INTO identity_stage(id,n) VALUES(2,1),(3,1/0)"), nil)
+	enginetest.State(t, err, "22012")
+	current := enginetest.Run(t, e, "SELECT id,who,auth,n FROM identity_stage")
 	defer current.Rows.Close()
-	if !reflect.DeepEqual(tuples(current), [][]driver.Value{{int64(1), "sentinel", "retained", int64(1)}}) {
+	if !reflect.DeepEqual(enginetest.Tuples(current), [][]driver.Value{{int64(1), "sentinel", "retained", int64(1)}}) {
 		t.Fatal("later failing row published identity-bearing writes")
 	}
 }

@@ -1,12 +1,16 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
 	"errors"
 	"strings"
-	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/session"
 	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/rolecmds"
+	"stuntgres/internal/engine/session"
 )
 
 // Exercise the same typed role/identity journals without adding SQL capability.
@@ -22,17 +26,17 @@ func batchUnitIdentity(m *batchUnitMessage, current authorization.PrincipalRef) 
 	if session.RoleRevisionHeadroom(s.Authorization, uint64(len(t.Savepoints))+3) != nil {
 		return false
 	}
-	touchOperationIdentityLocked(m.op)
+	rolecmds.TouchOperationIdentityLocked(m.op)
 	s.Settings.TouchRole(s.Authorization.State.CurrentUser, false)
 	s.Authorization.State.CurrentUser = current
 	s.Authorization.Revision++
 	return true
 }
 func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
-	e := New()
-	s := sessionStart(t, e, nil)
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE ROLE a", "CREATE ROLE b", "CREATE ROLE c"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	b, _ := e.Roles().Lookup("b")
 	c, _ := e.Roles().Lookup("c")
@@ -40,7 +44,7 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	m := batchUnitStart(t, s, context.Background())
 	defer m.end(context.Canceled)
 	for _, q := range []string{"SET ROLE a", "BEGIN", "SAVEPOINT p"} {
-		if _, err := m.step(statement(t, q)); err != nil {
+		if _, err := m.step(enginetest.Statement(t, q)); err != nil {
 			t.Fatal(q, err)
 		}
 	}
@@ -58,32 +62,32 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	if !batchUnitIdentity(n, b.Ref) {
 		t.Fatal("internal mutation capacity")
 	}
-	if _, err := n.step(statement(t, "SAVEPOINT q")); err != nil {
+	if _, err := n.step(enginetest.Statement(t, "SAVEPOINT q")); err != nil {
 		t.Fatal(err)
 	}
 	if !batchUnitIdentity(n, c.Ref) {
 		t.Fatal("nested mutation capacity")
 	}
-	if _, err := n.step(statement(t, "RELEASE q")); err != nil {
+	if _, err := n.step(enginetest.Statement(t, "RELEASE q")); err != nil {
 		t.Fatal(err)
 	}
 	if s.Authorization.State.CurrentUser != c.Ref || len(s.Transactions.Savepoints) != 1 {
 		t.Fatal("release rewound identity")
 	}
-	if _, err := n.step(statement(t, "ROLLBACK TO p")); err != nil {
+	if _, err := n.step(enginetest.Statement(t, "ROLLBACK TO p")); err != nil {
 		t.Fatal(err)
 	}
 	if s.Authorization.State != mark || s.Authorization.Revision <= revision || s.Transactions.IdentityEntry != original {
 		t.Fatal("outer mark restoration")
 	}
-	if _, err := n.step(statement(t, "SAVEPOINT q")); err != nil {
+	if _, err := n.step(enginetest.Statement(t, "SAVEPOINT q")); err != nil {
 		t.Fatal(err)
 	}
 	if !batchUnitIdentity(n, b.Ref) {
 		t.Fatal("recovery mutation capacity")
 	}
 	revision = s.Authorization.Revision
-	_, failure := n.step(statement(t, "SELECT missing"))
+	_, failure := n.step(enginetest.Statement(t, "SELECT missing"))
 	if failure == nil {
 		t.Fatal("admitted failure")
 	}
@@ -91,13 +95,13 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 		t.Fatal("abort did not restore reached mark identity monotonically")
 	}
 	revision = s.Authorization.Revision
-	if _, err := n.step(statement(t, "ROLLBACK TO q")); err != nil {
+	if _, err := n.step(enginetest.Statement(t, "ROLLBACK TO q")); err != nil {
 		t.Fatal(err)
 	}
 	if s.TransactionState() != session.TxActive || s.Authorization.State != mark || s.Authorization.Revision != revision {
 		t.Fatal("same-state recovery invented mutation")
 	}
-	if _, err := n.step(statement(t, "ROLLBACK")); err != nil {
+	if _, err := n.step(enginetest.Statement(t, "ROLLBACK")); err != nil {
 		t.Fatal(err)
 	}
 	if err := n.end(nil); err != nil {
@@ -108,9 +112,9 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	}
 }
 func TestDriverBatchIdentityRevisionCapacity(t *testing.T) {
-	e := New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE ROLE a")
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE ROLE a")
 	role, _ := e.Roles().Lookup("a")
 	original := s.Authorization.State
 	m := batchUnitStart(t, s, context.Background())
@@ -122,16 +126,16 @@ func TestDriverBatchIdentityRevisionCapacity(t *testing.T) {
 	if batchUnitIdentity(m, role.Ref) {
 		t.Fatal("rollback reservation consumed")
 	}
-	if _, err := m.step(statement(t, "BEGIN")); err != nil {
+	if _, err := m.step(enginetest.Statement(t, "BEGIN")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.step(statement(t, "ROLLBACK")); err != nil {
+	if _, err := m.step(enginetest.Statement(t, "ROLLBACK")); err != nil {
 		t.Fatal(err)
 	}
 	if s.Authorization.State != original || s.Authorization.Revision != ^uint64(0)-1 {
 		t.Fatal("rollback revision wrapped")
 	}
-	_, err := m.step(statement(t, "SET ROLE a"))
+	_, err := m.step(enginetest.Statement(t, "SET ROLE a"))
 	var diagnostic interface{ SQLState() string }
 	if err == nil || !strings.Contains(err.Error(), "session authorization revision exhausted") || errors.As(err, &diagnostic) || s.Authorization.State != original || s.Authorization.Revision != ^uint64(0)-1 {
 		t.Fatal("exhaustion mutated or forged SQL diagnostic", err)

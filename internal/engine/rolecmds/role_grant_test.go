@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -327,7 +328,7 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	e.Mu.Unlock()
-	if err != nil || (engine.RoleHost{DDLHost: core.DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of table grant_unit" {
+	if err != nil || (rolecmds.RoleHost{DDLHost: core.DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of table grant_unit" {
 		t.Fatal("parent ownership diagnostic", dependencies, err)
 	}
 }
@@ -485,7 +486,7 @@ func TestObjectGrantPlanWarningsBeforeError(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	req, err := role.ObjectGrantRequest(engine.RoleHost{DDLHost: core.DDLHost{E: e, Op: op}}, v, request)
+	req, err := role.ObjectGrantRequest(rolecmds.RoleHost{DDLHost: core.DDLHost{E: e, Op: op}}, v, request)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)

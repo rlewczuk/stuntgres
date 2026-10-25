@@ -1,4 +1,4 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
@@ -11,15 +11,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 // Independent RFC5802 Hi, deliberately not using the production PBKDF2 or
@@ -70,8 +74,8 @@ type rolePasswordReader func([]byte) (int, error)
 func (r rolePasswordReader) Read(p []byte) (int, error) { return r(p) }
 
 func TestRoleAttributesPasswordStorage(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	d := roleAttributeCreate(t, e, op, "passwords", false, parser.RoleOptions{Present: parser.RolePassword, Password: "secret"})
 	assertPasswordKeys(t, d.Password, "secret")
@@ -152,7 +156,7 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 	})
 	t.Run("fresh authority after unlocked preparation", func(t *testing.T) {
 		roleAttributeCreate(t, e, op, "preparing_actor", true, parser.RoleOptions{Present: parser.RoleCreateRole, CreateRole: true})
-		actor, closeActor := roleOperation(t, e, "preparing_actor")
+		actor, closeActor := enginetest.RoleOperation(t, e, "preparing_actor")
 		defer closeActor()
 		original := rand.Reader
 		defer func() { rand.Reader = original }()
@@ -173,7 +177,7 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 		})
 		next := e.RoleStore.NextPrincipal()
 		_, err := e.Execute(actor, &parser.CreateRole{Name: parser.Identifier{Text: "stale_authority"}, Options: parser.RoleOptions{Present: parser.RolePassword, Password: "secret"}}, 0, nil)
-		state(t, err, "42501")
+		enginetest.State(t, err, "42501")
 		if _, ok := e.Roles().Lookup("stale_authority"); ok || e.RoleStore.NextPrincipal() != next {
 			t.Fatal("stale creator published role/edge/allocator")
 		}
@@ -184,8 +188,8 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 }
 
 func TestRoleAttributesValidityInput(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	d := roleAttributeCreate(t, e, op, "expiry", true, parser.RoleOptions{})
 	if d.HasValidUntil {
@@ -235,7 +239,7 @@ func TestRoleAttributesValidityInput(t *testing.T) {
 		{"2000-01-01 02:00:00", 0}, {"02/01/2000 02:00:00", 86400000000}, {"2000-01-01 09:30 CST", 0}, {"now", 0},
 	} {
 		scope := &core.StatementScope{Op: op, Input: captured}
-		if _, err := ExecuteRoleAttributes(e, scope, roleAttributeAlter("expiry", parser.RoleOptions{Present: parser.RoleValidUntil, ValidUntil: tc.text}), 0); err != nil {
+		if _, err := rolecmds.ExecuteRoleAttributes(e, scope, roleAttributeAlter("expiry", parser.RoleOptions{Present: parser.RoleValidUntil, ValidUntil: tc.text}), 0); err != nil {
 			t.Fatal(tc, err)
 		}
 		got, _ := e.Roles().Lookup("expiry")

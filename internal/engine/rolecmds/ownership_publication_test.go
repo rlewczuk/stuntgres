@@ -1,17 +1,20 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
 	"errors"
 	"reflect"
-	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/role"
 	"sync"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 )
 
 func ownershipCleanupStage(t *testing.T) (*core.Engine, *core.CatalogStage, *catalog.Namespace) {
@@ -56,7 +59,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 			defer cancel()
 			var done func()
 			if name == "session" || name == "database" {
-				op, cleanup, err := testOperation(e, ctx)
+				op, cleanup, err := enginetest.Operation(e, ctx)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -103,7 +106,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 					t.Fatal("database-only publication changed role authority or epoch")
 				}
 			case "reset":
-				if err := Reset(ctx, e); err != nil {
+				if err := engine.Reset(ctx, e); err != nil {
 					t.Fatal(err)
 				}
 			case "session":
@@ -126,7 +129,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				stage.RoleCandidateRecord = &next
 			}
 			state, roles := e.Catalog.State, e.RoleStore.Published
-			if _, err = publishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+			if _, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 				t.Fatal("stale/exhausted publication succeeded")
 			}
 			if e.Catalog.State != state || e.RoleStore.Published != roles {
@@ -176,7 +179,7 @@ func TestRoleOwnershipPublicationFinalInstallCancellation(t *testing.T) {
 	ctx.armed = true
 	result := make(chan error, 1)
 	go func() {
-		_, err := publishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err := enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()})
 		result <- err
 	}()
 	timer := time.NewTimer(5 * time.Second)
@@ -211,7 +214,7 @@ func TestRoleOwnershipNamespaceACLPrewriterGuard(t *testing.T) {
 	e, _, _ := ownershipCleanupStage(t)
 	state, roles := e.Catalog.State, e.RoleStore.Published
 	writer := &ownershipCountingWriter{}
-	err := Dump(context.Background(), e, writer)
+	err := engine.Dump(context.Background(), e, writer)
 	if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit namespace ACL" || writer.calls != 0 {
 		t.Fatal("namespace ACL silently lost or writer invoked", err, writer.calls)
 	}
@@ -228,7 +231,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	e, _, _, target, _ := ownershipUnitRoles()
 	ownershipUnitExec(t, e, "CREATE TABLE ownership_fenced(id INT)")
 	ownershipUnitExec(t, e, "INSERT INTO ownership_fenced VALUES(7)")
-	op, done, err := testOperation(e, context.Background())
+	op, done, err := enginetest.Operation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,13 +254,13 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	go func() {
 		close(ready)
 		<-release
-		_, err := publishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err := enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()})
 		result <- err
 	}()
 	<-ready
 	// An independent physical session changes real membership after candidate
 	// validation. The delayed publisher must retain that change, not overwrite it.
-	_, grantErr := testExecute(e, context.Background(), statement(t, "GRANT ownership_target TO ownership_reader"), nil)
+	_, grantErr := enginetest.Execute(e, context.Background(), enginetest.Statement(t, "GRANT ownership_target TO ownership_reader"), nil)
 	state, roles, store := e.Catalog.State, e.RoleStore.Published, e.Storage.Relations[address]
 	close(release)
 	select {

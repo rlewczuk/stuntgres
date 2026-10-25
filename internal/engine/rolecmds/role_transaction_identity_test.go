@@ -1,16 +1,19 @@
-package engine
+package rolecmds_test
 
 import (
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
 func roleTransactionalAST(t *testing.T, e *core.Engine, s *session.Session, statement parser.Statement) {
 	t.Helper()
-	op := transactionOperation(t, s)
+	op := enginetest.TransactionOperation(t, s)
 	_, err := e.Execute(op, statement, 0, nil)
 	op.Done()
 	if err != nil {
@@ -25,13 +28,13 @@ func TestRoleTransactionalIdentityRestoration(t *testing.T) {
 			label = "commit"
 		}
 		t.Run(label, func(t *testing.T) {
-			e := New()
-			s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			e := engine.New()
+			s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			for _, name := range []string{"identity_unit_a", "identity_unit_b"} {
 				roleTransactionalAST(t, e, s, &parser.CreateRole{Name: parser.Identifier{Text: name}})
 			}
 			entry, peerEntry := s.Authorization.State, peer.Authorization.State
-			ref := transactionBegin(t, s)
+			ref := enginetest.TransactionBegin(t, s)
 			roleTransactionalAST(t, e, s, &parser.RoleSelection{Name: "identity_unit_a", Local: true})
 			roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Name: "identity_unit_b"})
 			selected := s.Authorization.State
@@ -59,16 +62,16 @@ func TestRoleTransactionalIdentityRestoration(t *testing.T) {
 			}
 			revision := s.Authorization.Revision
 			s.Authorization.Revision = ^uint64(0) - 1
-			op := transactionOperation(t, s)
+			op := enginetest.TransactionOperation(t, s)
 			e.Mu.Lock()
-			err := switchSessionRoleLocked(e, op, entry.CurrentUser, false, true)
+			err := rolecmds.SwitchSessionRoleLocked(e, op, entry.CurrentUser, false, true)
 			e.Mu.Unlock()
 			op.Done()
 			if err == nil || s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction {
 				t.Fatal("exhausted revision changed identity/settings")
 			}
 			s.Authorization.Revision = revision
-			transactionEnd(t, s, ref, commit)
+			enginetest.TransactionEnd(t, s, ref, commit)
 			want := entry
 			if commit {
 				want = selected
@@ -81,8 +84,8 @@ func TestRoleTransactionalIdentityRestoration(t *testing.T) {
 }
 
 func TestRoleTransactionalProtocolIdentityStatus(t *testing.T) {
-	e := New()
-	s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	e := engine.New()
+	s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	check := func(name string, superuser, retired bool) {
 		t.Helper()
 		identity, revision := s.Authorization.State, s.Authorization.Revision
@@ -97,7 +100,7 @@ func TestRoleTransactionalProtocolIdentityStatus(t *testing.T) {
 		}
 	}
 	check("postgres", true, false)
-	ref := transactionBegin(t, s)
+	ref := enginetest.TransactionBegin(t, s)
 	mark := parser.Identifier{Text: "status_mark"}
 	roleTransactionalAST(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: mark})
 	roleTransactionalAST(t, e, s, &parser.CreateRole{Name: parser.Identifier{Text: "status_target"}})
@@ -119,13 +122,13 @@ func TestRoleTransactionalProtocolIdentityStatus(t *testing.T) {
 		t.Fatal("savepoint rollback reused the private principal")
 	}
 	roleTransactionalAST(t, e, s, &parser.SavepointControl{Kind: parser.ReleaseSavepoint, Name: mark})
-	transactionEnd(t, s, ref, true)
+	enginetest.TransactionEnd(t, s, ref, true)
 	selected := s.Authorization.State
 	check("status_target", false, false)
-	ref = transactionBegin(t, s)
+	ref = enginetest.TransactionBegin(t, s)
 	roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Default: true})
 	check("postgres", true, false)
-	transactionEnd(t, s, ref, false)
+	enginetest.TransactionEnd(t, s, ref, false)
 	if s.Authorization.State != selected {
 		t.Fatal("outer rollback did not restore the cached identity")
 	}
@@ -144,7 +147,7 @@ func TestRoleTransactionalProtocolIdentityStatus(t *testing.T) {
 	roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Default: true})
 	check("postgres", true, false)
 
-	foreign := New()
+	foreign := engine.New()
 	if _, _, retired, err := foreign.ProtocolAuthorizationStatus(s); err == nil || retired {
 		t.Fatal("foreign attachment was treated as retired", retired, err)
 	}

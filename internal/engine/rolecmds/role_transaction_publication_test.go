@@ -1,16 +1,19 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
 )
 
@@ -37,12 +40,12 @@ func roleTransactionalCandidate(t *testing.T, e *core.Engine, base *access.RoleR
 func TestRoleTransactionalPublication(t *testing.T) {
 	for _, mode := range []string{"standalone", "explicit", "message", "cycle"} {
 		t.Run(mode, func(t *testing.T) {
-			e := New()
-			s := sessionStart(t, e, nil)
+			e := engine.New()
+			s := enginetest.StartSession(t, e, nil)
 			if mode == "explicit" {
-				transactionBegin(t, s)
+				enginetest.TransactionBegin(t, s)
 			}
-			op := transactionOperation(t, s)
+			op := enginetest.TransactionOperation(t, s)
 			owner := s.Transactions
 			if mode == "message" {
 				owner.State, owner.RetainedMessage = session.TxImplicit, true
@@ -93,7 +96,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 			}()
 			op.Done()
 			if mode == "explicit" {
-				if !transactionEnd(t, s, owner.Ref, true).Committed {
+				if !enginetest.TransactionEnd(t, s, owner.Ref, true).Committed {
 					t.Fatal("combined publication rolled back")
 				}
 				func() {
@@ -116,10 +119,10 @@ func TestRoleTransactionalPublication(t *testing.T) {
 			name = "producer_read_fence_survives_first_role_delta"
 		}
 		t.Run(name, func(t *testing.T) {
-			e := New()
-			s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			ref := transactionBegin(t, s)
-			op, peerOp := transactionOperation(t, s), transactionOperation(t, peer)
+			e := engine.New()
+			s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+			ref := enginetest.TransactionBegin(t, s)
+			op, peerOp := enginetest.TransactionOperation(t, s), enginetest.TransactionOperation(t, peer)
 			var stage *core.CatalogStage
 			defer func() { e.DiscardCatalogStage(stage) }()
 			var ownFirst, ownSecond, peerFirst, peerSecond authorization.RoleDescriptor
@@ -174,7 +177,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 			}()
 			op.Done()
 			peerOp.Done()
-			commit := transactionOperation(t, s)
+			commit := enginetest.TransactionOperation(t, s)
 			outcome, err := e.Commit(commit, ref)
 			commit.Done()
 			if producerRead {
@@ -199,10 +202,10 @@ func TestRoleTransactionalPublication(t *testing.T) {
 		})
 	}
 	t.Run("canceled_combined_publication", func(t *testing.T) {
-		e := New()
-		s := sessionStart(t, e, nil)
-		ref := transactionBegin(t, s)
-		op := transactionOperation(t, s)
+		e := engine.New()
+		s := enginetest.StartSession(t, e, nil)
+		ref := enginetest.TransactionBegin(t, s)
+		op := enginetest.TransactionOperation(t, s)
 		e.Mu.Lock()
 		base, catalogBase, frontier := e.RoleStore.Published, e.Catalog.State, e.Visibility.CommitSeq()
 		var allocator uint64
@@ -239,9 +242,9 @@ func TestRoleTransactionalPublication(t *testing.T) {
 }
 
 func TestRoleTransactionalRetirement(t *testing.T) {
-	e := New()
-	s := sessionStart(t, e, nil)
-	op := transactionOperation(t, s)
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, s)
 	var a, b authorization.RoleDescriptor
 	var published *access.RoleRecord
 	func() {
@@ -262,13 +265,13 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 		published = e.RoleStore.Published
 	}()
 	op.Done()
-	ref := transactionBegin(t, s)
-	op = transactionOperation(t, s)
+	ref := enginetest.TransactionBegin(t, s)
+	op = enginetest.TransactionOperation(t, s)
 	drop := func(d authorization.RoleDescriptor) {
 		e.Mu.Lock()
 		current := e.OperationRolesLocked(op)
 		next := current.Root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{d.Ref: d})
-		_, err := publishDroppedRolesLocked(e, op, role.DropRolesPlan{Roles: &access.RoleRecord{Root: next}, Retired: []authorization.PrincipalRef{d.Ref}})
+		_, err := rolecmds.PublishDroppedRolesLocked(e, op, role.DropRolesPlan{Roles: &access.RoleRecord{Root: next}, Retired: []authorization.PrincipalRef{d.Ref}})
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -290,7 +293,7 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 	if len(mark.Catalog.RetiredRoles) != 1 {
 		t.Fatal("clone changed retained retirement mark")
 	}
-	target := databaseCreateUnitTarget(t, e, New(), "retirement_unit_database")
+	target := databaseCreateUnitTarget(t, e, engine.New(), "retirement_unit_database")
 	if _, err := databaseCreateUnitPublish(e, context.Background(), "retirement_unit_database", target); err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +311,7 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 		t.Fatal("late other-database retirement preflight changed a committed root", err)
 	}
 	op.Done()
-	transactionEnd(t, s, ref, false)
+	enginetest.TransactionEnd(t, s, ref, false)
 	if e.RoleStore.Published != published || e.Roles().LookupRef(a.Name) != a.Ref || e.Roles().LookupRef(b.Name) != b.Ref {
 		t.Fatal("outer rollback changed committed principal identities")
 	}

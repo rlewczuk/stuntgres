@@ -1,4 +1,4 @@
-package engine
+package rolecmds
 
 import (
 	"fmt"
@@ -12,35 +12,27 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// ExecuteDefaultPrivileges runs ALTER DEFAULT PRIVILEGES.
-func ExecuteDefaultPrivileges(e *core.Engine, scope *core.StatementScope, statement *parser.AlterDefaultPrivileges, count int) (core.Result, error) {
+// ExecuteObjectGrant runs GRANT and REVOKE on objects other than databases
+// and foreign-data objects.
+//
+// Object grants own only their statement candidate. Finish decides whether to
+// retain it privately or publish it with the transaction's other effects.
+func ExecuteObjectGrant(e *core.Engine, scope *core.StatementScope, statement *parser.ObjectGrant, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	var scratch [8]defaultPrivilegeClaim
-	claims := scratch[:0]
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(scope.Op)
 	publishedRoles := e.RoleStore.Published
-	var updates map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	var request role.GrantRequest
 	if err == nil {
-		updates, err = role.DefaultPrivilegesPlan(scope.Op.Context(), auth.View, statement)
-	}
-	if err == nil {
-		// Capture honest committed predecessors in the planning window, not
-		// after releasing Engine.mu and accidentally adopting a peer's update.
-		for key := range updates {
-			claims = append(claims, defaultPrivilegeClaim{key: key, original: e.Catalog.State.DefaultACL(key)})
-		}
+		request, err = role.ObjectGrantRequest(RoleHost{core.DDLHost{E: e, Op: scope.Op}}, auth, statement)
 	}
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err
 	}
-	if len(updates) == 0 {
-		return core.Result{}, scope.Op.Context().Err()
-	}
-	if err = admitDefaultPrivileges(scope, claims); err != nil {
+	if err = admitObjectGrant(scope, request, statement); err != nil {
 		return core.Result{}, err
 	}
 	e.Mu.Lock()
@@ -52,12 +44,13 @@ func ExecuteDefaultPrivileges(e *core.Engine, scope *core.StatementScope, statem
 	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.RoleStore.Published.SameAuthority(publishedRoles) {
 		return core.Result{}, catalog.Conflict{}
 	}
-	for _, claim := range claims {
-		if e.Catalog.State.DefaultACL(claim.key) != claim.original {
+	for _, target := range request.Targets() {
+		installed := fresh.Catalog.Get(target.Address())
+		if installed != target && (installed != nil || target.Address().ClassID != ids.ParameterClassID) {
 			return core.Result{}, catalog.Conflict{}
 		}
 	}
-	result, err := stageDefaultPrivilegesLocked(e, scope, fresh, updates, publishedRoles)
+	result, err := stageObjectGrantLocked(e, scope, fresh, statement, request, publishedRoles)
 	if err == nil && scope.CatalogAuthority != nil {
 		scope.CatalogAuthority.DatabasePredecessor = auth.DatabasePredecessor
 		scope.CatalogAuthority.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
@@ -65,29 +58,23 @@ func ExecuteDefaultPrivileges(e *core.Engine, scope *core.StatementScope, statem
 	return result, err
 }
 
-func stageDefaultPrivilegesLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, updates map[catalog.DefaultACLKey]*catalog.DefaultACLRecord, publishedRoles *access.RoleRecord) (core.Result, error) {
-	// Reserve identities only after logical actions and ACL writer admissions.
-	// Existing private/default records keep their actual row identity.
-	for key, record := range updates {
-		if record == nil {
-			continue
-		}
-		if old := auth.Catalog.State().DefaultACL(key); old != nil {
-			record.OID = old.OID
-		} else {
-			oid, err := e.Catalog.AllocateOIDLocked()
-			if err != nil {
-				return core.Result{}, err
-			}
-			record.OID = oid
-		}
+func stageObjectGrantLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, statement *parser.ObjectGrant, request role.GrantRequest, publishedRoles *access.RoleRecord) (core.Result, error) {
+	plan, warnings, err := role.ObjectGrantPlan(scope.Op.Context(), auth.View, statement, request, e.Catalog.RevisionLocked)
+	for _, warning := range warnings {
+		scope.Op.EmitNotice(session.LevelWarning, warning)
 	}
-	candidate := *auth.Catalog.State()
-	candidate.OverlayDefaultACLs(auth.Catalog.State(), updates)
-	candidateCatalog := e.Catalog.Read(&candidate)
-	candidateRoles := e.RoleStore.Read(&e.Catalog.Owner, candidateCatalog, auth.RoleRecord)
-	if err := catalog.ValidateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
+	if err != nil {
 		return core.Result{}, err
+	}
+	if plan.Candidate == nil {
+		return core.Result{}, scope.Op.Context().Err()
+	}
+	if statement.Kind == "schema" {
+		// Preserve the early overflow diagnostic. The combined publisher owns
+		// the actual namespace invalidation event, including peer-root rebasing.
+		if err := plan.Candidate.AdvanceNamespaceGeneration(); err != nil {
+			return core.Result{}, err
+		}
 	}
 	if auth.RoleRecord.Revision == ^uint64(0) {
 		return core.Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
@@ -96,8 +83,8 @@ func stageDefaultPrivilegesLocked(e *core.Engine, scope *core.StatementScope, au
 		return core.Result{}, err
 	}
 	changes := scope.Owner.Catalog.Clone()
-	for key, record := range updates {
-		defaultACLChangeLocked(e, changes, key, record)
+	for address, change := range plan.Changed {
+		e.CatalogChangeLocked(changes, address, change.Descriptor)
 	}
 	if changes.RolesBase == nil {
 		changes.RolesBase = e.RoleStore.Published
@@ -130,8 +117,4 @@ func stageDefaultPrivilegesLocked(e *core.Engine, scope *core.StatementScope, au
 	scope.CatalogAuthority.ACLRoles = auth.RoleRecord
 	scope.CatalogAuthority.ACLPublishedRoles = publishedRoles
 	return core.Result{}, nil
-}
-
-func defaultACLChangeLocked(e *core.Engine, c *session.Journal, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
-	c.RecordDefaultACL(e.Catalog.State, key, record)
 }

@@ -1,4 +1,4 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
 )
 
@@ -53,7 +54,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	}
 	// A cached descriptor-empty overlay must invalidate when defaults change.
 	f.e.Mu.Lock()
-	defaultACLChangeLocked(f.e, changes, key, record)
+	rolecmds.DefaultACLChangeLocked(f.e, changes, key, record)
 	fresh := f.e.PrivateCatalogLocked(changes)
 	f.e.Mu.Unlock()
 	if fresh.State().DefaultACL(key) != record || private.State().DefaultACL(key) != nil {
@@ -302,4 +303,9 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	if err := defaultUnitPublish(t, f.e, stale); err != (catalog.Conflict{}) {
 		t.Fatal("new scoped key escaped schema retirement fence", err)
 	}
+}
+
+func retireFixtureRole(r *access.RoleRecord, ref authorization.PrincipalRef) {
+	d := fixtureRole(r, ref)
+	r.Root = r.Root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{ref: d})
 }

@@ -1,18 +1,24 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"reflect"
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,7 +28,7 @@ import (
 // independently constructed ASTs. No parser or public SQL adapter is involved.
 func databaseCreateUnitTarget(t *testing.T, e, seed *core.Engine, name string) *core.Engine {
 	t.Helper()
-	target := newDatabaseRuntime(e, seed, name, e.Roles().LookupRef("postgres"))
+	target := rolecmds.NewDatabaseRuntime(e, seed, name, e.Roles().LookupRef("postgres"))
 	if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +41,7 @@ func databaseCreateUnitTarget(t *testing.T, e, seed *core.Engine, name string) *
 func databaseCreateUnitPublish(e *core.Engine, ctx context.Context, name string, target *core.Engine) (core.Result, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return publishDatabaseTargetLocked(e, ctx, name, target, e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID))
+	return rolecmds.PublishDatabaseTargetLocked(e, ctx, name, target, e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID))
 }
 
 func databaseCreateUnitInstall(t *testing.T, e, seed *core.Engine, name string) *core.Engine {
@@ -101,7 +107,7 @@ func databaseCreateUnitRows(t *testing.T, e *core.Engine) map[string]ids.OID {
 }
 
 func TestDatabaseCreateRegistry(t *testing.T) {
-	e, seed := New(), New()
+	e, seed := engine.New(), engine.New()
 	old := e.CatalogRead()
 	initial := e.Cluster.DefaultTarget
 	first := databaseCreateUnitInstall(t, e, seed, "registry_first")
@@ -134,7 +140,7 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 	}
 	unchanged()
 	t.Run("identity_reservations", func(t *testing.T) {
-		host, template := New(), New()
+		host, template := engine.New(), engine.New()
 		// A private DDL stage may have reserved OIDs without publishing its
 		// descriptors. Database publication must not consume those identities.
 		host.Mu.Lock()
@@ -161,7 +167,7 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 				t.Fatal("local allocator reused a database identity", allocated, err)
 			}
 		}
-		op, done := roleOperation(t, selected, "postgres")
+		op, done := enginetest.RoleOperation(t, selected, "postgres")
 		defer done()
 		if _, err := selected.Execute(op, primaryKeyUnitCreate("identity_table", "identity_pk"), 0, nil); err != nil {
 			t.Fatal("selected database DDL:", err)
@@ -185,8 +191,8 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 }
 
 func TestDatabaseCreateTemplateCopy(t *testing.T) {
-	e, seed := New(), New()
-	op, done := roleOperation(t, seed, "postgres")
+	e, seed := engine.New(), engine.New()
+	op, done := enginetest.RoleOperation(t, seed, "postgres")
 	defer done()
 	for _, statement := range []parser.Statement{
 		primaryKeyUnitCreate("t", "template_pk"), primaryKeyUnitInsert(1),
@@ -218,7 +224,7 @@ func TestDatabaseCreateTemplateCopy(t *testing.T) {
 			}
 		}
 	}
-	leftOp, leftDone := roleOperation(t, left, "postgres")
+	leftOp, leftDone := enginetest.RoleOperation(t, left, "postgres")
 	defer leftDone()
 	if result, err := left.Execute(leftOp, primaryKeyUnitInsert(2), 0, nil); err != nil || result.Count != 1 {
 		t.Fatal("clone insert", result, err)
@@ -254,7 +260,7 @@ func TestDatabaseCreateTemplateCopy(t *testing.T) {
 }
 
 func TestDatabaseCreatePublication(t *testing.T) {
-	e, seed := New(), New()
+	e, seed := engine.New(), engine.New()
 	candidates := []*core.Engine{databaseCreateUnitTarget(t, e, seed, "contended"), databaseCreateUnitTarget(t, e, seed, "contended")}
 	frontier := e.Cluster.NextOID
 	start := make(chan struct{})
@@ -327,7 +333,7 @@ func (c *databaseCreateCancelContext) Err() error {
 }
 
 func TestDatabaseCreateCancellation(t *testing.T) {
-	e, seed := New(), New()
+	e, seed := engine.New(), engine.New()
 	databaseCreateUnitInstall(t, e, seed, "existing")
 	target := databaseCreateUnitTarget(t, e, seed, "canceled")
 	unchanged := databaseCreateUnitUnchanged(t, e)
@@ -348,7 +354,7 @@ func TestDatabaseCreateCancellation(t *testing.T) {
 }
 
 func TestDatabaseCreateProvenance(t *testing.T) {
-	e, seed, foreign := New(), New(), New()
+	e, seed, foreign := engine.New(), engine.New(), engine.New()
 	local := databaseCreateUnitInstall(t, e, seed, "local")
 	for name, candidate := range map[string]*core.Engine{
 		"foreign":    databaseCreateUnitTarget(t, foreign, seed, "foreign"),
@@ -365,7 +371,7 @@ func TestDatabaseCreateProvenance(t *testing.T) {
 	candidate := databaseCreateUnitTarget(t, e, seed, "foreign_owner")
 	unchanged := databaseCreateUnitUnchanged(t, e)
 	e.Mu.Lock()
-	_, err := publishDatabaseTargetLocked(e, context.Background(), "foreign_owner", candidate, foreign.Roles().LookupRef("postgres"))
+	_, err := rolecmds.PublishDatabaseTargetLocked(e, context.Background(), "foreign_owner", candidate, foreign.Roles().LookupRef("postgres"))
 	e.Mu.Unlock()
 	if err == nil {
 		t.Fatal("equal numeric foreign principal accepted")
@@ -376,21 +382,21 @@ func TestDatabaseCreateProvenance(t *testing.T) {
 	for _, source := range []*core.Engine{e, foreign} {
 		view := source.CatalogRead()
 		ref := source.Catalog.Domain.Ref(view.Epoch(), address)
-		if err := validateObjectRef(local, local.CatalogRead(), ref); err == nil {
+		if err := enginetest.ValidateObjectRef(local, local.CatalogRead(), ref); err == nil {
 			t.Fatal("cross-target object reference accepted", ref)
 		}
 	}
 	view := local.CatalogRead()
-	if err := validateObjectRef(local, view, local.Catalog.Domain.Ref(view.Epoch(), address)); err != nil {
+	if err := enginetest.ValidateObjectRef(local, view, local.Catalog.Domain.Ref(view.Epoch(), address)); err != nil {
 		t.Fatal("own reference rejected", err)
 	}
 }
 
 func TestDatabaseCreateSharedAuthority(t *testing.T) {
-	e, seed := New(), New()
+	e, seed := engine.New(), engine.New()
 	left := databaseCreateUnitInstall(t, e, seed, "authority_left")
 	right := databaseCreateUnitInstall(t, e, seed, "authority_right")
-	admin, done := roleOperation(t, left, "postgres")
+	admin, done := enginetest.RoleOperation(t, left, "postgres")
 	defer done()
 	old := right.Roles()
 	actor := roleAttributeCreate(t, left, admin, "shared_actor", true, parser.RoleOptions{Present: parser.RoleCreateDB, CreateDB: true})
@@ -406,7 +412,7 @@ func TestDatabaseCreateSharedAuthority(t *testing.T) {
 			t.Fatal("shared role cannot authenticate", ref, err)
 		}
 	}
-	held, heldDone := roleOperation(t, right, actor.Name)
+	held, heldDone := enginetest.RoleOperation(t, right, actor.Name)
 	defer heldDone()
 	roleAttributeApply(t, left, admin, roleAttributeAlter(actor.Name, parser.RoleOptions{Present: parser.RoleCreateDB, CreateDB: false}))
 	right.Mu.Lock()
@@ -420,7 +426,7 @@ func TestDatabaseCreateSharedAuthority(t *testing.T) {
 		t.Fatal("held operation retained stale shared authority", current, err)
 	}
 	// Reverse direction proves a child does not merely receive a one-time copy.
-	otherAdmin, otherDone := roleOperation(t, right, "postgres")
+	otherAdmin, otherDone := enginetest.RoleOperation(t, right, "postgres")
 	defer otherDone()
 	roleAttributeApply(t, right, otherAdmin, roleAttributeAlter(actor.Name, parser.RoleOptions{Present: parser.RoleCreateDB, CreateDB: true}))
 	for _, target := range []*core.Engine{e, left, right} {
@@ -432,7 +438,7 @@ func TestDatabaseCreateSharedAuthority(t *testing.T) {
 	// Role authority is shared, so an object in another database keeps the
 	// role alive until that object is gone.
 	dependent := roleAttributeCreate(t, left, admin, "shared_dependency", false, parser.RoleOptions{})
-	roleExecute(t, left, admin, "CREATE SCHEMA shared_dependency_schema AUTHORIZATION shared_dependency")
+	enginetest.RoleExecute(t, left, admin, "CREATE SCHEMA shared_dependency_schema AUTHORIZATION shared_dependency")
 	drop := &parser.DropRole{Names: []string{dependent.Name}}
 	_, err = right.Execute(otherAdmin, drop, 0, nil)
 	var diagnostic *sqlstate.Error
@@ -442,7 +448,7 @@ func TestDatabaseCreateSharedAuthority(t *testing.T) {
 	if _, err := right.Roles().Descriptor(dependent.Ref); err != nil {
 		t.Fatal("failed retirement removed the shared role", err)
 	}
-	roleExecute(t, left, admin, "DROP SCHEMA shared_dependency_schema")
+	enginetest.RoleExecute(t, left, admin, "DROP SCHEMA shared_dependency_schema")
 	if _, err := right.Execute(otherAdmin, drop, 0, nil); err != nil {
 		t.Fatal("role remained dependent after the other database's object was dropped", err)
 	}
@@ -451,4 +457,55 @@ func TestDatabaseCreateSharedAuthority(t *testing.T) {
 			t.Fatal("role retirement was not shared")
 		}
 	}
+}
+
+func pgDatabaseUnitSource(t *testing.T, e *core.Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
+	t.Helper()
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}
+	source, ok := catalog.Relation(address)
+	if !ok {
+		t.Fatal("missing pg_database")
+	}
+	return source, e.Catalog.Domain.Ref(catalog.Epoch(), address)
+}
+
+// captureCatalogSourceLocked runs source's registered producer over view and
+// roles, without the per-source policy of openCatalogSourceLocked.
+func captureCatalogSourceLocked(e *core.Engine, ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
+	produce, ok := pgcatalog.ProducerFor(source.Address().ObjectID)
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: unknown catalog source")
+	}
+	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: &e.Catalog.Owner, Ref: ref, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, SequenceBase: view.State()})}
+	return core.CaptureCatalogSourceRows(in, produce)
+}
+
+func primaryKeyUnitCreate(name, constraint string) *parser.CreateTable {
+	return &parser.CreateTable{Name: primaryKeyUnitName(name), Elements: []parser.TableElement{
+		{Column: &parser.Column{Name: "a", TypeName: parser.TypeName{Name: "integer"}}},
+		{Column: &parser.Column{Name: "b", TypeName: parser.TypeName{Name: "text"}}},
+		{Column: &parser.Column{Name: "secret", TypeName: parser.TypeName{Name: "text"}}},
+		{Unique: &parser.UniqueConstraint{Primary: true, Name: parser.Identifier{Text: constraint}, Columns: []parser.Identifier{{Text: "a"}, {Text: "b"}}}},
+	}}
+}
+
+func primaryKeyUnitInsert(a int64) *parser.Insert {
+	return &parser.Insert{Name: primaryKeyUnitName("t"), Rows: [][]parser.Expr{{
+		parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: a}},
+		parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "protected"}},
+		parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "private"}},
+	}}}
+}
+
+func primaryKeyUnitName(name string) parser.ObjectName {
+	return parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}
+}
+
+func primaryKeyUnitRelation(t *testing.T, e *core.Engine, name string) *catalog.Relation {
+	t.Helper()
+	address, ok := e.Catalog.State.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
+	if !ok {
+		t.Fatal("missing relation", name)
+	}
+	return e.Catalog.State.MustRelation(address)
 }

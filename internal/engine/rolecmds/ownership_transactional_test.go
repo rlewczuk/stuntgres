@@ -1,4 +1,4 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
@@ -6,12 +6,15 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -32,7 +35,7 @@ func ownershipUnitCapture(t *testing.T, e *core.Engine, stage *core.CatalogStage
 
 func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	e, first, ns := ownershipCleanupStage(t)
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	op.Session.Transactions.RetainedMessage = true
 	defer func() { op.Session.Transactions.RetainedMessage = false; op.Session.Transactions.Catalog = nil }()
@@ -193,7 +196,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 	for _, veto := range []string{"cancel", "roles", "database", "reset", "invalid-member"} {
 		t.Run(veto, func(t *testing.T) {
 			e, stage, _ := ownershipCleanupStage(t)
-			op, done := roleOperation(t, e, "postgres")
+			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
 			auth, err := core.OperationAuthorization(op)
 			if err != nil {
@@ -224,7 +227,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 				next.SetDescriptor(db.Address(), &db)
 				e.Catalog.PublishLocked(next)
 			case "reset":
-				if err := Reset(ctx, e); err != nil {
+				if err := engine.Reset(ctx, e); err != nil {
 					t.Fatal(err)
 				}
 			case "invalid-member":
@@ -269,7 +272,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			oldEdges := append([]authorization.Membership(nil), fixtureEdges(oldRoles)...)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			message := batchUnitStart(t, sessionStart(t, e, nil), ctx)
+			message := batchUnitStart(t, enginetest.StartSession(t, e, nil), ctx)
 			defer message.end(context.Canceled)
 			stmt := &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}}, Mode: parser.DropRestrict}
 			if _, err := message.step(stmt); err != nil {
@@ -329,7 +332,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			}
 			ownershipUnitExec(t, e, create)
 			ownershipUnitExec(t, e, alter)
-			op, done := roleOperation(t, e, "postgres")
+			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
 			auth, err := core.OperationAuthorization(op)
 			if err != nil {
@@ -349,7 +352,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 				plan, planErr := role.PlanOwned(auth.View, stmt, func(a ids.ObjectAddress) string { return stored.DependencyObject(auth.Catalog, a, path) })
 				err = planErr
 				if err == nil {
-					err = role.StageOwned(RoleHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, plan)
+					err = role.StageOwned(rolecmds.RoleHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, plan)
 				}
 			}
 			e.Mu.Unlock()
@@ -369,7 +372,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			if replacement == address || replacement == (ids.ObjectAddress{}) {
 				t.Fatal("replacement did not remint identity")
 			}
-			if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+			if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 				t.Fatal("captured ownership stage adopted same-name replacement")
 			}
 			if e.Catalog.State != current || e.RoleStore.Published != roles || auth.Catalog.Get(address) != captured || current.Get(address) != nil {
@@ -387,7 +390,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 
 func TestRoleOwnershipTransactionalUnrelatedCommit(t *testing.T) {
 	e, stage, ns := ownershipCleanupStage(t)
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	auth, err := core.OperationAuthorization(op)
 	if err != nil {
@@ -565,7 +568,7 @@ func ownershipTransactionalPolicyOverlay(t *testing.T) {
 	}
 	// Finish and combined commit carry the same policy-only projection through
 	// the actual retained owner; the marked candidate above stays immutable.
-	message := batchUnitStart(t, sessionStart(t, e, nil), context.Background())
+	message := batchUnitStart(t, enginetest.StartSession(t, e, nil), context.Background())
 	defer message.end(context.Canceled)
 	for i, name := range []string{"ownership_source", "ownership_reader"} {
 		if _, err := message.step(&parser.DropOwned{Sources: []parser.RoleSpec{{Name: name}}, Mode: parser.DropRestrict}); err != nil {

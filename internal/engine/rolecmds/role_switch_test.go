@@ -1,4 +1,4 @@
-package engine
+package rolecmds_test
 
 import (
 	"context"
@@ -7,9 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -32,9 +35,9 @@ func (p roleSwitchDefaultProvider) SessionDefault(ctx context.Context, d setting
 }
 func roleSwitchUnitSession(t *testing.T) (*core.Engine, *session.Session) {
 	t.Helper()
-	e := New()
+	e := engine.New()
 	for _, q := range []string{"CREATE USER switch_login NOINHERIT", "CREATE ROLE switch_a", "CREATE ROLE switch_b", "CREATE ROLE switch_c", "GRANT switch_a,switch_b,switch_c TO switch_login WITH INHERIT FALSE, SET TRUE"} {
-		run(t, e, q)
+		enginetest.Run(t, e, q)
 	}
 	login, _ := e.Roles().Lookup("switch_login")
 	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref})
@@ -70,7 +73,7 @@ func roleSwitchUnitExec(t *testing.T, s *session.Session, q string) error {
 		return err
 	}
 	defer op.Done()
-	_, err = core.EngineOf(s).Execute(op, statement(t, q), 0, nil)
+	_, err = core.EngineOf(s).Execute(op, enginetest.Statement(t, q), 0, nil)
 	return err
 }
 
@@ -91,9 +94,9 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 				e, s := roleSwitchUnitSession(t)
 				before := s.Authorization.State
 				graph, catalog := e.RoleStore.Published, e.Catalog.State
-				sessionSQL(t, s, "BEGIN")
+				enginetest.SessionSQL(t, s, "BEGIN")
 				for _, q := range tc.commands {
-					sessionSQL(t, s, q)
+					enginetest.SessionSQL(t, s, q)
 				}
 				roleSwitchAssert(t, s, before, tc.inside)
 				revision := s.Authorization.Revision
@@ -103,7 +106,7 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 					end = "COMMIT"
 					want = tc.commit
 				}
-				sessionSQL(t, s, end)
+				enginetest.SessionSQL(t, s, end)
 				roleSwitchAssert(t, s, before, want)
 				if s.Settings.RoleAction.Present || e.RoleStore.Published != graph || e.Catalog.State != catalog {
 					t.Fatal("journal/catalog changed")
@@ -119,32 +122,32 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 func TestRoleSwitchSavepointAndFailureRestoration(t *testing.T) {
 	_, s := roleSwitchUnitSession(t)
 	before := s.Authorization.State
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "SET ROLE switch_a")
-	sessionSQL(t, s, "SET LOCAL ROLE switch_b")
-	sessionSQL(t, s, "SAVEPOINT x")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "SET ROLE switch_a")
+	enginetest.SessionSQL(t, s, "SET LOCAL ROLE switch_b")
+	enginetest.SessionSQL(t, s, "SAVEPOINT x")
 	retained := s.Settings.RoleAction
-	sessionSQL(t, s, "SET ROLE switch_c")
+	enginetest.SessionSQL(t, s, "SET ROLE switch_c")
 	revision := s.Authorization.Revision
-	state(t, roleSwitchUnitExec(t, s, "SET ROLE absent"), "22023")
+	enginetest.State(t, roleSwitchUnitExec(t, s, "SET ROLE absent"), "22023")
 	roleSwitchAssert(t, s, before, "switch_b")
 	if s.Authorization.Revision != revision+1 || s.Settings.RoleAction != retained {
 		t.Fatal("failure checkpoint journal/stamp")
 	}
-	state(t, roleSwitchUnitExec(t, s, "SET ROLE switch_a"), "25P02")
-	sessionSQL(t, s, "ROLLBACK TO x")
+	enginetest.State(t, roleSwitchUnitExec(t, s, "SET ROLE switch_a"), "25P02")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO x")
 	roleSwitchAssert(t, s, before, "switch_b")
-	sessionSQL(t, s, "SET ROLE switch_c")
-	sessionSQL(t, s, "ROLLBACK TO x")
+	enginetest.SessionSQL(t, s, "SET ROLE switch_c")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO x")
 	roleSwitchAssert(t, s, before, "switch_b")
-	sessionSQL(t, s, "RELEASE x")
-	sessionSQL(t, s, "COMMIT")
+	enginetest.SessionSQL(t, s, "RELEASE x")
+	enginetest.SessionSQL(t, s, "COMMIT")
 	roleSwitchAssert(t, s, before, "switch_a")
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "SET ROLE switch_c")
-	state(t, roleSwitchUnitExec(t, s, "SET ROLE absent"), "22023")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "SET ROLE switch_c")
+	enginetest.State(t, roleSwitchUnitExec(t, s, "SET ROLE absent"), "22023")
 	roleSwitchAssert(t, s, before, "switch_a")
-	sessionSQL(t, s, "ROLLBACK")
+	enginetest.SessionSQL(t, s, "ROLLBACK")
 }
 
 func TestRoleSwitchInitializationAndCachedReset(t *testing.T) {
@@ -179,14 +182,14 @@ func TestRoleSwitchInitializationAndCachedReset(t *testing.T) {
 	if before.ResetRole != before.CurrentUser {
 		t.Fatal(before)
 	}
-	sessionSQL(t, s, "SET ROLE switch_b")
-	sessionSQL(t, s, "SET ROLE NONE")
+	enginetest.SessionSQL(t, s, "SET ROLE switch_b")
+	enginetest.SessionSQL(t, s, "SET ROLE NONE")
 	roleSwitchAssert(t, s, before, "switch_login")
-	run(t, e, "GRANT switch_a TO switch_login WITH SET FALSE")
-	sessionSQL(t, s, "RESET ROLE")
+	enginetest.Run(t, e, "GRANT switch_a TO switch_login WITH SET FALSE")
+	enginetest.SessionSQL(t, s, "RESET ROLE")
 	roleSwitchAssert(t, s, before, "switch_a")
-	state(t, roleSwitchUnitExec(t, s, "SET ROLE switch_a"), "42501")
-	sessionSQL(t, s, "SET ROLE TO DEFAULT")
+	enginetest.State(t, roleSwitchUnitExec(t, s, "SET ROLE switch_a"), "42501")
+	enginetest.SessionSQL(t, s, "SET ROLE TO DEFAULT")
 	roleSwitchAssert(t, s, before, "switch_a")
 }
 
@@ -205,17 +208,17 @@ func TestRoleSwitchRevisionHeadroom(t *testing.T) {
 		_, s := roleSwitchUnitSession(t)
 		before := s.Authorization.State
 		s.Authorization.Revision = ^uint64(0) - 10
-		sessionSQL(t, s, "BEGIN")
-		sessionSQL(t, s, "SET ROLE switch_a")
-		sessionSQL(t, s, "SAVEPOINT x")
-		sessionSQL(t, s, "SET LOCAL ROLE switch_b")
-		sessionSQL(t, s, "SAVEPOINT y")
-		sessionSQL(t, s, "SET ROLE switch_c")
-		state(t, roleSwitchUnitExec(t, s, "SET ROLE absent"), "22023")
+		enginetest.SessionSQL(t, s, "BEGIN")
+		enginetest.SessionSQL(t, s, "SET ROLE switch_a")
+		enginetest.SessionSQL(t, s, "SAVEPOINT x")
+		enginetest.SessionSQL(t, s, "SET LOCAL ROLE switch_b")
+		enginetest.SessionSQL(t, s, "SAVEPOINT y")
+		enginetest.SessionSQL(t, s, "SET ROLE switch_c")
+		enginetest.State(t, roleSwitchUnitExec(t, s, "SET ROLE absent"), "22023")
 		roleSwitchAssert(t, s, before, "switch_b")
-		sessionSQL(t, s, "ROLLBACK TO x")
+		enginetest.SessionSQL(t, s, "ROLLBACK TO x")
 		roleSwitchAssert(t, s, before, "switch_a")
-		sessionSQL(t, s, "ROLLBACK")
+		enginetest.SessionSQL(t, s, "ROLLBACK")
 		roleSwitchAssert(t, s, before, "switch_login")
 		if s.Authorization.Revision == 0 {
 			t.Fatal("revision wrapped")
@@ -225,15 +228,15 @@ func TestRoleSwitchRevisionHeadroom(t *testing.T) {
 		_, s := roleSwitchUnitSession(t)
 		before := s.Authorization.State
 		s.Authorization.Revision = ^uint64(0) - 5
-		sessionSQL(t, s, "BEGIN")
-		sessionSQL(t, s, "SET ROLE switch_a")
-		sessionSQL(t, s, "SAVEPOINT x")
-		sessionSQL(t, s, "SET LOCAL ROLE switch_b")
+		enginetest.SessionSQL(t, s, "BEGIN")
+		enginetest.SessionSQL(t, s, "SET ROLE switch_a")
+		enginetest.SessionSQL(t, s, "SAVEPOINT x")
+		enginetest.SessionSQL(t, s, "SET LOCAL ROLE switch_b")
 		err := roleSwitchUnitExec(t, s, "ROLLBACK TO x")
 		if err == nil || !strings.Contains(err.Error(), "revision exhausted") {
 			t.Fatal(err)
 		}
-		sessionSQL(t, s, "ROLLBACK")
+		enginetest.SessionSQL(t, s, "ROLLBACK")
 		roleSwitchAssert(t, s, before, "switch_login")
 		if s.Authorization.Revision == 0 {
 			t.Fatal("revision wrapped")
@@ -243,8 +246,8 @@ func TestRoleSwitchRevisionHeadroom(t *testing.T) {
 
 func TestRoleSwitchCanceledJournalPublication(t *testing.T) {
 	e, s := roleSwitchUnitSession(t)
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "SET ROLE switch_a")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "SET ROLE switch_a")
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -255,25 +258,25 @@ func TestRoleSwitchCanceledJournalPublication(t *testing.T) {
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: s, cancel: cancel}
 	op.Ctx = boundary
-	_, err = ExecuteRole(e, op, &parser.RoleSelection{Name: "switch_b", Local: true}, 0, false)
+	_, err = rolecmds.ExecuteRole(e, op, &parser.RoleSelection{Name: "switch_b", Local: true}, 0, false)
 	if !boundary.observed || !errors.Is(err, context.Canceled) || op.RoleState() != before || s.Settings.RoleAction != action || s.Authorization.Revision != revision {
 		t.Fatal("canceled publication", err)
 	}
 	op.Done()
-	sessionSQL(t, s, "COMMIT")
+	enginetest.SessionSQL(t, s, "COMMIT")
 	if !reflect.DeepEqual(s.Authorization.State, before) {
 		t.Fatal("canceled LOCAL damaged SESSION candidate")
 	}
 }
 
 func TestRoleSwitchPrincipalValidation(t *testing.T) {
-	e := New()
-	run(t, e, "CREATE ROLE switch_stale")
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE ROLE switch_stale")
 	stale, _ := e.Roles().Lookup("switch_stale")
 	admin, _ := e.Roles().Lookup("postgres")
-	other := New()
+	other := engine.New()
 	foreign, _ := other.Roles().Lookup("postgres")
-	run(t, e, "DROP ROLE switch_stale")
+	enginetest.Run(t, e, "DROP ROLE switch_stale")
 	for _, target := range []authorization.PrincipalRef{{}, foreign.Ref, stale.Ref} {
 		if _, err := e.Roles().CanSetRole(admin.Ref, target); err == nil {
 			t.Fatal("superuser adopted invalid target", target)
@@ -282,7 +285,7 @@ func TestRoleSwitchPrincipalValidation(t *testing.T) {
 			t.Fatal("self bypass adopted invalid target", target)
 		}
 	}
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	for _, target := range []authorization.PrincipalRef{foreign.Ref, stale.Ref} {
 		op.Session.Mu.Lock()
@@ -290,7 +293,7 @@ func TestRoleSwitchPrincipalValidation(t *testing.T) {
 		before := op.Session.Authorization.State
 		revision := op.Session.Authorization.Revision
 		op.Session.Mu.Unlock()
-		if _, err := e.Execute(op, statement(t, "RESET ROLE"), 0, nil); err == nil {
+		if _, err := e.Execute(op, enginetest.Statement(t, "RESET ROLE"), 0, nil); err == nil {
 			t.Fatal("invalid cached reset", target)
 		}
 		if op.RoleState() != before || op.Session.Authorization.Revision != revision {
@@ -305,18 +308,18 @@ func TestRoleSwitchPrincipalValidation(t *testing.T) {
 func TestRoleSwitchFinishConsumers(t *testing.T) {
 	e, s := roleSwitchUnitSession(t)
 	before := s.Authorization.State
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "SET ROLE switch_a")
-	sessionSQL(t, s, "SET LOCAL ROLE switch_b")
-	sessionSQL(t, s, "PREPARE TRANSACTION 'role_switch_unit'")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "SET ROLE switch_a")
+	enginetest.SessionSQL(t, s, "SET LOCAL ROLE switch_b")
+	enginetest.SessionSQL(t, s, "PREPARE TRANSACTION 'role_switch_unit'")
 	roleSwitchAssert(t, s, before, "switch_a")
 	if s.Settings.RoleAction.Present {
 		t.Fatal("PREPARE retained role journal")
 	}
-	run(t, e, "COMMIT PREPARED 'role_switch_unit'")
+	enginetest.Run(t, e, "COMMIT PREPARED 'role_switch_unit'")
 	roleSwitchAssert(t, s, before, "switch_a")
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "SET LOCAL ROLE switch_b")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "SET LOCAL ROLE switch_b")
 	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
@@ -325,7 +328,7 @@ func TestRoleSwitchFinishConsumers(t *testing.T) {
 		t.Fatal("physical teardown retained role journal")
 	}
 	// A separate physical session did not acquire the ended owner's identity.
-	peer := sessionStart(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	admin, _ := e.Roles().Lookup("postgres")
 	if peer.Authorization.State.CurrentUser != admin.Ref {
 		t.Fatal(peer.Authorization.State)

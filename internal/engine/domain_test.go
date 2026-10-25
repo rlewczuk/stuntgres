@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/rolecmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
@@ -261,7 +262,7 @@ func TestDomainDeclarationClausesAtomicInternal(t *testing.T) {
 	auth := catalogAuthorization(e, e.CatalogRead())
 	var dependencies []access.RoleDependency
 	access.DescriptorRoleDependencies(d, d.Owner, &dependencies)
-	if len(dependencies) == 0 || (RoleHost{core.DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of type nullable" {
+	if len(dependencies) == 0 || (rolecmds.RoleHost{core.DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of type nullable" {
 		t.Fatal("domain role dependency", dependencies)
 	}
 }

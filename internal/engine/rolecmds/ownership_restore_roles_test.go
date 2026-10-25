@@ -7,8 +7,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -76,23 +74,5 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	imported.ACL.Entries[0].Privileges = 0
 	if !reflect.DeepEqual(edges, fixtureEdges(graph)) || !reflect.DeepEqual(entries, database.ACL.Entries) {
 		t.Fatal("isolated restore aliases source membership/ACL arrays")
-	}
-}
-
-func roleAttributeCreate(t *testing.T, e *core.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
-	t.Helper()
-	roleAttributeApply(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: name}, DefaultLogin: login, Options: o})
-	d, ok := e.Roles().Lookup(name)
-	if !ok {
-		t.Fatal("missing role", name)
-	}
-	return d
-}
-
-func roleAttributeApply(t *testing.T, e *core.Engine, op *session.Operation, s parser.Statement) {
-	t.Helper()
-	r, err := e.Execute(op, s, 0, nil)
-	if err != nil || r.Count != 0 || r.Rows != nil {
-		t.Fatalf("attribute utility: result=%#v error=%v", r, err)
 	}
 }
