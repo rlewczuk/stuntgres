@@ -41,7 +41,7 @@ package's `README.md` under `## Testing`.
   their diagnostics exact; PostgreSQL DEBUG trace wording, allocator identities
   and loader order are not expectations. Keep output quiet.
 - Organize tests in feature-group packages under `reference/`, with shared helpers
-  in `reference/fixture`. At most 30 packages (including the fixture) and at most
+  in `reference/fixture`. At most 40 packages (including the fixture) and at most
   1,000,000 bytes per package; functional files at most 750 lines. Do not split or
   duplicate test bodies to meet these limits.
 - Native Reset/Dump/Restore have no PostgreSQL equivalent: keep their witnesses as
