@@ -22,7 +22,7 @@ func TestReferenceInheritanceQueryFeatureSmoke(t *testing.T) {
 		for _, check := range inheritanceQueryControlChecks() {
 			s.run(check)
 		}
-		star := fixture.Select("SELECT * FROM p*", []string{"a", "x"}, []string{"INT4", "TEXT"}, inheritanceQueryFive())
+		star := fixture.Select("SELECT * FROM p*", []string{"a", "x"}, []string{"INT4", "TEXT"}, fixture.InheritanceQueryFive())
 		star.Bag = true
 		s.run(star)
 		peer, err := s.b.DB.Conn(s.p.Ctx)
@@ -42,7 +42,7 @@ func TestReferenceInheritanceQueryFeatureSmoke(t *testing.T) {
 		s.exec("CREATE TABLE auth_child(z BIGINT) INHERITS(q,auth_parent)", 0)
 		s.exec("INSERT INTO auth_parent VALUES(7,'same'),(7,'same')", 2)
 		s.exec("INSERT INTO auth_child VALUES(true,7,'same',9),(true,7,'same',9),(true,7,'same',9)", 3)
-		authority := fixture.Select("SELECT * FROM auth_parent*", []string{"a", "x"}, []string{"INT4", "TEXT"}, inheritanceQueryFive())
+		authority := fixture.Select("SELECT * FROM auth_parent*", []string{"a", "x"}, []string{"INT4", "TEXT"}, fixture.InheritanceQueryFive())
 		authority.Bag = true
 		s.exec("CREATE ROLE inherit_query_smoke NOSUPERUSER NOBYPASSRLS", 0)
 		alive := true

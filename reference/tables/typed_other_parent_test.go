@@ -18,7 +18,7 @@ func TestReferenceTypedTableOtherParentRetention(t *testing.T) {
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM child LIMIT 0", []string{"id", "note"}, []string{"INT4", "TEXT"}, []bool{true, true}, 0)
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM other LIMIT 0", []string{"id"}, []string{"INT4"}, []bool{true}, 0)
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM ONLY other LIMIT 0", []string{"id"}, []string{"INT4"}, []bool{true}, 0)
-		run(typedTableAttachment("t", "pair", true))
+		run(fixture.TypedTableAttachment("t", "pair", true))
 		run(fixture.Exec("INSERT INTO child VALUES(11,'retained')", 1))
 		run(fixture.Select("SELECT * FROM child", []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(11), "retained"}}))
 		run(fixture.Select("SELECT * FROM t", []string{"note"}, []string{"TEXT"}, [][]any{{"retained"}}))

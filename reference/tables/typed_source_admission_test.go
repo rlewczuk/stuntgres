@@ -145,7 +145,7 @@ func TestReferenceTypedTableAtomicityCreateSourceAdmission(t *testing.T) {
 		}
 		run(fixture.Exec("SET lock_timeout=0", 0))
 		run(fixture.Exec("CREATE TABLE late OF pair", 0))
-		run(typedTableAttachment("late", "pair", true))
+		run(fixture.TypedTableAttachment("late", "pair", true))
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM late", []string{"id", "note", "flag"}, []string{"INT4", "VARCHAR", "BOOL"}, []bool{true, true, true}, 0)
 		run(fixture.Exec("INSERT INTO late VALUES($1,$2,$3)", 1, int64(7), "ok", true))
 		run(fixture.Select("SELECT * FROM late", []string{"id", "note", "flag"}, []string{"INT4", "VARCHAR", "BOOL"}, [][]any{{int64(7), "ok", true}}))

@@ -170,7 +170,7 @@ func TestReferenceTypedTableIdentityAttachmentControls(t *testing.T) {
 		definitionQuery := "SELECT 't_id_seq'::regclass::oid"
 		before := typedGenerationIdentities(t, p, c, definitionQuery)
 		attach := fixture.Exec("ALTER TABLE t OF pair", 0)
-		typedConstraintUtility(t, p, c, prepared, run, attach.Query, typedTableAttachment("t", "pair", false))
+		typedConstraintUtility(t, p, c, prepared, run, attach.Query, fixture.TypedTableAttachment("t", "pair", false))
 		setup = append(setup, attach)
 		typedRetainedIdentityState(t, p, c, b.Recorder, b.PG, prepared, true, seed, 10)
 		if after := typedGenerationIdentities(t, p, c, definitionQuery); after != before {
@@ -219,7 +219,7 @@ func TestReferenceTypedTableGeneratedAttachmentControls(t *testing.T) {
 		definitionQuery := "SELECT oid::bigint FROM pg_attrdef WHERE adrelid='t'::regclass::oid AND adnum=2"
 		before := typedGenerationIdentities(t, p, c, definitionQuery)
 		attach := fixture.Exec("ALTER TABLE t OF pair", 0)
-		typedConstraintUtility(t, p, c, prepared, run, attach.Query, typedTableAttachment("t", "pair", false))
+		typedConstraintUtility(t, p, c, prepared, run, attach.Query, fixture.TypedTableAttachment("t", "pair", false))
 		setup = append(setup, attach)
 		typedRetainedGeneratedState(t, p, c, b.Recorder, b.PG, prepared, true, seed)
 		if after := typedGenerationIdentities(t, p, c, definitionQuery); after != before {

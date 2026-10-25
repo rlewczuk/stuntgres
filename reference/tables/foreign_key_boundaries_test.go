@@ -13,15 +13,15 @@ func TestReferenceForeignKeyDefinitionIneligibleKeys(t *testing.T) {
 			foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 				run(fixture.Exec("CREATE TABLE p(id INT)", 0))
 				if strings.Contains(index, "(id+1)") && !b.PG {
-					d := foreignKeyError("0A000", "unique expression indexes are unsupported", "", "", "")
+					d := fixture.ForeignKeyError("0A000", "unique expression indexes are unsupported", "", "", "")
 					d.Position = fixture.Position(strings.Index(index, "(id+1)") + 1)
-					run(foreignKeyFail(index, d, false))
+					run(fixture.ForeignKeyFail(index, d, false))
 					run(fixture.Select("SELECT indexname FROM pg_indexes WHERE indexname='candidate'", []string{"indexname"}, []string{"NAME"}, nil))
 				} else {
 					run(fixture.Exec(index, 0))
 				}
 				for _, prepared := range []bool{false, true} {
-					run(foreignKeyFail("CREATE TABLE c(pid INT REFERENCES p(id))", foreignKeyError("42830", `there is no unique constraint matching given keys for referenced table "p"`, "", "", ""), prepared))
+					run(fixture.ForeignKeyFail("CREATE TABLE c(pid INT REFERENCES p(id))", fixture.ForeignKeyError("42830", `there is no unique constraint matching given keys for referenced table "p"`, "", "", ""), prepared))
 				}
 				run(fixture.Select("SELECT relname FROM pg_class WHERE relname='c'", []string{"relname"}, []string{"NAME"}, nil))
 			})
@@ -58,10 +58,10 @@ func TestReferenceForeignKeyDefinitionTypes(t *testing.T) {
 			foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 				if tc.parent == `"char"` && !b.PG {
 					q := "CREATE TABLE p(id " + tc.parent + " PRIMARY KEY)"
-					d := foreignKeyError("0A000", "unsupported column type", "", "", "")
+					d := fixture.ForeignKeyError("0A000", "unsupported column type", "", "", "")
 					d.Position = fixture.Position(strings.Index(q, tc.parent) + 1)
 					for _, prepared := range []bool{false, true} {
-						run(foreignKeyFail(q, d, prepared))
+						run(fixture.ForeignKeyFail(q, d, prepared))
 					}
 					run(fixture.Select("SELECT relname FROM pg_class WHERE relname='p' OR relname='c'", []string{"relname"}, []string{"NAME"}, nil))
 					return
@@ -71,7 +71,7 @@ func TestReferenceForeignKeyDefinitionTypes(t *testing.T) {
 				run(fixture.Exec("INSERT INTO p VALUES("+tc.value+")", 1))
 				run(fixture.Exec("INSERT INTO c VALUES("+tc.value+")", 1))
 				for _, prepared := range []bool{false, true} {
-					run(foreignKeyFail("INSERT INTO c VALUES("+tc.missing+")", foreignKeyChild("c", "fk", "Key (pid)=("+tc.output+") is not present in table \"p\"."), prepared))
+					run(fixture.ForeignKeyFail("INSERT INTO c VALUES("+tc.missing+")", fixture.ForeignKeyChild("c", "fk", "Key (pid)=("+tc.output+") is not present in table \"p\"."), prepared))
 				}
 				run(fixture.Select("SELECT count(*)::int FROM c", []string{"count"}, []string{"INT4"}, [][]any{{int64(1)}}))
 			})
@@ -104,7 +104,7 @@ func TestReferenceForeignKeyBoundariesModes(t *testing.T) {
 						run(foreignKeyIntRows("SELECT pid FROM c", "pid", 1))
 					case "ON DELETE RESTRICT":
 						d := foreignActionsRestrict("p", "c", "c_pid_fkey", `Key (id)=(2) is referenced from table "c".`)
-						run(foreignKeyFail("DELETE FROM p WHERE id=2", d, false))
+						run(fixture.ForeignKeyFail("DELETE FROM p WHERE id=2", d, false))
 						run(foreignKeyIntRows("SELECT pid FROM c", "pid", 2))
 					default:
 						tx, err := b.DB.BeginTx(p.Ctx, nil)
@@ -128,7 +128,7 @@ func TestReferenceForeignKeyBoundariesModes(t *testing.T) {
 				} else if clause == "INITIALLY DEFERRED" {
 					message, token = "foreign key deferrability is unsupported", "DEFERRED"
 				}
-				d := foreignKeyError("0A000", message, "", "", "")
+				d := fixture.ForeignKeyError("0A000", message, "", "", "")
 				d.Position = fixture.Position(strings.Index(q, token) + 1)
 				for _, prepared := range []bool{false, true} {
 					s := fixture.ErrorDiagnostic(q, d)
@@ -150,14 +150,14 @@ func TestReferenceForeignKeyBoundariesPartition(t *testing.T) {
 		run(fixture.Exec("INSERT INTO p VALUES(1)", 1))
 		q := "CREATE TABLE c(pid INT REFERENCES p) PARTITION BY RANGE(pid)"
 		if !b.PG {
-			run(foreignKeyFail(q, foreignKeyError("0A000", "foreign keys involving partition hierarchies are unsupported", "", "", ""), false))
+			run(fixture.ForeignKeyFail(q, fixture.ForeignKeyError("0A000", "foreign keys involving partition hierarchies are unsupported", "", "", ""), false))
 			run(fixture.Select("SELECT relname FROM pg_class WHERE relname='c'", []string{"relname"}, []string{"NAME"}, nil))
 			return
 		}
 		run(fixture.Exec(q, 0))
 		run(fixture.Exec("CREATE TABLE c1 PARTITION OF c FOR VALUES FROM(0) TO(10)", 0))
 		run(fixture.Exec("INSERT INTO c VALUES(1)", 1))
-		run(foreignKeyFail("INSERT INTO c VALUES(9)", foreignKeyChild("c1", "c_pid_fkey", `Key (pid)=(9) is not present in table "p".`), false))
+		run(fixture.ForeignKeyFail("INSERT INTO c VALUES(9)", fixture.ForeignKeyChild("c1", "c_pid_fkey", `Key (pid)=(9) is not present in table "p".`), false))
 		run(foreignKeyIntRows("SELECT pid FROM c", "pid", 1))
 	})
 }
@@ -166,7 +166,7 @@ func TestReferenceForeignKeyBoundariesTemporal(t *testing.T) {
 	foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 		q := "CREATE TABLE c(id INT,valid daterange,FOREIGN KEY(id,PERIOD valid) REFERENCES p(id,PERIOD valid))"
 		if !b.PG {
-			d := foreignKeyError("0A000", "temporal foreign keys are unsupported", "", "", "")
+			d := fixture.ForeignKeyError("0A000", "temporal foreign keys are unsupported", "", "", "")
 			d.Position = fixture.Position(strings.Index(q, "PERIOD") + 1)
 			for _, prepared := range []bool{false, true} {
 				s := fixture.ErrorDiagnostic(q, d)
@@ -203,12 +203,12 @@ func TestReferenceForeignKeyBoundariesTemporary(t *testing.T) {
 		step := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }
 		step(fixture.Exec("CREATE TEMP TABLE tp(id INT PRIMARY KEY)", 0))
 		step(fixture.Exec("CREATE TABLE p(id INT PRIMARY KEY)", 0))
-		step(foreignKeyFail("CREATE TABLE bad(pid INT REFERENCES tp)", foreignKeyError("42P16", "constraints on permanent tables may reference only permanent tables", "", "", ""), false))
-		step(foreignKeyFail("CREATE TEMP TABLE bad(pid INT REFERENCES p)", foreignKeyError("42P16", "constraints on temporary tables may reference only temporary tables", "", "", ""), false))
+		step(fixture.ForeignKeyFail("CREATE TABLE bad(pid INT REFERENCES tp)", fixture.ForeignKeyError("42P16", "constraints on permanent tables may reference only permanent tables", "", "", ""), false))
+		step(fixture.ForeignKeyFail("CREATE TEMP TABLE bad(pid INT REFERENCES p)", fixture.ForeignKeyError("42P16", "constraints on temporary tables may reference only temporary tables", "", "", ""), false))
 		step(fixture.Exec("CREATE TEMP TABLE tc(pid INT CONSTRAINT fk REFERENCES tp)", 0))
 		step(fixture.Exec("INSERT INTO tp VALUES(1)", 1))
 		step(fixture.Exec("INSERT INTO tc VALUES(1)", 1))
-		d := foreignKeyChild("tc", "fk", `Key (pid)=(9) is not present in table "tp".`)
+		d := fixture.ForeignKeyChild("tc", "fk", `Key (pid)=(9) is not present in table "tp".`)
 		// Physical temp namespace names are backend-owned and intentionally not
 		// compared as portable names. The remaining diagnostic stays exact.
 		_, err = conn.ExecContext(p.Ctx, "INSERT INTO tc VALUES(9)")
@@ -254,7 +254,7 @@ func TestReferenceForeignKeyDefinitionProviders(t *testing.T) {
 				run(fixture.Exec("INSERT INTO p VALUES("+value+")", 1))
 				run(fixture.Exec("INSERT INTO c VALUES("+value+")", 1))
 				for _, prepared := range []bool{false, true} {
-					run(foreignKeyFail("INSERT INTO c VALUES("+missing+")", foreignKeyChild("c", "fk", "Key (pid)=("+output+") is not present in table \"p\"."), prepared))
+					run(fixture.ForeignKeyFail("INSERT INTO c VALUES("+missing+")", fixture.ForeignKeyChild("c", "fk", "Key (pid)=("+output+") is not present in table \"p\"."), prepared))
 				}
 				run(fixture.Select("SELECT count(*)::int FROM c", []string{"count"}, []string{"INT4"}, [][]any{{int64(1)}}))
 			})
@@ -282,8 +282,8 @@ func TestReferenceForeignKeyNetworkSupportingKeys(t *testing.T) {
 					run(fixture.Exec("INSERT INTO p VALUES("+tc.first+")", 1))
 					run(fixture.Exec("INSERT INTO c VALUES("+tc.equivalent+")", 1))
 					for _, prepared := range []bool{false, true} {
-						run(foreignKeyFail("INSERT INTO p VALUES("+tc.equivalent+")", fixture.UniqueReferenceDuplicate("p", key, "Key (id)=("+tc.output+") already exists."), prepared))
-						run(foreignKeyFail("INSERT INTO c VALUES("+tc.missing+")", foreignKeyChild("c", "fk", "Key (pid)=("+tc.absent+") is not present in table \"p\"."), prepared))
+						run(fixture.ForeignKeyFail("INSERT INTO p VALUES("+tc.equivalent+")", fixture.UniqueReferenceDuplicate("p", key, "Key (id)=("+tc.output+") already exists."), prepared))
+						run(fixture.ForeignKeyFail("INSERT INTO c VALUES("+tc.missing+")", fixture.ForeignKeyChild("c", "fk", "Key (pid)=("+tc.absent+") is not present in table \"p\"."), prepared))
 					}
 					run(fixture.Select("SELECT id::text AS key_text FROM p", []string{"key_text"}, []string{"TEXT"}, [][]any{{tc.output}}))
 					run(fixture.Select("SELECT pid::text AS key_text FROM c", []string{"key_text"}, []string{"TEXT"}, [][]any{{tc.output}}))

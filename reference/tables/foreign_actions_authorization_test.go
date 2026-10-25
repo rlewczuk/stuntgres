@@ -121,9 +121,9 @@ func TestReferenceForeignActionsAuthorizationProvider(t *testing.T) {
 		// native capability boundary. Transfer ownership instead of granting a shim.
 		run(fixture.Exec("ALTER SEQUENCE action_provider OWNER TO postgres", 0))
 		step(fixture.Exec("SET ROLE fa_actor", 0))
-		d := foreignActionsContext(foreignKeyError("42501", "permission denied for sequence action_provider", "", "", ""), foreignActionsSQL("c", "pid", "SET DEFAULT", "DELETE"))
+		d := foreignActionsContext(fixture.ForeignKeyError("42501", "permission denied for sequence action_provider", "", "", ""), foreignActionsSQL("c", "pid", "SET DEFAULT", "DELETE"))
 		for _, prepared := range []bool{false, true} {
-			step(foreignKeyFail("DELETE FROM p WHERE id=10", d, prepared))
+			step(fixture.ForeignKeyFail("DELETE FROM p WHERE id=10", d, prepared))
 		}
 		step(fixture.Select("SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{"fa_actor"}}))
 		step(fixture.Exec("RESET ROLE", 0))
@@ -193,7 +193,7 @@ func TestReferenceForeignActionsDiagnostics(t *testing.T) {
 					if access == "columns" || access == "table" {
 						detail = `Key (a, b)=(7, 2) is still referenced from table "c".`
 					}
-					d := foreignKeyParent("p", "c", "fk", detail)
+					d := fixture.ForeignKeyParent("p", "c", "fk", detail)
 					if action == "RESTRICT" {
 						detail = `Key is referenced from table "c".`
 						if access == "columns" || access == "table" {
@@ -202,8 +202,8 @@ func TestReferenceForeignActionsDiagnostics(t *testing.T) {
 						d = foreignActionsRestrict("p", "c", "fk", detail)
 					}
 					for _, prepared := range []bool{false, true} {
-						step(foreignKeyFail("DELETE FROM p", d, prepared))
-						step(foreignKeyFail("UPDATE p SET a=8", d, prepared))
+						step(fixture.ForeignKeyFail("DELETE FROM p", d, prepared))
+						step(fixture.ForeignKeyFail("UPDATE p SET a=8", d, prepared))
 					}
 					step(fixture.Exec("RESET ROLE", 0))
 					run(fixture.Select("SELECT a,b FROM c", []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(2)}}))

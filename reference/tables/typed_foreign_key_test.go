@@ -22,7 +22,7 @@ func typedForeignKeyState(t *testing.T, p *fixture.Pair, x fixture.Executor, rec
 	fixture.TableDDLMetadata(t, p.Ctx, x, postgres, prepared, "SELECT id FROM p", []string{"id"}, []string{"INT4"}, []bool{false}, 2)
 	run(fixture.Select("SELECT conname,contype,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='t'::regclass::oid ORDER BY conname", []string{"conname", "contype", "definition"}, []string{"NAME", "CHAR", "TEXT"}, [][]any{{"fk", "f", "FOREIGN KEY (id) REFERENCES p(id)"}}))
 	typedConstraintAttachmentState(run, attached)
-	run(typedTableAttachment("p", "pair", false))
+	run(fixture.TypedTableAttachment("p", "pair", false))
 	run(fixture.Select("SELECT 'p'::regclass::oid<>'t'::regclass::oid AS distinct_relation,'p'::regtype::oid<>'t'::regtype::oid AS distinct_row,'p'::regtype::oid<>'pair'::regtype::oid AS distinct_source", []string{"distinct_relation", "distinct_row", "distinct_source"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
 	// The FK keeps actual parent-column and supporting-index references,
 	// independent of the child table's new standalone composite attachment.
@@ -34,8 +34,8 @@ func typedForeignKeyState(t *testing.T, p *fixture.Pair, x fixture.Executor, rec
 	} {
 		run(fixture.Select("SELECT deptype FROM pg_depend WHERE "+owner+" AND "+edge.target, []string{"deptype"}, []string{"CHAR"}, [][]any{{edge.kind}}))
 	}
-	run(foreignKeyFail("INSERT INTO t VALUES(13)", foreignKeyChild("t", "fk", `Key (id)=(13) is not present in table "p".`), prepared))
-	run(foreignKeyFail("DELETE FROM p WHERE id=11", foreignKeyParent("p", "t", "fk", `Key (id)=(11) is still referenced from table "t".`), prepared))
+	run(fixture.ForeignKeyFail("INSERT INTO t VALUES(13)", fixture.ForeignKeyChild("t", "fk", `Key (id)=(13) is not present in table "p".`), prepared))
+	run(fixture.ForeignKeyFail("DELETE FROM p WHERE id=11", fixture.ForeignKeyParent("p", "t", "fk", `Key (id)=(11) is still referenced from table "t".`), prepared))
 	run(rows)
 	run(parentRows)
 }
@@ -60,7 +60,7 @@ func TestReferenceTypedTableForeignKeyControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		attach := fixture.Exec("ALTER TABLE t OF pair", 0)
-		typedConstraintUtility(t, p, c, prepared, run, attach.Query, typedTableAttachment("t", "pair", false))
+		typedConstraintUtility(t, p, c, prepared, run, attach.Query, fixture.TypedTableAttachment("t", "pair", false))
 		setup = append(setup, attach)
 		typedForeignKeyState(t, p, c, b.Recorder, b.PG, prepared, true)
 		if after := typedConstraintIdentities(t, p, c, "fk"); after != before {
@@ -73,7 +73,7 @@ func TestReferenceTypedTableForeignKeyControls(t *testing.T) {
 		state := func(x fixture.Executor, recorder *fixture.Recorder, postgres bool) {
 			typedForeignKeyState(t, p, x, recorder, postgres, prepared, true)
 		}
-		typedConstraintControls(t, p, b, prepared, setup, state, "INSERT INTO t VALUES(13)", foreignKeyChild("t", "fk", `Key (id)=(13) is not present in table "p".`))
+		typedConstraintControls(t, p, b, prepared, setup, state, "INSERT INTO t VALUES(13)", fixture.ForeignKeyChild("t", "fk", `Key (id)=(13) is not present in table "p".`))
 	})
 }
 

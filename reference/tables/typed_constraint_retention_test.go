@@ -49,7 +49,7 @@ func TestReferenceTypedTableConstraintRetention(t *testing.T) {
 				fixture.CompositeReferenceError(t, p, c, "INSERT INTO child VALUES("+value+")", "execute", checkError)
 				state := fixture.Select("SELECT * FROM child ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(11)}})
 				run(state)
-				run(typedTableAttachment("t", "pair", true))
+				run(fixture.TypedTableAttachment("t", "pair", true))
 				if b.PG {
 					return
 				}
@@ -77,7 +77,7 @@ func TestReferenceTypedTableConstraintRetention(t *testing.T) {
 					if err := stuntgres.Restore(p.Ctx, pools.control, bytes.NewReader(dump.Bytes())); err != nil {
 						t.Fatal(err)
 					}
-					for _, step := range []fixture.Step{state, count, typedTableAttachment("t", "pair", true)} {
+					for _, step := range []fixture.Step{state, count, fixture.TypedTableAttachment("t", "pair", true)} {
 						step.Prepared = prepared
 						fixture.RunStep(t, p.Ctx, pools.observe, p.MemoryRecord, step)
 					}
@@ -98,7 +98,7 @@ func TestReferenceTypedTableConstraintRetention(t *testing.T) {
 					if err := stuntgres.Restore(p.Ctx, pools.control, bytes.NewReader(repeated.Bytes())); err != nil {
 						t.Fatal(err)
 					}
-					for _, step := range []fixture.Step{state, count, typedTableAttachment("t", "pair", true)} {
+					for _, step := range []fixture.Step{state, count, fixture.TypedTableAttachment("t", "pair", true)} {
 						step.Prepared = prepared
 						fixture.RunStep(t, p.Ctx, pools.observe, p.MemoryRecord, step)
 					}

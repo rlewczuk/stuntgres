@@ -78,7 +78,7 @@ func TestReferenceForeignKeyNativeControlsTemporary(t *testing.T) {
 		_, err = stmt.ExecContext(p.Ctx, 9)
 		d := fixture.ExtractDiagnostic(t, err)
 		d.Schema = "public"
-		want := foreignKeyChild("tc", "retained_fk", `Key (pid)=(9) is not present in table "tp".`)
+		want := fixture.ForeignKeyChild("tc", "retained_fk", `Key (pid)=(9) is not present in table "tp".`)
 		if d != want {
 			t.Fatal(d, want)
 		}

@@ -231,7 +231,7 @@ func fdwPersistenceFailures(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 			defer r.setHook(nil)
 			switch kind {
 			case "reader":
-				input = &referenceRangeErrorReader{err: failure}
+				input = &fixture.ReferenceRangeErrorReader{Err: failure}
 			case "cancel":
 				var cancel context.CancelFunc
 				ctx, cancel = context.WithCancel(p.Ctx)
@@ -361,21 +361,21 @@ func fdwPersistenceTargets(t *testing.T, p *fixture.Pair, r *fdwSQLReader, scrip
 		}
 		exec("CREATE ROLE fdw_reader")
 		// Target role identities are captured before external reader I/O.
-		gated := &referenceRangeGateReader{Reader: bytes.NewReader(script), entered: make(chan struct{}), release: make(chan struct{})}
+		gated := &fixture.ReferenceRangeGateReader{Reader: bytes.NewReader(script), Entered: make(chan struct{}), Release: make(chan struct{})}
 		done := make(chan error, 1)
 		go func() { done <- stuntgres.Restore(p.Ctx, control, gated) }()
 		joined, released := false, false
 		func() {
 			defer func() {
 				if !released {
-					close(gated.release)
+					close(gated.Release)
 				}
 				if !joined {
 					<-done
 				}
 			}()
 			select {
-			case <-gated.entered:
+			case <-gated.Entered:
 			case err := <-done:
 				joined = true
 				t.Fatalf("restore reader gate not entered: %v", err)
@@ -384,7 +384,7 @@ func fdwPersistenceTargets(t *testing.T, p *fixture.Pair, r *fdwSQLReader, scrip
 			}
 			exec("DROP ROLE fdw_reader")
 			exec("CREATE ROLE fdw_reader")
-			close(gated.release)
+			close(gated.Release)
 			released = true
 			if err := <-done; err == nil {
 				joined = true

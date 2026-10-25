@@ -45,7 +45,7 @@ func TestReferenceTypedTableDiagnostics(t *testing.T) {
 			fixture.CompositeReferenceError(t, p, c, tc.q, tc.stage, d)
 		}
 		run(fixture.Select("SELECT * FROM t", []string{"id", "note"}, []string{"INT4", "VARCHAR"}, nil))
-		run(typedTableAttachment("t", "pair", true))
+		run(fixture.TypedTableAttachment("t", "pair", true))
 	})
 }
 
@@ -57,7 +57,7 @@ func TestReferenceTypedTableIfNotExistsAndSystemColumn(t *testing.T) {
 		run(fixture.Exec("CREATE TYPE pair AS (id integer)", 0))
 		run(fixture.Exec("CREATE TABLE IF NOT EXISTS t OF pair (absent DEFAULT 1)", 0))
 		run(fixture.Select("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(11)}}))
-		run(typedTableAttachment("t", "pair", false))
+		run(fixture.TypedTableAttachment("t", "pair", false))
 		run(fixture.Exec("CREATE TYPE sys AS (ctid integer)", 0))
 		fixture.CompositeReferenceError(t, p, c, "CREATE TABLE bad OF sys", "execute", typedTableError("42701", `column name "ctid" conflicts with a system column name`))
 	})

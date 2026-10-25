@@ -46,7 +46,7 @@ func TestReferenceTypedTableAtomicityIncompatibleCast(t *testing.T) {
 				value = 7
 			}
 			run(fixture.Select("SELECT * FROM "+table, []string{"id"}, []string{"INT4"}, [][]any{{value}}))
-			run(typedTableAttachment(table, "pair", true))
+			run(fixture.TypedTableAttachment(table, "pair", true))
 		}
 		run(fixture.Exec("INSERT INTO z DEFAULT VALUES", 1))
 	})
@@ -64,7 +64,7 @@ func TestReferenceTypedTableRetainedDefaultNarrowing(t *testing.T) {
 		run(fixture.Exec("ALTER TYPE pair ALTER ATTRIBUTE id TYPE smallint CASCADE", 0))
 		for _, table := range []string{"a", "z"} {
 			run(fixture.Select("SELECT * FROM "+table, []string{"id"}, []string{"INT2"}, [][]any{{int64(11)}}))
-			run(typedTableAttachment(table, "pair", true))
+			run(fixture.TypedTableAttachment(table, "pair", true))
 		}
 		run(fixture.Exec("INSERT INTO a DEFAULT VALUES", 1))
 		fixture.CompositeReferenceError(t, p, c, "INSERT INTO z DEFAULT VALUES", "execute", typedTableError("22003", "smallint out of range"))

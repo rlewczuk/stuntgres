@@ -52,9 +52,8 @@ func TestReferencePartitionPruningInheritance(t *testing.T) {
 		referencePruningInheritanceChecks(run, b.PG)
 		// Reuse the established diamond/layout fixture instead of a second
 		// implementation of inherited column mapping or multiplicity setup.
-		s := &inheritanceCase{t: t, p: p, b: b, prepared: prepared, run: run, record: b.Recorder}
-		inheritanceQueryDiamond(s)
-		step := fixture.Select("SELECT a,x FROM p WHERE a=7", []string{"a", "x"}, []string{"INT4", "TEXT"}, inheritanceQueryFive())
+		fixture.InheritanceQueryDiamond(run)
+		step := fixture.Select("SELECT a,x FROM p WHERE a=7", []string{"a", "x"}, []string{"INT4", "TEXT"}, fixture.InheritanceQueryFive())
 		step.Bag = true
 		run(step)
 		run(fixture.Select("SELECT count(*) AS n FROM p a JOIN p b ON a.a=b.a WHERE a.a=7", []string{"n"}, []string{"INT8"}, [][]any{{int64(25)}}))

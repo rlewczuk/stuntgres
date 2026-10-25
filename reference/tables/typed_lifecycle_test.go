@@ -30,7 +30,7 @@ func TestReferenceTypedTableLifecycle(t *testing.T) {
 		for _, table := range []string{"t", "u"} {
 			run(fixture.Select("SELECT * FROM "+table, []string{"id", "enabled"}, []string{"INT8", "BOOL"}, [][]any{{int64(11), nil}}))
 			fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM "+table, []string{"id", "enabled"}, []string{"INT8", "BOOL"}, []bool{true, true}, 1)
-			run(typedTableAttachment(table, "pair", true))
+			run(fixture.TypedTableAttachment(table, "pair", true))
 		}
 		run(typedTablePairRows("detached", [][]any{{int64(22), "det"}}))
 		run(typedTablePairRows("copied", nil))
@@ -50,7 +50,7 @@ func TestReferenceTypedTableDropDependencies(t *testing.T) {
 		fixture.CompositeReferenceError(t, p, c, "DROP TYPE pair", "execute", d)
 		run(typedTablePairRows("t", [][]any{{int64(11), "hey"}}))
 		fixture.CompositeReferenceError(t, p, c, "DROP TYPE pair, missing CASCADE", "execute", typedTableError("42704", `type "missing" does not exist`))
-		run(typedTableAttachment("t", "pair", true))
+		run(fixture.TypedTableAttachment("t", "pair", true))
 		run(fixture.Exec("DROP TYPE pair CASCADE", 0))
 		d = typedTableError("42P01", `relation "t" does not exist`)
 		d.Position = "15"

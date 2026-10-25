@@ -31,14 +31,6 @@ func typedTableError(code, message string) fixture.Diagnostic {
 	return fixture.CompositeReferenceDiagnostic(code, message)
 }
 
-func typedTableAttachment(table, source string, attached bool) fixture.Step {
-	q := "SELECT reloftype=" + "'" + source + "'::regtype::oid AS attached FROM pg_class WHERE oid='" + table + "'::regclass::oid"
-	if !attached {
-		q = "SELECT reloftype=0 AS attached FROM pg_class WHERE oid='" + table + "'::regclass::oid"
-	}
-	return fixture.Select(q, []string{"attached"}, []string{"BOOL"}, [][]any{{true}})
-}
-
 func typedTablePairRows(table string, rows [][]any) fixture.Step {
 	return fixture.Select("SELECT * FROM "+table+" ORDER BY id", []string{"id", "note"}, []string{"INT4", "VARCHAR"}, rows)
 }

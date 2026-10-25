@@ -79,9 +79,9 @@ func TestReferenceForeignKeyConcurrent(t *testing.T) {
 						}
 						o := join()
 						if commit {
-							want := foreignKeyChild("c", "fk", `Key (pid)=(1) is not present in table "p".`)
+							want := fixture.ForeignKeyChild("c", "fk", `Key (pid)=(1) is not present in table "p".`)
 							if childFirst {
-								want = foreignKeyParent("p", "c", "fk", `Key (id)=(1) is still referenced from table "c".`)
+								want = fixture.ForeignKeyParent("p", "c", "fk", `Key (id)=(1) is still referenced from table "c".`)
 							}
 							fixture.AssertDiagnostic(t, o.Err, &want)
 							_, err = waiter.ExecContext(p.Ctx, "SELECT 1")

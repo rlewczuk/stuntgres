@@ -199,12 +199,12 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 	cancel()
 	check(b.DB, b.Recorder, false, "postgres")
 	ioFailure := errors.New("range import I/O sentinel")
-	if err := stuntgres.Restore(p.Ctx, p.Native, &referenceRangeErrorReader{err: ioFailure}); !errors.Is(err, ioFailure) {
+	if err := stuntgres.Restore(p.Ctx, p.Native, &fixture.ReferenceRangeErrorReader{Err: ioFailure}); !errors.Is(err, ioFailure) {
 		t.Fatal(err)
 	}
 	check(b.DB, b.Recorder, false, "postgres")
 	// Blocked reader proves target catalog reads do not wait behind external I/O.
-	gate := &referenceRangeGateReader{entered: make(chan struct{}), release: make(chan struct{}), Reader: strings.NewReader(dump.String())}
+	gate := &fixture.ReferenceRangeGateReader{Entered: make(chan struct{}), Release: make(chan struct{}), Reader: strings.NewReader(dump.String())}
 	ctx, cancel = context.WithCancel(p.Ctx)
 	defer cancel()
 	result := make(chan error, 1)
@@ -213,7 +213,7 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 	defer func() {
 		cancel()
 		if !released {
-			close(gate.release)
+			close(gate.Release)
 		}
 		if !joined {
 			select {
@@ -225,7 +225,7 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 	}()
 	go func() { result <- stuntgres.Restore(ctx, p.Native, gate) }()
 	select {
-	case <-gate.entered:
+	case <-gate.Entered:
 	case <-time.After(5 * time.Second):
 		t.Fatal("import never entered reader")
 	}
@@ -236,7 +236,7 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 		t.Fatalf("blocked I/O held target locks: count=%d err=%v", count, err)
 	}
 	cancel()
-	close(gate.release)
+	close(gate.Release)
 	released = true
 	select {
 	case err := <-result:
@@ -322,25 +322,6 @@ func (r *referenceRangeCancelEOF) Read(p []byte) (int, error) {
 		r.cancel()
 	}
 	return n, err
-}
-
-type referenceRangeErrorReader struct{ err error }
-
-func (r *referenceRangeErrorReader) Read([]byte) (int, error) { return 0, r.err }
-
-type referenceRangeGateReader struct {
-	io.Reader
-	entered, release chan struct{}
-	started          bool
-}
-
-func (r *referenceRangeGateReader) Read(p []byte) (int, error) {
-	if !r.started {
-		r.started = true
-		close(r.entered)
-		<-r.release
-	}
-	return r.Reader.Read(p)
 }
 
 type referenceRangeGateWriter struct {

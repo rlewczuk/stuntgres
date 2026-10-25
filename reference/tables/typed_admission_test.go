@@ -16,17 +16,17 @@ func TestReferenceTypedTableExplicitTransactionBoundary(t *testing.T) {
 			run(fixture.Exec(q, 0))
 			switch q {
 			case "ALTER TABLE ordinary OF pair":
-				run(typedTableAttachment("ordinary", "pair", true))
+				run(fixture.TypedTableAttachment("ordinary", "pair", true))
 			case "ALTER TABLE t NOT OF":
-				run(typedTableAttachment("t", "pair", false))
+				run(fixture.TypedTableAttachment("t", "pair", false))
 			case "ALTER TYPE pair ADD ATTRIBUTE flag boolean CASCADE":
 				fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM t", []string{"id", "flag"}, []string{"INT4", "BOOL"}, []bool{true, true}, 0)
 			case "DROP TYPE pair CASCADE":
 				run(fixture.Select("SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relname='t'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 			}
 			run(fixture.Exec("ROLLBACK", 0))
-			run(typedTableAttachment("t", "pair", true))
-			run(typedTableAttachment("ordinary", "pair", false))
+			run(fixture.TypedTableAttachment("t", "pair", true))
+			run(fixture.TypedTableAttachment("ordinary", "pair", false))
 			fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM t", []string{"id"}, []string{"INT4"}, []bool{true}, 0)
 		}
 	})

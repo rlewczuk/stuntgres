@@ -209,9 +209,9 @@ func typedAttachmentSourceAdmission(t *testing.T, p *fixture.Pair, b fixture.Bac
 		if err := childReader.Rollback(); err != nil {
 			t.Fatal(err)
 		}
-		run(typedTableAttachment("public.t", "public.pair", false))
+		run(fixture.TypedTableAttachment("public.t", "public.pair", false))
 		sourceEdges(false)
-		run(typedTableAttachment("public.child", "earlier_schema.pair", true))
+		run(fixture.TypedTableAttachment("public.child", "earlier_schema.pair", true))
 		run(fixture.Select("SELECT count(*) AS n FROM pg_class WHERE relname='source_probe'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		run(typedTablePairRows("public.child", [][]any{{int64(11), "hey"}}))
 	} else {
@@ -227,7 +227,7 @@ func typedAttachmentSourceAdmission(t *testing.T, p *fixture.Pair, b fixture.Bac
 		}
 		// PostgreSQL18 selects the execution-time earlier-path source, not
 		// the source visible when target admission first began waiting.
-		run(typedTableAttachment("public.t", "earlier_schema.pair", true))
+		run(fixture.TypedTableAttachment("public.t", "earlier_schema.pair", true))
 		sourceEdges(true)
 	}
 	stopAttachment()
@@ -240,12 +240,12 @@ func typedAttachmentSourceAdmission(t *testing.T, p *fixture.Pair, b fixture.Bac
 	fresh := fixture.Exec("ALTER TABLE public.t OF earlier_schema.pair", 0)
 	fresh.Prepared = prepared
 	run(fresh)
-	run(typedTableAttachment("public.t", "earlier_schema.pair", true))
+	run(fixture.TypedTableAttachment("public.t", "earlier_schema.pair", true))
 	sourceEdges(true)
 	run(fixture.Exec("ALTER TYPE earlier_schema.pair ADD ATTRIBUTE flag boolean CASCADE", 0))
 	run(fixture.Select("SELECT * FROM public.t", []string{"id", "note", "flag"}, []string{"INT4", "VARCHAR", "BOOL"}, [][]any{{int64(11), "hey", nil}}))
 	run(fixture.Exec("ALTER TABLE public.t NOT OF", 0))
-	run(typedTableAttachment("public.t", "earlier_schema.pair", false))
+	run(fixture.TypedTableAttachment("public.t", "earlier_schema.pair", false))
 	sourceEdges(false)
 	run(fixture.Select("SELECT * FROM public.t", []string{"id", "note", "flag"}, []string{"INT4", "VARCHAR", "BOOL"}, [][]any{{int64(11), "hey", nil}}))
 }

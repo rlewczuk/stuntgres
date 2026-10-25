@@ -11,7 +11,7 @@ import (
 )
 
 func inheritanceQueryControlChecks() []fixture.Step {
-	bag := fixture.Select("SELECT * FROM p", []string{"a", "x"}, []string{"INT4", "TEXT"}, inheritanceQueryFive())
+	bag := fixture.Select("SELECT * FROM p", []string{"a", "x"}, []string{"INT4", "TEXT"}, fixture.InheritanceQueryFive())
 	bag.Bag = true
 	view := bag
 	view.Query = "SELECT * FROM default_view"
@@ -90,7 +90,7 @@ func inheritanceQueryControlRoundTrip(s *inheritanceCase) {
 
 func TestReferenceInheritanceQueryControls(t *testing.T) {
 	inheritanceScenario(t, func(s *inheritanceCase) {
-		inheritanceQueryDiamond(s)
+		fixture.InheritanceQueryDiamond(s.run)
 		s.exec("CREATE VIEW default_view AS SELECT * FROM p", 0)
 		s.exec("CREATE VIEW only_view AS SELECT * FROM ONLY p", 0)
 		s.exec("CREATE VIEW only_alias AS SELECT r.x AS label FROM ONLY(p) r", 0)

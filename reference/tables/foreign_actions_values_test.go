@@ -30,11 +30,11 @@ func TestReferenceForeignActionsValues(t *testing.T) {
 						parent := [][]any{{int64(1), "other"}, {int64(2), "changed"}}
 						child := [][]any{{int64(10), int64(2), "kept"}, {int64(11), int64(2), "second"}, {int64(12), nil, "null"}, {int64(13), int64(1), "other"}}
 						if action == "NO ACTION" || action == "RESTRICT" {
-							d := foreignKeyParent("p", "c", "fk", `Key (id)=(2) is still referenced from table "c".`)
+							d := fixture.ForeignKeyParent("p", "c", "fk", `Key (id)=(2) is still referenced from table "c".`)
 							if action == "RESTRICT" {
 								d = foreignActionsRestrict("p", "c", "fk", `Key (id)=(2) is referenced from table "c".`)
 							}
-							run(foreignKeyFail(q, d, prepared))
+							run(fixture.ForeignKeyFail(q, d, prepared))
 						} else {
 							run(foreignActionsExec(q, 1, prepared))
 							parent = parent[:1]
@@ -129,7 +129,7 @@ func TestReferenceForeignActionsEquality(t *testing.T) {
 					parent, child := "1.00", any("1.0")
 					q := "UPDATE p SET id=1.00 WHERE id=1"
 					if action == "RESTRICT" {
-						run(foreignKeyFail(q, foreignActionsRestrict("p", "c", "fk", `Key (id)=(1.0) is referenced from table "c".`), prepared))
+						run(fixture.ForeignKeyFail(q, foreignActionsRestrict("p", "c", "fk", `Key (id)=(1.0) is referenced from table "c".`), prepared))
 						parent = "1.0"
 					} else {
 						run(foreignActionsExec(q, 1, prepared))
@@ -165,9 +165,9 @@ func TestReferenceForeignActionsEqualityReplacement(t *testing.T) {
 			if action == "NO ACTION" {
 				run(fixture.Prepared(fixture.Exec("UPDATE p SET id=id+1", 2)))
 				run(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 13, 14))
-				run(foreignKeyFail("UPDATE p SET id=id+1", foreignKeyParent("p", "c", "fk", `Key (id)=(13) is still referenced from table "c".`), false))
+				run(fixture.ForeignKeyFail("UPDATE p SET id=id+1", fixture.ForeignKeyParent("p", "c", "fk", `Key (id)=(13) is still referenced from table "c".`), false))
 			} else {
-				run(foreignKeyFail("UPDATE p SET id=id+1", foreignActionsRestrict("p", "c", "fk", `Key (id)=(13) is referenced from table "c".`), true))
+				run(fixture.ForeignKeyFail("UPDATE p SET id=id+1", foreignActionsRestrict("p", "c", "fk", `Key (id)=(13) is referenced from table "c".`), true))
 				run(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 12, 13))
 			}
 			run(foreignKeyIntRows("SELECT pid FROM c", "pid", 13))
@@ -193,7 +193,7 @@ func TestReferenceForeignActionsEqualityImages(t *testing.T) {
 						if tc.typ == "INTERVAL" {
 							oldText = "1 day"
 						}
-						run(foreignKeyFail(q, foreignActionsRestrict("p", "c", "fk", "Key (id)=("+oldText+") is referenced from table \"c\"."), true))
+						run(fixture.ForeignKeyFail(q, foreignActionsRestrict("p", "c", "fk", "Key (id)=("+oldText+") is referenced from table \"c\"."), true))
 					} else {
 						run(fixture.Prepared(fixture.Exec(q, 1)))
 						run(fixture.Select("SELECT pid::text AS image FROM c", []string{"image"}, []string{"TEXT"}, [][]any{{tc.output}}))

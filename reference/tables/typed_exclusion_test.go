@@ -38,7 +38,7 @@ func TestReferenceTypedTableExclusionAttachmentControls(t *testing.T) {
 		typedExclusionState(t, p, c, b.Recorder, b.PG, prepared, false)
 		before := typedConstraintIdentities(t, p, c, "ex")
 		attach := fixture.Exec("ALTER TABLE t OF pair", 0)
-		typedConstraintUtility(t, p, c, prepared, run, attach.Query, typedTableAttachment("t", "pair", false))
+		typedConstraintUtility(t, p, c, prepared, run, attach.Query, fixture.TypedTableAttachment("t", "pair", false))
 		setup = append(setup, attach)
 		typedExclusionState(t, p, c, b.Recorder, b.PG, prepared, true)
 		if after := typedConstraintIdentities(t, p, c, "ex"); after != before {

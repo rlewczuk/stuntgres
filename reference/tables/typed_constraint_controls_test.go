@@ -55,7 +55,7 @@ func typedConstraintIdentities(t *testing.T, p *fixture.Pair, c *sql.Conn, const
 }
 
 func typedConstraintAttachmentState(run func(fixture.Step), attached bool) {
-	run(typedTableAttachment("t", "pair", attached))
+	run(fixture.TypedTableAttachment("t", "pair", attached))
 	run(fixture.Select("SELECT 't'::regtype::oid<>'pair'::regtype::oid AS distinct_row", []string{"distinct_row"}, []string{"BOOL"}, [][]any{{true}}))
 	var edges [][]any
 	if attached {

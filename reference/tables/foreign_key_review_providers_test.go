@@ -14,9 +14,9 @@ func TestReferenceForeignKeySupportingFamilyAdmission(t *testing.T) {
 		run(fixture.Exec("CREATE TABLE integer_parent(id INT PRIMARY KEY)", 0))
 		run(fixture.Exec("INSERT INTO integer_parent VALUES(1)", 1))
 		q := "CREATE TABLE numeric_child(pid NUMERIC CONSTRAINT numeric_fk REFERENCES integer_parent)"
-		d := foreignKeyError("42804", `foreign key constraint "numeric_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: numeric and integer.`, "", "")
+		d := fixture.ForeignKeyError("42804", `foreign key constraint "numeric_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: numeric and integer.`, "", "")
 		for _, prepared := range []bool{false, true} {
-			run(foreignKeyFail(q, d, prepared))
+			run(fixture.ForeignKeyFail(q, d, prepared))
 			run(fixture.Select("SELECT relname FROM pg_class WHERE relname='numeric_child'", []string{"relname"}, []string{"NAME"}, nil))
 			run(fixture.Select("SELECT conname FROM pg_constraint WHERE conname='numeric_fk'", []string{"conname"}, []string{"NAME"}, nil))
 			run(foreignKeyIntRows("SELECT id FROM integer_parent", "id", 1))
@@ -29,10 +29,10 @@ func TestReferenceForeignKeySupportingFamilyAdmission(t *testing.T) {
 			s := fixture.Exec("INSERT INTO integer_child VALUES($1)", 1, 1)
 			s.Prepared = prepared
 			run(s)
-			run(foreignKeyFail("INSERT INTO integer_child VALUES(2)", foreignKeyChild("integer_child", "integer_fk", `Key (pid)=(2) is not present in table "numeric_parent".`), prepared))
+			run(fixture.ForeignKeyFail("INSERT INTO integer_child VALUES(2)", fixture.ForeignKeyChild("integer_child", "integer_fk", `Key (pid)=(2) is not present in table "numeric_parent".`), prepared))
 		}
 		run(foreignKeyIntRows("SELECT pid FROM integer_child ORDER BY pid", "pid", 1, 1))
-		run(foreignKeyFail("DELETE FROM numeric_parent", foreignKeyParent("numeric_parent", "integer_child", "integer_fk", `Key (id)=(1) is still referenced from table "integer_child".`), false))
+		run(fixture.ForeignKeyFail("DELETE FROM numeric_parent", fixture.ForeignKeyParent("numeric_parent", "integer_child", "integer_fk", `Key (id)=(1) is still referenced from table "integer_child".`), false))
 		run(fixture.Select("SELECT id FROM numeric_parent", []string{"id"}, []string{"NUMERIC"}, [][]any{{"1"}}))
 	})
 }
@@ -47,7 +47,7 @@ func TestReferenceForeignKeySupportingFamilyCoercion(t *testing.T) {
 			s.Prepared = prepared
 			run(s)
 			// Opclass input coercion is unsized: it must not truncate to CHAR(8).
-			run(foreignKeyFail("INSERT INTO text_child VALUES('abcdefghz')", foreignKeyChild("text_child", "padded_fk", `Key (pid)=(abcdefghz) is not present in table "padded_parent".`), prepared))
+			run(fixture.ForeignKeyFail("INSERT INTO text_child VALUES('abcdefghz')", fixture.ForeignKeyChild("text_child", "padded_fk", `Key (pid)=(abcdefghz) is not present in table "padded_parent".`), prepared))
 		}
 		run(fixture.Exec("INSERT INTO text_child VALUES('abcdefgh')", 1))
 		run(fixture.Select("SELECT pid FROM text_child ORDER BY pid", []string{"pid"}, []string{"TEXT"}, [][]any{{"abcdefgh"}, {"x "}, {"x "}}))
@@ -56,17 +56,17 @@ func TestReferenceForeignKeySupportingFamilyCoercion(t *testing.T) {
 			s := fixture.Exec("INSERT INTO text_child VALUES($1)", 1, "x    ")
 			s.Prepared = prepared
 			run(s)
-			run(foreignKeyFail("INSERT INTO text_child VALUES('abcdefghz')", foreignKeyChild("text_child", "padded_fk", `Key (pid)=(abcdefghz) is not present in table "padded_parent".`), prepared))
+			run(fixture.ForeignKeyFail("INSERT INTO text_child VALUES('abcdefghz')", fixture.ForeignKeyChild("text_child", "padded_fk", `Key (pid)=(abcdefghz) is not present in table "padded_parent".`), prepared))
 		}
 		run(fixture.Select("SELECT pid::text AS pid FROM text_child ORDER BY pid", []string{"pid"}, []string{"TEXT"}, [][]any{{"abcdefgh"}, {"x "}, {"x "}, {"x    "}, {"x    "}}))
-		run(foreignKeyFail("DELETE FROM padded_parent WHERE id='abcdefgh'", foreignKeyParent("padded_parent", "text_child", "padded_fk", `Key (id)=(abcdefgh) is still referenced from table "text_child".`), false))
+		run(fixture.ForeignKeyFail("DELETE FROM padded_parent WHERE id='abcdefgh'", fixture.ForeignKeyParent("padded_parent", "text_child", "padded_fk", `Key (id)=(abcdefgh) is still referenced from table "text_child".`), false))
 		run(fixture.Select("SELECT id::text AS id FROM padded_parent ORDER BY id", []string{"id"}, []string{"TEXT"}, [][]any{{"abcdefgh"}, {"x"}}))
 		if !b.PG {
 			foreignKeyRoundtrip(t, p)
 			run(fixture.Select("SELECT pid::text AS pid FROM text_child ORDER BY pid", []string{"pid"}, []string{"TEXT"}, [][]any{{"abcdefgh"}, {"x "}, {"x "}, {"x    "}, {"x    "}}))
 			run(fixture.Exec("INSERT INTO text_child VALUES('x      ')", 1))
-			run(foreignKeyFail("INSERT INTO text_child VALUES('abcdefghz')", foreignKeyChild("text_child", "padded_fk", `Key (pid)=(abcdefghz) is not present in table "padded_parent".`), true))
-			run(foreignKeyFail("DELETE FROM padded_parent WHERE id='abcdefgh'", foreignKeyParent("padded_parent", "text_child", "padded_fk", `Key (id)=(abcdefgh) is still referenced from table "text_child".`), true))
+			run(fixture.ForeignKeyFail("INSERT INTO text_child VALUES('abcdefghz')", fixture.ForeignKeyChild("text_child", "padded_fk", `Key (pid)=(abcdefghz) is not present in table "padded_parent".`), true))
+			run(fixture.ForeignKeyFail("DELETE FROM padded_parent WHERE id='abcdefgh'", fixture.ForeignKeyParent("padded_parent", "text_child", "padded_fk", `Key (id)=(abcdefgh) is still referenced from table "text_child".`), true))
 			run(fixture.Select("SELECT pid::text AS pid FROM text_child ORDER BY pid", []string{"pid"}, []string{"TEXT"}, [][]any{{"abcdefgh"}, {"x "}, {"x "}, {"x    "}, {"x    "}, {"x      "}}))
 			run(fixture.Select("SELECT id::text AS id FROM padded_parent ORDER BY id", []string{"id"}, []string{"TEXT"}, [][]any{{"abcdefgh"}, {"x"}}))
 		}
@@ -77,11 +77,11 @@ func TestReferenceForeignKeySupportingFamilyRestore(t *testing.T) {
 	foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 		run(fixture.Exec("CREATE TABLE family_sentinel(v INT)", 0))
 		run(fixture.Exec("INSERT INTO family_sentinel VALUES(91)", 1))
-		d := foreignKeyError("42804", `foreign key constraint "restore_family_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: numeric and integer.`, "", "")
+		d := fixture.ForeignKeyError("42804", `foreign key constraint "restore_family_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: numeric and integer.`, "", "")
 		if b.PG {
 			run(fixture.Exec("CREATE TABLE restore_family_parent(id INT PRIMARY KEY)", 0))
 			for _, prepared := range []bool{false, true} {
-				run(foreignKeyFail("CREATE TABLE restore_family_child(pid NUMERIC CONSTRAINT restore_family_fk REFERENCES restore_family_parent)", d, prepared))
+				run(fixture.ForeignKeyFail("CREATE TABLE restore_family_child(pid NUMERIC CONSTRAINT restore_family_fk REFERENCES restore_family_parent)", d, prepared))
 			}
 		} else {
 			var before, after bytes.Buffer

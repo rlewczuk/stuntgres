@@ -232,7 +232,7 @@ func TestReferenceForeignActionsCancellationReplacement(t *testing.T) {
 					}
 					tx.Rollback()
 					if e != nil {
-						want := foreignKeyError("55P03", `could not obtain lock on row in relation "p"`, "", "", "")
+						want := fixture.ForeignKeyError("55P03", `could not obtain lock on row in relation "p"`, "", "", "")
 						fixture.AssertDiagnostic(t, e, &want)
 						break
 					}

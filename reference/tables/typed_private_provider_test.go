@@ -48,8 +48,8 @@ func TestReferenceTypedTableTemporaryPrivateProviderComposition(t *testing.T) {
 					run(fixture.Select("SELECT k FROM pg_temp.holder ORDER BY k", []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}}))
 					fixture.CompositeReferenceRows(t, p, b, c, "SELECT v FROM pg_temp.holder ORDER BY k", [][]any{{"(7,x)"}, {nil}, {"(,)"}}, prepared)
 					fixture.CompositeReferenceRows(t, p, b, c, "SELECT v FROM pg_temp.holder WHERE k=0", [][]any{}, prepared)
-					run(typedTableAttachment("pg_temp.root", "pair", typed))
-					run(typedTableAttachment("pg_temp.holder", "pair", false))
+					run(fixture.TypedTableAttachment("pg_temp.root", "pair", typed))
+					run(fixture.TypedTableAttachment("pg_temp.holder", "pair", false))
 					// Public ownership and column-provider edges are separate from
 					// the typed table's attachment to its standalone source.
 					run(fixture.Select("SELECT deptype FROM pg_depend WHERE classid=1247::oid AND objid='pg_temp.root'::regtype::oid AND objsubid=0 AND refclassid='pg_class'::regclass::oid AND refobjid='pg_temp.root'::regclass::oid AND refobjsubid=0", []string{"deptype"}, []string{"CHAR"}, [][]any{{"i"}}))

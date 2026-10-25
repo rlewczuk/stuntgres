@@ -20,7 +20,7 @@ func TestReferenceTypedTableTemporaryControls(t *testing.T) {
 		run(fixture.Exec("INSERT INTO tt DEFAULT VALUES", 1))
 		want := fixture.Select("SELECT * FROM tt", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
 		run(want)
-		run(typedTableAttachment("tt", "pair", true))
+		run(fixture.TypedTableAttachment("tt", "pair", true))
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM tt", []string{"id"}, []string{"INT4"}, []bool{false}, 1)
 		run(fixture.Exec("SET search_path TO pg_temp,public", 0))
 		schema := fixture.TempReferenceNamespace(t, &fixture.TempReferenceSession{P: p, C: c}, false)
@@ -53,7 +53,7 @@ func TestReferenceTypedTableTemporaryControls(t *testing.T) {
 		for _, replace := range []func() error{func() error { return stuntgres.Reset(p.Ctx, p.Native) }, func() error { return stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())) }} {
 			fixture.TransactionOrdinary(t, replace(), typedTemporaryReplacementError)
 			run(want)
-			run(typedTableAttachment("tt", "pair", true))
+			run(fixture.TypedTableAttachment("tt", "pair", true))
 			run(fixture.Select("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(11)}}))
 			var after bytes.Buffer
 			if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil || !bytes.Equal(after.Bytes(), dump.Bytes()) {
@@ -102,7 +102,7 @@ func TestReferenceTypedTableTemporaryReaderFence(t *testing.T) {
 				t.Fatal("reader-time rejection changed persistent state", err)
 			}
 		}
-		run(typedTableAttachment("late", "pair", true))
+		run(fixture.TypedTableAttachment("late", "pair", true))
 		run(fixture.Select("SELECT * FROM late", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		run(fixture.Select("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(11)}}))
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM late", []string{"id"}, []string{"INT4"}, []bool{false}, 1)

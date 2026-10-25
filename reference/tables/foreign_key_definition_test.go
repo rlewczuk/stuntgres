@@ -20,24 +20,6 @@ func foreignKeyScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixtu
 	}
 }
 
-func foreignKeyError(code, message, detail, table, constraint string) fixture.Diagnostic {
-	d := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail, Table: table, Constraint: constraint}
-	if table != "" {
-		d.Schema = "public"
-	}
-	return d
-}
-func foreignKeyChild(table, constraint, detail string) fixture.Diagnostic {
-	return foreignKeyError("23503", `insert or update on table "`+table+`" violates foreign key constraint "`+constraint+`"`, detail, table, constraint)
-}
-func foreignKeyParent(parent, child, constraint, detail string) fixture.Diagnostic {
-	return foreignKeyError("23503", `update or delete on table "`+parent+`" violates foreign key constraint "`+constraint+`" on table "`+child+`"`, detail, child, constraint)
-}
-func foreignKeyFail(q string, d fixture.Diagnostic, prepared bool) fixture.Step {
-	s := fixture.ErrorDiagnostic(q, d)
-	s.Prepared, s.ErrorStage = prepared, "execute"
-	return s
-}
 func foreignKeyIntRows(q, column string, values ...int64) fixture.Step {
 	var rows [][]any
 	for _, v := range values {
@@ -73,7 +55,7 @@ func TestReferenceForeignKeyDefinition(t *testing.T) {
 			if strings.Contains(q, "(1,9)") {
 				column = "b"
 			}
-			run(foreignKeyFail(q, foreignKeyChild("multiple", "multiple_"+column+"_fkey", "Key ("+column+")=(9) is not present in table \"single\"."), false))
+			run(fixture.ForeignKeyFail(q, fixture.ForeignKeyChild("multiple", "multiple_"+column+"_fkey", "Key ("+column+")=(9) is not present in table \"single\"."), false))
 		}
 		run(fixture.Select("SELECT c.conname,c.contype FROM pg_constraint c JOIN pg_class r ON c.conrelid=r.oid WHERE r.relname='reversed' ORDER BY c.conname", []string{"conname", "contype"}, []string{"NAME", "CHAR"}, [][]any{{"reversed_fk", "f"}}))
 		run(fixture.Select("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='reversed_fk'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"FOREIGN KEY (b, a) REFERENCES p(b, a)"}}))
@@ -101,7 +83,7 @@ func TestReferenceForeignKeyDiagnostics(t *testing.T) {
 					run(fixture.Exec("CREATE VIEW p AS SELECT id FROM base", 0))
 				}
 				for _, prepared := range []bool{false, true} {
-					run(foreignKeyFail(tc.query, foreignKeyError(tc.code, tc.message, tc.detail, "", ""), prepared))
+					run(fixture.ForeignKeyFail(tc.query, fixture.ForeignKeyError(tc.code, tc.message, tc.detail, "", ""), prepared))
 					run(fixture.Select("SELECT relname FROM pg_class WHERE relname='c'", []string{"relname"}, []string{"NAME"}, nil))
 				}
 			})
@@ -119,16 +101,16 @@ func TestReferenceForeignKeyValues(t *testing.T) {
 			s := fixture.Exec("INSERT INTO simple VALUES($1,$2)", 1, 1, "x")
 			s.Prepared = prepared
 			run(s)
-			s = foreignKeyFail("INSERT INTO simple VALUES($1,$2)", foreignKeyChild("simple", "simple_a_b_fkey", `Key (a, b)=(3, z) is not present in table "p".`), prepared)
+			s = fixture.ForeignKeyFail("INSERT INTO simple VALUES($1,$2)", fixture.ForeignKeyChild("simple", "simple_a_b_fkey", `Key (a, b)=(3, z) is not present in table "p".`), prepared)
 			s.Args = []any{3, "z"}
 			run(s)
 		}
 		run(fixture.Exec("INSERT INTO simple VALUES(NULL,'z'),(1,NULL)", 2))
 		run(fixture.Exec("INSERT INTO fullkey VALUES(NULL,NULL),(1,'x')", 2))
 		for _, prepared := range []bool{false, true} {
-			run(foreignKeyFail("INSERT INTO fullkey VALUES(NULL,'x')", foreignKeyChild("fullkey", "fk", "MATCH FULL does not allow mixing of null and nonnull key values."), prepared))
-			run(foreignKeyFail("INSERT INTO fullkey VALUES(3,'z')", foreignKeyChild("fullkey", "fk", `Key (a, b)=(3, z) is not present in table "p".`), prepared))
-			run(foreignKeyFail("INSERT INTO fullkey VALUES(2,'y'),(NULL,'x')", foreignKeyChild("fullkey", "fk", "MATCH FULL does not allow mixing of null and nonnull key values."), prepared))
+			run(fixture.ForeignKeyFail("INSERT INTO fullkey VALUES(NULL,'x')", fixture.ForeignKeyChild("fullkey", "fk", "MATCH FULL does not allow mixing of null and nonnull key values."), prepared))
+			run(fixture.ForeignKeyFail("INSERT INTO fullkey VALUES(3,'z')", fixture.ForeignKeyChild("fullkey", "fk", `Key (a, b)=(3, z) is not present in table "p".`), prepared))
+			run(fixture.ForeignKeyFail("INSERT INTO fullkey VALUES(2,'y'),(NULL,'x')", fixture.ForeignKeyChild("fullkey", "fk", "MATCH FULL does not allow mixing of null and nonnull key values."), prepared))
 		}
 		s := fixture.Select("SELECT a,b FROM simple", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "x"}, {int64(1), "x"}, {nil, "z"}, {int64(1), nil}})
 		s.Bag = true
@@ -197,7 +179,7 @@ func TestReferenceForeignKeyBoundaries(t *testing.T) {
 	foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 		run(fixture.Exec("CREATE TABLE p(id INT PRIMARY KEY)", 0))
 		q := `CREATE TABLE "é"(pid INT REFERENCES p MATCH PARTIAL)`
-		d := foreignKeyError("0A000", "MATCH PARTIAL not yet implemented", "", "", "")
+		d := fixture.ForeignKeyError("0A000", "MATCH PARTIAL not yet implemented", "", "", "")
 		d.Position = fixture.Position(utf8.RuneCountInString(q[:strings.Index(q, "MATCH")]) + 1)
 		for _, prepared := range []bool{false, true} {
 			s := fixture.ErrorDiagnostic(q, d)
@@ -221,6 +203,6 @@ func TestReferenceForeignKeyDefinitionNames(t *testing.T) {
 		run(fixture.Select("SELECT c.conname,c.contype FROM pg_constraint c JOIN pg_class r ON c.conrelid=r.oid WHERE r.relname='c' ORDER BY c.conname", []string{"conname", "contype"}, []string{"NAME", "CHAR"}, [][]any{{"c_a_fkey", "f"}, {"c_a_fkey1", "f"}, {"explicit", "f"}}))
 		run(fixture.Exec(`INSERT INTO "p""é" VALUES(1)`, 1))
 		run(fixture.Exec("INSERT INTO c VALUES(1)", 1))
-		run(foreignKeyFail("INSERT INTO c VALUES(9)", foreignKeyChild("c", "explicit", `Key (a)=(9) is not present in table "p"é".`), false))
+		run(fixture.ForeignKeyFail("INSERT INTO c VALUES(9)", fixture.ForeignKeyChild("c", "explicit", `Key (a)=(9) is not present in table "p"é".`), false))
 	})
 }

@@ -49,17 +49,17 @@ func TestReferenceForeignKeyTypeAtomicity(t *testing.T) {
 			query string
 			error fixture.Diagnostic
 		}{
-			{"ALTER TABLE type_parent ALTER id TYPE BIGINT USING id+10", foreignKeyChild("type_child", "type_fk", `Key (pid)=(1) is not present in table "type_parent".`)},
-			{"ALTER TABLE type_child ALTER pid TYPE BIGINT USING pid+10", foreignKeyChild("type_child", "type_fk", `Key (pid)=(11) is not present in table "type_parent".`)},
-			{"ALTER TABLE type_parent ALTER id TYPE TEXT USING id::text", foreignKeyError("42804", `foreign key constraint "type_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: integer and text.`, "", "")},
-			{"ALTER TABLE type_child ALTER pid TYPE TEXT USING pid::text", foreignKeyError("42804", `foreign key constraint "type_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: text and integer.`, "", "")},
-			{"ALTER TABLE type_child ALTER pid TYPE NUMERIC USING pid::numeric", foreignKeyError("42804", `foreign key constraint "type_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: numeric and integer.`, "", "")},
+			{"ALTER TABLE type_parent ALTER id TYPE BIGINT USING id+10", fixture.ForeignKeyChild("type_child", "type_fk", `Key (pid)=(1) is not present in table "type_parent".`)},
+			{"ALTER TABLE type_child ALTER pid TYPE BIGINT USING pid+10", fixture.ForeignKeyChild("type_child", "type_fk", `Key (pid)=(11) is not present in table "type_parent".`)},
+			{"ALTER TABLE type_parent ALTER id TYPE TEXT USING id::text", fixture.ForeignKeyError("42804", `foreign key constraint "type_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: integer and text.`, "", "")},
+			{"ALTER TABLE type_child ALTER pid TYPE TEXT USING pid::text", fixture.ForeignKeyError("42804", `foreign key constraint "type_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: text and integer.`, "", "")},
+			{"ALTER TABLE type_child ALTER pid TYPE NUMERIC USING pid::numeric", fixture.ForeignKeyError("42804", `foreign key constraint "type_fk" cannot be implemented`, `Key columns "pid" of the referencing table and "id" of the referenced table are of incompatible types: numeric and integer.`, "", "")},
 		} {
 			for _, prepared := range []bool{false, true} {
-				run(foreignKeyFail(tc.query, tc.error, prepared))
+				run(fixture.ForeignKeyFail(tc.query, tc.error, prepared))
 				unchanged()
 				run(fixture.Prepared(fixture.Exec("INSERT INTO type_child VALUES(2,'probe')", 1)))
-				run(foreignKeyFail("INSERT INTO type_child VALUES(9,'missing')", foreignKeyChild("type_child", "type_fk", `Key (pid)=(9) is not present in table "type_parent".`), true))
+				run(fixture.ForeignKeyFail("INSERT INTO type_child VALUES(9,'missing')", fixture.ForeignKeyChild("type_child", "type_fk", `Key (pid)=(9) is not present in table "type_parent".`), true))
 				run(fixture.Prepared(fixture.Exec("DELETE FROM type_child WHERE note='probe'", 1)))
 				unchanged()
 			}
@@ -90,12 +90,12 @@ func TestReferenceForeignKeyTypeAtomicity(t *testing.T) {
 		runHeld(fixture.Exec("INSERT INTO type_child VALUES($1,$2)", 1, int64(2), "recovery"))
 		// The retained INSERT above keeps its original inferred INT parameter
 		// signature. A fresh BIGINT signature exercises FK lookup, not int4 input.
-		s := foreignKeyFail("INSERT INTO type_child VALUES($1::BIGINT,$2)", foreignKeyChild("type_child", "type_fk", `Key (pid)=(2147483648) is not present in table "type_parent".`), true)
+		s := fixture.ForeignKeyFail("INSERT INTO type_child VALUES($1::BIGINT,$2)", fixture.ForeignKeyChild("type_child", "type_fk", `Key (pid)=(2147483648) is not present in table "type_parent".`), true)
 		s.Args = []any{int64(2147483648), "outside_parent_width"}
 		run(s)
-		run(foreignKeyFail("INSERT INTO type_child VALUES(9,'missing')", foreignKeyChild("type_child", "type_fk", `Key (pid)=(9) is not present in table "type_parent".`), true))
+		run(fixture.ForeignKeyFail("INSERT INTO type_child VALUES(9,'missing')", fixture.ForeignKeyChild("type_child", "type_fk", `Key (pid)=(9) is not present in table "type_parent".`), true))
 		run(fixture.Select("SELECT pid,note FROM type_child ORDER BY note", []string{"pid", "note"}, []string{"INT8", "TEXT"}, [][]any{{int64(1), "child"}, {nil, "nullable"}, {int64(2), "recovery"}}))
-		run(foreignKeyFail("DELETE FROM type_parent WHERE id=2", foreignKeyParent("type_parent", "type_child", "type_fk", `Key (id)=(2) is still referenced from table "type_child".`), true))
+		run(fixture.ForeignKeyFail("DELETE FROM type_parent WHERE id=2", fixture.ForeignKeyParent("type_parent", "type_child", "type_fk", `Key (id)=(2) is still referenced from table "type_child".`), true))
 		run(fixture.Select("SELECT id,note FROM type_parent ORDER BY id", []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "parent"}, {int64(2), "untouched"}}))
 	})
 }

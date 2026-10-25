@@ -23,7 +23,7 @@ func TestReferenceTypedTableAtomicityLateConversion(t *testing.T) {
 				value, note = 2147483648, "late"
 			}
 			run(fixture.Select("SELECT * FROM "+table, []string{"id", "note"}, []string{"INT8", "VARCHAR"}, [][]any{{value, note}}))
-			run(typedTableAttachment(table, "pair", true))
+			run(fixture.TypedTableAttachment(table, "pair", true))
 		}
 		run(fixture.Exec("CREATE TABLE probe OF pair", 0))
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM probe", []string{"id", "note"}, []string{"INT8", "VARCHAR"}, []bool{true, true}, 0)
@@ -50,8 +50,8 @@ func TestReferenceTypedTableAtomicityPreCanceled(t *testing.T) {
 			}
 		}
 		run(typedTablePairRows("t", [][]any{{int64(11), "hey"}}))
-		run(typedTableAttachment("t", "pair", true))
-		run(typedTableAttachment("ordinary", "pair", false))
+		run(fixture.TypedTableAttachment("t", "pair", true))
+		run(fixture.TypedTableAttachment("ordinary", "pair", false))
 		run(fixture.Select("SELECT count(*) AS n FROM pg_class WHERE relname='canceled'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
 	})
 }
@@ -74,7 +74,7 @@ func TestReferenceTypedTableAtomicityLockTimeout(t *testing.T) {
 		}
 		run(fixture.Exec("SET lock_timeout=0", 0))
 		run(typedTablePairRows("t", [][]any{{int64(11), "hey"}}))
-		run(typedTableAttachment("t", "pair", true))
+		run(fixture.TypedTableAttachment("t", "pair", true))
 		run(fixture.Exec("CREATE TABLE probe OF pair", 0))
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM probe", []string{"id", "note"}, []string{"INT4", "VARCHAR"}, []bool{true, true}, 0)
 	})

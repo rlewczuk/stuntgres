@@ -5,26 +5,11 @@ import (
 	"testing"
 )
 
-func inheritanceQueryDiamond(s *inheritanceCase) {
-	s.exec("CREATE TABLE p(a INT,x TEXT)", 0)
-	s.exec("CREATE TABLE q(y BOOL,a INT)", 0)
-	s.exec("CREATE TABLE l() INHERITS(p)", 0)
-	s.exec("CREATE TABLE r() INHERITS(p)", 0)
-	s.exec("CREATE TABLE c(z BIGINT) INHERITS(q,l,r)", 0)
-	s.exec("INSERT INTO p VALUES(7,'same'),(7,'same')", 2)
-	s.exec("INSERT INTO l VALUES(7,'same')", 1)
-	s.exec("INSERT INTO c VALUES(true,7,'same',9),(true,7,'same',10)", 2)
-}
-
-func inheritanceQueryFive() [][]any {
-	return [][]any{{int64(7), "same"}, {int64(7), "same"}, {int64(7), "same"}, {int64(7), "same"}, {int64(7), "same"}}
-}
-
 func TestReferenceInheritanceQueryBagDiamond(t *testing.T) {
 	inheritanceScenario(t, func(s *inheritanceCase) {
-		inheritanceQueryDiamond(s)
+		fixture.InheritanceQueryDiamond(s.run)
 		for _, from := range []string{"p", "p*"} {
-			step := fixture.Select("SELECT * FROM "+from, []string{"a", "x"}, []string{"INT4", "TEXT"}, inheritanceQueryFive())
+			step := fixture.Select("SELECT * FROM "+from, []string{"a", "x"}, []string{"INT4", "TEXT"}, fixture.InheritanceQueryFive())
 			step.Bag = true
 			s.run(step)
 		}

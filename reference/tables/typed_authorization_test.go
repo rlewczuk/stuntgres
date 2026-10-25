@@ -36,7 +36,7 @@ func TestReferenceTypedTableAuthorization(t *testing.T) {
 		// PostgreSQL 18.6 (CVE-2026-6470) gates attachment on source USAGE like
 		// CREATE OF: after the composite-source checks, before inheritance/shape.
 		fixture.CompositeReferenceError(t, p, c, "ALTER TABLE public.mine OF public.pair", "execute", typedTableError("42501", "permission denied for type pair"))
-		run(typedTableAttachment("public.mine", "public.pair", false))
+		run(fixture.TypedTableAttachment("public.mine", "public.pair", false))
 		fixture.CompositeReferenceError(t, p, c, "ALTER TABLE public.mine OF public.mood", "execute", typedTableError("42809", "type mood is not a composite type"))
 		rowType := typedTableError("42809", "type rowsrc is the row type of another table")
 		rowType.Detail = "A typed table must use a stand-alone composite type created with CREATE TYPE."
@@ -51,7 +51,7 @@ func TestReferenceTypedTableAuthorization(t *testing.T) {
 		run(fixture.Exec("GRANT USAGE ON TYPE public.pair TO "+role, 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
 		run(fixture.Exec("ALTER TABLE public.mine OF public.pair", 0))
-		run(typedTableAttachment("public.mine", "public.pair", true))
+		run(fixture.TypedTableAttachment("public.mine", "public.pair", true))
 		run(fixture.Exec("INSERT INTO public.mine VALUES(11)", 1))
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		run(fixture.Exec("REVOKE USAGE ON TYPE public.pair FROM "+role, 0))
@@ -96,12 +96,12 @@ func TestReferenceTypedTableProviderACL(t *testing.T) {
 		denied("CREATE TABLE denied OF pair", "permission denied for type pair")
 		run(fixture.Select("SELECT count(*) AS n FROM pg_class WHERE relname='denied'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		denied("ALTER TABLE mine OF pair", "permission denied for type pair")
-		run(typedTableAttachment("mine", "pair", false))
+		run(fixture.TypedTableAttachment("mine", "pair", false))
 		as(owner)
 		run(fixture.Exec("GRANT USAGE ON TYPE pair TO "+reader, 0))
 		as(reader)
 		run(fixture.Exec("ALTER TABLE mine OF pair", 0))
-		run(typedTableAttachment("mine", "pair", true))
+		run(fixture.TypedTableAttachment("mine", "pair", true))
 		run(fixture.Select("SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE c.oid='mine'::regclass::oid", []string{"rolname"}, []string{"NAME"}, [][]any{{reader}}))
 		// Source ownership does not extend to typed tables owned by other roles.
 		as(owner)
@@ -119,8 +119,8 @@ func TestReferenceTypedTableProviderACL(t *testing.T) {
 		admin()
 		rows("mine", []string{"id"}, []string{"INT4"}, []any{int64(11)})
 		rows("typed", []string{"id"}, []string{"INT4"}, []any{int64(5)})
-		run(typedTableAttachment("typed", "pair", true))
-		run(typedTableAttachment("mine", "pair", true))
+		run(fixture.TypedTableAttachment("typed", "pair", true))
+		run(fixture.TypedTableAttachment("mine", "pair", true))
 		as(reader)
 		run(fixture.Exec("ALTER TABLE mine NOT OF", 0))
 		as(owner)

@@ -149,7 +149,7 @@ func TestReferenceFDWImportDefaultPersistence(t *testing.T) {
 						case "malformed":
 							input = strings.NewReader(snapshot.String() + "ALTER FOREIGN TABLE fdw_import.default_a ALTER COLUMN ref SET DEFAULT (")
 						case "reader":
-							input = &referenceRangeErrorReader{err: failure}
+							input = &fixture.ReferenceRangeErrorReader{Err: failure}
 						case "cancel":
 							var cancel context.CancelFunc
 							ctx, cancel = context.WithCancel(p.Ctx)

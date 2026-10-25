@@ -36,7 +36,7 @@ func TestReferenceTypedTableInheritedPropagation(t *testing.T) {
 			}
 			run(fixture.Select("SELECT * FROM "+table, names, types, [][]any{inherited}))
 			if table == "t" {
-				run(typedTableAttachment(table, "pair", true))
+				run(fixture.TypedTableAttachment(table, "pair", true))
 			}
 			if table == "diamond" {
 				fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM diamond", names, types, makeNullable(len(names)), 1)
@@ -76,6 +76,6 @@ func TestReferenceTypedTableInheritedCollisionAtomicity(t *testing.T) {
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM t LIMIT 0", []string{"id"}, []string{"INT4"}, []bool{true}, 0)
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM ONLY t LIMIT 0", []string{"id"}, []string{"INT4"}, []bool{true}, 0)
 		fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM child LIMIT 0", []string{"id", "flag"}, []string{"INT4", "TEXT"}, []bool{true, true}, 0)
-		run(typedTableAttachment("t", "pair", true))
+		run(fixture.TypedTableAttachment("t", "pair", true))
 	})
 }

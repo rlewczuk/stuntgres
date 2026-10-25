@@ -30,11 +30,11 @@ func TestReferenceForeignActionsDefaults(t *testing.T) {
 							q = fmt.Sprintf("UPDATE p SET id=3 WHERE id=%d", old)
 						}
 						if def == "0" || def == "9" {
-							d := foreignKeyParent("p", "c", "fk", `Key (id)=(0) is still referenced from table "c".`)
+							d := fixture.ForeignKeyParent("p", "c", "fk", `Key (id)=(0) is still referenced from table "c".`)
 							if def == "9" {
-								d = foreignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`)
+								d = fixture.ForeignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`)
 							}
-							run(foreignKeyFail(q, d, prepared))
+							run(fixture.ForeignKeyFail(q, d, prepared))
 							run(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 0, 1, 2))
 						} else {
 							run(foreignActionsExec(q, 1, prepared))
@@ -102,8 +102,8 @@ func TestReferenceForeignActionsDefaultsFailures(t *testing.T) {
 					if tc.typ == "VARCHAR(2)" {
 						query = `UPDATE ONLY "public"."c" SET "pid" = DEFAULT WHERE $1::pg_catalog.text OPERATOR(pg_catalog.=) "pid"::pg_catalog.text`
 					}
-					d := foreignActionsContext(foreignKeyError(tc.code, tc.message, "", "", ""), query)
-					run(foreignKeyFail("DELETE FROM p", d, prepared))
+					d := foreignActionsContext(fixture.ForeignKeyError(tc.code, tc.message, "", "", ""), query)
+					run(fixture.ForeignKeyFail("DELETE FROM p", d, prepared))
 					typ := "INT4"
 					var old any = int64(2)
 					if tc.typ == "VARCHAR(2)" {

@@ -48,11 +48,11 @@ func TestReferenceForeignActionsPrepared(t *testing.T) {
 						step(fixture.Exec("INSERT INTO c VALUES(2),(2)", 2))
 						step(fixture.Exec("ALTER TABLE c ALTER pid SET DEFAULT 0", 0))
 						if action == "NO ACTION" || action == "RESTRICT" {
-							d := foreignKeyParent("p", "c", "fk", `Key (id)=(2) is still referenced from table "c".`)
+							d := fixture.ForeignKeyParent("p", "c", "fk", `Key (id)=(2) is still referenced from table "c".`)
 							if action == "RESTRICT" {
 								d = foreignActionsRestrict("p", "c", "fk", `Key (id)=(2) is referenced from table "c".`)
 							}
-							execute(foreignKeyFail(executeQ, d, false))
+							execute(fixture.ForeignKeyFail(executeQ, d, false))
 							step(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 0, 1, 2))
 							step(foreignKeyIntRows("SELECT pid FROM c", "pid", 2, 2))
 						} else {
@@ -128,7 +128,7 @@ func TestReferenceForeignActionsPreparedAuthorization(t *testing.T) {
 		}
 		defer stmt.Close()
 		run(fixture.Exec("REVOKE DELETE ON p FROM fa_actor", 0))
-		s := foreignKeyFail(q, foreignKeyError("42501", "permission denied for table p", "", "", ""), false)
+		s := fixture.ForeignKeyFail(q, fixture.ForeignKeyError("42501", "permission denied for table p", "", "", ""), false)
 		s.Args = []any{1}
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}, b.Recorder, s)
 		run(fixture.Exec("GRANT DELETE ON p TO fa_actor", 0))

@@ -28,15 +28,15 @@ func TestReferenceForeignActionsDiagnosticsNested(t *testing.T) {
 						t.Fatal(err)
 					}
 					def, action := " NOT NULL", "SET NULL"
-					d := foreignKeyError("23502", `null value in column "pid" of relation "c" violates not-null constraint`, "Failing row contains (10, null, secret).", "c", "")
+					d := fixture.ForeignKeyError("23502", `null value in column "pid" of relation "c" violates not-null constraint`, "Failing row contains (10, null, secret).", "c", "")
 					d.Column = "pid"
 					if kind == "check" {
 						def, action = " CONSTRAINT ck CHECK(pid>1)", "SET DEFAULT"
-						d = foreignKeyError("23514", `new row for relation "c" violates check constraint "ck"`, "Failing row contains (10, 1, secret).", "c", "ck")
+						d = fixture.ForeignKeyError("23514", `new row for relation "c" violates check constraint "ck"`, "Failing row contains (10, 1, secret).", "c", "ck")
 					}
 					if kind == "foreign-key" {
 						def, action = "", "SET DEFAULT"
-						d = foreignKeyChild("c", "fk", `Key (pid)=(1) is not present in table "p".`)
+						d = fixture.ForeignKeyChild("c", "fk", `Key (pid)=(1) is not present in table "p".`)
 					}
 					step(fixture.Exec("SET ROLE fa_owner", 0))
 					step(fixture.Exec("CREATE TABLE c(id INT,pid INT DEFAULT 1"+def+" CONSTRAINT fk REFERENCES p ON DELETE "+action+",note TEXT)", 0))
@@ -64,7 +64,7 @@ func TestReferenceForeignActionsDiagnosticsNested(t *testing.T) {
 					}
 					step(fixture.Exec("SET ROLE fa_actor", 0))
 					for _, prepared := range []bool{false, true} {
-						step(foreignKeyFail("DELETE FROM p", d, prepared))
+						step(fixture.ForeignKeyFail("DELETE FROM p", d, prepared))
 						step(fixture.Select("SELECT current_user,session_user", []string{"current_user", "session_user"}, []string{"NAME", "NAME"}, [][]any{{"fa_actor", login}}))
 						run(fixture.Select("SELECT id,pid,note FROM c", []string{"id", "pid", "note"}, []string{"INT4", "INT4", "TEXT"}, [][]any{{int64(10), int64(2), "secret"}}))
 						if kind != "foreign-key" {

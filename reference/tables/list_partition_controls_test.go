@@ -307,7 +307,7 @@ func TestReferenceListPartitionReplayBoundary(t *testing.T) {
 		}
 		check()
 		ioFailure := errors.New("LIST restore I/O sentinel")
-		if err := stuntgres.Restore(p.Ctx, p.Native, &referenceRangeErrorReader{err: ioFailure}); !errors.Is(err, ioFailure) {
+		if err := stuntgres.Restore(p.Ctx, p.Native, &fixture.ReferenceRangeErrorReader{Err: ioFailure}); !errors.Is(err, ioFailure) {
 			t.Fatal(err)
 		}
 		check()
