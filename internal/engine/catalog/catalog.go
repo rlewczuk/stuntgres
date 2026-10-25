@@ -160,6 +160,7 @@ type State struct {
 	namespaceGeneration uint64
 	descriptors         util.PersistentMap[ids.ObjectAddress, Descriptor]
 	names               util.PersistentMap[ids.NameKey, ids.ObjectAddress]
+	relations           util.PersistentMap[ids.ObjectAddress, *Relation]
 	bulk                *stateBulk
 	operatorNames       *OperatorNameIndex
 	procedureNames      *ProcedureNameIndex
@@ -250,7 +251,7 @@ func (Conflict) Error() string { return "stuntgres: catalog publication conflict
 // other.
 func CloneState(s *State) *State {
 	s.mustNotBulkLoad()
-	n := &State{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: s.descriptors, names: s.names}
+	n := &State{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: s.descriptors, names: s.names, relations: s.relations}
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
 	n.procedureNames = s.procedureNames

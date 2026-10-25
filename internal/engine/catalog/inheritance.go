@@ -9,8 +9,8 @@ import (
 )
 
 func InheritanceHasChildren(v Read, parent ids.ObjectAddress) bool {
-	for _, descriptor := range v.Descriptors() {
-		if d, ok := descriptor.(*Relation); ok && d.Inheritance.HasParent(parent) {
+	for _, d := range v.Relations() {
+		if d.Inheritance.HasParent(parent) {
 			return true
 		}
 	}
@@ -19,12 +19,8 @@ func InheritanceHasChildren(v Read, parent ids.ObjectAddress) bool {
 
 func InheritanceChildren(v Read, parent ids.ObjectAddress) []*Relation {
 	var children []*Relation
-	for address := range v.Descriptors() {
-		if address.ClassID != ids.RelationClassID {
-			continue
-		}
-		d, ok := v.Relation(address)
-		if ok && d.Inheritance.HasParent(parent) {
+	for address, d := range v.Relations() {
+		if address.ClassID == ids.RelationClassID && d.Inheritance.HasParent(parent) {
 			children = append(children, d)
 		}
 	}

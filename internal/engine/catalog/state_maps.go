@@ -25,6 +25,7 @@ import (
 type stateBulk struct {
 	descriptors map[ids.ObjectAddress]Descriptor
 	names       map[ids.NameKey]ids.ObjectAddress
+	relations   map[ids.ObjectAddress]*Relation
 }
 
 // BeginBulkLoad moves s's entries into Go maps with room for capacity
@@ -37,12 +38,16 @@ func (s *State) BeginBulkLoad(capacity int) {
 	b := &stateBulk{
 		descriptors: make(map[ids.ObjectAddress]Descriptor, max(capacity, s.descriptors.Len())),
 		names:       make(map[ids.NameKey]ids.ObjectAddress, max(capacity, s.names.Len())),
+		relations:   make(map[ids.ObjectAddress]*Relation, s.relations.Len()),
 	}
 	for a, d := range s.descriptors.All() {
 		b.descriptors[a] = d
 	}
 	for k, a := range s.names.All() {
 		b.names[k] = a
+	}
+	for a, r := range s.relations.All() {
+		b.relations[a] = r
 	}
 	s.bulk = b
 }
@@ -54,6 +59,7 @@ func (s *State) EndBulkLoad() {
 	}
 	s.descriptors = util.PersistentMapOf(s.bulk.descriptors)
 	s.names = util.PersistentMapOf(s.bulk.names)
+	s.relations = util.PersistentMapOf(s.bulk.relations)
 	s.bulk = nil
 }
 
@@ -67,6 +73,7 @@ func (s *State) EndBulkLoadWithNames(names util.PersistentMap[ids.NameKey, ids.O
 	}
 	s.descriptors = util.PersistentMapOf(s.bulk.descriptors)
 	s.names = names
+	s.relations = util.PersistentMapOf(s.bulk.relations)
 	s.bulk = nil
 }
 

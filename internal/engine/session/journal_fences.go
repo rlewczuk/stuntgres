@@ -54,9 +54,8 @@ type IndexSetFence struct {
 // NewIndexSetFence records the indexes of parent in committed.
 func NewIndexSetFence(committed *catalog.State, parent ids.ObjectAddress) IndexSetFence {
 	f := IndexSetFence{parent: parent, indexes: map[ids.ObjectAddress]bool{}}
-	for a, d := range committed.Descriptors() {
-		r, ok := d.(*catalog.Relation)
-		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == parent {
+	for a, r := range committed.Relations() {
+		if r.SQLIndex != nil && r.SQLIndex.Parent == parent {
 			f.indexes[a] = true
 		}
 	}
@@ -67,9 +66,8 @@ func (IndexSetFence) Kind() FenceKind { return FenceIndexSet }
 
 func (f IndexSetFence) Current(committed *catalog.State, _ map[ids.ObjectAddress]*storage.Relation) error {
 	count := 0
-	for a, d := range committed.Descriptors() {
-		r, ok := d.(*catalog.Relation)
-		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == f.parent {
+	for a, r := range committed.Relations() {
+		if r.SQLIndex != nil && r.SQLIndex.Parent == f.parent {
 			if !f.indexes[a] {
 				return catalog.Conflict{}
 			}

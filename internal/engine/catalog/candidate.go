@@ -158,6 +158,7 @@ func (c *Candidate) State() *State {
 	base := c.Base.state
 	base.mustNotBulkLoad()
 	ds := base.descriptors.Transient()
+	rs := base.relations.Transient()
 	ns := base.names.Transient()
 	operators := OperatorIndexEdit{Index: base.operatorNames}
 	procedures := ProcedureIndexEdit{Index: base.procedureNames}
@@ -168,6 +169,7 @@ func (c *Candidate) State() *State {
 		procedures.Replace(c.Base.Get(a), c.descriptors[a])
 		casts.updateCastIndex(c.Base.Get(a), c.descriptors[a])
 		ds.Delete(a)
+		rs.Delete(a)
 		ns.Delete(DescriptorNameKey(d))
 	}
 	for k := range c.oldNames {
@@ -180,11 +182,16 @@ func (c *Candidate) State() *State {
 			casts.updateCastIndex(c.Base.Get(k), v)
 		}
 		ds.Set(k, v)
+		if r, ok := v.(*Relation); ok {
+			rs.Set(k, r)
+		} else {
+			rs.Delete(k)
+		}
 	}
 	for k, v := range c.names {
 		ns.Set(k, v)
 	}
-	next := &State{epoch: c.Base.Epoch(), namespaceGeneration: base.namespaceGeneration, descriptors: ds.Persistent(), names: ns.Persistent(), operatorNames: operators.Index, procedureNames: procedures.Index, castPairs: casts.castPairs, defaultACLs: overlayDefaultACLs(base.defaultACLs, c.defaultACLs), dumpPriorities: base.dumpPriorities}
+	next := &State{epoch: c.Base.Epoch(), namespaceGeneration: base.namespaceGeneration, descriptors: ds.Persistent(), names: ns.Persistent(), relations: rs.Persistent(), operatorNames: operators.Index, procedureNames: procedures.Index, castPairs: casts.castPairs, defaultACLs: overlayDefaultACLs(base.defaultACLs, c.defaultACLs), dumpPriorities: base.dumpPriorities}
 	next.defaultClasses = base.defaultClasses
 	for a := range c.removals {
 		next.updateDefaultClasses(c.Base.Get(a), nil)

@@ -26,9 +26,8 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 		return writes, deletes, c, nil
 	}
 	var cleared, dropped []ids.ObjectAddress
-	for a, descriptor := range base.Descriptors() {
-		table, ok := descriptor.(*catalog.Relation)
-		if !ok || table.RelationKind != catalog.TableRelation || table.OnCommit != parser.OnCommitDelete && table.OnCommit != parser.OnCommitDrop {
+	for a, table := range base.Relations() {
+		if table.RelationKind != catalog.TableRelation || table.OnCommit != parser.OnCommitDelete && table.OnCommit != parser.OnCommitDrop {
 			continue
 		}
 		ns := base.MustNamespace(table.Namespace())

@@ -180,6 +180,8 @@ func (r Read) Descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	return r.state.Descriptors()
 }
 
+func (r Read) Relations() iter.Seq2[ids.ObjectAddress, *Relation] { return r.state.Relations() }
+
 func (r Read) DescriptorCount() int { return r.state.DescriptorCount() }
 
 func (r Read) NameAddress(k ids.NameKey) ids.ObjectAddress { return r.state.NameAddress(k) }

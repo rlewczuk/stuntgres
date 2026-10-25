@@ -31,17 +31,14 @@ type SnapshotCapture struct {
 func CaptureSnapshot(ctx context.Context, c SnapshotCapture) (*Snapshot, error) {
 	view, relations, roots, frontier, parents := c.View, c.Relations, c.Roots, c.Frontier, c.Parents
 	snapshot := &Snapshot{Sources: make(map[ids.ObjectAddress]SnapshotSource)}
-	for address, descriptor := range view.Descriptors() {
-		if parents != nil {
-			index, ok := descriptor.(*catalog.Relation)
-			if !ok || index.SQLIndex == nil || parents[index.SQLIndex.Parent] == nil {
-				continue
-			}
+	for address, relation := range view.Relations() {
+		if parents != nil && (relation.SQLIndex == nil || parents[relation.SQLIndex.Parent] == nil) {
+			continue
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if relation, ok := descriptor.(*catalog.Relation); ok && PartitionNeedsRowHistory(view, relation) {
+		if PartitionNeedsRowHistory(view, relation) {
 			store := relations[address]
 			if store == nil || store != c.Store(address) {
 				return nil, ids.ErrCatalogReplaced
@@ -51,8 +48,8 @@ func CaptureSnapshot(ctx context.Context, c SnapshotCapture) (*Snapshot, error) 
 			}
 			snapshot.PartitionRows[address] = PartitionRowHistory{Relation: relation, Store: *store, Frontier: frontier}
 		}
-		idx, ok := descriptor.(*catalog.Relation)
-		if !ok || idx.SQLIndex == nil || !idx.SQLIndex.Ready || !idx.SQLIndex.Live {
+		idx := relation
+		if idx.SQLIndex == nil || !idx.SQLIndex.Ready || !idx.SQLIndex.Live {
 			continue
 		}
 		parent, ok := view.Relation(idx.SQLIndex.Parent)

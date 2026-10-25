@@ -17,9 +17,8 @@ func (q *QueryScopeState) PartialIndexCandidate(parent ids.ObjectRef, query expr
 		return nil
 	}
 	var chosen *catalog.Relation
-	for _, descriptor := range q.Auth.ReadCatalog().Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address || index.SQLIndex.Predicate == nil {
+	for _, index := range q.Auth.ReadCatalog().Relations() {
+		if index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address || index.SQLIndex.Predicate == nil {
 			continue
 		}
 		if !PartialPredicateImpliedBy(query, index.SQLIndex.Predicate.Definition) {

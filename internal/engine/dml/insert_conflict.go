@@ -40,9 +40,8 @@ func (c *InsertConflictState) SelectArbiters(ctx *exec.Context, parent *catalog.
 	if c.Constraint != (ids.ObjectAddress{}) && c.NamedIndex == (ids.ObjectAddress{}) {
 		return sqlError("42809", "constraint in ON CONFLICT clause has no associated index")
 	}
-	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
+	for _, index := range view.Relations() {
+		if index.SQLIndex == nil {
 			continue
 		}
 		def := index.SQLIndex

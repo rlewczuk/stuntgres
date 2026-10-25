@@ -47,23 +47,29 @@ private frames, not catalog authority.
   first error; checked accessors (`stored.ViewOf`, `stored.RulesOf`,
   `stored.TriggersOf`, `stored.PolicyOf`, ...) recover the concrete types.
 - **State and Read** (`read.go`, `state_access.go`). `State` is one catalog
-  snapshot (epoch, namespace generation, descriptor and name maps,
-  operator/procedure name indexes, derived class-default buckets, default ACL
-  records, dump priorities, replacement translations); `Read` is a state plus
-  its `Owner`. Fields are
-  private. Typed accessors live once on `*State` and `Read` delegates: `Kind(a)`
-  is the comma-ok assertion, `MustKind(a)` panics like a failed one;
-  `Get`/`Find`, `LookupName`, the `Descriptors`/`Names` iterators and the counts
-  read the maps. `Descriptor`, `Lookup`, `LookupType` and `LookupArray` guard a
-  nil state, as do the default-bucket cardinality predicates.
+  snapshot (epoch, namespace generation, descriptor and name maps, the derived
+  relation map, operator/procedure name indexes, derived class-default buckets,
+  default ACL records, dump priorities, replacement translations); `Read` is a
+  state plus its `Owner`. Fields are private. Typed accessors live once on
+  `*State` and `Read` delegates: `Kind(a)` is the comma-ok assertion, `MustKind(a)`
+  panics like a failed one; `Get`/`Find`, `LookupName`, the
+  `Descriptors`/`Names`/`Relations` iterators and the counts read the maps. Walks
+  that only look for relations (inheritance children, a table's indexes) use
+  `Relations`, which visits the `*Relation` entries instead of every built-in
+  routine, operator and type. `Descriptor`, `Lookup`, `LookupType` and
+  `LookupArray` guard a nil state, as do the default-bucket cardinality
+  predicates.
 - **Write API** (`state_write.go`, setters in `state_access.go`), only for a state
   still being built: the bootstrap seed, a `CloneState`, a candidate's merged
   state or a replacement before publication.
 - **Storage** (`state_maps.go`). Descriptors and names live in
   `util.PersistentMap`s. `CloneState` and struct copies share them in O(1), and
   `Candidate.State` applies only the change, so publication costs the size of the
-  change. `Descriptors`/`Names` iterate the version current at the call, so a
-  loop may write the state it iterates. Whole-catalog writers (bootstrap seed,
+  change. `Descriptors`/`Names`/`Relations` iterate the version current at the
+  call, so a loop may write the state it iterates. The relation map
+  (`relation_index.go`) holds exactly the descriptor entries whose value is a
+  `*Relation`; `SetDescriptor`, `RemoveDescriptor` and `Candidate.State`
+  maintain it, and copies share it. Whole-catalog writers (bootstrap seed,
   `RemapPrincipals`, replacement remap) bracket the work with
   `BeginBulkLoad`/`EndBulkLoad`; a state in a bulk load is private to its writer
   and copying it panics.
@@ -347,7 +353,7 @@ including the bootstrap inventory in the existing external enginetests owner.
 
 
 ```sh
-make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad)|Candidate|BuiltinRoutineResultInventory|(New)?Store|SeedShare|InstallCatalogSource)'
+make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad|Relations)|Candidate|BuiltinRoutineResultInventory|(New)?Store|SeedShare|InstallCatalogSource)'
 make check RACE=1 RUN='^Test(CastDefinition(PairIndex|CandidateIsolation)|.*PrincipalRemap|OperatorClass(Catalog|Value))'
 make check RUN='^Test(CatalogProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload|UserOperatorIndex)'
 make check RACE=1 RUN='^Test(AccessMethodDescriptor|PgClassSubclass|TableSummary|DefaultPrivileges(PublicationFence|CreationFence)|SQLRoutineStagedLookup|DropReaderSeam)'

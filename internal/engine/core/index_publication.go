@@ -16,11 +16,11 @@ import (
 )
 
 func (e *Engine) EvolveStageIndexesLocked(stage *CatalogStage, typeParent ids.ObjectAddress, transformations []index.ColumnTransformation) error {
-	// Preserve the incumbent map walk. In particular an unrelated staged
-	// relation must not allocate an adapter/iterator/yield closure: the
+	// Walk the base relations without allocating: an unrelated staged
+	// relation must not allocate an adapter/iterator/yield closure. The
 	// selector reads the stage itself, and a provider exists only for an
 	// affected index.
-	for address, descriptor := range stage.Base.Descriptors() {
+	for address, descriptor := range stage.Base.Relations() {
 		idx, parent, staged, affected := index.EvolutionInput(stage, address, descriptor)
 		if !affected {
 			continue
